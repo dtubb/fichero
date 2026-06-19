@@ -37,7 +37,8 @@ public enum RemoteCertificatePinningError: LocalizedError, Equatable {
 // swiftlint:disable:next type_body_length
 public enum RemoteCertificatePinning {
     public static let engineHostUserDefaultsKey = "fichero.engine.host"
-    public static let advertisedSPKIPinUserDefaultsKey = "fichero.remote_access.advertised_spki_pin"
+    public static let legacyAdvertisedSPKIPinUserDefaultsKey = "fichero.remote_access.advertised_spki_pin"
+    private static let advertisedSPKIPinUserDefaultsKeyPrefix = "fichero.remote_access.advertised_spki_pin|"
     private static let clientSPKIPinUserDefaultsKeyPrefix = "fichero.remote_access.client_spki_pin|"
 
     public static func shouldEnforcePinning(for baseURL: URL) -> Bool {
@@ -85,20 +86,27 @@ public enum RemoteCertificatePinning {
         UserDefaults.standard.removeObject(forKey: storageKey)
     }
 
-    public static func advertisedSPKIPin() -> String? {
-        guard let raw = UserDefaults.standard.string(forKey: advertisedSPKIPinUserDefaultsKey) else {
+    public static func advertisedSPKIPin(hostString: String? = nil) -> String? {
+        let storageKey = advertisedSPKIPinUserDefaultsKey(hostString: hostString)
+        guard let raw = UserDefaults.standard.string(forKey: storageKey) else {
             return nil
         }
         return try? validatedSPKIPin(raw)
     }
 
-    public static func persistAdvertisedSPKIPin(_ raw: String) throws {
+    public static func persistAdvertisedSPKIPin(_ raw: String, hostString: String? = nil) throws {
         let normalized = try validatedSPKIPin(raw)
-        UserDefaults.standard.set(normalized, forKey: advertisedSPKIPinUserDefaultsKey)
+        let storageKey = advertisedSPKIPinUserDefaultsKey(hostString: hostString)
+        UserDefaults.standard.set(normalized, forKey: storageKey)
+        UserDefaults.standard.removeObject(forKey: legacyAdvertisedSPKIPinUserDefaultsKey)
     }
 
-    public static func clearAdvertisedSPKIPin() {
-        UserDefaults.standard.removeObject(forKey: advertisedSPKIPinUserDefaultsKey)
+    public static func clearAdvertisedSPKIPin(hostString: String? = nil) {
+        let storageKey = advertisedSPKIPinUserDefaultsKey(hostString: hostString)
+        UserDefaults.standard.removeObject(forKey: storageKey)
+        if hostString == nil {
+            UserDefaults.standard.removeObject(forKey: legacyAdvertisedSPKIPinUserDefaultsKey)
+        }
     }
 
     public static func configuredSession(
@@ -374,6 +382,11 @@ public enum RemoteCertificatePinning {
     private static func clientSPKIPinUserDefaultsKey(hostString: String? = nil) -> String {
         let normalizedHost = AuthTokenMiddleware.normalizedRemoteHostString(hostString: hostString)
         return "\(clientSPKIPinUserDefaultsKeyPrefix)\(normalizedHost)"
+    }
+
+    private static func advertisedSPKIPinUserDefaultsKey(hostString: String? = nil) -> String {
+        let normalizedHost = AuthTokenMiddleware.normalizedRemoteHostString(hostString: hostString)
+        return "\(advertisedSPKIPinUserDefaultsKeyPrefix)\(normalizedHost)"
     }
 
     fileprivate static func challengeHostString(_ protectionSpace: URLProtectionSpace) -> String {

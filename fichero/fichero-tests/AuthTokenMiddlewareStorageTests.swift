@@ -71,6 +71,25 @@ struct AuthTokenMiddlewareStorageTests {
         #expect(root != differentHost)
     }
 
+    @Test("remote token keychain accounts normalize explicit default ports")
+    func remoteTokenKeychainAccountsNormalizeExplicitDefaultPorts() {
+        let httpsDefault = AuthTokenMiddleware.remoteTokenKeychainAccount(
+            hostString: "https://host.tailnet.example:443/api"
+        )
+        let httpsImplicit = AuthTokenMiddleware.remoteTokenKeychainAccount(
+            hostString: "https://host.tailnet.example"
+        )
+        let httpDefault = AuthTokenMiddleware.remoteTokenKeychainAccount(
+            hostString: "http://host.tailnet.example:80"
+        )
+        let httpImplicit = AuthTokenMiddleware.remoteTokenKeychainAccount(
+            hostString: "http://host.tailnet.example"
+        )
+
+        #expect(httpsDefault == httpsImplicit)
+        #expect(httpDefault == httpImplicit)
+    }
+
     @Test("bootstrap file storage and remote keychain routing stay distinct")
     func bootstrapFileStorageAndRemoteKeychainRoutingStayDistinct() {
         let bootstrap = AuthTokenMiddleware.bootstrapTokenFileURL()

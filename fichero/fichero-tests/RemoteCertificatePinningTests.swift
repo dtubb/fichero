@@ -8,15 +8,18 @@ import XCTest
 final class RemoteCertificatePinningTests: XCTestCase {
     private let hostOne = "https://host-one.tailnet.example"
     private let hostTwo = "https://host-two.tailnet.example:8443"
+    private let hostOneDefaultPort = "https://host-one.tailnet.example:443/api"
     private let advertisedPin = Data("advertised-spki".utf8).base64EncodedString()
     private let hostOnePin = Data("host-one-spki".utf8).base64EncodedString()
     private let hostTwoPin = Data("host-two-spki".utf8).base64EncodedString()
 
     override func tearDown() {
         super.tearDown()
-        RemoteCertificatePinning.clearAdvertisedSPKIPin()
+        RemoteCertificatePinning.clearAdvertisedSPKIPin(hostString: hostOne)
+        RemoteCertificatePinning.clearAdvertisedSPKIPin(hostString: hostTwo)
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostOne)
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostTwo)
+        RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostOneDefaultPort)
     }
 
     func testValidatedSPKIPinRejectsMissingPin() {
@@ -60,11 +63,19 @@ final class RemoteCertificatePinningTests: XCTestCase {
     }
 
     func testAdvertisedSPKIPinIsStoredSeparatelyFromClientPins() throws {
-        try RemoteCertificatePinning.persistAdvertisedSPKIPin(advertisedPin)
+        try RemoteCertificatePinning.persistAdvertisedSPKIPin(advertisedPin, hostString: hostOne)
         try RemoteCertificatePinning.persistSPKIPin(hostOnePin, hostString: hostOne)
 
-        XCTAssertEqual(RemoteCertificatePinning.advertisedSPKIPin(), advertisedPin)
+        XCTAssertEqual(RemoteCertificatePinning.advertisedSPKIPin(hostString: hostOne), advertisedPin)
         XCTAssertEqual(RemoteCertificatePinning.persistedSPKIPin(hostString: hostOne), hostOnePin)
+    }
+
+    func testPersistedPinsNormalizeExplicitDefaultPorts() throws {
+        try RemoteCertificatePinning.persistSPKIPin(hostOnePin, hostString: hostOneDefaultPort)
+        try RemoteCertificatePinning.persistAdvertisedSPKIPin(advertisedPin, hostString: hostOneDefaultPort)
+
+        XCTAssertEqual(RemoteCertificatePinning.persistedSPKIPin(hostString: hostOne), hostOnePin)
+        XCTAssertEqual(RemoteCertificatePinning.advertisedSPKIPin(hostString: hostOne), advertisedPin)
     }
 
     #if canImport(Security)

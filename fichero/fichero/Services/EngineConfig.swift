@@ -190,7 +190,6 @@ enum RemoteAccessConfig {
     static let hostingEnabledKey = "fichero.remote_access.enabled"
     static let bonjourEnabledKey = "fichero.remote_access.bonjour_enabled"
     static let publicBaseURLKey = "fichero.remote_access.public_base_url"
-    static let advertisedSPKIPinKey = RemoteCertificatePinning.advertisedSPKIPinUserDefaultsKey
 
     static var hostingEnabled: Bool {
         UserDefaults.standard.bool(forKey: hostingEnabledKey)
@@ -210,8 +209,7 @@ enum RemoteAccessConfig {
     }
 
     static var advertisedSPKIPin: String {
-        (UserDefaults.standard.string(forKey: advertisedSPKIPinKey) ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        RemoteCertificatePinning.advertisedSPKIPin(hostString: publicBaseURLString) ?? ""
     }
 
     static func pairingBackendURL(from publicBaseURLString: String) -> URL? {

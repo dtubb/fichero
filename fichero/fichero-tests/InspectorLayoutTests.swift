@@ -405,6 +405,10 @@ struct DocumentKGPaneRouteTests {
 
     @Test("Knowledge pane request includes library header")
     func requestIncludesLibraryHeader() throws {
+        let originalHost = UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey)
+        defer { restoreEngineHost(originalHost) }
+        UserDefaults.standard.set("http://127.0.0.1:8765", forKey: EngineConfig.userDefaultsKey)
+
         let request = try #require(
             DocumentKGPaneRoute.request(
                 documentId: "doc-123",
@@ -412,6 +416,21 @@ struct DocumentKGPaneRouteTests {
             )
         )
         #expect(request.value(forHTTPHeaderField: "X-Fichero-Library-Path") == "/tmp/Test Library.fichero")
+    }
+
+    @Test("Knowledge pane request refuses remote authenticated web views")
+    func requestRefusesRemoteHosts() {
+        let originalHost = UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey)
+        defer { restoreEngineHost(originalHost) }
+        UserDefaults.standard.set("https://host.tailnet.example", forKey: EngineConfig.userDefaultsKey)
+
+        #expect(DocumentKGPaneRoute.supportsAuthenticatedWebView() == false)
+        #expect(
+            DocumentKGPaneRoute.request(
+                documentId: "doc-123",
+                libraryPath: "/tmp/Test Library.fichero"
+            ) == nil
+        )
     }
 
     @Test("Knowledge pane bootstrap script escapes quotes and newlines")

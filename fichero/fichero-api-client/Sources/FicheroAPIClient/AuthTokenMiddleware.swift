@@ -178,6 +178,11 @@ public struct AuthTokenMiddleware: ClientMiddleware {
 
         components.scheme = components.scheme?.lowercased()
         components.host = components.host?.lowercased()
+        if let scheme = components.scheme?.lowercased(),
+           let port = components.port,
+           (scheme == "https" && port == 443) || (scheme == "http" && port == 80) {
+            components.port = nil
+        }
         components.path = ""
         components.query = nil
         components.fragment = nil

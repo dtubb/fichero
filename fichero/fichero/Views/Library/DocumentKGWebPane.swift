@@ -22,7 +22,14 @@ enum DocumentKGPaneRoute {
         return URL(string: "\(baseURL)/view/document/\(encoded)")
     }
 
+    static func supportsAuthenticatedWebView() -> Bool {
+        !RemoteCertificatePinning.shouldEnforcePinning(for: EngineConfig.host)
+    }
+
     static func request(documentId: String, libraryPath: String) -> URLRequest? {
+        guard supportsAuthenticatedWebView() else {
+            return nil
+        }
         let url: URL?
         if documentId == globalKGDocumentID {
             url = URL(string: "\(baseURL)/view/kg/global")
@@ -33,6 +40,31 @@ enum DocumentKGPaneRoute {
         var request = URLRequest(url: url)
         request.addEngineAuth(libraryPath: libraryPath)
         return request
+    }
+
+    static func unavailableHTML() -> String {
+        """
+        <!doctype html>
+        <html lang="en">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; background: #f6f6f6; color: #222; }
+            main { max-width: 34rem; margin: 0 auto; padding: 2rem 1.25rem; }
+            h1 { font-size: 1.1rem; margin: 0 0 0.75rem; }
+            p { line-height: 1.45; color: #555; margin: 0.5rem 0; }
+          </style>
+        </head>
+        <body>
+          <main>
+            <h1>Knowledge graph web pane is unavailable for remote hosts.</h1>
+            <p>Authenticated KG pages use WKWebView, which does not participate in Fichero's pinned remote transport.</p>
+            <p>Reconnect to the embedded local engine to use this pane.</p>
+          </main>
+        </body>
+        </html>
+        """
     }
 
     static func bootstrapScript(token: String?, libraryPath: String) -> String {
@@ -209,16 +241,18 @@ struct DocumentKGWebPane: NSViewRepresentable {
         let config = WKWebViewConfiguration()
         let controller = config.userContentController
         controller.add(context.coordinator, name: "ficheroBridge")
-        controller.addUserScript(
-            WKUserScript(
-                source: DocumentKGPaneRoute.bootstrapScript(
-                    token: AuthTokenMiddleware.readTokenFromDisk(),
-                    libraryPath: libraryPath
-                ),
-                injectionTime: .atDocumentStart,
-                forMainFrameOnly: true
+        if DocumentKGPaneRoute.supportsAuthenticatedWebView() {
+            controller.addUserScript(
+                WKUserScript(
+                    source: DocumentKGPaneRoute.bootstrapScript(
+                        token: AuthTokenMiddleware.readTokenFromDisk(),
+                        libraryPath: libraryPath
+                    ),
+                    injectionTime: .atDocumentStart,
+                    forMainFrameOnly: true
+                )
             )
-        )
+        }
         // Inject live macOS system colors at document end so they override the
         // template's default :root palette (same specificity, later wins).
         controller.addUserScript(
@@ -277,13 +311,7 @@ struct DocumentKGWebPane: NSViewRepresentable {
         }
 
         func loadIfNeeded(_ webView: WKWebView) {
-            guard
-                lastLoadedDocumentId != parent.documentId || lastLoadedLibraryPath != parent.libraryPath,
-                let request = DocumentKGPaneRoute.request(
-                    documentId: parent.documentId,
-                    libraryPath: parent.libraryPath
-                )
-            else { return }
+            guard lastLoadedDocumentId != parent.documentId || lastLoadedLibraryPath != parent.libraryPath else { return }
 
             lastLoadedDocumentId = parent.documentId
             lastLoadedLibraryPath = parent.libraryPath
@@ -295,10 +323,18 @@ struct DocumentKGWebPane: NSViewRepresentable {
             lastSelectedClaimCharStart = nil
             lastSelectedClaimCharEnd = nil
             lastActivePageNumber = nil
+            guard let request = DocumentKGPaneRoute.request(
+                documentId: parent.documentId,
+                libraryPath: parent.libraryPath
+            ) else {
+                webView.loadHTMLString(DocumentKGPaneRoute.unavailableHTML(), baseURL: nil)
+                return
+            }
             webView.load(request)
         }
 
         func injectContext(into webView: WKWebView) {
+            guard DocumentKGPaneRoute.supportsAuthenticatedWebView() else { return }
             let script = DocumentKGPaneRoute.bootstrapScript(
                 token: AuthTokenMiddleware.readTokenFromDisk(),
                 libraryPath: parent.libraryPath
@@ -522,16 +558,18 @@ struct DocumentKGWebPane: UIViewRepresentable {
         let config = WKWebViewConfiguration()
         let controller = config.userContentController
         controller.add(context.coordinator, name: "ficheroBridge")
-        controller.addUserScript(
-            WKUserScript(
-                source: DocumentKGPaneRoute.bootstrapScript(
-                    token: AuthTokenMiddleware.readTokenFromDisk(),
-                    libraryPath: libraryPath
-                ),
-                injectionTime: .atDocumentStart,
-                forMainFrameOnly: true
+        if DocumentKGPaneRoute.supportsAuthenticatedWebView() {
+            controller.addUserScript(
+                WKUserScript(
+                    source: DocumentKGPaneRoute.bootstrapScript(
+                        token: AuthTokenMiddleware.readTokenFromDisk(),
+                        libraryPath: libraryPath
+                    ),
+                    injectionTime: .atDocumentStart,
+                    forMainFrameOnly: true
+                )
             )
-        )
+        }
         // No live system theme on iOS in this pass; the template defaults apply.
         controller.addUserScript(
             WKUserScript(
@@ -585,13 +623,7 @@ struct DocumentKGWebPane: UIViewRepresentable {
         }
 
         func loadIfNeeded(_ webView: WKWebView) {
-            guard
-                lastLoadedDocumentId != parent.documentId || lastLoadedLibraryPath != parent.libraryPath,
-                let request = DocumentKGPaneRoute.request(
-                    documentId: parent.documentId,
-                    libraryPath: parent.libraryPath
-                )
-            else { return }
+            guard lastLoadedDocumentId != parent.documentId || lastLoadedLibraryPath != parent.libraryPath else { return }
 
             lastLoadedDocumentId = parent.documentId
             lastLoadedLibraryPath = parent.libraryPath
@@ -601,10 +633,18 @@ struct DocumentKGWebPane: UIViewRepresentable {
             lastSelectedClaimCharStart = nil
             lastSelectedClaimCharEnd = nil
             lastActivePageNumber = nil
+            guard let request = DocumentKGPaneRoute.request(
+                documentId: parent.documentId,
+                libraryPath: parent.libraryPath
+            ) else {
+                webView.loadHTMLString(DocumentKGPaneRoute.unavailableHTML(), baseURL: nil)
+                return
+            }
             webView.load(request)
         }
 
         func injectContext(into webView: WKWebView) {
+            guard DocumentKGPaneRoute.supportsAuthenticatedWebView() else { return }
             let script = DocumentKGPaneRoute.bootstrapScript(
                 token: AuthTokenMiddleware.readTokenFromDisk(),
                 libraryPath: parent.libraryPath

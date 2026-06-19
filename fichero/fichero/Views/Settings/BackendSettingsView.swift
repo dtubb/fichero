@@ -18,7 +18,6 @@ struct BackendSettingsView: View {
     @AppStorage(RemoteAccessConfig.hostingEnabledKey) private var hostingEnabled = false
     @AppStorage(RemoteAccessConfig.bonjourEnabledKey) private var bonjourEnabled = false
     @AppStorage(RemoteAccessConfig.publicBaseURLKey) private var publicBaseURL = ""
-    @AppStorage(RemoteAccessConfig.advertisedSPKIPinKey) private var spkiPin = ""
 
     @State private var storageStats: StorageStats?
     @State private var isLoadingStats = false
@@ -29,6 +28,7 @@ struct BackendSettingsView: View {
     @State private var isRestartingHost = false
     @State private var isGeneratingPairingCode = false
     @State private var isLoadingDevices = false
+    @State private var spkiPin = ""
 
     private let qrContext = CIContext()
 
@@ -205,6 +205,7 @@ struct BackendSettingsView: View {
         }
         .formStyle(.grouped)
         .task {
+            loadAdvertisedSPKIPin()
             await loadStorageStats()
             #if canImport(AppKit)
             if !canHostRemoteAccess {
@@ -214,6 +215,9 @@ struct BackendSettingsView: View {
                 await refreshPairedDevices()
             }
             #endif
+        }
+        .onChange(of: publicBaseURL) { _, _ in
+            loadAdvertisedSPKIPin()
         }
     }
 
@@ -290,11 +294,17 @@ struct BackendSettingsView: View {
                     return
                 }
                 _ = try validatedReachableURL()
-                _ = try RemoteCertificatePinning.validatedSPKIPin(spkiPin)
+                let normalizedSPKIPin = try RemoteCertificatePinning.validatedSPKIPin(spkiPin)
+                try RemoteCertificatePinning.persistAdvertisedSPKIPin(
+                    normalizedSPKIPin,
+                    hostString: publicBaseURL
+                )
             } catch {
                 pairingError = error.localizedDescription
                 return
             }
+        } else {
+            RemoteCertificatePinning.clearAdvertisedSPKIPin(hostString: publicBaseURL)
         }
 
         backendService.stop()
@@ -372,6 +382,10 @@ struct BackendSettingsView: View {
 
     private func validatedReachableURL() throws -> URL {
         try validatedRemoteURL(from: publicBaseURL, allowLocalhost: false, requireSecureTransportForRemote: true)
+    }
+
+    private func loadAdvertisedSPKIPin() {
+        spkiPin = RemoteCertificatePinning.advertisedSPKIPin(hostString: publicBaseURL) ?? ""
     }
     #endif
 }
