@@ -420,6 +420,7 @@ extension ContentView {
             inspectorVisible: inspectorVisible,
             detailMinWidth: detailMinWidth
         )
+        let effectiveInspectorVisible = inspectorVisible && !policy.collapseInspector
 
         if policy.collapseSidebar {
             return detailMinWidth
@@ -427,7 +428,7 @@ extension ContentView {
 
         return windowMinWidth(
             sidebarVisible: sidebarVisible,
-            inspectorVisible: inspectorVisible,
+            inspectorVisible: effectiveInspectorVisible,
             detailMinWidth: detailMinWidth
         )
     }

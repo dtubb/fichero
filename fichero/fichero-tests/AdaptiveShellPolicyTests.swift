@@ -119,6 +119,33 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         )
     }
 
+    func testInspectorCollapseBandRelaxesShellMinWidthToSidebarAndDetail() {
+        let detailWidth = 600.0
+        let inspectorBandWidth =
+            ContentView.sidebarMinWidth + detailWidth + ContentView.inspectorMinWidth - 1
+
+        let policy = ContentView.shellCollapsePolicy(
+            windowWidth: inspectorBandWidth,
+            horizontalSizeClass: .regular,
+            sidebarVisible: true,
+            inspectorVisible: true,
+            detailMinWidth: detailWidth
+        )
+
+        XCTAssertFalse(policy.collapseSidebar)
+        XCTAssertTrue(policy.collapseInspector)
+        XCTAssertEqual(
+            ContentView.shellWindowMinWidth(
+                windowWidth: inspectorBandWidth,
+                horizontalSizeClass: .regular,
+                sidebarVisible: true,
+                inspectorVisible: true,
+                detailMinWidth: detailWidth
+            ),
+            ContentView.sidebarMinWidth + detailWidth
+        )
+    }
+
     func testCompactNavigationFlowIsCompactOnly() {
         #if os(macOS)
         XCTAssertFalse(ContentView.shouldUseCompactNavigationFlow(horizontalSizeClass: nil))
