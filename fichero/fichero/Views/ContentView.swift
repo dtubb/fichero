@@ -127,6 +127,7 @@ struct ContentView: View {
     // sidebar/inspector toggles), so selection never remounts or hides panes.
     @SceneStorage("showDocumentCanvas") var showDocumentCanvas: Bool = true
     @SceneStorage("showReadingPane") var showReadingPane: Bool = true
+    @State private var measuredWindowWidth: Double = 0
     // When false (default), selecting a different item NEVER changes which
     // panes are visible — a folder shows the same panes as a PDF. The visible
     // pane set is the user's choice (the toggles above). Opt in to the old
@@ -290,6 +291,10 @@ struct ContentView: View {
     /// Main app content (when backend is connected)
     @ViewBuilder
     private var mainContentView: some View {
+        let inspectorIsPresented = Binding(
+            get: { effectiveShowInspectorSidebar },
+            set: { showInspectorSidebar = $0 }
+        )
         // Inspector is a NATIVE SwiftUI `.inspector()` column attached to the
         // NavigationSplitView, so it persists across all view modes (#1199) AND
         // the unified window toolbar/title spans it correctly — trailing toolbar
@@ -304,16 +309,30 @@ struct ContentView: View {
         // `navigationSplitColumn` (NavigationSplitView + first half of modifiers)
         // and `decoratedNavigationSplitColumn` (the remaining modifiers).
         decoratedNavigationSplitColumn
-            .adaptiveInspector(placement: inspectorPlacement, isPresented: $showInspectorSidebar) {
+            .adaptiveInspector(placement: inspectorPlacement, isPresented: inspectorIsPresented) {
                 inspectorContainerView
             }
             .frame(minWidth: CGFloat(paneAwareWindowMinWidth), maxWidth: .infinity, maxHeight: .infinity)
+            .background(windowWidthReader)
 
         // Listen for claim selection from inspector and sync to other panes
         .onReceive(NotificationCenter.default.publisher(for: .claimSelectedInInspector)) { notification in
             if let claimId = notification.userInfo?["claimId"] as? String {
                 ClaimFocusState.shared.selectClaim(claimId: claimId)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var windowWidthReader: some View {
+        GeometryReader { geo in
+            Color.clear
+                .onAppear {
+                    handleWindowWidthChange(geo.size.width)
+                }
+                .onChange(of: geo.size.width) { _, newWidth in
+                    handleWindowWidthChange(newWidth)
+                }
         }
     }
 

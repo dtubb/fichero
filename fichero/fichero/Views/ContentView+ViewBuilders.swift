@@ -283,7 +283,7 @@ extension ContentView {
         // collapses — without the guard the Navigator icon remains visible even
         // when the sidebar is hidden (#2309).
         .toolbar {
-            if showSidebar && horizontalSizeClass != .compact {
+            if showSidebar && horizontalSizeClass != .compact && !shouldUseRuntimeSidebarCollapse {
                 ToolbarItem(placement: .automatic) {
                     Button {
                         sidebarShowsChat = false

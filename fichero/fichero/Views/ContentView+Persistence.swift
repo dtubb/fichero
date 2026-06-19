@@ -190,7 +190,7 @@ extension ContentView {
     }
 
     func savePersistedState() {
-        if horizontalSizeClass != .compact {
+        if horizontalSizeClass != .compact && !shouldUseRuntimeSidebarCollapse {
             // Map NavigationSplitViewVisibility to raw integer for @SceneStorage
             columnVisibilityRaw = Self.persistedColumnVisibilityRaw(for: columnVisibility)
         }

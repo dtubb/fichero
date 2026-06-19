@@ -42,11 +42,44 @@ final class AdaptiveShellPolicyTests: XCTestCase {
             ContentView.windowMinWidth(
                 sidebarVisible: true,
                 inspectorVisible: true,
-                detailMinWidth: detailWidth
-            ),
+            detailMinWidth: detailWidth
+        ),
             detailWidth
         )
         #endif
+    }
+
+    func testNarrowWindowCollapsesSecondaryPanesBeforePersisting() {
+        let detailWidth = 600.0
+        let narrowWidth = ContentView.sidebarMinWidth + detailWidth - 1
+
+        let policy = ContentView.shellCollapsePolicy(
+            windowWidth: narrowWidth,
+            horizontalSizeClass: .regular,
+            sidebarVisible: true,
+            inspectorVisible: true,
+            detailMinWidth: detailWidth
+        )
+
+        XCTAssertTrue(policy.collapseSidebar)
+        XCTAssertTrue(policy.collapseInspector)
+    }
+
+    func testWiderWindowKeepsPreferredMacOrIPadSidebarState() {
+        let detailWidth = 600.0
+        let roomyWidth =
+            ContentView.sidebarMinWidth + detailWidth + ContentView.inspectorMinWidth + 40
+
+        let policy = ContentView.shellCollapsePolicy(
+            windowWidth: roomyWidth,
+            horizontalSizeClass: .regular,
+            sidebarVisible: true,
+            inspectorVisible: true,
+            detailMinWidth: detailWidth
+        )
+
+        XCTAssertFalse(policy.collapseSidebar)
+        XCTAssertFalse(policy.collapseInspector)
     }
 
     func testCompactNavigationFlowIsCompactOnly() {

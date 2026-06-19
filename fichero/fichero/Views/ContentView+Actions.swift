@@ -223,7 +223,7 @@ extension ContentView {
     // MARK: - UI Actions
 
     func toggleSidebar() {
-        if horizontalSizeClass == .compact {
+        if horizontalSizeClass == .compact || shouldUseRuntimeSidebarCollapse {
             return
         }
         withAnimation {
@@ -232,12 +232,25 @@ extension ContentView {
         }
     }
 
+    func handleWindowWidthChange(_ newWidth: Double) {
+        guard newWidth > 0 else { return }
+        if abs(measuredWindowWidth - newWidth) < 0.5 {
+            return
+        }
+        measuredWindowWidth = newWidth
+        updateColumnVisibility()
+    }
+
     func updateColumnVisibility() {
         if horizontalSizeClass == .compact {
             return
         }
         // No animation — instant sidebar show/hide (#2309).
-        columnVisibility = showSidebar ? .all : .detailOnly
+        if shouldUseRuntimeSidebarCollapse {
+            columnVisibility = .detailOnly
+        } else {
+            columnVisibility = showSidebar ? .all : .detailOnly
+        }
     }
 
     // MARK: - Conversations

@@ -8,6 +8,11 @@ import SwiftUI
 
 extension ContentView {
 
+    struct ShellCollapsePolicy: Equatable {
+        let collapseSidebar: Bool
+        let collapseInspector: Bool
+    }
+
     // MARK: - Computed Properties
 
     /// Toolbar/window title showing only the current view/item name
@@ -262,6 +267,60 @@ extension ContentView {
         #else
         horizontalSizeClass != .compact
         #endif
+    }
+
+    static func shellCollapsePolicy(
+        windowWidth: Double?,
+        horizontalSizeClass: UserInterfaceSizeClass?,
+        sidebarVisible: Bool,
+        inspectorVisible: Bool,
+        detailMinWidth: Double
+    ) -> ShellCollapsePolicy {
+        #if os(macOS)
+        if horizontalSizeClass == .compact {
+            return ShellCollapsePolicy(collapseSidebar: true, collapseInspector: false)
+        }
+        #else
+        if horizontalSizeClass == .compact {
+            return ShellCollapsePolicy(collapseSidebar: true, collapseInspector: false)
+        }
+        #endif
+
+        guard let windowWidth, windowWidth > 0 else {
+            return ShellCollapsePolicy(collapseSidebar: false, collapseInspector: false)
+        }
+
+        let sidebarMinWidth = sidebarVisible ? ContentView.sidebarMinWidth : 0
+        let inspectorMinWidth = inspectorVisible ? ContentView.inspectorMinWidth : 0
+        let collapseInspector =
+            inspectorVisible &&
+            windowWidth < detailMinWidth + sidebarMinWidth + inspectorMinWidth
+        let collapseSidebar =
+            sidebarVisible &&
+            windowWidth < detailMinWidth + sidebarMinWidth
+
+        return ShellCollapsePolicy(
+            collapseSidebar: collapseSidebar,
+            collapseInspector: collapseInspector
+        )
+    }
+
+    var shellCollapsePolicy: ShellCollapsePolicy {
+        Self.shellCollapsePolicy(
+            windowWidth: measuredWindowWidth,
+            horizontalSizeClass: horizontalSizeClass,
+            sidebarVisible: showSidebar,
+            inspectorVisible: showInspectorSidebar,
+            detailMinWidth: paneAwareDetailMinWidth
+        )
+    }
+
+    var shouldUseRuntimeSidebarCollapse: Bool {
+        shellCollapsePolicy.collapseSidebar
+    }
+
+    var effectiveShowInspectorSidebar: Bool {
+        showInspectorSidebar && !shellCollapsePolicy.collapseInspector
     }
 
     var shouldUseSplittablePane: Bool {
@@ -689,7 +748,7 @@ extension ContentView {
     /// Handles `.onChange(of: columnVisibility)`.
     /// Persists column visibility and keeps explicit sidebar state in sync.
     func handleColumnVisibilityChange(_ newVisibility: NavigationSplitViewVisibility) {
-        if horizontalSizeClass == .compact {
+        if horizontalSizeClass == .compact || shouldUseRuntimeSidebarCollapse {
             return
         }
 
