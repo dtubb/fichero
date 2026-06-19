@@ -368,6 +368,7 @@ extension SidebarItemRow {
                 await MainActor.run {
                     sidebarState.dropErrorMessage = moveResult.errorMessage
                 }
+                return
             }
         }
     }
