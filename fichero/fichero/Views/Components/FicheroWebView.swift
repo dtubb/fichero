@@ -36,7 +36,7 @@ struct FicheroWebView: NSViewRepresentable {
         }
     }
 }
-#elseif os(iOS)
+#elseif os(iOS) || os(visionOS)
 struct FicheroWebView: UIViewRepresentable {
     @Binding var urlString: String
     @Binding var pageTitle: String
