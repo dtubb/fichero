@@ -185,3 +185,7 @@ ruff check fichero-engine/src/
 # Sync OpenAPI schema to Swift client (after any API change)
 ./fichero-engine/scripts/sync_openapi_schema.sh
 ```
+
+## Related Contract Docs
+
+- `docs/architecture/api/capture_sessions_resumable_upload_contract.md` — mobile/offline capture session and resumable-upload contract slice (`#2352`)
