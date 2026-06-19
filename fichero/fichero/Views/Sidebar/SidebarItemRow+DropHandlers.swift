@@ -302,7 +302,7 @@ extension SidebarItemRow {
             return false
         }
 
-        for itemID in itemIDs {
+        let documentIds = itemIDs.filter { itemID in
             let sourceKind = SidebarItemKind(prefixedId: itemID)
             sidebarRowLogger.debug(" Moving item \(itemID) (kind=\(String(describing: sourceKind))) to be sibling of \(targetItem.name)")
 
@@ -315,32 +315,61 @@ extension SidebarItemRow {
             guard sourceKind == .document else {
                 let src = String(describing: sourceKind)
                 sidebarRowLogger.debug(" Drop rejected: source kind \(src) cannot be reparented via document move")
-                continue
+                return false
             }
 
             guard itemID != targetItem.id else {
                 sidebarRowLogger.debug(" Drop rejected: cannot drop item onto itself")
-                continue
+                return false
             }
 
-            Task {
-                if let parentId = targetParentId {
-                    await moveItemToFolder(itemId: itemID, targetFolderId: parentId)
-                } else {
-                    let actualItemId = extractActualId(from: itemID)
-                    guard let documentStore = documentStore else { return }
-                    do {
-                        _ = try await documentStore.moveDocument(actualItemId, toParent: nil)
-                        sidebarRowLogger.debug(" Move to root successful")
-                    } catch {
-                        sidebarRowLogger.debug(" Move to root failed: \(error.localizedDescription)")
-                    }
-                }
-            }
+            return true
         }
+
+        guard !documentIds.isEmpty else {
+            sidebarRowLogger.debug(" No document moves to perform")
+            return true
+        }
+
+        performTransactionalSiblingReparent(
+            documentIds: documentIds,
+            targetParentId: targetParentId
+        )
 
         sidebarRowLogger.debug(" ========== DROP BESIDE COMPLETED ==========")
         return true
+    }
+
+    private func performTransactionalSiblingReparent(
+        documentIds: [String],
+        targetParentId: String?
+    ) {
+        guard let documentStore else { return }
+
+        Task {
+            await MainActor.run {
+                sidebarState.dropErrorMessage = nil
+            }
+            let moveResult = await moveSidebarDocumentsTransactionally(
+                documentIds,
+                toParent: targetParentId,
+                move: { itemId, parentId in
+                    _ = try await documentStore.moveDocument(
+                        extractActualId(from: itemId),
+                        toParent: parentId
+                    )
+                },
+                refresh: {
+                    await documentStore.refresh()
+                }
+            )
+
+            guard moveResult.isSuccessful else {
+                await MainActor.run {
+                    sidebarState.dropErrorMessage = moveResult.errorMessage
+                }
+            }
+        }
     }
 
     func handleDropIntoFolder(itemIDs: [String], targetFolder: SidebarItem) -> Bool {

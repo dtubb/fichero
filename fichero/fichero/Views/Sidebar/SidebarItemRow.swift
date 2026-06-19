@@ -67,6 +67,7 @@ struct SidebarItemRow: View {
     @Binding var selectedItemId: String?
     @Bindable var renameState: RenameStateManager
     @Bindable var deleteState: DeleteStateManager
+    @ObservedObject var sidebarState: SidebarState
     @ObservedObject var libraryManager: LibraryManager
 
     @Environment(WorkflowExecutionObserver.self) var executionObserver

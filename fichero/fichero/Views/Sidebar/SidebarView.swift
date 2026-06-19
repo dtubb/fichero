@@ -260,6 +260,7 @@ struct SidebarView: View {
                 sidebarState: sidebarState,
                 createFolder: createFolder
             )
+            .sidebarDropAlerts(sidebarState: sidebarState)
             .sidebarFileImporter(
                 isPresented: $sidebarState.showingFileImporter,
                 importFiles: handleImportedFiles

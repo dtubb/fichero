@@ -234,6 +234,11 @@ extension View {
             performDelete: performDelete
         ))
     }
+
+    /// Adds an alert for failed sidebar drag moves.
+    func sidebarDropAlerts(sidebarState: SidebarState) -> some View {
+        self.modifier(SidebarDropAlertsModifier(sidebarState: sidebarState))
+    }
 }
 
 private struct SidebarDeleteAlertsModifier: ViewModifier {
@@ -279,6 +284,31 @@ private struct SidebarDeleteAlertsModifier: ViewModifier {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(deleteState.deleteErrorMessage)
+            }
+    }
+}
+
+private struct SidebarDropAlertsModifier: ViewModifier {
+    @ObservedObject var sidebarState: SidebarState
+
+    func body(content: Content) -> some View {
+        content
+            .alert(
+                "Move Failed",
+                isPresented: Binding(
+                    get: { sidebarState.dropErrorMessage != nil },
+                    set: { isPresented in
+                        if !isPresented {
+                            sidebarState.dropErrorMessage = nil
+                        }
+                    }
+                )
+            ) {
+                Button("OK", role: .cancel) {
+                    sidebarState.dropErrorMessage = nil
+                }
+            } message: {
+                Text(sidebarState.dropErrorMessage ?? "The move could not be completed.")
             }
     }
 }

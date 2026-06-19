@@ -286,3 +286,70 @@ struct SidebarReorderedDocIdsWithInsertTests {
         #expect(sidebarReorderedDocIdsWithInsert(children: children, inserting: ["b"], at: 1) == nil)
     }
 }
+
+// MARK: - Transactional Move Batch Tests
+
+@MainActor
+struct SidebarTransactionalMoveBatchTests {
+    @Test("transactional move batch succeeds without refreshing")
+    func successDoesNotRefresh() async {
+        enum TestError: Error {
+            case unexpected
+        }
+
+        var calls: [String] = []
+        var refreshCount = 0
+
+        let result = await moveSidebarDocumentsTransactionally(
+            ["a", "b"],
+            toParent: "parent-folder",
+            move: { itemId, parentId in
+                calls.append("\(itemId)->\(parentId ?? "nil")")
+                if itemId == "never" {
+                    throw TestError.unexpected
+                }
+            },
+            refresh: {
+                refreshCount += 1
+            }
+        )
+
+        #expect(result.isSuccessful)
+        #expect(result.movedIds == ["a", "b"])
+        #expect(result.failedItemId == nil)
+        #expect(result.errorMessage == nil)
+        #expect(calls == ["a->parent-folder", "b->parent-folder"])
+        #expect(refreshCount == 0)
+    }
+
+    @Test("transactional move batch stops at the first failure and refreshes")
+    func failureRefreshesAndStops() async {
+        enum TestError: Error {
+            case boom
+        }
+
+        var calls: [String] = []
+        var refreshCount = 0
+
+        let result = await moveSidebarDocumentsTransactionally(
+            ["a", "b", "c"],
+            toParent: nil,
+            move: { itemId, parentId in
+                calls.append("\(itemId)->\(parentId ?? "nil")")
+                if itemId == "b" {
+                    throw TestError.boom
+                }
+            },
+            refresh: {
+                refreshCount += 1
+            }
+        )
+
+        #expect(result.isSuccessful == false)
+        #expect(result.movedIds == ["a"])
+        #expect(result.failedItemId == "b")
+        #expect(result.errorMessage != nil)
+        #expect(calls == ["a->nil", "b->nil"])
+        #expect(refreshCount == 1)
+    }
+}

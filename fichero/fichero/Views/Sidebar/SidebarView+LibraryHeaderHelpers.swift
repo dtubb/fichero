@@ -93,10 +93,26 @@ extension SidebarView {
             .map { extractActualId(from: $0) }
         guard !bareIds.isEmpty else { return }
         Task {
-            for bareId in bareIds {
-                _ = try? await library.documentStore.moveDocument(bareId, toParent: nil)
+            await MainActor.run {
+                sidebarState.dropErrorMessage = nil
             }
-            await library.documentStore.refresh()
+            let moveResult = await moveSidebarDocumentsTransactionally(
+                bareIds,
+                toParent: nil,
+                move: { itemId, parentId in
+                    _ = try await library.documentStore.moveDocument(itemId, toParent: parentId)
+                },
+                refresh: {
+                    await library.documentStore.refresh()
+                }
+            )
+
+            guard moveResult.isSuccessful else {
+                await MainActor.run {
+                    sidebarState.dropErrorMessage = moveResult.errorMessage
+                }
+                return
+            }
         }
     }
 }

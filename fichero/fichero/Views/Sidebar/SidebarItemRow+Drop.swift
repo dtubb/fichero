@@ -123,6 +123,7 @@ extension SidebarItemRow {
                 selectedItemId: $selectedItemId,
                 renameState: renameState,
                 deleteState: deleteState,
+                sidebarState: sidebarState,
                 libraryManager: libraryManager
             )
             .contentShape(Rectangle())
@@ -186,8 +187,25 @@ extension SidebarItemRow {
         ) else { return }
 
         Task {
-            for bareId in bareIds {
-                _ = try? await store.moveDocument(bareId, toParent: parentDoc.id)
+            await MainActor.run {
+                sidebarState.dropErrorMessage = nil
+            }
+            let moveResult = await moveSidebarDocumentsTransactionally(
+                bareIds,
+                toParent: parentDoc.id,
+                move: { itemId, parentId in
+                    _ = try await store.moveDocument(itemId, toParent: parentId)
+                },
+                refresh: {
+                    await store.refresh()
+                }
+            )
+
+            guard moveResult.isSuccessful else {
+                await MainActor.run {
+                    sidebarState.dropErrorMessage = moveResult.errorMessage
+                }
+                return
             }
             await MainActor.run {
                 store.reorderChildrenOptimistically(orderedIds: newOrder)

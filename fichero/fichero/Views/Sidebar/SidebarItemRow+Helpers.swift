@@ -101,6 +101,50 @@ func sidebarReorderedDocIdsWithInsert(
     return newOrder
 }
 
+/// Result for a transactional sidebar move batch.
+struct SidebarDocumentMoveBatchResult: Equatable {
+    let movedIds: [String]
+    let failedItemId: String?
+    let errorMessage: String?
+
+    var isSuccessful: Bool {
+        errorMessage == nil
+    }
+}
+
+/// Move a set of sidebar documents to a new parent, stopping on the first
+/// failure. Successful moves stay committed; the caller can then reorder the
+/// successfully moved items. On failure, the authoritative store should be
+/// refreshed so the UI reflects the backend's actual state.
+@MainActor
+func moveSidebarDocumentsTransactionally(
+    _ itemIds: [String],
+    toParent parentId: String?,
+    move: @escaping @MainActor (String, String?) async throws -> Void,
+    refresh: @escaping @MainActor () async -> Void
+) async -> SidebarDocumentMoveBatchResult {
+    var movedIds: [String] = []
+    for itemId in itemIds {
+        do {
+            try await move(itemId, parentId)
+            movedIds.append(itemId)
+        } catch {
+            await refresh()
+            return SidebarDocumentMoveBatchResult(
+                movedIds: movedIds,
+                failedItemId: itemId,
+                errorMessage: error.localizedDescription
+            )
+        }
+    }
+
+    return SidebarDocumentMoveBatchResult(
+        movedIds: movedIds,
+        failedItemId: nil,
+        errorMessage: nil
+    )
+}
+
 /// Compute the new ordered list of document IDs for a `.onMove` reorder.
 /// Tolerates mixed-kind children: non-document items (virtual folders,
 /// saved-search partitions, etc.) move along with the reorder but are
