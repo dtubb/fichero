@@ -105,7 +105,40 @@ public struct AuthTokenMiddleware: ClientMiddleware {
         guard let host = URL(string: trimmed)?.host?.lowercased() else {
             return true
         }
-        return host == "localhost" || host == "127.0.0.1" || host == "::1"
+        return isLoopbackHostLiteral(host)
+    }
+
+    private static func isLoopbackHostLiteral(_ host: String) -> Bool {
+        if host == "localhost" {
+            return true
+        }
+
+        let trimmedHost = host.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+        if isIPv4LoopbackLiteral(trimmedHost) {
+            return true
+        }
+        return isIPv6LoopbackLiteral(trimmedHost)
+    }
+
+    private static func isIPv4LoopbackLiteral(_ host: String) -> Bool {
+        let octets = host.split(separator: ".", omittingEmptySubsequences: false)
+        guard octets.count == 4 else { return false }
+        let numbers = octets.compactMap { Int($0) }
+        guard numbers.count == 4, numbers.allSatisfy({ (0...255).contains($0) }) else { return false }
+        return numbers[0] == 127
+    }
+
+    private static func isIPv6LoopbackLiteral(_ host: String) -> Bool {
+        let normalized = host.lowercased()
+        if normalized == "::1" || normalized == "0:0:0:0:0:0:0:1" {
+            return true
+        }
+
+        guard let mappedRange = normalized.range(of: "::ffff:") else {
+            return false
+        }
+        let mappedIPv4 = String(normalized[mappedRange.upperBound...])
+        return isIPv4LoopbackLiteral(mappedIPv4)
     }
 
     static func remoteTokenFileName(hostString: String? = nil) -> String {
