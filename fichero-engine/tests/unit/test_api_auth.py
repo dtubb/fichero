@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import timedelta
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -129,4 +131,31 @@ def test_initialize_token_rotates_when_file_contains_device_token(monkeypatch, t
     rotated = initialize_token()
 
     assert rotated != raw_device_token
+    assert token_path.read_text() == rotated
+
+
+def test_initialize_token_rotates_when_file_contains_session_token(
+    monkeypatch, tmp_path, app_db
+):
+    token_path = tmp_path / ".api-key"
+    monkeypatch.setattr("fichero.api.auth._token_file_path", lambda: token_path)
+
+    user = app_db.create_user(
+        username="owner",
+        display_name="Owner",
+        password_hash=accounts.hash_password("password"),
+        is_owner=True,
+    )
+    raw_session_token = accounts.new_session_token()
+    app_db.create_session(
+        user_id=user.id,
+        token_hash=accounts.hash_token(raw_session_token),
+        device_label="Mac",
+        ttl=timedelta(days=1),
+    )
+    token_path.write_text(raw_session_token)
+
+    rotated = initialize_token()
+
+    assert rotated != raw_session_token
     assert token_path.read_text() == rotated
