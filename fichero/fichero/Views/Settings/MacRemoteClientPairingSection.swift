@@ -80,6 +80,7 @@ struct MacRemoteClientPairingSection: View {
         clientPairingError = nil
         defer { isClientPairing = false }
 
+        let previousHost = engineHost
         do {
             let result = try await RemoteClientPairing.pairDevice(
                 remoteURL: clientRemoteURL,
@@ -92,10 +93,15 @@ struct MacRemoteClientPairingSection: View {
             engineHost = result.apiRoot.absoluteString
             appState.reconfigureGeneratedClientsForCurrentHost()
             libraryManager.reconfigureGeneratedClientsForCurrentHost()
-            try await backendService.start()
-            await reconnectToConfiguredRemoteHost()
-            if !appState.isBackendRunning {
-                clientPairingError = "Paired successfully, but the verified remote host is not responding now."
+            do {
+                try await backendService.start()
+                await reconnectToConfiguredRemoteHost()
+                if !appState.isBackendRunning {
+                    throw APIError.badRequest("Paired successfully, but the verified remote host is not responding now.")
+                }
+            } catch {
+                await restorePreviousHost(previousHost)
+                throw error
             }
         } catch {
             clientPairingError = error.localizedDescription
@@ -115,6 +121,21 @@ struct MacRemoteClientPairingSection: View {
         appState.startBackendHeartbeat()
         await KnownLibraryRegistryStore.shared.refresh()
         await libraryManager.backendDidBecomeReady()
+    }
+
+    private func restorePreviousHost(_ previousHost: String) async {
+        backendService.stop()
+        engineHost = previousHost
+        appState.reconfigureGeneratedClientsForCurrentHost()
+        libraryManager.reconfigureGeneratedClientsForCurrentHost()
+
+        do {
+            try await backendService.start()
+            await reconnectToConfiguredRemoteHost()
+        } catch {
+            backendService.status = .failed
+            backendService.errorMessage = error.localizedDescription
+        }
     }
 }
 #endif

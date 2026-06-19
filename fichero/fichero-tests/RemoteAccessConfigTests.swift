@@ -76,6 +76,13 @@ final class RemoteAccessConfigTests: XCTestCase {
         }
     }
 
+    func testRemoteClientPairingAcceptsHealthyHealthStatus() {
+        XCTAssertTrue(RemoteClientPairing.isAcceptableHealthStatus("healthy"))
+        XCTAssertTrue(RemoteClientPairing.isAcceptableHealthStatus("HEALTHY"))
+        XCTAssertTrue(RemoteClientPairing.isAcceptableHealthStatus("ok"))
+        XCTAssertFalse(RemoteClientPairing.isAcceptableHealthStatus("unhealthy"))
+    }
+
     func testPairingBackendURLRejectsBlankString() {
         XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: ""))
         XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: "   "))

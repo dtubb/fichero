@@ -24,6 +24,11 @@ enum RemoteClientPairingError: LocalizedError, Equatable {
 }
 
 enum RemoteClientPairing {
+    static func isAcceptableHealthStatus(_ status: String) -> Bool {
+        let normalized = status.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized == "healthy" || normalized == "ok"
+    }
+
     static func defaultDeviceName() -> String {
         #if canImport(UIKit) && !os(macOS)
         return UIDevice.current.name
@@ -58,6 +63,9 @@ enum RemoteClientPairing {
     }
 
     static func persistPairedHost(_ result: PairingExchangeResult) throws {
+        // Remote-client device tokens are host-scoped and must never reuse the
+        // bootstrap localhost token path. Today this persists via the existing
+        // host-scoped token store; signed-app Keychain backing belongs in #2351.
         try PairingService.persistAuthToken(result.deviceToken, for: result.apiRoot)
         UserDefaults.standard.set(result.apiRoot.absoluteString, forKey: EngineConfig.userDefaultsKey)
     }
@@ -73,7 +81,7 @@ enum RemoteClientPairing {
         }
 
         let health = try JSONDecoder().decode(HealthResponse.self, from: data)
-        guard health.status.lowercased() == "ok" else {
+        guard isAcceptableHealthStatus(health.status) else {
             throw APIError.badRequest("Remote host health check failed.")
         }
     }
