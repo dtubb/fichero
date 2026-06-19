@@ -259,6 +259,12 @@ def ingest_file(
     # delete-confirmation copy. Pre-fix docs without this key fall back to
     # bookmark presence: bookmark → LINK, no bookmark → COPY.
     metadata: dict = {"ingest_mode": mode.value, "source_path": str(path)}
+    try:
+        stat = path.stat()
+        metadata["source_folder"] = str(path.parent)
+        metadata["source_mtime"] = datetime.fromtimestamp(stat.st_mtime).isoformat()
+    except Exception as exc:
+        logger.debug("Could not record filesystem provenance for %s: %s", path, exc)
 
     if mode in (IngestMode.COPY, IngestMode.MOVE):
         # Copy file into library storage

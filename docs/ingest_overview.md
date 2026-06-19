@@ -41,6 +41,10 @@ External Files → Ingest Module → Database Storage
 - Basic file metadata (size, checksums, MIME types)
 - Image-specific metadata (dimensions, EXIF data)
 - Document-specific metadata (text length, extraction status)
+- Watch-folder provenance for camera intake:
+  - `source_path` keeps the original absolute file path
+  - `source_folder` records the ingest directory for DSLR / SD-card drops
+  - `source_mtime` preserves the filesystem modification timestamp
 
 ### Text Extraction
 
@@ -56,6 +60,11 @@ The ingest module is designed for both simple and complex usage scenarios:
 - Batch folder processing with recursive hierarchy creation
 - Advanced options for text extraction and embedding
 - Progress tracking for large operations
+
+For camera and DSLR watched-folder intake, pair folder ingest with the built-in
+`Rotate / Auto-Orient Images` preset. It is tagged as a capture preset for
+import folders and keeps source provenance in document metadata while leaving
+the original files untouched.
 
 ## Performance Considerations
 
