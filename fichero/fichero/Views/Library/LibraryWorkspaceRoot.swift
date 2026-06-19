@@ -102,7 +102,8 @@ struct LibraryWorkspaceRoot: View {
                 queue: captureQueue,
                 retryPendingUploads: {
                     await captureQueue.resumePendingUploads(
-                        using: MobileCaptureBackendUploadClient(libraryManager: libraryManager)
+                        using: MobileCaptureBackendUploadClient(libraryManager: libraryManager),
+                        retryInterruptedUploads: true
                     )
                 }
             )

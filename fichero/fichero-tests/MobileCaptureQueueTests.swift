@@ -110,7 +110,7 @@ final class MobileCaptureQueueTests: XCTestCase {
         XCTAssertEqual(store.items.first?.lastError, "boom")
     }
 
-    func testPersistedUploadingItemsReloadAsQueuedAndRetry() async throws {
+    func testPersistedUploadingItemsReloadAsFailedAndRequireExplicitRetry() async throws {
         let storageDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: storageDirectory) }
@@ -142,14 +142,26 @@ final class MobileCaptureQueueTests: XCTestCase {
         )
 
         let store = MobileCaptureQueueStore(storageDirectory: storageDirectory)
-        XCTAssertEqual(store.items.first?.uploadState, .queued)
-        XCTAssertNil(store.items.first?.lastError)
+        XCTAssertEqual(store.items.first?.uploadState, .failed)
+        XCTAssertEqual(
+            store.items.first?.lastError,
+            "This upload was interrupted before it completed. Tap Retry to upload it again."
+        )
         XCTAssertNil(store.items.first?.lastAttemptAt)
 
         let uploader = FakeCaptureUploader(backendHost: URL(string: "https://pairing.example.com"))
         let summary = await store.resumePendingUploads(using: uploader)
 
-        XCTAssertEqual(summary.uploadedCount, 1)
+        XCTAssertEqual(summary.uploadedCount, 0)
+        XCTAssertTrue(uploader.uploads.isEmpty)
+        XCTAssertEqual(store.items.first?.uploadState, .failed)
+
+        let retrySummary = await store.resumePendingUploads(
+            using: uploader,
+            retryInterruptedUploads: true
+        )
+
+        XCTAssertEqual(retrySummary.uploadedCount, 1)
         XCTAssertEqual(store.items.first?.uploadState, .uploaded)
         XCTAssertEqual(uploader.uploads.count, 1)
     }

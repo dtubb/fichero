@@ -7,6 +7,9 @@ private let mobileCaptureQueueLogger = Logger(
     category: "MobileCaptureQueue"
 )
 
+private let mobileCaptureInterruptedUploadError =
+    "This upload was interrupted before it completed. Tap Retry to upload it again."
+
 struct MobileCaptureCatalogFields: Codable, Hashable {
     var title: String
     var folderName: String
@@ -236,13 +239,18 @@ final class MobileCaptureQueueStore: ObservableObject {
         var changed = false
         for index in items.indices where items[index].uploadState == .queued || items[index].uploadState == .failed {
             items[index].uploadState = .waitingForBackend
-            items[index].lastError = nil
+            if items[index].lastError != mobileCaptureInterruptedUploadError {
+                items[index].lastError = nil
+            }
             changed = true
         }
         if changed { persistQueue() }
     }
 
-    func resumePendingUploads(using uploader: some MobileCaptureQueueUploading) async -> MobileCaptureUploadSummary {
+    func resumePendingUploads(
+        using uploader: some MobileCaptureQueueUploading,
+        retryInterruptedUploads: Bool = false
+    ) async -> MobileCaptureUploadSummary {
         guard MobileCaptureQueueRouting.canResumeUploads(backendHost: uploader.backendHost) else {
             markAllWaitingForBackend()
             return MobileCaptureUploadSummary(waitingCount: pendingCount)
@@ -252,6 +260,10 @@ final class MobileCaptureQueueStore: ObservableObject {
         let retryableIndices = items.indices.filter { index in
             switch items[index].uploadState {
             case .queued, .failed, .waitingForBackend:
+                if !retryInterruptedUploads,
+                   items[index].lastError == mobileCaptureInterruptedUploadError {
+                    return false
+                }
                 return true
             case .uploading, .uploaded:
                 return false
@@ -305,8 +317,8 @@ final class MobileCaptureQueueStore: ObservableObject {
 
             var normalized = item
             if normalized.uploadState == .uploading {
-                normalized.uploadState = .queued
-                normalized.lastError = nil
+                normalized.uploadState = .failed
+                normalized.lastError = mobileCaptureInterruptedUploadError
                 normalized.lastAttemptAt = nil
             }
             return normalized
