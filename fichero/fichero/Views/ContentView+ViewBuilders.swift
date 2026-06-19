@@ -438,7 +438,7 @@ extension ContentView {
                                 (panePlan.showsCanvasPane || panePlan.showsReadingPane)
                                     ? clampedWidescreenContentPaneWidth : nil
                             // Splittable (h/v) Library list pane — #2276.
-                            SplittablePane(storageKey: "library") {
+                            adaptiveSplittablePane(storageKey: "library") {
                                 contentWithOptionalModeRail
                             }
                             .overlay { paneFocusIndicator(for: .content) }
@@ -487,7 +487,7 @@ extension ContentView {
     @ViewBuilder
     var widescreenCanvasPane: some View {
         // Splittable (h/v) image / canvas viewer — #2276.
-        SplittablePane(storageKey: "canvas") {
+        adaptiveSplittablePane(storageKey: "canvas") {
             widescreenCanvasPaneContent
         }
     }
@@ -536,7 +536,7 @@ extension ContentView {
     var widescreenReadingPane: some View {
         // Each SplittablePane instance renders ReadingPaneView independently,
         // giving left and right split panes their own @State (including pin).
-        SplittablePane(storageKey: "reading") {
+        adaptiveSplittablePane(storageKey: "reading") {
             ReadingPaneView(
                 liveDocument: detailDocument,
                 liveActivePageNumber: detailPDFDocumentId == nil ? nil : selectedPageIndex + 1,
@@ -545,6 +545,20 @@ extension ContentView {
                 onPageSelected: { index in syncGridSelectionToPDFPage(index: index) },
                 onClose: { showReadingPane = false }
             )
+        }
+    }
+
+    @ViewBuilder
+    private func adaptiveSplittablePane<Content: View>(
+        storageKey: String,
+        @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
+        if shouldUseSplittablePane {
+            SplittablePane(storageKey: storageKey) {
+                content()
+            }
+        } else {
+            content()
         }
     }
 

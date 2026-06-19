@@ -63,6 +63,7 @@ struct ContentView: View {
     @EnvironmentObject var workflowStreamService: WorkflowStreamService
     @Environment(WorkflowExecutionObserver.self) var executionObserver
     @Environment(KGFocusState.self) var kgFocusState
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
     @Environment(\.openWindow) var openWindow
     @EnvironmentObject var claimFocusState: ClaimFocusState
     @EnvironmentObject var researchService: ResearchService

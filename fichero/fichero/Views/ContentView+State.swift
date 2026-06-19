@@ -248,6 +248,18 @@ extension ContentView {
         selectedSidebarItemId == "entities-browser"
     }
 
+    static func shouldUseSplittablePane(horizontalSizeClass: UserInterfaceSizeClass?) -> Bool {
+        #if os(macOS)
+        true
+        #else
+        horizontalSizeClass != .compact
+        #endif
+    }
+
+    var shouldUseSplittablePane: Bool {
+        Self.shouldUseSplittablePane(horizontalSizeClass: horizontalSizeClass)
+    }
+
     var paneAwareDetailMinWidth: Double {
         guard supportsReadingWorkspace else {
             return ContentView.contentMinWidth
