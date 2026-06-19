@@ -248,6 +248,14 @@ extension ContentView {
         selectedSidebarItemId == "entities-browser"
     }
 
+    static func shouldUseAutomaticCompactCollapse(horizontalSizeClass: UserInterfaceSizeClass?) -> Bool {
+        horizontalSizeClass == .compact
+    }
+
+    static func preferredCompactColumn(horizontalSizeClass: UserInterfaceSizeClass?) -> NavigationSplitViewColumn {
+        shouldUseAutomaticCompactCollapse(horizontalSizeClass: horizontalSizeClass) ? .sidebar : .detail
+    }
+
     static func shouldUseSplittablePane(horizontalSizeClass: UserInterfaceSizeClass?) -> Bool {
         #if os(macOS)
         true
@@ -670,6 +678,11 @@ extension ContentView {
         // Persist column visibility to @SceneStorage
         // Map NavigationSplitViewVisibility to raw int for @SceneStorage
         columnVisibilityRaw = Self.persistedColumnVisibilityRaw(for: newVisibility)
+
+        if Self.shouldUseAutomaticCompactCollapse(horizontalSizeClass: horizontalSizeClass) {
+            showSidebar = true
+            return
+        }
 
         // Keep explicit left-sidebar state in sync with split-view visibility.
         // In this app's layout, `.doubleColumn` is sidebar + content.

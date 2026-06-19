@@ -354,7 +354,10 @@ struct ContentView: View {
     /// type-check this expression in reasonable time").
     @ViewBuilder
     private var navigationSplitColumn: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
+        NavigationSplitView(
+            columnVisibility: $columnVisibility,
+            preferredCompactColumn: Self.preferredCompactColumn(horizontalSizeClass: horizontalSizeClass)
+        ) {
             sidebarContent
         } detail: {
             centerContent

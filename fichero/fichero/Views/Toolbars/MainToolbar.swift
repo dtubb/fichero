@@ -3,6 +3,8 @@ import SwiftUI
 /// Main application toolbar with all controls
 /// Matches DevonThink-style toolbar layout
 struct MainToolbar: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
     // View mode bindings
     @Binding var viewMode: ViewDisplayMode
     @Binding var layoutMode: LayoutMode
@@ -19,14 +21,16 @@ struct MainToolbar: View {
             // Left side: Sidebar toggle and Add button
             HStack(spacing: 8) {
                 // Sidebar toggle button
-                Button(
-                    action: { showSidebar.toggle() },
-                    label: {
-                        Label("Toggle Sidebar", systemImage: "sidebar.left")
-                            .labelStyle(.iconOnly)
-                    }
-                )
-                .help("Toggle Sidebar")
+                if !ContentView.shouldUseAutomaticCompactCollapse(horizontalSizeClass: horizontalSizeClass) {
+                    Button(
+                        action: { showSidebar.toggle() },
+                        label: {
+                            Label("Toggle Sidebar", systemImage: "sidebar.left")
+                                .labelStyle(.iconOnly)
+                        }
+                    )
+                    .help("Toggle Sidebar")
+                }
 
                 // Add item menu
                 AddItemMenu(registry: itemRegistry, style: .button)
