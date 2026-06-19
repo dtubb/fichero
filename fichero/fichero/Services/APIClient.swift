@@ -113,13 +113,8 @@ class APIClient: ObservableObject {
         let path = request.url?.path ?? ""
 
         // App-wide endpoints that don't need library path header
-        let isHealthEndpoint = path.contains("/health")
-        let isAppWideProviderEndpoint = path.contains("/providers") && !path.contains("/providers/refs")
-        let isSettingsEndpoint = path.contains("/settings")
-        // The known-library registry is GLOBAL (one registry of all .fichero
-        // packages), not scoped to any one library — see #1661. It must work
-        // with no X-Fichero-Library-Path header.
-        let isRegistryEndpoint = path.contains("/registry")
+        let isHealthEndpoint = AuthTokenMiddleware.isUnauthenticatedPath(path)
+        let isAppWideEndpoint = LibraryPathMiddleware.isAppWidePath(path)
 
         // Auth: every non-health request needs the engine's per-launch token
         // (#742). Health is the readiness probe and stays unauthenticated;
@@ -129,7 +124,7 @@ class APIClient: ObservableObject {
         }
 
         // Skip library-path header for app-wide endpoints
-        if isHealthEndpoint || isAppWideProviderEndpoint || isSettingsEndpoint || isRegistryEndpoint {
+        if isAppWideEndpoint {
             return
         }
 

@@ -3,6 +3,7 @@ import HTTPTypes
 import OpenAPIRuntime
 import Security
 
+// swiftlint:disable type_body_length
 /// Middleware that adds `Authorization: Bearer <token>` to every request,
 /// reading the token from `~/Library/Application Support/Fichero/.api-key`.
 ///
@@ -254,6 +255,13 @@ public struct AuthTokenMiddleware: ClientMiddleware {
         removeLegacyRemoteTokenFile(hostString: hostString)
     }
 
+    private static func removeLegacyRemoteTokenFile(hostString: String) {
+        guard let legacyURL = remoteTokenFileURL(hostString: hostString) else {
+            return
+        }
+        try? FileManager.default.removeItem(at: legacyURL)
+    }
+
     private static func readRemoteTokenFromKeychain(hostString: String? = nil) -> String? {
         var query = remoteTokenKeychainQuery(hostString: hostString)
         query[kSecReturnData as String] = true
@@ -318,6 +326,7 @@ public struct AuthTokenMiddleware: ClientMiddleware {
         return try await next(request, body, baseURL)
     }
 }
+// swiftlint:enable type_body_length
 
 enum AuthTokenStorageError: Error, Equatable {
     case keychainReadFailed(OSStatus)
