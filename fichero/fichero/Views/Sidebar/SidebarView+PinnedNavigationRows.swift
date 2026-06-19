@@ -78,12 +78,18 @@ extension SidebarView {
     }
 
     private func chatWithDocsNavigationRow() -> some View {
-        pinnedNavigationRow(
-            "Chat with Docs",
-            systemImage: "text.bubble",
-            tag: "chat-with-docs-browser",
-            help: "Open chat scoped to the current library selection"
-        )
+        Button {
+            onOpenChatWithCurrentScope?()
+        } label: {
+            Label("Chat with Docs", systemImage: "text.bubble")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 8))
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+        .help("Open chat scoped to the current library selection")
     }
 
     private func researchNavigationRow() -> some View {

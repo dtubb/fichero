@@ -2,9 +2,10 @@
 import Foundation
 import XCTest
 
-/// Tests for DocumentStoreTypes (request DTOs + error model) and
-/// SidebarViewTypes (AppViewMode category routing + ActivityChildType
-/// label/icon table + SelectedActivityRun.with helper).
+// Tests for DocumentStoreTypes (request DTOs + error model) and
+// SidebarViewTypes (AppViewMode category routing + ActivityChildType
+// label/icon table + SelectedActivityRun.with helper).
+// swiftlint:disable:next type_body_length
 final class DocumentStoreAndSidebarTypesTests: XCTestCase {
 
     private static func appSource(_ relativePath: String) throws -> String {
@@ -158,11 +159,10 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(navigationSource.contains("contentCollection: isEntityLibrarySelection ? .entities : .documents"))
     }
 
-    func testSidebarPinnedRowsExposeMindPalaceResearchComparisonAndChatWithDocs() throws {
+    func testSidebarPinnedRowsExposeMindPalaceResearchAndComparison() throws {
         let source = try Self.appSource("Views/Sidebar/SidebarView+PinnedNavigationRows.swift")
 
         XCTAssertTrue(source.contains("tag: \"comparison-browser\""))
-        XCTAssertTrue(source.contains("tag: \"chat-with-docs-browser\""))
         XCTAssertTrue(source.contains("tag: \"research-browser\""))
         XCTAssertTrue(source.contains("FeatureManager.shared.isResearchEnabled"))
     }
@@ -172,8 +172,6 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
 
         XCTAssertTrue(source.contains("id == \"comparison-browser\""))
         XCTAssertTrue(source.contains("viewMode = .comparison(nil)"))
-        XCTAssertTrue(source.contains("id == \"chat-with-docs-browser\""))
-        XCTAssertTrue(source.contains("onOpenChatWithCurrentScope?()"))
         XCTAssertTrue(source.contains("id == \"research-browser\""))
         XCTAssertTrue(source.contains("sidebarMode = .research"))
     }

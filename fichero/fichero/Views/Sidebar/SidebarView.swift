@@ -24,8 +24,6 @@ struct SidebarView: View {
     @EnvironmentObject var apiClient: APIClient
     @Environment(WorkflowExecutionObserver.self) var executionObserver
 
-    // Callback when documents are dropped to create a new chat
-    var onCreateChatWithDocuments: (([String]) -> Void)?
     var onOpenChatWithCurrentScope: (() -> Void)?
 
     // Item type registry for extensible item creation (injected from ContentView)
@@ -72,7 +70,6 @@ struct SidebarView: View {
         itemRegistry: ItemTypeRegistry,
         apiClient: APIClient,
         windowPersistenceId: String,
-        onCreateChatWithDocuments: (([String]) -> Void)? = nil,
         onOpenChatWithCurrentScope: (() -> Void)? = nil
     ) {
         self._sidebarMode = sidebarMode
@@ -80,7 +77,6 @@ struct SidebarView: View {
         self._selectedItemId = selectedItemId
         self.libraryManager = libraryManager
         self.itemRegistry = itemRegistry
-        self.onCreateChatWithDocuments = onCreateChatWithDocuments
         self.onOpenChatWithCurrentScope = onOpenChatWithCurrentScope
         self._sidebarState = StateObject(
             wrappedValue: SidebarState(windowId: windowPersistenceId)
@@ -182,10 +178,6 @@ struct SidebarView: View {
                     if id == "comparison-browser" {
                         sidebarMode = .chat
                         viewMode = .comparison(nil)
-                        return
-                    }
-                    if id == "chat-with-docs-browser" {
-                        onOpenChatWithCurrentScope?()
                         return
                     }
                     if id == "research-browser" {

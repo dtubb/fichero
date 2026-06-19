@@ -1,4 +1,5 @@
 import SwiftUI
+// swiftlint:disable file_length
 
 // MARK: - ReadingPaneView
 
@@ -14,7 +15,7 @@ private struct ReadingPaneView: View {
     let scrollSync: DocumentScrollSyncState
     let onPageSelected: (Int) -> Void
     /// Called when the user taps the × button. Omit to hide the button.
-    var onClose: (() -> Void)? = nil
+    var onClose: (() -> Void)?
 
     @EnvironmentObject private var apiClient: APIClient
     @Environment(KGFocusState.self) private var kgFocusState
@@ -22,9 +23,9 @@ private struct ReadingPaneView: View {
     @Environment(\.splitAxisActions) private var splitAxisActions
 
     @State private var isPinned = false
-    @State private var pinnedDocument: Document? = nil
-    @State private var pinnedActivePageNumber: Int? = nil
-    @State private var pinnedPageCount: Int? = nil
+    @State private var pinnedDocument: Document?
+    @State private var pinnedActivePageNumber: Int?
+    @State private var pinnedPageCount: Int?
     @State private var webZoom: Double = 1.0
     @State private var activeTab: KGSurfaceTab = .transcript
 
@@ -38,7 +39,7 @@ private struct ReadingPaneView: View {
         if let actions = splitAxisActions {
             // H-split is more local; collapse it before the V-split.
             if actions.hasHorizontal { actions.onToggleHorizontal(); return }
-            if actions.hasVertical   { actions.onToggleVertical();   return }
+            if actions.hasVertical { actions.onToggleVertical(); return }
         }
         onClose?()
     }
@@ -219,13 +220,8 @@ extension ContentView {
                     itemRegistry: itemRegistry,
                     apiClient: apiClient,
                     windowPersistenceId: sidebarWindowPersistenceId,
-                    onCreateChatWithDocuments: { documentIds in
-                        chatSelectedDocuments = Set(documentIds)
-                        withAnimation(.easeInOut(duration: 0.18)) { sidebarShowsChat = true }
-                    },
                     onOpenChatWithCurrentScope: {
                         openChatWithCurrentScope()
-                        withAnimation(.easeInOut(duration: 0.18)) { sidebarShowsChat = true }
                     }
                 )
                 .environmentObject(savedSearchService)

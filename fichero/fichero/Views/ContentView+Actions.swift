@@ -39,6 +39,24 @@ enum ChatScopeBuilder {
     }
 }
 
+struct ChatWithDocsRoute: Equatable {
+    let selectedDocumentIds: Set<String>
+    let sidebarMode: SidebarMode
+    let viewMode: AppViewMode
+    let sidebarShowsChat: Bool
+}
+
+enum ChatWithDocsRouter {
+    static func mainChatRoute(documentIds: [String]) -> ChatWithDocsRoute {
+        ChatWithDocsRoute(
+            selectedDocumentIds: Set(documentIds),
+            sidebarMode: .chat,
+            viewMode: .chat(nil),
+            sidebarShowsChat: false
+        )
+    }
+}
+
 extension ContentView {
 
     // MARK: - Document and Navigation Helpers
@@ -302,9 +320,11 @@ extension ContentView {
             currentDocuments: documentStore.currentDocuments,
             detailDocument: detailDocument
         )
-        chatSelectedDocuments = Set(scopedIds)
-        sidebarMode = .chat
-        viewMode = .chat(nil)
+        let route = ChatWithDocsRouter.mainChatRoute(documentIds: scopedIds)
+        chatSelectedDocuments = route.selectedDocumentIds
+        sidebarMode = route.sidebarMode
+        viewMode = route.viewMode
+        sidebarShowsChat = route.sidebarShowsChat
     }
 
     // MARK: - File Import
