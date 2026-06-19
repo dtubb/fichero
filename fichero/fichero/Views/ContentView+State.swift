@@ -282,15 +282,31 @@ extension ContentView {
     }
 
     var paneAwareWindowMinWidth: Double {
-        let sidebarMinWidth = showSidebar ? ContentView.sidebarMinWidth : 0
+        Self.windowMinWidth(
+            sidebarVisible: showSidebar,
+            inspectorVisible: showInspectorSidebar,
+            detailMinWidth: paneAwareDetailMinWidth
+        )
+    }
+
+    static func windowMinWidth(
+        sidebarVisible: Bool,
+        inspectorVisible: Bool,
+        detailMinWidth: Double
+    ) -> Double {
+        #if os(macOS)
+        let sidebarMinWidth = sidebarVisible ? ContentView.sidebarMinWidth : 0
         // The inspector's OWN .inspectorColumnWidth enforces its column width
         // internally, but the inspector width must ALSO be included in the
         // window-level minimum. Without it, a narrow window (e.g. 400 px) gives
         // the NavigationSplitView only 150 px after the inspector takes 250 px —
         // less than sidebar + content need — causing the split view to switch to
         // overlay mode and float the sidebar OVER the library content (#2309).
-        let inspectorMinWidth = showInspectorSidebar ? ContentView.inspectorMinWidth : 0
-        return sidebarMinWidth + paneAwareDetailMinWidth + inspectorMinWidth
+        let inspectorMinWidth = inspectorVisible ? ContentView.inspectorMinWidth : 0
+        return sidebarMinWidth + detailMinWidth + inspectorMinWidth
+        #else
+        return detailMinWidth
+        #endif
     }
 
     /// Extracted from the view's `.onAppear` closure to keep `ContentView.body`

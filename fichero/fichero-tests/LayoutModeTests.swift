@@ -234,6 +234,31 @@ final class LayoutModeTests: XCTestCase {
         XCTAssertEqual(ContentView.persistedColumnVisibilityRaw(for: .automatic), 0)
     }
 
+    func testWindowMinimumSeparatesMacShellChromeFromCompactDetailLayout() {
+        let detailWidth = 600.0
+
+        #if os(macOS)
+        let expected = ContentView.sidebarMinWidth + detailWidth + ContentView.inspectorMinWidth
+        XCTAssertEqual(
+            ContentView.windowMinWidth(
+                sidebarVisible: true,
+                inspectorVisible: true,
+                detailMinWidth: detailWidth
+            ),
+            expected
+        )
+        #else
+        XCTAssertEqual(
+            ContentView.windowMinWidth(
+                sidebarVisible: true,
+                inspectorVisible: true,
+                detailMinWidth: detailWidth
+            ),
+            detailWidth
+        )
+        #endif
+    }
+
     func testImageBackedPageDoesNotUsePDFCanvas() {
         let imagePage = Document(
             id: "image-page",
