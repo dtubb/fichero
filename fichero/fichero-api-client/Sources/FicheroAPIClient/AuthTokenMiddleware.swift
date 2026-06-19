@@ -40,7 +40,9 @@ public struct AuthTokenMiddleware: ClientMiddleware {
     public init(token: String?) {}
 
     public static func isUnauthenticatedPath(_ path: String) -> Bool {
-        unauthenticatedPaths.contains { path.contains($0) }
+        unauthenticatedPaths.contains { allowedPath in
+            path == allowedPath || path.hasPrefix("\(allowedPath)/")
+        }
     }
 
     enum TokenStorageKind: Equatable {

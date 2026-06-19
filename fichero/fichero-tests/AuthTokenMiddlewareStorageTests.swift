@@ -81,4 +81,17 @@ struct AuthTokenMiddlewareStorageTests {
         #expect(remoteAccount == "remote-device-token|https://host.tailnet.example")
         #expect(bootstrap?.lastPathComponent != remoteAccount)
     }
+
+    @Test("unauthenticated paths require an exact path or path segment boundary")
+    func unauthenticatedPathsRequireExactOrSegmentBoundary() {
+        #expect(AuthTokenMiddleware.isUnauthenticatedPath("/api/health"))
+        #expect(AuthTokenMiddleware.isUnauthenticatedPath("/api/health/"))
+        #expect(AuthTokenMiddleware.isUnauthenticatedPath("/docs"))
+        #expect(AuthTokenMiddleware.isUnauthenticatedPath("/docs/index.html"))
+
+        #expect(AuthTokenMiddleware.isUnauthenticatedPath("/api/healthcheck") == false)
+        #expect(AuthTokenMiddleware.isUnauthenticatedPath("/api/healthz") == false)
+        #expect(AuthTokenMiddleware.isUnauthenticatedPath("/api/docs") == false)
+        #expect(AuthTokenMiddleware.isUnauthenticatedPath("/redocify") == false)
+    }
 }
