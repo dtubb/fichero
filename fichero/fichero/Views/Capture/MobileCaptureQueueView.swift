@@ -15,6 +15,13 @@ struct MobileCaptureQueueView: View {
         NavigationStack {
             List {
                 Section("Capture") {
+                    #if os(visionOS)
+                    Button {
+                        pickerSource = .library
+                    } label: {
+                        Label("Choose From Library", systemImage: "photo.on.rectangle")
+                    }
+                    #else
                     Button {
                         pickerSource = .camera
                     } label: {
@@ -26,6 +33,7 @@ struct MobileCaptureQueueView: View {
                     } label: {
                         Label("Choose From Library", systemImage: "photo.on.rectangle")
                     }
+                    #endif
 
                     if let captureError {
                         Text(captureError)
@@ -269,12 +277,16 @@ private enum CaptureSource: Identifiable {
     }
 
     var sourceType: UIImagePickerController.SourceType {
+#if os(visionOS)
+        return .photoLibrary
+#else
         switch self {
         case .camera:
             return .camera
         case .library:
             return .photoLibrary
         }
+#endif
     }
 
     var defaultSourceHint: String {
