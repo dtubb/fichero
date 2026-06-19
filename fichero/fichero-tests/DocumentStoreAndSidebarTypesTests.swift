@@ -249,6 +249,20 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertFalse(appStateSource.contains("await checkBackendHealth()"))
     }
 
+    func testMacBackendSettingsShowsInlinePairingQrAndNoSheetAssumption() throws {
+        let settingsSource = try Self.appSource("Views/Settings/BackendSettingsView.swift")
+
+        XCTAssertTrue(settingsSource.contains("Section(\"Remote Access\")"))
+        XCTAssertTrue(settingsSource.contains("Generate Pairing QR"))
+        XCTAssertTrue(settingsSource.contains("Pairing QR code"))
+        XCTAssertTrue(settingsSource.contains("Text(pairingCode.code)"))
+        XCTAssertTrue(settingsSource.contains("Expires \\(pairingCode.expiresAt.formatted"))
+        XCTAssertTrue(settingsSource.contains("Refresh Devices"))
+        XCTAssertTrue(settingsSource.contains("buildQRCodePayload(from: pairingCode)"))
+        XCTAssertFalse(settingsSource.contains(".sheet(isPresented:"))
+        XCTAssertFalse(settingsSource.contains("QRCodeScannerSheet"))
+    }
+
     func testNotesLiveInDocumentInspectorAndStandaloneBrowserRetired() throws {
         // Notes moved into the per-document inspector (Notes tab → DocumentNotesTab,
         // #1500). The standalone library-wide browser sheet and its Data-menu entry
