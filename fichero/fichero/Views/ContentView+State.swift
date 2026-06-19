@@ -260,6 +260,14 @@ extension ContentView {
         Self.shouldUseSplittablePane(horizontalSizeClass: horizontalSizeClass)
     }
 
+    var inspectorPlacement: InspectorPlacement {
+        InspectorPlacement.adaptiveDefault(horizontalSizeClass: horizontalSizeClass)
+    }
+
+    var usesDockedInspector: Bool {
+        inspectorPlacement != .sheet
+    }
+
     var paneAwareDetailMinWidth: Double {
         guard supportsReadingWorkspace else {
             return ContentView.contentMinWidth

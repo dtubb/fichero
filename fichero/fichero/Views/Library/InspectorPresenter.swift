@@ -28,24 +28,21 @@ enum InspectorPlacement: String, CaseIterable, Sendable {
 extension InspectorPlacement {
     /// The simplest sensible default for the current window's capabilities.
     ///
-    /// - Capable of multiple windows (macOS, iPad multi-scene) → ``docked`` — the
-    ///   user opts in to ``floating`` via the detach affordance.
-    /// - No multi-window support (iPhone) → ``sheet``.
+    /// - Compact width (iPhone, narrow split views) → ``sheet``.
+    /// - Otherwise → ``docked`` — the user opts in to ``floating`` via the
+    ///   detach affordance.
     ///
-    /// A requested ``floating`` placement is **clamped to ``docked``** when the
-    /// platform can't open a second window, so the same call site is safe
-    /// everywhere without a `#if os(...)` fork.
+    /// Explicit requests are passed through unchanged so existing detach/future
+    /// callers can opt into a specific placement.
     static func adaptiveDefault(
-        supportsMultipleWindows: Bool,
+        horizontalSizeClass: UserInterfaceSizeClass?,
         requested: InspectorPlacement? = nil
     ) -> InspectorPlacement {
         switch requested {
-        case .floating where !supportsMultipleWindows:
-            return .docked
         case let .some(placement):
             return placement
         case .none:
-            return supportsMultipleWindows ? .docked : .sheet
+            return horizontalSizeClass == .compact ? .sheet : .docked
         }
     }
 }
@@ -76,6 +73,21 @@ struct DetachInspectorButton: View {
 }
 
 extension View {
+    @ViewBuilder
+    func adaptiveInspector<InspectorContent: View>(
+        placement: InspectorPlacement,
+        isPresented: Binding<Bool>,
+        detents: Set<PresentationDetent> = [.medium, .large],
+        @ViewBuilder content: @escaping () -> InspectorContent
+    ) -> some View {
+        switch placement {
+        case .sheet:
+            inspectorSheet(isPresented: isPresented, detents: detents, content: content)
+        case .docked, .floating:
+            inspector(isPresented: isPresented, content: content)
+        }
+    }
+
     /// Presents detail `content` as a detented sheet — the ``InspectorPlacement/sheet``
     /// placement for compact / single-window platforms. A no-op shape-wise on
     /// macOS where the docked column is used instead.

@@ -304,39 +304,8 @@ struct ContentView: View {
         // `navigationSplitColumn` (NavigationSplitView + first half of modifiers)
         // and `decoratedNavigationSplitColumn` (the remaining modifiers).
         decoratedNavigationSplitColumn
-            .inspector(isPresented: $showInspectorSidebar) {
-                detailView
-                    // Inspector toggle in the INSPECTOR SECTION (far right).
-                    // Attaching to the inspector panel content (rather than the
-                    // detail column) places the button in the trailing inspector
-                    // section of the unified NSToolbar instead of the content
-                    // section. NavigationSplitView does not auto-remove column
-                    // toolbar contributions when a column is hidden, so the
-                    // toggle remains visible even when the inspector is closed
-                    // — same mechanism as the sidebar-section buttons (#2309).
-                    .toolbar {
-                        if showInspectorToggle {
-                            ToolbarItem(placement: .primaryAction) {
-                                Button {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        showInspectorSidebar.toggle()
-                                    }
-                                } label: {
-                                    Label {
-                                        Text("Inspector")
-                                    } icon: {
-                                        toolbarToggleIcon("sidebar.right", isActive: showInspectorSidebar)
-                                    }
-                                }
-                                .help(showInspectorSidebar ? "Hide Inspector (⌘⌥I)" : "Show Inspector (⌘⌥I)")
-                            }
-                        }
-                    }
-                    .inspectorColumnWidth(
-                        min: CGFloat(ContentView.inspectorMinWidth),
-                        ideal: 300,
-                        max: CGFloat(ContentView.inspectorMaxWidth)
-                    )
+            .adaptiveInspector(placement: inspectorPlacement, isPresented: $showInspectorSidebar) {
+                inspectorContainerView
             }
             .frame(minWidth: CGFloat(paneAwareWindowMinWidth), maxWidth: .infinity, maxHeight: .infinity)
 
@@ -494,6 +463,45 @@ struct ContentView: View {
         // typical sidebar widths (#2309).
         principalToolbarContent
     }
+
+    @ViewBuilder
+    private var inspectorContainerView: some View {
+        if usesDockedInspector {
+            detailView
+                // Inspector toggle in the INSPECTOR SECTION (far right).
+                // Attaching to the inspector panel content (rather than the
+                // detail column) places the button in the trailing inspector
+                // section of the unified NSToolbar instead of the content
+                // section. NavigationSplitView does not auto-remove column
+                // toolbar contributions when a column is hidden, so the
+                // toggle remains visible even when the inspector is closed
+                // — same mechanism as the sidebar-section buttons (#2309).
+                .toolbar {
+                    if showInspectorToggle {
+                        ToolbarItem(placement: .primaryAction) {
+                            inspectorToggleButton
+                        }
+                    }
+                }
+                .inspectorColumnWidth(
+                    min: CGFloat(ContentView.inspectorMinWidth),
+                    ideal: 300,
+                    max: CGFloat(ContentView.inspectorMaxWidth)
+                )
+        } else {
+            NavigationStack {
+                detailView
+                    .navigationTitle("Inspector")
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Done") {
+                                showInspectorSidebar = false
+                            }
+                        }
+                    }
+            }
+        }
+    }
 }
 
 // MARK: - Toolbar Content
@@ -562,6 +570,12 @@ extension ContentView {
     /// content section (see `mainContentView`).
     @ToolbarContentBuilder
     private var trailingToolbarContent: some ToolbarContent {
+        if showInspectorToggle && !usesDockedInspector {
+            ToolbarItem(placement: .topBarTrailing) {
+                inspectorToggleButton
+            }
+        }
+
         // Activity / error status — sits between the title and the inspector section.
         ToolbarItem(placement: .automatic) {
             HStack(spacing: 6) {
@@ -578,6 +592,21 @@ extension ContentView {
                 }
             }
         }
+    }
+
+    private var inspectorToggleButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                showInspectorSidebar.toggle()
+            }
+        } label: {
+            Label {
+                Text("Inspector")
+            } icon: {
+                toolbarToggleIcon("sidebar.right", isActive: showInspectorSidebar)
+            }
+        }
+        .help(showInspectorSidebar ? "Hide Inspector (⌘⌥I)" : "Show Inspector (⌘⌥I)")
     }
 
     /// PRINCIPAL zone: breadcrumb lozenge (#2309).
