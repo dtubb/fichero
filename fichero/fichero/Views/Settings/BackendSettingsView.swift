@@ -102,7 +102,7 @@ struct BackendSettingsView: View {
                     Button(isLoadingDevices ? "Refreshing..." : "Refresh Devices") {
                         Task { await refreshPairedDevices() }
                     }
-                    .disabled(isLoadingDevices || !hostingEnabled || !appState.isBackendRunning)
+                    .disabled(isLoadingDevices || !hostingEnabled || !appState.isBackendRunning || !canHostRemoteAccess)
                 }
 
                 if let pairingError {
@@ -194,7 +194,7 @@ struct BackendSettingsView: View {
         .task {
             await loadStorageStats()
             #if canImport(AppKit)
-            if hostingEnabled, appState.isBackendRunning {
+            if hostingEnabled, appState.isBackendRunning, canHostRemoteAccess {
                 await refreshPairedDevices()
             }
             #endif
@@ -316,12 +316,10 @@ struct BackendSettingsView: View {
 
         do {
             guard canHostRemoteAccess else {
-                pairingError = "Remote Access hosting requires the embedded local engine. Clear Engine URL to host from this Mac."
                 return
             }
-            _ = try validatedReachableURL()
             guard let ownerPairingService else {
-                pairingError = "Set a reachable private URL before refreshing paired devices."
+                pairingError = "Remote Access hosting requires the embedded local engine. Clear Engine URL to host from this Mac."
                 return
             }
             pairedDevices = try await ownerPairingService.listDevices()
@@ -334,12 +332,10 @@ struct BackendSettingsView: View {
         pairingError = nil
         do {
             guard canHostRemoteAccess else {
-                pairingError = "Remote Access hosting requires the embedded local engine. Clear Engine URL to host from this Mac."
                 return
             }
-            _ = try validatedReachableURL()
             guard let ownerPairingService else {
-                pairingError = "Set a reachable private URL before revoking paired devices."
+                pairingError = "Remote Access hosting requires the embedded local engine. Clear Engine URL to host from this Mac."
                 return
             }
             try await ownerPairingService.revokeDevice(id: deviceID)
