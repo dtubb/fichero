@@ -143,25 +143,45 @@ struct FicheroApp: App {
 
                     // Start backend on app launch
                     let backendStart = Date()
-                    do {
-                        try await backendService.start()
-                        let backendMs = Date().timeIntervalSince(backendStart) * 1000
-                        logger.info("⏱ backendService.start: \(backendMs, format: .fixed(precision: 1))ms")
-                        // Serialize the launch health probe after the backend is
-                        // running so startup state and window state converge
-                        // without overlapping probes.
+                    if EngineConfig.requiresExternalBackendConnection {
+                        backendService.status = .starting
                         await appState.checkBackendHealth()
-                        guard appState.isBackendRunning else {
+                        let backendMs = Date().timeIntervalSince(backendStart) * 1000
+                        logger.info("⏱ remote backend probe: \(backendMs, format: .fixed(precision: 1))ms")
+                        if appState.isBackendRunning {
+                            backendService.status = .running
+                            backendService.errorMessage = nil
+                            appState.startBackendHeartbeat()
+                            await KnownLibraryRegistryStore.shared.refresh()
+                            await libraryManager.backendDidBecomeReady()
+                        } else {
                             backendService.status = .failed
                             backendService.errorMessage = appState.backendError
-                            throw BackendError.notRunning
+                            logger.error(
+                                "Configured backend is not reachable at \(EngineConfig.host.absoluteString, privacy: .public)"
+                            )
                         }
-                        appState.startBackendHeartbeat()
-                        await KnownLibraryRegistryStore.shared.refresh()
-                        await libraryManager.backendDidBecomeReady()
-                    } catch {
-                        logger.error("Failed to start backend: \(error.localizedDescription)")
-                        await showBackendError(error)
+                    } else {
+                        do {
+                            try await backendService.start()
+                            let backendMs = Date().timeIntervalSince(backendStart) * 1000
+                            logger.info("⏱ backendService.start: \(backendMs, format: .fixed(precision: 1))ms")
+                            // Serialize the launch health probe after the backend is
+                            // running so startup state and window state converge
+                            // without overlapping probes.
+                            await appState.checkBackendHealth()
+                            guard appState.isBackendRunning else {
+                                backendService.status = .failed
+                                backendService.errorMessage = appState.backendError
+                                throw BackendError.notRunning
+                            }
+                            appState.startBackendHeartbeat()
+                            await KnownLibraryRegistryStore.shared.refresh()
+                            await libraryManager.backendDidBecomeReady()
+                        } catch {
+                            logger.error("Failed to start backend: \(error.localizedDescription)")
+                            await showBackendError(error)
+                        }
                     }
                 }
         }

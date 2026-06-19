@@ -35,11 +35,13 @@ struct BackendConnectionView: View {
     /// 12 × 5 s = 60 s before we give up and show the error state.
     private static let maxPollAttempts = 12
 
-    #if os(iOS) || os(visionOS)
-    private let isRemoteBackendOnlyPlatform = true
-    #else
-    private let isRemoteBackendOnlyPlatform = false
-    #endif
+    private var usesExternalBackendConnection: Bool {
+        #if os(iOS) || os(visionOS)
+        true
+        #else
+        EngineConfig.requiresExternalBackendConnection
+        #endif
+    }
 
     /// Messages cycled while `backendService.status == .starting`.
     ///
@@ -104,15 +106,15 @@ struct BackendConnectionView: View {
     }
 
     private var titleText: String {
-        isRemoteBackendOnlyPlatform ? "Connect to Fichero" : "Starting Fichero"
+        usesExternalBackendConnection ? "Connect to Fichero" : "Starting Fichero"
     }
 
     private var failureTitle: String {
-        isRemoteBackendOnlyPlatform ? "Backend Not Reachable" : "Engine Not Running"
+        usesExternalBackendConnection ? "Backend Not Reachable" : "Engine Not Running"
     }
 
     private var secondaryStatusText: String {
-        isRemoteBackendOnlyPlatform ? "Connect to a running Fichero engine to continue." : "This can take a moment."
+        usesExternalBackendConnection ? "Connect to a running Fichero engine to continue." : "This can take a moment."
     }
 
     var body: some View {
@@ -201,12 +203,15 @@ struct BackendConnectionView: View {
                         messageIndex = 0
                         restartCount += 1
 
-                        if isRemoteBackendOnlyPlatform {
+                        if usesExternalBackendConnection {
+                            backendService.status = .starting
                             backendService.errorMessage = nil
                             await appState.checkBackendHealth()
                             if !appState.isBackendRunning {
                                 backendService.status = .failed
                                 backendService.errorMessage = appState.backendError
+                            } else {
+                                backendService.status = .running
                             }
                         } else {
                             // Reset view state before restarting so the re-keyed
@@ -221,7 +226,7 @@ struct BackendConnectionView: View {
                         }
                     }
                 } label: {
-                    Label(isRemoteBackendOnlyPlatform ? "Retry Connection" : "Restart Engine", systemImage: "arrow.clockwise")
+                    Label(usesExternalBackendConnection ? "Retry Connection" : "Restart Engine", systemImage: "arrow.clockwise")
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(backendService.status == .starting)

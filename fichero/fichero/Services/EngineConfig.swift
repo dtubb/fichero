@@ -49,6 +49,15 @@ enum EngineConfig {
             return true
         }
 
+        var requiresExternalBackendConnection: Bool {
+            switch self {
+            case .embeddedLocal:
+                return false
+            case .configured, .invalid:
+                return true
+            }
+        }
+
         var engineIsLocal: Bool {
             switch self {
             case .embeddedLocal:
@@ -79,6 +88,12 @@ enum EngineConfig {
 
     static var usesCustomHost: Bool {
         resolvedHostConfiguration.usesCustomHost
+    }
+
+    /// True when startup should connect to an explicit configured backend
+    /// instead of launching or restarting the embedded engine.
+    static var requiresExternalBackendConnection: Bool {
+        resolvedHostConfiguration.requiresExternalBackendConnection
     }
 
     /// True when the configured engine host is localhost / 127.0.0.1 / ::1.

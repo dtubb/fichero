@@ -24,6 +24,7 @@ final class EngineConfigTests: XCTestCase {
         XCTAssertEqual(EngineConfig.host.absoluteString, EngineConfig.defaultHostString)
         XCTAssertFalse(EngineConfig.usesCustomHost)
         XCTAssertTrue(EngineConfig.engineIsLocal)
+        XCTAssertFalse(EngineConfig.requiresExternalBackendConnection)
     }
 
     func testValidRemoteHostIsPreserved() {
@@ -39,6 +40,7 @@ final class EngineConfigTests: XCTestCase {
         XCTAssertEqual(EngineConfig.host, expectedURL)
         XCTAssertTrue(EngineConfig.usesCustomHost)
         XCTAssertFalse(EngineConfig.engineIsLocal)
+        XCTAssertTrue(EngineConfig.requiresExternalBackendConnection)
     }
 
     func testMalformedNonEmptyHostDoesNotBecomeLocalhost() {
@@ -53,5 +55,21 @@ final class EngineConfigTests: XCTestCase {
         XCTAssertNotEqual(EngineConfig.host.absoluteString, EngineConfig.defaultHostString)
         XCTAssertFalse(EngineConfig.engineIsLocal)
         XCTAssertTrue(EngineConfig.usesCustomHost)
+        XCTAssertTrue(EngineConfig.requiresExternalBackendConnection)
+    }
+
+    func testExplicitCustomLocalhostStillUsesExternalBackendConnection() {
+        let originalHost = UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey)
+        defer { restoreEngineHost(originalHost) }
+
+        let customLocalHost = "http://127.0.0.1:8765"
+        let expectedURL = URL(string: customLocalHost)!
+        UserDefaults.standard.set(customLocalHost, forKey: EngineConfig.userDefaultsKey)
+
+        XCTAssertEqual(EngineConfig.hostConfiguration(from: customLocalHost), .configured(expectedURL))
+        XCTAssertEqual(EngineConfig.host, expectedURL)
+        XCTAssertTrue(EngineConfig.engineIsLocal)
+        XCTAssertTrue(EngineConfig.usesCustomHost)
+        XCTAssertTrue(EngineConfig.requiresExternalBackendConnection)
     }
 }
