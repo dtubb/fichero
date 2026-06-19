@@ -34,7 +34,7 @@ extension ContentView {
         // NOT in the shell sidebar — the persistent library sidebar stays
         // visible like every other mode (sidebar-persistence fix).
         if sidebarMode == .research {
-            if shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) {
+            if Self.shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) {
                 VStack(spacing: 0) {
                     ResearchProjectListView()
                         .environmentObject(researchService)
@@ -162,7 +162,7 @@ extension ContentView {
             }
 
         case .workflow(let workflow):
-            if shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) {
+            if Self.shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) {
                 VStack(spacing: 0) {
                     WorkflowListView(
                         displayMode: .list,
@@ -265,7 +265,7 @@ extension ContentView {
             }
 
         case .activity(let selectedRun):
-            if shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) {
+            if Self.shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) {
                 VStack(spacing: 0) {
                     ActivityBrowserView(
                         selectedRunId: selectedRun?.id,
