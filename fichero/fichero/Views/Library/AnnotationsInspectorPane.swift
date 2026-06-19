@@ -186,7 +186,9 @@ struct AnnotationDetailWindow: View {
     var body: some View {
         AnnotationDetailView(annotation: shownAnnotation)
             .navigationTitle(shownAnnotation.map { $0.kind.label } ?? "Annotation")
+            #if !os(visionOS)
             .navigationSubtitle(focused.documentName ?? "")
+            #endif
             .toolbar {
                 ToolbarItem(placement: .automatic) {
                     Toggle(isOn: $isPinned) {

@@ -154,7 +154,9 @@ struct ArtifactDetailWindow: View {
     var body: some View {
         ArtifactDetailView(artifact: shownArtifact)
             .navigationTitle(shownArtifact.map { artifactTitle($0) } ?? "Artifact")
+            #if !os(visionOS)
             .navigationSubtitle(focused.documentName ?? "")
+            #endif
             .toolbar {
                 ToolbarItem(placement: .automatic) {
                     Toggle(isOn: $isPinned) {

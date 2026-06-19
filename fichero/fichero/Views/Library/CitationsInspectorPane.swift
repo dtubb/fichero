@@ -85,7 +85,9 @@ struct CitationDetailWindow: View {
     var body: some View {
         CitationDetailView(item: shownItem)
             .navigationTitle(shownItem.map { citationTitle($0) } ?? "Citation")
+            #if !os(visionOS)
             .navigationSubtitle(focused.documentName ?? "")
+            #endif
             .toolbar {
                 ToolbarItem(placement: .automatic) {
                     Toggle(isOn: $isPinned) {

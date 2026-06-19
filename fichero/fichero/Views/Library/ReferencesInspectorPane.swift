@@ -109,7 +109,9 @@ struct ReferenceDetailWindow: View {
     var body: some View {
         ReferenceDetailView(item: shownItem)
             .navigationTitle(shownItem?.title ?? "Reference")
+            #if !os(visionOS)
             .navigationSubtitle(focused.documentName ?? "")
+            #endif
             .toolbar {
                 ToolbarItem(placement: .automatic) {
                     Toggle(isOn: $isPinned) {
