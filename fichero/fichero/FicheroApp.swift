@@ -147,6 +147,12 @@ struct FicheroApp: App {
                         try await backendService.start()
                         let backendMs = Date().timeIntervalSince(backendStart) * 1000
                         logger.info("⏱ backendService.start: \(backendMs, format: .fixed(precision: 1))ms")
+                        await appState.checkBackendHealth()
+                        guard appState.isBackendRunning else {
+                            backendService.status = .failed
+                            backendService.errorMessage = appState.backendError
+                            throw BackendError.notRunning
+                        }
                         await KnownLibraryRegistryStore.shared.refresh()
                         await libraryManager.backendDidBecomeReady()
                     } catch {

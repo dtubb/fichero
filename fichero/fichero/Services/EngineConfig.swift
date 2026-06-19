@@ -156,15 +156,83 @@ enum RemoteAccessConfig {
     }
 
     static var publicBaseURL: URL? {
-        guard !publicBaseURLString.isEmpty else { return nil }
-        return URL(string: publicBaseURLString)
+        try? validatedRemoteURL(from: publicBaseURLString, allowLocalhost: false)
     }
 
     static func pairingBackendURL(from publicBaseURLString: String) -> URL? {
-        let trimmed = publicBaseURLString.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        return URL(string: trimmed)
+        try? validatedRemoteURL(from: publicBaseURLString, allowLocalhost: false)
     }
+}
+
+enum RemoteURLValidationError: LocalizedError, Equatable {
+    case blank
+    case invalid
+    case unsupportedScheme
+    case missingHost
+    case localhostNotAllowed
+    case pathNotAllowed
+    case queryNotAllowed
+    case fragmentNotAllowed
+
+    var errorDescription: String? {
+        switch self {
+        case .blank:
+            return "Enter a reachable remote URL."
+        case .invalid:
+            return "Enter a valid remote URL."
+        case .unsupportedScheme:
+            return "Remote URLs must use http or https."
+        case .missingHost:
+            return "Remote URLs must include a host name."
+        case .localhostNotAllowed:
+            return "Remote clients must use a non-localhost host."
+        case .pathNotAllowed:
+            return "Remote URLs must be the backend root, without a path."
+        case .queryNotAllowed:
+            return "Remote URLs cannot include a query string."
+        case .fragmentNotAllowed:
+            return "Remote URLs cannot include a fragment."
+        }
+    }
+}
+
+func validatedRemoteURL(from raw: String, allowLocalhost: Bool) throws -> URL {
+    let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else {
+        throw RemoteURLValidationError.blank
+    }
+
+    guard var components = URLComponents(string: trimmed) else {
+        throw RemoteURLValidationError.invalid
+    }
+
+    guard let scheme = components.scheme?.lowercased(), scheme == "http" || scheme == "https" else {
+        throw RemoteURLValidationError.unsupportedScheme
+    }
+    guard let host = components.host, !host.isEmpty else {
+        throw RemoteURLValidationError.missingHost
+    }
+    if !allowLocalhost, EngineConfig.hostConfiguration(from: "\(scheme)://\(host)").engineIsLocal {
+        throw RemoteURLValidationError.localhostNotAllowed
+    }
+    if !components.path.isEmpty, components.path != "/" {
+        throw RemoteURLValidationError.pathNotAllowed
+    }
+    if components.query != nil {
+        throw RemoteURLValidationError.queryNotAllowed
+    }
+    if components.fragment != nil {
+        throw RemoteURLValidationError.fragmentNotAllowed
+    }
+
+    components.path = ""
+    components.query = nil
+    components.fragment = nil
+
+    guard let url = components.url else {
+        throw RemoteURLValidationError.invalid
+    }
+    return url
 }
 
 struct PairingQRCodePayload: Codable {

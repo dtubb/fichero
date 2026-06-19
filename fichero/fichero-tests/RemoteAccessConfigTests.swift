@@ -46,4 +46,21 @@ final class RemoteAccessConfigTests: XCTestCase {
         XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: ""))
         XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: "   "))
     }
+
+    func testPairingBackendURLRejectsLocalhostAndPaths() {
+        XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: "http://127.0.0.1:8765"))
+        XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: "https://pairing.example.com/api"))
+        XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: "https://pairing.example.com?foo=bar"))
+    }
+
+    func testValidatedRemoteURLNormalizesReachableRoot() throws {
+        let url = try validatedRemoteURL(from: " https://pairing.example.com/ ", allowLocalhost: false)
+        XCTAssertEqual(url.absoluteString, "https://pairing.example.com")
+    }
+
+    func testValidatedRemoteURLRejectsUnsupportedSchemes() {
+        XCTAssertThrowsError(try validatedRemoteURL(from: "ftp://pairing.example.com", allowLocalhost: false)) { error in
+            XCTAssertEqual(error as? RemoteURLValidationError, .unsupportedScheme)
+        }
+    }
 }

@@ -261,8 +261,9 @@ private struct RemoteConnectionSetupView: View {
     private func handleScannedMessage(_ message: String) {
         do {
             let payload = try PairingQRCodePayloadDecoder.decode(message: message)
+            let validatedURL = try validatedRemoteURL(from: payload.apiURL, allowLocalhost: false)
             detectedPayload = payload
-            remoteURL = payload.apiURL
+            remoteURL = validatedURL.absoluteString
             pairCode = payload.pairCode
             errorMessage = nil
         } catch {
@@ -279,10 +280,6 @@ private struct RemoteConnectionSetupView: View {
         let code = pairCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         let name = deviceName.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard let url = URL(string: urlString), !urlString.isEmpty else {
-            errorMessage = "Enter a valid remote URL."
-            return
-        }
         guard !code.isEmpty else {
             errorMessage = "Scan the pairing QR code or enter a pairing code."
             return
@@ -293,6 +290,7 @@ private struct RemoteConnectionSetupView: View {
         }
 
         do {
+            let url = try validatedRemoteURL(from: urlString, allowLocalhost: false)
             let response = try await PairingService(apiRoot: url).pairDevice(code: code, deviceName: name)
             try PairingService.persistAuthToken(response.deviceToken, for: url)
             UserDefaults.standard.set(url.absoluteString, forKey: EngineConfig.userDefaultsKey)
@@ -541,11 +539,12 @@ private final class BonjourDiscoveryService: NSObject, ObservableObject {
     private func handleResolved(_ sender: NetService) {
         let id = recordID(for: sender)
         let txtRecord = decodeTXTRecord(for: sender)
-        let reachableURL = txtRecord["public_url"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let reachableURL = txtRecord["public_url"]
+            .flatMap { try? validatedRemoteURL(from: $0, allowLocalhost: false).absoluteString }
         records[id] = BonjourHostRecord(
             id: id,
             displayName: sender.name,
-            reachableURL: reachableURL?.isEmpty == false ? reachableURL : nil
+            reachableURL: reachableURL
         )
         refreshHosts()
     }

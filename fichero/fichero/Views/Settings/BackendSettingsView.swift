@@ -89,7 +89,7 @@ struct BackendSettingsView: View {
                     .disabled(
                         isGeneratingPairingCode
                             || !hostingEnabled
-                            || publicBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            || !hasValidReachableURL
                             || !appState.isBackendRunning
                     )
 
@@ -215,10 +215,14 @@ struct BackendSettingsView: View {
 
     #if canImport(AppKit)
     private var pairingService: PairingService? {
-        guard let publicURL = RemoteAccessConfig.pairingBackendURL(from: publicBaseURL) else {
+        guard let publicURL = try? validatedReachableURL() else {
             return nil
         }
         return PairingService(apiRoot: publicURL)
+    }
+
+    private var hasValidReachableURL: Bool {
+        (try? validatedReachableURL()) != nil
     }
 
     private var qrCodeImage: PlatformImage? {
@@ -261,12 +265,12 @@ struct BackendSettingsView: View {
         pairingError = nil
         defer { isGeneratingPairingCode = false }
 
-        guard let pairingService else {
-            pairingError = "Set a reachable private URL before generating a pairing QR code."
-            return
-        }
-
         do {
+            _ = try validatedReachableURL()
+            guard let pairingService else {
+                pairingError = "Set a reachable private URL before generating a pairing QR code."
+                return
+            }
             let code = try await pairingService.createPairingCode()
             pairingCode = code
             _ = pairingService.buildQRCodePayload(from: code)
@@ -280,12 +284,12 @@ struct BackendSettingsView: View {
         isLoadingDevices = true
         defer { isLoadingDevices = false }
 
-        guard let pairingService else {
-            pairingError = "Set a reachable private URL before refreshing paired devices."
-            return
-        }
-
         do {
+            _ = try validatedReachableURL()
+            guard let pairingService else {
+                pairingError = "Set a reachable private URL before refreshing paired devices."
+                return
+            }
             pairedDevices = try await pairingService.listDevices()
         } catch {
             pairingError = error.localizedDescription
@@ -294,16 +298,21 @@ struct BackendSettingsView: View {
 
     private func revoke(deviceID: String) async {
         pairingError = nil
-        guard let pairingService else {
-            pairingError = "Set a reachable private URL before revoking paired devices."
-            return
-        }
         do {
+            _ = try validatedReachableURL()
+            guard let pairingService else {
+                pairingError = "Set a reachable private URL before revoking paired devices."
+                return
+            }
             try await pairingService.revokeDevice(id: deviceID)
             await refreshPairedDevices()
         } catch {
             pairingError = error.localizedDescription
         }
+    }
+
+    private func validatedReachableURL() throws -> URL {
+        try validatedRemoteURL(from: publicBaseURL, allowLocalhost: false)
     }
     #endif
 }
