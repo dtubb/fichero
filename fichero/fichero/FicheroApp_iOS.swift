@@ -16,6 +16,7 @@ struct FicheroAppIOS: App {
     @StateObject private var claimFocusState = ClaimFocusState.shared
     @State private var kgFocusState = KGFocusState.shared
     @State private var executionObserver = WorkflowExecutionObserver()
+    @StateObject private var captureQueue = MobileCaptureQueueStore()
 
     var body: some Scene {
         WindowGroup {
@@ -30,6 +31,7 @@ struct FicheroAppIOS: App {
                 .environmentObject(libraryManager)
                 .environmentObject(claimFocusState)
                 .environmentObject(appState.mcpService)
+                .environmentObject(captureQueue)
                 .environment(kgFocusState)
                 .task {
                     await appState.checkBackendHealth()
@@ -48,6 +50,9 @@ struct FicheroAppIOS: App {
 
                     await KnownLibraryRegistryStore.shared.refresh()
                     await libraryManager.backendDidBecomeReady()
+                    await captureQueue.resumePendingUploads(
+                        using: MobileCaptureBackendUploadClient(libraryManager: libraryManager)
+                    )
                 }
         }
     }
@@ -56,6 +61,7 @@ struct FicheroAppIOS: App {
 private struct FicheroSharedPlatformRoot: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var libraryManager: LibraryManager
+    @EnvironmentObject private var captureQueue: MobileCaptureQueueStore
 
     let windowState: WindowState
     let executionObserver: WorkflowExecutionObserver
@@ -101,18 +107,36 @@ private struct FicheroSharedPlatformRoot: View {
         appState.startBackendHeartbeat()
         await KnownLibraryRegistryStore.shared.refresh()
         await libraryManager.backendDidBecomeReady()
+        await captureQueue.resumePendingUploads(
+            using: MobileCaptureBackendUploadClient(libraryManager: libraryManager)
+        )
+    }
+}
+
+private enum RemoteConnectionSheet: Identifiable {
+    case scanner
+    case captureQueue
+
+    var id: Int {
+        switch self {
+        case .scanner:
+            return 0
+        case .captureQueue:
+            return 1
+        }
     }
 }
 
 private struct RemoteConnectionSetupView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var libraryManager: LibraryManager
+    @EnvironmentObject private var captureQueue: MobileCaptureQueueStore
 
     let onConnected: @MainActor () async -> Void
 
     @StateObject private var discovery = BonjourDiscoveryService()
     @State private var detectedPayload: PairingQRCodePayload?
-    @State private var showingScanner = false
+    @State private var presentedSheet: RemoteConnectionSheet?
     @State private var remoteURL = EngineConfig.usesCustomHost ? EngineConfig.hostString : ""
     @State private var pairCode = ""
     @State private var deviceName = RemoteClientPairing.defaultDeviceName()
@@ -133,11 +157,18 @@ private struct RemoteConnectionSetupView: View {
                 }
 
                 Button {
-                    showingScanner = true
+                    presentedSheet = .scanner
                 } label: {
                     Label("Scan Pairing QR", systemImage: "qrcode.viewfinder")
                 }
                 .buttonStyle(.borderedProminent)
+
+                Button {
+                    presentedSheet = .captureQueue
+                } label: {
+                    Label("Open Capture Queue", systemImage: "camera")
+                }
+                .buttonStyle(.bordered)
 
                 if let detectedPayload {
                     VStack(alignment: .leading, spacing: 8) {
@@ -246,14 +277,26 @@ private struct RemoteConnectionSetupView: View {
             .padding(24)
             .frame(maxWidth: 640, alignment: .leading)
         }
-        .sheet(isPresented: $showingScanner) {
-            QRCodeScannerSheet(
-                onCancel: { showingScanner = false },
-                onMessage: { message in
-                    handleScannedMessage(message)
-                    showingScanner = false
-                }
-            )
+        .sheet(item: $presentedSheet) { sheet in
+            switch sheet {
+            case .scanner:
+                QRCodeScannerSheet(
+                    onCancel: { presentedSheet = nil },
+                    onMessage: { message in
+                        handleScannedMessage(message)
+                        presentedSheet = nil
+                    }
+                )
+            case .captureQueue:
+                MobileCaptureQueueView(
+                    queue: captureQueue,
+                    retryPendingUploads: {
+                        await captureQueue.resumePendingUploads(
+                            using: MobileCaptureBackendUploadClient(libraryManager: libraryManager)
+                        )
+                    }
+                )
+            }
         }
         .task {
             discovery.start()
