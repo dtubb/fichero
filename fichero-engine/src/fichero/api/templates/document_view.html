@@ -923,7 +923,7 @@ function renderGraph() {
             });
             if (window.ficheroToken && sourceHeaders()["X-Fichero-Library-Path"]) {
                 try {
-                    await fetch(`http://localhost:8765/api/kg/graph/neighborhood/${entityId}`, {
+                    await fetch(`/api/kg/graph/neighborhood/${entityId}`, {
                         headers: sourceHeaders(),
                     });
                 } catch (_error) {
