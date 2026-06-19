@@ -21,6 +21,13 @@ enum PaneFocus: Hashable {
 // - ContentView+Persistence: State serialization for @SceneStorage
 // swiftlint:disable:next type_body_length
 struct ContentView: View {
+    #if os(macOS)
+    static let defaultColumnVisibility: NavigationSplitViewVisibility = .all
+    static let defaultColumnVisibilityRaw: Int = 2 // .all
+    #else
+    static let defaultColumnVisibility: NavigationSplitViewVisibility = .detailOnly
+    static let defaultColumnVisibilityRaw: Int = 1 // .detailOnly
+    #endif
     static let sidebarMinWidth: Double = 160
     static let inspectorMinWidth: Double = 220
     static let inspectorMaxWidth: Double = 420
@@ -68,12 +75,12 @@ struct ContentView: View {
     /// The page document currently in view, updated only by scroll/page-flip
     /// events. Drives the inspector without re-rooting the WebKit pane (#1463).
     @State var pageFocusDocument: Document?
-    @State var columnVisibility: NavigationSplitViewVisibility = .all
+    @State var columnVisibility: NavigationSplitViewVisibility = ContentView.defaultColumnVisibility
     @State var browserSelection: Set<String> = []
 
     // Persisted state (@SceneStorage) - synced via .onAppear and .onChange
     @SceneStorage("selectedSidebarItem") var selectedSidebarItemId: String?
-    @SceneStorage("columnVisibilityRaw") var columnVisibilityRaw: Int = 2 // 2 = .all
+    @SceneStorage("columnVisibilityRaw") var columnVisibilityRaw: Int = ContentView.defaultColumnVisibilityRaw
     @SceneStorage("browserSelectionData") var browserSelectionData: Data = Data()
     @SceneStorage("viewModeType") var storedViewModeType: String = "library"
     @SceneStorage("viewModeItemId") var storedViewModeItemId: String?

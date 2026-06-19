@@ -426,9 +426,6 @@ struct ZoomableImagePreview: View {
 
 #else
 
-// iOS stub: ZoomableImagePreview relies on NSViewRepresentable image tracking that
-// has no cross-platform shim yet. Shared call sites get a placeholder until a
-// UIImage-based viewer replaces it.
 struct ZoomableImagePreview: View {
     var url: URL?
     var documentId: String?
@@ -441,11 +438,24 @@ struct ZoomableImagePreview: View {
     }
 
     var body: some View {
-        ContentUnavailableView(
-            "Image Preview",
-            systemImage: "photo",
-            description: Text("High-resolution image preview is not available on iOS yet.")
-        )
+        Group {
+            if let image = renderedImage ?? url.flatMap({ PlatformImage(contentsOfFile: $0.path) }) {
+                ScrollView([.horizontal, .vertical]) {
+                    Image(platformImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .padding()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .background(Color(.systemBackground))
+            } else {
+                ContentUnavailableView(
+                    "Image Preview",
+                    systemImage: "photo",
+                    description: Text("The image could not be loaded.")
+                )
+            }
+        }
     }
 }
 
