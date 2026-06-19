@@ -163,6 +163,8 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         let source = try Self.appSource("Views/Sidebar/SidebarView+PinnedNavigationRows.swift")
 
         XCTAssertTrue(source.contains("tag: \"comparison-browser\""))
+        XCTAssertTrue(source.contains("if FeatureManager.shared.isChatEnabled {"))
+        XCTAssertFalse(source.contains("if FeatureManager.shared.isWorkflowsEnabled {\n            comparisonNavigationRow()"))
         XCTAssertTrue(source.contains("tag: \"research-browser\""))
         XCTAssertTrue(source.contains("FeatureManager.shared.isResearchEnabled"))
     }

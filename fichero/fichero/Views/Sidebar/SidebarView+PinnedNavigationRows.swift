@@ -134,8 +134,7 @@ extension SidebarView {
             workflowsNavigationRow()
         }
 
-        // Batches hidden from the sidebar — superseded by Activity (Daniel, 2026-06-08).
-        if FeatureManager.shared.isWorkflowsEnabled {
+        if FeatureManager.shared.isChatEnabled {
             comparisonNavigationRow()
         }
 
