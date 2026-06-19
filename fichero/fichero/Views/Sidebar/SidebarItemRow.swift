@@ -74,7 +74,7 @@ struct SidebarItemRow: View {
     @Environment(WorkflowExecutionObserver.self) var executionObserver
     /// Finder-style Open in New Tab / New Window for sidebar rows (#1685).
     @Environment(\.openWindow) private var openWindow
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
     var library: LibraryManager.LibraryReference? {
         guard let libraryId = item.libraryId else { return nil }
