@@ -205,7 +205,9 @@ struct BackendSettingsView: View {
         }
         .formStyle(.grouped)
         .task {
+            #if canImport(AppKit)
             loadAdvertisedSPKIPin()
+            #endif
             await loadStorageStats()
             #if canImport(AppKit)
             if !canHostRemoteAccess {
@@ -217,7 +219,9 @@ struct BackendSettingsView: View {
             #endif
         }
         .onChange(of: publicBaseURL) { _, _ in
+            #if canImport(AppKit)
             loadAdvertisedSPKIPin()
+            #endif
         }
     }
 
