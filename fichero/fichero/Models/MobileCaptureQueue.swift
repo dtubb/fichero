@@ -79,8 +79,79 @@ struct MobileCaptureQueueItem: Identifiable, Codable, Hashable {
     var uploadState: MobileCaptureUploadState
     var uploadedDocumentId: String?
     var lastError: String?
+    var requiresExplicitRetry: Bool
     var retryCount: Int
     var lastAttemptAt: Date?
+
+    init(
+        id: String,
+        imageFileName: String,
+        createdAt: Date,
+        updatedAt: Date,
+        catalog: MobileCaptureCatalogFields,
+        uploadState: MobileCaptureUploadState,
+        uploadedDocumentId: String?,
+        lastError: String?,
+        requiresExplicitRetry: Bool = false,
+        retryCount: Int,
+        lastAttemptAt: Date?
+    ) {
+        self.id = id
+        self.imageFileName = imageFileName
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.catalog = catalog
+        self.uploadState = uploadState
+        self.uploadedDocumentId = uploadedDocumentId
+        self.lastError = lastError
+        self.requiresExplicitRetry = requiresExplicitRetry
+        self.retryCount = retryCount
+        self.lastAttemptAt = lastAttemptAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case imageFileName
+        case createdAt
+        case updatedAt
+        case catalog
+        case uploadState
+        case uploadedDocumentId
+        case lastError
+        case requiresExplicitRetry
+        case retryCount
+        case lastAttemptAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        imageFileName = try container.decode(String.self, forKey: .imageFileName)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        catalog = try container.decode(MobileCaptureCatalogFields.self, forKey: .catalog)
+        uploadState = try container.decode(MobileCaptureUploadState.self, forKey: .uploadState)
+        uploadedDocumentId = try container.decodeIfPresent(String.self, forKey: .uploadedDocumentId)
+        lastError = try container.decodeIfPresent(String.self, forKey: .lastError)
+        requiresExplicitRetry = try container.decodeIfPresent(Bool.self, forKey: .requiresExplicitRetry) ?? false
+        retryCount = try container.decode(Int.self, forKey: .retryCount)
+        lastAttemptAt = try container.decodeIfPresent(Date.self, forKey: .lastAttemptAt)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(imageFileName, forKey: .imageFileName)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encode(updatedAt, forKey: .updatedAt)
+        try container.encode(catalog, forKey: .catalog)
+        try container.encode(uploadState, forKey: .uploadState)
+        try container.encodeIfPresent(uploadedDocumentId, forKey: .uploadedDocumentId)
+        try container.encodeIfPresent(lastError, forKey: .lastError)
+        try container.encode(requiresExplicitRetry, forKey: .requiresExplicitRetry)
+        try container.encode(retryCount, forKey: .retryCount)
+        try container.encodeIfPresent(lastAttemptAt, forKey: .lastAttemptAt)
+    }
 }
 
 struct MobileCaptureUploadSummary: Equatable {
@@ -203,6 +274,7 @@ final class MobileCaptureQueueStore: ObservableObject {
             uploadState: .queued,
             uploadedDocumentId: nil,
             lastError: nil,
+            requiresExplicitRetry: false,
             retryCount: 0,
             lastAttemptAt: nil
         )
@@ -216,15 +288,25 @@ final class MobileCaptureQueueStore: ObservableObject {
         mutate: (inout MobileCaptureCatalogFields) -> Void
     ) {
         guard let index = items.firstIndex(where: { $0.id == id }) else { return }
+        let wasInterruptedRetry =
+            items[index].requiresExplicitRetry
+            || items[index].lastError == mobileCaptureInterruptedUploadError
         mutate(&items[index].catalog)
         items[index].updatedAt = Date()
         if items[index].uploadState == .uploaded {
             items[index].uploadState = .queued
             items[index].uploadedDocumentId = nil
+            items[index].requiresExplicitRetry = false
+        } else if wasInterruptedRetry {
+            items[index].uploadState = .failed
+            items[index].requiresExplicitRetry = true
+            items[index].lastError = mobileCaptureInterruptedUploadError
         } else if items[index].uploadState != .uploading {
             items[index].uploadState = .queued
         }
-        items[index].lastError = nil
+        if !wasInterruptedRetry {
+            items[index].lastError = nil
+        }
         persistQueue()
     }
 
@@ -260,6 +342,9 @@ final class MobileCaptureQueueStore: ObservableObject {
         let retryableIndices = items.indices.filter { index in
             switch items[index].uploadState {
             case .queued, .failed, .waitingForBackend:
+                if items[index].requiresExplicitRetry && !retryInterruptedUploads {
+                    return false
+                }
                 if !retryInterruptedUploads,
                    items[index].lastError == mobileCaptureInterruptedUploadError {
                     return false
@@ -319,6 +404,7 @@ final class MobileCaptureQueueStore: ObservableObject {
             if normalized.uploadState == .uploading {
                 normalized.uploadState = .failed
                 normalized.lastError = mobileCaptureInterruptedUploadError
+                normalized.requiresExplicitRetry = true
                 normalized.lastAttemptAt = nil
             }
             return normalized

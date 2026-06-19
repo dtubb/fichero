@@ -156,6 +156,20 @@ final class MobileCaptureQueueTests: XCTestCase {
         XCTAssertTrue(uploader.uploads.isEmpty)
         XCTAssertEqual(store.items.first?.uploadState, .failed)
 
+        store.updateCatalog(id: "capture-1") { catalog in
+            catalog.notes = "Edited after relaunch"
+        }
+
+        XCTAssertEqual(store.items.first?.uploadState, .failed)
+        XCTAssertEqual(
+            store.items.first?.lastError,
+            "This upload was interrupted before it completed. Tap Retry to upload it again."
+        )
+
+        let editedSummary = await store.resumePendingUploads(using: uploader)
+        XCTAssertEqual(editedSummary.uploadedCount, 0)
+        XCTAssertEqual(uploader.uploads.count, 0)
+
         let retrySummary = await store.resumePendingUploads(
             using: uploader,
             retryInterruptedUploads: true
