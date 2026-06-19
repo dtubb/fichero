@@ -361,15 +361,7 @@ struct ContentView: View {
             sidebarContent
         } detail: {
             centerContent
-                .toolbar {
-                    // Inspector toggle in the content section. .automatic on the detail
-                    // column view lands in the content-column toolbar section (#2309).
-                    trailingToolbarContent
-                    // Centred context label. .principal on the detail column centres
-                    // within the content section — visually near window centre at
-                    // typical sidebar widths (#2309).
-                    principalToolbarContent
-                }
+                .toolbar { detailToolbarContent }
                 // The detail column carries only a MODEST hard floor — the
                 // always-present library-list spine width — NOT the full
                 // per-layout `paneAwareDetailMinWidth`. The full content
@@ -491,6 +483,19 @@ struct ContentView: View {
                     handleFileDrop: handleFileDrop
                 )
             )
+    }
+
+    /// Detail-column toolbar content split out to keep the `NavigationSplitView`
+    /// detail closure small enough for the Swift type-checker.
+    @ToolbarContentBuilder
+    private var detailToolbarContent: some ToolbarContent {
+        // Inspector toggle in the content section. .automatic on the detail
+        // column view lands in the content-column toolbar section (#2309).
+        trailingToolbarContent
+        // Centred context label. .principal on the detail column centres
+        // within the content section — visually near window centre at
+        // typical sidebar widths (#2309).
+        principalToolbarContent
     }
 }
 
