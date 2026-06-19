@@ -10,6 +10,7 @@ struct DocumentTabView: View {
     @Binding var document: FicheroDocument
     let documentURL: URL?  // URL of the .fichero package file
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var libraryManager: LibraryManager
     @EnvironmentObject var viewSettings: ViewSettings
 
     // All services come from the environment (shared per-library, not per-tab)
@@ -73,7 +74,7 @@ struct DocumentTabView: View {
 
     @ViewBuilder
     private var backendConnectionView: some View {
-        BackendConnectionView(appState: appState)
+        BackendConnectionView(appState: appState, onConnected: completeBackendRetryReadiness)
     }
 
     @ViewBuilder
@@ -166,6 +167,13 @@ struct DocumentTabView: View {
     private func loadContext() async {
         // Context loading is handled by individual views via their own .task modifiers
         // This method exists for future cross-view state restoration if needed
+    }
+
+    @MainActor
+    private func completeBackendRetryReadiness() async {
+        appState.startBackendHeartbeat()
+        await KnownLibraryRegistryStore.shared.refresh()
+        await libraryManager.backendDidBecomeReady()
     }
 }
 

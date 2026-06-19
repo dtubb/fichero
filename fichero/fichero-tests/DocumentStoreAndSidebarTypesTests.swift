@@ -251,6 +251,21 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertFalse(appStateSource.contains("await checkBackendHealth()"))
     }
 
+    func testBackendRetryRunsSameReadinessSideEffectsAsStartup() throws {
+        let tabSource = try Self.appSource("Views/DocumentTabView.swift")
+        let connectionSource = try Self.appSource("Views/Components/BackendConnectionView.swift")
+
+        XCTAssertTrue(tabSource.contains("BackendConnectionView(appState: appState, onConnected: completeBackendRetryReadiness)"))
+        XCTAssertTrue(tabSource.contains("private func completeBackendRetryReadiness() async"))
+        XCTAssertTrue(tabSource.contains("appState.startBackendHeartbeat()"))
+        XCTAssertTrue(tabSource.contains("await KnownLibraryRegistryStore.shared.refresh()"))
+        XCTAssertTrue(tabSource.contains("await libraryManager.backendDidBecomeReady()"))
+
+        XCTAssertTrue(connectionSource.contains("var onConnected: (@MainActor () async -> Void)? = nil"))
+        XCTAssertTrue(connectionSource.contains("await completeSuccessfulConnection()"))
+        XCTAssertTrue(connectionSource.contains("await onConnected?()"))
+    }
+
     func testMacBackendSettingsShowsInlinePairingQrAndNoSheetAssumption() throws {
         let settingsSource = try Self.appSource("Views/Settings/BackendSettingsView.swift")
 

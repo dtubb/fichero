@@ -14,6 +14,7 @@ import SwiftUI
 /// generic SF symbol.
 struct BackendConnectionView: View {
     @ObservedObject var appState: AppState
+    var onConnected: (@MainActor () async -> Void)?
     @EnvironmentObject var backendService: EmbeddedBackendService
 
     /// Index into `Self.startupMessages`, advanced by a timer.
@@ -31,6 +32,7 @@ struct BackendConnectionView: View {
     /// blocks are keyed on this value so SwiftUI cancels and re-creates them
     /// on each restart, resuming the poll loop from scratch.
     @State private var restartCount: Int = 0
+    @State private var completedConnectionForCurrentAttempt = false
 
     /// 12 × 5 s = 60 s before we give up and show the error state.
     private static let maxPollAttempts = 12
@@ -115,6 +117,15 @@ struct BackendConnectionView: View {
 
     private var secondaryStatusText: String {
         usesExternalBackendConnection ? "Connect to a running Fichero engine to continue." : "This can take a moment."
+    }
+
+    @MainActor
+    private func completeSuccessfulConnection() async {
+        guard !completedConnectionForCurrentAttempt else { return }
+        completedConnectionForCurrentAttempt = true
+        backendService.status = .running
+        backendService.errorMessage = nil
+        await onConnected?()
     }
 
     var body: some View {
@@ -202,6 +213,7 @@ struct BackendConnectionView: View {
                         pollCount = 0
                         messageIndex = 0
                         restartCount += 1
+                        completedConnectionForCurrentAttempt = false
 
                         if usesExternalBackendConnection {
                             backendService.status = .starting
@@ -211,7 +223,7 @@ struct BackendConnectionView: View {
                                 backendService.status = .failed
                                 backendService.errorMessage = appState.backendError
                             } else {
-                                backendService.status = .running
+                                await completeSuccessfulConnection()
                             }
                         } else {
                             // Reset view state before restarting so the re-keyed
@@ -220,6 +232,10 @@ struct BackendConnectionView: View {
                             backendService.stop()
                             do {
                                 try await backendService.start()
+                                await appState.checkBackendHealth()
+                                if appState.isBackendRunning {
+                                    await completeSuccessfulConnection()
+                                }
                             } catch {
                                 appState.backendError = error.localizedDescription
                             }
@@ -248,6 +264,10 @@ struct BackendConnectionView: View {
                     }
                 }
                 await appState.checkBackendHealth()
+                if appState.isBackendRunning {
+                    await completeSuccessfulConnection()
+                    return
+                }
                 if !appState.isBackendRunning && backendService.status != .failed {
                     pollCount += 1
                     if pollCount >= Self.maxPollAttempts {
