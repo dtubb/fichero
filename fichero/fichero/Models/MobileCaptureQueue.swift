@@ -298,7 +298,19 @@ final class MobileCaptureQueueStore: ObservableObject {
             return
         }
 
-        items = decoded.filter { fileManager.fileExists(atPath: imageURL(for: $0).path) }
+        items = decoded.compactMap { item in
+            guard fileManager.fileExists(atPath: imageURL(for: item).path) else {
+                return nil
+            }
+
+            var normalized = item
+            if normalized.uploadState == .uploading {
+                normalized.uploadState = .queued
+                normalized.lastError = nil
+                normalized.lastAttemptAt = nil
+            }
+            return normalized
+        }
     }
 
     private func persistQueue() {

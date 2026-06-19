@@ -3,15 +3,6 @@ import Foundation
 import XCTest
 
 final class MobileCaptureQueueTests: XCTestCase {
-    private static func appSource(_ relativePath: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero")
-            .appendingPathComponent(relativePath)
-        return try String(contentsOf: url, encoding: .utf8)
-    }
-
     func testCatalogFieldsMapToDocumentMetadataAndFallbackTitle() {
         let fields = MobileCaptureCatalogFields(
             title: "  Scan Title  ",
@@ -119,13 +110,48 @@ final class MobileCaptureQueueTests: XCTestCase {
         XCTAssertEqual(store.items.first?.lastError, "boom")
     }
 
-    func testIosConnectionSurfaceExposesCaptureQueueRoute() throws {
-        let source = try Self.appSource("FicheroApp_iOS.swift")
+    func testPersistedUploadingItemsReloadAsQueuedAndRetry() async throws {
+        let storageDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: storageDirectory) }
 
-        XCTAssertTrue(source.contains("Open Capture Queue"))
-        XCTAssertTrue(source.contains("MobileCaptureQueueView("))
-        XCTAssertTrue(source.contains("resumePendingUploads("))
-        XCTAssertTrue(source.contains(".environmentObject(captureQueue)"))
+        let fileManager = FileManager.default
+        let assetsDirectory = storageDirectory.appendingPathComponent("assets", isDirectory: true)
+        try fileManager.createDirectory(at: assetsDirectory, withIntermediateDirectories: true)
+
+        let item = MobileCaptureQueueItem(
+            id: "capture-1",
+            imageFileName: "capture-1.jpg",
+            createdAt: .now,
+            updatedAt: .now,
+            catalog: MobileCaptureCatalogFields(title: "Reloaded"),
+            uploadState: .uploading,
+            uploadedDocumentId: nil,
+            lastError: "in flight",
+            retryCount: 3,
+            lastAttemptAt: .now
+        )
+
+        try Data([0x11, 0x22, 0x33]).write(
+            to: assetsDirectory.appendingPathComponent(item.imageFileName),
+            options: .atomic
+        )
+        try JSONEncoder().encode([item]).write(
+            to: storageDirectory.appendingPathComponent("capture-queue.json"),
+            options: .atomic
+        )
+
+        let store = MobileCaptureQueueStore(storageDirectory: storageDirectory)
+        XCTAssertEqual(store.items.first?.uploadState, .queued)
+        XCTAssertNil(store.items.first?.lastError)
+        XCTAssertNil(store.items.first?.lastAttemptAt)
+
+        let uploader = FakeCaptureUploader(backendHost: URL(string: "https://pairing.example.com"))
+        let summary = await store.resumePendingUploads(using: uploader)
+
+        XCTAssertEqual(summary.uploadedCount, 1)
+        XCTAssertEqual(store.items.first?.uploadState, .uploaded)
+        XCTAssertEqual(uploader.uploads.count, 1)
     }
 }
 

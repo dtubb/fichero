@@ -30,6 +30,10 @@ enum LibraryWorkspaceSelection {
 /// iPad, and visionOS embed the same workspace directly.
 struct LibraryWorkspaceRoot: View {
     @EnvironmentObject private var libraryManager: LibraryManager
+    #if canImport(UIKit) && !os(macOS)
+    @EnvironmentObject private var captureQueue: MobileCaptureQueueStore
+    @State private var showingCaptureQueue = false
+    #endif
 
     let library: LibraryManager.LibraryReference
     let windowState: WindowState
@@ -82,5 +86,27 @@ struct LibraryWorkspaceRoot: View {
             }
             library.changeStream.start()
         }
+        #if canImport(UIKit) && !os(macOS)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showingCaptureQueue = true
+                } label: {
+                    Label("Capture", systemImage: "camera")
+                }
+                .help("Open the mobile capture queue")
+            }
+        }
+        .sheet(isPresented: $showingCaptureQueue) {
+            MobileCaptureQueueView(
+                queue: captureQueue,
+                retryPendingUploads: {
+                    await captureQueue.resumePendingUploads(
+                        using: MobileCaptureBackendUploadClient(libraryManager: libraryManager)
+                    )
+                }
+            )
+        }
+        #endif
     }
 }
