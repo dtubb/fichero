@@ -49,6 +49,9 @@ final class RemoteAccessConfigTests: XCTestCase {
 
     func testPairingBackendURLRejectsLocalhostAndPaths() {
         XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: "http://127.0.0.1:8765"))
+        XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: "http://127.2.3.4:8765"))
+        XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: "http://[::1]:8765"))
+        XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: "http://[::ffff:127.0.0.1]:8765"))
         XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: "https://pairing.example.com/api"))
         XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: "https://pairing.example.com?foo=bar"))
     }

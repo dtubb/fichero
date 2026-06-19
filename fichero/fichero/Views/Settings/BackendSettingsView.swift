@@ -247,6 +247,15 @@ struct BackendSettingsView: View {
         pairingError = nil
         defer { isRestartingHost = false }
 
+        if hostingEnabled {
+            do {
+                _ = try validatedReachableURL()
+            } catch {
+                pairingError = error.localizedDescription
+                return
+            }
+        }
+
         backendService.stop()
         do {
             try await backendService.start()
