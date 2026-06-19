@@ -173,7 +173,7 @@ private struct RemoteConnectionSetupView: View {
                                 .padding(.vertical, 8)
                                 .background(.thinMaterial, in: Capsule())
                         }
-                        .foregroundStyle(.accentColor)
+                        .foregroundStyle(Color.accentColor)
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: 180)
