@@ -39,7 +39,11 @@ enum RemoteClientPairing {
 
     static func pairingFields(from message: String) throws -> RemoteClientPairingFields {
         let payload = try PairingQRCodePayloadDecoder.decode(message: message)
-        let validatedURL = try validatedRemoteURL(from: payload.apiURL, allowLocalhost: false)
+        let validatedURL = try validatedRemoteURL(
+            from: payload.apiURL,
+            allowLocalhost: false,
+            requireSecureTransportForRemote: true
+        )
         return RemoteClientPairingFields(
             remoteURL: validatedURL.absoluteString,
             pairCode: payload.pairCode
@@ -57,7 +61,11 @@ enum RemoteClientPairing {
             throw RemoteClientPairingError.missingDeviceName
         }
 
-        let url = try validatedRemoteURL(from: remoteURL, allowLocalhost: false)
+        let url = try validatedRemoteURL(
+            from: remoteURL,
+            allowLocalhost: false,
+            requireSecureTransportForRemote: true
+        )
         let response = try await PairingService(apiRoot: url).pairDeviceUnauthenticated(code: code, deviceName: name)
         return PairingExchangeResult(apiRoot: url, deviceToken: response.deviceToken)
     }

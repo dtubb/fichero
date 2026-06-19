@@ -530,7 +530,13 @@ private final class BonjourDiscoveryService: NSObject, ObservableObject {
         let id = recordID(for: sender)
         let txtRecord = decodeTXTRecord(for: sender)
         let reachableURL = txtRecord["public_url"]
-            .flatMap { try? validatedRemoteURL(from: $0, allowLocalhost: false).absoluteString }
+            .flatMap {
+                try? validatedRemoteURL(
+                    from: $0,
+                    allowLocalhost: false,
+                    requireSecureTransportForRemote: true
+                ).absoluteString
+            }
         records[id] = BonjourHostRecord(
             id: id,
             displayName: sender.name,

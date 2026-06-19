@@ -93,6 +93,7 @@ final class RemoteAccessConfigTests: XCTestCase {
         XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: "http://127.2.3.4:8765"))
         XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: "http://[::1]:8765"))
         XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: "http://[::ffff:127.0.0.1]:8765"))
+        XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: "http://pairing.example.com"))
         XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: "https://pairing.example.com/api"))
         XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: "https://pairing.example.com?foo=bar"))
     }
@@ -106,5 +107,35 @@ final class RemoteAccessConfigTests: XCTestCase {
         XCTAssertThrowsError(try validatedRemoteURL(from: "ftp://pairing.example.com", allowLocalhost: false)) { error in
             XCTAssertEqual(error as? RemoteURLValidationError, .unsupportedScheme)
         }
+    }
+
+    func testValidatedRemoteURLRejectsRemoteHTTPWhenSecureTransportRequired() {
+        XCTAssertThrowsError(
+            try validatedRemoteURL(
+                from: "http://pairing.example.com",
+                allowLocalhost: false,
+                requireSecureTransportForRemote: true
+            )
+        ) { error in
+            XCTAssertEqual(error as? RemoteURLValidationError, .insecureRemoteTransport)
+        }
+    }
+
+    func testValidatedRemoteURLAllowsLocalhostHTTPWhenExplicitlyAllowed() throws {
+        let url = try validatedRemoteURL(
+            from: "http://127.0.0.1:8765",
+            allowLocalhost: true,
+            requireSecureTransportForRemote: true
+        )
+        XCTAssertEqual(url.absoluteString, "http://127.0.0.1:8765")
+    }
+
+    func testValidatedRemoteURLAcceptsHTTPSWhenSecureTransportRequired() throws {
+        let url = try validatedRemoteURL(
+            from: "https://pairing.example.com",
+            allowLocalhost: false,
+            requireSecureTransportForRemote: true
+        )
+        XCTAssertEqual(url.absoluteString, "https://pairing.example.com")
     }
 }

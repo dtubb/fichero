@@ -190,11 +190,11 @@ enum RemoteAccessConfig {
     }
 
     static var publicBaseURL: URL? {
-        try? validatedRemoteURL(from: publicBaseURLString, allowLocalhost: false)
+        try? validatedRemoteURL(from: publicBaseURLString, allowLocalhost: false, requireSecureTransportForRemote: true)
     }
 
     static func pairingBackendURL(from publicBaseURLString: String) -> URL? {
-        try? validatedRemoteURL(from: publicBaseURLString, allowLocalhost: false)
+        try? validatedRemoteURL(from: publicBaseURLString, allowLocalhost: false, requireSecureTransportForRemote: true)
     }
 }
 
@@ -203,6 +203,7 @@ enum RemoteURLValidationError: LocalizedError, Equatable {
     case invalid
     case unsupportedScheme
     case missingHost
+    case insecureRemoteTransport
     case localhostNotAllowed
     case pathNotAllowed
     case queryNotAllowed
@@ -218,6 +219,8 @@ enum RemoteURLValidationError: LocalizedError, Equatable {
             return "Remote URLs must use http or https."
         case .missingHost:
             return "Remote URLs must include a host name."
+        case .insecureRemoteTransport:
+            return "Remote pairing hosts must use https."
         case .localhostNotAllowed:
             return "Remote clients must use a non-localhost host."
         case .pathNotAllowed:
@@ -230,7 +233,7 @@ enum RemoteURLValidationError: LocalizedError, Equatable {
     }
 }
 
-func validatedRemoteURL(from raw: String, allowLocalhost: Bool) throws -> URL {
+func validatedRemoteURL(from raw: String, allowLocalhost: Bool, requireSecureTransportForRemote: Bool = false) throws -> URL {
     let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
         throw RemoteURLValidationError.blank
@@ -246,7 +249,12 @@ func validatedRemoteURL(from raw: String, allowLocalhost: Bool) throws -> URL {
     guard let host = components.host, !host.isEmpty else {
         throw RemoteURLValidationError.missingHost
     }
-    if !allowLocalhost, EngineConfig.isLoopbackHostLiteral(host.lowercased()) {
+    let normalizedHost = host.lowercased()
+    let isLoopbackHost = EngineConfig.isLoopbackHostLiteral(normalizedHost)
+    if requireSecureTransportForRemote, scheme != "https", !isLoopbackHost {
+        throw RemoteURLValidationError.insecureRemoteTransport
+    }
+    if !allowLocalhost, isLoopbackHost {
         throw RemoteURLValidationError.localhostNotAllowed
     }
     if !components.path.isEmpty, components.path != "/" {

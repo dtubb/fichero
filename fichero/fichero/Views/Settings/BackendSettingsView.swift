@@ -354,7 +354,7 @@ struct BackendSettingsView: View {
     }
 
     private func validatedReachableURL() throws -> URL {
-        try validatedRemoteURL(from: publicBaseURL, allowLocalhost: false)
+        try validatedRemoteURL(from: publicBaseURL, allowLocalhost: false, requireSecureTransportForRemote: true)
     }
     #endif
 }
