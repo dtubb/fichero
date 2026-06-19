@@ -36,6 +36,7 @@ struct FicheroAppIOS: App {
                     if appState.isBackendRunning {
                         backendService.status = .running
                         backendService.errorMessage = nil
+                        appState.startBackendHeartbeat()
                     } else {
                         backendService.status = .failed
                         backendService.errorMessage = appState.backendError
@@ -97,6 +98,7 @@ private struct FicheroSharedPlatformRoot: View {
     private func reconnectToConfiguredHost() async {
         await appState.checkBackendHealth()
         guard appState.isBackendRunning else { return }
+        appState.startBackendHeartbeat()
         await KnownLibraryRegistryStore.shared.refresh()
         await libraryManager.backendDidBecomeReady()
     }

@@ -147,14 +147,16 @@ struct FicheroApp: App {
                         try await backendService.start()
                         let backendMs = Date().timeIntervalSince(backendStart) * 1000
                         logger.info("⏱ backendService.start: \(backendMs, format: .fixed(precision: 1))ms")
-                        // Re-check after the backend is up so app window state
-                        // and embedded backend status converge on the same result.
+                        // Serialize the launch health probe after the backend is
+                        // running so startup state and window state converge
+                        // without overlapping probes.
                         await appState.checkBackendHealth()
                         guard appState.isBackendRunning else {
                             backendService.status = .failed
                             backendService.errorMessage = appState.backendError
                             throw BackendError.notRunning
                         }
+                        appState.startBackendHeartbeat()
                         await KnownLibraryRegistryStore.shared.refresh()
                         await libraryManager.backendDidBecomeReady()
                     } catch {

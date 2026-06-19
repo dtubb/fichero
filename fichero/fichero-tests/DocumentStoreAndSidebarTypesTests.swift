@@ -223,10 +223,30 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
 
     func testMacLaunchResyncsBackendStateAfterEngineStartup() throws {
         let appSource = try Self.appSource("FicheroApp.swift")
+        let appStateSource = try Self.appSource("App/AppState.swift")
 
-        XCTAssertTrue(appSource.contains("try await backendService.start()"))
-        XCTAssertTrue(appSource.contains("await appState.checkBackendHealth()"))
-        XCTAssertTrue(appSource.contains("await libraryManager.backendDidBecomeReady()"))
+        guard
+            let startRange = appSource.range(of: "try await backendService.start()"),
+            let resyncRange = appSource.range(
+                of: "await appState.checkBackendHealth()",
+                range: startRange.upperBound..<appSource.endIndex
+            ),
+            let heartbeatRange = appSource.range(
+                of: "appState.startBackendHeartbeat()",
+                range: resyncRange.upperBound..<appSource.endIndex
+            ),
+            let readyRange = appSource.range(
+                of: "await libraryManager.backendDidBecomeReady()",
+                range: heartbeatRange.upperBound..<appSource.endIndex
+            )
+        else {
+            return XCTFail("launch sequence changed unexpectedly")
+        }
+
+        XCTAssertLessThan(startRange.lowerBound, resyncRange.lowerBound)
+        XCTAssertLessThan(resyncRange.lowerBound, heartbeatRange.lowerBound)
+        XCTAssertLessThan(heartbeatRange.lowerBound, readyRange.lowerBound)
+        XCTAssertFalse(appStateSource.contains("await checkBackendHealth()"))
     }
 
     func testNotesLiveInDocumentInspectorAndStandaloneBrowserRetired() throws {

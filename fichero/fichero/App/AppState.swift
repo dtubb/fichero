@@ -55,15 +55,7 @@ class AppState: ObservableObject {
         self.providerService = ProviderServiceGenerated(ficheroClient: ficheroClient)
         self.mcpService = MCPService(apiClient: apiClient)
         self.modelService = ModelServiceGenerated(ficheroClient: ficheroClient)
-        logger.info("⏱ AppState.init services ready — queuing health check")
-
-        // Check API health on launch, then start the periodic heartbeat
-        // so the offline banner appears if the engine goes down mid-session
-        // (#967 — Daniel: "the app kept working, and failed silently").
-        Task { @MainActor in
-            await checkBackendHealth()
-            startBackendHeartbeat()
-        }
+        logger.info("⏱ AppState.init services ready")
     }
 
     deinit {
