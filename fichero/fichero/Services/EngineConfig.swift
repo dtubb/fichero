@@ -118,7 +118,7 @@ enum EngineConfig {
         return isLoopbackHostLiteral(host)
     }
 
-    private static func isLoopbackHostLiteral(_ host: String) -> Bool {
+    fileprivate static func isLoopbackHostLiteral(_ host: String) -> Bool {
         if host == "localhost" {
             return true
         }
@@ -245,7 +245,7 @@ func validatedRemoteURL(from raw: String, allowLocalhost: Bool) throws -> URL {
     guard let host = components.host, !host.isEmpty else {
         throw RemoteURLValidationError.missingHost
     }
-    if !allowLocalhost, EngineConfig.hostConfiguration(from: "\(scheme)://\(host)").engineIsLocal {
+    if !allowLocalhost, EngineConfig.isLoopbackHostLiteral(host.lowercased()) {
         throw RemoteURLValidationError.localhostNotAllowed
     }
     if !components.path.isEmpty, components.path != "/" {

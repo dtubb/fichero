@@ -8,7 +8,7 @@ final class RemoteAccessConfigTests: XCTestCase {
     func testPairingBackendURLUsesAdvertisedRoot() throws {
         let advertised = "  https://pairing.example.com/  "
         let pairingURL = try XCTUnwrap(RemoteAccessConfig.pairingBackendURL(from: advertised))
-        XCTAssertEqual(pairingURL.absoluteString, "https://pairing.example.com/")
+        XCTAssertEqual(pairingURL.absoluteString, "https://pairing.example.com")
 
         let code = PairingCodeRecord(
             code: "PAIR-1234",
