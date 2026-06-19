@@ -129,6 +129,7 @@ private enum RemoteConnectionSheet: Identifiable {
     }
 }
 
+// swiftlint:disable type_body_length
 private struct RemoteConnectionSetupView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var libraryManager: LibraryManager
@@ -165,10 +166,13 @@ private struct RemoteConnectionSetupView: View {
                             )
 
                         VStack(spacing: 12) {
-                            Image(systemName: "desktopcomputer")
-                                .font(.system(size: 30, weight: .semibold))
-                            Image(systemName: "qrcode.viewfinder")
-                                .font(.system(size: 22, weight: .semibold))
+                            Image(platformImage: hostIconImage)
+                                .resizable()
+                                .interpolation(.high)
+                                .frame(width: 84, height: 84)
+
+                            Label("Mac host", systemImage: "qrcode.viewfinder")
+                                .font(.headline)
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 8)
                                 .background(.thinMaterial, in: Capsule())
@@ -176,13 +180,13 @@ private struct RemoteConnectionSetupView: View {
                         .foregroundStyle(Color.accentColor)
                     }
                     .frame(maxWidth: .infinity)
-                    .frame(height: 180)
+                    .frame(height: 200)
 
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Scan the QR from Mac Settings")
+                        Text("Connect to your Mac host")
                             .font(.largeTitle.weight(.semibold))
                         Text(
-                            "On your Mac, open Fichero > Settings > Remote Access, generate the QR code, and scan it here."
+                            "Open Fichero on the Mac, enable Remote Access in Settings, and scan the QR code shown there."
                         )
                         .foregroundStyle(.secondary)
                     }
@@ -194,22 +198,25 @@ private struct RemoteConnectionSetupView: View {
                             presentedSheet = .scanner
                         } else {
                             showAdvancedConnectionOptions = true
-                            errorMessage = "Camera scanning is unavailable on this device. Use the fallback options below."
+                            errorMessage = "Camera scanning is unavailable on visionOS. Use the fallback URL/code section below."
                         }
                     } label: {
-                        Label(scanButtonTitle, systemImage: "qrcode.viewfinder")
+                        Label("Scan QR Code", systemImage: "qrcode.viewfinder")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
 
+                    Text("Scan the QR shown in Fichero > Settings > Remote Access on the Mac.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
                     Button {
-                        Task { await pairUsingAvailableInput() }
+                        presentedSheet = .captureQueue
                     } label: {
-                        Label("Connect to Mac", systemImage: "arrow.triangle.branch")
-                        .frame(maxWidth: .infinity)
+                        Label("Capture Photos", systemImage: "camera")
+                            .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
-                    .disabled(isPairing || !canConnectWithCurrentInput)
                 }
 
                 if let detectedPayload {
@@ -218,7 +225,7 @@ private struct RemoteConnectionSetupView: View {
                             Label("QR scanned", systemImage: "checkmark.circle.fill")
                                 .font(.headline)
                             Text(
-                                "This QR expires at \(detectedPayload.expiresAt.formatted(date: .omitted, time: .shortened))."
+                                "This Mac host QR expires at \(detectedPayload.expiresAt.formatted(date: .omitted, time: .shortened))."
                             )
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -227,16 +234,9 @@ private struct RemoteConnectionSetupView: View {
                     }
                 }
 
-                Button {
-                    presentedSheet = .captureQueue
-                } label: {
-                    Label("Open Capture Queue", systemImage: "camera")
-                }
-                .buttonStyle(.bordered)
-
                 DisclosureGroup("Fallback and debug options", isExpanded: $showAdvancedConnectionOptions) {
                     VStack(alignment: .leading, spacing: 16) {
-                        Text("Use these options only if the QR scanner is unavailable.")
+                        Text("Use these options only if you cannot scan the QR code.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
@@ -267,7 +267,7 @@ private struct RemoteConnectionSetupView: View {
                                                 .foregroundStyle(.secondary)
                                                 .textSelection(.enabled)
                                         } else {
-                                            Text("Open Fichero on that Mac and scan its QR code here.")
+                                            Text("Open Fichero on that Mac, enable Remote Access, and scan its QR code there.")
                                                 .font(.caption)
                                                 .foregroundStyle(.secondary)
                                         }
@@ -298,7 +298,7 @@ private struct RemoteConnectionSetupView: View {
                         }
 
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("Manual connection")
+                            Text("Manual URL / code")
                                 .font(.headline)
 
                             TextField("Host URL", text: $remoteURL)
@@ -316,15 +316,15 @@ private struct RemoteConnectionSetupView: View {
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
 
-                            TextField("Device Name", text: $deviceName)
-                                .textFieldStyle(.roundedBorder)
-                                .autocorrectionDisabled()
+                            Text("The device name is assigned automatically.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
 
                         Button {
                             Task { await pairUsingAvailableInput() }
                         } label: {
-                            Label("Connect Manually", systemImage: "link")
+                            Label("Connect", systemImage: "link")
                         }
                         .buttonStyle(.borderedProminent)
                         .disabled(isPairing || !canConnectWithCurrentInput)
@@ -374,10 +374,6 @@ private struct RemoteConnectionSetupView: View {
         }
     }
 
-    private var scanButtonTitle: String {
-        supportsCameraScanner ? "Scan Mac QR Code" : "Camera Scan Unavailable"
-    }
-
     private var supportsCameraScanner: Bool {
         #if os(visionOS)
         return false
@@ -389,6 +385,7 @@ private struct RemoteConnectionSetupView: View {
     private var canConnectWithCurrentInput: Bool {
         !remoteURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !pairCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !spkiPin.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func handleScannedMessage(_ message: String) {
@@ -400,6 +397,7 @@ private struct RemoteConnectionSetupView: View {
             pairCode = pairingFields.pairCode
             spkiPin = pairingFields.spkiPin
             errorMessage = nil
+            Task { await pairUsingAvailableInput() }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -427,7 +425,24 @@ private struct RemoteConnectionSetupView: View {
             errorMessage = error.localizedDescription
         }
     }
+
+    private var hostIconImage: PlatformImage {
+        if let resourcePath = Bundle.main.resourcePath {
+            let iconPath = "\(resourcePath)/Fichero Engine.app/Contents/Resources/engine.icns"
+            if let image = PlatformImage(contentsOfFile: iconPath) {
+                return image
+            }
+        }
+        #if canImport(AppKit)
+        return PlatformImage(systemSymbolName: "server.rack", accessibilityDescription: nil) ?? PlatformImage()
+        #elseif canImport(UIKit)
+        return PlatformImage(systemName: "server.rack") ?? PlatformImage()
+        #else
+        return PlatformImage()
+        #endif
+    }
 }
+// swiftlint:enable type_body_length
 
 private struct QRCodeScannerSheet: View {
     let onCancel: () -> Void
@@ -438,7 +453,7 @@ private struct QRCodeScannerSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 16) {
-                Text("Open Fichero > Settings > Remote Access on your Mac, then point the camera at the QR code.")
+                Text("Open Fichero on the Mac, open Settings > Remote Access, and scan the QR code shown there.")
                     .font(.headline)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
@@ -447,7 +462,7 @@ private struct QRCodeScannerSheet: View {
                 VStack(spacing: 12) {
                     Image(systemName: "qrcode.viewfinder")
                         .font(.largeTitle)
-                    Text("Camera QR scanning is unavailable on visionOS. Use the fallback connection options in the main screen.")
+                    Text("Camera QR scanning is unavailable on visionOS. Use the manual URL/code section below.")
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.secondary)
                 }
@@ -478,7 +493,7 @@ private struct QRCodeScannerSheet: View {
                 }
             }
             .padding()
-            .navigationTitle("Scan Mac QR Code")
+            .navigationTitle("Scan QR Code")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", action: onCancel)
