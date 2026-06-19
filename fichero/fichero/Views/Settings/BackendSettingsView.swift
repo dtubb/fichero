@@ -58,7 +58,9 @@ struct BackendSettingsView: View {
                 }
             }
 
+            #if canImport(AppKit)
             MacRemoteClientPairingSection()
+            #endif
 
             #if canImport(AppKit)
             Section("Remote Access") {
