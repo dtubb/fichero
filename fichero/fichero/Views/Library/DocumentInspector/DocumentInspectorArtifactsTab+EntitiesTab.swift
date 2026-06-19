@@ -213,7 +213,9 @@ struct DocumentInspectorEntitiesTab: View {
                 Button("Show all kinds") {
                     hiddenKindsCSV = ""
                 }
+                #if os(macOS)
                 .buttonStyle(.link)
+                #endif
                 .font(.caption)
             }
         } else {
@@ -331,7 +333,9 @@ struct DocumentInspectorEntitiesTab: View {
                 .font(.caption.weight(.semibold))
                 .focused($renameFieldFocused)
                 .onSubmit { commitRename(for: entity) }
+                #if os(macOS)
                 .onExitCommand { cancelRename() }
+                #endif
                 .onAppear { renameFieldFocused = true }
         } else {
             Text(entity.canonicalName)
@@ -793,7 +797,7 @@ struct InspectorEntitySelectionModifiers: OptionSet {
         self = value
     }
     #else
-    init(uiEventFlags: UIEvent.ModifierFlags) {
+    init(uiEventFlags: UIKeyModifierFlags) {
         var value: Self = []
         if uiEventFlags.contains(.shift) {
             value.insert(.shift)

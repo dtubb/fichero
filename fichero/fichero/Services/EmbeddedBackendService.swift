@@ -242,6 +242,15 @@ final class EmbeddedBackendService: ObservableObject {
         // chance to call .stop() (e.g., SIGKILL). Belt-and-braces with the
         // applicationWillTerminate path.
         environment["FICHERO_PARENT_PID"] = String(ProcessInfo.processInfo.processIdentifier)
+        if RemoteAccessConfig.hostingEnabled {
+            environment["FICHERO_MULTIUSER"] = "1"
+            if RemoteAccessConfig.bonjourEnabled {
+                environment["FICHERO_ENABLE_BONJOUR"] = "1"
+            }
+            if let publicBaseURL = RemoteAccessConfig.publicBaseURL {
+                environment["FICHERO_PUBLIC_BASE_URL"] = publicBaseURL.absoluteString
+            }
+        }
         #if DEBUG
         // Ensure workflow/provider routes are available for debug UI surfaces.
         environment["FICHERO_FEATURE_TIER"] = environment["FICHERO_FEATURE_TIER"] ?? "dev"
@@ -263,7 +272,7 @@ final class EmbeddedBackendService: ObservableObject {
         process.standardOutput = logHandle
         process.standardError = logHandle
 
-        if let tokenURL = AuthTokenMiddleware.tokenFileURL() {
+        if let tokenURL = AuthTokenMiddleware.bootstrapTokenFileURL() {
             try? FileManager.default.removeItem(at: tokenURL)
         }
 

@@ -88,6 +88,10 @@ class AppState: ObservableObject {
         }
     }
 
+    func reconfigureGeneratedClientsForCurrentHost() {
+        ficheroClient.reconfigure(baseURL: EngineConfig.host)
+    }
+
     private func pingBackendOnce() async {
         let url = EngineConfig.apiBaseURL.appendingPathComponent("health")
         var request = URLRequest(url: url)
@@ -137,6 +141,7 @@ class AppState: ObservableObject {
 
     /// Check if the Python API is running
     func checkBackendHealth() async {
+        reconfigureGeneratedClientsForCurrentHost()
         logger.info("⏱ checkBackendHealth entry")
         isCheckingBackend = true
         defer { isCheckingBackend = false }

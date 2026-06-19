@@ -941,6 +941,8 @@ def _get_library_database_for_access(
             detail="Library path is not in an allowed location or not a .fichero package.",
         )
 
+    _bootstrap_legacy_library_owner_if_needed(request, x_fichero_library_path)
+
     if write:
         assert_library_write_authorized(request, x_fichero_library_path)
     else:
@@ -957,6 +959,55 @@ def _get_library_database_for_access(
         )
 
 
+def _bootstrap_legacy_library_owner_if_needed(
+    request: Request,
+    library_path: str,
+) -> None:
+    """Backfill owner ACL rows for legacy libraries on first trusted owner access.
+
+    Older libraries predate multi-user ACL rows. Once remote pairing enables
+    ``FICHERO_MULTIUSER``, those libraries should still open for the Mac owner
+    and for owner-paired devices. We only bootstrap when:
+
+    - multi-user auth is enabled,
+    - the library currently has no ACL role rows,
+    - and the caller is a trusted owner (session/device owner user or the
+      loopback bootstrap path with exactly one active owner).
+    """
+    from fichero import authz
+    from fichero.app_db import get_app_db
+
+    if not authz.multiuser_enabled():
+        return
+
+    normalized_path = authz.normalize_library_path(library_path)
+    if normalized_path is None:
+        return
+
+    app_db = get_app_db()
+    if app_db.list_library_roles(normalized_path):
+        return
+
+    owner_user = getattr(getattr(request, "state", None), "user", None)
+    if owner_user is not None and not getattr(owner_user, "is_owner", False):
+        owner_user = None
+
+    if owner_user is None and getattr(getattr(request, "state", None), "bootstrap_auth", False):
+        owners = [
+            candidate
+            for candidate in app_db.list_users()
+            if candidate.is_owner and candidate.active
+        ]
+        if len(owners) == 1:
+            owner_user = owners[0]
+
+    if owner_user is None:
+        return
+
+    if authz.ensure_owner_role(owner_user, normalized_path):
+        logger.info("Bootstrapped legacy library owner for %s", normalized_path)
+
+
 def assert_library_read_authorized(
     request: Request,
     library_path: str,
@@ -964,6 +1015,9 @@ def assert_library_read_authorized(
 ) -> None:
     """Authorize a user-initiated request before touching a library path."""
     from fichero import authz
+
+    if getattr(getattr(request, "state", None), "bootstrap_auth", False):
+        return
 
     try:
         authz.assert_can_read(
@@ -984,6 +1038,9 @@ def assert_library_write_authorized(
 ) -> None:
     """Authorize a user-initiated mutation before touching a library DB."""
     from fichero import authz
+
+    if getattr(getattr(request, "state", None), "bootstrap_auth", False):
+        return
 
     try:
         authz.assert_can_write(

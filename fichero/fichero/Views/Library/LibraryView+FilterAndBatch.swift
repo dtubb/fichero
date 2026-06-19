@@ -285,6 +285,7 @@ extension LibraryView {
 
     func handleTap(_ doc: Document) {
         onRequestFocus()
+        #if os(macOS)
         let modifiers = NSEvent.modifierFlags
         if modifiers.contains(.shift), let anchor = selectionAnchor {
             handleShiftClick(doc, anchor: anchor, commandKeyDown: modifiers.contains(.command))
@@ -293,6 +294,9 @@ extension LibraryView {
         } else {
             handlePlainClick(doc)
         }
+        #else
+        handlePlainClick(doc)
+        #endif
     }
 
     private func handleShiftClick(_ doc: Document, anchor: String, commandKeyDown: Bool) {

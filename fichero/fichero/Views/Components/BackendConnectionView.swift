@@ -35,6 +35,12 @@ struct BackendConnectionView: View {
     /// 12 × 5 s = 60 s before we give up and show the error state.
     private static let maxPollAttempts = 12
 
+    #if os(iOS) || os(visionOS)
+    private let isRemoteBackendOnlyPlatform = true
+    #else
+    private let isRemoteBackendOnlyPlatform = false
+    #endif
+
     /// Messages cycled while `backendService.status == .starting`.
     ///
     /// Honest phrasing only: the engine doesn't load models, prepare the
@@ -58,7 +64,13 @@ struct BackendConnectionView: View {
                 return image
             }
         }
+        #if canImport(AppKit)
         return PlatformImage(systemSymbolName: "server.rack", accessibilityDescription: nil) ?? PlatformImage()
+        #elseif canImport(UIKit)
+        return PlatformImage(systemName: "server.rack") ?? PlatformImage()
+        #else
+        return PlatformImage()
+        #endif
     }
 
     /// Fichero app icon loaded as a flat .icns from the app bundle, NOT
@@ -80,9 +92,27 @@ struct BackendConnectionView: View {
         // findable (custom builds, dev sandbox).
         #if canImport(AppKit)
         return NSApp.applicationIconImage ?? PlatformImage()
+        #elseif canImport(UIKit)
+        return PlatformImage(systemName: "books.vertical") ?? PlatformImage()
         #else
         return PlatformImage()
         #endif
+    }
+
+    private var showsFailureState: Bool {
+        backendService.status == .failed || (!appState.isCheckingBackend && !appState.isBackendRunning)
+    }
+
+    private var titleText: String {
+        isRemoteBackendOnlyPlatform ? "Connect to Fichero" : "Starting Fichero"
+    }
+
+    private var failureTitle: String {
+        isRemoteBackendOnlyPlatform ? "Backend Not Reachable" : "Engine Not Running"
+    }
+
+    private var secondaryStatusText: String {
+        isRemoteBackendOnlyPlatform ? "Connect to a running Fichero engine to continue." : "This can take a moment."
     }
 
     var body: some View {
@@ -113,7 +143,7 @@ struct BackendConnectionView: View {
                     .frame(width: 72, height: 72)
             }
 
-            Text("Starting Fichero")
+            Text(titleText)
                 .font(.title)
                 .fontWeight(.semibold)
 
@@ -123,7 +153,7 @@ struct BackendConnectionView: View {
             // `.failed` triggers the red error text and the Retry button.
             // This prevents the "engine not running" flash that happens in
             // the ~100ms gap between view-mount and `start()` being called.
-            let isFailed = backendService.status == .failed
+            let isFailed = showsFailureState
             let isBootingOrChecking = !isFailed
 
             if isBootingOrChecking {
@@ -139,13 +169,13 @@ struct BackendConnectionView: View {
                         .id(messageIndex) // force re-render for transition
                         .transition(.opacity)
 
-                    Text("This can take a moment.")
+                    Text(secondaryStatusText)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
             } else {
                 VStack(spacing: 12) {
-                    Text("Engine Not Running")
+                    Text(failureTitle)
                         .font(.headline)
                         .foregroundColor(.red)
 
@@ -166,24 +196,32 @@ struct BackendConnectionView: View {
             // the 60-second window starts fresh.
             if isFailed {
                 Button {
-                    // Reset view state synchronously before incrementing
-                    // restartCount so the re-keyed .task blocks see a
-                    // non-failed status when they first evaluate the while
-                    // condition.
-                    pollCount = 0
-                    messageIndex = 0
-                    backendService.status = .stopped
-                    restartCount += 1
                     Task {
-                        backendService.stop()
-                        do {
-                            try await backendService.start()
-                        } catch {
-                            appState.backendError = error.localizedDescription
+                        pollCount = 0
+                        messageIndex = 0
+                        restartCount += 1
+
+                        if isRemoteBackendOnlyPlatform {
+                            backendService.errorMessage = nil
+                            await appState.checkBackendHealth()
+                            if !appState.isBackendRunning {
+                                backendService.status = .failed
+                                backendService.errorMessage = appState.backendError
+                            }
+                        } else {
+                            // Reset view state before restarting so the re-keyed
+                            // tasks resume from a clean boot state.
+                            backendService.status = .stopped
+                            backendService.stop()
+                            do {
+                                try await backendService.start()
+                            } catch {
+                                appState.backendError = error.localizedDescription
+                            }
                         }
                     }
                 } label: {
-                    Label("Restart Engine", systemImage: "arrow.clockwise")
+                    Label(isRemoteBackendOnlyPlatform ? "Retry Connection" : "Restart Engine", systemImage: "arrow.clockwise")
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(backendService.status == .starting)

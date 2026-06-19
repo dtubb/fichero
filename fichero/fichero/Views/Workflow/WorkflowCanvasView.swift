@@ -122,9 +122,11 @@ struct WorkflowCanvasView: View {
         .focused($isCanvasFocused)
         .focusEffectDisabled()
         .onAppear { isCanvasFocused = true }
+        #if os(macOS)
         .onDeleteCommand {
             deleteSelection()
         }
+        #endif
     }
 
     /// Delete selected edge or nodes

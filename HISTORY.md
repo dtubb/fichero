@@ -1,3 +1,9 @@
+## 2026-06-18 — Session Summary
+
+- Continued the 0.0.2 iOS Simulator compile gate while Daniel drove builds from Xcode because Xcode MCP was discoverable in this thread but never callable as a build tool.
+- Cleared another batch of cross-platform blockers: macOS-only command modifiers in library/sidebar/workflow views, AppleScript iOS stub sendability, AppKit save/find actions, `NSApplication` usage in `ContentView`, `onModifierKeysChanged` in `SpatialScene3D`, imported-type `Identifiable` warnings via `@retroactive`, and iOS 26 `Text + Text` deprecations in the document inspector entity row.
+- Confirmed a recurring workflow gotcha: Xcode indexing can keep showing stale pre-edit diagnostics after the file is already fixed on disk, so the next session should verify current source before chasing repeated warnings.
+
 ## 2026-05-31 — Session Summary
 
 - Implemented shared graph-aware retrieval for chat (`#1156`): new `fichero/retrieval/graph_rag.py`, chat route integration, and dedicated retriever tests.

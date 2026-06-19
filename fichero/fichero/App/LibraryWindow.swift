@@ -62,7 +62,11 @@ struct LibraryWindow: View {
     private var libraryWindowContent: some View {
         Group {
             if let library = windowState.library {
-                LibraryWorkspaceRoot(library: library, executionObserver: executionObserver)
+                LibraryWorkspaceRoot(
+                    library: library,
+                    windowState: windowState,
+                    executionObserver: executionObserver
+                )
             } else {
                 // No library open yet — returning users see a simple create/open prompt.
                 // First-run users are handled by the FirstRunWindow sheet below.

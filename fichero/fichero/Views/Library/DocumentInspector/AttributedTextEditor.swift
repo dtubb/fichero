@@ -1,3 +1,4 @@
+#if canImport(AppKit)
 import AppKit
 import SwiftUI
 
@@ -383,3 +384,141 @@ private struct TextViewStateConfiguration {
     let trailingInset: CGFloat
     let marginV: Double
 }
+#elseif canImport(UIKit)
+import UIKit
+import SwiftUI
+
+@MainActor
+final class RichTextController: ObservableObject {
+    weak var textView: UITextView?
+
+    func toggleTrait(_ selector: Selector) {
+        guard let textView else { return }
+        _ = textView.perform(selector, with: nil)
+    }
+}
+
+struct AttributedTextEditor: UIViewRepresentable {
+    @Binding var text: NSAttributedString
+    let isEditable: Bool
+    let rulersVisible: Bool
+    let fontName: String
+    let fontSize: Double
+    let lineSpacing: Double
+    let marginH: Double
+    let marginV: Double
+    let contentRevision: Int
+    let onTextChanged: () -> Void
+    let onEditingChanged: (Bool) -> Void
+    var onRulerVisibilityChanged: ((Bool) -> Void)?
+    var marginLeading: Double?
+    var marginTrailing: Double?
+    var controller: RichTextController?
+
+    private var leadingInset: CGFloat { CGFloat(marginLeading ?? marginH) }
+    private var trailingInset: CGFloat { CGFloat(marginTrailing ?? marginH) }
+
+    private var resolvedFont: UIFont {
+        if fontName == "System" {
+            return .systemFont(ofSize: CGFloat(fontSize))
+        }
+        return UIFont(name: fontName, size: CGFloat(fontSize))
+            ?? .systemFont(ofSize: CGFloat(fontSize))
+    }
+
+    func makeUIView(context: Context) -> UITextView {
+        let textView = UITextView()
+        textView.isEditable = isEditable
+        textView.isSelectable = true
+        textView.allowsEditingTextAttributes = true
+        textView.delegate = context.coordinator
+        textView.attributedText = text
+        textView.backgroundColor = .systemBackground
+        textView.textColor = .label
+        textView.font = resolvedFont
+        textView.textContainerInset = UIEdgeInsets(
+            top: CGFloat(marginV),
+            left: leadingInset,
+            bottom: CGFloat(marginV),
+            right: trailingInset
+        )
+        let paraStyle = NSMutableParagraphStyle()
+        paraStyle.lineSpacing = CGFloat(lineSpacing)
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: resolvedFont,
+            .paragraphStyle: paraStyle,
+            .foregroundColor: UIColor.label
+        ]
+        textView.typingAttributes = attrs
+        context.coordinator.textView = textView
+        context.coordinator.lastAppliedRevision = contentRevision
+        controller?.textView = textView
+        return textView
+    }
+
+    func updateUIView(_ textView: UITextView, context: Context) {
+        if controller?.textView !== textView { controller?.textView = textView }
+        textView.isEditable = isEditable
+        textView.textContainerInset = UIEdgeInsets(
+            top: CGFloat(marginV),
+            left: leadingInset,
+            bottom: CGFloat(marginV),
+            right: trailingInset
+        )
+        guard context.coordinator.lastAppliedRevision != contentRevision else { return }
+        context.coordinator.isApplyingModelUpdate = true
+        textView.attributedText = text
+        context.coordinator.lastAppliedRevision = contentRevision
+        context.coordinator.isApplyingModelUpdate = false
+    }
+
+    @MainActor
+    final class Coordinator: NSObject, UITextViewDelegate {
+        @Binding var text: NSAttributedString
+        weak var textView: UITextView?
+        var isApplyingModelUpdate = false
+        var lastAppliedRevision = 0
+        let onTextChanged: () -> Void
+        let onEditingChanged: (Bool) -> Void
+
+        init(
+            text: Binding<NSAttributedString>,
+            onTextChanged: @escaping () -> Void,
+            onEditingChanged: @escaping (Bool) -> Void
+        ) {
+            _text = text
+            self.onTextChanged = onTextChanged
+            self.onEditingChanged = onEditingChanged
+        }
+
+        func textViewDidChange(_ textView: UITextView) {
+            guard !isApplyingModelUpdate else { return }
+            text = textView.attributedText
+            onTextChanged()
+        }
+
+        func textViewDidBeginEditing(_ textView: UITextView) {
+            onEditingChanged(true)
+        }
+
+        func textViewDidEndEditing(_ textView: UITextView) {
+            if !isApplyingModelUpdate {
+                text = textView.attributedText
+                onTextChanged()
+            }
+            onEditingChanged(false)
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        let coordinator = Coordinator(
+            text: $text,
+            onTextChanged: onTextChanged,
+            onEditingChanged: onEditingChanged
+        )
+        return coordinator
+    }
+}
+
+#endif
+

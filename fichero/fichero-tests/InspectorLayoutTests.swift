@@ -1,4 +1,5 @@
 // swiftlint:disable file_length
+#if os(macOS)
 import AppKit
 @testable import Fichero
 import Foundation
@@ -23,7 +24,6 @@ struct InspectorTabTests {
         #expect(InspectorTab.allCases.contains(.edits))
         #expect(InspectorTab.allCases.contains(.info))
     }
-
     @Test("InspectorTab order: content, outline, annotations, notes, entities, kg, artifacts, citations, references, edits, info")
     func ordering() {
         let expected: [InspectorTab] = [
@@ -718,3 +718,5 @@ struct ArtifactRichTextCodecTests {
         #expect(decoded.string == "abc 123")
     }
 }
+#endif
+

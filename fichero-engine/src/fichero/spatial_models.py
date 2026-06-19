@@ -90,7 +90,7 @@ class SpatialNode(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="allow")
 
     id: str = Field(default_factory=_new_id)
-    room_id: str
+    room_id: str  # doubles as folder_id when rooms are retired (#2293)
     node_type: NodeType
     source_id: str | None = None  # ID of the underlying item
     label: str = ""
@@ -101,10 +101,60 @@ class SpatialNode(BaseModel):
     rotation_y: float = 0.0
     rotation_z: float = 0.0
     scale: float = 1.0
+    # 2D canvas layout (#2293)
+    pos_w: float = 0.0
+    pos_h: float = 0.0
+    z_index: int = 0
+    # 3D extra (#2293)
+    depth: float = 0.0
+    angle: float = 0.0
+    # style blob: {"fontSize": int, "color": str, "style": str} (#2293)
+    style_data: dict = Field(default_factory=dict)
     created_by: str = "user"
     metadata: dict = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
+
+
+class CanvasNodeSeedItem(BaseModel):
+    """One node to create during first-open seed (#2293)."""
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    source_id: str
+    node_type: NodeType
+    label: str = ""
+    position_x: float = 0.0
+    position_y: float = 0.0
+    position_z: float = 0.0
+    scale: float = 1.0
+
+
+class CanvasNodePositionPatch(BaseModel):
+    """Partial position/style update for a canvas node (#2293)."""
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    position_x: float | None = None
+    position_y: float | None = None
+    position_z: float | None = None
+    rotation_y: float | None = None
+    scale: float | None = None
+    pos_w: float | None = None
+    pos_h: float | None = None
+    z_index: int | None = None
+    depth: float | None = None
+    angle: float | None = None
+    style_data: dict | None = None
+
+
+class CanvasNodesResponse(BaseModel):
+    """Folder-keyed canvas node list (#2293)."""
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    items: list[SpatialNode]
+    count: int
 
 
 class SpatialConnection(BaseModel):

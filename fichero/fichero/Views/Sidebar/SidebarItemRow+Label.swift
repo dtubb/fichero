@@ -133,10 +133,12 @@ extension SidebarItemRow {
             .onSubmit {
                 commitRename()
             }
+            #if os(macOS)
             .onExitCommand {
                 renameState.cancelRename()
                 isRenameFocused = false
             }
+            #endif
             .onChange(of: isRenameFocused) { _, newValue in
                 if !newValue && renameState.renamingItemId == item.id && !isCommittingRename {
                     renameState.cancelRename()

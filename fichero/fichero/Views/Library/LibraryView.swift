@@ -555,6 +555,7 @@ extension LibraryView {
     }
 
     private func presentBibtexSavePanel() async -> URL? {
+        #if canImport(AppKit)
         await withCheckedContinuation { continuation in
             let savePanel = NSSavePanel()
             savePanel.nameFieldStringValue = "selection.bib"
@@ -567,6 +568,9 @@ extension LibraryView {
                 continuation.resume(returning: result == .OK ? savePanel.url : nil)
             }
         }
+        #else
+        return nil
+        #endif
     }
 
     private func handleCreateNewFolder() {

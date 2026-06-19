@@ -546,3 +546,41 @@ def migrate_library_entity_types_table(conn) -> None:
         logger.info("Library entity types table migration completed")
     except Exception as e:
         logger.warning("Library entity types table migration failed: %s", e)
+
+
+def migrate_spatial_node_layout_fields(conn) -> None:
+    """Add 2D/3D layout + style fields to spatialnode table (#2293).
+
+    Existing rows keep their positions; new columns default to 0 / empty dict.
+    Idempotent: skips columns that already exist and skips entirely if the
+    table hasn't been created yet (first-launch path uses _ensure_table).
+    """
+    NEW_COLUMNS = [
+        ("pos_w", "DOUBLE DEFAULT 0.0"),
+        ("pos_h", "DOUBLE DEFAULT 0.0"),
+        ("z_index", "INTEGER DEFAULT 0"),
+        ("depth", "DOUBLE DEFAULT 0.0"),
+        ("angle", "DOUBLE DEFAULT 0.0"),
+        ("style_data", "VARCHAR DEFAULT '{}'"),
+    ]
+    try:
+        table_exists = (
+            conn.execute("""
+                SELECT COUNT(*) FROM information_schema.tables
+                WHERE table_name = 'spatialnode'
+            """).fetchone()[0]
+            > 0
+        )
+        if not table_exists:
+            logger.debug("spatialnode table does not exist, skipping layout migration")
+            return
+
+        existing = {row[1] for row in conn.execute("PRAGMA table_info('spatialnode')").fetchall()}
+        for col, col_def in NEW_COLUMNS:
+            if col not in existing:
+                logger.info("Migrating spatialnode: adding %s column", col)
+                conn.execute(f"ALTER TABLE spatialnode ADD COLUMN {col} {col_def}")
+
+        logger.info("spatialnode layout fields migration completed")
+    except Exception as e:
+        logger.warning("spatialnode layout migration failed: %s", e)

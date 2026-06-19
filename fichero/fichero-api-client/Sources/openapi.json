@@ -54616,6 +54616,36 @@
             "title": "Scale",
             "default": 1.0
           },
+          "pos_w": {
+            "type": "number",
+            "title": "Pos W",
+            "default": 0.0
+          },
+          "pos_h": {
+            "type": "number",
+            "title": "Pos H",
+            "default": 0.0
+          },
+          "z_index": {
+            "type": "integer",
+            "title": "Z Index",
+            "default": 0
+          },
+          "depth": {
+            "type": "number",
+            "title": "Depth",
+            "default": 0.0
+          },
+          "angle": {
+            "type": "number",
+            "title": "Angle",
+            "default": 0.0
+          },
+          "style_data": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Style Data"
+          },
           "created_by": {
             "type": "string",
             "title": "Created By",

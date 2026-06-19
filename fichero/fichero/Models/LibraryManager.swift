@@ -214,7 +214,7 @@ class LibraryManager: ObservableObject {
             self.apiClient.currentLibraryPath = url.path
 
             // Create the generated API client (shares same library path)
-            self.ficheroClient = FicheroClient(libraryPath: url.path)
+            self.ficheroClient = FicheroClient(baseURL: EngineConfig.host, libraryPath: url.path)
 
             // Initialize all services with the library's APIClient
             self.documentStore = documentStore ?? DocumentStore(apiClient: self.apiClient)
@@ -266,6 +266,10 @@ class LibraryManager: ObservableObject {
         deinit {
             stopAccessingSecurityScope()
         }
+
+        func reconfigureBackendHost() {
+            ficheroClient.reconfigure(baseURL: EngineConfig.host)
+        }
     }
 
     private init() {
@@ -282,7 +286,7 @@ class LibraryManager: ObservableObject {
         // disposable temp dir (#1230) so smoke tests never touch the real
         // global.fichero. Outside UI tests this is the standard location.
         let appSupport = uiTestSupportDirectory()
-            ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            ?? hostAccessibleApplicationSupportDirectory()
         let globalURL = appSupport
             .appendingPathComponent("Fichero")
             .appendingPathComponent("global.fichero")
@@ -315,6 +319,19 @@ class LibraryManager: ObservableObject {
         libraryManagerLogger.info("Loaded Global library at: \(globalURL.path)")
 
         scheduleLoadWhenBackendReady(for: library)
+    }
+
+    private func hostAccessibleApplicationSupportDirectory() -> URL {
+        #if targetEnvironment(simulator) && !os(macOS)
+        if EngineConfig.engineIsLocal {
+            if let hostHome = ProcessInfo.processInfo.environment["SIMULATOR_HOST_HOME"],
+               !hostHome.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return URL(fileURLWithPath: hostHome)
+                    .appendingPathComponent("Library/Application Support")
+            }
+        }
+        #endif
+        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
     }
 
     /// Get the Global library (always available)

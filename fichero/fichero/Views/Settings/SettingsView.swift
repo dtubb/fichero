@@ -75,6 +75,7 @@ private struct SettingsPreviewHarness: View {
     var body: some View {
         SettingsView()
             .environmentObject(AppState())
+            .environmentObject(EmbeddedBackendService())
             .environmentObject(LibraryManager.shared)
     }
 }

@@ -123,24 +123,16 @@ struct EntityKindRow: View {
     /// Aliases + page reference rendered as one selectable text run,
     /// sitting beside the tappable name on line 1.
     private var trailingText: Text {
-        var text = Text("")
+        let aliasesText = item.aliases.isEmpty ? "" : " (aka \(item.aliases.joined(separator: ", ")))"
+        let pageRefText = pageReference.map { "  (\($0))" } ?? ""
+        if !item.aliases.isEmpty {
+            return Text("\(aliasesText)\(pageRefText)")
+                .font(secondaryTextFont)
+                .foregroundStyle(.secondary)
+        }
+        return Text(pageRefText)
             .font(secondaryTextFont)
             .foregroundStyle(.secondary)
-        if !item.aliases.isEmpty {
-            // swiftlint:disable:next shorthand_operator
-            text = text
-                + Text(" (aka " + item.aliases.joined(separator: ", ") + ")")
-                .font(secondaryTextFont)
-                .foregroundStyle(.secondary)
-        }
-        if let pageRef = pageReference {
-            // swiftlint:disable:next shorthand_operator
-            text = text
-                + Text("  (\(pageRef))")
-                .font(secondaryTextFont)
-                .foregroundStyle(.secondary)
-        }
-        return text
     }
 
     /// Scholarly-style page reference: prefer the recorded label

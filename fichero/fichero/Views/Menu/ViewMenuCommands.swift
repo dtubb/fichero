@@ -693,6 +693,7 @@ struct ShowRulerButton: View {
 /// renders the bar across the top of that one editor — no app-wide search.
 struct ShowFindBarButton: View {
     var body: some View {
+        #if canImport(AppKit)
         Button {
             let item = NSMenuItem()
             item.tag = Int(NSFindPanelAction.showFindPanel.rawValue)
@@ -705,6 +706,14 @@ struct ShowFindBarButton: View {
             Label("Find in Artifact", systemImage: "magnifyingglass")
         }
         .keyboardShortcut("f", modifiers: .command)
+        #else
+        Button {
+        } label: {
+            Label("Find in Artifact", systemImage: "magnifyingglass")
+        }
+        .keyboardShortcut("f", modifiers: .command)
+        .disabled(true)
+        #endif
     }
 }
 

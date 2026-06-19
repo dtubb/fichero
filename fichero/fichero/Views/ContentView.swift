@@ -207,10 +207,12 @@ struct ContentView: View {
                         }
                         .keyboardShortcut("r", modifiers: [.command])
 
+                        #if canImport(AppKit)
                         Button("Quit") {
                             NSApplication.shared.terminate(nil)
                         }
                         .keyboardShortcut("q", modifiers: [.command])
+                        #endif
                     }
                     .padding(.top, 10)
                 }
@@ -429,9 +431,11 @@ struct ContentView: View {
             .onChange(of: detailDocument) { _, newDoc in
                 handleDetailDocumentChange(newDoc)
             }
+            #if canImport(AppKit)
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
                 handleWillTerminate()
             }
+            #endif
             .onReceive(NotificationCenter.default.publisher(for: .ficheroEntitySearchRequested)) { note in
                 handleEntitySearchRequested(note)
             }

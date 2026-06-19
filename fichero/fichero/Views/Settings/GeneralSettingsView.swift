@@ -111,7 +111,13 @@ struct GeneralSettingsView: View {
     }
 
     private var availableFonts: [String] {
+        #if canImport(AppKit)
         let families = NSFontManager.shared.availableFontFamilies
+        #elseif canImport(UIKit)
+        let families = UIFont.familyNames
+        #else
+        let families: [String] = []
+        #endif
         return families.sorted()
     }
 }

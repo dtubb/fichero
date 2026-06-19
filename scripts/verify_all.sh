@@ -3,7 +3,7 @@
 #
 #   --fast      Swift lint + cheap guardrails + version-date + OpenAPI model sync
 #   --standard  fast + backend unit tests
-#   --full      standard + macOS build + iPhone/iPad simulator builds + macOS test
+#   --full      standard + macOS build/test + iPhone/iPad simulator builds
 #
 # Default is --fast so tooling workers can run the cheap gate without kicking off
 # the app build/test suite. Managers/integrators own --full.
@@ -12,15 +12,21 @@ set -uo pipefail
 cd "$(dirname "$0")/.." || exit 2
 
 tier="fast"
+run_macos=0
+run_ios=0
 show_help() {
   cat <<'EOF'
 Usage:
-  scripts/verify_all.sh [--fast|--standard|--full]
+  scripts/verify_all.sh [--fast|--standard|--full] [--macos] [--ios]
 
 Tiers:
   --fast      swiftlint + ruff + scripts/check_*.py + check_version_date.sh + OpenAPI model sync
   --standard  fast + backend pytest unit tests
-  --full      standard + macOS build + iPhone/iPad simulator builds + macOS test
+  --full      standard + macOS build/test + iPhone/iPad simulator builds
+
+Platforms:
+  --macos     run the macOS Xcode build/test leg
+  --ios       run the iPhone/iPad simulator build legs (plus visionOS when supported)
 
 Default: --fast
 EOF
@@ -37,13 +43,19 @@ for arg in "$@"; do
     --full)
       tier="full"
       ;;
+    --macos)
+      run_macos=1
+      ;;
+    --ios)
+      run_ios=1
+      ;;
     -h|--help)
       show_help
       exit 0
       ;;
     *)
       echo "Unknown verify tier: $arg" >&2
-      echo "Usage: scripts/verify_all.sh [--fast|--standard|--full]" >&2
+      echo "Usage: scripts/verify_all.sh [--fast|--standard|--full] [--macos] [--ios]" >&2
       exit 2
       ;;
   esac
@@ -51,6 +63,11 @@ done
 
 if [[ $# -eq 0 ]]; then
   tier="fast"
+fi
+
+if [[ "$tier" == "full" && "$run_macos" -eq 0 && "$run_ios" -eq 0 ]]; then
+  run_macos=1
+  run_ios=1
 fi
 
 if [[ -n "${PYTHON_BIN:-}" ]]; then
@@ -186,68 +203,81 @@ run_standard() {
     "${PYTEST_CMD[@]}" fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived
 }
 
+run_platform_checks() {
+  if [[ "$run_macos" -eq 1 ]]; then
+    run_xcode_build "xcodebuild macOS build" \
+      -project "${XCODE_PROJECT}" \
+      -scheme "${XCODE_SCHEME}" \
+      -destination 'platform=macOS'
+
+    run_xcode_test "xcodebuild macOS test (Swift suite + CrossLanguageGate -> Python gate)" \
+      -project "${XCODE_PROJECT}" \
+      -scheme "${XCODE_SCHEME}" \
+      -destination 'platform=macOS' \
+      -resultBundlePath "$(mktemp -d)/verify.xcresult"
+  fi
+
+  if [[ "$run_ios" -eq 1 ]]; then
+    local iphone_udid
+    local ipad_udid
+
+    iphone_udid="$(simulator_udid iphone)" || {
+      echo "FAIL xcodebuild iPhone Simulator build"
+      fail=1
+      return
+    }
+
+    ipad_udid="$(simulator_udid ipad)" || {
+      echo "FAIL xcodebuild iPad Simulator build"
+      fail=1
+      return
+    }
+
+    run_xcode_build "xcodebuild iPhone Simulator build" \
+      -project "${XCODE_PROJECT}" \
+      -scheme "${XCODE_SCHEME}" \
+      -destination "id=${iphone_udid}"
+
+    run_xcode_build "xcodebuild iPad Simulator build" \
+      -project "${XCODE_PROJECT}" \
+      -scheme "${XCODE_SCHEME}" \
+      -destination "id=${ipad_udid}"
+
+    if [[ "${VISION_SUPPORTED}" -eq 1 ]]; then
+      local vision_udid
+      vision_udid="$(simulator_udid vision || true)"
+      if [[ -n "${vision_udid}" ]]; then
+        run_xcode_build "xcodebuild visionOS Simulator build" \
+          -project "${XCODE_PROJECT}" \
+          -scheme "${XCODE_SCHEME}" \
+          -destination "id=${vision_udid}"
+      else
+        skip_check "xcodebuild visionOS Simulator build" "no available visionOS simulator"
+      fi
+    else
+      skip_check "xcodebuild visionOS Simulator build" "project target does not support visionOS yet"
+    fi
+  fi
+}
+
 run_full() {
   echo "verify_all tier: full"
   run_standard
-
-  local iphone_udid
-  local ipad_udid
-
-  iphone_udid="$(simulator_udid iphone)" || {
-    echo "FAIL xcodebuild iPhone Simulator build"
-    fail=1
-    return
-  }
-
-  ipad_udid="$(simulator_udid ipad)" || {
-    echo "FAIL xcodebuild iPad Simulator build"
-    fail=1
-    return
-  }
-
-  run_xcode_build "xcodebuild macOS build" \
-    -project "${XCODE_PROJECT}" \
-    -scheme "${XCODE_SCHEME}" \
-    -destination 'platform=macOS'
-
-  run_xcode_build "xcodebuild iPhone Simulator build" \
-    -project "${XCODE_PROJECT}" \
-    -scheme "${XCODE_SCHEME}" \
-    -destination "id=${iphone_udid}"
-
-  run_xcode_build "xcodebuild iPad Simulator build" \
-    -project "${XCODE_PROJECT}" \
-    -scheme "${XCODE_SCHEME}" \
-    -destination "id=${ipad_udid}"
-
-  if [[ "${VISION_SUPPORTED}" -eq 1 ]]; then
-    local vision_udid
-    vision_udid="$(simulator_udid vision || true)"
-    if [[ -n "${vision_udid}" ]]; then
-      run_xcode_build "xcodebuild visionOS Simulator build" \
-        -project "${XCODE_PROJECT}" \
-        -scheme "${XCODE_SCHEME}" \
-        -destination "id=${vision_udid}"
-    else
-      skip_check "xcodebuild visionOS Simulator build" "no available visionOS simulator"
-    fi
-  else
-    skip_check "xcodebuild visionOS Simulator build" "project target does not support visionOS yet"
-  fi
-
-  run_xcode_test "xcodebuild macOS test (Swift suite + CrossLanguageGate -> Python gate)" \
-    -project "${XCODE_PROJECT}" \
-    -scheme "${XCODE_SCHEME}" \
-    -destination 'platform=macOS' \
-    -resultBundlePath "$(mktemp -d)/verify.xcresult"
+  run_platform_checks
 }
 
 case "$tier" in
   fast)
     run_fast
+    if [[ "$run_macos" -eq 1 || "$run_ios" -eq 1 ]]; then
+      run_platform_checks
+    fi
     ;;
   standard)
     run_standard
+    if [[ "$run_macos" -eq 1 || "$run_ios" -eq 1 ]]; then
+      run_platform_checks
+    fi
     ;;
   full)
     run_full

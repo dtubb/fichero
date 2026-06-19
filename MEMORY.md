@@ -1,5 +1,13 @@
 # Durable Lessons Learned / Decisions
 
+## Cross-platform SwiftUI gating: prefer `canImport(AppKit)` over `os(macOS)` when AppKit symbols are involved — 2026-06-18
+
+During the iOS compile gate, several files still triggered `Unable to resolve module dependency: 'AppKit'` or unresolved AppKit symbol errors even after broad macOS gating work. The most robust pattern for files or modifiers that reference concrete AppKit APIs (`AppKit`, `NSApplication`, `NSSavePanel`, `NSMenuItem`, `NSFindPanelAction`, `NSTextView`, `.onModifierKeysChanged`) is to gate those imports/blocks with `#if canImport(AppKit)` rather than only `#if os(macOS)`. This matches the existing `PlatformAliases` strategy and avoids mixed-platform type-checking surprises while iOS/visionOS targets are being brought up.
+
+## Xcode indexing can surface stale pre-edit diagnostics during platform-gate work — 2026-06-18
+
+When Xcode is still indexing or typechecking, the errors list may continue to show line/column diagnostics for code that has already been fixed on disk (for example `Text + Text` deprecations or imported-type `Identifiable` warnings after adding `@retroactive`). Before chasing a repeated iOS/macOS gate error, verify the current file contents on disk. If the source is already updated, treat the diagnostic as stale until a fresh build/clean pass reruns that file.
+
 ## OCR geometry must be provider-normalized, not Apple-specific — 2026-06-14
 
 Apple Vision now has deterministic OCR line/word geometry, but VLMs and cloud/local OCR APIs should feed the same typed contract rather than each inventing bbox shapes. Future OCR/transcription geometry work should define one Pydantic result model for page/line/word boxes, then write adapters for Apple Vision, prompted VLM JSON (Qwen/Gemini/GPT/Claude), Google Vision/Document AI, AWS Textract, optional Azure, and local Python OCR/layout tools. Cloud OCR adapters must be blocked by local-only/no-cloud policy unless explicit consent allows upload; tests should use fixtures only.
@@ -1032,3 +1040,7 @@ For representable types with shared coordinator logic (FicheroWebView / WKWebVie
 ## Xcode MCP BuildProject required for the iOS gate — xcodebuild CLI doesn't share Xcode.app's cache — 2026-06-18
 
 `xcodebuild` CLI under this repo's setup stalls on package resolution + build.db lock contention when run outside Xcode.app. `SWBBuildService` (Xcode's build service, PID 5395 in the test session) held `fichero/build/xcode/Intermediates/XCBuildData/build.db` for 30 minutes of CPU and a cold `xcodebuild -destination 'generic/platform=iOS Simulator'` call ran 8 minutes before producing errors. **Manager gate for iOS must use `mcp__xcode__BuildProject`** (tab `windowtab3` per STATE.md) so the build shares Xcode.app's cache and avoids the lock. `xcodebuild` CLI is fine for occasional verification — fast enough at ~5 min per cold build — but not for iteration. If CLI does block on `build.db` lock, `rm -f fichero/build/xcode/Intermediates/XCBuildData/build.db` unblocks it (SWBBuildService reopens).
+
+## Chat owns first-party sidebar/chat work — 2026-06-18
+
+Sidebar/chat/drag-drop review filed focused issues #2336-#2346 and updated roadmap ownership. `Chat` is the owning milestone for `Chat with Docs` routing, chat document-scope drag/drop payloads, stale `SidebarChatSurface`, command-vs-selection semantics, `onCreateChatWithDocuments`, and model-comparison sidebar visibility. `Library & Reading Surface` owns sidebar/library drag-drop correctness (transactional cross-folder moves, Finder temp cleanup, mixed-provider classification). `Multiplatform — iOS / iPadOS / Mac` owns compact/touch alternatives for sidebar/chat drag-drop.

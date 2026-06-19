@@ -23,6 +23,7 @@ ENABLE_ENV = "FICHERO_ENABLE_BONJOUR"
 PORT_ENV = "FICHERO_BONJOUR_PORT"
 NAME_ENV = "FICHERO_BONJOUR_NAME"
 SPKI_ENV = "FICHERO_TLS_SPKI_HASH"
+PUBLIC_URL_ENV = "FICHERO_PUBLIC_BASE_URL"
 TRUE_VALUES = {"1", "true", "yes", "on"}
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,7 @@ class BonjourConfig:
     service_name: str
     version: str
     spki_hash: str
+    public_url: str
 
 
 def _is_truthy(value: str | None) -> bool:
@@ -84,6 +86,7 @@ def build_bonjour_config(
         configured_name if configured_name is not None else _default_service_name()
     )
     spki_hash = source.get(SPKI_ENV, "").strip()
+    public_url = source.get(PUBLIC_URL_ENV, "").strip()
     return BonjourConfig(
         enabled=enabled,
         host=resolved_host,
@@ -91,6 +94,7 @@ def build_bonjour_config(
         service_name=service_name,
         version=version,
         spki_hash=spki_hash,
+        public_url=public_url,
     )
 
 
@@ -110,6 +114,10 @@ def _txt_properties(config: BonjourConfig) -> dict[str, str]:
         # Empty means no TLS certificate/SPKI is configured yet; clients must
         # not treat Bonjour TXT as proof of transport security.
         "spki": config.spki_hash,
+        # When configured, this is the actual private URL clients should pair
+        # against (for example a Tailscale URL or other explicitly managed
+        # private transport). Bonjour is presence, not transport security.
+        "public_url": config.public_url,
     }
     return properties
 

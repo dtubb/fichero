@@ -234,8 +234,19 @@ class AppleScriptBridge {
 
 final class ResultBox<T>: @unchecked Sendable {
     private var result: Result<T, Error>?
-    func set(_ newValue: Result<T, Error>) { result = newValue }
-    func get() -> Result<T, Error>? { result }
+    private let lock = NSLock()
+
+    func set(_ newValue: Result<T, Error>) {
+        lock.lock()
+        defer { lock.unlock() }
+        result = newValue
+    }
+
+    func get() -> Result<T, Error>? {
+        lock.lock()
+        defer { lock.unlock() }
+        return result
+    }
 }
 
 struct SendableCFRunLoop: @unchecked Sendable {
@@ -244,17 +255,17 @@ struct SendableCFRunLoop: @unchecked Sendable {
 
 func runAsyncWithoutBlocking<T: Sendable>(_ operation: @escaping @Sendable () async throws -> T) throws -> T {
     let sem = DispatchSemaphore(value: 0)
-    var result: Result<T, Error>?
+    let resultBox = ResultBox<T>()
     Task { @MainActor in
         do {
-            result = .success(try await operation())
+            resultBox.set(.success(try await operation()))
         } catch {
-            result = .failure(error)
+            resultBox.set(.failure(error))
         }
         sem.signal()
     }
     sem.wait()
-    switch result! {
+    switch resultBox.get()! {
     case .success(let value): return value
     case .failure(let error): throw error
     }

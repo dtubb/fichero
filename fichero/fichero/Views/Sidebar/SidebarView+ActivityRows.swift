@@ -1,4 +1,6 @@
+#if canImport(AppKit)
 import AppKit
+#endif
 import SwiftUI
 
 // MARK: - Compact Activity Grid (no longer used for section — struct kept for reuse)
@@ -53,7 +55,13 @@ extension SidebarView {
     func handleUnifiedRowTap(_ item: SidebarItem) {
         guard item.category == .activity else { return }
 
-        let isCommandDown = NSApp.currentEvent?.modifierFlags.contains(.command) ?? false
+        let isCommandDown: Bool = {
+            #if canImport(AppKit)
+            return NSApp.currentEvent?.modifierFlags.contains(.command) ?? false
+            #else
+            return false
+            #endif
+        }()
         if isCommandDown {
             if selectedActivityItemIds.contains(item.id) {
                 selectedActivityItemIds.remove(item.id)

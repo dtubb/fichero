@@ -1,13 +1,38 @@
 import SwiftUI
 
+enum LibraryWorkspaceSelection {
+    @MainActor
+    static func activeLibrary(
+        currentLibraryId: UUID?,
+        windowLibraryId: UUID,
+        libraryManager: LibraryManager
+    ) -> LibraryManager.LibraryReference? {
+        if let currentLibraryId,
+           let library = libraryManager.getLibrary(id: currentLibraryId) {
+            return library
+        }
+
+        if let library = libraryManager.getLibrary(id: windowLibraryId) {
+            return library
+        }
+
+        return libraryManager.globalLibrary
+    }
+
+    @MainActor
+    static func documentURL(for libraryURL: URL, libraryManager: LibraryManager) -> URL? {
+        libraryManager.isTemporaryLibrary(libraryURL) ? nil : libraryURL
+    }
+}
+
 /// Shared library/document host used by every Fichero app entry surface.
 /// macOS wraps it in `LibraryWindow` for window chrome and commands; iPhone,
 /// iPad, and visionOS embed the same workspace directly.
 struct LibraryWorkspaceRoot: View {
-    @EnvironmentObject private var windowState: WindowState
     @EnvironmentObject private var libraryManager: LibraryManager
 
     let library: LibraryManager.LibraryReference
+    let windowState: WindowState
     let executionObserver: WorkflowExecutionObserver
 
     var body: some View {
@@ -17,7 +42,7 @@ struct LibraryWorkspaceRoot: View {
                 get: { library.document },
                 set: { library.document = $0 }
             ),
-            documentURL: libraryManager.isTemporaryLibrary(library.url) ? nil : library.url
+            documentURL: LibraryWorkspaceSelection.documentURL(for: library.url, libraryManager: libraryManager)
         )
         .environmentObject(windowState)
         .environment(library.documentStore)

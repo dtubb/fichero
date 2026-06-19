@@ -15,7 +15,9 @@ extension LibraryView {
     // swiftlint:disable:next function_body_length
     func withKeyboardShortcuts(_ content: some View) -> some View {
         content
+            #if os(macOS)
             .onDeleteCommand(perform: promptDeleteSelected)
+            #endif
             .onKeyPress(.return) {
                 openSelectedDocument()
                 return .handled
@@ -44,9 +46,11 @@ extension LibraryView {
             .onKeyPress(.pageDown, phases: .down) { _ in
                 handleArrowKey(direction: .pageDown)
             }
+            #if os(macOS)
             .onMoveCommand { direction in
                 handleMoveCommand(direction)
             }
+            #endif
             .focusedSceneValue(
                 \.librarySelectAll,
                 FocusedLibraryAction(

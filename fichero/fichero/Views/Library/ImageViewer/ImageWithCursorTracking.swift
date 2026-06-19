@@ -1,5 +1,6 @@
-import SwiftUI
+#if canImport(AppKit)
 import AppKit
+import SwiftUI
 import CoreImage
 import ImageIO
 import OSLog
@@ -51,7 +52,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
     let url: URL
     /// When non-nil, this image is used directly instead of loading from `url`.
     /// Enables editor mode where the canvas shows a backend-rendered preview (#1402).
-    var overrideImage: NSImage? = nil
+    var overrideImage: PlatformImage? = nil
     @Binding var scale: CGFloat
     @Binding var cursorPosition: CGPoint  // Normalized 0-1 position in image
     @Binding var imageSize: CGSize
@@ -633,3 +634,303 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         }
     }
 }
+#elseif canImport(UIKit)
+import UIKit
+import SwiftUI
+import CoreImage
+import ImageIO
+import OSLog
+
+private func loadSDRImage(from url: URL) -> PlatformImage? {
+    // iOS: load normally. Orientation metadata is handled by UIImage.
+    return PlatformImage(contentsOfFile: url.path)
+}
+
+/// UIViewRepresentable wrapper for an image view with basic zoom/pan on iOS.
+/// Loupe drawing is stubbed through `TrackingImageView` to keep the same API
+/// surface as macOS; the loupe is not yet rendered on iOS.
+struct ImageWithCursorTracking: UIViewRepresentable {
+    private static let logger = Logger(subsystem: "app.fichero.fichero", category: "ImageWithCursorTracking")
+
+    let url: URL
+    var overrideImage: PlatformImage? = nil
+    @Binding var scale: CGFloat
+    @Binding var cursorPosition: CGPoint
+    @Binding var imageSize: CGSize
+    @Binding var visibleRect: CGRect
+    let minScale: CGFloat
+    let maxScale: CGFloat
+    let loupeEnabled: Bool
+    let loupeLocked: Bool
+    @Binding var loupeMagnification: CGFloat
+    @Binding var loupeSize: CGFloat
+    @Binding var coordinator: Coordinator?
+
+    func makeUIView(context: Context) -> UIScrollView {
+        let scrollView = UIScrollView()
+        scrollView.backgroundColor = UIColor(white: 0.88, alpha: 1)
+        scrollView.delegate = context.coordinator
+        scrollView.minimumZoomScale = minScale
+        scrollView.maximumZoomScale = maxScale
+        scrollView.zoomScale = scale
+        scrollView.showsHorizontalScrollIndicator = true
+        scrollView.showsVerticalScrollIndicator = true
+        scrollView.alpha = 0
+
+        let imageView = TrackingImageView()
+        imageView.contentMode = .topLeft
+        imageView.isUserInteractionEnabled = true
+
+        imageView.onCursorMoved = { normalizedPos in
+            Task { @MainActor in
+                let clampedPos = CGPoint(
+                    x: max(0, min(1, normalizedPos.x)),
+                    y: max(0, min(1, normalizedPos.y))
+                )
+                self.cursorPosition = clampedPos
+            }
+        }
+        imageView.onLoupeMagnificationChanged = { newMag in
+            Task { @MainActor in
+                self.loupeMagnification = newMag
+            }
+        }
+        imageView.onLoupeSizeChanged = { newSize in
+            Task { @MainActor in
+                self.loupeSize = newSize
+            }
+        }
+        imageView.loupeMagnification = loupeMagnification
+        imageView.loupeSize = loupeSize
+
+        let initialImage = overrideImage ?? loadSDRImage(from: url)
+        if let image = initialImage {
+            imageView.image = image
+            imageView.frame = CGRect(origin: .zero, size: image.size)
+            Self.logger.info("makeUIView: Set image size=\(image.size.width)x\(image.size.height)")
+            Task { @MainActor in
+                self.imageSize = image.size
+            }
+        } else {
+            Self.logger.error("makeUIView: Failed to load image from: \(url.lastPathComponent)")
+        }
+        context.coordinator.currentOverrideImage = overrideImage
+
+        scrollView.addSubview(imageView)
+        context.coordinator.scrollView = scrollView
+        context.coordinator.imageView = imageView
+
+        context.coordinator.onVisibleRectChanged = { rect in
+            Task { @MainActor in
+                self.visibleRect = rect
+            }
+        }
+        context.coordinator.onScaleChanged = { newScale in
+            Task { @MainActor in
+                if abs(self.scale - newScale) > 0.01 {
+                    self.scale = newScale
+                }
+            }
+        }
+        context.coordinator.needsInitialCenter = true
+
+        return scrollView
+    }
+
+    func updateUIView(_ scrollView: UIScrollView, context: Context) {
+        context.coordinator.owner = self
+
+        if context.coordinator.needsInitialCenter,
+           scrollView.bounds.width > 0,
+           scrollView.bounds.height > 0 {
+            context.coordinator.needsInitialCenter = false
+            if let fitScale = context.coordinator.calculateFitScale() {
+                scrollView.zoomScale = fitScale
+                Task { @MainActor in
+                    self.scale = fitScale
+                }
+            }
+            context.coordinator.centerContent()
+            if scrollView.alpha < 1 {
+                scrollView.alpha = 1
+            }
+        }
+
+        if abs(scrollView.zoomScale - scale) > 0.01 {
+            scrollView.zoomScale = scale
+        }
+
+        if let imageView = context.coordinator.imageView as? TrackingImageView {
+            imageView.loupeEnabled = loupeEnabled
+
+            if loupeEnabled && imageView.loupePosition == nil {
+                Task { @MainActor [weak imageView] in
+                    try? await Task.sleep(for: .milliseconds(50))
+                    guard let imageView = imageView,
+                          imageView.loupeEnabled,
+                          imageView.loupePosition == nil else { return }
+                    imageView.showLoupeAtCenter()
+                }
+            }
+
+            imageView.loupeLocked = loupeLocked
+            imageView.loupeMagnification = loupeMagnification
+            imageView.loupeSize = loupeSize
+
+            let overrideChanged = overrideImage !== context.coordinator.currentOverrideImage
+            let urlChanged = context.coordinator.currentURL != url
+            let needsImageUpdate = overrideImage != nil ? overrideChanged : urlChanged
+
+            if needsImageUpdate {
+                let newImage = overrideImage ?? loadSDRImage(from: url)
+                if let image = newImage {
+                    imageView.image = image
+                    imageView.frame = CGRect(origin: .zero, size: image.size)
+                    imageView.loupePosition = nil
+                    context.coordinator.currentURL = url
+                    context.coordinator.currentOverrideImage = overrideImage
+                    Task { @MainActor in
+                        self.imageSize = image.size
+                    }
+                    if let fitScale = context.coordinator.calculateFitScale() {
+                        scrollView.zoomScale = fitScale
+                        Task { @MainActor in
+                            self.scale = fitScale
+                        }
+                    }
+                    context.coordinator.centerContent()
+                    if scrollView.alpha < 1 { scrollView.alpha = 1 }
+                }
+            }
+        }
+
+        context.coordinator.centerContent()
+        context.coordinator.updateVisibleRect()
+
+        if scrollView.alpha < 1,
+           scrollView.bounds.width > 0,
+           scrollView.bounds.height > 0,
+           let imageView = context.coordinator.imageView as? UIImageView,
+           imageView.image != nil {
+            scrollView.alpha = 1
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        let coord = Coordinator(owner: self)
+        Task { @MainActor in
+            self.coordinator = coord
+        }
+        return coord
+    }
+
+    @MainActor
+    final class Coordinator: NSObject, UIScrollViewDelegate {
+        var owner: ImageWithCursorTracking
+        weak var scrollView: UIScrollView?
+        weak var imageView: UIView?
+        var currentURL: URL?
+        weak var currentOverrideImage: PlatformImage?
+        var onVisibleRectChanged: ((CGRect) -> Void)?
+        var onScaleChanged: ((CGFloat) -> Void)?
+        var needsInitialCenter: Bool = false
+
+        init(owner: ImageWithCursorTracking) {
+            self.owner = owner
+        }
+
+        func viewForZooming(in scrollView: UIScrollView) -> UIView? {
+            return imageView
+        }
+
+        func scrollViewDidZoom(_ scrollView: UIScrollView) {
+            centerContent()
+            updateVisibleRect()
+            onScaleChanged?(scrollView.zoomScale)
+        }
+
+        func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            updateVisibleRect()
+        }
+
+        func centerContent() {
+            guard let scrollView = scrollView,
+                  let imageView = imageView,
+                  let image = (imageView as? UIImageView)?.image else { return }
+
+            let imageSize = image.size
+            let viewSize = scrollView.bounds.size
+            let zoom = scrollView.zoomScale
+            let scaledW = imageSize.width * zoom
+            let scaledH = imageSize.height * zoom
+
+            let x = scaledW < viewSize.width ? (viewSize.width - scaledW) / 2 : 0
+            let y = scaledH < viewSize.height ? (viewSize.height - scaledH) / 2 : 0
+
+            imageView.frame = CGRect(origin: CGPoint(x: x, y: y), size: imageSize)
+        }
+
+        func updateVisibleRect() {
+            guard let scrollView = scrollView,
+                  let image = (imageView as? UIImageView)?.image else { return }
+
+            let contentOffset = scrollView.contentOffset
+            let visibleSize = scrollView.bounds.size
+            let zoom = scrollView.zoomScale
+            let imageSize = image.size
+
+            let normalizedWidth = min(1.0, visibleSize.width / imageSize.width / zoom)
+            let normalizedHeight = min(1.0, visibleSize.height / imageSize.height / zoom)
+            let normalizedX = contentOffset.x / imageSize.width / zoom
+            let normalizedY = 1.0 - (contentOffset.y + visibleSize.height) / imageSize.height / zoom
+
+            let rect = CGRect(
+                x: max(0, min(1 - normalizedWidth, normalizedX)),
+                y: max(0, min(1 - normalizedHeight, normalizedY)),
+                width: normalizedWidth,
+                height: normalizedHeight
+            )
+            onVisibleRectChanged?(rect)
+        }
+
+        func calculateFitScale() -> CGFloat? {
+            guard let scrollView = scrollView,
+                  let image = (imageView as? UIImageView)?.image else { return nil }
+            let viewSize = scrollView.bounds.size
+            guard viewSize.width > 0, viewSize.height > 0 else { return nil }
+            let imageSize = image.size
+            let scaleX = viewSize.width / imageSize.width
+            let scaleY = viewSize.height / imageSize.height
+            return min(scaleX, scaleY, 1.0)
+        }
+
+        /// Scroll to a normalized position (0-1 coordinates, top-left origin).
+        func scrollToNormalizedPosition(_ normalizedOrigin: CGPoint) {
+            guard let scrollView = scrollView,
+                  let image = (imageView as? UIImageView)?.image else { return }
+            let imageSize = image.size
+            let visibleHeight = scrollView.bounds.height / scrollView.zoomScale
+            let docX = normalizedOrigin.x * imageSize.width
+            let docY = (1.0 - normalizedOrigin.y) * imageSize.height - visibleHeight
+            scrollView.setContentOffset(CGPoint(x: docX, y: docY), animated: false)
+        }
+
+        /// Pan the visible area by document points.
+        func panBy(x deltaX: CGFloat, y deltaY: CGFloat) {
+            guard let scrollView = scrollView,
+                  let image = (imageView as? UIImageView)?.image else { return }
+            let visibleRect = CGRect(
+                origin: scrollView.contentOffset,
+                size: scrollView.bounds.size
+            )
+            let maxX = max(0, image.size.width - visibleRect.width / scrollView.zoomScale)
+            let maxY = max(0, image.size.height - visibleRect.height / scrollView.zoomScale)
+            let targetX = min(max(0, visibleRect.origin.x + deltaX), maxX)
+            let targetY = min(max(0, visibleRect.origin.y + deltaY), maxY)
+            scrollView.setContentOffset(CGPoint(x: targetX, y: targetY), animated: false)
+        }
+    }
+}
+
+#endif
+

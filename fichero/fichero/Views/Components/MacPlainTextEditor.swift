@@ -1,3 +1,4 @@
+#if canImport(AppKit)
 import AppKit
 import SwiftUI
 
@@ -71,3 +72,23 @@ struct MacPlainTextEditor: NSViewRepresentable {
         }
     }
 }
+#elseif canImport(UIKit)
+import UIKit
+import SwiftUI
+
+/// iOS plain text editor using SwiftUI's native TextEditor.
+struct MacPlainTextEditor: View {
+    @Binding var text: String
+    var font: UIFont = .preferredFont(forTextStyle: .body)
+    var isEditable: Bool = true
+    var isSelectable: Bool = true
+
+    var body: some View {
+        TextEditor(text: $text)
+            .font(Font(font))
+            .disabled(!isEditable)
+    }
+}
+
+#endif
+

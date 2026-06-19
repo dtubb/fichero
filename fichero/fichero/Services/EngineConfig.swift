@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 
 /// Single source of truth for the Fichero engine base URL.
@@ -60,5 +61,235 @@ enum EngineConfig {
             preconditionFailure("EngineConfig: malformed default URL literal '\(defaultHostString)'")
         }
         return url
+    }
+}
+
+enum RemoteAccessConfig {
+    static let hostingEnabledKey = "fichero.remote_access.enabled"
+    static let bonjourEnabledKey = "fichero.remote_access.bonjour_enabled"
+    static let publicBaseURLKey = "fichero.remote_access.public_base_url"
+
+    static var hostingEnabled: Bool {
+        UserDefaults.standard.bool(forKey: hostingEnabledKey)
+    }
+
+    static var bonjourEnabled: Bool {
+        UserDefaults.standard.bool(forKey: bonjourEnabledKey)
+    }
+
+    static var publicBaseURLString: String {
+        let stored = UserDefaults.standard.string(forKey: publicBaseURLKey) ?? ""
+        return stored.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static var publicBaseURL: URL? {
+        guard !publicBaseURLString.isEmpty else { return nil }
+        return URL(string: publicBaseURLString)
+    }
+}
+
+struct PairingQRCodePayload: Codable {
+    let version: Int
+    let apiURL: String
+    let pairCode: String
+    let expiresAt: Date
+    let spki: String
+
+    enum CodingKeys: String, CodingKey {
+        case version = "v"
+        case apiURL = "api_url"
+        case pairCode = "pair_code"
+        case expiresAt = "expires_at"
+        case spki
+    }
+}
+
+enum PairingQRCodePayloadDecoder {
+    static func decode(message: String) throws -> PairingQRCodePayload {
+        guard let payloadData = message.data(using: .utf8) else {
+            throw APIError.badRequest("The QR code payload was not valid UTF-8.")
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let raw = try container.decode(String.self)
+            guard let date = parseEngineDate(raw) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Cannot decode QR payload date: \(raw)"
+                )
+            }
+            return date
+        }
+
+        return try decoder.decode(PairingQRCodePayload.self, from: payloadData)
+    }
+}
+
+struct PairingCodeRecord: Codable {
+    let code: String
+    let expiresAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case code
+        case expiresAt = "expires_at"
+    }
+}
+
+struct PairingExchangeRequest: Codable {
+    let code: String
+    let deviceName: String
+
+    enum CodingKeys: String, CodingKey {
+        case code
+        case deviceName = "device_name"
+    }
+}
+
+struct PairingExchangeResponse: Codable {
+    let deviceId: String
+    let deviceToken: String
+
+    enum CodingKeys: String, CodingKey {
+        case deviceId = "device_id"
+        case deviceToken = "device_token"
+    }
+}
+
+struct PairedDeviceRecord: Codable, Identifiable {
+    let id: String
+    let name: String
+    let userId: String
+    let createdAt: Date
+    let lastSeen: Date
+    let expiresAt: Date
+    let revoked: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case userId = "user_id"
+        case createdAt = "created_at"
+        case lastSeen = "last_seen"
+        case expiresAt = "expires_at"
+        case revoked
+    }
+}
+
+private struct PairedDeviceListResponse: Codable {
+    let items: [PairedDeviceRecord]
+    let count: Int
+}
+
+private struct PairingStatusResponse: Codable {
+    let status: String
+}
+
+@MainActor
+final class PairingService {
+    private let apiRoot: URL
+    private let apiBaseURL: URL
+    private let session: URLSession
+    private let decoder: JSONDecoder
+    private let encoder: JSONEncoder
+
+    init(apiRoot: URL) {
+        self.apiRoot = apiRoot
+        self.apiBaseURL = apiRoot.appendingPathComponent("api")
+
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = 15
+        configuration.timeoutIntervalForResource = 30
+        self.session = URLSession(configuration: configuration)
+
+        self.decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let raw = try container.decode(String.self)
+            guard let date = parseEngineDate(raw) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Cannot decode engine date: \(raw)"
+                )
+            }
+            return date
+        }
+
+        self.encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+    }
+
+    func createPairingCode() async throws -> PairingCodeRecord {
+        var request = URLRequest(url: apiBaseURL.appendingPathComponent("pair/code"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        addAuthorization(to: &request)
+        return try await decode(PairingCodeRecord.self, from: request)
+    }
+
+    func listDevices() async throws -> [PairedDeviceRecord] {
+        var request = URLRequest(url: apiBaseURL.appendingPathComponent("pair/devices"))
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        addAuthorization(to: &request)
+        let response = try await decode(PairedDeviceListResponse.self, from: request)
+        return response.items
+    }
+
+    func revokeDevice(id: String) async throws {
+        var request = URLRequest(url: apiBaseURL.appendingPathComponent("pair/devices/\(id)/revoke"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        addAuthorization(to: &request)
+        _ = try await decode(PairingStatusResponse.self, from: request)
+    }
+
+    func pairDevice(code: String, deviceName: String) async throws -> PairingExchangeResponse {
+        var request = URLRequest(url: apiBaseURL.appendingPathComponent("pair"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.httpBody = try encoder.encode(PairingExchangeRequest(code: code, deviceName: deviceName))
+        return try await decode(PairingExchangeResponse.self, from: request)
+    }
+
+    func buildQRCodePayload(from code: PairingCodeRecord, spki: String = "") -> PairingQRCodePayload {
+        PairingQRCodePayload(
+            version: 1,
+            apiURL: apiRoot.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")),
+            pairCode: code.code,
+            expiresAt: code.expiresAt,
+            spki: spki
+        )
+    }
+
+    static func persistAuthToken(_ token: String, for apiRoot: URL) throws {
+        try AuthTokenMiddleware.persistRemoteToken(token, hostString: apiRoot.absoluteString)
+    }
+
+    private func addAuthorization(to request: inout URLRequest) {
+        if let token = AuthTokenMiddleware.readTokenFromDisk() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+    }
+
+    private func decode<T: Decodable>(_ type: T.Type, from request: URLRequest) async throws -> T {
+        let (data, response) = try await session.data(for: request)
+        try validate(response: response, data: data)
+        return try decoder.decode(type, from: data)
+    }
+
+    private func validate(response: URLResponse, data: Data) throws {
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        guard (200...299).contains(http.statusCode) else {
+            if let error = try? decoder.decode(ErrorResponse.self, from: data) {
+                throw APIError.httpError(statusCode: http.statusCode, message: error.detail)
+            }
+            let message = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw APIError.httpError(statusCode: http.statusCode, message: message)
+        }
     }
 }

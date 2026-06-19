@@ -233,30 +233,30 @@ struct ToolsResponse: Codable {
     let tools: [ComparisonToolInfo]
 }
 
-extension Components.Schemas.ComparisonResultResponse: Identifiable {
+extension Components.Schemas.ComparisonResultResponse: @retroactive Identifiable {
     public var id: String { comparisonId }
 }
 
-extension Components.Schemas.ModelResultResponse: Identifiable {
+extension Components.Schemas.ModelResultResponse: @retroactive Identifiable {
     public var id: String { "\(provider)/\(model)" }
 }
 
-extension Components.Schemas.ModelInfo: Identifiable {
+extension Components.Schemas.ModelInfo: @retroactive Identifiable {
     public var id: String { "\(provider)/\(model)" }
 }
 
-extension Components.Schemas.ComparisonPreset: Identifiable {
+extension Components.Schemas.ComparisonPreset: @retroactive Identifiable {
     public var id: String { name }
 }
 
-extension Components.Schemas.TierModelInfo: Identifiable {
+extension Components.Schemas.TierModelInfo: @retroactive Identifiable {
     public var id: String { "\(provider)/\(model)" }
 }
 
-extension Components.Schemas.ComparisonToolInfo: Identifiable {
+extension Components.Schemas.ComparisonToolInfo: @retroactive Identifiable {
     public var id: String { name }
 }
 
-extension Components.Schemas.NodeComparisonItem: Identifiable {
+extension Components.Schemas.NodeComparisonItem: @retroactive Identifiable {
     public var id: String { "\(provider)/\(model)" }
 }

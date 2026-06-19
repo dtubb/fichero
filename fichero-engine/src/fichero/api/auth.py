@@ -35,6 +35,7 @@ from fichero import accounts
 from fichero.api.library_header import require_library_path
 from fichero.actions import ActionContext
 from fichero.app_db import get_app_db
+from fichero.multiuser import multiuser_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +70,24 @@ def _token_file_path() -> Path:
     return base / ".api-key"
 
 
+def _is_account_or_device_token(token: str) -> bool:
+    """Return true when a token already belongs to a session/device row.
+
+    The bootstrap loopback secret must stay distinct from remote-client
+    credentials. If an older client overwrote ``.api-key`` with a paired-device
+    token, reusing that file would silently downgrade owner bootstrap auth into
+    a non-owner device session. Detect and rotate on the next backend restart.
+    """
+    if not token:
+        return False
+    token_hash = accounts.hash_token(token)
+    app_db = get_app_db()
+    return (
+        app_db.get_session_by_token_hash(token_hash) is not None
+        or app_db.get_device_by_token_hash(token_hash) is not None
+    )
+
+
 def initialize_token(*, force_rotate: bool = False) -> str:
     """Return the auth token, generating + persisting a fresh one only if needed.
 
@@ -96,8 +115,14 @@ def initialize_token(*, force_rotate: bool = False) -> str:
         except OSError:
             existing = ""
         if existing:
-            logger.debug("Reusing existing auth token from %s", path)
-            return existing
+            if _is_account_or_device_token(existing):
+                logger.warning(
+                    "Rotating bootstrap auth token because %s currently holds a session/device credential",
+                    path,
+                )
+            else:
+                logger.debug("Reusing existing auth token from %s", path)
+                return existing
 
     token = secrets.token_urlsafe(32)
     # Atomic-ish write: open with restrictive mode, write, then chmod again
@@ -117,8 +142,7 @@ def initialize_token(*, force_rotate: bool = False) -> str:
 
 def _use_multiuser_auth() -> bool:
     """Feature flag for multi-user session auth."""
-    raw = os.getenv("FICHERO_MULTIUSER", "").strip().lower()
-    return raw in {"1", "true", "yes", "on"}
+    return multiuser_enabled()
 
 
 def _should_touch_last_seen(last_seen_at: datetime, now: datetime) -> bool:

@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from fichero import accounts
-from fichero.api.auth import attach_auth_middleware
+from fichero.api.auth import attach_auth_middleware, initialize_token
 
 
 def _app_with_auth() -> FastAPI:
@@ -106,3 +106,27 @@ def test_non_loopback_device_token_authenticates_multiuser(monkeypatch, app_db):
     )
 
     assert response.status_code == 200
+
+
+def test_initialize_token_rotates_when_file_contains_device_token(monkeypatch, tmp_path, app_db):
+    token_path = tmp_path / ".api-key"
+    monkeypatch.setattr("fichero.api.auth._token_file_path", lambda: token_path)
+
+    user = app_db.create_user(
+        username="owner",
+        display_name="Owner",
+        password_hash=accounts.hash_password("password"),
+        is_owner=True,
+    )
+    raw_device_token = accounts.new_session_token()
+    app_db.create_device(
+        name="Test iPad",
+        user_id=user.id,
+        token_hash=accounts.hash_token(raw_device_token),
+    )
+    token_path.write_text(raw_device_token)
+
+    rotated = initialize_token()
+
+    assert rotated != raw_device_token
+    assert token_path.read_text() == rotated

@@ -29,7 +29,14 @@ extension LibraryManager {
     func backendDidBecomeReady() async {
         backendIsReady = true
         for library in openLibraries {
+            library.reconfigureBackendHost()
             await loadLibraryDataIfNeeded(for: library)
+        }
+    }
+
+    func reconfigureGeneratedClientsForCurrentHost() {
+        for library in openLibraries {
+            library.reconfigureBackendHost()
         }
     }
 

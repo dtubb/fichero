@@ -1,3 +1,4 @@
+#if canImport(AppKit)
 import AppKit
 import OSLog
 import SwiftUI
@@ -346,7 +347,9 @@ struct FicheroApp: App {
         Settings {
             SettingsView()
                 .environmentObject(appState)
+                .environmentObject(backendService)
                 .environmentObject(libraryManager)
         }
     }
 }
+#endif

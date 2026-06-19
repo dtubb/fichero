@@ -175,7 +175,9 @@ struct EntityDetailView: View {
                 .fontWeight(.semibold)
                 .focused($renameFieldFocused)
                 .onSubmit { commitRename() }
+                #if os(macOS)
                 .onExitCommand { cancelRename() }
+                #endif
                 .onAppear { renameFieldFocused = true }
         } else {
             Button {

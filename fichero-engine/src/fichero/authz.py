@@ -13,12 +13,12 @@ module returns allow so existing single-user behavior is unchanged.
 from __future__ import annotations
 
 from dataclasses import dataclass
-import os
 from pathlib import Path
 from typing import Any
 
 from fichero.app_db import get_app_db
 from fichero.models import AccountUser, Document
+from fichero.multiuser import multiuser_enabled as _multiuser_enabled
 
 ROLE_OWNER = "owner"
 ROLE_EDITOR = "editor"
@@ -42,8 +42,7 @@ class ResolvedUser:
 
 def multiuser_enabled() -> bool:
     """Return True when per-user authentication/authorization is enabled."""
-    raw = os.getenv("FICHERO_MULTIUSER", "").strip().lower()
-    return raw in {"1", "true", "yes", "on"}
+    return _multiuser_enabled()
 
 
 def normalize_library_path(library: str | Path | None) -> str | None:

@@ -34,17 +34,57 @@ class ScrollWheelCaptureView: NSView {
 
     override var acceptsFirstResponder: Bool { true }
 }
-#else
+
+#elseif canImport(UIKit)
+import UIKit
 import SwiftUI
 
-struct ScrollWheelZoomView: View {
+// MARK: - Pinch Zoom (UIKit bridge)
+
+struct ScrollWheelZoomView: UIViewRepresentable {
     @Binding var scale: CGFloat
     let minScale: CGFloat
     let maxScale: CGFloat
 
-    var body: some View {
-        EmptyView()
+    func makeUIView(context: Context) -> UIView {
+        let view = PinchZoomCaptureView()
+        view.onScaleDelta = { delta in
+            let newScale = scale * delta
+            scale = min(max(newScale, minScale), maxScale)
+        }
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {}
+}
+
+class PinchZoomCaptureView: UIView {
+    var onScaleDelta: ((CGFloat) -> Void)?
+    private var previousScale: CGFloat = 1.0
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        let pinch = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
+        addGestureRecognizer(pinch)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    @objc private func handlePinch(_ gesture: UIPinchGestureRecognizer) {
+        switch gesture.state {
+        case .began:
+            previousScale = gesture.scale
+        case .changed:
+            let delta = gesture.scale / previousScale
+            previousScale = gesture.scale
+            onScaleDelta?(delta)
+        default:
+            break
+        }
     }
 }
+
 #endif
 

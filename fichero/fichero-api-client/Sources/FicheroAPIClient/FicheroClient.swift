@@ -25,7 +25,7 @@ public final class FicheroClient: ObservableObject {
     public private(set) var api: Client
 
     /// The base URL of the API server
-    public let baseURL: URL
+    @Published public private(set) var baseURL: URL
 
     /// The library path provider (for updating the path dynamically)
     private let libraryPathProvider: LibraryPathProvider
@@ -74,6 +74,12 @@ public final class FicheroClient: ObservableObject {
                 libraryPathProvider.createMiddleware(),
             ]
         )
+    }
+
+    public func reconfigure(baseURL: URL) {
+        guard self.baseURL != baseURL else { return }
+        self.baseURL = baseURL
+        rebuildClient()
     }
 
     /// Default client pointing to localhost:8765

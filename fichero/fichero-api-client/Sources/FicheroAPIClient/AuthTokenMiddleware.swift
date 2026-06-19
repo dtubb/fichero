@@ -17,6 +17,11 @@ import OpenAPIRuntime
 /// authenticated call would 401 forever. Disk read is ~43 bytes; cost is
 /// negligible compared to the network round-trip.
 public struct AuthTokenMiddleware: ClientMiddleware {
+    private static let engineHostUserDefaultsKey = "fichero.engine.host"
+    private static let defaultHostString = "http://127.0.0.1:8765"
+    private static let bootstrapTokenFileName = ".api-key"
+    private static let remoteTokenFilePrefix = ".remote-api-key-"
+
     /// Endpoints the engine accepts unauthenticated. Keep in sync with
     /// `_UNAUTHENTICATED_PATHS` in the Python side.
     private static let unauthenticatedPaths: [String] = [
@@ -36,20 +41,86 @@ public struct AuthTokenMiddleware: ClientMiddleware {
         unauthenticatedPaths.contains { path.contains($0) }
     }
 
-    public static func tokenFileURL() -> URL? {
-        guard
-            let appSupport = try? FileManager.default.url(
-                for: .applicationSupportDirectory,
-                in: .userDomainMask,
-                appropriateFor: nil,
-                create: false
-            )
-        else {
-            return nil
+    enum TokenStorageKind: Equatable {
+        case bootstrap
+        case remote
+    }
+
+    static func tokenStorageKind(hostString: String? = nil) -> TokenStorageKind {
+        prefersLocalhostEngineToken(hostString: hostString) ? .bootstrap : .remote
+    }
+
+    static func applicationSupportDirectoryURL() -> URL? {
+        try? FileManager.default.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+    }
+
+    public static func bootstrapTokenFileURL() -> URL? {
+        if let hostURL = hostHomeTokenFileURL() {
+            return hostURL
         }
+        guard let appSupport = applicationSupportDirectoryURL() else { return nil }
         return appSupport
             .appendingPathComponent("Fichero")
-            .appendingPathComponent(".api-key")
+            .appendingPathComponent(bootstrapTokenFileName)
+    }
+
+    public static func remoteTokenFileURL(hostString: String? = nil) -> URL? {
+        guard let appSupport = applicationSupportDirectoryURL() else { return nil }
+        return appSupport
+            .appendingPathComponent("Fichero")
+            .appendingPathComponent(remoteTokenFileName(hostString: hostString))
+    }
+
+    public static func tokenFileURL() -> URL? {
+        switch tokenStorageKind() {
+        case .bootstrap:
+            return bootstrapTokenFileURL()
+        case .remote:
+            return remoteTokenFileURL()
+        }
+    }
+
+    private static func hostHomeTokenFileURL() -> URL? {
+        #if targetEnvironment(simulator) && !os(macOS)
+        guard prefersLocalhostEngineToken() else { return nil }
+        if let hostHome = ProcessInfo.processInfo.environment["SIMULATOR_HOST_HOME"],
+           !hostHome.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return URL(fileURLWithPath: hostHome)
+                .appendingPathComponent("Library/Application Support/Fichero/\(bootstrapTokenFileName)")
+        }
+        return nil
+        #else
+        return nil
+        #endif
+    }
+
+    static func prefersLocalhostEngineToken(hostString: String? = nil) -> Bool {
+        let stored = hostString ?? UserDefaults.standard.string(forKey: engineHostUserDefaultsKey)
+        let trimmed = (stored ?? defaultHostString).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let host = URL(string: trimmed)?.host?.lowercased() else {
+            return true
+        }
+        return host == "localhost" || host == "127.0.0.1" || host == "::1"
+    }
+
+    static func remoteTokenFileName(hostString: String? = nil) -> String {
+        let stored = hostString ?? UserDefaults.standard.string(forKey: engineHostUserDefaultsKey)
+        let trimmed = (stored ?? defaultHostString)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let normalized = trimmed.replacingOccurrences(
+            of: "[^a-z0-9]+",
+            with: "-",
+            options: .regularExpression
+        )
+        let suffix = normalized.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+        let identifier = suffix.isEmpty ? "default" : suffix
+        return "\(remoteTokenFilePrefix)\(identifier)"
     }
 
     /// Reads the token file from disk. Returns nil if the file isn't there
@@ -73,6 +144,15 @@ public struct AuthTokenMiddleware: ClientMiddleware {
         let token = rawToken
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return token.isEmpty ? nil : token
+    }
+
+    public static func persistRemoteToken(_ token: String, hostString: String) throws {
+        guard let tokenURL = remoteTokenFileURL(hostString: hostString) else { return }
+        let parent = tokenURL.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let data = trimmed.data(using: .utf8) else { return }
+        try data.write(to: tokenURL, options: .atomic)
     }
 
     public static func waitForToken(timeout: TimeInterval = 3) async -> String? {

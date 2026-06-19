@@ -7,7 +7,7 @@ import OSLog
 
 typealias NoteItem = Components.Schemas.Note
 
-extension Components.Schemas.Note: Identifiable {}
+extension Components.Schemas.Note: @retroactive Identifiable {}
 
 struct NoteListResponse: Codable {
     let items: [NoteItem]

@@ -4,6 +4,14 @@
 <dict>
 	<key>CFBundleDisplayName</key>
 	<string>Fichero</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_fichero._tcp</string>
+	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Fichero uses the camera to scan a pairing QR code shown on your Mac.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Fichero uses local network discovery to find a nearby Mac host for QR pairing.</string>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 	<key>NSAppleScriptEnabled</key>

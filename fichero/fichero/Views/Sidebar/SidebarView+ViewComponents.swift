@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 // MARK: - View Components
@@ -71,8 +70,10 @@ extension SidebarView {
         // macOS — the NavigationSplitView's sidebar column has its own
         // material layer underneath. .background here paints over that.
         .background(Color(platformColor: .windowBackgroundColor))
+        #if os(macOS)
         .onDeleteCommand {
             deleteSelectedActivityRuns()
         }
+        #endif
     }
 }
