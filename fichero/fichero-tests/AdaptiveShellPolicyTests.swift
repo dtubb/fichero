@@ -156,4 +156,58 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         XCTAssertTrue(ContentView.shouldUseCompactNavigationFlow(horizontalSizeClass: .compact))
         #endif
     }
+
+    func testSidebarRenderedPredicateMatchesActualSidebarColumnGate() {
+        XCTAssertFalse(
+            ContentView.shouldRenderSidebarColumn(
+                horizontalSizeClass: .compact,
+                showSidebar: true,
+                columnVisibility: .all
+            )
+        )
+        XCTAssertFalse(
+            ContentView.shouldRenderSidebarColumn(
+                horizontalSizeClass: .regular,
+                showSidebar: true,
+                columnVisibility: .detailOnly
+            )
+        )
+        XCTAssertFalse(
+            ContentView.shouldRenderSidebarColumn(
+                horizontalSizeClass: .regular,
+                showSidebar: false,
+                columnVisibility: .all
+            )
+        )
+        XCTAssertTrue(
+            ContentView.shouldRenderSidebarColumn(
+                horizontalSizeClass: .regular,
+                showSidebar: true,
+                columnVisibility: .all
+            )
+        )
+    }
+
+    func testAdaptiveWidescreenAvailableWidthOnlySubtractsInspector() {
+        XCTAssertNil(
+            ContentView.adaptiveWidescreenAvailableWidth(
+                windowWidth: nil,
+                inspectorVisible: true
+            )
+        )
+        XCTAssertEqual(
+            ContentView.adaptiveWidescreenAvailableWidth(
+                windowWidth: 200,
+                inspectorVisible: false
+            ),
+            200
+        )
+        XCTAssertEqual(
+            ContentView.adaptiveWidescreenAvailableWidth(
+                windowWidth: 200,
+                inspectorVisible: true
+            ),
+            0
+        )
+    }
 }

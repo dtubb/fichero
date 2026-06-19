@@ -104,6 +104,76 @@ struct FileTypeAdditionsTests {
     }
 }
 
+// MARK: - Widescreen Pane Plan Tests
+
+struct WidescreenPanePlanTests {
+
+    @Test("Wide windows keep all widescreen panes visible")
+    func keepsAllPanesWhenWideEnough() {
+        let plan = WidescreenPanePlan.make(
+            showDocumentGrid: true,
+            showDocumentCanvas: true,
+            showReadingPane: true,
+            availableWidth: 900
+        )
+
+        #expect(plan.showsLibraryPane)
+        #expect(plan.showsCanvasPane)
+        #expect(plan.showsReadingPane)
+        #expect(plan.minimumWidth == 800)
+    }
+
+    @Test("Narrow windows collapse reading and canvas before the library pane")
+    func collapsesSecondaryPanesFirst() {
+        let readingCollapsed = WidescreenPanePlan.make(
+            showDocumentGrid: true,
+            showDocumentCanvas: true,
+            showReadingPane: true,
+            availableWidth: 760
+        )
+        #expect(readingCollapsed.showsLibraryPane)
+        #expect(readingCollapsed.showsCanvasPane)
+        #expect(!readingCollapsed.showsReadingPane)
+        #expect(readingCollapsed.minimumWidth == 580)
+
+        let canvasCollapsed = WidescreenPanePlan.make(
+            showDocumentGrid: true,
+            showDocumentCanvas: true,
+            showReadingPane: true,
+            availableWidth: 560
+        )
+        #expect(canvasCollapsed.showsLibraryPane)
+        #expect(!canvasCollapsed.showsCanvasPane)
+        #expect(!canvasCollapsed.showsReadingPane)
+        #expect(canvasCollapsed.minimumWidth == 220)
+    }
+
+    @Test("Library-hidden narrow windows keep canvas or reading visible")
+    func keepsUsefulPaneWhenLibraryHidden() {
+        let canvasPreferred = WidescreenPanePlan.make(
+            showDocumentGrid: false,
+            showDocumentCanvas: true,
+            showReadingPane: true,
+            availableWidth: 100
+        )
+        #expect(!canvasPreferred.showsLibraryPane)
+        #expect(canvasPreferred.showsCanvasPane)
+        #expect(!canvasPreferred.showsReadingPane)
+        #expect(canvasPreferred.minimumWidth == 360)
+
+        let readingOnly = WidescreenPanePlan.make(
+            showDocumentGrid: false,
+            showDocumentCanvas: false,
+            showReadingPane: true,
+            availableWidth: 100
+        )
+        #expect(!readingOnly.showsLibraryPane)
+        #expect(!readingOnly.showsCanvasPane)
+        #expect(readingOnly.showsReadingPane)
+        #expect(readingOnly.minimumWidth == 220)
+    }
+}
+
 // MARK: - ResizableDivider Edge Tests (#535)
 
 struct ResizableDividerEdgeTests {

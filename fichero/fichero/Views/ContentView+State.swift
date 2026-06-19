@@ -269,6 +269,14 @@ extension ContentView {
         #endif
     }
 
+    static func shouldRenderSidebarColumn(
+        horizontalSizeClass: UserInterfaceSizeClass?,
+        showSidebar: Bool,
+        columnVisibility: NavigationSplitViewVisibility
+    ) -> Bool {
+        showSidebar && horizontalSizeClass != .compact && columnVisibility != .detailOnly
+    }
+
     static func shellCollapsePolicy(
         windowWidth: Double?,
         horizontalSizeClass: UserInterfaceSizeClass?,
@@ -340,32 +348,40 @@ extension ContentView {
             return ContentView.contentMinWidth
         }
 
-        let canvasPaneMinWidth = max(ContentView.pdfCanvasMinWidth, 300)
         switch currentLayoutMode {
         case .none:
-            return showDocumentGrid ? ContentView.contentListMinWidth : canvasPaneMinWidth
+            return showDocumentGrid ? ContentView.contentListMinWidth : max(ContentView.pdfCanvasMinWidth, 300)
         case .standard:
             return showDocumentGrid
-                ? max(ContentView.contentListMinWidth, canvasPaneMinWidth)
-                : canvasPaneMinWidth
+                ? max(ContentView.contentListMinWidth, max(ContentView.pdfCanvasMinWidth, 300))
+                : max(ContentView.pdfCanvasMinWidth, 300)
         case .widescreen:
-            let panePlan = WidescreenPanePlan.make(
-                showDocumentGrid: showDocumentGrid,
-                showDocumentCanvas: showDocumentCanvas,
-                showReadingPane: showReadingPane
-            )
-            var minimumWidth = 0.0
-            if panePlan.showsLibraryPane {
-                minimumWidth += ContentView.contentListMinWidth
-            }
-            if panePlan.showsCanvasPane {
-                minimumWidth += canvasPaneMinWidth
-            }
-            if panePlan.showsReadingPane {
-                minimumWidth += ContentView.readingPaneMinWidth
-            }
-            return max(minimumWidth, ContentView.contentListMinWidth)
+            return adaptiveWidescreenPanePlan.minimumWidth
         }
+    }
+
+    static func adaptiveWidescreenAvailableWidth(
+        windowWidth: Double?,
+        inspectorVisible: Bool
+    ) -> Double? {
+        guard let windowWidth, windowWidth > 0 else { return nil }
+        return max(0, windowWidth - (inspectorVisible ? ContentView.inspectorMinWidth : 0))
+    }
+
+    var adaptiveWidescreenPanePlan: WidescreenPanePlan {
+        // Keep the reading workspace legible by dropping secondary panes as
+        // the shell narrows, before SwiftUI has to overlap columns.
+        let availableDetailWidth = Self.adaptiveWidescreenAvailableWidth(
+            windowWidth: measuredWindowWidth,
+            inspectorVisible: showInspectorSidebar
+        )
+
+        return WidescreenPanePlan.make(
+            showDocumentGrid: showDocumentGrid,
+            showDocumentCanvas: showDocumentCanvas,
+            showReadingPane: showReadingPane,
+            availableWidth: availableDetailWidth
+        )
     }
 
     var paneAwareWindowMinWidth: Double {

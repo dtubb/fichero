@@ -283,7 +283,11 @@ extension ContentView {
         // collapses — without the guard the Navigator icon remains visible even
         // when the sidebar is hidden (#2309).
         .toolbar {
-            if showSidebar && horizontalSizeClass != .compact && !shouldUseRuntimeSidebarCollapse {
+            if Self.shouldRenderSidebarColumn(
+                horizontalSizeClass: horizontalSizeClass,
+                showSidebar: showSidebar,
+                columnVisibility: columnVisibility
+            ) {
                 ToolbarItem(placement: .automatic) {
                     Button {
                         sidebarShowsChat = false
@@ -418,11 +422,7 @@ extension ContentView {
                     // independently toggleable per-window (#1448). Hiding the
                     // Library pane must not collapse the reading workspace into
                     // a different single-preview layout.
-                    let panePlan = WidescreenPanePlan.make(
-                        showDocumentGrid: showDocumentGrid,
-                        showDocumentCanvas: showDocumentCanvas,
-                        showReadingPane: showReadingPane
-                    )
+                    let panePlan = adaptiveWidescreenPanePlan
                     HStack(spacing: 0) {
                         if panePlan.showsLibraryPane {
                             // When both reading panes are hidden the list takes the
