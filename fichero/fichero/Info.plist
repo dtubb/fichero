@@ -9,7 +9,9 @@
 		<string>_fichero._tcp</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>Fichero uses the camera to scan a pairing QR code shown on your Mac.</string>
+	<string>Fichero uses the camera to scan pairing QR codes and capture new photos into your queue.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Fichero uses your photo library when you choose existing images to add to the capture queue.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Fichero uses local network discovery to find a nearby Mac host for QR pairing.</string>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
