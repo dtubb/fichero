@@ -261,7 +261,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(tabSource.contains("await KnownLibraryRegistryStore.shared.refresh()"))
         XCTAssertTrue(tabSource.contains("await libraryManager.backendDidBecomeReady()"))
 
-        XCTAssertTrue(connectionSource.contains("var onConnected: (@MainActor () async -> Void)? = nil"))
+        XCTAssertTrue(connectionSource.contains("var onConnected: (@MainActor () async -> Void)?"))
         XCTAssertTrue(connectionSource.contains("await completeSuccessfulConnection()"))
         XCTAssertTrue(connectionSource.contains("await onConnected?()"))
     }
