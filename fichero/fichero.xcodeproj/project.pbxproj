@@ -40,8 +40,6 @@
 		049 /* DocumentServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 148 /* DocumentServiceGenerated.swift */; };
 		05B00350827A7FD40C53676B /* FocusedCitation.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFF948011DDF9E51FDC3995D /* FocusedCitation.swift */; };
 		079E7B626FA4EE5877BB24B0 /* FicheroApp_iOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29941DE439073B7364322ECF /* FicheroApp_iOS.swift */; };
-		A23260012F90000100000001 /* RemoteClientPairing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A23260032F90000100000001 /* RemoteClientPairing.swift */; };
-		A23260022F90000100000001 /* MacRemoteClientPairingSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A23260042F90000100000001 /* MacRemoteClientPairingSection.swift */; };
 		08A233915452687AD06DA9DE /* DocumentInspectorArtifactsTab+Previews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73BB27716102361159F020CD /* DocumentInspectorArtifactsTab+Previews.swift */; };
 		09F7968790ECF62B772D3895 /* NoteListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89B5319A472F190E68188ECC /* NoteListView.swift */; };
 		0A0258BFC2C7F4448C8C903A /* CitationDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB59736A9E632D7997FA8412 /* CitationDetailView.swift */; };
@@ -372,6 +370,10 @@
 		A1FB1DA02F0420D50023093C /* SidebarViewExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D9A2F0420D50023093C /* SidebarViewExtensions.swift */; };
 		A1FB1DA12F0420D50023093C /* SidebarSectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D972F0420D50023093C /* SidebarSectionHeader.swift */; };
 		A1FB1DA22F0420D50023093C /* SidebarConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D932F0420D50023093C /* SidebarConstants.swift */; };
+		A23530010000000000000001 /* MobileCaptureQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = A23530030000000000000003 /* MobileCaptureQueue.swift */; };
+		A23530020000000000000002 /* MobileCaptureQueueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A23530040000000000000004 /* MobileCaptureQueueView.swift */; };
+		A23260012F90000100000001 /* RemoteClientPairing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A23260032F90000100000001 /* RemoteClientPairing.swift */; };
+		A23260022F90000100000001 /* MacRemoteClientPairingSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A23260042F90000100000001 /* MacRemoteClientPairingSection.swift */; };
 		A32C13985AC2C769740EF9B7 /* OntologyBrowser+Detail.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60E9A8C3AD1B87728A4E3FB /* OntologyBrowser+Detail.swift */; };
 		A35052BDBE9CC694D88D322A /* ResearchChatPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38E23447A5C31CE397D337CC /* ResearchChatPane.swift */; };
 		A3C1803DF6559D5BFCC9935E /* ComparisonDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38753C6C4C3EECE670188B92 /* ComparisonDetailView.swift */; };
@@ -699,8 +701,6 @@
 		25FA072769256EDC235A5BD6 /* ArtifactDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ArtifactDetailView.swift; sourceTree = "<group>"; };
 		28B629229088E72B485569FC /* LibraryChangeStream.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LibraryChangeStream.swift; sourceTree = "<group>"; };
 		29941DE439073B7364322ECF /* FicheroApp_iOS.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FicheroApp_iOS.swift; sourceTree = "<group>"; };
-		A23260032F90000100000001 /* RemoteClientPairing.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteClientPairing.swift; sourceTree = "<group>"; };
-		A23260042F90000100000001 /* MacRemoteClientPairingSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacRemoteClientPairingSection.swift; sourceTree = "<group>"; };
 		2B320C62BB61F14256AECCF5 /* SpatialModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpatialModels.swift; sourceTree = "<group>"; };
 		2B9987CAE57F0DD5387F6DD2 /* OntologyBrowser+Sheets.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "OntologyBrowser+Sheets.swift"; sourceTree = "<group>"; };
 		2CC15CD58C235F143320E172 /* PDFPageWithToolbar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PDFPageWithToolbar.swift; sourceTree = "<group>"; };
@@ -933,6 +933,10 @@
 		A1FB1D982F0420D50023093C /* SidebarStateManagers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarStateManagers.swift; sourceTree = "<group>"; };
 		A1FB1D992F0420D50023093C /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		A1FB1D9A2F0420D50023093C /* SidebarViewExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarViewExtensions.swift; sourceTree = "<group>"; };
+		A23260032F90000100000001 /* RemoteClientPairing.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteClientPairing.swift; sourceTree = "<group>"; };
+		A23260042F90000100000001 /* MacRemoteClientPairingSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacRemoteClientPairingSection.swift; sourceTree = "<group>"; };
+		A23530030000000000000003 /* MobileCaptureQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileCaptureQueue.swift; sourceTree = "<group>"; };
+		A23530040000000000000004 /* MobileCaptureQueueView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileCaptureQueueView.swift; sourceTree = "<group>"; };
 		A3CD4902A47A5787D61C6D72 /* FlowLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FlowLayout.swift; path = fichero/Views/Components/FlowLayout.swift; sourceTree = SOURCE_ROOT; };
 		A5B27E2AF4EC43E993C19836 /* FeatureManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureManager.swift; sourceTree = "<group>"; };
 		A5C119BA4657FD54B0F01D6C /* DocumentKGSurface.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocumentKGSurface.swift; sourceTree = "<group>"; };
@@ -1251,6 +1255,7 @@
 				A1A3A9FD2F110D260021909D /* Agents */,
 				A1FB1D7A2F0420310023093C /* AIProviders */,
 				A1A3AA2A2F113E850021909D /* Automation */,
+				A23530050000000000000005 /* Capture */,
 				4118 /* Chat */,
 				A1BFB2D62F042C6D00EAA55A /* Components */,
 				102 /* ContentView.swift */,
@@ -1413,6 +1418,14 @@
 			path = Chat;
 			sourceTree = "<group>";
 		};
+		A23530050000000000000005 /* Capture */ = {
+			isa = PBXGroup;
+			children = (
+				A23530040000000000000004 /* MobileCaptureQueueView.swift */,
+			);
+			path = Capture;
+			sourceTree = "<group>";
+		};
 		412 /* Models */ = {
 			isa = PBXGroup;
 			children = (
@@ -1427,6 +1440,7 @@
 				A1BFB44E2F0AABA600EAA55A /* ItemTypeRegistry.swift */,
 				A1BFB4602F0AADC000EAA55A /* LayoutMode.swift */,
 				377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */,
+				A23530030000000000000003 /* MobileCaptureQueue.swift */,
 				EBFA9C3247C03BDCE9BE6092 /* LibraryManager+Operations.swift */,
 				1CE5EBB51D90DE16D32A82FC /* LibraryManager+Helpers.swift */,
 				BF91C082286A2B7BB74E438D /* LibraryManager+Persistence.swift */,
@@ -2677,6 +2691,8 @@
 				A50A37D5AD8F631DE19382B6 /* StackedRepresentationPanes.swift in Sources */,
 				7DBC189DE3A7BC27C2B3BEFF /* LibraryOutlineNode.swift in Sources */,
 				079E7B626FA4EE5877BB24B0 /* FicheroApp_iOS.swift in Sources */,
+				A23530010000000000000001 /* MobileCaptureQueue.swift in Sources */,
+				A23530020000000000000002 /* MobileCaptureQueueView.swift in Sources */,
 				A23260022F90000100000001 /* MacRemoteClientPairingSection.swift in Sources */,
 				A23260012F90000100000001 /* RemoteClientPairing.swift in Sources */,
 				B8D4C0037198A3136E49293B /* LibraryWorkspaceRoot.swift in Sources */,
