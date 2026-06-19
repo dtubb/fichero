@@ -9,8 +9,11 @@ import SwiftUI
 import WebKit
 
 enum DocumentKGPaneRoute {
-    static let baseURL = "http://localhost:8765"
     static let globalKGDocumentID = "__kg_global__"
+
+    private static var baseURL: String {
+        EngineConfig.host.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    }
 
     static func documentURL(documentId: String) -> URL? {
         guard let encoded = documentId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
@@ -809,4 +812,3 @@ struct DocumentKGWebPane: UIViewRepresentable {
 }
 
 #endif
-

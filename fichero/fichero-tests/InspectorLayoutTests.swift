@@ -393,10 +393,14 @@ struct PageContentPaneEditStateTests {
 
 struct DocumentKGPaneRouteTests {
 
-    @Test("Knowledge pane route builds localhost document URL")
+    @Test("Knowledge pane route uses configured engine host")
     func documentURL() throws {
+        let originalHost = UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey)
+        defer { restoreEngineHost(originalHost) }
+        UserDefaults.standard.set("https://host.tailnet.example", forKey: EngineConfig.userDefaultsKey)
+
         let url = try #require(DocumentKGPaneRoute.documentURL(documentId: "doc-123"))
-        #expect(url.absoluteString == "http://localhost:8765/view/document/doc-123")
+        #expect(url.absoluteString == "https://host.tailnet.example/view/document/doc-123")
     }
 
     @Test("Knowledge pane request includes library header")
@@ -418,6 +422,14 @@ struct DocumentKGPaneRouteTests {
         )
         #expect(script.contains("tok\\'en"))
         #expect(script.contains("/tmp/Line\\nBreak.fichero"))
+    }
+
+    private func restoreEngineHost(_ value: String?) {
+        if let value {
+            UserDefaults.standard.set(value, forKey: EngineConfig.userDefaultsKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: EngineConfig.userDefaultsKey)
+        }
     }
 }
 
@@ -719,4 +731,3 @@ struct ArtifactRichTextCodecTests {
     }
 }
 #endif
-

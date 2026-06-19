@@ -78,9 +78,10 @@ final class NoteService: ObservableObject {
     private let client: FicheroClient
     private let decoder = JSONDecoder()
 
-    init(ficheroClient: FicheroClient = FicheroClient(), libraryPath: String? = nil) {
-        self.client = ficheroClient
-        self.libraryPath = libraryPath ?? ficheroClient.currentLibraryPath
+    init(ficheroClient: FicheroClient? = nil, libraryPath: String? = nil) {
+        let resolvedClient = ficheroClient ?? FicheroClient(baseURL: EngineConfig.host, libraryPath: libraryPath)
+        self.client = resolvedClient
+        self.libraryPath = libraryPath ?? resolvedClient.currentLibraryPath
         client.currentLibraryPath = self.libraryPath
     }
 

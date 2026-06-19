@@ -41,7 +41,7 @@ class AppState: ObservableObject {
     // MARK: - Services
 
     private let apiClient = APIClient()  // App-wide APIClient for global services
-    private let ficheroClient = FicheroClient()  // App-wide FicheroClient for generated services
+    private let ficheroClient = FicheroClient(baseURL: EngineConfig.host)  // App-wide generated client
     let providerService: ProviderServiceGenerated  // Public for @EnvironmentObject injection
     let mcpService: MCPService  // Public for @EnvironmentObject injection
     let modelService: ModelServiceGenerated  // Public for @EnvironmentObject injection (HuggingFace browsing)

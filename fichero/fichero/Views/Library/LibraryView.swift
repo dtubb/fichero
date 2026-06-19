@@ -317,7 +317,7 @@ struct LibraryView: View {
             )
             .onAppear {
                 if canvasLayoutStore == nil || canvasItemStore == nil {
-                    let client = libraryManager.globalLibrary?.ficheroClient ?? FicheroClient.localhost
+                    let client = libraryManager.globalLibrary?.ficheroClient ?? FicheroClient(baseURL: EngineConfig.host)
                     canvasLayoutStore = canvasLayoutStore ?? CanvasLayoutStore(client: client)
                     canvasItemStore = canvasItemStore ?? CanvasItemStore(client: client)
                 }

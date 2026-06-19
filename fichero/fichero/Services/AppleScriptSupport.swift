@@ -71,7 +71,7 @@ func runAsyncWithoutBlocking<T: Sendable>(_ operation: @escaping @Sendable () as
 class AppleScriptBridge {
     static let shared = AppleScriptBridge()
 
-    private let baseURL = EngineConfig.apiBaseURL
+    private var baseURL: URL { EngineConfig.apiBaseURL }
 
     /// GET request with engine Bearer token (#742). Replaces former
     /// `session.data(from: url)` callsites which strip headers.

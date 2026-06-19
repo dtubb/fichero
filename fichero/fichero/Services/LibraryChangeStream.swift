@@ -103,7 +103,8 @@ protocol ChangeEventConsumer: AnyObject {
 @MainActor
 @Observable
 final class LibraryChangeStream {
-    private let baseURL: URL
+    private let baseURLProvider: @MainActor () -> URL
+    private var baseURL: URL { baseURLProvider() }
     private let libraryPath: String
 
     /// This stream's origin tag — used for self-echo de-dup (spec §3.5) once
@@ -124,7 +125,13 @@ final class LibraryChangeStream {
     private(set) var isConnected = false
 
     init(baseURL: URL, libraryPath: String, windowId: String = UUID().uuidString) {
-        self.baseURL = baseURL
+        self.baseURLProvider = { baseURL }
+        self.libraryPath = libraryPath
+        self.windowId = windowId
+    }
+
+    init(baseURLProvider: @escaping @MainActor () -> URL, libraryPath: String, windowId: String = UUID().uuidString) {
+        self.baseURLProvider = baseURLProvider
         self.libraryPath = libraryPath
         self.windowId = windowId
     }

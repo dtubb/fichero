@@ -159,7 +159,7 @@ class LibraryManager: ObservableObject {
         /// its `.task`; only the first connects.
         lazy var changeStream: LibraryChangeStream = {
             let stream = LibraryChangeStream(
-                baseURL: self.apiClient.baseURL,
+                baseURLProvider: { self.apiClient.baseURL },
                 libraryPath: self.url.path
             )
             stream.register(self.documentStore)

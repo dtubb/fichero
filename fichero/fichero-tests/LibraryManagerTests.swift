@@ -42,6 +42,14 @@ final class LibraryManagerTests: XCTestCase {
         try await super.tearDown()
     }
 
+    private func restoreEngineHost(_ value: String?) {
+        if let value {
+            UserDefaults.standard.set(value, forKey: EngineConfig.userDefaultsKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: EngineConfig.userDefaultsKey)
+        }
+    }
+
     // MARK: - Library Creation Tests
 
     func testCreateNewLibrary() async throws {
@@ -97,6 +105,41 @@ final class LibraryManagerTests: XCTestCase {
             libraryManager.loadingLibraryIds.contains(library.id),
             "Library data load should not start before backend readiness"
         )
+    }
+
+    func testCreateNewLibraryUsesConfiguredEngineHost() async throws {
+        // Given
+        let originalHost = UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey)
+        defer { restoreEngineHost(originalHost) }
+        let remoteHost = URL(string: "https://host.tailnet.example")!
+        UserDefaults.standard.set(remoteHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
+
+        // When
+        let library = libraryManager.createNewLibrary()
+
+        // Then
+        XCTAssertEqual(library.ficheroClient.baseURL, remoteHost)
+        XCTAssertEqual(library.apiClient.baseURL, remoteHost.appendingPathComponent("api"))
+    }
+
+    func testReconfigureGeneratedClientsForCurrentHostUpdatesOpenLibrary() async throws {
+        // Given
+        let originalHost = UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey)
+        defer { restoreEngineHost(originalHost) }
+        let firstHost = URL(string: "https://first.tailnet.example")!
+        let secondHost = URL(string: "https://second.tailnet.example")!
+        UserDefaults.standard.set(firstHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
+
+        let library = libraryManager.createNewLibrary()
+        XCTAssertEqual(library.ficheroClient.baseURL, firstHost)
+
+        // When
+        UserDefaults.standard.set(secondHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
+        libraryManager.reconfigureGeneratedClientsForCurrentHost()
+
+        // Then
+        XCTAssertEqual(library.ficheroClient.baseURL, secondHost)
+        XCTAssertEqual(library.apiClient.baseURL, secondHost.appendingPathComponent("api"))
     }
 
     // MARK: - Save Tests

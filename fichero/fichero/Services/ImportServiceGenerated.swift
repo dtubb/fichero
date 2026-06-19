@@ -27,7 +27,7 @@ class ImportServiceGenerated: ObservableObject {
 
     convenience init(apiClient: APIClient) {
         let libraryPath = apiClient.currentLibraryPath ?? ""
-        let ficheroClient = FicheroClient(libraryPath: libraryPath)
+        let ficheroClient = FicheroClient(baseURL: EngineConfig.host, libraryPath: libraryPath)
         self.init(ficheroClient: ficheroClient)
     }
 

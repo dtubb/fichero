@@ -9,8 +9,8 @@ import OSLog
 /// + LibraryPathMiddleware) instead of hand-written URLSession requests (#1666).
 /// Model comparison is a **dev-tier, app-wide** feature with no library scope
 /// (its sibling endpoints live under the dev feature tier), so it uses the
-/// localhost client purely to carry the engine bearer token — mirroring how
-/// `LocalModelsSettingsView` / `ComparisonDetailView` were migrated in #1701.
+/// configured engine client purely to carry the engine bearer token — mirroring
+/// how `LocalModelsSettingsView` / `ComparisonDetailView` were migrated in #1701.
 @MainActor
 final class ModelComparisonService: ObservableObject {
     let logger = Logger(subsystem: "app.fichero.fichero", category: "ModelComparisonService")
@@ -28,7 +28,7 @@ final class ModelComparisonService: ObservableObject {
     let client: FicheroClient
 
     init() {
-        self.client = FicheroClient.localhost
+        self.client = FicheroClient(baseURL: EngineConfig.host)
     }
 }
 
