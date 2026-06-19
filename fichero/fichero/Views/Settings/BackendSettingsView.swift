@@ -18,7 +18,7 @@ struct BackendSettingsView: View {
     @AppStorage(RemoteAccessConfig.hostingEnabledKey) private var hostingEnabled = false
     @AppStorage(RemoteAccessConfig.bonjourEnabledKey) private var bonjourEnabled = false
     @AppStorage(RemoteAccessConfig.publicBaseURLKey) private var publicBaseURL = ""
-    @AppStorage(RemoteAccessConfig.spkiPinKey) private var spkiPin = ""
+    @AppStorage(RemoteAccessConfig.advertisedSPKIPinKey) private var spkiPin = ""
 
     @State private var storageStats: StorageStats?
     @State private var isLoadingStats = false

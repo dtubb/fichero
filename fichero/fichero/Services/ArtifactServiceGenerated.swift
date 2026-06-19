@@ -1263,7 +1263,8 @@ final class EntityServiceGenerated: ObservableObject {
         }
         var request = URLRequest(url: url)
         request.addEngineAuth(libraryPath: client.currentLibraryPath)
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let session = RemoteCertificatePinning.configuredSession()
+        let (data, response) = try await session.data(for: request)
         if let http = response as? HTTPURLResponse, http.statusCode != 200 {
             throw ServiceError.unexpectedResponse(http.statusCode)
         }
@@ -1436,7 +1437,7 @@ final class EntityServiceGenerated: ObservableObject {
         }
         var req = URLRequest(url: url)
         req.addEngineAuth(libraryPath: lib)
-        let (data, _) = try await URLSession.shared.data(for: req)
+        let (data, _) = try await RemoteCertificatePinning.configuredSession().data(for: req)
         return (try? JSONDecoder().decode(EntityTypeListPayload.self, from: data))?.items ?? []
     }
 
@@ -1455,7 +1456,7 @@ final class EntityServiceGenerated: ObservableObject {
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.addEngineAuth(libraryPath: lib)
-        let (data, _) = try await URLSession.shared.data(for: req)
+        let (data, _) = try await RemoteCertificatePinning.configuredSession().data(for: req)
         return try JSONDecoder().decode(LibraryEntityTypeItem.self, from: data)
     }
 
@@ -1469,7 +1470,7 @@ final class EntityServiceGenerated: ObservableObject {
         var req = URLRequest(url: url)
         req.httpMethod = "DELETE"
         req.addEngineAuth(libraryPath: lib)
-        _ = try? await URLSession.shared.data(for: req)
+        _ = try? await RemoteCertificatePinning.configuredSession().data(for: req)
     }
 
     // MARK: - Document workflow provenance (#1434)
@@ -1535,7 +1536,8 @@ final class EntityServiceGenerated: ObservableObject {
             request.addValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONSerialization.data(withJSONObject: jsonBody)
         }
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let session = RemoteCertificatePinning.configuredSession()
+        let (data, response) = try await session.data(for: request)
         if let http = response as? HTTPURLResponse,
            !(200...299).contains(http.statusCode) {
             throw ServiceError.unexpectedResponse(http.statusCode)
@@ -1737,7 +1739,7 @@ final class EntityServiceGenerated: ObservableObject {
         }
         var req = URLRequest(url: url)
         req.addEngineAuth(libraryPath: lib)
-        let (data, _) = try await URLSession.shared.data(for: req)
+        let (data, _) = try await RemoteCertificatePinning.configuredSession().data(for: req)
         struct Envelope: Decodable {
             let items: [Components.Schemas.ClassificationValue]
         }
@@ -1754,7 +1756,7 @@ final class EntityServiceGenerated: ObservableObject {
         }
         var req = URLRequest(url: url)
         req.addEngineAuth(libraryPath: lib)
-        let (data, _) = try await URLSession.shared.data(for: req)
+        let (data, _) = try await RemoteCertificatePinning.configuredSession().data(for: req)
         struct Envelope: Decodable {
             let items: [Components.Schemas.ClassificationValue]
         }
@@ -1795,7 +1797,7 @@ final class EntityServiceGenerated: ObservableObject {
         }
         var req = URLRequest(url: url)
         req.addEngineAuth(libraryPath: lib)
-        let (data, _) = try await URLSession.shared.data(for: req)
+        let (data, _) = try await RemoteCertificatePinning.configuredSession().data(for: req)
         struct Envelope: Decodable {
             let items: [Components.Schemas.Interpretation]
         }
@@ -1808,7 +1810,7 @@ final class EntityServiceGenerated: ObservableObject {
         guard let url = URL(string: "\(client.baseURL)/api/hermeneutics/frameworks") else { return [] }
         var req = URLRequest(url: url)
         req.addEngineAuth(libraryPath: lib)
-        let (data, _) = try await URLSession.shared.data(for: req)
+        let (data, _) = try await RemoteCertificatePinning.configuredSession().data(for: req)
         struct Envelope: Decodable {
             let items: [Components.Schemas.InterpretiveFramework]
         }
@@ -1836,7 +1838,7 @@ final class EntityServiceGenerated: ObservableObject {
             "confidence": confidence
         ]
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (data, _) = try await URLSession.shared.data(for: req)
+        let (data, _) = try await RemoteCertificatePinning.configuredSession().data(for: req)
         return try JSONDecoder().decode(Components.Schemas.Interpretation.self, from: data)
     }
 
@@ -1866,7 +1868,7 @@ final class EntityServiceGenerated: ObservableObject {
             "created_by": "human"
         ]
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (data, _) = try await URLSession.shared.data(for: req)
+        let (data, _) = try await RemoteCertificatePinning.configuredSession().data(for: req)
         return try JSONDecoder().decode(Components.Schemas.Interpretation.self, from: data)
     }
 

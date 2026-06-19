@@ -6,6 +6,19 @@ import Security
 import XCTest
 
 final class RemoteCertificatePinningTests: XCTestCase {
+    private let hostOne = "https://host-one.tailnet.example"
+    private let hostTwo = "https://host-two.tailnet.example:8443"
+    private let advertisedPin = Data("advertised-spki".utf8).base64EncodedString()
+    private let hostOnePin = Data("host-one-spki".utf8).base64EncodedString()
+    private let hostTwoPin = Data("host-two-spki".utf8).base64EncodedString()
+
+    override func tearDown() {
+        super.tearDown()
+        RemoteCertificatePinning.clearAdvertisedSPKIPin()
+        RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostOne)
+        RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostTwo)
+    }
+
     func testValidatedSPKIPinRejectsMissingPin() {
         XCTAssertThrowsError(try RemoteCertificatePinning.validatedSPKIPin("   ")) { error in
             XCTAssertEqual(error as? RemoteCertificatePinningError, .missingSPKIPin)
@@ -31,6 +44,27 @@ final class RemoteCertificatePinningTests: XCTestCase {
         XCTAssertFalse(RemoteCertificatePinning.shouldEnforcePinning(for: URL(string: "http://127.0.0.1:8765")!))
         XCTAssertFalse(RemoteCertificatePinning.shouldEnforcePinning(for: URL(string: "https://localhost:8765")!))
         XCTAssertTrue(RemoteCertificatePinning.shouldEnforcePinning(for: URL(string: "https://host.tailnet.example")!))
+    }
+
+    func testPersistedSPKIPinsAreHostScoped() throws {
+        try RemoteCertificatePinning.persistSPKIPin(hostOnePin, hostString: hostOne)
+        try RemoteCertificatePinning.persistSPKIPin(hostTwoPin, hostString: hostTwo)
+
+        XCTAssertEqual(RemoteCertificatePinning.persistedSPKIPin(hostString: hostOne), hostOnePin)
+        XCTAssertEqual(RemoteCertificatePinning.persistedSPKIPin(hostString: hostTwo), hostTwoPin)
+
+        RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostOne)
+
+        XCTAssertNil(RemoteCertificatePinning.persistedSPKIPin(hostString: hostOne))
+        XCTAssertEqual(RemoteCertificatePinning.persistedSPKIPin(hostString: hostTwo), hostTwoPin)
+    }
+
+    func testAdvertisedSPKIPinIsStoredSeparatelyFromClientPins() throws {
+        try RemoteCertificatePinning.persistAdvertisedSPKIPin(advertisedPin)
+        try RemoteCertificatePinning.persistSPKIPin(hostOnePin, hostString: hostOne)
+
+        XCTAssertEqual(RemoteCertificatePinning.advertisedSPKIPin(), advertisedPin)
+        XCTAssertEqual(RemoteCertificatePinning.persistedSPKIPin(hostString: hostOne), hostOnePin)
     }
 
     #if canImport(Security)

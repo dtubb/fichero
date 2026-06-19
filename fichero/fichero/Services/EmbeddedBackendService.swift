@@ -292,6 +292,7 @@ final class EmbeddedBackendService: ObservableObject {
     private func waitForBackend(timeout: TimeInterval) async throws {
         let startTime = Date()
         let healthURL = backendURL.appendingPathComponent("api/health")
+        let session = RemoteCertificatePinning.configuredSession()
 
         // Poll aggressively at first (100ms) so we catch the backend
         // as soon as it's ready — local FastAPI typically answers
@@ -306,7 +307,7 @@ final class EmbeddedBackendService: ObservableObject {
             }
 
             do {
-                let (_, response) = try await URLSession.shared.data(from: healthURL)
+                let (_, response) = try await session.data(from: healthURL)
                 if let httpResponse = response as? HTTPURLResponse,
                    httpResponse.statusCode == 200 {
                     logger.info("Backend health check passed")
@@ -330,9 +331,10 @@ final class EmbeddedBackendService: ObservableObject {
         var request = URLRequest(url: workflowsURL)
         request.httpMethod = "GET"
         request.addEngineAuth()
+        let session = RemoteCertificatePinning.configuredSession()
 
         do {
-            let (_, response) = try await URLSession.shared.data(for: request)
+            let (_, response) = try await session.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse else {
                 return false
             }
@@ -349,9 +351,10 @@ final class EmbeddedBackendService: ObservableObject {
 
     func checkHealth() async -> Bool {
         let healthURL = backendURL.appendingPathComponent("health")
+        let session = RemoteCertificatePinning.configuredSession()
 
         do {
-            let (_, response) = try await URLSession.shared.data(from: healthURL)
+            let (_, response) = try await session.data(from: healthURL)
             return (response as? HTTPURLResponse)?.statusCode == 200
         } catch {
             return false

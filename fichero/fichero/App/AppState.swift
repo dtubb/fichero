@@ -85,12 +85,16 @@ class AppState: ObservableObject {
         NotificationCenter.default.post(name: EngineConfig.engineHostDidChangeNotification, object: nil)
     }
 
+    private var session: URLSession {
+        RemoteCertificatePinning.configuredSession()
+    }
+
     private func pingBackendOnce() async {
         let url = EngineConfig.apiBaseURL.appendingPathComponent("health")
         var request = URLRequest(url: url)
         request.timeoutInterval = 3
         do {
-            let (_, response) = try await URLSession.shared.data(for: request)
+            let (_, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
                 noteHeartbeatFailure(reason: "API returned error status")
                 return
@@ -143,7 +147,7 @@ class AppState: ObservableObject {
 
         logger.info("⏱ checkBackendHealth request-start → \(url.absoluteString)")
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
+            let (data, response) = try await session.data(from: url)
             logger.info("⏱ checkBackendHealth response-received")
 
             guard let httpResponse = response as? HTTPURLResponse,
@@ -234,7 +238,7 @@ class AppState: ObservableObject {
         request.httpMethod = "DELETE"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.addEngineAuth()
-        let (_, response) = try await URLSession.shared.data(for: request)
+        let (_, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
             throw APIError.invalidResponse

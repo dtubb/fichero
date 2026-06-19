@@ -360,7 +360,8 @@ class WorkflowServiceGenerated: ObservableObject {
         var request = URLRequest(url: url)
         request.addEngineAuth(libraryPath: client.currentLibraryPath)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let session = RemoteCertificatePinning.configuredSession()
+        let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             logger.warning("fetchDiagramImage: non-200 for workflow \(workflowId)")
             return nil

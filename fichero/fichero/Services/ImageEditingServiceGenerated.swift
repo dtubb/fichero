@@ -3,6 +3,7 @@ import AppKit
 #elseif canImport(UIKit)
 import UIKit
 #endif
+import FicheroAPIClient
 import Foundation
 import ImageIO
 import OSLog
@@ -120,7 +121,7 @@ final class ImageEditingServiceGenerated: ObservableObject {
 
     private let libraryPath: String
     private let engineURL: URL
-    private let session = URLSession.shared
+    private let session = RemoteCertificatePinning.configuredSession()
 
     /// - Parameter engineURL: Engine root without `/api` (e.g. `http://127.0.0.1:8765`).
     init(libraryPath: String, engineURL: URL = EngineConfig.host) {

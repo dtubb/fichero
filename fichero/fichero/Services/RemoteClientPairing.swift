@@ -84,7 +84,7 @@ enum RemoteClientPairing {
     @MainActor
     static func persistPairedHost(_ result: PairingExchangeResult, expectedSPKIPin: String) throws {
         try PairingService.persistAuthToken(result.deviceToken, for: result.apiRoot)
-        try RemoteCertificatePinning.persistSPKIPin(expectedSPKIPin)
+        try RemoteCertificatePinning.persistSPKIPin(expectedSPKIPin, hostString: result.apiRoot.absoluteString)
         UserDefaults.standard.set(result.apiRoot.absoluteString, forKey: EngineConfig.userDefaultsKey)
     }
 
@@ -94,7 +94,7 @@ enum RemoteClientPairing {
         if let expectedSPKIPin {
             session = try RemoteCertificatePinning.pinnedSession(expectedSPKIPin: expectedSPKIPin)
         } else {
-            session = URLSession.shared
+            session = RemoteCertificatePinning.configuredSession()
         }
 
         let (data, response) = try await session.data(from: requestURL)
@@ -127,5 +127,12 @@ enum RemoteClientPairing {
         )
         try persistPairedHost(result, expectedSPKIPin: expectedSPKIPin)
         return result.apiRoot
+    }
+
+    @MainActor
+    static func rollbackFailedHostSwitch(previousHost: String, attemptedHost: URL) {
+        AuthTokenMiddleware.clearRemoteToken(hostString: attemptedHost.absoluteString)
+        RemoteCertificatePinning.clearPersistedSPKIPin(hostString: attemptedHost.absoluteString)
+        UserDefaults.standard.set(previousHost, forKey: EngineConfig.userDefaultsKey)
     }
 }

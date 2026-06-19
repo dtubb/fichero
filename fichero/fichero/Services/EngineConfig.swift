@@ -190,7 +190,7 @@ enum RemoteAccessConfig {
     static let hostingEnabledKey = "fichero.remote_access.enabled"
     static let bonjourEnabledKey = "fichero.remote_access.bonjour_enabled"
     static let publicBaseURLKey = "fichero.remote_access.public_base_url"
-    static let spkiPinKey = RemoteCertificatePinning.spkiPinUserDefaultsKey
+    static let advertisedSPKIPinKey = RemoteCertificatePinning.advertisedSPKIPinUserDefaultsKey
 
     static var hostingEnabled: Bool {
         UserDefaults.standard.bool(forKey: hostingEnabledKey)
@@ -207,6 +207,11 @@ enum RemoteAccessConfig {
 
     static var publicBaseURL: URL? {
         try? validatedRemoteURL(from: publicBaseURLString, allowLocalhost: false, requireSecureTransportForRemote: true)
+    }
+
+    static var advertisedSPKIPin: String {
+        (UserDefaults.standard.string(forKey: advertisedSPKIPinKey) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     static func pairingBackendURL(from publicBaseURLString: String) -> URL? {
@@ -411,7 +416,7 @@ final class PairingService {
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = 15
         configuration.timeoutIntervalForResource = 30
-        self.session = URLSession(configuration: configuration)
+        self.session = RemoteCertificatePinning.configuredSession(configuration: configuration)
 
         self.decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in

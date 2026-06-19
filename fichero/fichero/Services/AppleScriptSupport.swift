@@ -1,6 +1,7 @@
 #if os(macOS)
 import Cocoa
 #endif
+import FicheroAPIClient
 import Foundation
 import OSLog
 
@@ -86,7 +87,7 @@ class AppleScriptBridge {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 60
         config.timeoutIntervalForResource = 120
-        self.session = URLSession(configuration: config)
+        self.session = RemoteCertificatePinning.configuredSession(configuration: config)
     }
 
     // MARK: - Workflow Operations

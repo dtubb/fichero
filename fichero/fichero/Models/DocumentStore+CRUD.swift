@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 import OSLog
 
@@ -251,7 +252,8 @@ extension DocumentStore {
 
         request.httpBody = body
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let session = RemoteCertificatePinning.configuredSession()
+        let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw DocumentStoreError.invalidResponse

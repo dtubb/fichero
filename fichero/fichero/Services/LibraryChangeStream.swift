@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 import Observation
 import OSLog
@@ -195,7 +196,8 @@ final class LibraryChangeStream {
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         request.addEngineAuth(libraryPath: libraryPath)
 
-        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+        let session = RemoteCertificatePinning.configuredSession()
+        let (bytes, response) = try await session.bytes(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
         }

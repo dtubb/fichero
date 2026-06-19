@@ -149,7 +149,8 @@ class WorkflowStreamService: ObservableObject {
         logger.info("Subscribing to event stream: \(streamUrl)")
 
         do {
-            let (bytes, response) = try await URLSession.shared.bytes(for: request)
+            let session = RemoteCertificatePinning.configuredSession()
+            let (bytes, response) = try await session.bytes(for: request)
 
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw WorkflowStreamError.invalidResponse

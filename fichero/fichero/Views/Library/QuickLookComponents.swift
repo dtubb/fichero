@@ -4,6 +4,7 @@ import AppKit
 #if canImport(Quartz)
 import Quartz
 #endif
+import FicheroAPIClient
 import OSLog
 import SwiftUI
 
@@ -98,7 +99,8 @@ struct QuickLookDownloadView: View {
             request.addEngineAuth(libraryPath: apiClient.currentLibraryPath)
 
             // Download file from API
-            let (tempURL, response) = try await URLSession.shared.download(for: request)
+            let session = RemoteCertificatePinning.configuredSession()
+            let (tempURL, response) = try await session.download(for: request)
 
             // Try to get filename from Content-Disposition header
             var fileName = fileNameWithExtension()

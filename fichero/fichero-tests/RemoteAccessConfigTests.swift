@@ -7,6 +7,17 @@ import XCTest
 @MainActor
 final class RemoteAccessConfigTests: XCTestCase {
     private let validSPKIPin = Data("spki-value".utf8).base64EncodedString()
+    private let previousHost = "https://previous.tailnet.example"
+    private let attemptedHost = URL(string: "https://attempted.tailnet.example:8443")!
+
+    override func tearDown() {
+        super.tearDown()
+        AuthTokenMiddleware.clearRemoteToken(hostString: previousHost)
+        AuthTokenMiddleware.clearRemoteToken(hostString: attemptedHost.absoluteString)
+        RemoteCertificatePinning.clearPersistedSPKIPin(hostString: previousHost)
+        RemoteCertificatePinning.clearPersistedSPKIPin(hostString: attemptedHost.absoluteString)
+        UserDefaults.standard.removeObject(forKey: EngineConfig.userDefaultsKey)
+    }
 
     func testPairingBackendURLUsesAdvertisedRoot() throws {
         let advertised = "  https://pairing.example.com/  "
@@ -102,6 +113,25 @@ final class RemoteAccessConfigTests: XCTestCase {
         XCTAssertTrue(RemoteClientPairing.isAcceptableHealthStatus("HEALTHY"))
         XCTAssertTrue(RemoteClientPairing.isAcceptableHealthStatus("ok"))
         XCTAssertFalse(RemoteClientPairing.isAcceptableHealthStatus("unhealthy"))
+    }
+
+    func testRollbackFailedHostSwitchRestoresPreviousHostAndClearsAttemptedTrustMaterial() throws {
+        try AuthTokenMiddleware.persistRemoteToken("previous-token", hostString: previousHost)
+        try AuthTokenMiddleware.persistRemoteToken("attempted-token", hostString: attemptedHost.absoluteString)
+        try RemoteCertificatePinning.persistSPKIPin(validSPKIPin, hostString: previousHost)
+        try RemoteCertificatePinning.persistSPKIPin(
+            Data("attempted-spki".utf8).base64EncodedString(),
+            hostString: attemptedHost.absoluteString
+        )
+        UserDefaults.standard.set(attemptedHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
+
+        RemoteClientPairing.rollbackFailedHostSwitch(previousHost: previousHost, attemptedHost: attemptedHost)
+
+        XCTAssertEqual(UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey), previousHost)
+        XCTAssertEqual(AuthTokenMiddleware.readRemoteTokenForHost(previousHost), "previous-token")
+        XCTAssertEqual(RemoteCertificatePinning.persistedSPKIPin(hostString: previousHost), validSPKIPin)
+        XCTAssertNil(AuthTokenMiddleware.readRemoteTokenForHost(attemptedHost.absoluteString))
+        XCTAssertNil(RemoteCertificatePinning.persistedSPKIPin(hostString: attemptedHost.absoluteString))
     }
 
     func testPairingBackendURLRejectsBlankString() {

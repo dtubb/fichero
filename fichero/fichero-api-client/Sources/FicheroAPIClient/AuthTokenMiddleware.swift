@@ -165,11 +165,15 @@ public struct AuthTokenMiddleware: ClientMiddleware {
     }
 
     static func remoteTokenKeychainAccount(hostString: String? = nil) -> String {
+        "remote-device-token|\(normalizedRemoteHostString(hostString: hostString))"
+    }
+
+    public static func normalizedRemoteHostString(hostString: String? = nil) -> String {
         let stored = hostString ?? UserDefaults.standard.string(forKey: engineHostUserDefaultsKey)
         let trimmed = (stored ?? defaultHostString).trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard var components = URLComponents(string: trimmed) else {
-            return "remote-device-token|\(trimmed)"
+            return trimmed
         }
 
         components.scheme = components.scheme?.lowercased()
@@ -178,8 +182,7 @@ public struct AuthTokenMiddleware: ClientMiddleware {
         components.query = nil
         components.fragment = nil
 
-        let normalized = components.string ?? trimmed
-        return "remote-device-token|\(normalized)"
+        return components.string ?? trimmed
     }
 
     /// Reads the token file from disk. Returns nil if the file isn't there
@@ -234,6 +237,16 @@ public struct AuthTokenMiddleware: ClientMiddleware {
         default:
             throw AuthTokenStorageError.keychainReadFailed(status)
         }
+    }
+
+    public static func readRemoteTokenForHost(_ hostString: String) -> String? {
+        readRemoteTokenFromKeychain(hostString: hostString)
+    }
+
+    public static func clearRemoteToken(hostString: String) {
+        let query = remoteTokenKeychainQuery(hostString: hostString)
+        SecItemDelete(query as CFDictionary)
+        removeLegacyRemoteTokenFile(hostString: hostString)
     }
 
     private static func readRemoteTokenFromKeychain(hostString: String? = nil) -> String? {

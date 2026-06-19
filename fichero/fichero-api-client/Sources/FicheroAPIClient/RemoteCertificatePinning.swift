@@ -37,7 +37,8 @@ public enum RemoteCertificatePinningError: LocalizedError, Equatable {
 // swiftlint:disable:next type_body_length
 public enum RemoteCertificatePinning {
     public static let engineHostUserDefaultsKey = "fichero.engine.host"
-    public static let spkiPinUserDefaultsKey = "fichero.remote_access.spki_pin"
+    public static let advertisedSPKIPinUserDefaultsKey = "fichero.remote_access.advertised_spki_pin"
+    private static let clientSPKIPinUserDefaultsKeyPrefix = "fichero.remote_access.client_spki_pin|"
 
     public static func shouldEnforcePinning(for baseURL: URL) -> Bool {
         guard let host = baseURL.host?.lowercased() else { return false }
@@ -65,20 +66,39 @@ public enum RemoteCertificatePinning {
         throw RemoteCertificatePinningError.invalidSPKIPin
     }
 
-    public static func persistedSPKIPin() -> String? {
-        guard let raw = UserDefaults.standard.string(forKey: spkiPinUserDefaultsKey) else {
+    public static func persistedSPKIPin(hostString: String? = nil) -> String? {
+        let storageKey = clientSPKIPinUserDefaultsKey(hostString: hostString)
+        guard let raw = UserDefaults.standard.string(forKey: storageKey) else {
             return nil
         }
         return try? validatedSPKIPin(raw)
     }
 
-    public static func persistSPKIPin(_ raw: String) throws {
+    public static func persistSPKIPin(_ raw: String, hostString: String? = nil) throws {
         let normalized = try validatedSPKIPin(raw)
-        UserDefaults.standard.set(normalized, forKey: spkiPinUserDefaultsKey)
+        let storageKey = clientSPKIPinUserDefaultsKey(hostString: hostString)
+        UserDefaults.standard.set(normalized, forKey: storageKey)
     }
 
-    public static func clearPersistedSPKIPin() {
-        UserDefaults.standard.removeObject(forKey: spkiPinUserDefaultsKey)
+    public static func clearPersistedSPKIPin(hostString: String? = nil) {
+        let storageKey = clientSPKIPinUserDefaultsKey(hostString: hostString)
+        UserDefaults.standard.removeObject(forKey: storageKey)
+    }
+
+    public static func advertisedSPKIPin() -> String? {
+        guard let raw = UserDefaults.standard.string(forKey: advertisedSPKIPinUserDefaultsKey) else {
+            return nil
+        }
+        return try? validatedSPKIPin(raw)
+    }
+
+    public static func persistAdvertisedSPKIPin(_ raw: String) throws {
+        let normalized = try validatedSPKIPin(raw)
+        UserDefaults.standard.set(normalized, forKey: advertisedSPKIPinUserDefaultsKey)
+    }
+
+    public static func clearAdvertisedSPKIPin() {
+        UserDefaults.standard.removeObject(forKey: advertisedSPKIPinUserDefaultsKey)
     }
 
     public static func configuredSession(
@@ -350,6 +370,24 @@ public enum RemoteCertificatePinning {
     fileprivate static func shouldEnforcePinning(forHost host: String) -> Bool {
         !isLoopbackHostLiteral(host)
     }
+
+    private static func clientSPKIPinUserDefaultsKey(hostString: String? = nil) -> String {
+        let normalizedHost = AuthTokenMiddleware.normalizedRemoteHostString(hostString: hostString)
+        return "\(clientSPKIPinUserDefaultsKeyPrefix)\(normalizedHost)"
+    }
+
+    fileprivate static func challengeHostString(_ protectionSpace: URLProtectionSpace) -> String {
+        let scheme = protectionSpace.protocol?.lowercased() ?? "https"
+        var components = URLComponents()
+        components.scheme = scheme
+        components.host = protectionSpace.host.lowercased()
+        let port = protectionSpace.port
+        if port > 0,
+           !((scheme == "https" && port == 443) || (scheme == "http" && port == 80)) {
+            components.port = port
+        }
+        return components.string ?? "\(scheme)://\(protectionSpace.host.lowercased())"
+    }
 }
 
 private enum ExpectedPin {
@@ -413,7 +451,8 @@ private final class DynamicPinnedSessionDelegate: NSObject, URLSessionDelegate {
             completionHandler(.cancelAuthenticationChallenge, nil)
             return
         }
-        guard let expectedSPKIPin = RemoteCertificatePinning.persistedSPKIPin() else {
+        let hostString = RemoteCertificatePinning.challengeHostString(challenge.protectionSpace)
+        guard let expectedSPKIPin = RemoteCertificatePinning.persistedSPKIPin(hostString: hostString) else {
             completionHandler(.cancelAuthenticationChallenge, nil)
             return
         }

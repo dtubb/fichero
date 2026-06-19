@@ -108,6 +108,10 @@ struct MacRemoteClientPairingSection: View {
                     throw APIError.badRequest("Paired successfully, but the verified remote host is not responding now.")
                 }
             } catch {
+                RemoteClientPairing.rollbackFailedHostSwitch(
+                    previousHost: previousHost,
+                    attemptedHost: result.apiRoot
+                )
                 await restorePreviousHost(previousHost)
                 throw error
             }

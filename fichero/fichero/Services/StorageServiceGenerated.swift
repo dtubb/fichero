@@ -19,7 +19,7 @@ class StorageServiceGenerated: ObservableObject {
     @Published var lastError: Error?
 
     private let client: FicheroClient
-    private let session = URLSession.shared
+    private let session = RemoteCertificatePinning.configuredSession()
     private let configuredBaseURL: URL?
 
     /// In-memory cache keyed by `docId`. Prevents the "Loading thumbnail

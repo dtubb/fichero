@@ -55,7 +55,8 @@ extension ActionLibraryService {
             InvokeActionRequest(name: name, params: params, originWindow: originWindow)
         )
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let session = RemoteCertificatePinning.configuredSession()
+        let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw APIError.invalidResponse
         }
@@ -100,7 +101,8 @@ extension ActionLibraryService {
             request.setValue(originWindow, forHTTPHeaderField: "X-Fichero-Origin-Window")
         }
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let session = RemoteCertificatePinning.configuredSession()
+        let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw APIError.invalidResponse
         }
