@@ -8,6 +8,16 @@ extension ChatInspector {
 
             Spacer()
 
+            if showsTouchScopeActions, pendingSuggestedDocumentCount > 0 {
+                Button {
+                    addSuggestedDocumentsToScope()
+                } label: {
+                    Label("Add to Chat", systemImage: "plus.circle")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+            }
+
             if !selectedDocuments.isEmpty {
                 Button {
                     listSelection = selectedDocuments

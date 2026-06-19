@@ -1,6 +1,19 @@
 import SwiftUI
 
 extension ChatInspector {
+    func addSuggestedDocumentsToScope() {
+        guard !suggestedDocumentIDs.isEmpty else { return }
+
+        if let onAddSuggestedDocuments {
+            onAddSuggestedDocuments()
+            return
+        }
+
+        for id in suggestedDocumentIDs {
+            selectedDocuments.insert(id)
+        }
+    }
+
     func removeSelectedFromScope() {
         for id in listSelection {
             selectedDocuments.remove(id)

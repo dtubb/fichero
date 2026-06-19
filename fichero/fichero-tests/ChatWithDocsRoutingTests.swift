@@ -40,4 +40,13 @@ final class ChatWithDocsRoutingTests: XCTestCase {
 
         XCTAssertFalse(source.contains("id == \"chat-with-docs-browser\""))
     }
+
+    func testChatInspectorOffersTouchFriendlyAddToChatAffordance() throws {
+        let source = try Self.appSource("Views/Chat/ChatInspector+ScopedDocuments.swift")
+        let headerSource = try Self.appSource("Views/Chat/ChatInspector+Header.swift")
+
+        XCTAssertTrue(source.contains("Add Current Selection to Chat"))
+        XCTAssertTrue(source.contains("Search above or tap Add Current Selection to focus your chat."))
+        XCTAssertTrue(headerSource.contains("Label(\"Add to Chat\", systemImage: \"plus.circle\")"))
+    }
 }

@@ -630,7 +630,24 @@ extension ContentView {
             )
 
         case .chat, .comparison:
-            ChatInspector(selectedDocuments: $chatSelectedDocuments)
+            ChatInspector(
+                selectedDocuments: $chatSelectedDocuments,
+                suggestedDocumentIDs: ChatScopeBuilder.currentScopeDocumentIds(
+                    browserSelection: browserSelection,
+                    currentDocuments: documentStore.currentDocuments,
+                    detailDocument: detailDocument
+                ),
+                onAddSuggestedDocuments: {
+                    let scopedIds = ChatScopeBuilder.currentScopeDocumentIds(
+                        browserSelection: browserSelection,
+                        currentDocuments: documentStore.currentDocuments,
+                        detailDocument: detailDocument
+                    )
+                    for id in scopedIds {
+                        chatSelectedDocuments.insert(id)
+                    }
+                }
+            )
 
         case .workflow:
             WorkflowInspector(
