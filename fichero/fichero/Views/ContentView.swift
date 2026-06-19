@@ -127,7 +127,7 @@ struct ContentView: View {
     // sidebar/inspector toggles), so selection never remounts or hides panes.
     @SceneStorage("showDocumentCanvas") var showDocumentCanvas: Bool = true
     @SceneStorage("showReadingPane") var showReadingPane: Bool = true
-    @State private var measuredWindowWidth: Double = 0
+    @State var measuredWindowWidth: Double = 0
     // When false (default), selecting a different item NEVER changes which
     // panes are visible — a folder shows the same panes as a PDF. The visible
     // pane set is the user's choice (the toggles above). Opt in to the old
