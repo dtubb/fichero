@@ -69,10 +69,12 @@ struct SidebarItemRow: View {
     @Bindable var deleteState: DeleteStateManager
     @ObservedObject var sidebarState: SidebarState
     @ObservedObject var libraryManager: LibraryManager
+    var onOpenChatWithCurrentScope: (() -> Void)?
 
     @Environment(WorkflowExecutionObserver.self) var executionObserver
     /// Finder-style Open in New Tab / New Window for sidebar rows (#1685).
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var library: LibraryManager.LibraryReference? {
         guard let libraryId = item.libraryId else { return nil }

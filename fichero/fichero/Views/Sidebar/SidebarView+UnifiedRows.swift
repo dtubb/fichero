@@ -111,7 +111,8 @@ extension SidebarView {
             renameState: renameState,
             deleteState: deleteState,
             sidebarState: sidebarState,
-            libraryManager: libraryManager
+            libraryManager: libraryManager,
+            onOpenChatWithCurrentScope: onOpenChatWithCurrentScope
         )
         .contentShape(Rectangle())
         .draggable(item.icon == "tray.fill" ? SidebarDragID(id: "") : SidebarDragID(id: item.id))

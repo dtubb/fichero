@@ -124,7 +124,8 @@ extension SidebarItemRow {
                 renameState: renameState,
                 deleteState: deleteState,
                 sidebarState: sidebarState,
-                libraryManager: libraryManager
+                libraryManager: libraryManager,
+                onOpenChatWithCurrentScope: onOpenChatWithCurrentScope
             )
             .contentShape(Rectangle())
             // `.draggable` BEFORE `.tag` so NSTableView's row-drag

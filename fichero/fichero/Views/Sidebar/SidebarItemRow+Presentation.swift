@@ -3,6 +3,8 @@ import SwiftUI
 extension SidebarItemRow {
     var rowContextMenu: some View {
         Group {
+            compactTouchActions
+
             // Finder-style open affordances (#1685). "Open" selects the row in
             // this window; New Tab / New Window open a fresh window on the
             // item's library, focusing the document when the row is a doc.
@@ -42,6 +44,61 @@ extension SidebarItemRow {
                     Task { @MainActor in
                         await workflowRunProviderCache.ensureLoaded(chatService: library?.chatServiceGenerated)
                     }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var compactTouchActions: some View {
+        if horizontalSizeClass == .compact,
+           case .document(let doc) = item.itemType {
+            let folders = moveDestinationFolders(for: doc) ?? []
+
+            if let onOpenChatWithCurrentScope {
+                Button {
+                    selectedItemId = item.id
+                    Task { @MainActor in
+                        onOpenChatWithCurrentScope()
+                    }
+                } label: {
+                    Label("Add to Chat", systemImage: "plus.circle")
+                }
+            }
+
+            if !folders.isEmpty {
+                Menu("Move to Folder") {
+                    ForEach(folders, id: \.id) { folder in
+                        Button(folder.name) {
+                            moveDocument(doc.id, toParent: folder.id)
+                        }
+                    }
+                }
+            }
+
+            if onOpenChatWithCurrentScope != nil || !folders.isEmpty {
+                Divider()
+            }
+        }
+    }
+
+    private func moveDestinationFolders(for document: Document) -> [Document]? {
+        guard let folders = documentStore?.collections else { return nil }
+        return folders
+            .filter { $0.docType == .folder && $0.id != document.id }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private func moveDocument(_ documentId: String, toParent parentId: String) {
+        guard let documentStore else { return }
+
+        Task {
+            do {
+                _ = try await documentStore.moveDocument(documentId, toParent: parentId)
+                await documentStore.refresh()
+            } catch {
+                await MainActor.run {
+                    sidebarState.dropErrorMessage = error.localizedDescription
                 }
             }
         }

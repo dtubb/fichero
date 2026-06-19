@@ -52,4 +52,13 @@ final class ChatWithDocsRoutingTests: XCTestCase {
         XCTAssertFalse(headerSource.contains("Label(\"Add to Chat\", systemImage: \"plus.circle\")"))
         XCTAssertTrue(inspectorSource.contains("var mergedSuggestedDocuments: Set<String>"))
     }
+
+    func testCompactSidebarRowsExposeChatAndMoveToFolderActions() throws {
+        let source = try Self.appSource("Views/Sidebar/SidebarItemRow+Presentation.swift")
+
+        XCTAssertTrue(source.contains("Label(\"Add to Chat\", systemImage: \"plus.circle\")"))
+        XCTAssertTrue(source.contains("Menu(\"Move to Folder\")"))
+        XCTAssertTrue(source.contains("sidebarState.dropErrorMessage = error.localizedDescription"))
+        XCTAssertTrue(source.contains("onOpenChatWithCurrentScope()"))
+    }
 }
