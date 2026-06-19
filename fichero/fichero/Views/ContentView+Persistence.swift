@@ -9,6 +9,52 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Content
 
 extension ContentView {
 
+    private func restoredColumnVisibility(from rawValue: Int) -> NavigationSplitViewVisibility {
+        switch rawValue {
+        case 0:
+            return .automatic
+        case 1:
+            return .detailOnly
+        case 2:
+            #if os(macOS)
+            return .all
+            #else
+            return .detailOnly
+            #endif
+        case 3:
+            return .doubleColumn
+        default:
+            #if os(macOS)
+            return .all
+            #else
+            return .detailOnly
+            #endif
+        }
+    }
+
+    private func persistedColumnVisibilityRaw(for visibility: NavigationSplitViewVisibility) -> Int {
+        switch visibility {
+        case .automatic:
+            return 0
+        case .detailOnly:
+            return 1
+        case .all:
+            #if os(macOS)
+            return 2
+            #else
+            return 3
+            #endif
+        case .doubleColumn:
+            return 3
+        @unknown default:
+            #if os(macOS)
+            return 2
+            #else
+            return 1
+            #endif
+        }
+    }
+
     // MARK: - State Restoration
 
     // swiftlint:disable:next cyclomatic_complexity
@@ -99,15 +145,7 @@ extension ContentView {
     }
 
     func restorePersistedState() {
-        columnVisibility = {
-            switch columnVisibilityRaw {
-            case 0: return .automatic
-            case 1: return .detailOnly
-            case 2: return .all
-            case 3: return .doubleColumn
-            default: return .all
-            }
-        }()
+        columnVisibility = restoredColumnVisibility(from: columnVisibilityRaw)
 
         // Derive explicit left-sidebar state from persisted split-view visibility.
         // In this app's layout, `.doubleColumn` means sidebar + content.
@@ -155,17 +193,7 @@ extension ContentView {
 
     func savePersistedState() {
         // Map NavigationSplitViewVisibility to raw integer for @SceneStorage
-        if columnVisibility == .automatic {
-            columnVisibilityRaw = 0
-        } else if columnVisibility == .detailOnly {
-            columnVisibilityRaw = 1
-        } else if columnVisibility == .all {
-            columnVisibilityRaw = 2
-        } else if columnVisibility == .doubleColumn {
-            columnVisibilityRaw = 3
-        } else {
-            columnVisibilityRaw = 0
-        }
+        columnVisibilityRaw = persistedColumnVisibilityRaw(for: columnVisibility)
 
         if let encoded = try? JSONEncoder().encode(browserSelection) {
             browserSelectionData = encoded
