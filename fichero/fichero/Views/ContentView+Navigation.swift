@@ -34,25 +34,49 @@ extension ContentView {
         // NOT in the shell sidebar — the persistent library sidebar stays
         // visible like every other mode (sidebar-persistence fix).
         if sidebarMode == .research {
-            HStack(spacing: 0) {
-                ResearchProjectListView()
-                    .environmentObject(researchService)
-                    .frame(minWidth: 220, maxWidth: 280)
-
-                Divider()
-
-                if let project = researchService.projects.first(where: { $0.id == researchService.selectedProjectId })
-                    ?? researchService.projects.first {
-                    ResearchWorkspaceView(project: project)
+            if shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) {
+                VStack(spacing: 0) {
+                    ResearchProjectListView()
                         .environmentObject(researchService)
+                        .frame(maxWidth: .infinity, maxHeight: 260)
+
+                    Divider()
+
+                    if let project = researchService.projects.first(where: { $0.id == researchService.selectedProjectId })
+                        ?? researchService.projects.first {
+                        ResearchWorkspaceView(project: project)
+                            .environmentObject(researchService)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        ContentUnavailableView(
+                            "No Research Project",
+                            systemImage: "flask",
+                            description: Text("Create a project in the list to start researching.")
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                }
+            } else {
+                HStack(spacing: 0) {
+                    ResearchProjectListView()
+                        .environmentObject(researchService)
+                        .frame(minWidth: 220, maxWidth: 280)
+
+                    Divider()
+
+                    if let project = researchService.projects.first(where: { $0.id == researchService.selectedProjectId })
+                        ?? researchService.projects.first {
+                        ResearchWorkspaceView(project: project)
+                            .environmentObject(researchService)
+                            .frame(maxWidth: .infinity)
+                    } else {
+                        ContentUnavailableView(
+                            "No Research Project",
+                            systemImage: "flask",
+                            description: Text("Create a project in the list to start researching.")
+                        )
                         .frame(maxWidth: .infinity)
-                } else {
-                    ContentUnavailableView(
-                        "No Research Project",
-                        systemImage: "flask",
-                        description: Text("Create a project in the list to start researching.")
-                    )
-                    .frame(maxWidth: .infinity)
+                    }
                 }
             }
         } else {
@@ -138,30 +162,59 @@ extension ContentView {
             }
 
         case .workflow(let workflow):
-            HStack(spacing: 0) {
-                WorkflowListView(
-                    displayMode: .list,
-                    onOpenWorkflow: { item in viewMode = .workflow(item) }
-                )
-                .frame(minWidth: 200, maxWidth: 280)
-
-                Divider()
-
-                if let selectedWorkflow = workflow {
-                    WorkflowEditor(
-                        workflow: selectedWorkflow,
-                        editingWorkflow: $editingWorkflow,
-                        displayMode: .icon,
-                        selectedDocumentIds: Array(browserSelection)
+            if shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) {
+                VStack(spacing: 0) {
+                    WorkflowListView(
+                        displayMode: .list,
+                        onOpenWorkflow: { item in viewMode = .workflow(item) }
                     )
-                    .frame(maxWidth: .infinity)
-                } else {
-                    ContentUnavailableView(
-                        "Select a Workflow",
-                        systemImage: "flowchart",
-                        description: Text("Choose a workflow from the list to edit")
+                    .frame(maxWidth: .infinity, maxHeight: 260)
+
+                    Divider()
+
+                    if let selectedWorkflow = workflow {
+                        WorkflowEditor(
+                            workflow: selectedWorkflow,
+                            editingWorkflow: $editingWorkflow,
+                            displayMode: .icon,
+                            selectedDocumentIds: Array(browserSelection)
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        ContentUnavailableView(
+                            "Select a Workflow",
+                            systemImage: "flowchart",
+                            description: Text("Choose a workflow from the list to edit")
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                }
+            } else {
+                HStack(spacing: 0) {
+                    WorkflowListView(
+                        displayMode: .list,
+                        onOpenWorkflow: { item in viewMode = .workflow(item) }
                     )
-                    .frame(maxWidth: .infinity)
+                    .frame(minWidth: 200, maxWidth: 280)
+
+                    Divider()
+
+                    if let selectedWorkflow = workflow {
+                        WorkflowEditor(
+                            workflow: selectedWorkflow,
+                            editingWorkflow: $editingWorkflow,
+                            displayMode: .icon,
+                            selectedDocumentIds: Array(browserSelection)
+                        )
+                        .frame(maxWidth: .infinity)
+                    } else {
+                        ContentUnavailableView(
+                            "Select a Workflow",
+                            systemImage: "flowchart",
+                            description: Text("Choose a workflow from the list to edit")
+                        )
+                        .frame(maxWidth: .infinity)
+                    }
                 }
             }
 
@@ -212,25 +265,49 @@ extension ContentView {
             }
 
         case .activity(let selectedRun):
-            HStack(spacing: 0) {
-                ActivityBrowserView(
-                    selectedRunId: selectedRun?.id,
-                    onSelectRun: { run in viewMode = .activity(run) }
-                )
-                .frame(minWidth: 200, maxWidth: 280)
-
-                Divider()
-
-                if let run = selectedRun {
-                    ActivityDetailView(selectedRun: run)
-                        .frame(maxWidth: .infinity)
-                } else {
-                    ContentUnavailableView(
-                        "Select a Run",
-                        systemImage: "clock",
-                        description: Text("Choose a workflow run from the list")
+            if shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) {
+                VStack(spacing: 0) {
+                    ActivityBrowserView(
+                        selectedRunId: selectedRun?.id,
+                        onSelectRun: { run in viewMode = .activity(run) }
                     )
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity, maxHeight: 260)
+
+                    Divider()
+
+                    if let run = selectedRun {
+                        ActivityDetailView(selectedRun: run)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        ContentUnavailableView(
+                            "Select a Run",
+                            systemImage: "clock",
+                            description: Text("Choose a workflow run from the list")
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                }
+            } else {
+                HStack(spacing: 0) {
+                    ActivityBrowserView(
+                        selectedRunId: selectedRun?.id,
+                        onSelectRun: { run in viewMode = .activity(run) }
+                    )
+                    .frame(minWidth: 200, maxWidth: 280)
+
+                    Divider()
+
+                    if let run = selectedRun {
+                        ActivityDetailView(selectedRun: run)
+                            .frame(maxWidth: .infinity)
+                    } else {
+                        ContentUnavailableView(
+                            "Select a Run",
+                            systemImage: "clock",
+                            description: Text("Choose a workflow run from the list")
+                        )
+                        .frame(maxWidth: .infinity)
+                    }
                 }
             }
 
