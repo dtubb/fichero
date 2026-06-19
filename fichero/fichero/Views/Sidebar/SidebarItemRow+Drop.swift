@@ -2,6 +2,41 @@ import Foundation
 import SwiftUI
 import UniformTypeIdentifiers
 
+enum SidebarDropProviderRoute: Equatable {
+    case internalTextOnly
+    case externalFiles
+    case unsupported
+}
+
+struct SidebarDropProviderCapabilities: Equatable {
+    let canLoadURL: Bool
+    let canLoadString: Bool
+    let registeredTypeIdentifiers: [String]
+}
+
+func classifySidebarDropProviders(_ providers: [SidebarDropProviderCapabilities]) -> SidebarDropProviderRoute {
+    guard !providers.isEmpty else { return .unsupported }
+
+    let hasExternalProvider = providers.contains { provider in
+        provider.canLoadURL
+            || provider.registeredTypeIdentifiers.contains {
+                $0 != UTType.text.identifier && $0 != UTType.plainText.identifier
+            }
+    }
+    if hasExternalProvider {
+        return .externalFiles
+    }
+
+    let hasInternalTextProvider = providers.contains { provider in
+        provider.canLoadString
+    }
+    if hasInternalTextProvider {
+        return .internalTextOnly
+    }
+
+    return .unsupported
+}
+
 extension SidebarItemRow {
     func handleRowDrop(_ providers: [NSItemProvider]) -> Bool {
         #if DEBUG
@@ -16,14 +51,23 @@ extension SidebarItemRow {
 
         guard !providers.isEmpty else { return false }
 
-        // Providers that can ONLY load String (not URL) are internal
-        // sidebar drags — `.draggable(item.id)` advertises the String via
-        // utf8PlainText. Route them through the sidebar-internal path.
-        let textOnly = providers.filter {
-            !$0.canLoadObject(ofClass: URL.self) && $0.canLoadObject(ofClass: NSString.self)
-        }
+        let route = classifySidebarDropProviders(
+            providers.map {
+                SidebarDropProviderCapabilities(
+                    canLoadURL: $0.canLoadObject(ofClass: URL.self),
+                    canLoadString: $0.canLoadObject(ofClass: NSString.self),
+                    registeredTypeIdentifiers: $0.registeredTypeIdentifiers
+                )
+            }
+        )
 
-        if !textOnly.isEmpty {
+        switch route {
+        case .internalTextOnly:
+            // Providers that only load String are internal sidebar drags.
+            // `.draggable(item.id)` advertises the String via utf8PlainText.
+            let textOnly = providers.filter {
+                !$0.canLoadObject(ofClass: URL.self) && $0.canLoadObject(ofClass: NSString.self)
+            }
             Task {
                 var ids: [String] = []
                 for provider in textOnly {
@@ -35,12 +79,16 @@ extension SidebarItemRow {
                 _ = handleDropIntoFolder(itemIDs: ids, targetFolder: item)
             }
             return true
-        }
 
-        // Anything else — Finder drags with URL or content UTIs — goes
-        // through the optimistic Finder-import path.
-        _ = handleProvidersDrop(providers, targetFolder: item)
-        return true
+        case .externalFiles:
+            // Any mixed/internal+Finder payload is treated as external so we
+            // don't partially route the same drop through document moves.
+            _ = handleProvidersDrop(providers, targetFolder: item)
+            return true
+
+        case .unsupported:
+            return false
+        }
     }
 
     /// Async helper to unwrap a plain-text NSItemProvider into a String.
