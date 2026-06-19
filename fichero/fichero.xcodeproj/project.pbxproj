@@ -1239,7 +1239,6 @@
 				411 /* Views */,
 				017DF74AC5DDEA4A8C3EC87E /* Intents */,
 				29941DE439073B7364322ECF /* FicheroApp_iOS.swift */,
-				ABCF8B3E8BFA4F6D21C624C2 /* fichero-tests */,
 			);
 			path = fichero;
 			sourceTree = "<group>";
@@ -1872,14 +1871,6 @@
 				72D05E0BE3C8D1AEA1AA3A8D /* ImageMarqueeOverlay.swift */,
 			);
 			path = ImageEditor;
-			sourceTree = "<group>";
-		};
-		ABCF8B3E8BFA4F6D21C624C2 /* fichero-tests */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = "fichero-tests";
-			path = "fichero-tests";
 			sourceTree = "<group>";
 		};
 		B2A003000000000000BATCH2 /* WorkflowChainListView */ = {
