@@ -6,16 +6,13 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         #if os(macOS)
         XCTAssertEqual(ContentView.defaultColumnVisibility, .all)
         XCTAssertEqual(ContentView.defaultColumnVisibilityRaw, 2)
-        XCTAssertFalse(ContentView.shouldUseAutomaticCompactCollapse(horizontalSizeClass: nil))
-        XCTAssertEqual(ContentView.preferredCompactColumn(horizontalSizeClass: nil), .detail)
+        XCTAssertEqual(ContentView.preferredCompactColumn, .detail)
         XCTAssertEqual(ContentView.restoredColumnVisibility(from: 2), .all)
         XCTAssertEqual(ContentView.persistedColumnVisibilityRaw(for: .all), 2)
         #else
         XCTAssertEqual(ContentView.defaultColumnVisibility, .detailOnly)
         XCTAssertEqual(ContentView.defaultColumnVisibilityRaw, 1)
-        XCTAssertFalse(ContentView.shouldUseAutomaticCompactCollapse(horizontalSizeClass: .regular))
-        XCTAssertTrue(ContentView.shouldUseAutomaticCompactCollapse(horizontalSizeClass: .compact))
-        XCTAssertEqual(ContentView.preferredCompactColumn(horizontalSizeClass: .compact), .sidebar)
+        XCTAssertEqual(ContentView.preferredCompactColumn, .detail)
         XCTAssertEqual(ContentView.restoredColumnVisibility(from: 2), .detailOnly)
         XCTAssertEqual(ContentView.persistedColumnVisibilityRaw(for: .all), 3)
         XCTAssertEqual(ContentView.restoredColumnVisibility(from: 3), .doubleColumn)
@@ -51,15 +48,6 @@ final class AdaptiveShellPolicyTests: XCTestCase {
             ),
             detailWidth
         )
-        #endif
-    }
-
-    func testCompactCollapseAlwaysUsesAutomaticVisibilityRuntimePolicy() {
-        #if os(macOS)
-        XCTAssertFalse(ContentView.shouldUseAutomaticCompactCollapse(horizontalSizeClass: nil))
-        #else
-        XCTAssertFalse(ContentView.shouldUseAutomaticCompactCollapse(horizontalSizeClass: .regular))
-        XCTAssertTrue(ContentView.shouldUseAutomaticCompactCollapse(horizontalSizeClass: .compact))
         #endif
     }
 }

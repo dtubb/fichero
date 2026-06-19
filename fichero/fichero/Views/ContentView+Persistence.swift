@@ -145,14 +145,9 @@ extension ContentView {
 
     func restorePersistedState() {
         columnVisibility = Self.restoredColumnVisibility(from: columnVisibilityRaw)
-        if Self.shouldUseAutomaticCompactCollapse(horizontalSizeClass: horizontalSizeClass) {
-            columnVisibility = .automatic
-            showSidebar = true
-        } else {
-            // Derive explicit left-sidebar state from persisted split-view visibility.
-            // In this app's layout, `.doubleColumn` means sidebar + content.
-            showSidebar = columnVisibility != .detailOnly
-        }
+        // Derive explicit left-sidebar state from persisted split-view visibility.
+        // In this app's layout, `.doubleColumn` means sidebar + content.
+        showSidebar = columnVisibility != .detailOnly
 
         if let decodedSelection = try? JSONDecoder().decode(Set<String>.self, from: browserSelectionData) {
             browserSelection = decodedSelection

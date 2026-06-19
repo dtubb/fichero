@@ -21,7 +21,7 @@ struct MainToolbar: View {
             // Left side: Sidebar toggle and Add button
             HStack(spacing: 8) {
                 // Sidebar toggle button
-                if !ContentView.shouldUseAutomaticCompactCollapse(horizontalSizeClass: horizontalSizeClass) {
+                if horizontalSizeClass != .compact {
                     Button(
                         action: { showSidebar.toggle() },
                         label: {

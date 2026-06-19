@@ -223,20 +223,17 @@ extension ContentView {
     // MARK: - UI Actions
 
     func toggleSidebar() {
+        if horizontalSizeClass == .compact {
+            return
+        }
         withAnimation {
-            if Self.shouldUseAutomaticCompactCollapse(horizontalSizeClass: horizontalSizeClass) {
-                showSidebar = true
-                columnVisibility = .automatic
-                return
-            }
             showSidebar.toggle()
             updateColumnVisibility()
         }
     }
 
     func updateColumnVisibility() {
-        if Self.shouldUseAutomaticCompactCollapse(horizontalSizeClass: horizontalSizeClass) {
-            columnVisibility = .automatic
+        if horizontalSizeClass == .compact {
             return
         }
         // No animation — instant sidebar show/hide (#2309).

@@ -356,7 +356,7 @@ struct ContentView: View {
     private var navigationSplitColumn: some View {
         NavigationSplitView(
             columnVisibility: $columnVisibility,
-            preferredCompactColumn: Self.preferredCompactColumn(horizontalSizeClass: horizontalSizeClass)
+            preferredCompactColumn: Self.preferredCompactColumn
         ) {
             sidebarContent
         } detail: {

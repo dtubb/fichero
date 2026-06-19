@@ -278,12 +278,12 @@ extension ContentView {
         // Two separate ToolbarItems with .automatic placement keep both buttons
         // in the sidebar section (a ToolbarItemGroup(.primaryAction) splits the
         // second item to the far-right trailing section — #2309).
-        // Guard with `showSidebar` because NavigationSplitView does NOT
-        // auto-remove a column's toolbar contributions when the column collapses
-        // — without the guard the Navigator icon remains visible even when the
-        // sidebar is hidden (#2309).
+        // Guard with `showSidebar` on regular widths because NavigationSplitView
+        // does NOT auto-remove a column's toolbar contributions when the column
+        // collapses — without the guard the Navigator icon remains visible even
+        // when the sidebar is hidden (#2309).
         .toolbar {
-            if showSidebar {
+            if showSidebar && horizontalSizeClass != .compact {
                 ToolbarItem(placement: .automatic) {
                     Button {
                         sidebarShowsChat = false
