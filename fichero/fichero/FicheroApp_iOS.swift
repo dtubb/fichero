@@ -187,9 +187,14 @@ private struct RemoteConnectionSetupView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     Button {
-                        presentedSheet = .scanner
+                        if supportsCameraScanner {
+                            presentedSheet = .scanner
+                        } else {
+                            showAdvancedConnectionOptions = true
+                            errorMessage = "Camera scanning is unavailable on this device. Use the fallback options below."
+                        }
                     } label: {
-                        Label("Scan QR Code", systemImage: "qrcode.viewfinder")
+                        Label(scanButtonTitle, systemImage: "qrcode.viewfinder")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
@@ -214,22 +219,6 @@ private struct RemoteConnectionSetupView: View {
                             )
                             .font(.caption)
                             .foregroundStyle(.secondary)
-
-                            DisclosureGroup("Scanned connection details") {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    LabeledContent("Host URL") {
-                                        Text(detectedPayload.apiURL)
-                                            .textSelection(.enabled)
-                                    }
-                                    LabeledContent("Pairing Code") {
-                                        Text(detectedPayload.pairCode)
-                                            .textSelection(.enabled)
-                                    }
-                                }
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .padding(.top, 4)
-                            }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -284,6 +273,24 @@ private struct RemoteConnectionSetupView: View {
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
                                 }
+                            }
+                        }
+
+                        if let detectedPayload {
+                            DisclosureGroup("Scanned connection details") {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    LabeledContent("Host URL") {
+                                        Text(detectedPayload.apiURL)
+                                            .textSelection(.enabled)
+                                    }
+                                    LabeledContent("Pairing Code") {
+                                        Text(detectedPayload.pairCode)
+                                            .textSelection(.enabled)
+                                    }
+                                }
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .padding(.top, 4)
                             }
                         }
 
@@ -357,6 +364,18 @@ private struct RemoteConnectionSetupView: View {
         .task {
             discovery.start()
         }
+    }
+
+    private var scanButtonTitle: String {
+        supportsCameraScanner ? "Scan Mac QR Code" : "Camera Scan Unavailable"
+    }
+
+    private var supportsCameraScanner: Bool {
+        #if os(visionOS)
+        return false
+        #else
+        return AVCaptureDevice.default(for: .video) != nil
+        #endif
     }
 
     private var canConnectWithCurrentInput: Bool {
@@ -436,7 +455,7 @@ private struct QRCodeScannerSheet: View {
                 }
             }
             .padding()
-            .navigationTitle("Scan Pairing QR")
+            .navigationTitle("Scan Mac QR Code")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", action: onCancel)
