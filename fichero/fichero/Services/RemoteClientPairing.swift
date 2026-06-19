@@ -62,6 +62,7 @@ enum RemoteClientPairing {
         return PairingExchangeResult(apiRoot: url, deviceToken: response.deviceToken)
     }
 
+    @MainActor
     static func persistPairedHost(_ result: PairingExchangeResult) throws {
         // Remote-client device tokens are host-scoped and must never reuse the
         // bootstrap localhost token path. Today this persists via the existing
