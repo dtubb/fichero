@@ -2,6 +2,7 @@
 import Foundation
 import XCTest
 
+@MainActor
 final class MobileCaptureQueueTests: XCTestCase {
     func testCatalogFieldsMapToDocumentMetadataAndFallbackTitle() {
         let fields = MobileCaptureCatalogFields(
