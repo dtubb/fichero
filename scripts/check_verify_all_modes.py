@@ -74,18 +74,18 @@ def scan() -> dict[str, str]:
                     f"missing checklist step: {phrase}"
                 )
 
-    capture_text = _read(CAPTURE_MATRIX).lower()
-    capture_checks = [
-        "offline photo capture",
-        "reconnect upload",
-        "watched-folder or dslr intake",
-        "provenance",
-        "citation",
-        "no backend at launch",
-    ]
     if not CAPTURE_MATRIX.exists():
         issues["docs/qa/CAPTURE_SMOKE_MATRIX.md"] = "capture smoke matrix file is missing"
     else:
+        capture_text = _read(CAPTURE_MATRIX).lower()
+        capture_checks = [
+            "offline photo capture",
+            "reconnect upload",
+            "watched-folder or dslr intake",
+            "provenance",
+            "citation",
+            "no backend at launch",
+        ]
         for phrase in capture_checks:
             if phrase not in capture_text:
                 issues[f"docs/qa/CAPTURE_SMOKE_MATRIX.md::{phrase}"] = (
