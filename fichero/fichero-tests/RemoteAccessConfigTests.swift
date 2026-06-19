@@ -42,6 +42,40 @@ final class RemoteAccessConfigTests: XCTestCase {
         XCTAssertEqual(decoded.expiresAt, code.expiresAt)
     }
 
+    func testRemoteClientPairingFieldsNormalizeRemoteHost() throws {
+        let apiRoot = URL(string: "https://pairing.example.com/")!
+        let code = PairingCodeRecord(
+            code: "PAIR-1234",
+            expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        let payload = PairingService(apiRoot: apiRoot).buildQRCodePayload(from: code, spki: "spki-value")
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let message = try XCTUnwrap(String(bytes: encoder.encode(payload), encoding: .utf8))
+        let pairingFields = try RemoteClientPairing.pairingFields(from: message)
+
+        XCTAssertEqual(pairingFields.remoteURL, "https://pairing.example.com")
+        XCTAssertEqual(pairingFields.pairCode, "PAIR-1234")
+    }
+
+    func testRemoteClientPairingFieldsRejectLocalhostPayloads() throws {
+        let apiRoot = URL(string: "http://127.0.0.1:8765/")!
+        let code = PairingCodeRecord(
+            code: "PAIR-1234",
+            expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        let payload = PairingService(apiRoot: apiRoot).buildQRCodePayload(from: code, spki: "spki-value")
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let message = try XCTUnwrap(String(bytes: encoder.encode(payload), encoding: .utf8))
+
+        XCTAssertThrowsError(try RemoteClientPairing.pairingFields(from: message)) { error in
+            XCTAssertEqual(error as? RemoteURLValidationError, .localhostNotAllowed)
+        }
+    }
+
     func testPairingBackendURLRejectsBlankString() {
         XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: ""))
         XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: "   "))

@@ -115,7 +115,7 @@ private struct RemoteConnectionSetupView: View {
     @State private var showingScanner = false
     @State private var remoteURL = EngineConfig.usesCustomHost ? EngineConfig.hostString : ""
     @State private var pairCode = ""
-    @State private var deviceName = UIDevice.current.name
+    @State private var deviceName = RemoteClientPairing.defaultDeviceName()
     @State private var isPairing = false
     @State private var errorMessage: String?
 
@@ -263,10 +263,10 @@ private struct RemoteConnectionSetupView: View {
     private func handleScannedMessage(_ message: String) {
         do {
             let payload = try PairingQRCodePayloadDecoder.decode(message: message)
-            let validatedURL = try validatedRemoteURL(from: payload.apiURL, allowLocalhost: false)
+            let pairingFields = try RemoteClientPairing.pairingFields(from: message)
             detectedPayload = payload
-            remoteURL = validatedURL.absoluteString
-            pairCode = payload.pairCode
+            remoteURL = pairingFields.remoteURL
+            pairCode = pairingFields.pairCode
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -278,24 +278,12 @@ private struct RemoteConnectionSetupView: View {
         errorMessage = nil
         defer { isPairing = false }
 
-        let urlString = remoteURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        let code = pairCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        let name = deviceName.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard !code.isEmpty else {
-            errorMessage = "Scan the pairing QR code or enter a pairing code."
-            return
-        }
-        guard !name.isEmpty else {
-            errorMessage = "Enter a device name."
-            return
-        }
-
         do {
-            let url = try validatedRemoteURL(from: urlString, allowLocalhost: false)
-            let response = try await PairingService(apiRoot: url).pairDevice(code: code, deviceName: name)
-            try PairingService.persistAuthToken(response.deviceToken, for: url)
-            UserDefaults.standard.set(url.absoluteString, forKey: EngineConfig.userDefaultsKey)
+            let url = try await RemoteClientPairing.pairAndPersistHost(
+                remoteURL: remoteURL,
+                pairCode: pairCode,
+                deviceName: deviceName
+            )
             appState.reconfigureGeneratedClientsForCurrentHost()
             libraryManager.reconfigureGeneratedClientsForCurrentHost()
             await onConnected()
