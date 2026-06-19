@@ -249,7 +249,11 @@ extension ContentView {
     }
 
     static func shouldUseCompactNavigationFlow(horizontalSizeClass: UserInterfaceSizeClass?) -> Bool {
+        #if os(macOS)
+        false
+        #else
         horizontalSizeClass == .compact
+        #endif
     }
 
     static func shouldUseSplittablePane(horizontalSizeClass: UserInterfaceSizeClass?) -> Bool {
