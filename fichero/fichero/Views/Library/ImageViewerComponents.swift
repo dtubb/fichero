@@ -459,4 +459,11 @@ struct ZoomableImagePreview: View {
     }
 }
 
+#if canImport(UIKit)
+#Preview("Compact Zoomable Image Preview") {
+    ZoomableImagePreview(renderedImage: UIImage(systemName: "photo"))
+        .frame(width: 280, height: 360)
+}
+#endif
+
 #endif

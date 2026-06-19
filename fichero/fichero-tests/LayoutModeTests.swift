@@ -212,6 +212,28 @@ final class LayoutModeTests: XCTestCase {
         XCTAssertEqual(resolved?.id, "image-folder")
     }
 
+    func testAdaptiveShellDefaultsAndLegacyRestoreStayPlatformSpecific() {
+        #if os(macOS)
+        XCTAssertEqual(ContentView.defaultColumnVisibility, .all)
+        XCTAssertEqual(ContentView.defaultColumnVisibilityRaw, 2)
+        XCTAssertEqual(ContentView.restoredColumnVisibility(from: 2), .all)
+        XCTAssertEqual(ContentView.persistedColumnVisibilityRaw(for: .all), 2)
+        #else
+        XCTAssertEqual(ContentView.defaultColumnVisibility, .detailOnly)
+        XCTAssertEqual(ContentView.defaultColumnVisibilityRaw, 1)
+        XCTAssertEqual(ContentView.restoredColumnVisibility(from: 2), .detailOnly)
+        XCTAssertEqual(ContentView.persistedColumnVisibilityRaw(for: .all), 3)
+        XCTAssertEqual(ContentView.restoredColumnVisibility(from: 3), .doubleColumn)
+        #endif
+    }
+
+    func testAdaptiveShellPersistenceKeepsCollapsedAndExplicitWideStatesDistinct() {
+        XCTAssertEqual(ContentView.restoredColumnVisibility(from: 0), .automatic)
+        XCTAssertEqual(ContentView.restoredColumnVisibility(from: 1), .detailOnly)
+        XCTAssertEqual(ContentView.persistedColumnVisibilityRaw(for: .detailOnly), 1)
+        XCTAssertEqual(ContentView.persistedColumnVisibilityRaw(for: .automatic), 0)
+    }
+
     func testImageBackedPageDoesNotUsePDFCanvas() {
         let imagePage = Document(
             id: "image-page",

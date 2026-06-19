@@ -641,17 +641,7 @@ extension ContentView {
     func handleColumnVisibilityChange(_ newVisibility: NavigationSplitViewVisibility) {
         // Persist column visibility to @SceneStorage
         // Map NavigationSplitViewVisibility to raw int for @SceneStorage
-        if newVisibility == .automatic {
-            columnVisibilityRaw = 0
-        } else if newVisibility == .detailOnly {
-            columnVisibilityRaw = 1
-        } else if newVisibility == .all {
-            columnVisibilityRaw = 2
-        } else if newVisibility == .doubleColumn {
-            columnVisibilityRaw = 3
-        } else {
-            columnVisibilityRaw = 0
-        }
+        columnVisibilityRaw = Self.persistedColumnVisibilityRaw(for: newVisibility)
 
         // Keep explicit left-sidebar state in sync with split-view visibility.
         // In this app's layout, `.doubleColumn` is sidebar + content.

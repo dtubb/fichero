@@ -9,7 +9,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Content
 
 extension ContentView {
 
-    private func restoredColumnVisibility(from rawValue: Int) -> NavigationSplitViewVisibility {
+    static func restoredColumnVisibility(from rawValue: Int) -> NavigationSplitViewVisibility {
         switch rawValue {
         case 0:
             return .automatic
@@ -32,7 +32,7 @@ extension ContentView {
         }
     }
 
-    private func persistedColumnVisibilityRaw(for visibility: NavigationSplitViewVisibility) -> Int {
+    static func persistedColumnVisibilityRaw(for visibility: NavigationSplitViewVisibility) -> Int {
         if visibility == .automatic {
             return 0
         } else if visibility == .detailOnly {
@@ -144,7 +144,7 @@ extension ContentView {
     }
 
     func restorePersistedState() {
-        columnVisibility = restoredColumnVisibility(from: columnVisibilityRaw)
+        columnVisibility = Self.restoredColumnVisibility(from: columnVisibilityRaw)
 
         // Derive explicit left-sidebar state from persisted split-view visibility.
         // In this app's layout, `.doubleColumn` means sidebar + content.
@@ -192,7 +192,7 @@ extension ContentView {
 
     func savePersistedState() {
         // Map NavigationSplitViewVisibility to raw integer for @SceneStorage
-        columnVisibilityRaw = persistedColumnVisibilityRaw(for: columnVisibility)
+        columnVisibilityRaw = Self.persistedColumnVisibilityRaw(for: columnVisibility)
 
         if let encoded = try? JSONEncoder().encode(browserSelection) {
             browserSelectionData = encoded
