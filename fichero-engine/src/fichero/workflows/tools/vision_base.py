@@ -1013,7 +1013,7 @@ async def _propagate_to_page_children(
     library_path: str,
     artifact_type: str | None = None,
     llm_config: LLMConfig | None = None,
-) -> int:
+) -> list[str] | None:
     """Write per-page OCR text to page child documents and re-embed each one.
 
     Call this after saving the combined transcript to the parent PDF document
@@ -1023,8 +1023,11 @@ async def _propagate_to_page_children(
     artifact row keyed on each page child's document_id (#701). That gives
     the V2 inspector something to render when you click a single page —
     previously page-children had `page_content` but no artifact rows, so
-    the per-page panel was blank in V2.
+    the per-page panel was blank in V2. Returns the created per-page
+    artifact IDs, or ``None`` when there are no page children.
     """
+    created_artifact_ids: list[str] = []
+
     try:
         from fichero.db import db_manager
         from fichero.models import Artifact, Document, Status
@@ -1035,7 +1038,7 @@ async def _propagate_to_page_children(
             key=lambda d: d.sequence or 0,
         )
         if not page_docs:
-            return 0
+            return None
 
         for page_doc in page_docs:
             # sequence is 1-based; page_texts is 0-indexed
@@ -1094,6 +1097,7 @@ async def _propagate_to_page_children(
                             reviewed=False,
                         )
                     db.save(art)
+                    created_artifact_ids.append(art.id)
                 except Exception as artifact_err:
                     logger.warning(
                         "Failed to save per-page artifact for %s page %d: %s",
@@ -1103,10 +1107,10 @@ async def _propagate_to_page_children(
         logger.info(
             f"Propagated OCR to {len(page_docs)} page children of {parent_id}"
         )
-        return len(page_docs)
+        return created_artifact_ids
     except Exception as e:
         logger.warning(f"Failed to propagate OCR to page children of {parent_id}: {e}")
-        return 0
+        return None
 
 
 # =============================================================================
@@ -1984,14 +1988,14 @@ async def process_vision(
                     resolve_path_to_doc(path_to_doc, file_path) if per_page_texts else None
                 )
                 if _whole_pdf_parent:
-                    n_children = await _propagate_to_page_children(
+                    page_artifact_ids = await _propagate_to_page_children(
                         _whole_pdf_parent,
                         per_page_texts,
                         library_path,
                         artifact_type=tool_config.artifact_type,
                         llm_config=save_config,
                     )
-                    if n_children == 0:
+                    if page_artifact_ids is None:
                         # No page children — save combined text to parent as fallback
                         artifact_id = await save_artifact(
                             file_path=file_path,
@@ -2009,6 +2013,8 @@ async def process_vision(
                             artifact_ids.append(artifact_id)
                         else:
                             logger.warning(f"save_artifact returned None for {file_path}")
+                    elif isinstance(page_artifact_ids, list):
+                        artifact_ids.extend(page_artifact_ids)
                 else:
                     artifact_id = await save_artifact(
                         file_path=file_path,

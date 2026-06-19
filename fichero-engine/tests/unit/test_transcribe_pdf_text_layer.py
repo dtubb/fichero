@@ -374,7 +374,9 @@ async def test_llm_vision_multipage_pdf_processes_all_pages(tmp_path: Path) -> N
         return text
 
     save_mock = AsyncMock(return_value="artifact-parent")
-    propagate_mock = AsyncMock()
+    propagate_mock = AsyncMock(
+        return_value=["artifact-page-1", "artifact-page-2"]
+    )
 
     with (
         patch("fichero.workflows.tools.vision_base.save_artifact", new=save_mock),
@@ -415,3 +417,4 @@ async def test_llm_vision_multipage_pdf_processes_all_pages(tmp_path: Path) -> N
     propagated_parent_id, propagated_texts = propagate_mock.await_args.args[:2]
     assert propagated_parent_id == "parent-pdf"
     assert propagated_texts == page_transcripts
+    assert result["artifacts"] == ["artifact-page-1", "artifact-page-2"]

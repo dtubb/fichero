@@ -405,3 +405,42 @@ class TestPropagateToPageChildren:
             )
 
         assert page.page_content == "Second page text"
+
+    @pytest.mark.asyncio
+    async def test_returns_created_artifact_ids_for_page_children(self, llm_config):
+        """The helper should return the per-page artifact IDs it created."""
+        from fichero.workflows.tools.vision_base import _propagate_to_page_children
+
+        page1 = MagicMock()
+        page1.sequence = 1
+        page1.id = "page-1"
+        page1.metadata = {}
+        page2 = MagicMock()
+        page2.sequence = 2
+        page2.id = "page-2"
+        page2.metadata = {}
+
+        mock_db = MagicMock()
+        mock_db.query.return_value = [page1, page2]
+
+        saved_artifacts = []
+
+        def _save(obj):
+            if getattr(obj, "artifact_type", None) == "transcription":
+                saved_artifacts.append(obj)
+
+        mock_db.save.side_effect = _save
+
+        with patch("fichero.db.db_manager") as mock_manager:
+            mock_manager.get_database.return_value = mock_db
+
+            artifact_ids = await _propagate_to_page_children(
+                "parent_pdf_id",
+                ["Text from page 1", "Text from page 2"],
+                "/lib.fichero",
+                artifact_type="transcription",
+                llm_config=llm_config,
+            )
+
+        assert [art.document_id for art in saved_artifacts] == ["page-1", "page-2"]
+        assert artifact_ids == [art.id for art in saved_artifacts]
