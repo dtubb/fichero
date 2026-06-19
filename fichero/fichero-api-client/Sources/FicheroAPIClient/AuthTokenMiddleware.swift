@@ -100,10 +100,13 @@ public struct AuthTokenMiddleware: ClientMiddleware {
     }
 
     static func prefersLocalhostEngineToken(hostString: String? = nil) -> Bool {
-        let stored = hostString ?? UserDefaults.standard.string(forKey: engineHostUserDefaultsKey)
-        let trimmed = (stored ?? defaultHostString).trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let host = URL(string: trimmed)?.host?.lowercased() else {
+        guard let stored = hostString ?? UserDefaults.standard.string(forKey: engineHostUserDefaultsKey) else {
             return true
+        }
+        let trimmed = stored.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return true }
+        guard let host = URL(string: trimmed)?.host?.lowercased() else {
+            return false
         }
         return isLoopbackHostLiteral(host)
     }
@@ -134,10 +137,11 @@ public struct AuthTokenMiddleware: ClientMiddleware {
             return true
         }
 
-        guard let mappedRange = normalized.range(of: "::ffff:") else {
+        let mappedPrefix = "::ffff:"
+        guard normalized.hasPrefix(mappedPrefix) else {
             return false
         }
-        let mappedIPv4 = String(normalized[mappedRange.upperBound...])
+        let mappedIPv4 = String(normalized.dropFirst(mappedPrefix.count))
         return isIPv4LoopbackLiteral(mappedIPv4)
     }
 

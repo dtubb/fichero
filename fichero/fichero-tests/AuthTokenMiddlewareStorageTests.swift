@@ -13,6 +13,8 @@ struct AuthTokenMiddlewareStorageTests {
             "http://[::1]:8765",
             "http://[0:0:0:0:0:0:0:1]:8765",
             "http://[::ffff:127.0.0.1]:8765",
+            "",
+            "   ",
             nil
         ] as [String?]
     )
@@ -26,7 +28,9 @@ struct AuthTokenMiddlewareStorageTests {
         arguments: [
             "http://100.119.93.85:8765",
             "https://host.tailnet.example",
-            "https://fichero.example.com"
+            "https://fichero.example.com",
+            "http://[2001:db8::ffff:127.0.0.1]:8765",
+            "https://remote host/"
         ]
     )
     func remoteHostsUseRemoteStorage(hostString: String) {
