@@ -130,7 +130,9 @@ struct NoteDetailWindow: View {
     var body: some View {
         NoteDetailView(item: shownItem)
             .navigationTitle(shownItem?.title ?? "Note")
+            #if !os(visionOS)
             .navigationSubtitle(focused.documentName ?? "")
+            #endif
             .toolbar {
                 ToolbarItem(placement: .automatic) {
                     Toggle(isOn: $isPinned) {

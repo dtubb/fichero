@@ -80,12 +80,16 @@ extension View {
         detents: Set<PresentationDetent> = [.medium, .large],
         @ViewBuilder content: @escaping () -> InspectorContent
     ) -> some View {
+        #if os(visionOS)
+        inspectorSheet(isPresented: isPresented, detents: detents, content: content)
+        #else
         switch placement {
         case .sheet:
             inspectorSheet(isPresented: isPresented, detents: detents, content: content)
         case .docked, .floating:
             inspector(isPresented: isPresented, content: content)
         }
+        #endif
     }
 
     /// Presents detail `content` as a detented sheet — the ``InspectorPlacement/sheet``
