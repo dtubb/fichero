@@ -33,20 +33,19 @@ extension ContentView {
     }
 
     private func persistedColumnVisibilityRaw(for visibility: NavigationSplitViewVisibility) -> Int {
-        switch visibility {
-        case .automatic:
+        if visibility == .automatic {
             return 0
-        case .detailOnly:
+        } else if visibility == .detailOnly {
             return 1
-        case .all:
+        } else if visibility == .all {
             #if os(macOS)
             return 2
             #else
             return 3
             #endif
-        case .doubleColumn:
+        } else if visibility == .doubleColumn {
             return 3
-        @unknown default:
+        } else {
             #if os(macOS)
             return 2
             #else
