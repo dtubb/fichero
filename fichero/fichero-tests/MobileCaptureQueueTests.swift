@@ -181,6 +181,7 @@ final class MobileCaptureQueueTests: XCTestCase {
     }
 }
 
+@MainActor
 private final class FakeCaptureUploader: MobileCaptureQueueUploading {
     let backendHost: URL?
     var uploads: [(URL, MobileCaptureCatalogFields)] = []

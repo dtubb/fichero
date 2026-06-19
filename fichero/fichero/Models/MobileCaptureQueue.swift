@@ -171,6 +171,7 @@ enum MobileCaptureQueueRouting {
     }
 }
 
+@MainActor
 protocol MobileCaptureQueueUploading {
     var backendHost: URL? { get }
     func upload(fileURL: URL, catalog: MobileCaptureCatalogFields) async throws -> String
