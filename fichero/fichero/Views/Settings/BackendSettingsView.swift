@@ -132,7 +132,7 @@ struct BackendSettingsView: View {
                     .padding(.vertical, 4)
                 }
 
-                if !pairedDevices.isEmpty {
+                if canHostRemoteAccess && !pairedDevices.isEmpty {
                     ForEach(pairedDevices) { device in
                         HStack(alignment: .top) {
                             VStack(alignment: .leading, spacing: 4) {
@@ -146,6 +146,7 @@ struct BackendSettingsView: View {
                                 Task { await revoke(deviceID: device.id) }
                             }
                             .buttonStyle(.borderless)
+                            .disabled(!canHostRemoteAccess)
                         }
                     }
                 }
@@ -194,6 +195,9 @@ struct BackendSettingsView: View {
         .task {
             await loadStorageStats()
             #if canImport(AppKit)
+            if !canHostRemoteAccess {
+                pairedDevices = []
+            }
             if hostingEnabled, appState.isBackendRunning, canHostRemoteAccess {
                 await refreshPairedDevices()
             }
