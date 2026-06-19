@@ -2,7 +2,7 @@
 set -e
 
 # Start backend with optional OpenAPI sync/validation.
-# Run from repo root: ./fichero-engine/scripts/start_backend.sh [--no-sync|--fast]
+# Run from repo root: ./fichero-engine/scripts/start_backend.sh [--no-sync|--fast|--reload]
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 API_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -23,13 +23,18 @@ fi
 
 SYNC_OPENAPI=true
 SKIP_VALIDATION=false
+RELOAD=false
 
 for arg in "$@"; do
   case $arg in
     --no-sync) SYNC_OPENAPI=false ;;
     --fast) SYNC_OPENAPI=false; SKIP_VALIDATION=true ;;
+    --reload) RELOAD=true ;;
     --help|-h)
-      echo "Usage: $0 [--no-sync] [--fast]"
+      echo "Usage: $0 [--no-sync] [--fast] [--reload]"
+      echo
+      echo "Default starts uvicorn without reload so the real app DuckDB is opened"
+      echo "by one process only. Use --reload only with an isolated/test database."
       exit 0
       ;;
   esac
@@ -44,8 +49,14 @@ if [ "$SKIP_VALIDATION" = false ]; then
 fi
 
 export FICHERO_VALIDATE_MODELS=1
-# Scope --reload to the engine source ONLY. A bare --reload watches the CWD (repo
-# root), which includes agent worktrees under .claude/worktrees/ — every worker
-# edit then triggers a reload storm + RAM blowup. --reload-dir fixes that.
-PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" -m uvicorn fichero.api.main:app --port 8765 \
-  --reload --reload-dir "$API_ROOT/src"
+if [ "$RELOAD" = true ]; then
+  # Scope --reload to the engine source ONLY. A bare --reload watches the CWD
+  # (repo root), which includes agent worktrees under .claude/worktrees/ — every
+  # worker edit then triggers a reload storm + RAM blowup. --reload-dir fixes
+  # that. Do not use reload against the real app DuckDB; the reloader parent and
+  # child can contend for the same single-process DuckDB lock during app import.
+  PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" -m uvicorn fichero.api.main:app --port 8765 \
+    --reload --reload-dir "$API_ROOT/src"
+else
+  PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" -m uvicorn fichero.api.main:app --port 8765
+fi
