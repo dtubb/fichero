@@ -12,12 +12,32 @@ final class EngineConfigTests: XCTestCase {
         }
     }
 
-    func testBlankHostDefaultsToEmbeddedLocal() {
+    func testBlankHostPolicyDependsOnEmbeddedLocalAllowance() {
+        XCTAssertEqual(
+            EngineConfig.hostConfiguration(from: nil, allowsImplicitEmbeddedLocalDefault: true),
+            .embeddedLocal
+        )
+        XCTAssertEqual(
+            EngineConfig.hostConfiguration(from: "   ", allowsImplicitEmbeddedLocalDefault: true),
+            .embeddedLocal
+        )
+        XCTAssertEqual(
+            EngineConfig.hostConfiguration(from: nil, allowsImplicitEmbeddedLocalDefault: false),
+            .invalid("")
+        )
+        XCTAssertEqual(
+            EngineConfig.hostConfiguration(from: "   ", allowsImplicitEmbeddedLocalDefault: false),
+            .invalid("")
+        )
+    }
+
+    func testBlankHostUsesCurrentPlatformDefaultPolicy() {
         let originalHost = UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey)
         defer { restoreEngineHost(originalHost) }
 
         UserDefaults.standard.set("   ", forKey: EngineConfig.userDefaultsKey)
 
+        #if os(macOS)
         XCTAssertEqual(EngineConfig.hostConfiguration(from: nil), .embeddedLocal)
         XCTAssertEqual(EngineConfig.hostConfiguration(from: "   "), .embeddedLocal)
         XCTAssertEqual(EngineConfig.hostString, EngineConfig.defaultHostString)
@@ -25,6 +45,15 @@ final class EngineConfigTests: XCTestCase {
         XCTAssertFalse(EngineConfig.usesCustomHost)
         XCTAssertTrue(EngineConfig.engineIsLocal)
         XCTAssertFalse(EngineConfig.requiresExternalBackendConnection)
+        #else
+        XCTAssertEqual(EngineConfig.hostConfiguration(from: nil), .invalid(""))
+        XCTAssertEqual(EngineConfig.hostConfiguration(from: "   "), .invalid(""))
+        XCTAssertEqual(EngineConfig.hostString, "")
+        XCTAssertNotEqual(EngineConfig.host.absoluteString, EngineConfig.defaultHostString)
+        XCTAssertTrue(EngineConfig.usesCustomHost)
+        XCTAssertFalse(EngineConfig.engineIsLocal)
+        XCTAssertTrue(EngineConfig.requiresExternalBackendConnection)
+        #endif
     }
 
     func testValidRemoteHostIsPreserved() {
@@ -51,6 +80,14 @@ final class EngineConfigTests: XCTestCase {
         UserDefaults.standard.set(malformedHost, forKey: EngineConfig.userDefaultsKey)
 
         XCTAssertEqual(EngineConfig.hostConfiguration(from: malformedHost), .invalid("https://remote host"))
+        XCTAssertEqual(
+            EngineConfig.hostConfiguration(from: malformedHost, allowsImplicitEmbeddedLocalDefault: true),
+            .invalid("https://remote host")
+        )
+        XCTAssertEqual(
+            EngineConfig.hostConfiguration(from: malformedHost, allowsImplicitEmbeddedLocalDefault: false),
+            .invalid("https://remote host")
+        )
         XCTAssertEqual(EngineConfig.hostString, "https://remote host")
         XCTAssertNotEqual(EngineConfig.host.absoluteString, EngineConfig.defaultHostString)
         XCTAssertFalse(EngineConfig.engineIsLocal)

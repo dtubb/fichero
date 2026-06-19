@@ -7,9 +7,10 @@ import Foundation
 /// Every part of the app reads `EngineConfig.host` (engine root, e.g.
 /// `http://127.0.0.1:8765`) or `EngineConfig.apiBaseURL` (the `/api` base)
 /// instead of hardcoding `127.0.0.1:8765`. The host is user-configurable via
-/// Settings -> Backend and falls back to localhost only when unset or blank.
-/// Malformed non-empty values stay invalid instead of silently resolving to
-/// localhost.
+/// Settings -> Backend. Only the macOS embedded-engine path implicitly
+/// resolves a blank host to localhost; mobile clients require an explicit
+/// remote host instead. Malformed non-empty values stay invalid instead of
+/// silently resolving to localhost.
 enum EngineConfig {
     static let userDefaultsKey = "fichero.engine.host"
     static let defaultHostString = "http://127.0.0.1:8765"
@@ -105,8 +106,18 @@ enum EngineConfig {
     }
 
     static func hostConfiguration(from raw: String?) -> HostConfiguration {
+        hostConfiguration(
+            from: raw,
+            allowsImplicitEmbeddedLocalDefault: allowsEmbeddedLocalDefault
+        )
+    }
+
+    static func hostConfiguration(
+        from raw: String?,
+        allowsImplicitEmbeddedLocalDefault: Bool
+    ) -> HostConfiguration {
         guard let normalized = normalizedHostString(raw) else {
-            return .embeddedLocal
+            return allowsImplicitEmbeddedLocalDefault ? .embeddedLocal : .invalid("")
         }
         guard let url = makeURL(normalized), url.host != nil else {
             return .invalid(normalized)
@@ -123,6 +134,14 @@ enum EngineConfig {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         return trimmed.replacingOccurrences(of: "/+$", with: "", options: .regularExpression)
+    }
+
+    private static var allowsEmbeddedLocalDefault: Bool {
+        #if os(macOS)
+        true
+        #else
+        false
+        #endif
     }
 
     private static func makeURL(_ string: String) -> URL? {
