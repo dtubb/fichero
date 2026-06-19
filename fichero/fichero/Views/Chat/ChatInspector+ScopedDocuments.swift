@@ -24,9 +24,8 @@ extension ChatInspector {
                         addSuggestedDocumentsToScope()
                     } label: {
                         Label("Add to Chat", systemImage: "plus.circle")
-                            .font(.caption)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.bordered)
                 }
             }
             .padding(.horizontal)
@@ -70,10 +69,8 @@ extension ChatInspector {
                     addSuggestedDocumentsToScope()
                 } label: {
                     Label("Add Current Selection to Chat", systemImage: "plus.circle.fill")
-                        .font(.caption)
                 }
                 .buttonStyle(.borderedProminent)
-                .controlSize(.small)
             }
 
             Divider()

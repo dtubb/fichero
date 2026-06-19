@@ -9,9 +9,7 @@ extension ChatInspector {
             return
         }
 
-        for id in suggestedDocumentIDs {
-            selectedDocuments.insert(id)
-        }
+        selectedDocuments = mergedSuggestedDocuments
     }
 
     func removeSelectedFromScope() {

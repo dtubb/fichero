@@ -643,9 +643,7 @@ extension ContentView {
                         currentDocuments: documentStore.currentDocuments,
                         detailDocument: detailDocument
                     )
-                    for id in scopedIds {
-                        chatSelectedDocuments.insert(id)
-                    }
+                    chatSelectedDocuments = chatSelectedDocuments.union(scopedIds)
                 }
             )
 

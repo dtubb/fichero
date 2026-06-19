@@ -65,8 +65,16 @@ struct ChatInspector: View {
 }
 
 extension ChatInspector {
+    var suggestedDocumentSet: Set<String> {
+        Set(suggestedDocumentIDs)
+    }
+
+    var mergedSuggestedDocuments: Set<String> {
+        selectedDocuments.union(suggestedDocumentSet)
+    }
+
     var pendingSuggestedDocumentCount: Int {
-        Set(suggestedDocumentIDs).subtracting(selectedDocuments).count
+        suggestedDocumentSet.subtracting(selectedDocuments).count
     }
 
     var showsTouchScopeActions: Bool {
