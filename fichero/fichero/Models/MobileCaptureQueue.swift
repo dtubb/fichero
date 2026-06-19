@@ -183,6 +183,7 @@ struct MobileCaptureBackendUploadClient: MobileCaptureQueueUploading {
         EngineConfig.host
     }
 
+    @MainActor
     func upload(fileURL: URL, catalog: MobileCaptureCatalogFields) async throws -> String {
         guard let library = libraryManager.globalLibrary else {
             throw MobileCaptureQueueStoreError.noLibraryAvailable
