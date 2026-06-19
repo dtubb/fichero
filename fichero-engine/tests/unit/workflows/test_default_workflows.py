@@ -945,6 +945,69 @@ class TestLoadPresetFiles:
         assert prepare_node["config"].get("autocontrast") is True
         assert prepare_node["config"].get("pdf_dpi") == 300
 
+    def test_capture_ocr_transcribe_preset_wiring(self):
+        """Capture OCR + Transcribe should preserve original document linkage
+        while staging OCR-friendly derived images for capture uploads (#2356)."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        assert "Capture OCR + Transcribe" in presets, "capture OCR preset must ship"
+        preset = presets["Capture OCR + Transcribe"]
+
+        assert preset.get("is_template") is True
+        assert preset.get("is_system") is True
+        assert preset.get("folder_path") == "/Transcribe"
+        assert preset.get("format") == "nodes"
+
+        node_tools = {n["tool"] for n in preset["nodes"]}
+        for tool in ("files", "prepare_images", "enhance_images", "transcribe"):
+            assert tool in node_tools, f"preset missing {tool!r} node"
+
+        files_id = _node_id(preset, "files")
+        prepare_id = _node_id(preset, "prepare_images")
+        enhance_id = _node_id(preset, "enhance_images")
+        transcribe_id = _node_id(preset, "transcribe")
+
+        assert any(
+            e["source"] == files_id
+            and e["target"] == prepare_id
+            and e["source_port"] == "files"
+            and e["target_port"] == "files"
+            for e in preset["edges"]
+        ), "files must flow into prepare_images"
+        assert any(
+            e["source"] == files_id
+            and e["target"] == prepare_id
+            and e["source_port"] == "documents"
+            and e["target_port"] == "documents"
+            for e in preset["edges"]
+        ), "documents must flow into prepare_images"
+        assert any(
+            e["source"] == prepare_id
+            and e["target"] == enhance_id
+            and e["source_port"] == "output_files"
+            and e["target_port"] == "files"
+            for e in preset["edges"]
+        ), "prepared derived files must flow into enhance_images"
+        assert any(
+            e["source"] == files_id
+            and e["target"] == transcribe_id
+            and e["source_port"] == "documents"
+            and e["target_port"] == "documents"
+            for e in preset["edges"]
+        ), "original documents must flow into transcribe for page-content persistence"
+        assert any(
+            e["source"] == enhance_id
+            and e["target"] == transcribe_id
+            and e["source_port"] == "output_files"
+            and e["target_port"] == "files"
+            for e in preset["edges"]
+        ), "enhanced derived files must flow into transcribe"
+
+        transcribe_node = next(n for n in preset["nodes"] if n["tool"] == "transcribe")
+        assert transcribe_node["config"].get("vision_mode") == "auto"
+        assert transcribe_node["config"].get("language") == "auto"
+        assert transcribe_node["config"].get("update_page_content") is True
+        assert transcribe_node["config"].get("save_to_db") is True
+
     def test_clean_up_text_preset_wiring(self):
         """Clean Up Text preset: files → transcribe → clean_text.
 
@@ -1393,7 +1456,7 @@ class TestTranscriptionPresetConvention:
 
         assert not violations, (
             "Draft transcribe nodes must use vision_mode='auto' and "
-            f"language='auto'. Violations:\n" + "\n".join(violations)
+            "language='auto'. Violations:\n" + "\n".join(violations)
         )
 
     def test_exceptions_are_still_present_in_shipped_presets(self):
