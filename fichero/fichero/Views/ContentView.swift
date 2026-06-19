@@ -492,6 +492,24 @@ struct ContentView: View {
     @ViewBuilder
     private var inspectorContainerView: some View {
         if usesDockedInspector {
+            #if os(visionOS)
+            detailView
+                // Inspector toggle in the INSPECTOR SECTION (far right).
+                // Attaching to the inspector panel content (rather than the
+                // detail column) places the button in the trailing inspector
+                // section of the unified toolbar instead of the content
+                // section. NavigationSplitView does not auto-remove column
+                // toolbar contributions when a column is hidden, so the
+                // toggle remains visible even when the inspector is closed
+                // — same mechanism as the sidebar-section buttons (#2309).
+                .toolbar {
+                    if showInspectorToggle {
+                        ToolbarItem(placement: .primaryAction) {
+                            inspectorToggleButton
+                        }
+                    }
+                }
+            #else
             detailView
                 // Inspector toggle in the INSPECTOR SECTION (far right).
                 // Attaching to the inspector panel content (rather than the
@@ -513,6 +531,7 @@ struct ContentView: View {
                     ideal: 300,
                     max: CGFloat(ContentView.inspectorMaxWidth)
                 )
+            #endif
         } else {
             NavigationStack {
                 detailView
