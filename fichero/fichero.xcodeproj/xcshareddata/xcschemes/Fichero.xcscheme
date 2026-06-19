@@ -36,17 +36,6 @@
       </TestPlans>
       <Testables>
          <TestableReference
-            skipped = "NO"
-            parallelizable = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "A10521A82EFDC92400B28C3E"
-               BuildableName = "FicheroTests.xctest"
-               BlueprintName = "FicheroTests"
-               ReferencedContainer = "container:fichero.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-         <TestableReference
             skipped = "YES"
             parallelizable = "YES">
             <BuildableReference
