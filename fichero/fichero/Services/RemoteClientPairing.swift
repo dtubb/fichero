@@ -49,6 +49,7 @@ enum RemoteClientPairing {
         return normalized == "healthy" || normalized == "ok"
     }
 
+    @MainActor
     static func defaultDeviceName() -> String {
         #if canImport(UIKit)
         return UIDevice.current.name
