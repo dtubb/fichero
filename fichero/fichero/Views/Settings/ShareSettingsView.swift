@@ -247,7 +247,6 @@ struct ShareSettingsView: View {
             appState.reconfigureGeneratedClientsForCurrentHost()
             libraryManager.reconfigureGeneratedClientsForCurrentHost()
             if hostingEnabled {
-                shareError = "Sharing is waiting for the Mac engine to finish secure setup."
                 await refreshDevices()
             }
             return
