@@ -1,3 +1,35 @@
+# STATE — Manager cycle (2026-06-20 ~20:15) — integration done, 3 workers running
+
+**Priority (Daniel, explicit): CONNECTION → MAC SHELL → filed bugs.** Manager delegates
+(haiku/sonnet/kimi; opus only if structural), integrates + build-gates (Xcode BuildProject
+windowtab5), pushes only if green. Workers in their OWN worktrees; disjoint files; claim issues.
+
+## ✅ This cycle — integrated to 0.0.2, build-green, pushed
+- **7 OpenAPI conversions** (import/storage/activity/apiclient/engineconfig/appstate/applescript)
+  — killed hand-rolled URLSession (#2410–2414, #2406, #2392 partial). Fixed kimi's bogus
+  `.unprocessableContent` cases in PairingService. Closed #2401/#2399/#2417/#2420/#2411/#2412/#2413/#2414/#2406.
+- **4 feature lanes**: connected-capture (#2401), pairing-link (#2399), reader-zoom-nav
+  (#2417 pinch / #2420 folder nav). ios-reader-polish DEFERRED (overlapped reader-zoom on EditorView;
+  branch worker/ios-reader-polish kept).
+- **Shell fixes**: SpatialView Spatial2DCanvas split for SwiftLint; ContentView pane-width consts
+  `nonisolated` (#LayoutMode actor error); RemoteClientPairing.defaultDeviceName() `@MainActor`.
+- shell-mockups docs. All worktrees cleaned; single tree at HEAD.
+
+## 🔄 WORKERS RUNNING (background agents, own worktrees — manager integrates + build-gates)
+- **conn-activity** (sonnet) → #2448 Activity live updates over change-stream (CONNECTION band)
+- **shell-breadcrumb** (haiku) → #2425 window-title breadcrumb Library›Folder›File›page (SHELL)
+- **shell-glass** (sonnet) → #2041 Tahoe glass mini-toolbar + #2415 workflows toolbar button (SHELL)
+Issues #2448/#2425/#2041/#2415 carry status:in-progress. `.buttonStyle(.glass)` does NOT compile — bounce it.
+
+## NEXT after these land: Mac shell FRAME (zones sidebar|content|inspector, tabs inside content
+column #1968, native .inspector() #2033, zoned toolbar #2032) — the structural lane (opus/manager).
+Then remaining connection bugs (#2451 chat-with-doc, #2452 search→pages, #2435 KG remote) + filed UX.
+
+## ⚠️ Daniel's: TLS cert SAN loopback-only (-9807) for remote iPad = perimeter #2382 (his call).
+Backend running fine (non-loopback bind warning is expected/harmless).
+
+---
+# (prior hand-off below)
 # STATE — SESSION-END hand-off (2026-06-20 ~18:00, manager out of tokens ~1h)
 
 Branch `0.0.2`, synced with origin. Autonomous manager session for the iPhone/iPad demo
