@@ -588,8 +588,12 @@ struct DocumentKGWebPane: UIViewRepresentable {
 
         let webView = GuardedWKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
-        webView.setValue(false, forKey: "drawsBackground")
+        // iOS WKWebView has no `drawsBackground` KVC key (macOS-only) — setting it
+        // crashes with NSUnknownKeyException. `isOpaque = false` + clear background
+        // is the iOS-correct way to make the web pane transparent.
         webView.isOpaque = false
+        webView.backgroundColor = .clear
+        webView.scrollView.backgroundColor = .clear
         context.coordinator.webView = webView
         context.coordinator.loadIfNeeded(webView)
         return webView
