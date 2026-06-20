@@ -90,6 +90,21 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
         .background(.bar)
     }
 
+    /// Split-axis glyph font. Uses a *semantic* style so the icon scales with
+    /// the system text size (Dynamic Type) instead of a fixed point size, and
+    /// is noticeably larger on touch platforms where the old hardcoded 11pt
+    /// glyph was too small to read/hit comfortably (Daniel, iOS/iPad). Mac keeps
+    /// the compact NSToolbar-style chrome. (#883)
+    private var splitIconFont: Font {
+        #if os(macOS)
+        .body
+        #elseif os(tvOS)
+        .largeTitle
+        #else
+        .title2
+        #endif
+    }
+
     @ViewBuilder
     private func splitButtonsView(for actions: SplitAxisActions) -> some View {
         HStack(spacing: 4) {
@@ -97,7 +112,7 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
 
             Button { actions.onToggleVertical() } label: {
                 Image(systemName: "rectangle.split.2x1")
-                    .font(.system(size: 11))
+                    .font(splitIconFont)
                     .frame(
                         minWidth: Self.touchTargetSide,
                         minHeight: Self.touchTargetSide
@@ -110,7 +125,7 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
 
             Button { actions.onToggleHorizontal() } label: {
                 Image(systemName: "rectangle.split.1x2")
-                    .font(.system(size: 11))
+                    .font(splitIconFont)
                     .frame(
                         minWidth: Self.touchTargetSide,
                         minHeight: Self.touchTargetSide
