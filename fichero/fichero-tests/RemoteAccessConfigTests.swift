@@ -16,6 +16,8 @@ final class RemoteAccessConfigTests: XCTestCase {
         AuthTokenMiddleware.clearRemoteToken(hostString: attemptedHost.absoluteString)
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: previousHost)
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: attemptedHost.absoluteString)
+        UserDefaults.standard.removeObject(forKey: RemoteAccessConfig.hostingEnabledKey)
+        UserDefaults.standard.removeObject(forKey: RemoteAccessConfig.publicBaseURLKey)
         UserDefaults.standard.removeObject(forKey: EngineConfig.userDefaultsKey)
     }
 
@@ -200,7 +202,53 @@ final class RemoteAccessConfigTests: XCTestCase {
         let message = RemoteURLValidationError.insecureRemoteTransport.errorDescription ?? ""
 
         XCTAssertTrue(message.contains("HTTPS"))
-        XCTAssertTrue(message.contains("Tailscale HTTPS"))
+        XCTAssertFalse(message.contains("Tailscale"))
+    }
+
+    func testRemoteAccessTLSMaterialDecodesFromLauncherManifest() throws {
+        let json = """
+        {
+          "bind_host": "pairing.example.com",
+          "certificate_path": "/tmp/Fichero Remote Access/server.crt",
+          "key_path": "/tmp/Fichero Remote Access/server.key",
+          "spki_pin": "c3BraS1waW4="
+        }
+        """
+
+        let material = try JSONDecoder().decode(
+            RemoteAccessTLSMaterial.self,
+            from: Data(json.utf8)
+        )
+
+        XCTAssertEqual(material.bindHost, "pairing.example.com")
+        XCTAssertEqual(material.certificatePath, "/tmp/Fichero Remote Access/server.crt")
+        XCTAssertEqual(material.keyPath, "/tmp/Fichero Remote Access/server.key")
+        XCTAssertEqual(material.spkiPin, "c3BraS1waW4=")
+    }
+
+    func testRemoteAccessLaunchEnvironmentIncludesTLSMaterial() {
+        let material = RemoteAccessTLSMaterial(
+            bindHost: "pairing.example.com",
+            certificatePath: "/tmp/server.crt",
+            keyPath: "/tmp/server.key",
+            spkiPin: "c3BraS1waW4="
+        )
+        let publicBaseURL = URL(string: "https://pairing.example.com:9443")!
+
+        let environment = RemoteAccessConfig.launchEnvironment(
+            for: publicBaseURL,
+            material: material,
+            bonjourEnabled: true
+        )
+
+        XCTAssertEqual(environment["FICHERO_BIND_HOST"], "pairing.example.com")
+        XCTAssertEqual(environment["FICHERO_MULTIUSER"], "1")
+        XCTAssertEqual(environment["FICHERO_PUBLIC_BASE_URL"], "https://pairing.example.com:9443")
+        XCTAssertEqual(environment["FICHERO_TLS_CERTFILE"], "/tmp/server.crt")
+        XCTAssertEqual(environment["FICHERO_TLS_KEYFILE"], "/tmp/server.key")
+        XCTAssertEqual(environment["FICHERO_TLS_SPKI_HASH"], "c3BraS1waW4=")
+        XCTAssertEqual(environment["FICHERO_ENABLE_BONJOUR"], "1")
+        XCTAssertEqual(environment["FICHERO_ALLOW_NON_LOOPBACK_BIND"], "I_UNDERSTAND_SHARED_SECRET_RISK")
     }
 
     func testActivePairedDevicesFilterHidesRevokedDevices() {

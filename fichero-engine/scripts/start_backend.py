@@ -1,58 +1,82 @@
 #!/usr/bin/env python3
-"""
-Backend launcher for embedded Python in Fichero.app
+"""Backend launcher for the bundled Fichero engine."""
 
-This script is the entry point for the bundled Python backend.
-It starts uvicorn WITHOUT --reload (production mode).
-"""
+from __future__ import annotations
 
+import argparse
+import logging
 import os
 import sys
-import logging
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+# Shared with the engine entrypoint so the remote-access launch path uses the
+# same bind-host policy as the rest of the backend.
+from fichero.remote_access_tls import (
+    material_manifest_json,
+    prepare_remote_access_tls,
+    uvicorn_ssl_kwargs_from_env,
 )
+from fichero.bind_host import resolve_bind_host
+
 logger = logging.getLogger(__name__)
 
-def main():
-    """Start the Fichero backend server in production mode."""
 
-    # Detect if we're running from a bundle
+def main(argv: list[str] | None = None) -> None:
+    """Start the backend or prepare remote-access TLS material."""
+
+    parser = argparse.ArgumentParser(add_help=True)
+    parser.add_argument("--prepare-remote-access", action="store_true")
+    parser.add_argument("--public-base-url")
+    parser.add_argument("--remote-access-dir")
+    args, _remaining = parser.parse_known_args(argv)
+
+    if args.prepare_remote_access:
+        if not args.public_base_url:
+            raise SystemExit("--public-base-url is required for --prepare-remote-access")
+        material = prepare_remote_access_tls(
+            args.public_base_url,
+            storage_root=args.remote_access_dir,
+        )
+        sys.stdout.write(material_manifest_json(material))
+        sys.stdout.write("\n")
+        return
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+
+    # Detect if we're running from a bundle.
     bundle_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    is_bundled = bundle_dir.endswith('.app/Contents/Resources/python')
+    is_bundled = bundle_dir.endswith(".app/Contents/Resources/python")
 
     if is_bundled:
-        logger.info(f"Running from bundle: {bundle_dir}")
-        # Ensure PYTHONHOME is set correctly
+        logger.info("Running from bundle: %s", bundle_dir)
         python_home = os.path.dirname(os.path.dirname(sys.executable))
-        os.environ['PYTHONHOME'] = python_home
+        os.environ["PYTHONHOME"] = python_home
     else:
         logger.info("Running in development mode")
 
-    # Disable tokenizers parallelism (avoids fork warnings)
-    os.environ.setdefault('TOKENIZERS_PARALLELISM', 'false')
+    os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
-    # Import after environment is set up
     import uvicorn
 
-    # Production configuration (NO --reload!)
-    config = {
-        'app': 'fichero.api.main:app',
-        'host': '127.0.0.1',
-        'port': 8765,
-        'workers': 1,
-        'log_level': 'info',
-        'reload': False,  # ← CRITICAL: No hot-reload in production
+    bind_host = resolve_bind_host()
+    config: dict[str, object] = {
+        "app": "fichero.api.main:app",
+        "host": bind_host,
+        "port": 8765,
+        "workers": 1,
+        "log_level": "info",
+        "reload": False,
     }
+    config.update(uvicorn_ssl_kwargs_from_env())
 
-    logger.info(f"Starting Fichero backend on {config['host']}:{config['port']}")
-    logger.info(f"Hot-reload: {config['reload']}")
+    scheme = "https" if "ssl_certfile" in config else "http"
+    logger.info("Starting Fichero backend on %s://%s:%d", scheme, bind_host, config["port"])
+    logger.info("Hot-reload: %s", config["reload"])
 
-    # Start the server
     uvicorn.run(**config)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

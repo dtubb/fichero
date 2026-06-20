@@ -12,6 +12,19 @@ final class EngineConfigTests: XCTestCase {
         }
     }
 
+    private func restoreRemoteAccessState(enabled: Bool?, publicBaseURL: String?) {
+        if let enabled {
+            UserDefaults.standard.set(enabled, forKey: RemoteAccessConfig.hostingEnabledKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: RemoteAccessConfig.hostingEnabledKey)
+        }
+        if let publicBaseURL {
+            UserDefaults.standard.set(publicBaseURL, forKey: RemoteAccessConfig.publicBaseURLKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: RemoteAccessConfig.publicBaseURLKey)
+        }
+    }
+
     func testBlankHostPolicyDependsOnEmbeddedLocalAllowance() {
         XCTAssertEqual(
             EngineConfig.hostConfiguration(from: nil, allowsImplicitEmbeddedLocalDefault: true),
@@ -108,5 +121,37 @@ final class EngineConfigTests: XCTestCase {
         XCTAssertTrue(EngineConfig.engineIsLocal)
         XCTAssertTrue(EngineConfig.usesCustomHost)
         XCTAssertTrue(EngineConfig.requiresExternalBackendConnection)
+    }
+
+    func testValidatedHostedRemoteURLAcceptsLiteralIPAndLocalHost() throws {
+        let ipURL = try validatedHostedRemoteURL(from: "https://192.168.1.42:9443")
+        XCTAssertEqual(ipURL.absoluteString, "https://192.168.1.42:9443")
+
+        let localURL = try validatedHostedRemoteURL(from: "https://fichero.local:9443")
+        XCTAssertEqual(localURL.absoluteString, "https://fichero.local:9443")
+    }
+
+    func testValidatedHostedRemoteURLRejectsArbitraryDNSHostnames() {
+        XCTAssertThrowsError(
+            try validatedHostedRemoteURL(from: "https://pairing.example.com:9443")
+        ) { error in
+            XCTAssertEqual(error as? RemoteURLValidationError, .hostPolicyNotAllowed)
+        }
+    }
+
+    func testHostedRemoteAccessURLOverridesActiveEngineHost() {
+        let originalHost = UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey)
+        let originalRemoteEnabled = UserDefaults.standard.object(forKey: RemoteAccessConfig.hostingEnabledKey) as? Bool
+        let originalPublicBaseURL = UserDefaults.standard.string(forKey: RemoteAccessConfig.publicBaseURLKey)
+        defer {
+            restoreEngineHost(originalHost)
+            restoreRemoteAccessState(enabled: originalRemoteEnabled, publicBaseURL: originalPublicBaseURL)
+        }
+
+        UserDefaults.standard.set(true, forKey: RemoteAccessConfig.hostingEnabledKey)
+        UserDefaults.standard.set("https://192.168.1.42:9443", forKey: RemoteAccessConfig.publicBaseURLKey)
+
+        XCTAssertEqual(EngineConfig.host.absoluteString, "https://192.168.1.42:9443")
+        XCTAssertEqual(EngineConfig.apiBaseURL.absoluteString, "https://192.168.1.42:9443/api")
     }
 }

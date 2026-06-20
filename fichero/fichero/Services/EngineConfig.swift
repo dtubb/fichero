@@ -1,4 +1,5 @@
 // swiftlint:disable file_length
+import Darwin
 import FicheroAPIClient
 import Foundation
 
@@ -78,7 +79,10 @@ enum EngineConfig {
     /// Engine root — host + port, no `/api`, no trailing slash.
     /// (e.g. `http://127.0.0.1:8765`)
     static var host: URL {
-        resolvedHostConfiguration.host
+        if RemoteAccessConfig.hostingEnabled, let publicBaseURL = RemoteAccessConfig.publicBaseURL {
+            return publicBaseURL
+        }
+        return resolvedHostConfiguration.host
     }
 
     /// API base — the engine root with the `/api` prefix.
@@ -224,7 +228,7 @@ enum RemoteAccessConfig {
     }
 
     static var publicBaseURL: URL? {
-        try? validatedRemoteURL(from: publicBaseURLString, allowLocalhost: false, requireSecureTransportForRemote: true)
+        try? validatedHostedRemoteURL(from: publicBaseURLString)
     }
 
     static var advertisedSPKIPin: String {
@@ -233,6 +237,40 @@ enum RemoteAccessConfig {
 
     static func pairingBackendURL(from publicBaseURLString: String) -> URL? {
         try? validatedRemoteURL(from: publicBaseURLString, allowLocalhost: false, requireSecureTransportForRemote: true)
+    }
+
+    static func launchEnvironment(
+        for publicBaseURL: URL,
+        material: RemoteAccessTLSMaterial,
+        bonjourEnabled: Bool
+    ) -> [String: String] {
+        var environment = [
+            "FICHERO_MULTIUSER": "1",
+            "FICHERO_ALLOW_NON_LOOPBACK_BIND": "I_UNDERSTAND_SHARED_SECRET_RISK",
+            "FICHERO_BIND_HOST": material.bindHost,
+            "FICHERO_PUBLIC_BASE_URL": publicBaseURL.absoluteString,
+            "FICHERO_TLS_CERTFILE": material.certificatePath,
+            "FICHERO_TLS_KEYFILE": material.keyPath,
+            "FICHERO_TLS_SPKI_HASH": material.spkiPin
+        ]
+        if bonjourEnabled {
+            environment["FICHERO_ENABLE_BONJOUR"] = "1"
+        }
+        return environment
+    }
+}
+
+struct RemoteAccessTLSMaterial: Codable, Equatable {
+    let bindHost: String
+    let certificatePath: String
+    let keyPath: String
+    let spkiPin: String
+
+    enum CodingKeys: String, CodingKey {
+        case bindHost = "bind_host"
+        case certificatePath = "certificate_path"
+        case keyPath = "key_path"
+        case spkiPin = "spki_pin"
     }
 }
 
@@ -243,6 +281,7 @@ enum RemoteURLValidationError: LocalizedError, Equatable {
     case missingHost
     case insecureRemoteTransport
     case localhostNotAllowed
+    case hostPolicyNotAllowed
     case pathNotAllowed
     case queryNotAllowed
     case fragmentNotAllowed
@@ -258,9 +297,11 @@ enum RemoteURLValidationError: LocalizedError, Equatable {
         case .missingHost:
             return "Remote URLs must include a host name."
         case .insecureRemoteTransport:
-            return "Secure pairing needs HTTPS. Use an HTTPS URL such as a Tailscale HTTPS address."
+            return "Secure pairing needs HTTPS. Use a reachable HTTPS URL."
         case .localhostNotAllowed:
             return "Remote clients must use a non-localhost host."
+        case .hostPolicyNotAllowed:
+            return "Same-network hosting needs a literal IP address or .local hostname."
         case .pathNotAllowed:
             return "Remote URLs must be the backend root, without a path."
         case .queryNotAllowed:
@@ -313,6 +354,42 @@ func validatedRemoteURL(from raw: String, allowLocalhost: Bool, requireSecureTra
         throw RemoteURLValidationError.invalid
     }
     return url
+}
+
+func validatedHostedRemoteURL(from raw: String) throws -> URL {
+    let url = try validatedRemoteURL(
+        from: raw,
+        allowLocalhost: false,
+        requireSecureTransportForRemote: true
+    )
+    guard hostedRemoteURLIsAllowed(url) else {
+        throw RemoteURLValidationError.hostPolicyNotAllowed
+    }
+    return url
+}
+
+private func hostedRemoteURLIsAllowed(_ url: URL) -> Bool {
+    guard let host = url.host?.lowercased(), !host.isEmpty else {
+        return false
+    }
+    if host.hasSuffix(".local") {
+        return true
+    }
+    return isIPAddressLiteral(host)
+}
+
+private func isIPAddressLiteral(_ host: String) -> Bool {
+    var ipv4Address = in_addr()
+    if host.withCString({ inet_pton(AF_INET, $0, &ipv4Address) }) == 1 {
+        return true
+    }
+
+    var ipv6Address = in6_addr()
+    if host.withCString({ inet_pton(AF_INET6, $0, &ipv6Address) }) == 1 {
+        return true
+    }
+
+    return false
 }
 
 struct PairingQRCodePayload: Codable {

@@ -6,6 +6,9 @@ Defaults to dev hot-reload when running from a Briefcase dev bundle, and
 defaults to production behavior otherwise.
 """
 
+from __future__ import annotations
+
+import argparse
 import logging
 import os
 import socket
@@ -15,6 +18,11 @@ import tracemalloc
 import warnings
 
 from fichero.bind_host import resolve_bind_host
+from fichero.remote_access_tls import (
+    material_manifest_json,
+    prepare_remote_access_tls,
+    uvicorn_ssl_kwargs_from_env,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -47,8 +55,25 @@ def _is_briefcase_dev_bundle() -> bool:
     return any(".briefcase" in p and "dev.cpython" in p for p in candidates if p)
 
 
-def main():
+def main(argv: list[str] | None = None):
     """Start the Fichero API backend server."""
+
+    parser = argparse.ArgumentParser(add_help=True)
+    parser.add_argument("--prepare-remote-access", action="store_true")
+    parser.add_argument("--public-base-url")
+    parser.add_argument("--remote-access-dir")
+    args, _remaining = parser.parse_known_args(argv)
+
+    if args.prepare_remote_access:
+        if not args.public_base_url:
+            raise SystemExit("--public-base-url is required for --prepare-remote-access")
+        material = prepare_remote_access_tls(
+            args.public_base_url,
+            storage_root=args.remote_access_dir,
+        )
+        sys.stdout.write(material_manifest_json(material))
+        sys.stdout.write("\n")
+        return
 
     # Disable tokenizers parallelism (avoids fork warnings)
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
@@ -98,13 +123,6 @@ def main():
 
     bind_host = resolve_bind_host()
 
-    logger.info("Starting Fichero Backend (Briefcase bundle)")
-    logger.info("Server will listen on http://%s:8765", bind_host)
-    logger.info(
-        "Hot-reload: %s",
-        "ENABLED (dev mode)" if reload_enabled else "DISABLED (production mode)",
-    )
-
     uvicorn_kwargs = dict(
         app="fichero.api.main:app",
         host=bind_host,
@@ -120,9 +138,19 @@ def main():
     if reload_enabled:
         # Limit reload scope to backend source to avoid whole-home scan noise.
         uvicorn_kwargs["reload_dirs"] = [src_dir]
+    uvicorn_kwargs.update(uvicorn_ssl_kwargs_from_env())
+
+    scheme = "https" if "ssl_certfile" in uvicorn_kwargs else "http"
+    logger.info("Starting Fichero Backend (Briefcase bundle)")
+    logger.info("Server will listen on %s://%s:8765", scheme, bind_host)
+    logger.info(
+        "Hot-reload: %s",
+        "ENABLED (dev mode)" if reload_enabled else "DISABLED (production mode)",
+    )
 
     # Preflight port check avoids noisy socket ResourceWarning when bind fails.
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+    socket_family = socket.AF_INET6 if ":" in bind_host else socket.AF_INET
+    with socket.socket(socket_family, socket.SOCK_STREAM) as sock:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         if sock.connect_ex((bind_host, 8765)) == 0:
             logger.error(

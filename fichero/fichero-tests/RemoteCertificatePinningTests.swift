@@ -9,6 +9,7 @@ final class RemoteCertificatePinningTests: XCTestCase {
     private let hostOne = "https://host-one.tailnet.example"
     private let hostTwo = "https://host-two.tailnet.example:8443"
     private let hostOneDefaultPort = "https://host-one.tailnet.example:443/api"
+    private let hostedBackendHost = "https://pairing.example.com:9443"
     private let advertisedPin = Data("advertised-spki".utf8).base64EncodedString()
     private let hostOnePin = Data("host-one-spki".utf8).base64EncodedString()
     private let hostTwoPin = Data("host-two-spki".utf8).base64EncodedString()
@@ -17,8 +18,10 @@ final class RemoteCertificatePinningTests: XCTestCase {
         super.tearDown()
         RemoteCertificatePinning.clearAdvertisedSPKIPin(hostString: hostOne)
         RemoteCertificatePinning.clearAdvertisedSPKIPin(hostString: hostTwo)
+        RemoteCertificatePinning.clearAdvertisedSPKIPin(hostString: hostedBackendHost)
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostOne)
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostTwo)
+        RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostedBackendHost)
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostOneDefaultPort)
     }
 
@@ -70,6 +73,13 @@ final class RemoteCertificatePinningTests: XCTestCase {
         XCTAssertEqual(RemoteCertificatePinning.persistedSPKIPin(hostString: hostOne), hostOnePin)
     }
 
+    func testHostedBackendSPKIPinIsAvailableToBothQRAndClientSessions() throws {
+        try RemoteCertificatePinning.persistHostedBackendSPKIPin(advertisedPin, hostString: hostedBackendHost)
+
+        XCTAssertEqual(RemoteCertificatePinning.advertisedSPKIPin(hostString: hostedBackendHost), advertisedPin)
+        XCTAssertEqual(RemoteCertificatePinning.persistedSPKIPin(hostString: hostedBackendHost), advertisedPin)
+    }
+
     func testPersistedPinsNormalizeExplicitDefaultPorts() throws {
         try RemoteCertificatePinning.persistSPKIPin(hostOnePin, hostString: hostOneDefaultPort)
         try RemoteCertificatePinning.persistAdvertisedSPKIPin(advertisedPin, hostString: hostOneDefaultPort)
@@ -99,5 +109,79 @@ final class RemoteCertificatePinningTests: XCTestCase {
             XCTAssertEqual(error as? RemoteCertificatePinningError, .serverIdentityMismatch)
         }
     }
+
+    func testValidateServerTrustAcceptsPinnedSelfSignedCertificate() throws {
+        let trustContext = try SelfSignedTrustFixture.makeTrust()
+
+        XCTAssertNoThrow(
+            try RemoteCertificatePinning.validateServerTrust(
+                trustContext.trust,
+                host: trustContext.host,
+                expectedSPKIPin: trustContext.spkiPin
+            )
+        )
+    }
+
+    func testValidateServerTrustRejectsPinnedSelfSignedCertificateWithWrongPin() throws {
+        let trustContext = try SelfSignedTrustFixture.makeTrust()
+        let wrongPin = Data("wrong-pin".utf8).base64EncodedString()
+
+        XCTAssertThrowsError(
+            try RemoteCertificatePinning.validateServerTrust(
+                trustContext.trust,
+                host: trustContext.host,
+                expectedSPKIPin: wrongPin
+            )
+        ) { error in
+            XCTAssertEqual(error as? RemoteCertificatePinningError, .serverIdentityMismatch)
+        }
+    }
     #endif
 }
+
+#if canImport(Security)
+private enum SelfSignedTrustFixture {
+    private static let certificatePEM = """
+    -----BEGIN CERTIFICATE-----
+    MIIBsjCCAVigAwIBAgIUKq7jMn7Md6TrOFgBs2n+UOTcStQwCgYIKoZIzj0EAwIw
+    HjEcMBoGA1UEAwwTcGFpcmluZy5leGFtcGxlLmNvbTAeFw0yNjA2MjAwMjEwNTda
+    Fw0zNjA2MTcwMjEwNTdaMB4xHDAaBgNVBAMME3BhaXJpbmcuZXhhbXBsZS5jb20w
+    WTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAATtX7g1xvgqa6sHVGbnKRVqjlblLvH9
+    zCSGG1vBICt8n/BksZre3ZA0Ys9xcdQeXKn5JSd2erCtSvNAnMLPvjxco3QwcjAe
+    BgNVHREEFzAVghNwYWlyaW5nLmV4YW1wbGUuY29tMAwGA1UdEwEB/wQCMAAwDgYD
+    VR0PAQH/BAQDAgWgMBMGA1UdJQQMMAoGCCsGAQUFBwMBMB0GA1UdDgQWBBQF5zYh
+    4ZbjbccvXv/Q5lIEIBxC0jAKBggqhkjOPQQDAgNIADBFAiEA6ylvFxOS10LqtJuf
+    TuVXtPUbqmtyFyFQOMg0jJuXC9kCIG35tnzQEvkWauYH4PSBJXT5JxOH/N/Hqu1Q
+    ssceEo99
+    -----END CERTIFICATE-----
+    """
+
+    struct TrustContext {
+        let trust: SecTrust
+        let host: String
+        let spkiPin: String
+    }
+
+    static func makeTrust() throws -> TrustContext {
+        let certificate = try certificate()
+        let host = "pairing.example.com"
+        let policy = SecPolicyCreateSSL(true, host as CFString)
+        var optionalTrust: SecTrust?
+        let status = SecTrustCreateWithCertificates([certificate] as CFArray, policy, &optionalTrust)
+        XCTAssertEqual(status, errSecSuccess)
+        let trust = try XCTUnwrap(optionalTrust)
+        let publicKey = try XCTUnwrap(SecCertificateCopyKey(certificate))
+        let spkiPin = try RemoteCertificatePinning.spkiPin(for: publicKey)
+        return TrustContext(trust: trust, host: host, spkiPin: spkiPin)
+    }
+
+    private static func certificate() throws -> SecCertificate {
+        let base64Body = certificatePEM
+            .components(separatedBy: .newlines)
+            .filter { !$0.hasPrefix("-----") && !$0.isEmpty }
+            .joined()
+        let derData = try XCTUnwrap(Data(base64Encoded: base64Body))
+        return try XCTUnwrap(SecCertificateCreateWithData(nil, derData as CFData))
+    }
+}
+#endif

@@ -1,14 +1,20 @@
 #if canImport(AppKit)
-// swiftlint:disable file_length type_body_length
+// swiftlint:disable file_length
 import AppKit
 import CoreImage
 import CoreImage.CIFilterBuiltins
 import FicheroAPIClient
 import SwiftUI
 
+private let hostedRemoteAccessHelpText = """
+Use a private reachable URL such as a literal IP address or a .local hostname.
+Bonjour only announces that this Mac is available; the QR code still carries the URL the client should call.
+"""
+
 struct BackendSettingsRemoteAccessSection: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var backendService: EmbeddedBackendService
+    @EnvironmentObject private var libraryManager: LibraryManager
     @AppStorage(EngineConfig.userDefaultsKey) private var engineHost = EngineConfig.defaultHostString
     @AppStorage(RemoteAccessConfig.hostingEnabledKey) private var hostingEnabled = false
     @AppStorage(RemoteAccessConfig.bonjourEnabledKey) private var bonjourEnabled = false
@@ -84,11 +90,11 @@ struct BackendSettingsRemoteAccessSection: View {
 
     private var ownerPairingService: PairingService? {
         guard canHostRemoteAccess else { return nil }
-        return PairingService(apiRoot: EngineConfig.host)
+                return PairingService(apiRoot: EngineConfig.host)
     }
 
     private var advertisedPairingService: PairingService? {
-        guard let publicURL = try? validatedReachableURL() else { return nil }
+        guard let publicURL = try? validatedHostedRemoteURL(from: publicBaseURL) else { return nil }
         return PairingService(apiRoot: publicURL)
     }
 
@@ -97,7 +103,7 @@ struct BackendSettingsRemoteAccessSection: View {
     }
 
     private var validatedPublicURL: URL? {
-        try? validatedReachableURL()
+        try? validatedHostedRemoteURL(from: publicBaseURL)
     }
 
     private var pairingRefreshKey: String {
@@ -153,7 +159,7 @@ struct BackendSettingsRemoteAccessSection: View {
         }
 
         do {
-            _ = try validatedReachableURL()
+            _ = try validatedHostedRemoteURL(from: publicBaseURL)
         } catch let error as RemoteURLValidationError {
             switch error {
             case .blank:
@@ -183,25 +189,24 @@ struct BackendSettingsRemoteAccessSection: View {
                     pairingError = "Use the embedded engine on this Mac to host remotely."
                     return
                 }
-                _ = try validatedReachableURL()
-                let normalizedSPKIPin = try RemoteCertificatePinning.validatedSPKIPin(spkiPin)
-                try RemoteCertificatePinning.persistAdvertisedSPKIPin(
-                    normalizedSPKIPin,
-                    hostString: publicBaseURL
-                )
+                _ = try validatedHostedRemoteURL(from: publicBaseURL)
             } catch {
                 pairingError = error.localizedDescription
                 return
             }
         } else {
             RemoteCertificatePinning.clearAdvertisedSPKIPin(hostString: publicBaseURL)
+            RemoteCertificatePinning.clearPersistedSPKIPin(hostString: publicBaseURL)
+            loadAdvertisedSPKIPin()
         }
 
         backendService.stop()
         do {
             try await backendService.start()
+            loadAdvertisedSPKIPin()
             await appState.checkBackendHealth()
             appState.reconfigureGeneratedClientsForCurrentHost()
+            libraryManager.reconfigureGeneratedClientsForCurrentHost()
             if hostingEnabled {
                 await refreshPairedDevices()
             }
@@ -272,10 +277,6 @@ struct BackendSettingsRemoteAccessSection: View {
         } catch {
             pairingError = error.localizedDescription
         }
-    }
-
-    private func validatedReachableURL() throws -> URL {
-        try validatedRemoteURL(from: publicBaseURL, allowLocalhost: false, requireSecureTransportForRemote: true)
     }
 
     private func loadAdvertisedSPKIPin() {
@@ -437,11 +438,7 @@ private struct AdvancedRemoteAccessSection: View {
                 .autocorrectionDisabled()
                 .disabled(!hostingEnabled)
 
-            Text(
-                "Use a private reachable URL such as your Tailscale HTTPS address. "
-                    + "Bonjour only announces that this Mac is available; the QR code "
-                    + "still carries the URL the client should call."
-            )
+            Text(hostedRemoteAccessHelpText)
             .font(.caption)
             .foregroundStyle(.secondary)
 
@@ -462,4 +459,4 @@ private struct AdvancedRemoteAccessSection: View {
     }
 }
 #endif
-// swiftlint:enable file_length type_body_length
+// swiftlint:enable file_length

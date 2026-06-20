@@ -29,7 +29,12 @@ final class EmbeddedBackendService: ObservableObject {
 
     private var backendPID: pid_t?
     private var isExternalBackend = false  // Track if using external vs embedded backend
-    private var backendURL: URL { EngineConfig.host }
+    private var backendURL: URL {
+        if RemoteAccessConfig.hostingEnabled, let publicBaseURL = RemoteAccessConfig.publicBaseURL {
+            return publicBaseURL
+        }
+        return EngineConfig.host
+    }
 
     enum BackendStatus {
         case stopped
@@ -231,6 +236,31 @@ final class EmbeddedBackendService: ObservableObject {
         Self.waitForPortToClear(8765, timeout: 3.0)
         #endif
 
+        var remoteAccessMaterial: RemoteAccessTLSMaterial?
+        var remoteAccessPublicBaseURL: URL?
+        if RemoteAccessConfig.hostingEnabled {
+            guard let publicBaseURL = RemoteAccessConfig.publicBaseURL else {
+                throw BackendError.launchFailed(
+                    NSError(
+                        domain: "EmbeddedBackendService",
+                        code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: "Remote access needs a reachable HTTPS URL."]
+                    )
+                )
+            }
+            remoteAccessPublicBaseURL = publicBaseURL
+            remoteAccessMaterial = try prepareRemoteAccessTLSMaterial(
+                executablePath: executablePath,
+                publicBaseURL: publicBaseURL
+            )
+            if let remoteAccessMaterial {
+                try RemoteCertificatePinning.persistHostedBackendSPKIPin(
+                    remoteAccessMaterial.spkiPin,
+                    hostString: publicBaseURL.absoluteString
+                )
+            }
+        }
+
         logger.info("Launching backend process: \(executablePath)")
 
         // Use Process for direct process control - much simpler than NSWorkspace
@@ -242,14 +272,15 @@ final class EmbeddedBackendService: ObservableObject {
         // chance to call .stop() (e.g., SIGKILL). Belt-and-braces with the
         // applicationWillTerminate path.
         environment["FICHERO_PARENT_PID"] = String(ProcessInfo.processInfo.processIdentifier)
-        if RemoteAccessConfig.hostingEnabled {
-            environment["FICHERO_MULTIUSER"] = "1"
-            if RemoteAccessConfig.bonjourEnabled {
-                environment["FICHERO_ENABLE_BONJOUR"] = "1"
-            }
-            if let publicBaseURL = RemoteAccessConfig.publicBaseURL {
-                environment["FICHERO_PUBLIC_BASE_URL"] = publicBaseURL.absoluteString
-            }
+        if let remoteAccessMaterial, let remoteAccessPublicBaseURL {
+            environment.merge(
+                RemoteAccessConfig.launchEnvironment(
+                    for: remoteAccessPublicBaseURL,
+                    material: remoteAccessMaterial,
+                    bonjourEnabled: RemoteAccessConfig.bonjourEnabled
+                ),
+                uniquingKeysWith: { _, new in new }
+            )
         }
         #if DEBUG
         // Ensure workflow/provider routes are available for debug UI surfaces.
@@ -286,6 +317,53 @@ final class EmbeddedBackendService: ObservableObject {
         backendPID = pid
         isExternalBackend = false
         logger.info("Tracking embedded backend PID: \(pid)")
+    }
+
+    private func prepareRemoteAccessTLSMaterial(
+        executablePath: String,
+        publicBaseURL: URL
+    ) throws -> RemoteAccessTLSMaterial {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executablePath)
+        process.arguments = [
+            "--prepare-remote-access",
+            "--public-base-url",
+            publicBaseURL.absoluteString
+        ]
+
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.standardOutput = stdout
+        process.standardError = stderr
+
+        try process.run()
+        process.waitUntilExit()
+
+        let outputData = stdout.fileHandleForReading.readDataToEndOfFile()
+        let errorData = stderr.fileHandleForReading.readDataToEndOfFile()
+        guard process.terminationStatus == 0 else {
+            let message = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                ?? "Remote access TLS preparation failed."
+            throw BackendError.launchFailed(
+                NSError(
+                    domain: "EmbeddedBackendService",
+                    code: Int(process.terminationStatus),
+                    userInfo: [NSLocalizedDescriptionKey: message]
+                )
+            )
+        }
+
+        do {
+            return try JSONDecoder().decode(RemoteAccessTLSMaterial.self, from: outputData)
+        } catch {
+            throw BackendError.launchFailed(
+                NSError(
+                    domain: "EmbeddedBackendService",
+                    code: 2,
+                    userInfo: [NSLocalizedDescriptionKey: "Could not decode remote access TLS material."]
+                )
+            )
+        }
     }
     #endif
 

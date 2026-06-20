@@ -24,6 +24,7 @@ fi
 SYNC_OPENAPI=true
 SKIP_VALIDATION=false
 RELOAD=false
+UVICORN_SSL_ARGS=()
 
 for arg in "$@"; do
   case $arg in
@@ -39,6 +40,22 @@ for arg in "$@"; do
       ;;
   esac
 done
+
+if [ -n "${FICHERO_TLS_CERTFILE:-}" ] || [ -n "${FICHERO_TLS_KEYFILE:-}" ]; then
+  if [ -z "${FICHERO_TLS_CERTFILE:-}" ] || [ -z "${FICHERO_TLS_KEYFILE:-}" ]; then
+    echo "FICHERO_TLS_CERTFILE and FICHERO_TLS_KEYFILE must both be set."
+    exit 1
+  fi
+  UVICORN_SSL_ARGS+=(--ssl-certfile "$FICHERO_TLS_CERTFILE" --ssl-keyfile "$FICHERO_TLS_KEYFILE")
+fi
+
+UVICORN_BIND_HOST="$(
+  PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" - <<'PY'
+from fichero.bind_host import resolve_bind_host
+
+print(resolve_bind_host())
+PY
+)"
 
 if [ "$SYNC_OPENAPI" = true ]; then
   "$API_ROOT/scripts/sync_openapi_schema.sh"
@@ -56,7 +73,8 @@ if [ "$RELOAD" = true ]; then
   # that. Do not use reload against the real app DuckDB; the reloader parent and
   # child can contend for the same single-process DuckDB lock during app import.
   PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" -m uvicorn fichero.api.main:app --port 8765 \
-    --reload --reload-dir "$API_ROOT/src"
+    --reload --reload-dir "$API_ROOT/src" --host "$UVICORN_BIND_HOST" "${UVICORN_SSL_ARGS[@]}"
 else
-  PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" -m uvicorn fichero.api.main:app --port 8765
+  PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" -m uvicorn fichero.api.main:app --port 8765 \
+    --host "$UVICORN_BIND_HOST" "${UVICORN_SSL_ARGS[@]}"
 fi

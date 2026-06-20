@@ -101,6 +101,15 @@ public enum RemoteCertificatePinning {
         UserDefaults.standard.removeObject(forKey: legacyAdvertisedSPKIPinUserDefaultsKey)
     }
 
+    public static func persistHostedBackendSPKIPin(_ raw: String, hostString: String? = nil) throws {
+        let normalized = try validatedSPKIPin(raw)
+        let advertisedStorageKey = advertisedSPKIPinUserDefaultsKey(hostString: hostString)
+        let clientStorageKey = clientSPKIPinUserDefaultsKey(hostString: hostString)
+        UserDefaults.standard.set(normalized, forKey: advertisedStorageKey)
+        UserDefaults.standard.set(normalized, forKey: clientStorageKey)
+        UserDefaults.standard.removeObject(forKey: legacyAdvertisedSPKIPinUserDefaultsKey)
+    }
+
     public static func clearAdvertisedSPKIPin(hostString: String? = nil) {
         let storageKey = advertisedSPKIPinUserDefaultsKey(hostString: hostString)
         UserDefaults.standard.removeObject(forKey: storageKey)
@@ -143,10 +152,12 @@ public enum RemoteCertificatePinning {
         let sslPolicy = SecPolicyCreateSSL(true, host as CFString)
         SecTrustSetPolicies(trust, sslPolicy)
 
+        // Remote-access QR pairing intentionally allows a locally generated,
+        // self-signed leaf certificate as long as the QR/persisted SPKI pin
+        // matches. The pin is the trust root for this flow; CA validation is
+        // still preserved for all unpinned traffic paths elsewhere.
         var trustError: CFError?
-        guard SecTrustEvaluateWithError(trust, &trustError) else {
-            throw RemoteCertificatePinningError.serverTrustEvaluationFailed
-        }
+        _ = SecTrustEvaluateWithError(trust, &trustError)
         guard let certificate = SecTrustGetCertificateAtIndex(trust, 0) else {
             throw RemoteCertificatePinningError.serverCertificateUnavailable
         }
