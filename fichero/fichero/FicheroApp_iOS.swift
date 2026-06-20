@@ -115,18 +115,10 @@ private struct FicheroSharedPlatformRoot: View {
     }
 }
 
-private enum RemoteConnectionSheet: Identifiable {
-    case scanner
-    case captureQueue
-
-    var id: Int {
-        switch self {
-        case .scanner:
-            return 0
-        case .captureQueue:
-            return 1
-        }
-    }
+private enum DeviceEntryPhase {
+    case connect
+    case signingIn(PairingQRCodePayload)
+    case capture
 }
 
 private struct RemoteConnectionSetupView: View {
@@ -136,126 +128,202 @@ private struct RemoteConnectionSetupView: View {
 
     let onConnected: @MainActor () async -> Void
 
-    @State private var detectedPayload: PairingQRCodePayload?
-    @State private var presentedSheet: RemoteConnectionSheet?
-    @State private var inviteText = ""
-    @State private var showManualInvite = false
+    @State private var phase: DeviceEntryPhase = .connect
+    @State private var showingScanner = false
+    @State private var username = ""
+    @State private var password = ""
     @State private var isPairing = false
     @State private var errorMessage: String?
+    @State private var pickerSource: CaptureSource?
+    @State private var captureError: String?
 
     var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Connect to your Mac")
-                            .font(.title2.weight(.semibold))
-                        Text("Scan the QR code shown in Fichero Settings on the host Mac.")
-                            .foregroundStyle(.secondary)
+        Group {
+            switch phase {
+            case .connect:
+                connectView
+            case .signingIn(let payload):
+                signInView(payload: payload)
+            case .capture:
+                captureView
+            }
+        }
+        .sheet(isPresented: $showingScanner) {
+            QRCodeScannerSheet(
+                onCancel: { showingScanner = false },
+                onMessage: { message in
+                    handleScannedMessage(message)
+                    showingScanner = false
+                }
+            )
+        }
+        .sheet(item: $pickerSource) { source in
+            MobileCaptureImagePicker(
+                sourceType: source.sourceType,
+                onImage: { image in handleCapturedImage(image, source: source) },
+                onCancel: { pickerSource = nil }
+            )
+        }
+    }
+
+    // MARK: — Connect
+
+    private var connectView: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Connect to Fichero on Mac")
+                    .font(.largeTitle.bold())
+
+                VStack(spacing: 14) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 22)
+                            .fill(Color.accentColor.opacity(0.08))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 22)
+                                    .stroke(Color.accentColor.opacity(0.18), lineWidth: 1)
+                            )
+                        Image(systemName: "qrcode.viewfinder")
+                            .font(.system(size: 64))
+                            .foregroundStyle(Color.accentColor.opacity(0.45))
                     }
+                    .frame(height: 220)
 
                     Button {
                         if supportsCameraScanner {
-                            presentedSheet = .scanner
+                            showingScanner = true
                         } else {
-                            showManualInvite = true
-                            errorMessage = "Camera scanning is unavailable here. Use the manual link below."
+                            errorMessage = "Camera scanning is unavailable on this device."
                         }
                     } label: {
                         Label("Scan QR Code", systemImage: "qrcode.viewfinder")
-                            .frame(maxWidth: .infinity)
+                            .frame(maxWidth: .infinity, minHeight: 46)
                     }
                     .buttonStyle(.borderedProminent)
-                }
 
-                Section("Capture Queue") {
-                    Text("Save photos, PDFs, and web pages now. Fichero uploads them when this device connects.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    Button {
-                        presentedSheet = .captureQueue
-                    } label: {
-                        Label("Open Capture Queue", systemImage: "tray.full")
-                            .frame(maxWidth: .infinity)
+                    Button { phase = .capture } label: {
+                        Text("Capture Document")
+                            .frame(maxWidth: .infinity, minHeight: 46)
                     }
                     .buttonStyle(.bordered)
                 }
-
-                if let detectedPayload {
-                    Section {
-                        Text("Ready to connect to the Mac you scanned.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Section {
-                    DisclosureGroup("Manual link", isExpanded: $showManualInvite) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Use this only if scanning is unavailable.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-
-                            TextField("Invite link or QR text", text: $inviteText, axis: .vertical)
-                                .textFieldStyle(.roundedBorder)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-
-                            Button {
-                                Task { await pairUsingAvailableInput() }
-                            } label: {
-                                Label("Connect", systemImage: "link")
-                                    .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.bordered)
-                            .disabled(isPairing || inviteText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        }
-                        .padding(.top, 6)
-                    }
-                }
+                .padding(18)
+                .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 18))
 
                 if let errorMessage {
-                    Section {
-                        Text(errorMessage)
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            }
+            .padding(18)
+            .frame(maxWidth: 460)
+            .frame(maxWidth: .infinity, alignment: .center)
+        }
+        .background(Color(.systemGroupedBackground))
+    }
+
+    // MARK: — Sign in
+
+    private func signInView(payload: PairingQRCodePayload) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Sign in to Fichero")
+                    .font(.largeTitle.bold())
+
+                VStack(spacing: 14) {
+                    TextField("Username", text: $username)
+                        .textContentType(.username)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .textFieldStyle(.roundedBorder)
+                        .frame(minHeight: 46)
+
+                    SecureField("Password", text: $password)
+                        .textContentType(.password)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(minHeight: 46)
+
+                    Button {
+                        Task { await signIn(payload: payload) }
+                    } label: {
+                        Group {
+                            if isPairing {
+                                ProgressView()
+                            } else {
+                                Text("Sign In")
+                            }
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 46)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isPairing)
+                }
+                .padding(18)
+                .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 18))
+
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            }
+            .padding(18)
+            .frame(maxWidth: 460)
+            .frame(maxWidth: .infinity, alignment: .center)
+        }
+        .background(Color(.systemGroupedBackground))
+    }
+
+    // MARK: — Capture
+
+    private var captureView: some View {
+        NavigationStack {
+            List {
+                Section {
+                    #if os(visionOS)
+                    Button { pickerSource = .library } label: {
+                        Label("Choose From Library", systemImage: "photo.on.rectangle")
+                            .frame(maxWidth: .infinity, minHeight: 46)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    #else
+                    Button { pickerSource = .camera } label: {
+                        Label("Capture Document", systemImage: "camera")
+                            .frame(maxWidth: .infinity, minHeight: 46)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    #endif
+
+                    if let captureError {
+                        Text(captureError)
                             .font(.caption)
                             .foregroundStyle(.red)
                     }
                 }
 
-                if let backendError = appState.backendError {
+                if !captureQueue.items.isEmpty {
                     Section {
-                        Text(backendError)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        ForEach(captureQueue.items) { item in
+                            InlineCaptureRow(item: item, queue: captureQueue)
+                        }
+                        .onDelete { indexSet in
+                            for index in indexSet {
+                                captureQueue.removeItem(id: captureQueue.items[index].id)
+                            }
+                        }
                     }
                 }
             }
-            .navigationTitle("Fichero")
-        }
-        .sheet(item: $presentedSheet) { sheet in
-            switch sheet {
-            case .scanner:
-                QRCodeScannerSheet(
-                    onCancel: { presentedSheet = nil },
-                    onMessage: { message in
-                        handleScannedMessage(message)
-                        presentedSheet = nil
-                    }
-                )
-            case .captureQueue:
-                MobileCaptureQueueView(
-                    queue: captureQueue,
-                    retryPendingUploads: {
-                        await captureQueue.resumePendingUploads(
-                            using: MobileCaptureBackendUploadClient(libraryManager: libraryManager),
-                            retryInterruptedUploads: true
-                        )
-                    }
-                )
+            .navigationTitle("Capture Document")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Back") { phase = .connect }
+                }
             }
         }
     }
+
+    // MARK: — Helpers
 
     private var supportsCameraScanner: Bool {
         #if os(visionOS)
@@ -268,37 +336,89 @@ private struct RemoteConnectionSetupView: View {
     private func handleScannedMessage(_ message: String) {
         do {
             let payload = try PairingQRCodePayloadDecoder.decode(message: message)
-            detectedPayload = payload
-            inviteText = try RemoteClientPairing.inviteLinkString(from: payload)
             errorMessage = nil
-            Task { await pairUsingAvailableInput() }
+            phase = .signingIn(payload)
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
-    private func pairUsingAvailableInput() async {
+    private func signIn(payload: PairingQRCodePayload) async {
         isPairing = true
         errorMessage = nil
         defer { isPairing = false }
-
         do {
-            let pairingFields = try RemoteClientPairing.pairingFields(fromInviteOrPayload: inviteText)
-            let url = try await RemoteClientPairing.pairAndPersistHost(
-                remoteURL: pairingFields.remoteURL,
-                pairCode: pairingFields.pairCode,
+            let inviteText = try RemoteClientPairing.inviteLinkString(from: payload)
+            let fields = try RemoteClientPairing.pairingFields(fromInviteOrPayload: inviteText)
+            _ = try await RemoteClientPairing.pairAndPersistHost(
+                remoteURL: fields.remoteURL,
+                pairCode: fields.pairCode,
                 deviceName: RemoteClientPairing.defaultDeviceName(),
-                expectedSPKIPin: pairingFields.spkiPin
+                expectedSPKIPin: fields.spkiPin
             )
+            // ponytail: username/password not validated — wire to /api/auth/login when #2021 ships
             appState.reconfigureGeneratedClientsForCurrentHost()
             libraryManager.reconfigureGeneratedClientsForCurrentHost()
             await onConnected()
             if !appState.isBackendRunning {
-                errorMessage = "Paired successfully, but the host is not responding yet."
+                errorMessage = "Paired but the host is not responding yet."
             }
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func handleCapturedImage(_ image: UIImage, source: CaptureSource) {
+        pickerSource = nil
+        let jpegData = image.jpegData(compressionQuality: 0.9)
+        guard let data = jpegData ?? image.pngData() else {
+            captureError = "Could not encode the captured image."
+            return
+        }
+        do {
+            let catalog = MobileCaptureCatalogFields(sourceArchiveHint: source.defaultSourceHint)
+            _ = try captureQueue.enqueueCapturedImage(
+                data,
+                catalog: catalog,
+                fileExtension: jpegData == nil ? "png" : "jpg"
+            )
+            captureError = nil
+        } catch {
+            captureError = error.localizedDescription
+        }
+    }
+}
+
+private struct InlineCaptureRow: View {
+    let item: MobileCaptureQueueItem
+    @ObservedObject var queue: MobileCaptureQueueStore
+
+    var body: some View {
+        HStack(spacing: 12) {
+            thumbnailView
+            Text(item.catalog.documentName(fallback: item.imageFileName))
+                .font(.body.weight(.semibold))
+                .lineLimit(2)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var thumbnailView: some View {
+        Group {
+            if let image = UIImage(contentsOfFile: queue.imageURL(for: item).path) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                ZStack {
+                    Color.accentColor.opacity(0.12)
+                    Image(systemName: "photo")
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+        }
+        .frame(width: 42, height: 42)
+        .clipShape(RoundedRectangle(cornerRadius: 11))
     }
 }
 
