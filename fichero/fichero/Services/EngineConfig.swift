@@ -82,7 +82,71 @@ enum EngineConfig {
         if RemoteAccessConfig.hostingEnabled, let publicBaseURL = RemoteAccessConfig.publicBaseURL {
             return publicBaseURL
         }
+        #if os(macOS)
+        // macOS runs the engine locally, so the host resolved from
+        // `fichero.engine.host` (localhost-by-default) is the active host.
         return resolvedHostConfiguration.host
+        #else
+        // iOS/iPadOS never runs a local engine. Connect straight to the
+        // saved/paired remote host as the first candidate — never probe
+        // localhost, which has no engine and only times out before the real
+        // (remote) host is tried (#2465). Falls back to the resolved sentinel
+        // when nothing is paired yet, preserving the setup-screen behaviour.
+        return connectionCandidates.first ?? resolvedHostConfiguration.host
+        #endif
+    }
+
+    // MARK: - Connection candidate ordering
+
+    /// Engine hosts to attempt, in priority order, when establishing the
+    /// initial connection. The first reachable candidate wins.
+    ///
+    /// Branches by platform because only macOS runs a local engine:
+    /// - **macOS** tries the local engine (`defaultHostString`) first and a
+    ///   configured non-loopback remote host (if any) as the fallback.
+    /// - **iOS / iPadOS** has no local engine, so the saved/paired remote host
+    ///   is the first (and only) candidate. localhost is omitted entirely —
+    ///   probing it just times out and delays connecting to the real engine
+    ///   (#2465).
+    static var connectionCandidates: [URL] {
+        orderedConnectionCandidates(
+            savedHostString: UserDefaults.standard.string(forKey: userDefaultsKey),
+            isMacOS: allowsEmbeddedLocalDefault
+        )
+    }
+
+    /// Pure, dependency-injected ordering used by `connectionCandidates`.
+    /// `savedHostString` is the persisted `fichero.engine.host`; `isMacOS`
+    /// selects the platform branch. Exposed (rather than inlined) so the
+    /// ordering can be unit-tested without mutating `UserDefaults` or the
+    /// build platform.
+    static func orderedConnectionCandidates(
+        savedHostString: String?,
+        isMacOS: Bool
+    ) -> [URL] {
+        let savedRemote: URL?
+        if case let .configured(url) = hostConfiguration(
+            from: savedHostString,
+            allowsImplicitEmbeddedLocalDefault: false
+        ) {
+            savedRemote = url
+        } else {
+            savedRemote = nil
+        }
+
+        guard isMacOS else {
+            // iOS: saved/paired remote first, localhost never.
+            return savedRemote.map { [$0] } ?? []
+        }
+
+        // macOS: local engine first, configured non-loopback remote fallback.
+        var candidates = [makeDefaultHostURL()]
+        if let savedRemote,
+           let savedHost = savedRemote.host?.lowercased(),
+           !isLoopbackHostLiteral(savedHost) {
+            candidates.append(savedRemote)
+        }
+        return candidates
     }
 
     /// API base — the engine root with the `/api` prefix.

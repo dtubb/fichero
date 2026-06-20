@@ -176,6 +176,58 @@ final class EngineConfigTests: XCTestCase {
         XCTAssertEqual(EngineConfig.apiBaseURL.absoluteString, "https://192.168.1.42:9443/api")
     }
 
+    // MARK: - Connection candidate ordering (#2465)
+
+    func testIOSConnectionCandidatesPreferSavedRemoteAndSkipLocalhost() {
+        let remote = "https://host.tailnet.example:9443/"
+        let expected = URL(string: "https://host.tailnet.example:9443")!
+
+        let candidates = EngineConfig.orderedConnectionCandidates(
+            savedHostString: remote,
+            isMacOS: false
+        )
+
+        XCTAssertEqual(candidates, [expected])
+        // localhost must never be probed on iOS — it has no engine.
+        XCTAssertFalse(candidates.contains { $0.host == "127.0.0.1" || $0.host == "localhost" })
+    }
+
+    func testIOSWithNoSavedHostHasNoLocalhostFallback() {
+        XCTAssertTrue(
+            EngineConfig.orderedConnectionCandidates(savedHostString: nil, isMacOS: false).isEmpty
+        )
+        XCTAssertTrue(
+            EngineConfig.orderedConnectionCandidates(savedHostString: "   ", isMacOS: false).isEmpty
+        )
+    }
+
+    func testMacOSConnectionCandidatesPreferLocalhostFirst() {
+        let localhost = URL(string: EngineConfig.defaultHostString)!
+
+        // No saved host → localhost only.
+        XCTAssertEqual(
+            EngineConfig.orderedConnectionCandidates(savedHostString: nil, isMacOS: true),
+            [localhost]
+        )
+
+        // Saved remote → localhost first, remote as fallback.
+        let remote = "https://host.tailnet.example:9443/"
+        let expectedRemote = URL(string: "https://host.tailnet.example:9443")!
+        XCTAssertEqual(
+            EngineConfig.orderedConnectionCandidates(savedHostString: remote, isMacOS: true),
+            [localhost, expectedRemote]
+        )
+    }
+
+    func testMacOSDoesNotDuplicateLocalhostCandidate() {
+        let localhost = URL(string: EngineConfig.defaultHostString)!
+        let candidates = EngineConfig.orderedConnectionCandidates(
+            savedHostString: "https://127.0.0.1:8765",
+            isMacOS: true
+        )
+        XCTAssertEqual(candidates, [localhost])
+    }
+
     @MainActor
     func testPairingServiceBuildsQRCodePayloadFromClientBaseURL() {
         let apiRoot = URL(string: "https://192.168.1.42:9443/")!
