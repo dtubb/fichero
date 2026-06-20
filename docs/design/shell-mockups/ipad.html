@@ -25,14 +25,13 @@
   --wire:rgba(255,255,255,.06);--wire2:rgba(255,255,255,.12)
 }}
 html,body{height:100%;overflow:hidden}
-body{font-family:var(--font);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;
+body{font-family:var(--font);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;
   background:linear-gradient(135deg,#1a2e4a 0%,#1e3860 55%,#122040 100%)}
 @media(prefers-color-scheme:light){body{background:linear-gradient(135deg,#a8c8e8,#c0d8f4,#cce4f8)}}
 
-/* ── State label ── */
-.state-bar{display:flex;align-items:center;gap:12px;flex-shrink:0}
-.state-label{font-size:13px;color:rgba(255,255,255,.8);font-weight:500}
-.state-btn{padding:6px 14px;border:1px solid rgba(255,255,255,.3);border-radius:20px;
+/* ── State bar (outside the iPad frame) ── */
+.state-bar{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;flex-shrink:0}
+.state-btn{padding:6px 12px;border:1px solid rgba(255,255,255,.3);border-radius:20px;
   background:rgba(255,255,255,.12);color:rgba(255,255,255,.9);font-size:12px;
   font-family:var(--font);cursor:pointer;transition:background .15s;white-space:nowrap}
 .state-btn:hover{background:rgba(255,255,255,.2)}
@@ -58,6 +57,11 @@ body{font-family:var(--font);display:flex;align-items:center;justify-content:cen
 .nav-title{flex:1;text-align:center;font-size:15px;font-weight:600;color:var(--t1)}
 .nav-right{display:flex;gap:6px}
 
+/* ── Content root ── */
+.content{flex:1;position:relative;overflow:hidden}
+.land-view,.port-view{position:absolute;inset:0;display:flex;flex-direction:column}
+.port-view{display:none}
+
 /* ── Sidebar overlay ── */
 .sb-overlay{position:absolute;top:48px;left:0;bottom:0;z-index:20;
   width:280px;background:var(--glass);
@@ -78,10 +82,8 @@ body{font-family:var(--font);display:flex;align-items:center;justify-content:cen
 .sbi .ic{font-size:16px;width:22px;text-align:center}
 .sbsep{height:1px;background:var(--sep);margin:8px 14px}
 
-/* ── Pair layout ── */
+/* ── LANDSCAPE: pair layout ── */
 .pairs{flex:1;display:flex;overflow:hidden;position:relative}
-
-/* Each pane */
 .pane{display:flex;flex-direction:column;overflow:hidden;background:var(--cnt)}
 .pane.left{border-right:1px solid var(--sep)}
 
@@ -102,7 +104,7 @@ body{font-family:var(--font);display:flex;align-items:center;justify-content:cen
 
 /* Preview / Reader pane */
 .preview-area{flex:1;overflow-y:auto;display:flex;flex-direction:column;align-items:center;
-  padding:20px;gap:14px;background:var(--cnt)}
+  padding:20px;gap:14px;background:var(--cnt);position:relative}
 .page{width:100%;max-width:360px;aspect-ratio:8.5/11;background:#fff;
   border-radius:4px;box-shadow:0 2px 12px rgba(0,0,0,.12);
   padding:32px;display:flex;flex-direction:column;gap:8px;flex-shrink:0}
@@ -118,8 +120,10 @@ body{font-family:var(--font);display:flex;align-items:center;justify-content:cen
 .pg-nav{display:flex;gap:6px}
 .pg-btn{padding:4px 10px;border:none;background:var(--hov);border-radius:6px;
   cursor:pointer;font-size:12px;color:var(--t1)}
+.pair-next{margin-top:auto;padding:6px 14px;border:none;border-radius:10px;background:var(--accent);color:#fff;
+  font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 2px 6px rgba(0,122,255,.25)}
 
-/* Inspector pane (in Reader+Inspector pair) */
+/* Inspector pane */
 .ins-pane{display:flex;flex-direction:column;overflow:hidden;background:var(--glass);
   backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
 .itabs{display:flex;border-bottom:1px solid var(--sep);padding:8px 8px 0;gap:2px;flex-shrink:0}
@@ -147,33 +151,63 @@ body{font-family:var(--font);display:flex;align-items:center;justify-content:cen
 .note-badge{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);
   background:rgba(0,0,0,.65);color:rgba(255,255,255,.85);font-size:11px;
   padding:5px 12px;border-radius:12px;pointer-events:none;white-space:nowrap;z-index:30}
+
+/* ── PORTRAIT: single-view swipe stack ── */
+.pviewport{flex:1;position:relative;overflow:hidden}
+.ptrack{display:flex;height:100%;transition:transform .35s cubic-bezier(.4,0,.2,1)}
+.pzone{width:100%;flex-shrink:0;height:100%;display:flex;flex-direction:column;overflow:hidden}
+
+/* Portrait library toolbar */
+.lib-bar{padding:10px 14px;border-bottom:1px solid var(--sep);background:var(--cnt);flex-shrink:0}
+.lib-modes{display:flex;gap:6px}
+.lm{flex:1;padding:6px 0;border:1px solid var(--wire2);border-radius:8px;background:var(--win);
+  font-size:12px;color:var(--t2);cursor:pointer;text-align:center}
+.lm.on{background:var(--act);color:var(--accent);border-color:rgba(0,122,255,.3)}
+
+/* Portrait preview / reader */
+.pv-area{flex:1;overflow-y:auto;display:flex;flex-direction:column;align-items:center;
+  padding:20px 16px;gap:12px}
+.pv-note{font-size:12px;color:var(--t2);text-align:center}
+.pv-open{margin-top:auto;padding:8px 18px;border:none;border-radius:12px;background:var(--accent);color:#fff;
+  font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(0,122,255,.25)}
+.rd-area{flex:1;overflow-y:auto;display:flex;flex-direction:column;align-items:center;
+  padding:20px 16px;gap:12px}
+.rd-label{font-size:11px;color:var(--t3);text-align:center;padding:4px 0}
+.pg-nav2{padding:10px 16px;border-top:1px solid var(--sep);
+  display:flex;align-items:center;justify-content:space-between;background:var(--cnt);flex-shrink:0}
+.pn-info2{font-size:13px;color:var(--t2)}
+.pn-btns2{display:flex;gap:8px}
+.pn-btn2{width:32px;height:32px;border:none;background:var(--hov);border-radius:8px;
+  cursor:pointer;font-size:16px;color:var(--t1)}
 </style>
 </head>
 <body>
 
 <!-- State controls -->
 <div class="state-bar">
-  <button class="state-btn on" onclick="setState('library-preview',this)">📚 Library + Preview</button>
-  <button class="state-btn" onclick="setState('reader-preview',this)">📖 Reader + Preview</button>
-  <button class="state-btn" onclick="setState('reader-inspector',this)">📖 Reader + Inspector</button>
-  <button class="state-btn" onclick="setState('sidebar-open',this)">☰ Sidebar Overlay</button>
+  <button class="state-btn on" data-ori="landscape" onclick="setOrientation('landscape',this)">🖥 Landscape</button>
+  <button class="state-btn" data-ori="portrait" onclick="setOrientation('portrait',this)">📱 Portrait</button>
+  <span style="width:1px;height:20px;background:rgba(255,255,255,.2)"></span>
+  <button class="state-btn pair-btn on" onclick="setPair('library-preview',this)">📚+👁 Library+Preview</button>
+  <button class="state-btn pair-btn" onclick="setPair('preview-reader',this)">👁+📖 Preview+Reader</button>
+  <button class="state-btn pair-btn" onclick="setPair('preview-inspector',this)">👁+ⓘ Preview+Inspector</button>
+  <button class="state-btn pair-btn" onclick="setPair('reader-inspector',this)">📖+ⓘ Reader+Inspector</button>
 </div>
 
 <div class="ipad-wrap">
 <div class="ipad">
 
-  <!-- Navbar (glass, persistent) -->
+  <!-- Navbar -->
   <div class="nav">
-    <button class="nav-btn" id="sb-toggle" onclick="toggleSidebar()" title="Show Sidebar">☰</button>
+    <button class="nav-btn" onclick="toggleSidebar()" title="Show Sidebar">☰</button>
     <div class="nav-title" id="nav-title">Library</div>
     <div class="nav-right">
-      <button class="nav-btn" id="btn-lp" onclick="setState('library-preview')" title="Library + Preview" style="font-size:12px;width:auto;padding:0 10px">List</button>
-      <button class="nav-btn" id="btn-rp" onclick="setState('reader-preview')" title="Reader + Preview" style="font-size:12px;width:auto;padding:0 10px">Read</button>
-      <button class="nav-btn" id="btn-ri" onclick="setState('reader-inspector')" title="Reader + Inspector" style="font-size:12px;width:auto;padding:0 10px">Inspect</button>
+      <button class="nav-btn" data-ori="landscape" onclick="setOrientation('landscape',this)" title="Landscape">🖥</button>
+      <button class="nav-btn" data-ori="portrait" onclick="setOrientation('portrait',this)" title="Portrait">📱</button>
     </div>
   </div>
 
-  <!-- Sidebar overlay (swipes in from left) -->
+  <!-- Sidebar overlay -->
   <div class="sb-overlay" id="sb-overlay">
     <div class="sbg">Material</div>
     <div class="sbi on" onclick="setSbMode('Library')"><span class="ic">📚</span>Library</div>
@@ -190,33 +224,151 @@ body{font-family:var(--font);display:flex;align-items:center;justify-content:cen
     <div class="sbi" onclick="setSbMode('Chat')"><span class="ic">💬</span>Chat</div>
     <div class="sbsep"></div>
     <div style="padding:4px 14px;font-size:11px;color:var(--t3);font-style:italic;line-height:1.5">
-      On iPad, the sidebar overlays the Library — it doesn't consume a persistent column.<br>Width = two active zones max.
+      iPad: the sidebar is an overlay, never a fixed column. Landscape shows two zones; Portrait shows one zone at a time (same code as iPhone).
     </div>
   </div>
   <div class="sb-scrim" id="sb-scrim" onclick="closeSidebar()"></div>
 
-  <!-- Pair area — content changes per state -->
-  <div class="pairs" id="pairs">
-    <!-- Populated by JS -->
-  </div>
+  <!-- Content root -->
+  <div class="content" id="content">
 
-  <div class="note-badge" id="note-badge">Library (left) + Preview (right)</div>
+    <!-- LANDSCAPE: 2-pane pairs -->
+    <div class="land-view" id="land-view">
+      <div class="pairs" id="pairs">
+        <!-- Populated by JS -->
+      </div>
+      <div class="note-badge" id="note-badge">Library + Preview — two zones in landscape</div>
+    </div>
+
+    <!-- PORTRAIT: 1-zone swipe stack -->
+    <div class="port-view" id="port-view">
+      <div class="pviewport" id="pviewport">
+        <div class="ptrack" id="ptrack">
+
+          <!-- pZone 0: Sidebar -->
+          <div class="pzone" style="background:var(--win);overflow-y:auto">
+            <div class="sbg">Material</div>
+            <div class="sbi on" onclick="pSelectMode(this,'Library')"><span class="ic">📚</span>Library</div>
+            <div class="sbi" onclick="pSelectMode(this,'Search')"><span class="ic">🔍</span>Search</div>
+            <div class="sbg">Knowledge</div>
+            <div class="sbi" onclick="pSelectMode(this,'Knowledge Graph')"><span class="ic">🕸️</span>Knowledge Graph</div>
+            <div class="sbi" onclick="pSelectMode(this,'Mind Palace')"><span class="ic">🧠</span>Mind Palace</div>
+            <div class="sbg">Work</div>
+            <div class="sbi" onclick="pSelectMode(this,'Workflows')"><span class="ic">⚡</span>Workflows</div>
+            <div class="sbi" onclick="pSelectMode(this,'Automation')"><span class="ic">🔄</span>Automation</div>
+            <div class="sbi" onclick="pSelectMode(this,'Activity')"><span class="ic">📊</span>Activity</div>
+            <div class="sbg">Think</div>
+            <div class="sbi" onclick="pSelectMode(this,'Research')"><span class="ic">🔬</span>Research</div>
+            <div class="sbi" onclick="pSelectMode(this,'Chat')"><span class="ic">💬</span>Chat</div>
+          </div>
+
+          <!-- pZone 1: Library -->
+          <div class="pzone" style="background:var(--cnt);overflow-y:auto">
+            <div class="lib-bar">
+              <div class="lib-modes">
+                <span class="lm on" onclick="pSetViewMode(this,'list')">List</span>
+                <span class="lm" onclick="pSetViewMode(this,'table')">Table</span>
+                <span class="lm" onclick="pSetViewMode(this,'icons')">Icons</span>
+                <span class="lm" onclick="pSetViewMode(this,'map')">Map</span>
+              </div>
+            </div>
+            <div class="dr on" onclick="pOpenDoc(this,'Marshall Diaries Vol. I')"><div class="di">📄</div><div class="dinfo"><div class="dt">Marshall Diaries, Vol. I</div><div class="dm">PDF · 847 pages</div></div></div>
+            <div class="dr" onclick="pOpenDoc(this,'Archivos Nuestros')"><div class="di">📁</div><div class="dinfo"><div class="dt">Archivos Nuestros</div><div class="dm">PDF · 312 pages</div></div></div>
+            <div class="dr" onclick="pOpenDoc(this,'Eisenhower Papers')"><div class="di">📄</div><div class="dinfo"><div class="dt">Eisenhower Papers</div><div class="dm">PDF · 1,204 pages</div></div></div>
+            <div class="dr" onclick="pOpenDoc(this,'War Dept. Memoranda')"><div class="di">📄</div><div class="dinfo"><div class="dt">War Dept. Memoranda</div><div class="dm">PDF · 224 pages</div></div></div>
+          </div>
+
+          <!-- pZone 2: Preview -->
+          <div class="pzone" style="background:var(--cnt)">
+            <div class="pv-area">
+              <div class="pv-note" id="ppv-note">Quick Look · Marshall Diaries Vol. I</div>
+              <div class="page" style="max-width:320px">
+                <div class="pl title"></div><div class="pl gap"></div>
+                <div class="pl f"></div><div class="pl m"></div><div class="pl f"></div>
+                <div class="pl s"></div><div class="pl f"></div><div class="pl m"></div>
+                <div class="pl gap"></div><div class="pl f"></div><div class="pl f"></div>
+                <div class="pl m"></div><div class="pl s"></div>
+              </div>
+              <button class="pv-open" onclick="pGotoReader()">Open Reader</button>
+            </div>
+          </div>
+
+          <!-- pZone 3: Reader -->
+          <div class="pzone" style="background:var(--cnt)">
+            <div class="rd-label">Reader / WebKit view</div>
+            <div class="rd-area">
+              <div class="page" style="max-width:340px">
+                <div class="pl title"></div><div class="pl gap"></div>
+                <div class="pl f"></div><div class="pl m"></div><div class="pl f"></div>
+                <div class="pl s"></div><div class="pl f"></div><div class="pl m"></div>
+                <div class="pl gap"></div><div class="pl f"></div><div class="pl f"></div>
+                <div class="pl m"></div><div class="pl s"></div>
+              </div>
+            </div>
+            <div class="pg-nav2">
+              <div class="pn-info2" id="ppage-info">Page 134 of 847</div>
+              <div class="pn-btns2">
+                <button class="pn-btn2" onclick="pPrevPage()">‹</button>
+                <button class="pn-btn2" onclick="pNextPage()">›</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- pZone 4: Inspector -->
+          <div class="pzone" style="background:var(--glass);backdrop-filter:blur(40px);-webkit-backdrop-filter:blur(40px)">
+            <div class="itabs">
+              <div class="itab on" onclick="pInsTab('info',this)">Info</div>
+              <div class="itab" onclick="pInsTab('kg',this)">KG</div>
+              <div class="itab" onclick="pInsTab('annot',this)">Notes</div>
+            </div>
+            <div class="ibody" id="pib3-info">
+              <div class="isec"><div class="isect">Document</div>
+                <div class="ir"><span class="il">Type</span><span class="iv">PDF</span></div>
+                <div class="ir"><span class="il">Pages</span><span class="iv">847</span></div>
+                <div class="ir"><span class="il">OCR</span><span class="iv ok">Complete</span></div>
+                <div class="ir"><span class="il">Entities</span><span class="iv">312</span></div>
+              </div>
+            </div>
+            <div class="ibody" id="pib3-kg" style="display:none">
+              <div class="isec"><div class="isect">Entities</div>
+                <div class="echips">
+                  <span class="ec">G.C. Marshall</span><span class="ec">Tunisia Campaign</span>
+                  <span class="ec">Eisenhower</span><span class="ec">North Africa</span>
+                </div>
+              </div>
+            </div>
+            <div class="ibody" id="pib3-annot" style="display:none">
+              <div class="isec"><div class="isect">Annotations</div>
+                <div class="ann">p. 134 — "Key date: May 12" ✏️</div>
+                <div class="ann">p. 67 — Cross-ref Eisenhower p. 443</div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /ptrack -->
+      </div><!-- /pviewport -->
+    </div><!-- /port-view -->
+
+  </div><!-- /content -->
+
 </div><!-- /ipad -->
 </div><!-- /ipad-wrap -->
 
-<div class="note-pill">iPad adapts the SAME 5 zones into 2-at-a-time pairs. The sidebar overlays, never consuming a column.</div>
+<div class="note-pill">iPad uses the SAME zones as iPhone/Mac. Landscape = 2-pane pairs; Portrait = 1-zone swipe stack.</div>
 
 <script>
-let curState='library-preview';
+let orientation='landscape';
+let curPair='library-preview';
+let pCur=0,pPg=134;
 
 const docList=`
 <div class="dl">
-  <div class="dr on" onclick="selRow(this)"><div class="di">📄</div><div class="dinfo"><div class="dt">The Marshall Diaries, Vol. I (1943–1945)</div><div class="dm">PDF · 847 pages</div></div></div>
-  <div class="dr" onclick="selRow(this)"><div class="di">📁</div><div class="dinfo"><div class="dt">Archivos Nuestros — Collection Register</div><div class="dm">PDF · 312 pages</div></div></div>
-  <div class="dr" onclick="selRow(this)"><div class="di">📄</div><div class="dinfo"><div class="dt">Correspondence: Eisenhower Papers, 1942–44</div><div class="dm">PDF · 1,204 pages</div></div></div>
-  <div class="dr" onclick="selRow(this)"><div class="di">📄</div><div class="dinfo"><div class="dt">War Department Memoranda, 1942</div><div class="dm">PDF · 224 pages</div></div></div>
-  <div class="dr" onclick="selRow(this)"><div class="di">📄</div><div class="dinfo"><div class="dt">Pacific Theater Operations Report</div><div class="dm">PDF · 556 pages</div></div></div>
-  <div class="dr" onclick="selRow(this)"><div class="di">✉️</div><div class="dinfo"><div class="dt">Family Letters Collection (1918–1920)</div><div class="dm">12 images</div></div></div>
+  <div class="dr on" onclick="openDoc(this)"><div class="di">📄</div><div class="dinfo"><div class="dt">The Marshall Diaries, Vol. I (1943–1945)</div><div class="dm">PDF · 847 pages</div></div></div>
+  <div class="dr" onclick="openDoc(this)"><div class="di">📁</div><div class="dinfo"><div class="dt">Archivos Nuestros — Collection Register</div><div class="dm">PDF · 312 pages</div></div></div>
+  <div class="dr" onclick="openDoc(this)"><div class="di">📄</div><div class="dinfo"><div class="dt">Correspondence: Eisenhower Papers, 1942–44</div><div class="dm">PDF · 1,204 pages</div></div></div>
+  <div class="dr" onclick="openDoc(this)"><div class="di">📄</div><div class="dinfo"><div class="dt">War Department Memoranda, 1942</div><div class="dm">PDF · 224 pages</div></div></div>
+  <div class="dr" onclick="openDoc(this)"><div class="di">📄</div><div class="dinfo"><div class="dt">Pacific Theater Operations Report</div><div class="dm">PDF · 556 pages</div></div></div>
+  <div class="dr" onclick="openDoc(this)"><div class="di">✉️</div><div class="dinfo"><div class="dt">Family Letters Collection (1918–1920)</div><div class="dm">12 images</div></div></div>
 </div>`;
 
 const pageContent=`
@@ -234,7 +386,7 @@ const previewPane=`
 </div>
 <div class="preview-area">
   <div class="page">${pageContent}</div>
-  <div class="page" style="opacity:.6">${pageContent}</div>
+  <button class="pair-next" onclick="setPair('preview-reader')">Open Reader ›</button>
 </div>`;
 
 const readerPane=`
@@ -242,8 +394,9 @@ const readerPane=`
   <div><div class="pn-title">Marshall Diaries Vol. I</div><div class="pn-sub">Page 134 of 847</div></div>
   <div class="pg-nav"><button class="pg-btn">‹ Prev</button><button class="pg-btn">Next ›</button></div>
 </div>
-<div class="preview-area" style="background:var(--cnt)">
+<div class="preview-area">
   <div class="page" style="max-width:400px">${pageContent}</div>
+  <button class="pair-next" onclick="setPair('reader-inspector')">Open Inspector ›</button>
 </div>`;
 
 const inspectorPane=`
@@ -281,47 +434,52 @@ function renderState(s){
   const badge=document.getElementById('note-badge');
   if(s==='library-preview'){
     p.innerHTML=`
-      <div class="pane left" style="flex:1">${
-        '<div class="ch"><div class="ch-l">Library <em>· 247 items</em></div></div>'+docList}</div>
-      <div class="pane" style="flex:1">${previewPane}</div>`;
-    badge.textContent='Library (left) + Preview (right) — two zones simultaneously';
+      <div class="pane left" style="flex:1">${'<div class="ch"><div class="ch-l">Library <em>· 247 items</em></div></div>'+docList}</div>
+      <div class="pane" style="flex:3">${previewPane}</div>`;
+    badge.textContent='Landscape: Library (¼) + Preview (¾)';
     document.getElementById('nav-title').textContent='Library';
-  }else if(s==='reader-preview'){
+  }else if(s==='preview-reader'){
     p.innerHTML=`
-      <div class="pane left" style="flex:.7">${readerPane}</div>
-      <div class="pane" style="flex:.3;background:var(--cnt)">
-        <div class="pn-bar"><div class="pn-title">Thumbnails</div></div>
-        <div style="padding:12px;display:flex;flex-direction:column;gap:8px;overflow-y:auto">
-          ${[1,2,3,4,5,6].map(i=>`<div style="width:100%;aspect-ratio:8.5/11;background:${i===2?'rgba(0,122,255,.15)':'var(--wire)'};border-radius:4px;border:1px solid ${i===2?'rgba(0,122,255,.5)':'var(--wire2)'};display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--t3)">p.${133+i}</div>`).join('')}
-        </div>
-      </div>`;
-    badge.textContent='Reader (left) + Page Thumbnails (right) — two zones';
+      <div class="pane left" style="flex:3">${previewPane}</div>
+      <div class="pane" style="flex:1">${readerPane}</div>`;
+    badge.textContent='Landscape: Preview (¾) + Reader (¼)';
     document.getElementById('nav-title').textContent='Marshall Diaries Vol. I';
+  }else if(s==='preview-inspector'){
+    p.innerHTML=`
+      <div class="pane left" style="flex:3">${previewPane}</div>
+      <div class="pane ins-pane" style="flex:1">${inspectorPane}</div>`;
+    badge.textContent='Landscape: Preview (¾) + Inspector (¼)';
+    document.getElementById('nav-title').textContent='Inspector';
   }else if(s==='reader-inspector'){
     p.innerHTML=`
-      <div class="pane left" style="flex:.65">${readerPane}</div>
-      <div class="pane ins-pane" style="flex:.35">${inspectorPane}</div>`;
-    badge.textContent='Reader (left) + Inspector (right) — two zones';
+      <div class="pane left" style="flex:3">${readerPane}</div>
+      <div class="pane ins-pane" style="flex:1">${inspectorPane}</div>`;
+    badge.textContent='Landscape: Reader (¾) + Inspector (¼)';
     document.getElementById('nav-title').textContent='Marshall Diaries Vol. I';
   }
 }
 
-function setState(s,btn){
-  curState=s;
-  // Update state buttons
-  document.querySelectorAll('.state-btn').forEach(b=>b.classList.remove('on'));
+function setPair(s,btn){
+  curPair=s;
+  document.querySelectorAll('.pair-btn').forEach(b=>b.classList.remove('on'));
   if(btn)btn.classList.add('on');
   else{
-    const map={'library-preview':0,'reader-preview':1,'reader-inspector':2,'sidebar-open':3};
+    const map={'library-preview':2,'preview-reader':3,'preview-inspector':4,'reader-inspector':5};
     document.querySelectorAll('.state-btn')[map[s]]?.classList.add('on');
   }
   closeSidebar();
-  if(s==='sidebar-open'){
-    renderState('library-preview');
-    setTimeout(openSidebar,50);
-  }else{
-    renderState(s);
-  }
+  renderState(s);
+}
+
+function setOrientation(o,btn){
+  orientation=o;
+  document.querySelectorAll('[data-ori]').forEach(b=>b.classList.toggle('on',b.dataset.ori===o));
+  document.getElementById('land-view').style.display=o==='landscape'?'flex':'none';
+  document.getElementById('port-view').style.display=o==='portrait'?'flex':'none';
+  document.getElementById('note-badge').style.display=o==='landscape'?'block':'none';
+  closeSidebar();
+  if(o==='landscape') renderState(curPair);
+  else pGoto(pCur);
 }
 
 function toggleSidebar(){
@@ -339,12 +497,17 @@ function closeSidebar(){
 function setSbMode(m){
   document.querySelectorAll('#sb-overlay .sbi').forEach(e=>e.classList.remove('on'));
   event.target.closest('.sbi').classList.add('on');
-  document.getElementById('nav-title').textContent=m;
+  if(orientation==='landscape') document.getElementById('nav-title').textContent=m;
+  else pZoneTitles[0]=m;
   closeSidebar();
 }
 function selRow(el){
   el.closest('.dl').querySelectorAll('.dr').forEach(r=>r.classList.remove('on'));
   el.classList.add('on');
+}
+function openDoc(el){
+  selRow(el);
+  setPair('preview-reader');
 }
 function insTab(t,el){
   document.querySelectorAll('#pairs .itab').forEach(e=>e.classList.remove('on'));
@@ -354,8 +517,62 @@ function insTab(t,el){
     if(b)b.style.display=(id===t)?'flex':'none';
   });
 }
+
+// ── Portrait helpers ──
+const pZoneTitles=['Fichero','Library','Quick Look','Marshall Diaries Vol. I','Inspector'];
+function pGoto(n){
+  if(n<0||n>=5)return;
+  pCur=n;
+  document.getElementById('ptrack').style.transform='translateX(-'+n+'00%)';
+  document.getElementById('nav-title').textContent=pZoneTitles[n];
+}
+function pGoBack(){if(pCur>0)pGoto(pCur-1)}
+function pGoForward(){if(pCur<4)pGoto(pCur+1)}
+function pGotoReader(){pGoto(3)}
+function pOpenDoc(el,name){
+  el.closest('.pzone').querySelectorAll('.dr').forEach(r=>r.classList.remove('on'));
+  el.classList.add('on');
+  pZoneTitles[2]=name;
+  pZoneTitles[3]=name;
+  document.getElementById('ppv-note').textContent='Quick Look · '+name;
+  pGoto(2);
+}
+function pSelectMode(el,name){
+  document.querySelectorAll('.port-view .sbi').forEach(e=>e.classList.remove('on'));
+  el.classList.add('on');
+  pZoneTitles[1]=name;
+  pGoto(1);
+}
+function pSetViewMode(el,mode){
+  el.closest('.lib-modes').querySelectorAll('.lm').forEach(e=>e.classList.remove('on'));
+  el.classList.add('on');
+}
+function pPrevPage(){if(pPg>1){pPg--;document.getElementById('ppage-info').textContent='Page '+pPg+' of 847';}}
+function pNextPage(){if(pPg<847){pPg++;document.getElementById('ppage-info').textContent='Page '+pPg+' of 847';}}
+function pInsTab(t,el){
+  el.closest('.itabs').querySelectorAll('.itab').forEach(e=>e.classList.remove('on'));
+  el.classList.add('on');
+  ['info','kg','annot'].forEach(id=>{
+    const b=document.getElementById('pib3-'+id);
+    if(b)b.style.display=(id===t)?'flex':'none';
+  });
+}
+let pTx0=0;
+document.getElementById('pviewport').addEventListener('touchstart',e=>{pTx0=e.touches[0].clientX},{passive:true});
+document.getElementById('pviewport').addEventListener('touchend',e=>{
+  const dx=e.changedTouches[0].clientX-pTx0;
+  if(Math.abs(dx)>50)dx<0?pGoForward():pGoBack();
+},{passive:true});
+document.addEventListener('keydown',e=>{
+  if(orientation!=='portrait')return;
+  if(e.key==='ArrowRight'||e.key==='ArrowLeft'){
+    e.key==='ArrowRight'?pGoForward():pGoBack();
+    e.preventDefault();
+  }
+});
+
 // Init
-setState('library-preview');
+renderState(curPair);
 </script>
 </body>
 </html>

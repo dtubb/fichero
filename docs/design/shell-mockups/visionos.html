@@ -201,7 +201,7 @@ body{font-family:var(--font);display:flex;align-items:center;justify-content:cen
     <div class="wbar" onmousedown="startDrag(event,'w-reader')">
       <div class="dots"><span class="cl"></span><span class="mn"></span><span class="mx"></span></div>
       <div class="wbar-title">Reader — Marshall Diaries Vol. I</div>
-      <button class="wact" title="Expand to large view">⤢</button>
+      <button class="wact" title="Expand to large view" onclick="expandReader()">⤢</button>
     </div>
     <div class="reader-inner">
       <div class="page-full">
@@ -330,7 +330,7 @@ function resetLayout(){
     'w-sidebar':{left:'2%',top:'8%',right:'auto'},
     'w-library':{left:'22%',top:'4%',right:'auto'},
     'w-preview':{left:'44%',top:'12%',right:'auto'},
-    'w-reader':{left:'36%',top:'5%',right:'auto'},
+    'w-reader':{left:'36%',top:'5%',right:'auto',width:'320px',height:'82%'},
     'w-inspector':{right:'2%',left:'auto',top:'8%'},
   };
   document.querySelectorAll('.win').forEach(w=>{
@@ -346,6 +346,15 @@ function resetLayout(){
       w.style.left=(r.left-cr.left)+'px';w.style.top=(r.top-cr.top)+'px';w.style.right='auto';
     });
   },50);
+}
+function expandReader(){
+  const w=document.getElementById('w-reader');
+  const cx=document.getElementById('canvas').getBoundingClientRect();
+  w.style.left=(cx.width*0.15)+'px';
+  w.style.top=(cx.height*0.05)+'px';
+  w.style.width=(cx.width*0.7)+'px';
+  w.style.height=(cx.height*0.9)+'px';
+  w.style.zIndex='10';
 }
 function selDoc(el){
   el.closest('div').querySelectorAll('.dr').forEach(r=>r.classList.remove('on'));

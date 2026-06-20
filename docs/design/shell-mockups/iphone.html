@@ -58,7 +58,8 @@ body{font-family:var(--font);display:flex;align-items:center;justify-content:cen
 .nav-back{height:34px;border:none;background:transparent;cursor:pointer;
   font-size:16px;color:var(--accent);font-family:var(--font);display:flex;align-items:center;gap:2px}
 .nav-title{flex:1;text-align:center;font-size:16px;font-weight:600;color:var(--t1)}
-.nav-action{height:34px;width:34px;border:none;background:transparent;
+.nav-actions{display:flex;gap:4px}
+.nav-action{height:34px;min-width:34px;border:none;background:transparent;
   cursor:pointer;font-size:18px;color:var(--accent);display:flex;align-items:center;justify-content:center}
 
 /* Zone viewport */
@@ -76,6 +77,11 @@ body{font-family:var(--font);display:flex;align-items:center;justify-content:cen
 .sbi .chevron{margin-left:auto;color:var(--t3);font-size:12px}
 
 /* Zone: Library */
+.lib-bar{padding:10px 16px;border-bottom:1px solid var(--sep);background:var(--cnt);flex-shrink:0}
+.lib-modes{display:flex;gap:6px}
+.lm{flex:1;padding:6px 0;border:1px solid var(--wire2);border-radius:8px;background:var(--win);
+  font-size:12px;color:var(--t2);cursor:pointer;text-align:center}
+.lm.on{background:var(--act);color:var(--accent);border-color:rgba(0,122,255,.3)}
 .dr{display:flex;align-items:center;gap:12px;padding:12px 16px;
   border-bottom:1px solid var(--wire);cursor:pointer;transition:background .1s}
 .dr.on{background:var(--sel)}
@@ -85,6 +91,13 @@ body{font-family:var(--font);display:flex;align-items:center;justify-content:cen
 .dt{font-size:14px;font-weight:500;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dm{font-size:12px;color:var(--t2);margin-top:3px}
 .dchev{color:var(--t3);font-size:12px;flex-shrink:0}
+
+/* Zone: Preview */
+.preview-area{flex:1;overflow-y:auto;display:flex;flex-direction:column;align-items:center;
+  padding:20px 16px;gap:14px}
+.pv-note{font-size:12px;color:var(--t2);text-align:center}
+.pv-open{margin-top:auto;padding:10px 20px;border:none;border-radius:12px;background:var(--accent);color:#fff;
+  font-size:15px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(0,122,255,.25)}
 
 /* Zone: Reader */
 .reader-area{flex:1;overflow-y:auto;display:flex;flex-direction:column;align-items:center;
@@ -96,14 +109,15 @@ body{font-family:var(--font);display:flex;align-items:center;justify-content:cen
 .pl{height:7px;background:var(--wire2);border-radius:3px}
 .pl.s{width:45%}.pl.m{width:72%}.pl.f{width:100%}
 .pl.title{height:14px;width:55%}.pl.gap{height:0;margin:4px 0}
-.page-nav{padding:12px 16px;display:flex;justify-content:space-between;align-items:center;
-  border-top:1px solid var(--sep);flex-shrink:0}
-.pn-info{font-size:12px;color:var(--t2)}
-.pn-btns{display:flex;gap:8px}
-.pn-btn{padding:8px 16px;border:none;background:var(--hov);border-radius:10px;
-  cursor:pointer;font-size:14px;color:var(--t1)}
+.page-nav{padding:12px 16px;border-top:1px solid var(--sep);
+  display:flex;align-items:center;justify-content:space-between;background:var(--cnt);flex-shrink:0}
+.pn-info{font-size:13px;color:var(--t2)}
+.pn-btns{display:flex;gap:10px}
+.pn-btn{width:34px;height:34px;border:none;background:var(--hov);border-radius:8px;
+  cursor:pointer;font-size:16px;color:var(--t1)}
+.rd-label{font-size:11px;color:var(--t3);text-align:center;padding:4px 0}
 
-/* Zone: Inspector (full pane OR bottom sheet) */
+/* Zone: Inspector */
 .itabs{display:flex;border-bottom:1px solid var(--sep);padding:10px 10px 0;gap:4px;flex-shrink:0}
 .itab{padding:6px 12px 10px;font-size:13px;color:var(--t2);cursor:pointer;
   border-bottom:2px solid transparent;transition:color .15s,border-color .15s}
@@ -157,6 +171,7 @@ body{font-family:var(--font);display:flex;align-items:center;justify-content:cen
   <div class="dot" id="dot-1"></div>
   <div class="dot" id="dot-2"></div>
   <div class="dot" id="dot-3"></div>
+  <div class="dot" id="dot-4"></div>
 </div>
 
 <div class="phone">
@@ -172,7 +187,7 @@ body{font-family:var(--font);display:flex;align-items:center;justify-content:cen
   <div class="nav">
     <button class="nav-back" id="back-btn" onclick="goBack()" style="visibility:hidden">‹ Back</button>
     <div class="nav-title" id="nav-title">Fichero</div>
-    <button class="nav-action" id="ins-btn" onclick="toggleSheet()" style="visibility:hidden">ⓘ</button>
+    <div class="nav-actions" id="nav-actions"></div>
   </div>
 
   <!-- Zone viewport -->
@@ -198,6 +213,14 @@ body{font-family:var(--font);display:flex;align-items:center;justify-content:cen
 
       <!-- Zone 1: Library -->
       <div class="zone" style="background:var(--cnt);overflow-y:auto">
+        <div class="lib-bar">
+          <div class="lib-modes">
+            <span class="lm on" onclick="setViewMode(this,'list')">List</span>
+            <span class="lm" onclick="setViewMode(this,'table')">Table</span>
+            <span class="lm" onclick="setViewMode(this,'icons')">Icons</span>
+            <span class="lm" onclick="setViewMode(this,'map')">Map</span>
+          </div>
+        </div>
         <div class="dr on" onclick="openDoc(this,'Marshall Diaries Vol. I')"><div class="di">📄</div><div class="dinfo"><div class="dt">Marshall Diaries, Vol. I (1943–1945)</div><div class="dm">PDF · 847 pages</div></div><span class="dchev">›</span></div>
         <div class="dr" onclick="openDoc(this,'Archivos Nuestros')"><div class="di">📁</div><div class="dinfo"><div class="dt">Archivos Nuestros — Collection Register</div><div class="dm">PDF · 312 pages</div></div><span class="dchev">›</span></div>
         <div class="dr" onclick="openDoc(this,'Eisenhower Papers')"><div class="di">📄</div><div class="dinfo"><div class="dt">Correspondence: Eisenhower Papers, 1942–44</div><div class="dm">PDF · 1,204 pages</div></div><span class="dchev">›</span></div>
@@ -206,8 +229,24 @@ body{font-family:var(--font);display:flex;align-items:center;justify-content:cen
         <div class="dr" onclick="openDoc(this,'Family Letters')"><div class="di">✉️</div><div class="dinfo"><div class="dt">Family Letters Collection (1918–1920)</div><div class="dm">12 images</div></div><span class="dchev">›</span></div>
       </div>
 
-      <!-- Zone 2: Reader -->
+      <!-- Zone 2: Preview (Quick Look) -->
       <div class="zone" style="background:var(--cnt)">
+        <div class="preview-area">
+          <div class="pv-note" id="pv-note">Quick Look · Marshall Diaries Vol. I</div>
+          <div class="page" style="max-width:320px">
+            <div class="pl title"></div><div class="pl gap"></div>
+            <div class="pl f"></div><div class="pl m"></div><div class="pl f"></div>
+            <div class="pl s"></div><div class="pl f"></div><div class="pl m"></div>
+            <div class="pl gap"></div><div class="pl f"></div><div class="pl f"></div>
+            <div class="pl m"></div><div class="pl s"></div>
+          </div>
+          <button class="pv-open" onclick="gotoReader()">Open Reader</button>
+        </div>
+      </div>
+
+      <!-- Zone 3: Reader / WebKit -->
+      <div class="zone" style="background:var(--cnt)">
+        <div class="rd-label">Reader / WebKit view</div>
         <div class="reader-area">
           <div class="page">
             <div class="pl title"></div><div class="pl gap"></div>
@@ -226,7 +265,7 @@ body{font-family:var(--font);display:flex;align-items:center;justify-content:cen
         </div>
       </div>
 
-      <!-- Zone 3: Inspector -->
+      <!-- Zone 4: Inspector -->
       <div class="zone" style="background:var(--glass);backdrop-filter:blur(40px);-webkit-backdrop-filter:blur(40px)">
         <div class="itabs">
           <div class="itab on" onclick="insTab2('info',this)">Info</div>
@@ -303,31 +342,38 @@ body{font-family:var(--font);display:flex;align-items:center;justify-content:cen
 <div class="hint-txt">← → arrow keys · click ‹ / › · tap mode items to navigate</div>
 
 <script>
-const zoneNames=['Sidebar','Library','Reader','Inspector'];
-const zoneTitles=['Fichero','Library','Marshall Diaries Vol. I','Inspector'];
+const zoneNames=['Sidebar','Library','Preview','Reader','Inspector'];
+const zoneTitles=['Fichero','Library','Quick Look','Marshall Diaries Vol. I','Inspector'];
 let cur=0,page=134,sheetOpen=false;
 
 function goto(n){
-  if(n<0||n>=4)return;
+  if(n<0||n>=5)return;
   cur=n;
   document.getElementById('track').style.transform='translateX(-'+n+'00%)';
-  // Update dots
-  for(let i=0;i<4;i++)document.getElementById('dot-'+i).classList.toggle('on',i===n);
-  // Navbar
+  for(let i=0;i<5;i++)document.getElementById('dot-'+i).classList.toggle('on',i===n);
   document.getElementById('nav-title').textContent=zoneTitles[n];
   document.getElementById('back-btn').style.visibility=n>0?'visible':'hidden';
-  document.getElementById('ins-btn').style.visibility=n===2?'visible':'hidden';
+  updateActions(n);
   document.getElementById('btn-left').disabled=n===0;
-  document.getElementById('btn-right').disabled=n===3;
-  // Close sheet if leaving reader
-  if(n!==2&&sheetOpen)toggleSheet();
+  document.getElementById('btn-right').disabled=n===4;
+  if(n!==3&&sheetOpen)toggleSheet();
+}
+function updateActions(n){
+  const a=document.getElementById('nav-actions');
+  if(n===2) a.innerHTML='<button class="nav-action" onclick="gotoReader()" title="Open Reader">📖</button>';
+  else if(n===3) a.innerHTML='<button class="nav-action" onclick="toggleSheet()" title="Inspector Sheet">ⓘ</button><button class="nav-action" onclick="gotoInspector()" title="Open Inspector">→</button>';
+  else a.innerHTML='';
 }
 function goBack(){if(cur>0)goto(cur-1)}
-function goForward(){if(cur<3)goto(cur+1)}
+function goForward(){if(cur<4)goto(cur+1)}
+function gotoReader(){goto(3)}
+function gotoInspector(){goto(4)}
 function openDoc(el,name){
   el.closest('.zone').querySelectorAll('.dr').forEach(r=>r.classList.remove('on'));
   el.classList.add('on');
   zoneTitles[2]=name;
+  zoneTitles[3]=name;
+  document.getElementById('pv-note').textContent='Quick Look · '+name;
   goto(2);
 }
 function selectMode(el,name){
@@ -335,6 +381,10 @@ function selectMode(el,name){
   el.classList.add('on');
   zoneTitles[1]=name;
   goto(1);
+}
+function setViewMode(el,mode){
+  el.closest('.lib-modes').querySelectorAll('.lm').forEach(e=>e.classList.remove('on'));
+  el.classList.add('on');
 }
 let pg=134;
 function prevPage(){if(pg>1){pg--;document.getElementById('page-info').textContent='Page '+pg+' of 847';}}
@@ -359,20 +409,19 @@ function sheetTab(t,el){
     if(b)b.style.display=(id===t)?'flex':'none';
   });
 }
-// Arrow keys
 document.addEventListener('keydown',e=>{
   if(e.key==='ArrowRight'||e.key==='ArrowLeft'){
     e.key==='ArrowRight'?goForward():goBack();
     e.preventDefault();
   }
 });
-// Touch swipe
 let tx0=0;
 document.getElementById('viewport').addEventListener('touchstart',e=>{tx0=e.touches[0].clientX},{passive:true});
 document.getElementById('viewport').addEventListener('touchend',e=>{
   const dx=e.changedTouches[0].clientX-tx0;
   if(Math.abs(dx)>50)dx<0?goForward():goBack();
 },{passive:true});
+goto(0);
 </script>
 </body>
 </html>
