@@ -88,6 +88,14 @@ struct LibraryWorkspaceRoot: View {
         }
         #if canImport(UIKit) && !os(macOS)
         .toolbar {
+            // Library switcher (#2394) — the registry of libraries the paired Mac
+            // has, surfaced first so a phone can open more than the default library.
+            // `.topBarLeading` is unavailable on tvOS, so guard it there.
+            #if !os(tvOS)
+            ToolbarItem(placement: .topBarLeading) {
+                IOSLibraryPickerMenu()
+            }
+            #endif
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     showingCaptureQueue = true

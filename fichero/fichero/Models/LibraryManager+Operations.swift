@@ -79,6 +79,52 @@ extension LibraryManager {
         return library
     }
 
+    /// Switch the whole app to a known-registry library by its (possibly remote)
+    /// path — the iOS path for opening "more than just the default library" (#2394).
+    ///
+    /// Unlike `openLibrary(at:)` / the macOS `openRecentLibrary` flow, this makes
+    /// NO local-filesystem assumptions: registry paths on iOS live on the paired
+    /// Mac, so there is no security-scoped resource to acquire and no
+    /// `FileManager.fileExists` gate (which would always fail for a remote path).
+    /// The generated client talks to `EngineConfig.host` with `libraryPath` set to
+    /// this path, so a fresh `LibraryReference` is a valid remote library.
+    ///
+    /// Reuses an already-open library at the same path; otherwise creates one and
+    /// makes it current. Setting `currentLibraryId` re-roots the workspace via
+    /// `LibraryWorkspaceSelection.activeLibrary`.
+    @discardableResult
+    func switchToRemoteLibrary(path: String, displayName: String? = nil) -> LibraryReference? {
+        let trimmedPath = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPath.isEmpty else { return nil }
+        let url = URL(fileURLWithPath: trimmedPath)
+
+        // Reuse if already open (compare by standardized path, not URL identity).
+        if let existing = openLibraries.first(where: { $0.url.path == url.path }) {
+            currentLibraryId = existing.id
+            return existing
+        }
+
+        let resolvedName = displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let library = LibraryReference(
+            url: url,
+            document: FicheroDocument(),
+            displayName: (resolvedName?.isEmpty == false ? resolvedName! : url.deletingPathExtension().lastPathComponent),
+            startAccessing: false  // remote path — no local security scope
+        )
+
+        // Insert after Global (always first), matching openLibrary's ordering.
+        if openLibraries.first?.id == Self.globalLibraryId {
+            openLibraries.insert(library, at: 1)
+        } else {
+            openLibraries.append(library)
+        }
+
+        currentLibraryId = library.id
+        scheduleLoadWhenBackendReady(for: library)
+        libraryManagerLogger.info("Switched to remote library: \(url.path, privacy: .public)")
+        return library
+    }
+
     /// Create a new unsaved library
     /// - Returns: Library reference for a new library (not yet saved to disk)
     func createNewLibrary() -> LibraryReference {
