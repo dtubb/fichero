@@ -1,5 +1,8 @@
 import FicheroAPIClient
 import Foundation
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct RemoteClientPairingFields: Equatable {
     let remoteURL: String
@@ -43,7 +46,11 @@ enum RemoteClientPairing {
     }
 
     static func defaultDeviceName() -> String {
+        #if canImport(UIKit)
+        return UIDevice.current.name
+        #else
         return Host.current().localizedName ?? ProcessInfo.processInfo.hostName
+        #endif
     }
 
     static func pairingFields(from message: String) throws -> RemoteClientPairingFields {

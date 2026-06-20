@@ -2,6 +2,8 @@ import FicheroAPIClient
 import Foundation
 import OSLog
 
+// swiftlint:disable type_body_length
+
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "EmbeddedBackend")
 
 /// True when this process is hosting an XCTest bundle. Detected via the XCTest
@@ -576,3 +578,5 @@ enum BackendError: LocalizedError {
         }
     }
 }
+
+// swiftlint:enable type_body_length
