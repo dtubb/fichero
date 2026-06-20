@@ -187,7 +187,7 @@ struct EditorView: View {
         ContentUnavailableView(
             doc.name,
             systemImage: doc.docType.icon,
-            description: Text("Select an image or PDF page to preview it here.")
+            description: Text("No selection")
         )
     }
 

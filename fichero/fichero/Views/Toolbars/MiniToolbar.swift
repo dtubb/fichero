@@ -1,5 +1,22 @@
 import SwiftUI
 
+struct MiniToolbarMetrics: Equatable {
+    let standardHeight: CGFloat
+    let touchTargetSide: CGFloat
+}
+
+enum MiniToolbarMetricPolicy {
+    static func metrics(isMac: Bool, isTV: Bool) -> MiniToolbarMetrics {
+        if isMac {
+            return MiniToolbarMetrics(standardHeight: 44, touchTargetSide: 28)
+        }
+        if isTV {
+            return MiniToolbarMetrics(standardHeight: 64, touchTargetSide: 44)
+        }
+        return MiniToolbarMetrics(standardHeight: 52, touchTargetSide: 44)
+    }
+}
+
 /// A standardized mini toolbar component that can be used consistently across the app.
 /// Provides a translucent bar with automatic spacing, padding, and material background.
 ///
@@ -21,7 +38,23 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
     /// preview pane, and the inspector' should match. 44pt matches
     /// NSToolbar's default regular-size height so pane headers visually
     /// rhyme with the window toolbar above them. (#883)
-    static var standardHeight: CGFloat { 44 }
+    static var standardHeight: CGFloat {
+        platformMetrics.standardHeight
+    }
+
+    static var touchTargetSide: CGFloat {
+        platformMetrics.touchTargetSide
+    }
+
+    private static var platformMetrics: MiniToolbarMetrics {
+        #if os(macOS)
+        MiniToolbarMetricPolicy.metrics(isMac: true, isTV: false)
+        #elseif os(tvOS)
+        MiniToolbarMetricPolicy.metrics(isMac: false, isTV: true)
+        #else
+        MiniToolbarMetricPolicy.metrics(isMac: false, isTV: false)
+        #endif
+    }
 
     let content: Content
     /// Items appended to the far right, after split-axis buttons.
@@ -48,6 +81,9 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
         }
         .padding(.horizontal, 12)
         .frame(height: Self.standardHeight)
+        #if !os(macOS)
+        .controlSize(.regular)
+        #endif
         // `.bar` matches SidebarBottomToolbar + the window's NSToolbar
         // material, so pane headers don't visually float over a darker
         // content area. (#883)
@@ -62,6 +98,11 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
             Button { actions.onToggleVertical() } label: {
                 Image(systemName: "rectangle.split.2x1")
                     .font(.system(size: 11))
+                    .frame(
+                        minWidth: Self.touchTargetSide,
+                        minHeight: Self.touchTargetSide
+                    )
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundStyle(actions.hasVertical ? Color.accentColor : Color.secondary)
@@ -70,6 +111,11 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
             Button { actions.onToggleHorizontal() } label: {
                 Image(systemName: "rectangle.split.1x2")
                     .font(.system(size: 11))
+                    .frame(
+                        minWidth: Self.touchTargetSide,
+                        minHeight: Self.touchTargetSide
+                    )
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundStyle(actions.hasHorizontal ? Color.accentColor : Color.secondary)

@@ -330,6 +330,42 @@ extension ContentView {
         defaultLibraryViewDisplayMode = effectiveMode
     }
 
+    func updateLayoutMode(_ requestedMode: LayoutMode) {
+        guard availableLayoutModes.contains(requestedMode) else { return }
+
+        let previewMode: PreviewMode = switch requestedMode {
+        case .none: .none
+        case .standard: .standard
+        case .widescreen: .widescreen
+        }
+
+        viewSettings.previewMode = normalizedPreviewMode(previewMode)
+        currentLayoutMode = requestedMode
+
+        if requestedMode == .widescreen,
+           !showDocumentGrid,
+           !showDocumentCanvas,
+           !showReadingPane {
+            showDocumentCanvas = true
+        }
+    }
+
+    func setCanvasPaneVisible(_ isVisible: Bool) {
+        if isVisible {
+            currentLayoutMode = .widescreen
+            viewSettings.previewMode = .widescreen
+        }
+        showDocumentCanvas = isVisible
+    }
+
+    func setReadingPaneVisible(_ isVisible: Bool) {
+        if isVisible {
+            currentLayoutMode = .widescreen
+            viewSettings.previewMode = .widescreen
+        }
+        showReadingPane = isVisible
+    }
+
     func openChatWithCurrentScope() {
         // Follow-up (#1723): keep this discoverable sidebar entry, but promote the
         // scoped-docs chat into a first-class inspector pane/tab once the

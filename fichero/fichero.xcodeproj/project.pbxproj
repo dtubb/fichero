@@ -1764,10 +1764,10 @@
 				67E28651A4F5835C8AD6A06B /* AuditHistoryView.swift */,
 				91100495C9D776E200E2F9C0 /* BackupsView.swift */,
 				70599D1C032FF0B54C7C18A2 /* BackendSettingsRemoteAccessSection.swift */,
-					0A4F63C0FA3C779A6BA5B655 /* EngineSettingsView.swift */,
-					D2FF20EF84262D15A268246D /* ShareSettingsView.swift */,
-					CD5D9E12155EC0A6E738B878 /* UsersSettingsView.swift */,
-					EAF964748FC3450263DCB1D1 /* CaptureSettingsView.swift */,
+				0A4F63C0FA3C779A6BA5B655 /* EngineSettingsView.swift */,
+				D2FF20EF84262D15A268246D /* ShareSettingsView.swift */,
+				CD5D9E12155EC0A6E738B878 /* UsersSettingsView.swift */,
+				EAF964748FC3450263DCB1D1 /* CaptureSettingsView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -2707,11 +2707,11 @@
 				B8D4C0037198A3136E49293B /* LibraryWorkspaceRoot.swift in Sources */,
 				D80C598CBAB2817738ECF0CB /* ChatDocumentDropPayload.swift in Sources */,
 				BA24BF71010589D1597B9025 /* BackendSettingsRemoteAccessSection.swift in Sources */,
-					517753E47832A6BD397EA6B3 /* EngineSettingsView.swift in Sources */,
-					44088B69B036974D72906372 /* ShareSettingsView.swift in Sources */,
-					FB55B6D23D3573E8E04CCD50 /* UsersSettingsView.swift in Sources */,
-					64000200016ACCF0AA1B529A /* UsersStore.swift in Sources */,
-					EBA0B270972261795158D09B /* CaptureSettingsView.swift in Sources */,
+				517753E47832A6BD397EA6B3 /* EngineSettingsView.swift in Sources */,
+				44088B69B036974D72906372 /* ShareSettingsView.swift in Sources */,
+				FB55B6D23D3573E8E04CCD50 /* UsersSettingsView.swift in Sources */,
+				64000200016ACCF0AA1B529A /* UsersStore.swift in Sources */,
+				EBA0B270972261795158D09B /* CaptureSettingsView.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {

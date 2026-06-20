@@ -1,10 +1,10 @@
-#if os(iOS) || os(visionOS)
+#if os(iOS) || os(tvOS) || os(visionOS)
 import AVFoundation
 import FicheroAPIClient
 import OSLog
 import SwiftUI
 import UIKit
-#if canImport(VisionKit) && !os(visionOS)
+#if canImport(VisionKit) && !os(tvOS) && !os(visionOS)
 import VisionKit
 #endif
 // swiftlint:disable file_length
@@ -168,6 +168,7 @@ private struct RemoteConnectionSetupView: View {
                 }
             )
         }
+        #if !os(tvOS)
         .sheet(item: $pickerSource) { source in
             MobileCaptureImagePicker(
                 sourceType: source.sourceType,
@@ -175,7 +176,8 @@ private struct RemoteConnectionSetupView: View {
                 onCancel: { pickerSource = nil }
             )
         }
-        #if canImport(VisionKit) && !os(visionOS)
+        #endif
+        #if canImport(VisionKit) && !os(tvOS) && !os(visionOS)
         .fullScreenCover(isPresented: $showingDocumentScanner) {
             MobileDocumentScanner(
                 onImages: handleScannedDocumentImages,
@@ -232,7 +234,11 @@ private struct RemoteConnectionSetupView: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(isPairing)
 
-                    #if os(visionOS)
+                    #if os(tvOS)
+                    Text("Capture is unavailable on Apple TV.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    #elseif os(visionOS)
                     Button { pickerSource = .library } label: {
                         Label("Capture Document", systemImage: "photo.on.rectangle")
                             .frame(maxWidth: .infinity, minHeight: 46)
@@ -286,7 +292,7 @@ private struct RemoteConnectionSetupView: View {
     // MARK: — Helpers
 
     private var supportsCameraScanner: Bool {
-        #if os(visionOS)
+        #if os(tvOS) || os(visionOS)
         return false
         #else
         return AVCaptureDevice.default(for: .video) != nil
@@ -294,7 +300,7 @@ private struct RemoteConnectionSetupView: View {
     }
 
     private var supportsDocumentScanner: Bool {
-        #if canImport(VisionKit) && !os(visionOS)
+        #if canImport(VisionKit) && !os(tvOS) && !os(visionOS)
         return VNDocumentCameraViewController.isSupported
         #else
         return false
@@ -357,7 +363,7 @@ private struct RemoteConnectionSetupView: View {
     }
 
     private func handleScannedDocumentImages(_ images: [UIImage]) {
-        #if canImport(VisionKit) && !os(visionOS)
+        #if canImport(VisionKit) && !os(tvOS) && !os(visionOS)
         showingDocumentScanner = false
         #endif
         for image in images {
@@ -430,7 +436,18 @@ private struct QRCodeScannerSheet: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
 
-                #if os(visionOS)
+                #if os(tvOS)
+                VStack(spacing: 12) {
+                    Image(systemName: "qrcode.viewfinder")
+                        .font(.largeTitle)
+                    Text("Camera QR scanning is unavailable on Apple TV. Use another Fichero device to scan the code.")
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, minHeight: 320)
+                .padding()
+                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 20))
+                #elseif os(visionOS)
                 VStack(spacing: 12) {
                     Image(systemName: "qrcode.viewfinder")
                         .font(.largeTitle)
@@ -475,7 +492,7 @@ private struct QRCodeScannerSheet: View {
     }
 }
 
-#if !os(visionOS)
+#if !os(tvOS) && !os(visionOS)
 private struct QRCodeScannerView: UIViewControllerRepresentable {
     let onMessage: (String) -> Void
     let onFailure: (String) -> Void

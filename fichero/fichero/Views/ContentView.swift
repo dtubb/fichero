@@ -638,7 +638,91 @@ extension ContentView {
                 }
             }
         }
+
+        #if !os(macOS)
+        ToolbarItem(placement: .primaryAction) {
+            platformViewMenuButton
+        }
+        #endif
     }
+
+    #if !os(macOS)
+    @ViewBuilder
+    private var platformViewMenuButton: some View {
+        Menu {
+            if showViewModePicker {
+                Picker("Library View", selection: viewDisplayModeBinding) {
+                    ForEach(availableViewDisplayModes) { mode in
+                        Label(mode.label, systemImage: mode.icon)
+                            .tag(mode)
+                    }
+                }
+            }
+
+            if showLayoutPicker {
+                Picker("Document Layout", selection: layoutModeBinding) {
+                    ForEach(availableLayoutModes) { mode in
+                        Label(mode.rawValue, systemImage: mode.icon)
+                            .tag(mode)
+                    }
+                }
+            }
+
+            if supportsReadingWorkspace {
+                Section("Panes") {
+                    Toggle("Library", isOn: $showDocumentGrid)
+                    Toggle("Preview", isOn: canvasPaneBinding)
+                    Toggle("Reading", isOn: readingPaneBinding)
+                }
+            }
+
+            if showInspectorToggle {
+                Toggle("Inspector", isOn: $showInspectorSidebar)
+            }
+        } label: {
+            Label("View", systemImage: "rectangle.split.3x1")
+        }
+        .help("Choose visible panes and document views")
+    }
+
+    private var viewDisplayModeBinding: Binding<ViewDisplayMode> {
+        Binding(
+            get: { viewDisplayMode },
+            set: { updateViewDisplayMode($0) }
+        )
+    }
+
+    private var layoutModeBinding: Binding<LayoutMode> {
+        Binding(
+            get: { currentLayoutMode },
+            set: { updateLayoutMode($0) }
+        )
+    }
+
+    private var canvasPaneBinding: Binding<Bool> {
+        Binding(
+            get: {
+                ReadingWorkspacePaneTogglePolicy.isPaneVisible(
+                    layoutMode: currentLayoutMode,
+                    paneFlag: showDocumentCanvas
+                )
+            },
+            set: { isVisible in setCanvasPaneVisible(isVisible) }
+        )
+    }
+
+    private var readingPaneBinding: Binding<Bool> {
+        Binding(
+            get: {
+                ReadingWorkspacePaneTogglePolicy.isPaneVisible(
+                    layoutMode: currentLayoutMode,
+                    paneFlag: showReadingPane
+                )
+            },
+            set: { isVisible in setReadingPaneVisible(isVisible) }
+        )
+    }
+    #endif
 
     private var inspectorToggleButton: some View {
         Button {
