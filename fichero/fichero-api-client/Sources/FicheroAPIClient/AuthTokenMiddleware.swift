@@ -11,7 +11,8 @@ import Security
 /// `fichero-engine/src/fichero/api/auth.py` (#742). Skipping the header on
 /// `/api/health` lets the Swift app poll readiness *before* it has had a
 /// chance to read the token, which avoids a chicken-and-egg deadlock at
-/// app launch.
+/// app launch. `/api/pair` is also skipped so the unauthenticated pairing
+/// exchange never forwards a local bootstrap token to a remote host.
 ///
 /// **Token is read fresh on every request** (not cached at init), because
 /// FicheroClient is constructed at app startup, before the engine has had
@@ -29,6 +30,7 @@ public struct AuthTokenMiddleware: ClientMiddleware {
     /// `_UNAUTHENTICATED_PATHS` in the Python side.
     private static let unauthenticatedPaths: [String] = [
         "/api/health",
+        "/api/pair",
         "/openapi.json",
         "/docs",
         "/redoc"

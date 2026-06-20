@@ -175,4 +175,23 @@ final class EngineConfigTests: XCTestCase {
         XCTAssertEqual(EngineConfig.host.absoluteString, "https://192.168.1.42:9443")
         XCTAssertEqual(EngineConfig.apiBaseURL.absoluteString, "https://192.168.1.42:9443/api")
     }
+
+    @MainActor
+    func testPairingServiceBuildsQRCodePayloadFromClientBaseURL() {
+        let apiRoot = URL(string: "https://192.168.1.42:9443/")!
+        let service = PairingService(apiRoot: apiRoot)
+        let code = PairingCodeRecord(code: "ABC123", expiresAt: Date(timeIntervalSince1970: 0))
+
+        let payload = service.buildQRCodePayload(
+            from: code,
+            spki: "sha256/abc=",
+            libraryPath: "/path/to/lib"
+        )
+
+        XCTAssertEqual(payload.apiURL, "https://192.168.1.42:9443")
+        XCTAssertEqual(payload.pairCode, "ABC123")
+        XCTAssertEqual(payload.spki, "sha256/abc=")
+        XCTAssertEqual(payload.libraryPath, "/path/to/lib")
+        XCTAssertEqual(payload.version, 1)
+    }
 }

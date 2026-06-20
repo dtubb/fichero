@@ -512,113 +512,87 @@ struct PairedDeviceRecord: Codable, Identifiable {
     }
 }
 
-private struct PairedDeviceListResponse: Codable {
-    let items: [PairedDeviceRecord]
-    let count: Int
-}
-
-private struct PairingStatusResponse: Codable {
-    let status: String
-}
-
 @MainActor
 final class PairingService {
-    private let apiRoot: URL
-    private let apiBaseURL: URL
-    private let session: URLSession
-    private let decoder: JSONDecoder
-    private let encoder: JSONEncoder
+    private let client: FicheroClient
 
     init(apiRoot: URL) {
-        self.apiRoot = apiRoot
-        self.apiBaseURL = apiRoot.appendingPathComponent("api")
-
-        let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 15
-        configuration.timeoutIntervalForResource = 30
-        self.session = RemoteCertificatePinning.configuredSession(configuration: configuration)
-
-        self.decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            let raw = try container.decode(String.self)
-            guard let date = parseEngineDate(raw) else {
-                throw DecodingError.dataCorruptedError(
-                    in: container,
-                    debugDescription: "Cannot decode engine date: \(raw)"
-                )
-            }
-            return date
-        }
-
-        self.encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        self.client = FicheroClient(baseURL: apiRoot)
     }
 
     init(apiRoot: URL, expectedSPKIPin: String) throws {
-        self.apiRoot = apiRoot
-        self.apiBaseURL = apiRoot.appendingPathComponent("api")
-
-        let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 15
-        configuration.timeoutIntervalForResource = 30
-        self.session = try RemoteCertificatePinning.pinnedSession(
-            expectedSPKIPin: expectedSPKIPin,
-            configuration: configuration
-        )
-
-        self.decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            let raw = try container.decode(String.self)
-            guard let date = parseEngineDate(raw) else {
-                throw DecodingError.dataCorruptedError(
-                    in: container,
-                    debugDescription: "Cannot decode engine date: \(raw)"
-                )
-            }
-            return date
-        }
-
-        self.encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        self.client = try FicheroClient(baseURL: apiRoot, expectedSPKIPin: expectedSPKIPin)
     }
 
     func createPairingCode() async throws -> PairingCodeRecord {
-        var request = URLRequest(url: apiBaseURL.appendingPathComponent("pair/code"))
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        addAuthorization(to: &request)
-        return try await decode(PairingCodeRecord.self, from: request)
+        let response = try await client.api.createPairingCodeApiPairCodePost(.init())
+        switch response {
+        case .ok(let okResponse):
+            let record = try okResponse.body.json
+            return PairingCodeRecord(code: record.code, expiresAt: record.expiresAt)
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw APIError.httpError(statusCode: 422, message: detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, _):
+            throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
+        }
     }
 
     func listDevices() async throws -> [PairedDeviceRecord] {
-        var request = URLRequest(url: apiBaseURL.appendingPathComponent("pair/devices"))
-        request.httpMethod = "GET"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        addAuthorization(to: &request)
-        let response = try await decode(PairedDeviceListResponse.self, from: request)
-        return response.items
+        let response = try await client.api.listDevicesApiPairDevicesGet(.init())
+        switch response {
+        case .ok(let okResponse):
+            let list = try okResponse.body.json
+            return list.items.map { device in
+                PairedDeviceRecord(
+                    id: device.id,
+                    name: device.name,
+                    userId: device.userId,
+                    createdAt: device.createdAt,
+                    lastSeen: device.lastSeen,
+                    expiresAt: device.expiresAt,
+                    revoked: device.revoked
+                )
+            }
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw APIError.httpError(statusCode: 422, message: detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, _):
+            throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
+        }
     }
 
     func revokeDevice(id: String) async throws {
-        var request = URLRequest(url: apiBaseURL.appendingPathComponent("pair/devices/\(id)/revoke"))
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        addAuthorization(to: &request)
-        _ = try await decode(PairingStatusResponse.self, from: request)
+        let response = try await client.api.revokeDeviceApiPairDevicesDeviceIdRevokePost(
+            path: .init(deviceId: id)
+        )
+        switch response {
+        case .ok:
+            return
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw APIError.httpError(statusCode: 422, message: detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, _):
+            throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
+        }
     }
 
     func pairDeviceUnauthenticated(code: String, deviceName: String) async throws -> PairingExchangeResponse {
-        var request = URLRequest(url: apiBaseURL.appendingPathComponent("pair"))
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.httpBody = try encoder.encode(PairingExchangeRequest(code: code, deviceName: deviceName))
-        // `/api/pair` is the remote-client bootstrap exchange. Never attach the
-        // caller's current token here: a local/embedded `.api-key` must not be
-        // forwarded to a different remote host.
-        return try await decodeUnauthenticated(PairingExchangeResponse.self, from: request)
+        // `/api/pair` is accepted unauthenticated by the engine; the
+        // AuthTokenMiddleware skips auth for this path so a local bootstrap
+        // token is never forwarded to a remote host during pairing.
+        let request = Components.Schemas.PairRequest(code: code, deviceName: deviceName)
+        let response = try await client.api.pairDeviceApiPairPost(.init(body: .json(request)))
+        switch response {
+        case .ok(let okResponse):
+            let record = try okResponse.body.json
+            return PairingExchangeResponse(deviceId: record.deviceId, deviceToken: record.deviceToken)
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw APIError.httpError(statusCode: 422, message: detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, _):
+            throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
+        }
     }
 
     func buildQRCodePayload(
@@ -628,7 +602,7 @@ final class PairingService {
     ) -> PairingQRCodePayload {
         PairingQRCodePayload(
             version: 1,
-            apiURL: apiRoot.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")),
+            apiURL: client.baseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")),
             pairCode: code.code,
             expiresAt: code.expiresAt,
             spki: spki,
@@ -638,38 +612,5 @@ final class PairingService {
 
     static func persistAuthToken(_ token: String, for apiRoot: URL) throws {
         try AuthTokenMiddleware.persistRemoteToken(token, hostString: apiRoot.absoluteString)
-    }
-
-    private func addAuthorization(to request: inout URLRequest) {
-        if let token = AuthTokenMiddleware.readTokenFromDisk() {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
-    }
-
-    private func decode<T: Decodable>(_ type: T.Type, from request: URLRequest) async throws -> T {
-        let (data, response) = try await session.data(for: request)
-        try validate(response: response, data: data)
-        return try decoder.decode(type, from: data)
-    }
-
-    private func decodeUnauthenticated<T: Decodable>(_ type: T.Type, from request: URLRequest) async throws -> T {
-        var unauthenticatedRequest = request
-        unauthenticatedRequest.setValue(nil, forHTTPHeaderField: "Authorization")
-        let (data, response) = try await session.data(for: unauthenticatedRequest)
-        try validate(response: response, data: data)
-        return try decoder.decode(type, from: data)
-    }
-
-    private func validate(response: URLResponse, data: Data) throws {
-        guard let http = response as? HTTPURLResponse else {
-            throw APIError.invalidResponse
-        }
-        guard (200...299).contains(http.statusCode) else {
-            if let error = try? decoder.decode(ErrorResponse.self, from: data) {
-                throw APIError.httpError(statusCode: http.statusCode, message: error.detail)
-            }
-            let message = String(data: data, encoding: .utf8) ?? "Unknown error"
-            throw APIError.httpError(statusCode: http.statusCode, message: message)
-        }
     }
 }
