@@ -4,6 +4,18 @@ import XCTest
 
 @MainActor
 final class MobileCaptureQueueTests: XCTestCase {
+    override func tearDown() {
+        super.tearDown()
+        UserDefaults.standard.removeObject(forKey: RemoteAccessConfig.pairedLibraryPathKey)
+    }
+
+    private func markDevicePairedWithLibrary() {
+        UserDefaults.standard.set(
+            "/Users/daniel/Archive/Open.fichero",
+            forKey: RemoteAccessConfig.pairedLibraryPathKey
+        )
+    }
+
     func testCatalogFieldsMapToDocumentMetadataAndFallbackTitle() {
         let fields = MobileCaptureCatalogFields(
             title: "  Scan Title  ",
@@ -66,7 +78,27 @@ final class MobileCaptureQueueTests: XCTestCase {
         XCTAssertEqual(store.items.first?.uploadState, .waitingForBackend)
     }
 
+    func testRetryPolicyRequiresPairedLibraryPath() async throws {
+        let storageDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: storageDirectory) }
+
+        let store = MobileCaptureQueueStore(storageDirectory: storageDirectory)
+        _ = try store.enqueueCapturedImage(
+            Data([0x07, 0x08, 0x09]),
+            catalog: MobileCaptureCatalogFields(title: "No library")
+        )
+
+        let uploader = FakeCaptureUploader(backendHost: URL(string: "https://pairing.example.com"))
+        let summary = await store.resumePendingUploads(using: uploader)
+
+        XCTAssertEqual(summary.waitingCount, 1)
+        XCTAssertTrue(uploader.uploads.isEmpty)
+        XCTAssertEqual(store.items.first?.uploadState, .waitingForBackend)
+    }
+
     func testRetryUploadsMarkSuccessAndFailure() async throws {
+        markDevicePairedWithLibrary()
         let storageDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: storageDirectory) }
@@ -90,6 +122,7 @@ final class MobileCaptureQueueTests: XCTestCase {
     }
 
     func testRetryUploadsRecordFailures() async throws {
+        markDevicePairedWithLibrary()
         let storageDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: storageDirectory) }
@@ -111,7 +144,9 @@ final class MobileCaptureQueueTests: XCTestCase {
         XCTAssertEqual(store.items.first?.lastError, "boom")
     }
 
+    // swiftlint:disable:next function_body_length
     func testPersistedUploadingItemsReloadAsFailedAndRequireExplicitRetry() async throws {
+        markDevicePairedWithLibrary()
         let storageDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: storageDirectory) }

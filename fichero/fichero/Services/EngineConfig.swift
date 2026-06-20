@@ -251,6 +251,10 @@ enum RemoteAccessConfig {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    static var hasPairedLibraryPath: Bool {
+        !pairedLibraryPath.isEmpty
+    }
+
     static func pairingBackendURL(from publicBaseURLString: String) -> URL? {
         try? validatedRemoteURL(from: publicBaseURLString, allowLocalhost: false, requireSecureTransportForRemote: true)
     }

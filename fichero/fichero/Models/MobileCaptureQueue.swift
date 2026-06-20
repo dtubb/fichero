@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import Foundation
 import OSLog
 import SwiftUI
@@ -161,8 +162,12 @@ struct MobileCaptureUploadSummary: Equatable {
 }
 
 enum MobileCaptureQueueRouting {
-    static func canResumeUploads(backendHost: URL?) -> Bool {
+    static func canResumeUploads(
+        backendHost: URL?,
+        hasPairedLibraryPath: Bool = RemoteAccessConfig.hasPairedLibraryPath
+    ) -> Bool {
         guard let backendHost else { return false }
+        guard hasPairedLibraryPath else { return false }
         return (try? validatedRemoteURL(
             from: backendHost.absoluteString,
             allowLocalhost: false,
@@ -186,6 +191,9 @@ struct MobileCaptureBackendUploadClient: MobileCaptureQueueUploading {
 
     @MainActor
     func upload(fileURL: URL, catalog: MobileCaptureCatalogFields) async throws -> String {
+        guard RemoteAccessConfig.hasPairedLibraryPath else {
+            throw MobileCaptureQueueStoreError.noLibraryAvailable
+        }
         guard let library = libraryManager.globalLibrary else {
             throw MobileCaptureQueueStoreError.noLibraryAvailable
         }
@@ -241,7 +249,9 @@ final class MobileCaptureQueueStore: ObservableObject {
     }
 
     var pendingCount: Int {
-        items.filter { $0.uploadState == .queued || $0.uploadState == .failed || $0.uploadState == .waitingForBackend }.count
+        items.filter {
+            $0.uploadState == .queued || $0.uploadState == .failed || $0.uploadState == .waitingForBackend
+        }.count
     }
 
     var uploadedCount: Int {

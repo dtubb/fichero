@@ -60,6 +60,12 @@ struct FicheroAppIOS: App {
                         )
                         return
                     }
+                    guard RemoteAccessConfig.hasPairedLibraryPath else {
+                        appState.isBackendRunning = false
+                        backendService.status = .failed
+                        backendService.errorMessage = nil
+                        return
+                    }
 
                     await KnownLibraryRegistryStore.shared.refresh()
                     libraryManager.adoptPairedRemoteLibrary()
@@ -93,7 +99,7 @@ private struct FicheroSharedPlatformRoot: View {
             if appState.isCheckingBackend {
                 ProgressView("Connecting to Fichero…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if !appState.isBackendRunning {
+            } else if needsConnectionSetup {
                 RemoteConnectionSetupView {
                     await reconnectToConfiguredHost()
                 }
@@ -115,9 +121,18 @@ private struct FicheroSharedPlatformRoot: View {
         }
     }
 
+    private var needsConnectionSetup: Bool {
+        !appState.isBackendRunning
+            || (EngineConfig.requiresExternalBackendConnection && !RemoteAccessConfig.hasPairedLibraryPath)
+    }
+
     private func reconnectToConfiguredHost() async {
         await appState.checkBackendHealth()
         guard appState.isBackendRunning else { return }
+        guard RemoteAccessConfig.hasPairedLibraryPath else {
+            appState.isBackendRunning = false
+            return
+        }
         appState.startBackendHeartbeat()
         await KnownLibraryRegistryStore.shared.refresh()
         libraryManager.adoptPairedRemoteLibrary()
@@ -607,7 +622,9 @@ private final class BonjourDiscoveryService: NSObject, ObservableObject {
     }
 
     private func refreshHosts() {
-        hosts = records.values.sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+        hosts = records.values.sorted {
+            $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+        }
     }
 
     private func recordID(for service: NetService) -> String {

@@ -231,7 +231,7 @@ struct BackendSettingsRemoteAccessSection: View {
             appState.reconfigureGeneratedClientsForCurrentHost()
             libraryManager.reconfigureGeneratedClientsForCurrentHost()
             if hostingEnabled {
-                pairingError = "Restart the development engine to finish sharing."
+                pairingError = "Sharing is waiting for the Mac engine to finish secure setup."
                 await refreshPairedDevices()
             }
             return
