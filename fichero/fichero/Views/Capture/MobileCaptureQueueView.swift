@@ -1,4 +1,4 @@
-#if canImport(UIKit) && !os(macOS)
+#if os(iOS) || os(visionOS)
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers

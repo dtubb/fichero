@@ -1,4 +1,4 @@
-#if canImport(UIKit) && !os(macOS)
+#if os(iOS) || os(visionOS)
 import AVFoundation
 import FicheroAPIClient
 import OSLog
@@ -117,7 +117,6 @@ private struct FicheroSharedPlatformRoot: View {
 
 private enum DeviceEntryPhase {
     case connect
-    case signingIn(PairingQRCodePayload)
     case capture
 }
 
@@ -130,8 +129,6 @@ private struct RemoteConnectionSetupView: View {
 
     @State private var phase: DeviceEntryPhase = .connect
     @State private var showingScanner = false
-    @State private var username = ""
-    @State private var password = ""
     @State private var isPairing = false
     @State private var errorMessage: String?
     @State private var pickerSource: CaptureSource?
@@ -142,8 +139,6 @@ private struct RemoteConnectionSetupView: View {
             switch phase {
             case .connect:
                 connectView
-            case .signingIn(let payload):
-                signInView(payload: payload)
             case .capture:
                 captureView
             }
@@ -182,9 +177,13 @@ private struct RemoteConnectionSetupView: View {
                                 RoundedRectangle(cornerRadius: 22)
                                     .stroke(Color.accentColor.opacity(0.18), lineWidth: 1)
                             )
-                        Image(systemName: "qrcode.viewfinder")
-                            .font(.system(size: 64))
-                            .foregroundStyle(Color.accentColor.opacity(0.45))
+                        if isPairing {
+                            ProgressView("Connecting…")
+                        } else {
+                            Image(systemName: "qrcode.viewfinder")
+                                .font(.system(size: 64))
+                                .foregroundStyle(Color.accentColor.opacity(0.45))
+                        }
                     }
                     .frame(height: 220)
 
@@ -199,63 +198,13 @@ private struct RemoteConnectionSetupView: View {
                             .frame(maxWidth: .infinity, minHeight: 46)
                     }
                     .buttonStyle(.borderedProminent)
+                    .disabled(isPairing)
 
                     Button { phase = .capture } label: {
                         Text("Capture Document")
                             .frame(maxWidth: .infinity, minHeight: 46)
                     }
                     .buttonStyle(.bordered)
-                }
-                .padding(18)
-                .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 18))
-
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-            }
-            .padding(18)
-            .frame(maxWidth: 460)
-            .frame(maxWidth: .infinity, alignment: .center)
-        }
-        .background(Color(.systemGroupedBackground))
-    }
-
-    // MARK: — Sign in
-
-    private func signInView(payload: PairingQRCodePayload) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Sign in to Fichero")
-                    .font(.largeTitle.bold())
-
-                VStack(spacing: 14) {
-                    TextField("Username", text: $username)
-                        .textContentType(.username)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .textFieldStyle(.roundedBorder)
-                        .frame(minHeight: 46)
-
-                    SecureField("Password", text: $password)
-                        .textContentType(.password)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(minHeight: 46)
-
-                    Button {
-                        Task { await signIn(payload: payload) }
-                    } label: {
-                        Group {
-                            if isPairing {
-                                ProgressView()
-                            } else {
-                                Text("Sign In")
-                            }
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 46)
-                    }
-                    .buttonStyle(.borderedProminent)
                     .disabled(isPairing)
                 }
                 .padding(18)
@@ -337,13 +286,13 @@ private struct RemoteConnectionSetupView: View {
         do {
             let payload = try PairingQRCodePayloadDecoder.decode(message: message)
             errorMessage = nil
-            phase = .signingIn(payload)
+            Task { await pair(with: payload) }
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
-    private func signIn(payload: PairingQRCodePayload) async {
+    private func pair(with payload: PairingQRCodePayload) async {
         isPairing = true
         errorMessage = nil
         defer { isPairing = false }
@@ -356,12 +305,11 @@ private struct RemoteConnectionSetupView: View {
                 deviceName: RemoteClientPairing.defaultDeviceName(),
                 expectedSPKIPin: fields.spkiPin
             )
-            // ponytail: username/password not validated — wire to /api/auth/login when #2021 ships
             appState.reconfigureGeneratedClientsForCurrentHost()
             libraryManager.reconfigureGeneratedClientsForCurrentHost()
             await onConnected()
             if !appState.isBackendRunning {
-                errorMessage = "Paired but the host is not responding yet."
+                errorMessage = "Connected — Fichero on your Mac is not responding yet."
             }
         } catch {
             errorMessage = error.localizedDescription
