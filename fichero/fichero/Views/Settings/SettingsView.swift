@@ -35,6 +35,13 @@ struct SettingsView: View {
                     }
             }
 
+            if featureManager.isSettingsCaptureTabEnabled {
+                CaptureSettingsView()
+                    .tabItem {
+                        Label("Capture", systemImage: "arrow.up.doc")
+                    }
+            }
+
             AuditHistorySettingsTab()
                 .tabItem {
                     Label("History", systemImage: "clock.arrow.circlepath")
