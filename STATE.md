@@ -1,49 +1,55 @@
-# STATE — autonomous manager session (2026-06-20, Daniel out / iPhone demo for Ann tonight)
+# STATE — SESSION-END hand-off (2026-06-20 ~18:00, manager out of tokens ~1h)
 
-Branch `0.0.2`, in sync with origin (`373a6f6e`). All pushes build-green via Xcode MCP
-(`BuildProject` tab `windowtab5`) + backend pytest. verify_all run = exit 0 (guardrail
-FAILs are pre-existing baseline, none name this session's files).
+Branch `0.0.2`, synced with origin. Autonomous manager session for the iPhone/iPad demo
+(Ann tonight via **tailnet sharing** — she joins Daniel's Tailscale). Manager is token-limited;
+**kimi/codex workers keep grinding on a wakeup loop until ~19:30. NO verify/integrate by the
+manager — Daniel integrates + build-gates later.**
 
-## ✅ DEMO PATH — shipped + verified this session
-- **iOS multiple libraries + sidebar-first swipe nav** (#2329/#2334/#2394): registry-backed
-  `iOSLibraryPickerMenu` (top bar) + `LibraryManager.switchToRemoteLibrary`; phone launches on
-  the **sidebar/library list** (`preferredCompactColumn = .sidebar`); drill in → doc list →
-  reader → inspector. Build 0 errors.
-- **Per-page transcription scope** (#2303/#2395/#2396): root cause was `_whole_pdf_parent`
-  set whenever `per_page_texts` was truthy incl. the 1-element per-page case → mis-routed
-  page text. 14-line fix in `vision_base.py` + 17 passing unit tests. ICANH transcripts now
-  land on the right page.
-- **Liquid Glass bar** (#2041): `.glassEffect()` on MiniToolbar body (compiles + ships).
-  NOTE: `.buttonStyle(.glass)/.glassProminent` are NOT in this SDK (build error) — reverted
-  split buttons to plain+accent; per-button glass deferred until the API/SDK is confirmed.
-- Earlier: recovered Codex toolbar work, worktrees 23→1, **Mac deploy target → macOS 26**,
-  Dynamic-Type toolbar glyphs.
+## ✅ FIXED + PUSHED this session (build-green via Xcode MCP `BuildProject` tab windowtab5)
+- iPad **crash fix** `f3b8cdd2` — removed macOS-only `drawsBackground` KVC that crashed iOS
+  WKWebView (the "can't click / feels crashed"). **→ DANIEL: rebuild the iPad app to get it.**
+- **Per-page transcription** `849777af` (#2303/#2395/#2396) — HTR text saves per-page, not parent. 17 tests pass.
+- **iOS shell** `3e5431c7` — multiple libraries (registry picker) + phone launches on sidebar +
+  compact swipe nav (#2329/#2334/#2394).
+- **Liquid Glass bar** + button fix — `.glassEffect()` on MiniToolbar (`.buttonStyle(.glass)` NOT in SDK).
+- Mac deploy target → **macOS 26**; mini-toolbar glyphs scale w/ Dynamic Type; worktrees 23→1.
 
-## 🔄 Running now
-- `f_lane_reader` (sonnet) — iPhone reader/inspector swipe polish (#2331/#2332/#2100),
-  worktree ~/code/fichero-worktrees/ios-reader-polish. Additive only.
+## 🔄 LANES RUNNING (Daniel: integrate + build-gate these later, manager will NOT)
+KIMI (cheap, `codex exec --oss --local-provider ollama -m kimi-k2.7-code:cloud`):
+- `f_kimi_import` → #2412/#2406 ImportServiceGenerated → OpenAPI client (likely fixes iPad import 400)
+- `f_kimi_openapi-storage` → #2411 StorageServiceGenerated → OpenAPI
+- `f_kimi_openapi-activity` → #2413/#2392 ActivityServiceGenerated → OpenAPI (likely fixes empty Activity)
+CLAUDE (finishing, will not relaunch):
+- `f_lane_capture` #2401 capture-while-connected · `f_lane_link` #2399 pairing-link ·
+  `f_lane_mockups` HTML shell mockups · `f_lane_reader` DONE (~/code/fichero-worktrees/ios-reader-polish, integrate)
+Worktrees under ~/code/fichero-worktrees/. **Kimi may EDIT but NOT COMMIT — check git status.**
 
-## ⚠️ THE ONE THING THAT NEEDS DANIEL — Tailscale connectivity to Ann's phone
-The iOS UI is ready, but for Ann's phone to actually reach the Mac's libraries the transport
-must work. Runtime logs show the app hitting `https://macbook-pro-m1.local:8765` and failing
-cert pinning (`-9807`, cert is loopback-only) → change-stream drops. The intended model
-(memory): engine binds 127.0.0.1 + **`tailscale serve`** → tailnet-private HTTPS to localhost,
-where Tailscale terminates TLS with a valid `*.ts.net` cert (no pinning issue). For the demo:
-run `tailscale serve` on the Mac and point the iPhone app at the `<machine>.<tailnet>.ts.net`
-host. This is a security-perimeter + tailscale-config call → left for Daniel, NOT auto-changed.
-Tracked #2394 / #2382 / #2157 / #2162.
+## 📋 Issues filed this session (#2391–#2414) + milestone
+- iPad/UX: #2391 spatial zoom/xy · #2404 sidebar stop-expanding-pages · #2405 list show pages+artifacts
+  · #2406 import 400 · #2407 403 auth race · #2408 slow rotate · #2409 WKWebView slow/unresponsive
+- Connect/capture: #2392 Activity empty · #2393 URLSession guardrail · #2394 iOS↔Mac libs ·
+  #2397 cross-lib DnD · #2399 pairing-link · #2400 tailnet host (DECIDED: tailnet) · #2401 capture-while-connected
+- Multi-user: #2403 connect login-gate (no auto-owner) · #2083 add/manage users · #2084 multi-user toggle
+- Build/dist: #2402 notarized standalone build + embedded engine + Sparkle (needs Daniel's Apple creds)
+- AR: #2398 immersive Spaces (walls/floor)
+- **MILESTONE "Networking — OpenAPI-only (kill hand-rolled URLSession)"**: EPIC #2410 +
+  #2411/#2412/#2413/#2414. Guardrail #2393 enforces going forward.
 
-## Bugs filed this session
-#2391 spatial zoom/xy-share · #2392 Activity empty (handrolled URLSession) · #2393 URLSession
-guardrail · #2394 iOS↔Mac libraries · #2395/#2396 per-page (DONE) · #2397 cross-library DnD ·
-#2398 AR/immersive Spaces (walls/floor + single-item floor projection).
+## ⚠️ DANIEL DECISIONS / TODO (manager will not auto-do — perimeter/credentials)
+1. **Rebuild iPad app** for the crash fix (f3b8cdd2).
+2. **TLS for the demo (#2382/#2400):** `remote_access_tls.py:182` builds the cert SAN for ONE host
+   (loopback) → iPad to `macbook-pro-m1.local` fails `-9807` → change-stream/images drop. For tailnet:
+   advertise the `*.ts.net` host (+ `tailscale serve` valid cert, or self-signed SAN incl. tailnet name).
+   This is the ONE thing blocking remote data load.
+3. **Integrate the worker lanes** (build-gate each via Xcode MCP, push if green).
+4. Multi-user slice (#2084 toggle → #2083 users → #2403 login-gate) when ready.
 
-## Operating rules (Daniel)
-Min OS 26 everywhere, no back-deploy. Universal app + native Liquid Glass, Mac shell flexible.
-Workers don't build — manager builds (Xcode MCP) + verify_all/pytest gate, lots of tests,
-verify-before-push, iterate-never-replace, external worktrees, codex RATE-LIMITED till Jun 25
-(using claude sonnet/opus lanes).
+## Shell design (Daniel, from the Safari mockups) — KEEP current Mac UX, same code adapts
+- Mac = all zones (sidebar·library·preview·reader·inspector), no redesign.
+- iPad LANDSCAPE = 2 views in pairs: Library¼+Preview¾ / Preview¾+Reader¼ / Reader¾+Inspector¼.
+- iPad PORTRAIT = 1 view + slideovers. iPhone = 1 view + swipe. visionOS = each zone its own window.
+- Mockups in docs/design/shell-mockups/ (mac.html, ipad.html ready; phone/tv/vision generating).
 
-## Next (manager loop)
-Integrate reader-polish when it lands (Xcode build gate). Then: per-button Liquid Glass once
-SDK API confirmed; the .local/tailnet TLS (needs Daniel); #2392 Activity-empty + #2393 guardrail.
+## Operating model now
+Manager token-limited → **kimi/codex workers only**, light wakeup loop to keep them fed until ~19:30,
+**no manager verify/integrate/build**. All work is GitHub-issue-tracked.
