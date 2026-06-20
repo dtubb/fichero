@@ -337,11 +337,14 @@ struct Spatial2DCanvas: View {
             }
     }
 
-    // MARK: - Resize (#1748)
+}
 
+// MARK: - Resize (#1748)
+
+extension Spatial2DCanvas {
     /// The card's persisted size — the `CanvasItemLayout` w/h if present, else the
     /// default sticky-note size. View-space (pre-camera-scale) units.
-    private func persistedItemSize(for item: CanvasItemDisplay) -> CGSize {
+    func persistedItemSize(for item: CanvasItemDisplay) -> CGSize {
         let row = layoutStore?.layout.first { $0.itemId == item.id }
         // Flatten the double-optional (row? + w?) before mapping, else the
         // type-checker chokes ("failed to produce diagnostic") inside CGSize.
@@ -354,12 +357,12 @@ struct Spatial2DCanvas: View {
 
     /// Size used to render the card: the live drag size while resizing, else the
     /// persisted size.
-    private func itemSize(for item: CanvasItemDisplay) -> CGSize {
+    func itemSize(for item: CanvasItemDisplay) -> CGSize {
         resizeItemId == item.id ? resizeSize : persistedItemSize(for: item)
     }
 
     /// Native corner grab handle shown on a selected item; drag to resize.
-    private func resizeHandle(for item: CanvasItemDisplay) -> some View {
+    func resizeHandle(for item: CanvasItemDisplay) -> some View {
         Circle()
             .fill(Color.accentColor)
             .overlay(Circle().stroke(.white, lineWidth: 1.5))
@@ -369,7 +372,7 @@ struct Spatial2DCanvas: View {
             .help("Drag to resize")
     }
 
-    private func resizeGesture(for item: CanvasItemDisplay) -> some Gesture {
+    func resizeGesture(for item: CanvasItemDisplay) -> some Gesture {
         DragGesture(minimumDistance: 1)
             .onChanged { value in
                 if resizeOrigin == nil {
@@ -392,12 +395,16 @@ struct Spatial2DCanvas: View {
                 if final != .zero { persistItemSize(itemId: item.id, size: final) }
             }
     }
+}
 
+// MARK: - Add item menu
+
+extension Spatial2DCanvas {
     /// Native "+" menu to add a standalone item to the canvas. Shown only when
     /// the canvas is interactive (a real item store + folder scope). The new
     /// item appears at its arranged fallback position until dragged.
     @ViewBuilder
-    private var addItemMenu: some View {
+    var addItemMenu: some View {
         if let store = itemStore, let folderId = folderScopeId {
             Menu {
                 Button("Add Note") {
