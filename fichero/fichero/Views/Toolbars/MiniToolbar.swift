@@ -107,33 +107,31 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
         HStack(spacing: 4) {
             Divider().frame(height: 16)
 
-            // ponytail: GlassEffectContainer merges adjacent glass buttons into one
-            // unified shape — the two split buttons read as a single glass pill.
-            GlassEffectContainer(spacing: 4) {
-                Button { actions.onToggleVertical() } label: {
-                    Image(systemName: "rectangle.split.2x1")
-                        .font(splitIconFont)
-                        .frame(
-                            minWidth: Self.touchTargetSide,
-                            minHeight: Self.touchTargetSide
-                        )
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(actions.hasVertical ? .glassProminent : .glass)
-                .help(actions.hasVertical ? "Remove left/right split" : "Split left / right")
-
-                Button { actions.onToggleHorizontal() } label: {
-                    Image(systemName: "rectangle.split.1x2")
-                        .font(splitIconFont)
-                        .frame(
-                            minWidth: Self.touchTargetSide,
-                            minHeight: Self.touchTargetSide
-                        )
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(actions.hasHorizontal ? .glassProminent : .glass)
-                .help(actions.hasHorizontal ? "Remove top/bottom split" : "Split top / bottom")
+            Button { actions.onToggleVertical() } label: {
+                Image(systemName: "rectangle.split.2x1")
+                    .font(splitIconFont)
+                    .frame(
+                        minWidth: Self.touchTargetSide,
+                        minHeight: Self.touchTargetSide
+                    )
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .foregroundStyle(actions.hasVertical ? Color.accentColor : Color.secondary)
+            .help(actions.hasVertical ? "Remove left/right split" : "Split left / right")
+
+            Button { actions.onToggleHorizontal() } label: {
+                Image(systemName: "rectangle.split.1x2")
+                    .font(splitIconFont)
+                    .frame(
+                        minWidth: Self.touchTargetSide,
+                        minHeight: Self.touchTargetSide
+                    )
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(actions.hasHorizontal ? Color.accentColor : Color.secondary)
+            .help(actions.hasHorizontal ? "Remove top/bottom split" : "Split top / bottom")
         }
     }
 }
