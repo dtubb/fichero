@@ -78,6 +78,11 @@ struct FicheroAppIOS: App {
     }
 }
 
+private struct IdentifiableURL: Identifiable {
+    let url: URL
+    var id: String { url.absoluteString }
+}
+
 private struct FicheroSharedPlatformRoot: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var libraryManager: LibraryManager
@@ -85,6 +90,8 @@ private struct FicheroSharedPlatformRoot: View {
 
     let windowState: WindowState
     let executionObserver: WorkflowExecutionObserver
+
+    @State private var pendingPairURL: IdentifiableURL?
 
     private var activeLibrary: LibraryManager.LibraryReference? {
         LibraryWorkspaceSelection.activeLibrary(
@@ -119,6 +126,18 @@ private struct FicheroSharedPlatformRoot: View {
                 )
             }
         }
+        .onOpenURL { url in
+            guard url.scheme?.lowercased() == "fichero", url.host?.lowercased() == "pair" else { return }
+            pendingPairURL = IdentifiableURL(url: url)
+        }
+        .sheet(item: $pendingPairURL) { wrapper in
+            PairingIncomingLinkSheet(url: wrapper.url) {
+                await reconnectToConfiguredHost()
+            }
+            .environmentObject(appState)
+            .environmentObject(libraryManager)
+            .environmentObject(captureQueue)
+        }
     }
 
     private var needsConnectionSetup: Bool {
@@ -140,6 +159,71 @@ private struct FicheroSharedPlatformRoot: View {
         await captureQueue.resumePendingUploads(
             using: MobileCaptureBackendUploadClient(libraryManager: libraryManager)
         )
+    }
+}
+
+private struct PairingIncomingLinkSheet: View {
+    @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var libraryManager: LibraryManager
+    @EnvironmentObject private var captureQueue: MobileCaptureQueueStore
+    @Environment(\.dismiss) private var dismiss
+
+    let url: URL
+    let onConnected: @MainActor () async -> Void
+
+    @State private var isPairing = true
+    @State private var errorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if isPairing {
+                    ProgressView("Connecting…")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if let errorMessage {
+                    VStack(spacing: 16) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.largeTitle)
+                            .foregroundStyle(.red)
+                        Text(errorMessage)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .navigationTitle("Connecting…")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+        .task { await pair() }
+    }
+
+    private func pair() async {
+        isPairing = true
+        errorMessage = nil
+        do {
+            let fields = try RemoteClientPairing.pairingFields(fromInviteOrPayload: url.absoluteString)
+            _ = try await RemoteClientPairing.pairAndPersistHost(
+                remoteURL: fields.remoteURL,
+                pairCode: fields.pairCode,
+                deviceName: RemoteClientPairing.defaultDeviceName(),
+                expectedSPKIPin: fields.spkiPin,
+                libraryPath: fields.libraryPath
+            )
+            libraryManager.adoptPairedRemoteLibrary()
+            appState.reconfigureGeneratedClientsForCurrentHost()
+            libraryManager.reconfigureGeneratedClientsForCurrentHost()
+            dismiss()
+            await onConnected()
+        } catch {
+            isPairing = false
+            errorMessage = error.localizedDescription
+        }
     }
 }
 
