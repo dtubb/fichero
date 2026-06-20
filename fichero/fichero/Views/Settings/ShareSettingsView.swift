@@ -1,0 +1,294 @@
+#if canImport(AppKit)
+import CoreImage
+import CoreImage.CIFilterBuiltins
+import FicheroAPIClient
+import SwiftUI
+
+// swiftlint:disable:next type_body_length
+struct ShareSettingsView: View {
+    @EnvironmentObject var appState: AppState
+    @EnvironmentObject var backendService: EmbeddedBackendService
+    @EnvironmentObject var libraryManager: LibraryManager
+    @AppStorage(EngineConfig.userDefaultsKey) private var engineHost = EngineConfig.defaultHostString
+    @AppStorage(RemoteAccessConfig.hostingEnabledKey) private var hostingEnabled = false
+    @AppStorage(RemoteAccessConfig.bonjourEnabledKey) private var bonjourEnabled = false
+    @AppStorage(RemoteAccessConfig.publicBaseURLKey) private var publicBaseURL = ""
+
+    @State private var pairingCode: PairingCodeRecord?
+    @State private var pairedDevices: [PairedDeviceRecord] = []
+    @State private var spkiPin = ""
+    @State private var shareError: String?
+    @State private var isApplyingChange = false
+    @State private var isGeneratingCode = false
+    @State private var isLoadingDevices = false
+    @State private var didBootstrap = false
+
+    private let qrContext = CIContext()
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle(isOn: sharingBinding) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(hostingEnabled ? "On" : "Off")
+                            .font(.headline)
+                        Text("Share Fichero on this Mac with other devices.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .disabled(isApplyingChange || !EngineConfig.engineIsLocal)
+                .padding(.vertical, 4)
+
+                if hostingEnabled {
+                    qrOrStatusContent
+                }
+            }
+
+            if !activePairedDevices(from: pairedDevices).isEmpty {
+                Section("Connected Devices") {
+                    ForEach(activePairedDevices(from: pairedDevices)) { device in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(device.name)
+                                Text(device.lastSeen, style: .relative)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button("Remove") {
+                                Task { await revoke(deviceID: device.id) }
+                            }
+                            .buttonStyle(.borderless)
+                        }
+                    }
+                }
+            }
+
+            Section {
+                DisclosureGroup("Advanced") {
+                    Toggle("Enable pairing and remote clients", isOn: $hostingEnabled)
+                    Toggle("Advertise on local network", isOn: $bonjourEnabled)
+                        .disabled(!hostingEnabled)
+                    TextField("Reachable URL", text: $publicBaseURL)
+                        .textFieldStyle(.roundedBorder)
+                        .autocorrectionDisabled()
+                        .disabled(!hostingEnabled)
+                    TextField("Certificate SPKI pin", text: $spkiPin)
+                        .textFieldStyle(.roundedBorder)
+                        .autocorrectionDisabled()
+                        .disabled(!hostingEnabled)
+                    Button(isApplyingChange ? "Applying…" : "Apply and Restart Engine") {
+                        Task { await applySharing() }
+                    }
+                    .disabled(isApplyingChange)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .task {
+            loadSPKIPin()
+            if hostingEnabled, appState.isBackendRunning {
+                await refreshDevices()
+            }
+            didBootstrap = true
+        }
+        .task(id: refreshKey) {
+            guard didBootstrap else { return }
+            await refreshPairingCode()
+        }
+        .onChange(of: publicBaseURL) { _, _ in loadSPKIPin() }
+    }
+
+    // MARK: - QR / Status
+
+    @ViewBuilder
+    private var qrOrStatusContent: some View {
+        if let pairingCode, let qrImage = makeQRImage(for: pairingCode) {
+            VStack(alignment: .leading, spacing: 12) {
+                Image(platformImage: qrImage)
+                    .interpolation(.none)
+                    .resizable()
+                    .frame(width: 180, height: 180)
+                    .accessibilityLabel("Pairing QR code")
+
+                Text("Scan this QR Code with Fichero on another device to connect.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                DisclosureGroup("Show Details") {
+                    LabeledContent("Address") {
+                        Text(displayAddress)
+                            .textSelection(.enabled)
+                            .font(.caption.monospaced())
+                    }
+                    LabeledContent("Route") {
+                        Text(displayRoute)
+                    }
+                    LabeledContent("Code") {
+                        Text(formatCode(pairingCode.code))
+                            .textSelection(.enabled)
+                            .font(.caption.monospaced())
+                    }
+                }
+                .font(.caption)
+            }
+            .padding(.vertical, 4)
+        } else if isGeneratingCode {
+            ProgressView("Preparing QR code…")
+        } else {
+            Text(statusMessage)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+
+        if let shareError {
+            Text(shareError)
+                .font(.caption)
+                .foregroundStyle(.red)
+        }
+    }
+
+    private var statusMessage: String {
+        guard EngineConfig.engineIsLocal else {
+            return "Sharing works when Fichero is running on this Mac."
+        }
+        guard appState.isBackendRunning else {
+            return "Fichero is not connected on this Mac right now."
+        }
+        let url = publicBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !url.isEmpty else {
+            return "Enter a reachable address in Advanced to generate a QR code."
+        }
+        guard (try? RemoteCertificatePinning.validatedSPKIPin(spkiPin)) != nil else {
+            return "Finish certificate setup in Advanced to generate a QR code."
+        }
+        return "Preparing…"
+    }
+
+    private var displayAddress: String {
+        let url = publicBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        return url.isEmpty ? EngineConfig.apiBaseURL.absoluteString : url
+    }
+
+    private var displayRoute: String {
+        let addr = displayAddress.lowercased()
+        if addr.contains(".local") || addr.contains("localhost") || addr.contains("127.0.0.1") {
+            return "Same Network"
+        }
+        return "Custom"
+    }
+
+    private func formatCode(_ code: String) -> String {
+        let chars = code.filter { $0.isNumber || $0.isLetter }
+        guard chars.count >= 4 else { return code }
+        let mid = chars.index(chars.startIndex, offsetBy: chars.count / 2)
+        return "\(chars[..<mid]) \(chars[mid...])"
+    }
+
+    // MARK: - QR generation
+
+    private func makeQRImage(for record: PairingCodeRecord) -> PlatformImage? {
+        guard let publicURL = try? validatedHostedRemoteURL(from: publicBaseURL) else { return nil }
+        guard let normalizedPin = try? RemoteCertificatePinning.validatedSPKIPin(spkiPin) else { return nil }
+        let service = PairingService(apiRoot: publicURL)
+        let payload = service.buildQRCodePayload(from: record, spki: normalizedPin)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        guard let data = try? encoder.encode(payload) else { return nil }
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = data
+        filter.correctionLevel = "M"
+        guard let output = filter.outputImage?.transformed(by: CGAffineTransform(scaleX: 12, y: 12)),
+              let cgImage = qrContext.createCGImage(output, from: output.extent) else { return nil }
+        return PlatformImage(cgImage: cgImage, size: .zero)
+    }
+
+    // MARK: - State management
+
+    private var refreshKey: String {
+        [hostingEnabled.description, publicBaseURL, spkiPin, engineHost,
+         appState.isBackendRunning.description, didBootstrap.description]
+            .joined(separator: "|")
+    }
+
+    private var sharingBinding: Binding<Bool> {
+        Binding(
+            get: { hostingEnabled },
+            set: { newValue in
+                hostingEnabled = newValue
+                if newValue { bonjourEnabled = true }
+                Task { await applySharing() }
+            }
+        )
+    }
+
+    private func applySharing() async {
+        isApplyingChange = true
+        shareError = nil
+        defer { isApplyingChange = false }
+        if !hostingEnabled {
+            RemoteCertificatePinning.clearAdvertisedSPKIPin(hostString: publicBaseURL)
+            RemoteCertificatePinning.clearPersistedSPKIPin(hostString: publicBaseURL)
+            loadSPKIPin()
+        }
+        backendService.stop()
+        do {
+            try await backendService.start()
+            loadSPKIPin()
+            await appState.checkBackendHealth()
+            appState.reconfigureGeneratedClientsForCurrentHost()
+            libraryManager.reconfigureGeneratedClientsForCurrentHost()
+            if hostingEnabled { await refreshDevices() }
+        } catch {
+            shareError = error.localizedDescription
+        }
+    }
+
+    private func refreshPairingCode() async {
+        pairingCode = nil
+        shareError = nil
+        guard EngineConfig.engineIsLocal,
+              appState.isBackendRunning,
+              hostingEnabled,
+              (try? validatedHostedRemoteURL(from: publicBaseURL)) != nil,
+              (try? RemoteCertificatePinning.validatedSPKIPin(spkiPin)) != nil
+        else { return }
+        isGeneratingCode = true
+        defer { isGeneratingCode = false }
+        do {
+            try await Task.sleep(for: .milliseconds(200))
+            try Task.checkCancellation()
+            pairingCode = try await PairingService(apiRoot: EngineConfig.host).createPairingCode()
+        } catch {
+            if !(error is CancellationError) { shareError = error.localizedDescription }
+        }
+    }
+
+    private func refreshDevices() async {
+        isLoadingDevices = true
+        defer { isLoadingDevices = false }
+        guard EngineConfig.engineIsLocal else { return }
+        do {
+            pairedDevices = try await PairingService(apiRoot: EngineConfig.host).listDevices()
+        } catch {
+            shareError = error.localizedDescription
+        }
+    }
+
+    private func revoke(deviceID: String) async {
+        shareError = nil
+        guard EngineConfig.engineIsLocal else { return }
+        do {
+            try await PairingService(apiRoot: EngineConfig.host).revokeDevice(id: deviceID)
+            await refreshDevices()
+        } catch {
+            shareError = error.localizedDescription
+        }
+    }
+
+    private func loadSPKIPin() {
+        spkiPin = RemoteCertificatePinning.advertisedSPKIPin(hostString: publicBaseURL) ?? ""
+    }
+}
+#endif
