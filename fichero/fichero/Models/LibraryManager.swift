@@ -114,6 +114,12 @@ class LibraryManager: ObservableObject {
         /// action list + categories, and reacts to `action.*` change events.
         lazy var actionStore: ActionStore = ActionStore(service: actionsService)
 
+        /// Per-library activity store (#2448). Wraps `activityService`, owns the
+        /// run-browser list, and signals `ActivityBrowserView` to refresh on
+        /// `workflow.*` SSE events (best-effort until the backend emits dedicated
+        /// `activity.*` events).
+        lazy var activityStore: ActivityStore = ActivityStore(service: activityService)
+
         /// Per-library audit store (#2085). Reads the global "who changed what"
         /// action-registry log (`GET /api/actions/audit`) and undoes rows
         /// (`POST /api/actions/audit/{id}/undo`) through the generated client.
@@ -168,6 +174,7 @@ class LibraryManager: ObservableObject {
             stream.register(self.noteStore)
             stream.register(self.annotationStore)
             stream.register(self.actionStore)
+            stream.register(self.activityStore)
             stream.register(self.researchStore)
             stream.register(self.searchStore)
             stream.register(self.workflowStore)

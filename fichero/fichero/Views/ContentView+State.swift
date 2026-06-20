@@ -76,6 +76,49 @@ extension ContentView {
         return viewName
     }
 
+    /// Breadcrumb trail showing full navigation path from library root to current selection.
+    /// Returns "Library › Folder › Subfolder › File" or empty string if not applicable.
+    /// Only for library mode; returns empty string for other modes.
+    var breadcrumbSubtitle: String {
+        guard case .library(let document) = viewMode, let doc = document else {
+            return ""
+        }
+
+        // Build a lookup function for parent documents from currentDocuments + cache
+        // ContentView is a struct (value type) — capture by value, no weak/retain-cycle concern.
+        let parentLookup: BreadcrumbBuilder.DocumentLookup = { parentId in
+            // Check currentDocuments first (most likely case)
+            if let found = documentStore.currentDocuments.first(where: { $0.id == parentId }) {
+                return found
+            }
+            // Fallback to collections if not found in current docs
+            if let found = documentStore.collections.first(where: { $0.id == parentId }) {
+                return found
+            }
+            return nil
+        }
+
+        let pageLabel: String? = if let page = inspectorDocument, page.docType == .page {
+            page.pageThumbnailLabel
+        } else {
+            nil
+        }
+
+        let breadcrumb = BreadcrumbBuilder.buildBreadcrumbForLibraryMode(
+            document: doc,
+            pageLabel: pageLabel,
+            parentLookup: parentLookup
+        )
+
+        // Return the breadcrumb minus the leaf name (which is already in navigationTitle)
+        // Split on " › " and drop the last component
+        let components = breadcrumb.split(separator: " › ")
+        if components.count > 1 {
+            return components.dropLast().joined(separator: " › ")
+        }
+        return ""
+    }
+
     /// SF symbol name for the current view mode — shown alongside toolbarTitle in the navigation header
     var toolbarIcon: String {
         switch viewMode {

@@ -390,6 +390,7 @@ struct ContentView: View {
                 .focusedSceneValue(\.showReadingPane, $showReadingPane)
         }
         .navigationTitle(toolbarTitle)
+        .navigationSubtitle(breadcrumbSubtitle)
         .onAppear { handleOnAppear() }
         .onChange(of: documentStore.collections) { old, new in
             handleCollectionsChange(old: old, new: new)

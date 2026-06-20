@@ -68,6 +68,7 @@ struct ActivityBrowserView: View {
     let onSelectRun: (SelectedActivityRun) -> Void
 
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
+    @Environment(ActivityStore.self) private var activityStore
     @EnvironmentObject private var libraryManager: LibraryManager
 
     @State private var runs: [ActivityRun] = []
@@ -113,8 +114,26 @@ struct ActivityBrowserView: View {
             }
         }
         .task { await loadRuns() }
-        .onChange(of: executionObserver.activeExecutions.count) { _, _ in
+        // SSE-driven refresh: bumped by ActivityStore when workflow events arrive
+        .onChange(of: activityStore.refreshToken) { _, _ in
             Task { await loadRuns() }
+        }
+        // Live polling while runs are active; one delayed reload after completion
+        // to pick up the `workflow_completed` backend record (#2448).
+        .task(id: executionObserver.activeExecutions.isEmpty) {
+            if executionObserver.activeExecutions.isEmpty {
+                // Executions just drained — wait for the backend to write the
+                // completion record before reloading (covers the DB-write race).
+                try? await Task.sleep(for: .seconds(2))
+                guard !Task.isCancelled else { return }
+                await loadRuns()
+            } else {
+                // Active run: poll every 5 s to surface progress / status changes.
+                while !Task.isCancelled && !executionObserver.activeExecutions.isEmpty {
+                    await loadRuns()
+                    try? await Task.sleep(for: .seconds(5))
+                }
+            }
         }
         .onChange(of: selectedRunId) { _, newId in
             listSelection = newId
