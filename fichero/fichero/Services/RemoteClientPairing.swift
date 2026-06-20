@@ -8,6 +8,7 @@ struct RemoteClientPairingFields: Equatable {
     let remoteURL: String
     let pairCode: String
     let spkiPin: String
+    let libraryPath: String
 }
 
 private struct PairingInviteLink {
@@ -25,6 +26,7 @@ private struct PairingInviteLink {
 enum RemoteClientPairingError: LocalizedError, Equatable {
     case missingPairCode
     case missingDeviceName
+    case missingLibraryPath
     case invalidInviteLink
 
     var errorDescription: String? {
@@ -33,6 +35,8 @@ enum RemoteClientPairingError: LocalizedError, Equatable {
             return "Scan the pairing QR code or enter a pairing code."
         case .missingDeviceName:
             return "Enter a device name."
+        case .missingLibraryPath:
+            return "This QR code does not include a shared library. Show a new QR code on the Mac."
         case .invalidInviteLink:
             return "The invite link is incomplete or invalid."
         }
@@ -76,7 +80,8 @@ enum RemoteClientPairing {
         let encodedPayload = data.base64EncodedString().addingPercentEncoding(
             withAllowedCharacters: PairingInviteLink.queryValueAllowedCharacters
         ) ?? data.base64EncodedString()
-        return "\(PairingInviteLink.scheme)://\(PairingInviteLink.host)?\(PairingInviteLink.payloadQueryItem)=\(encodedPayload)"
+        let prefix = "\(PairingInviteLink.scheme)://\(PairingInviteLink.host)"
+        return "\(prefix)?\(PairingInviteLink.payloadQueryItem)=\(encodedPayload)"
     }
 
     static func pairingFields(from payload: PairingQRCodePayload) throws -> RemoteClientPairingFields {
@@ -86,10 +91,14 @@ enum RemoteClientPairing {
             requireSecureTransportForRemote: true
         )
         let validatedSPKIPin = try RemoteCertificatePinning.validatedSPKIPin(payload.spki)
+        guard let libraryPath = normalizedLibraryPath(payload.libraryPath) else {
+            throw RemoteClientPairingError.missingLibraryPath
+        }
         return RemoteClientPairingFields(
             remoteURL: validatedURL.absoluteString,
             pairCode: payload.pairCode,
-            spkiPin: validatedSPKIPin
+            spkiPin: validatedSPKIPin,
+            libraryPath: libraryPath
         )
     }
 
@@ -150,10 +159,19 @@ enum RemoteClientPairing {
     }
 
     @MainActor
-    static func persistPairedHost(_ result: PairingExchangeResult, expectedSPKIPin: String) throws {
+    static func persistPairedHost(
+        _ result: PairingExchangeResult,
+        expectedSPKIPin: String,
+        libraryPath: String?
+    ) throws {
         try PairingService.persistAuthToken(result.deviceToken, for: result.apiRoot)
         try RemoteCertificatePinning.persistSPKIPin(expectedSPKIPin, hostString: result.apiRoot.absoluteString)
         UserDefaults.standard.set(result.apiRoot.absoluteString, forKey: EngineConfig.userDefaultsKey)
+        if let libraryPath = normalizedLibraryPath(libraryPath) {
+            UserDefaults.standard.set(libraryPath, forKey: RemoteAccessConfig.pairedLibraryPathKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: RemoteAccessConfig.pairedLibraryPathKey)
+        }
     }
 
     @MainActor
@@ -177,7 +195,8 @@ enum RemoteClientPairing {
         remoteURL: String,
         pairCode: String,
         deviceName: String,
-        expectedSPKIPin: String
+        expectedSPKIPin: String,
+        libraryPath: String? = nil
     ) async throws -> URL {
         let result = try await pairDevice(
             remoteURL: remoteURL,
@@ -185,7 +204,7 @@ enum RemoteClientPairing {
             deviceName: deviceName,
             expectedSPKIPin: expectedSPKIPin
         )
-        try persistPairedHost(result, expectedSPKIPin: expectedSPKIPin)
+        try persistPairedHost(result, expectedSPKIPin: expectedSPKIPin, libraryPath: libraryPath)
         return result.apiRoot
     }
 
@@ -193,7 +212,14 @@ enum RemoteClientPairing {
     static func rollbackFailedHostSwitch(previousHost: String, attemptedHost: URL) {
         AuthTokenMiddleware.clearRemoteToken(hostString: attemptedHost.absoluteString)
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: attemptedHost.absoluteString)
+        UserDefaults.standard.removeObject(forKey: RemoteAccessConfig.pairedLibraryPathKey)
         UserDefaults.standard.set(previousHost, forKey: EngineConfig.userDefaultsKey)
+    }
+
+    private static func normalizedLibraryPath(_ path: String?) -> String? {
+        let trimmed = path?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else { return nil }
+        return trimmed
     }
 }
 

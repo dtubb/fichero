@@ -76,25 +76,6 @@ struct ShareSettingsView: View {
                 }
             }
 
-            Section {
-                DisclosureGroup("Advanced") {
-                    Toggle("Enable pairing and remote clients", isOn: $hostingEnabled)
-                    Toggle("Advertise on local network", isOn: $bonjourEnabled)
-                        .disabled(!hostingEnabled)
-                    TextField("Reachable URL", text: $publicBaseURL)
-                        .textFieldStyle(.roundedBorder)
-                        .autocorrectionDisabled()
-                        .disabled(!hostingEnabled)
-                    TextField("Certificate SPKI pin", text: $spkiPin)
-                        .textFieldStyle(.roundedBorder)
-                        .autocorrectionDisabled()
-                        .disabled(!hostingEnabled)
-                    Button(isApplyingChange ? "Applying…" : "Apply and Restart Engine") {
-                        Task { await applySharing() }
-                    }
-                    .disabled(isApplyingChange)
-                }
-            }
         }
         .formStyle(.grouped)
         .task {
@@ -119,33 +100,38 @@ struct ShareSettingsView: View {
     @ViewBuilder
     private var qrOrStatusContent: some View {
         if let pairingCode, let qrImage = makeQRImage(for: pairingCode) {
-            VStack(alignment: .leading, spacing: 12) {
-                Image(platformImage: qrImage)
-                    .interpolation(.none)
-                    .resizable()
-                    .frame(width: 180, height: 180)
-                    .accessibilityLabel("Pairing QR code")
+            HStack {
+                Spacer(minLength: 0)
+                VStack(alignment: .center, spacing: 12) {
+                    Image(platformImage: qrImage)
+                        .interpolation(.none)
+                        .resizable()
+                        .frame(width: 220, height: 220)
+                        .accessibilityLabel("Pairing QR code")
 
-                Text("Scan this QR Code with Fichero on another device to connect.")
+                    Text("Scan this QR Code with Fichero on another device to connect.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+
+                    DisclosureGroup("Show Details") {
+                        LabeledContent("Address") {
+                            Text(displayAddress)
+                                .textSelection(.enabled)
+                                .font(.caption.monospaced())
+                        }
+                        LabeledContent("Route") {
+                            Text(displayRoute)
+                        }
+                        LabeledContent("Code") {
+                            Text(formatCode(pairingCode.code))
+                                .textSelection(.enabled)
+                                .font(.caption.monospaced())
+                        }
+                    }
                     .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                DisclosureGroup("Show Details") {
-                    LabeledContent("Address") {
-                        Text(displayAddress)
-                            .textSelection(.enabled)
-                            .font(.caption.monospaced())
-                    }
-                    LabeledContent("Route") {
-                        Text(displayRoute)
-                    }
-                    LabeledContent("Code") {
-                        Text(formatCode(pairingCode.code))
-                            .textSelection(.enabled)
-                            .font(.caption.monospaced())
-                    }
                 }
-                .font(.caption)
+                Spacer(minLength: 0)
             }
             .padding(.vertical, 4)
         } else if isGeneratingCode {
@@ -206,7 +192,11 @@ struct ShareSettingsView: View {
         guard let publicURL = try? validatedHostedRemoteURL(from: publicBaseURL) else { return nil }
         guard let normalizedPin = try? RemoteCertificatePinning.validatedSPKIPin(spkiPin) else { return nil }
         let service = PairingService(apiRoot: publicURL)
-        let payload = service.buildQRCodePayload(from: record, spki: normalizedPin)
+        let payload = service.buildQRCodePayload(
+            from: record,
+            spki: normalizedPin,
+            libraryPath: sharedLibraryPath
+        )
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         guard let data = try? encoder.encode(payload) else { return nil }
@@ -320,6 +310,14 @@ struct ShareSettingsView: View {
 
     private func loadSPKIPin() {
         spkiPin = RemoteCertificatePinning.advertisedSPKIPin(hostString: publicBaseURL) ?? ""
+    }
+
+    private var sharedLibraryPath: String? {
+        if let currentLibraryId = libraryManager.currentLibraryId,
+           let library = libraryManager.getLibrary(id: currentLibraryId) {
+            return library.url.path
+        }
+        return libraryManager.globalLibrary?.url.path
     }
 }
 #endif

@@ -223,6 +223,7 @@ enum RemoteAccessConfig {
     static let hostingEnabledKey = "fichero.remote_access.enabled"
     static let bonjourEnabledKey = "fichero.remote_access.bonjour_enabled"
     static let publicBaseURLKey = "fichero.remote_access.public_base_url"
+    static let pairedLibraryPathKey = "fichero.remote_access.paired_library_path"
 
     static var hostingEnabled: Bool {
         UserDefaults.standard.bool(forKey: hostingEnabledKey)
@@ -243,6 +244,11 @@ enum RemoteAccessConfig {
 
     static var advertisedSPKIPin: String {
         RemoteCertificatePinning.advertisedSPKIPin(hostString: publicBaseURLString) ?? ""
+    }
+
+    static var pairedLibraryPath: String {
+        (UserDefaults.standard.string(forKey: pairedLibraryPathKey) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     static func pairingBackendURL(from publicBaseURLString: String) -> URL? {
@@ -322,7 +328,11 @@ enum RemoteURLValidationError: LocalizedError, Equatable {
     }
 }
 
-func validatedRemoteURL(from raw: String, allowLocalhost: Bool, requireSecureTransportForRemote: Bool = false) throws -> URL {
+func validatedRemoteURL(
+    from raw: String,
+    allowLocalhost: Bool,
+    requireSecureTransportForRemote: Bool = false
+) throws -> URL {
     let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
         throw RemoteURLValidationError.blank
@@ -408,6 +418,7 @@ struct PairingQRCodePayload: Codable {
     let pairCode: String
     let expiresAt: Date
     let spki: String
+    let libraryPath: String?
 
     enum CodingKeys: String, CodingKey {
         case version = "v"
@@ -415,6 +426,7 @@ struct PairingQRCodePayload: Codable {
         case pairCode = "pair_code"
         case expiresAt = "expires_at"
         case spki
+        case libraryPath = "library_path"
     }
 }
 
@@ -605,13 +617,18 @@ final class PairingService {
         return try await decodeUnauthenticated(PairingExchangeResponse.self, from: request)
     }
 
-    func buildQRCodePayload(from code: PairingCodeRecord, spki: String = "") -> PairingQRCodePayload {
+    func buildQRCodePayload(
+        from code: PairingCodeRecord,
+        spki: String = "",
+        libraryPath: String? = nil
+    ) -> PairingQRCodePayload {
         PairingQRCodePayload(
             version: 1,
             apiURL: apiRoot.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")),
             pairCode: code.code,
             expiresAt: code.expiresAt,
-            spki: spki
+            spki: spki,
+            libraryPath: libraryPath
         )
     }
 

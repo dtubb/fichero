@@ -132,7 +132,11 @@ struct BackendSettingsRemoteAccessSection: View {
         guard let normalizedSPKIPin = try? RemoteCertificatePinning.validatedSPKIPin(spkiPin) else {
             return nil
         }
-        let payload = advertisedPairingService.buildQRCodePayload(from: pairingCode, spki: normalizedSPKIPin)
+        let payload = advertisedPairingService.buildQRCodePayload(
+            from: pairingCode,
+            spki: normalizedSPKIPin,
+            libraryPath: sharedLibraryPath
+        )
         return try? RemoteClientPairing.inviteLinkString(from: payload)
     }
 
@@ -142,7 +146,11 @@ struct BackendSettingsRemoteAccessSection: View {
             return nil
         }
 
-        let payload = advertisedPairingService.buildQRCodePayload(from: pairingCode, spki: normalizedSPKIPin)
+        let payload = advertisedPairingService.buildQRCodePayload(
+            from: pairingCode,
+            spki: normalizedSPKIPin,
+            libraryPath: sharedLibraryPath
+        )
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         guard let data = try? encoder.encode(payload) else { return nil }
@@ -187,6 +195,14 @@ struct BackendSettingsRemoteAccessSection: View {
             return "Finish secure sharing setup in Advanced, then Fichero can show a QR code here."
         }
         return nil
+    }
+
+    private var sharedLibraryPath: String? {
+        if let currentLibraryId = libraryManager.currentLibraryId,
+           let library = libraryManager.getLibrary(id: currentLibraryId) {
+            return library.url.path
+        }
+        return libraryManager.globalLibrary?.url.path
     }
 
     private func applyHostingChanges() async {

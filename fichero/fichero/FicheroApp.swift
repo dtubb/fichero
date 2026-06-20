@@ -153,6 +153,7 @@ struct FicheroApp: App {
                             backendService.errorMessage = nil
                             appState.startBackendHeartbeat()
                             await KnownLibraryRegistryStore.shared.refresh()
+                            libraryManager.adoptPairedRemoteLibrary()
                             await libraryManager.backendDidBecomeReady()
                         } else {
                             backendService.status = .failed

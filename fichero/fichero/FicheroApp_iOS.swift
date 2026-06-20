@@ -62,6 +62,7 @@ struct FicheroAppIOS: App {
                     }
 
                     await KnownLibraryRegistryStore.shared.refresh()
+                    libraryManager.adoptPairedRemoteLibrary()
                     await libraryManager.backendDidBecomeReady()
                     await captureQueue.resumePendingUploads(
                         using: MobileCaptureBackendUploadClient(libraryManager: libraryManager)
@@ -119,6 +120,7 @@ private struct FicheroSharedPlatformRoot: View {
         guard appState.isBackendRunning else { return }
         appState.startBackendHeartbeat()
         await KnownLibraryRegistryStore.shared.refresh()
+        libraryManager.adoptPairedRemoteLibrary()
         await libraryManager.backendDidBecomeReady()
         await captureQueue.resumePendingUploads(
             using: MobileCaptureBackendUploadClient(libraryManager: libraryManager)
@@ -304,8 +306,10 @@ private struct RemoteConnectionSetupView: View {
                 remoteURL: fields.remoteURL,
                 pairCode: fields.pairCode,
                 deviceName: RemoteClientPairing.defaultDeviceName(),
-                expectedSPKIPin: fields.spkiPin
+                expectedSPKIPin: fields.spkiPin,
+                libraryPath: fields.libraryPath
             )
+            libraryManager.adoptPairedRemoteLibrary()
             appState.reconfigureGeneratedClientsForCurrentHost()
             libraryManager.reconfigureGeneratedClientsForCurrentHost()
             await onConnected()

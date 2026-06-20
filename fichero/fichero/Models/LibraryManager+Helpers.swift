@@ -40,6 +40,37 @@ extension LibraryManager {
         }
     }
 
+    /// Remote clients use only the library path explicitly advertised by the
+    /// host's pairing payload. Do not infer from the host registry: registry
+    /// entries are recents/known libraries, not the set currently open for
+    /// remote use.
+    func adoptPairedRemoteLibrary() {
+        guard EngineConfig.requiresExternalBackendConnection else { return }
+        let path = RemoteAccessConfig.pairedLibraryPath
+        guard !path.isEmpty else { return }
+
+        let remoteURL = URL(fileURLWithPath: path)
+        if let current = globalLibrary, current.url.path == remoteURL.path {
+            current.reconfigureBackendHost()
+            return
+        }
+
+        let library = LibraryReference(
+            url: remoteURL,
+            document: FicheroDocument(),
+            displayName: remoteURL.deletingPathExtension().lastPathComponent,
+            id: Self.globalLibraryId,
+            startAccessing: false
+        )
+
+        openLibraries.removeAll { $0.id == Self.globalLibraryId }
+        openLibraries.insert(library, at: 0)
+        currentLibraryId = library.id
+        loadedLibraryIds.removeAll()
+        loadingLibraryIds.removeAll()
+        libraryManagerLogger.info("Adopted paired remote library: \(remoteURL.path, privacy: .public)")
+    }
+
     /// Starts a library load immediately when the backend is ready, otherwise
     /// leaves it queued for backendDidBecomeReady().
     func scheduleLoadWhenBackendReady(for library: LibraryReference) {

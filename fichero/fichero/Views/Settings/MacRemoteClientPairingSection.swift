@@ -85,9 +85,14 @@ struct MacRemoteClientPairingSection: View {
                 expectedSPKIPin: pairingFields.spkiPin
             )
             try await RemoteClientPairing.probeRemoteHealth(at: result.apiRoot, expectedSPKIPin: pairingFields.spkiPin)
-            try RemoteClientPairing.persistPairedHost(result, expectedSPKIPin: pairingFields.spkiPin)
+            try RemoteClientPairing.persistPairedHost(
+                result,
+                expectedSPKIPin: pairingFields.spkiPin,
+                libraryPath: pairingFields.libraryPath
+            )
             backendService.stop()
             engineHost = result.apiRoot.absoluteString
+            libraryManager.adoptPairedRemoteLibrary()
             appState.reconfigureGeneratedClientsForCurrentHost()
             libraryManager.reconfigureGeneratedClientsForCurrentHost()
             do {
@@ -121,6 +126,7 @@ struct MacRemoteClientPairingSection: View {
         backendService.errorMessage = nil
         appState.startBackendHeartbeat()
         await KnownLibraryRegistryStore.shared.refresh()
+        libraryManager.adoptPairedRemoteLibrary()
         await libraryManager.backendDidBecomeReady()
     }
 
