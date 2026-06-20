@@ -1,9 +1,9 @@
-import Foundation
-import UniformTypeIdentifiers
-import OSLog
 import FicheroAPIClient
+import Foundation
 import OpenAPIRuntime
 import OpenAPIURLSession
+import OSLog
+import UniformTypeIdentifiers
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "ImportServiceGenerated")
 
@@ -138,26 +138,46 @@ class ImportServiceGenerated: ObservableObject {
             if didStartAccess { url.stopAccessingSecurityScopedResource() }
         }
 
-        let response = try await client.api.ingestFileApiIngestFilePost(
-            body: .json(.init(
-                path: url.path,
-                parentId: parentId,
-                copyMode: mode == .copy,
-                extractText: extractText,
-                autoEmbed: autoEmbed
-            ))
-        )
-
-        switch response {
-        case .ok(let okResponse):
-            let doc = try okResponse.body.json
-            return try convertToDocument(doc)
-        case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw ImportServiceGeneratedError.serverError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw ImportServiceGeneratedError.unexpectedResponse(statusCode)
+        let doc: Components.Schemas.Document
+        if mode == .copy {
+            let fileData = try Data(contentsOf: url)
+            let response = try await client.api.importFileApiDocumentsImportPost(
+                Self.makeImportUploadInput(
+                    data: fileData,
+                    filename: url.lastPathComponent,
+                    parentId: parentId
+                )
+            )
+            switch response {
+            case .ok(let okResponse):
+                doc = try okResponse.body.json
+            case .unprocessableContent(let error):
+                let detail = try? error.body.json
+                throw ImportServiceGeneratedError.serverError(detail?.detail?.description ?? "Validation error")
+            case .undocumented(let statusCode, _):
+                throw ImportServiceGeneratedError.unexpectedResponse(statusCode)
+            }
+        } else {
+            let response = try await client.api.ingestFileApiIngestFilePost(
+                body: .json(.init(
+                    path: url.path,
+                    parentId: parentId,
+                    copyMode: mode == .copy,
+                    extractText: extractText,
+                    autoEmbed: autoEmbed
+                ))
+            )
+            switch response {
+            case .ok(let okResponse):
+                doc = try okResponse.body.json
+            case .unprocessableContent(let error):
+                let detail = try? error.body.json
+                throw ImportServiceGeneratedError.serverError(detail?.detail?.description ?? "Validation error")
+            case .undocumented(let statusCode, _):
+                throw ImportServiceGeneratedError.unexpectedResponse(statusCode)
+            }
         }
+        return try convertToDocument(doc)
     }
 
     // MARK: - Async Folder Import

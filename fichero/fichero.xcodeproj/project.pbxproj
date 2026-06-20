@@ -488,6 +488,7 @@
 		E096F5149317970F438FE9B9 /* ReferencesInspectorPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = A952F048E802EBA2D1F0846D /* ReferencesInspectorPane.swift */; };
 		E10820FD91D6CB9A12EC7EF0 /* CitationListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACE504DAF1BA303DE7043D34 /* CitationListView.swift */; };
 		E16CECCFD4B4BCE53B2FEC36 /* KGTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF77122ADD78F941D7F1968D /* KGTimelineView.swift */; };
+		E2B03B964149B8CDE9958E69 /* ImportServiceGenerated+Upload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44352F043915E2760BB0DD30 /* ImportServiceGenerated+Upload.swift */; };
 		E38C6073276421EC63C789B7 /* SidebarItemRow+Workflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2FF71320EAE8FE11653EB06 /* SidebarItemRow+Workflow.swift */; };
 		E6E64CE83B1FF1235DCFDF80 /* ScheduleDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16BEAA9442D4996FBD92BC7F /* ScheduleDetailView.swift */; };
 		E75A45471E6698C1C2812BA6 /* DocumentInspectorInfoTab+Citations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08C74251DECC247DF8B5A816 /* DocumentInspectorInfoTab+Citations.swift */; };
@@ -743,6 +744,7 @@
 		4126 /* DragDropModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragDropModel.swift; sourceTree = "<group>"; };
 		43322F30A05232A97F8B3B87 /* ContentView+NavigationHistory.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ContentView+NavigationHistory.swift"; sourceTree = "<group>"; };
 		43EAB861267206E7A929830F /* KGTemporalSpatial.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KGTemporalSpatial.swift; sourceTree = "<group>"; };
+		44352F043915E2760BB0DD30 /* ImportServiceGenerated+Upload.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ImportServiceGenerated+Upload.swift"; sourceTree = "<group>"; };
 		453CA6ACF420E59AED37F906 /* LibraryOutlineNode.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LibraryOutlineNode.swift; sourceTree = "<group>"; };
 		462 /* Workflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Workflow.swift; sourceTree = "<group>"; };
 		47244E304896B65E6F12976C /* SidebarItemRow+Preview.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SidebarItemRow+Preview.swift"; sourceTree = "<group>"; };
@@ -1569,6 +1571,7 @@
 				A23260032F90000100000001 /* RemoteClientPairing.swift */,
 				28B629229088E72B485569FC /* LibraryChangeStream.swift */,
 				6175F28D959ABB4DB0C2F4CD /* ActionInvokeService.swift */,
+				44352F043915E2760BB0DD30 /* ImportServiceGenerated+Upload.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -2725,6 +2728,7 @@
 				64000200016ACCF0AA1B529A /* UsersStore.swift in Sources */,
 				EBA0B270972261795158D09B /* CaptureSettingsView.swift in Sources */,
 				568F313267F4F71EE3FD6BEC /* iOSLibraryPickerMenu.swift in Sources */,
+				E2B03B964149B8CDE9958E69 /* ImportServiceGenerated+Upload.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
