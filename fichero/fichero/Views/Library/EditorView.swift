@@ -164,13 +164,20 @@ struct EditorView: View {
         case .container:
             containerPlaceholder(doc)
         case .storageDisplay(let documentId):
+            let supportsFolderNav = doc.fileType == .image || doc.docType == .page
             #if os(macOS)
             ZStack(alignment: .topTrailing) {
-                DocumentCanvas(content: .imageStorageDisplay(documentId: documentId))
+                DocumentCanvas(
+                    content: .imageStorageDisplay(documentId: documentId),
+                    onNavigateToDocument: supportsFolderNav ? onNavigateToDocument : nil
+                )
                 editModeToggle
             }
             #else
-            DocumentCanvas(content: .imageStorageDisplay(documentId: documentId))
+            DocumentCanvas(
+                content: .imageStorageDisplay(documentId: documentId),
+                onNavigateToDocument: supportsFolderNav ? onNavigateToDocument : nil
+            )
             #endif
         case .imageEditor:
             ImageEditorView(

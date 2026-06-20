@@ -15,6 +15,8 @@ struct DocumentCanvas: View {
     let content: Content
     /// Fired when the user navigates to a different PDF page within the canvas.
     var onPageIndexChange: ((Int) -> Void)?
+    /// Fired when the user steps to a sibling image in the folder image viewer.
+    var onNavigateToDocument: ((String) -> Void)?
 
     enum Content {
         /// A backend storage display image, resolved by document id.
@@ -28,11 +30,15 @@ struct DocumentCanvas: View {
     var body: some View {
         switch content {
         case .imageStorageDisplay(let docId):
-            StorageDisplayImageCanvas(documentId: docId)
+            StorageDisplayImageCanvas(
+                documentId: docId,
+                onNavigateToDocument: onNavigateToDocument
+            )
         case .imageRendered(let nsImage, let docId):
             ZoomableImagePreview(
                 documentId: docId,
-                renderedImage: nsImage
+                renderedImage: nsImage,
+                onNavigateToDocument: onNavigateToDocument
             )
         case .pdf(let documentId, let pageIndex):
             PDFPageWithToolbar(
@@ -46,6 +52,7 @@ struct DocumentCanvas: View {
 
 private struct StorageDisplayImageCanvas: View {
     let documentId: String
+    var onNavigateToDocument: ((String) -> Void)?
 
     @EnvironmentObject private var storageService: StorageServiceGenerated
     @State private var image: PlatformImage?
@@ -55,7 +62,8 @@ private struct StorageDisplayImageCanvas: View {
         ZStack {
             if image != nil {
                 DocumentCanvas(
-                    content: .imageRendered(image: image, documentId: documentId)
+                    content: .imageRendered(image: image, documentId: documentId),
+                    onNavigateToDocument: onNavigateToDocument
                 )
             } else if loadError != nil {
                 Image(systemName: "photo")

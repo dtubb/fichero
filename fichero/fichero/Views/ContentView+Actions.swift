@@ -446,7 +446,18 @@ extension ContentView {
         }
     }
 
-    // MARK: - Sibling Document Navigation (#593)
+    // MARK: - Sibling Document Navigation (#593 / #2420)
+
+    /// Returns the sibling set used for prev/next navigation. When the current
+    /// document is an image or page, navigation is scoped to image/page siblings
+    /// only; otherwise all folder siblings are navigable.
+    private func navigableSiblings(for document: Document) -> [Document] {
+        let all = documentStore.currentDocuments
+        if document.fileType == .image || document.docType == .page {
+            return all.filter { $0.fileType == .image || $0.docType == .page }
+        }
+        return all
+    }
 
     /// Move detailDocument + browserSelection to the previous sibling in the
     /// current folder's sort order. Wraps with a small easeInOut animation so
@@ -454,7 +465,7 @@ extension ContentView {
     /// of a hard cut.
     func navigateSiblingPrevious() {
         guard let current = detailDocument else { return }
-        let docs = documentStore.currentDocuments
+        let docs = navigableSiblings(for: current)
         guard let idx = docs.firstIndex(where: { $0.id == current.id }), idx > 0 else { return }
         let target = docs[idx - 1]
         withAnimation(.easeInOut(duration: 0.2)) {
@@ -466,7 +477,7 @@ extension ContentView {
     /// Move to the next sibling. Symmetric to navigateSiblingPrevious.
     func navigateSiblingNext() {
         guard let current = detailDocument else { return }
-        let docs = documentStore.currentDocuments
+        let docs = navigableSiblings(for: current)
         guard let idx = docs.firstIndex(where: { $0.id == current.id }), idx < docs.count - 1 else { return }
         let target = docs[idx + 1]
         withAnimation(.easeInOut(duration: 0.2)) {

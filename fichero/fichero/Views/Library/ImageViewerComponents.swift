@@ -19,11 +19,16 @@ struct ZoomableImagePreview: View {
     /// over `url` for display — the URL is still used as a stable identity key
     /// but image data comes from this override (#1402).
     var renderedImage: NSImage?
+    /// Optional callback fired when the user steps to a sibling image. macOS
+    /// relies on the window-level sibling navigation (#593); the parameter is
+    /// kept for API parity with the iOS overlay buttons (#2420).
+    var onNavigateToDocument: ((String) -> Void)?
 
-    init(url: URL? = nil, documentId: String? = nil, renderedImage: NSImage? = nil) {
+    init(url: URL? = nil, documentId: String? = nil, renderedImage: NSImage? = nil, onNavigateToDocument: ((String) -> Void)? = nil) {
         self.url = url
         self.documentId = documentId
         self.renderedImage = renderedImage
+        self.onNavigateToDocument = onNavigateToDocument
     }
 
     private static let logger = Logger(subsystem: "app.fichero.fichero", category: "ZoomableImagePreview")
@@ -430,12 +435,22 @@ struct ZoomableImagePreview: View {
     var url: URL?
     var documentId: String?
     var renderedImage: PlatformImage?
+    /// Fired when the user steps to a sibling image in the folder image viewer.
+    var onNavigateToDocument: ((String) -> Void)?
 
-    init(url: URL? = nil, documentId: String? = nil, renderedImage: PlatformImage? = nil) {
+    init(
+        url: URL? = nil,
+        documentId: String? = nil,
+        renderedImage: PlatformImage? = nil,
+        onNavigateToDocument: ((String) -> Void)? = nil
+    ) {
         self.url = url
         self.documentId = documentId
         self.renderedImage = renderedImage
+        self.onNavigateToDocument = onNavigateToDocument
     }
+
+    @Environment(DocumentStore.self) private var documentStore
 
     @State private var scale: CGFloat = 1.0
     @State private var cursorPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)
@@ -445,32 +460,90 @@ struct ZoomableImagePreview: View {
     @State private var loupeSize: CGFloat = 150.0
     @State private var imageCoordinator: ImageWithCursorTracking.Coordinator?
 
+    /// Image/page siblings in the current folder, in display order.
+    private var siblingImageDocs: [Document] {
+        guard documentId != nil else { return [] }
+        return documentStore.currentDocuments.filter { $0.fileType == .image || $0.docType == .page }
+    }
+
+    private var currentImageIndex: Int? {
+        guard let documentId else { return nil }
+        return siblingImageDocs.firstIndex(where: { $0.id == documentId })
+    }
+
+    private var previousAction: (() -> Void)? {
+        guard let onNavigateToDocument,
+              let index = currentImageIndex,
+              index > 0 else { return nil }
+        let target = siblingImageDocs[index - 1]
+        return { onNavigateToDocument(target.id) }
+    }
+
+    private var nextAction: (() -> Void)? {
+        guard let onNavigateToDocument,
+              let index = currentImageIndex,
+              index < siblingImageDocs.count - 1 else { return nil }
+        let target = siblingImageDocs[index + 1]
+        return { onNavigateToDocument(target.id) }
+    }
+
     var body: some View {
-        Group {
-            if renderedImage != nil || url != nil {
-                ImageWithCursorTracking(
-                    url: url ?? URL(fileURLWithPath: "/"),
-                    overrideImage: renderedImage,
-                    scale: $scale,
-                    cursorPosition: $cursorPosition,
-                    imageSize: $imageSize,
-                    visibleRect: $visibleRect,
-                    minScale: 0.01,
-                    maxScale: 10.0,
-                    loupeEnabled: false,
-                    loupeLocked: false,
-                    loupeMagnification: $loupeMagnification,
-                    loupeSize: $loupeSize,
-                    coordinator: $imageCoordinator
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(white: 0.88, opacity: 1.0))
-            } else {
-                ContentUnavailableView(
-                    "Image Preview",
-                    systemImage: "photo",
-                    description: Text("The image could not be loaded.")
-                )
+        ZStack(alignment: .bottom) {
+            Group {
+                if renderedImage != nil || url != nil {
+                    ImageWithCursorTracking(
+                        url: url ?? URL(fileURLWithPath: "/"),
+                        overrideImage: renderedImage,
+                        scale: $scale,
+                        cursorPosition: $cursorPosition,
+                        imageSize: $imageSize,
+                        visibleRect: $visibleRect,
+                        minScale: 0.01,
+                        maxScale: 10.0,
+                        loupeEnabled: false,
+                        loupeLocked: false,
+                        loupeMagnification: $loupeMagnification,
+                        loupeSize: $loupeSize,
+                        coordinator: $imageCoordinator
+                    )
+                } else {
+                    ContentUnavailableView(
+                        "Image Preview",
+                        systemImage: "photo",
+                        description: Text("The image could not be loaded.")
+                    )
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(white: 0.88, opacity: 1.0))
+
+            // iOS touch prev/next overlay for folder image siblings (#2420).
+            if previousAction != nil || nextAction != nil {
+                HStack(spacing: 16) {
+                    Button {
+                        previousAction?()
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.title3.weight(.semibold))
+                            .frame(width: 40, height: 40)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(previousAction == nil)
+                    .accessibilityIdentifier("folderImagePrev")
+
+                    Button {
+                        nextAction?()
+                    } label: {
+                        Image(systemName: "chevron.right")
+                            .font(.title3.weight(.semibold))
+                            .frame(width: 40, height: 40)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(nextAction == nil)
+                    .accessibilityIdentifier("folderImageNext")
+                }
+                .padding(.bottom, 16)
+                .padding(.horizontal, 24)
             }
         }
     }
