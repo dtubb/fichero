@@ -70,3 +70,43 @@ push only if green. ~60 issues filed today (#2391–#2449) — all current-relea
 (#2437–#2445), node-model consolidation (#2446/#2447), chat redesign (#2449), and the change-stream/TLS
 remote bugs (#2382/#2407/#2435/#2448) are the big themes. Manager stopped (token budget); resume integration
 or dispatch more kimi via f_dispatcher pattern when ready.
+
+## ===== OVERNIGHT AUTONOMOUS OPERATING MODEL (Daniel, 2026-06-20 ~19:45) =====
+Work STEADILY and AUTONOMOUSLY overnight. Manager (Claude) integrates + tests, but judiciously.
+
+### PRIORITY ORDER (work top-down; finish a band before the next)
+1. **CONNECTION** — the remote/transport layer must actually work. Activity view live updates (#2448),
+   change-stream/SSE over remote, cert SAN / TLS (#2382/#2400), 403 auth race (#2407), KG-pane-on-remote
+   (#2435), OpenAPI-only conversions (#2410–2414, kill hand-rolled URLSession #2393). Get data flowing
+   reliably on Mac AND iPad/remote.
+2. **READER** — reading is the core. Pinch-zoom #2417, folder/page left-right #2420, full-res image #2427,
+   PDF magnifier #2419, unified reader mini-toolbar #2423 (absorbs #2419/#2421/#2432), per-pane split docs
+   #2422, pin-resets-page #2428, focus ring #2424.
+3. **UX SHELL — make every platform the best**: iOS/iPhone/iPad/tvOS/visionOS/macOS adaptive shell. Keep
+   Mac UX, same code adapts (mockups in docs/design/shell-mockups/). iPad portrait=1/landscape=2-pairs +
+   sidebar overlay; iPhone 1-swipe; visionOS windows-per-zone. Toolbar control #2431/#2450, window-title
+   breadcrumb #2425, Tahoe Liquid Glass #2041, rotation perf #2408, WKWebView perf #2409.
+4. **UX odds & ends** — sidebar/list (#2404/#2405/#2429), RTF/text save (#2416), editor parity #2418,
+   workflows toolbar button #2415, the toolbar-rationalization cluster, misc filed bugs.
+5. **WORKFLOWS** — node-editor parity #2443 (umbrella: #2437 edges, #2440 hidden tools, #2441 editable
+   nodes, #2442 fan-out, #2444 DeepL, #2445 help font, #2438 saved-flash, #2439 output→Activity).
+6. **CHAT** — Xcode-style chat redesign #2449 (paperclip-attach context drives mode).
+7. **RESEARCH/WORKSPACE + node-model** — #2446 (research/workspace into library tree), #2447 (entities into
+   library), then deeper node model #2081.
+
+### WORKER POLICY
+- Default to **ollama/kimi** workers (cheap) for most lanes — `codex exec --oss --local-provider ollama
+  -m kimi-k2.7-code:cloud --dangerously-bypass-approvals-and-sandbox` in tmux + external worktree. The
+  `f_dispatcher` bash-loop pattern can keep them fed without Claude.
+- Use **haiku/sonnet** (`claude --model …`) for medium frontend lanes; **opus** ONLY for complex/structural
+  (adaptive shell, node-model, chat redesign).
+- Multiple lanes at once (≤ ~4 active). Disjoint files to avoid collisions; claim issues.
+### MANAGER (Claude) DUTIES — judiciously, NOT every commit (slow)
+- Integrate landed lanes: review diff + real tests, swiftlint/ruff, register new .swift (add-swift-file.rb),
+  cherry-pick to 0.0.2. BUILD-GATE Swift via Xcode MCP BuildProject(tab windowtab5)=0 errors; backend via
+  pytest. Run full `verify_all.sh` only at batch checkpoints (it's slow). Push ONLY if green.
+- Liquid Glass SDK gotcha: `.glassEffect()`/`GlassEffectContainer` OK; `.buttonStyle(.glass)/.glassProminent`
+  do NOT compile — bounce reintroduction.
+- DO NOT auto-change the TLS/auth perimeter beyond what Daniel decided (tailnet); cert SAN work is OK to
+  IMPLEMENT carefully but flag perimeter assertions.
+- Conserve tokens: prefer kimi for the work; spend Claude on integration/build-gating + the hard lanes.
