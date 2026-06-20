@@ -144,6 +144,60 @@ final class MobileCaptureQueueTests: XCTestCase {
         XCTAssertEqual(store.items.first?.lastError, "boom")
     }
 
+    // MARK: — Active-library wiring (#2401)
+
+    func testUploadClientWithTargetLibraryIdFailsWhenLibraryNotOpen() async throws {
+        // Verifies that targetLibraryId is used instead of silently falling back to
+        // globalLibrary: when the specified library isn't open, the upload fails.
+        markDevicePairedWithLibrary()
+        let storageDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: storageDirectory) }
+
+        let store = MobileCaptureQueueStore(storageDirectory: storageDirectory)
+        _ = try store.enqueueCapturedImage(
+            Data([0xAA, 0xBB]),
+            catalog: MobileCaptureCatalogFields(title: "Active Library Capture")
+        )
+
+        // LibraryManager.shared has no open libraries in unit-test context.
+        let unknownId = UUID()
+        let client = MobileCaptureBackendUploadClient(
+            libraryManager: LibraryManager.shared,
+            targetLibraryId: unknownId
+        )
+        let summary = await store.resumePendingUploads(using: client)
+
+        XCTAssertEqual(summary.failedCount, 1, "upload should fail when targetLibraryId not in openLibraries")
+        XCTAssertEqual(store.items.first?.uploadState, .failed)
+        XCTAssertEqual(
+            store.items.first?.lastError,
+            MobileCaptureQueueStoreError.noLibraryAvailable.localizedDescription
+        )
+    }
+
+    func testUploadClientWithoutTargetLibraryIdFallsBackToGlobalLibrary() async throws {
+        // Verifies backward-compat: nil targetLibraryId still attempts globalLibrary
+        // and produces the same noLibraryAvailable error when no library is open.
+        markDevicePairedWithLibrary()
+        let storageDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: storageDirectory) }
+
+        let store = MobileCaptureQueueStore(storageDirectory: storageDirectory)
+        _ = try store.enqueueCapturedImage(
+            Data([0xCC, 0xDD]),
+            catalog: MobileCaptureCatalogFields(title: "Startup Capture")
+        )
+
+        // No targetLibraryId → falls back to globalLibrary, which is nil in unit test.
+        let client = MobileCaptureBackendUploadClient(libraryManager: LibraryManager.shared)
+        let summary = await store.resumePendingUploads(using: client)
+
+        XCTAssertEqual(summary.failedCount, 1, "should fail when globalLibrary not open")
+        XCTAssertEqual(store.items.first?.uploadState, .failed)
+    }
+
     // swiftlint:disable:next function_body_length
     func testPersistedUploadingItemsReloadAsFailedAndRequireExplicitRetry() async throws {
         markDevicePairedWithLibrary()
