@@ -44,6 +44,10 @@ struct BackendSettingsRemoteAccessSection: View {
 
     var body: some View {
         Section("Share This Mac") {
+            TextField("Sharing address", text: $publicBaseURL)
+                .autocorrectionDisabled()
+                .disabled(!hostingEnabled)
+
             PairingCardView(
                 pairingCode: pairingCode,
                 qrCodeImage: qrCodeImage,
@@ -373,11 +377,22 @@ private struct PairingCardView: View {
                     }
 
                     HStack {
-                        if inviteLink != nil {
+                        if let inviteLink {
                             Button(copiedInvite ? "Invite Copied" : "Copy Invite", action: onCopyInvite)
+                            if let shareURL = URL(string: inviteLink) {
+                                ShareLink(item: shareURL) {
+                                    Label("Share Link", systemImage: "square.and.arrow.up")
+                                }
+                            }
                         }
                     }
                     .buttonStyle(.bordered)
+
+                    if inviteLink != nil {
+                        Text("This link lets a device connect to your library — share only with people you trust.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
                     Text("Expires \(pairingCode.expiresAt.formatted(date: .omitted, time: .shortened))")
                         .font(.caption)
