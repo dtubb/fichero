@@ -1,8 +1,8 @@
-import Foundation
-import OSLog
 import FicheroAPIClient
+import Foundation
 import OpenAPIRuntime
 import OpenAPIURLSession
+import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "ActivityServiceGenerated")
 
@@ -203,10 +203,13 @@ class ActivityServiceGenerated {
         }
     }
 
-    // MARK: - Type Conversions
+}
 
+// MARK: - Type Conversions
+
+extension ActivityServiceGenerated {
     /// Convert generated ActivityResponse to app ActivityItem
-    private func convertToActivityItem(_ response: Components.Schemas.ActivityResponse) -> ActivityItem {
+    func convertToActivityItem(_ response: Components.Schemas.ActivityResponse) -> ActivityItem {
         // Convert metadata from OpenAPIObjectContainer to [String: AnyValueAsString]
         var metadata: [String: AnyValueAsString]?
         if let metadataPayload = response.metadata {
@@ -245,7 +248,7 @@ class ActivityServiceGenerated {
     }
 
     /// Convert generated ActivityStatsResponse to app ActivityStats
-    private func convertToActivityStats(_ response: Components.Schemas.ActivityStatsResponse) -> ActivityStats {
+    func convertToActivityStats(_ response: Components.Schemas.ActivityStatsResponse) -> ActivityStats {
         ActivityStats(
             totalActivities: response.totalActivities,
             activitiesByType: response.activitiesByType.additionalProperties,
@@ -260,7 +263,10 @@ class ActivityServiceGenerated {
     }
 
     /// Convert generated checkpoint history to app type
-    private func convertToCheckpointHistory(_ response: Components.Schemas.CheckpointHistoryResponse, threadId: String) -> CheckpointHistoryResponse {
+    func convertToCheckpointHistory(
+        _ response: Components.Schemas.CheckpointHistoryResponse,
+        threadId: String
+    ) -> CheckpointHistoryResponse {
         let checkpoints = response.checkpoints.map { checkpoint -> CheckpointSnapshot in
             // Convert state values
             var stateValues: [String: CheckpointValue] = [:]
@@ -300,7 +306,7 @@ class ActivityServiceGenerated {
     }
 
     /// Convert generated workflow run to app type
-    private func convertToWorkflowRun(_ response: Components.Schemas.WorkflowRunResponse) -> WorkflowRunResponse {
+    func convertToWorkflowRun(_ response: Components.Schemas.WorkflowRunResponse) -> WorkflowRunResponse {
         // Extract workflow snapshot from OpenAPI Payload wrapper
         let workflowSnapshot: [String: Any]? = response.workflowSnapshot?.additionalProperties.value as? [String: Any]
 
