@@ -1,4 +1,5 @@
 #if canImport(AppKit)
+import AppKit
 import FicheroAPIClient
 import SwiftUI
 
@@ -8,58 +9,41 @@ struct MacRemoteClientPairingSection: View {
     @EnvironmentObject private var libraryManager: LibraryManager
     @AppStorage(EngineConfig.userDefaultsKey) private var engineHost = EngineConfig.defaultHostString
 
-    @State private var clientPairingPayload = ""
-    @State private var clientRemoteURL = EngineConfig.usesCustomHost ? EngineConfig.hostString : ""
-    @State private var clientPairCode = ""
-    @State private var clientSPKIPin = ""
-    @State private var clientDeviceName = RemoteClientPairing.defaultDeviceName()
+    @State private var clientInvite = ""
     @State private var clientPairingError: String?
     @State private var isClientPairing = false
+    @State private var showingManualInvite = false
 
     var body: some View {
-        Section("Join Remote Host") {
-            Text(
-                "Use the pairing URL and code from another Mac to make this Mac a remote client. "
-                    + "This stores a host-scoped device token and switches the app away from localhost."
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
+        Section("Connect This Mac to Another Fichero") {
+            Text("Scan the QR code shown on the host Mac.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
-            TextField("Pairing Payload (optional)", text: $clientPairingPayload)
-                .textFieldStyle(.roundedBorder)
-                .autocorrectionDisabled()
+            DisclosureGroup("Manual link", isExpanded: $showingManualInvite) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Use this only if the camera is unavailable.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
-            Button("Apply Pairing Payload") {
-                applyClientPairingPayload()
-            }
-            .disabled(clientPairingPayload.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    TextField("Invite link or QR text", text: $clientInvite, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .autocorrectionDisabled()
 
-            TextField("Remote URL", text: $clientRemoteURL)
-                .textFieldStyle(.roundedBorder)
-                .autocorrectionDisabled()
+                    HStack {
+                        Button("Paste Link") {
+                            pasteInviteFromClipboard()
+                        }
+                        .buttonStyle(.bordered)
 
-            TextField("Pairing Code", text: $clientPairCode)
-                .textFieldStyle(.roundedBorder)
-                .autocorrectionDisabled()
-
-            TextField("Certificate SPKI pin", text: $clientSPKIPin)
-                .textFieldStyle(.roundedBorder)
-                .autocorrectionDisabled()
-
-            TextField("Device Name", text: $clientDeviceName)
-                .textFieldStyle(.roundedBorder)
-                .autocorrectionDisabled()
-
-            HStack {
-                Button(isClientPairing ? "Connecting..." : "Connect This Mac") {
-                    Task { await connectThisMacAsRemoteClient() }
+                        Button(isClientPairing ? "Connecting…" : "Connect This Mac") {
+                            Task { await connectThisMacAsRemoteClient() }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(isClientPairing || clientInvite.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
                 }
-                .disabled(isClientPairing)
-
-                Button("Use Current Remote Host") {
-                    clientRemoteURL = EngineConfig.hostString
-                }
-                .disabled(EngineConfig.engineIsLocal || isClientPairing)
+                .padding(.top, 6)
             }
 
             if let clientPairingError {
@@ -70,15 +54,10 @@ struct MacRemoteClientPairingSection: View {
         }
     }
 
-    private func applyClientPairingPayload() {
-        do {
-            let pairingFields = try RemoteClientPairing.pairingFields(from: clientPairingPayload)
-            clientRemoteURL = pairingFields.remoteURL
-            clientPairCode = pairingFields.pairCode
-            clientSPKIPin = pairingFields.spkiPin
+    private func pasteInviteFromClipboard() {
+        if let pasted = NSPasteboard.general.string(forType: .string) {
+            clientInvite = pasted
             clientPairingError = nil
-        } catch {
-            clientPairingError = error.localizedDescription
         }
     }
 
@@ -89,14 +68,15 @@ struct MacRemoteClientPairingSection: View {
 
         let previousHost = engineHost
         do {
+            let pairingFields = try RemoteClientPairing.pairingFields(fromInviteOrPayload: clientInvite)
             let result = try await RemoteClientPairing.pairDevice(
-                remoteURL: clientRemoteURL,
-                pairCode: clientPairCode,
-                deviceName: clientDeviceName,
-                expectedSPKIPin: clientSPKIPin
+                remoteURL: pairingFields.remoteURL,
+                pairCode: pairingFields.pairCode,
+                deviceName: RemoteClientPairing.defaultDeviceName(),
+                expectedSPKIPin: pairingFields.spkiPin
             )
-            try await RemoteClientPairing.probeRemoteHealth(at: result.apiRoot, expectedSPKIPin: clientSPKIPin)
-            try RemoteClientPairing.persistPairedHost(result, expectedSPKIPin: clientSPKIPin)
+            try await RemoteClientPairing.probeRemoteHealth(at: result.apiRoot, expectedSPKIPin: pairingFields.spkiPin)
+            try RemoteClientPairing.persistPairedHost(result, expectedSPKIPin: pairingFields.spkiPin)
             backendService.stop()
             engineHost = result.apiRoot.absoluteString
             appState.reconfigureGeneratedClientsForCurrentHost()

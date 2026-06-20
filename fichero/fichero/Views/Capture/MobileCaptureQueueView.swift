@@ -47,7 +47,7 @@ struct MobileCaptureQueueView: View {
                         ContentUnavailableView(
                             "No Captures Yet",
                             systemImage: "camera",
-                            description: Text("Take photos here and finish cataloging them before the paired Mac is reachable.")
+                            description: Text("Save photos, PDFs, and web pages here before the paired library is reachable.")
                         )
                     } else {
                         ForEach(queue.items) { item in
@@ -72,7 +72,7 @@ struct MobileCaptureQueueView: View {
                         Text("\(queue.uploadedCount)")
                     }
 
-                    Text("Uploads stay local until the paired Mac is reachable again.")
+                    Text("Uploads stay on this device until Fichero can reach the paired library again.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 

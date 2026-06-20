@@ -74,6 +74,30 @@ final class RemoteAccessConfigTests: XCTestCase {
         XCTAssertEqual(pairingFields.spkiPin, validSPKIPin)
     }
 
+    func testRemoteClientPairingFieldsAcceptInviteLink() throws {
+        let apiRoot = URL(string: "https://pairing.example.com/")!
+        let code = PairingCodeRecord(
+            code: "PAIR-1234",
+            expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        let payload = PairingService(apiRoot: apiRoot).buildQRCodePayload(from: code, spki: validSPKIPin)
+        let invite = try RemoteClientPairing.inviteLinkString(from: payload)
+
+        let pairingFields = try RemoteClientPairing.pairingFields(fromInviteOrPayload: invite)
+
+        XCTAssertEqual(pairingFields.remoteURL, "https://pairing.example.com")
+        XCTAssertEqual(pairingFields.pairCode, "PAIR-1234")
+        XCTAssertEqual(pairingFields.spkiPin, validSPKIPin)
+    }
+
+    func testRemoteClientPairingFieldsRejectMalformedInviteLink() {
+        XCTAssertThrowsError(
+            try RemoteClientPairing.pairingFields(fromInviteOrPayload: "fichero://pair?payload=not-base64")
+        ) { error in
+            XCTAssertEqual(error as? RemoteClientPairingError, .invalidInviteLink)
+        }
+    }
+
     func testRemoteClientPairingFieldsRejectLocalhostPayloads() throws {
         let apiRoot = URL(string: "http://127.0.0.1:8765/")!
         let code = PairingCodeRecord(

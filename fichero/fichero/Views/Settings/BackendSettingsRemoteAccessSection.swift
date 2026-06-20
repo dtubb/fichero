@@ -1,4 +1,6 @@
 #if canImport(AppKit)
+// swiftlint:disable file_length type_body_length
+import AppKit
 import CoreImage
 import CoreImage.CIFilterBuiltins
 import FicheroAPIClient
@@ -20,27 +22,30 @@ struct BackendSettingsRemoteAccessSection: View {
     @State private var isLoadingDevices = false
     @State private var didBootstrapPairingCard = false
     @State private var spkiPin = ""
+    @State private var copiedInvite = false
 
     private let qrContext = CIContext()
 
     var body: some View {
-        Section("Remote Access") {
+        Section("Share This Mac") {
             PairingCardView(
                 pairingCode: pairingCode,
                 qrCodeImage: qrCodeImage,
+                publicURL: validatedPublicURL?.absoluteString,
+                inviteLink: inviteLinkString,
                 isGeneratingPairingCode: isGeneratingPairingCode,
-                statusMessage: pairingStatusMessage ?? pairingError
+                statusMessage: pairingStatusMessage ?? pairingError,
+                copiedInvite: copiedInvite,
+                onCopyInvite: copyInvite
             )
 
-            if canHostRemoteAccess {
-                PairedDevicesSectionView(
-                    devices: activePairedDevices(from: pairedDevices),
-                    isLoading: isLoadingDevices,
-                    canHostRemoteAccess: canHostRemoteAccess,
-                    onRefresh: { Task { await refreshPairedDevices() } },
-                    onRevoke: { deviceID in Task { await revoke(deviceID: deviceID) } }
-                )
-            }
+            PairedDevicesSectionView(
+                devices: activePairedDevices(from: pairedDevices),
+                isLoading: isLoadingDevices,
+                canHostRemoteAccess: canHostRemoteAccess,
+                onRefresh: { Task { await refreshPairedDevices() } },
+                onRevoke: { deviceID in Task { await revoke(deviceID: deviceID) } }
+            )
 
             AdvancedRemoteAccessSection(
                 hostingEnabled: $hostingEnabled,
@@ -49,6 +54,9 @@ struct BackendSettingsRemoteAccessSection: View {
                 spkiPin: $spkiPin,
                 canHostRemoteAccess: canHostRemoteAccess,
                 isRestartingHost: isRestartingHost,
+                isRefreshingInvite: isGeneratingPairingCode,
+                canResetInvite: pairingStatusMessage == nil,
+                onResetInvite: { Task { await refreshPairingCard() } },
                 onApply: { Task { await applyHostingChanges() } }
             )
         }
@@ -87,6 +95,11 @@ struct BackendSettingsRemoteAccessSection: View {
     private var hasValidSPKIPin: Bool {
         (try? RemoteCertificatePinning.validatedSPKIPin(spkiPin)) != nil
     }
+
+    private var validatedPublicURL: URL? {
+        try? validatedReachableURL()
+    }
+
     private var pairingRefreshKey: String {
         [
             hostingEnabled.description,
@@ -96,6 +109,15 @@ struct BackendSettingsRemoteAccessSection: View {
             appState.isBackendRunning.description,
             didBootstrapPairingCard.description
         ].joined(separator: "|")
+    }
+
+    private var inviteLinkString: String? {
+        guard let pairingCode, let advertisedPairingService else { return nil }
+        guard let normalizedSPKIPin = try? RemoteCertificatePinning.validatedSPKIPin(spkiPin) else {
+            return nil
+        }
+        let payload = advertisedPairingService.buildQRCodePayload(from: pairingCode, spki: normalizedSPKIPin)
+        return try? RemoteClientPairing.inviteLinkString(from: payload)
     }
 
     private var qrCodeImage: PlatformImage? {
@@ -120,14 +142,14 @@ struct BackendSettingsRemoteAccessSection: View {
     }
 
     private var pairingStatusMessage: String? {
-        guard hostingEnabled else {
-            return "Turn on Remote Access in Advanced / Debug."
-        }
         guard canHostRemoteAccess else {
-            return "Use the embedded engine on this Mac."
+            return "Share This Mac works when Fichero is running on this Mac."
         }
         guard appState.isBackendRunning else {
-            return "Start the embedded engine."
+            return "Fichero is not connected on this Mac right now."
+        }
+        guard hostingEnabled else {
+            return "Set up secure sharing, then Fichero can show a QR code here."
         }
 
         do {
@@ -135,9 +157,9 @@ struct BackendSettingsRemoteAccessSection: View {
         } catch let error as RemoteURLValidationError {
             switch error {
             case .blank:
-                return "Use an HTTPS reachable URL."
+                return "Set up secure sharing, then Fichero can show a QR code here."
             case .insecureRemoteTransport:
-                return error.localizedDescription
+                return "Set up secure sharing, then Fichero can show a QR code here."
             default:
                 return error.localizedDescription
             }
@@ -146,7 +168,7 @@ struct BackendSettingsRemoteAccessSection: View {
         }
 
         guard hasValidSPKIPin else {
-            return "Add the host's SPKI pin."
+            return "Finish secure sharing setup in Advanced, then Fichero can show a QR code here."
         }
         return nil
     }
@@ -259,6 +281,17 @@ struct BackendSettingsRemoteAccessSection: View {
     private func loadAdvertisedSPKIPin() {
         spkiPin = RemoteCertificatePinning.advertisedSPKIPin(hostString: publicBaseURL) ?? ""
     }
+
+    private func copyInvite() {
+        guard let inviteLinkString else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(inviteLinkString, forType: .string)
+        copiedInvite = true
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            copiedInvite = false
+        }
+    }
 }
 
 func activePairedDevices(from devices: [PairedDeviceRecord]) -> [PairedDeviceRecord] {
@@ -268,20 +301,21 @@ func activePairedDevices(from devices: [PairedDeviceRecord]) -> [PairedDeviceRec
 private struct PairingCardView: View {
     let pairingCode: PairingCodeRecord?
     let qrCodeImage: PlatformImage?
+    let publicURL: String?
+    let inviteLink: String?
     let isGeneratingPairingCode: Bool
     let statusMessage: String?
+    let copiedInvite: Bool
+    let onCopyInvite: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Pair a Device")
-                .font(.headline)
-
-            Text("The pairing QR appears here when Remote Access is ready.")
+            Text("Show a QR code so iPhone, iPad, Vision Pro, or another Mac can connect to this library.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
             if let pairingCode {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 12) {
                     if let image = qrCodeImage {
                         Image(platformImage: image)
                             .interpolation(.none)
@@ -290,20 +324,39 @@ private struct PairingCardView: View {
                             .accessibilityLabel("Pairing QR code")
                     }
 
-                    Text(pairingCode.code)
-                        .font(.system(.title3, design: .monospaced))
-                        .textSelection(.enabled)
+                    Text("Scan this with Fichero on another device.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if let publicURL {
+                        LabeledContent("Address") {
+                            Text(publicURL)
+                                .textSelection(.enabled)
+                        }
+                        .font(.caption)
+                    }
+
+                    HStack {
+                        if inviteLink != nil {
+                            Button(copiedInvite ? "Invite Copied" : "Copy Invite", action: onCopyInvite)
+                        }
+                    }
+                    .buttonStyle(.bordered)
 
                     Text("Expires \(pairingCode.expiresAt.formatted(date: .omitted, time: .shortened))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             } else if isGeneratingPairingCode {
-                ProgressView("Preparing pairing QR...")
+                ProgressView("Preparing QR code…")
             } else if let statusMessage {
-                Text(statusMessage)
-                    .font(.caption)
-                    .foregroundStyle(.red)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Secure sharing needs HTTPS.")
+                        .font(.headline)
+                    Text(statusMessage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .padding(.vertical, 4)
@@ -317,34 +370,39 @@ private struct PairedDevicesSectionView: View {
     let onRevoke: (String) -> Void
 
     var body: some View {
-        Divider()
-        HStack {
-            Text("Paired Devices")
-                .font(.headline)
-            Spacer()
-            Button(isLoading ? "Refreshing..." : "Refresh Devices", action: onRefresh)
-                .disabled(isLoading || !canHostRemoteAccess)
-        }
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Connected Devices")
+                    .font(.headline)
+                Spacer()
+                Button(isLoading ? "Refreshing…" : "Refresh", action: onRefresh)
+                    .disabled(isLoading || !canHostRemoteAccess)
+                    .buttonStyle(.bordered)
+            }
 
-        if devices.isEmpty {
-            Text("No active paired devices.")
+            if devices.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("No devices have joined yet.")
+                    Text("Devices that scan this QR will appear here.")
+                }
                 .font(.caption)
                 .foregroundStyle(.secondary)
-        } else {
-            ForEach(devices) { device in
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(device.name)
-                        Text(device.lastSeen, style: .relative)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+            } else {
+                ForEach(devices) { device in
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(device.name)
+                            Text(device.lastSeen, style: .relative)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button("Remove") {
+                            onRevoke(device.id)
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(!canHostRemoteAccess)
                     }
-                    Spacer()
-                    Button("Revoke") {
-                        onRevoke(device.id)
-                    }
-                    .buttonStyle(.borderless)
-                    .disabled(!canHostRemoteAccess)
                 }
             }
         }
@@ -358,6 +416,9 @@ private struct AdvancedRemoteAccessSection: View {
     @Binding var spkiPin: String
     let canHostRemoteAccess: Bool
     let isRestartingHost: Bool
+    let isRefreshingInvite: Bool
+    let canResetInvite: Bool
+    let onResetInvite: () -> Void
     let onApply: () -> Void
 
     var body: some View {
@@ -390,9 +451,15 @@ private struct AdvancedRemoteAccessSection: View {
                     .foregroundStyle(.red)
             }
 
+            if hostingEnabled, canHostRemoteAccess {
+                Button(isRefreshingInvite ? "Resetting Invite…" : "Reset Invite", action: onResetInvite)
+                    .disabled(isRestartingHost || isRefreshingInvite || !canResetInvite)
+            }
+
             Button(isRestartingHost ? "Applying..." : "Apply and Restart Engine", action: onApply)
                 .disabled(isRestartingHost)
         }
     }
 }
 #endif
+// swiftlint:enable file_length type_body_length

@@ -18,29 +18,19 @@ struct BackendSettingsView: View {
 
     var body: some View {
         Form {
-            Section("Connection") {
-                TextField("Engine URL", text: $engineHost)
-                    .textFieldStyle(.roundedBorder)
-                    .autocorrectionDisabled()
-
-                LabeledContent("Effective API Base") {
-                    Text(EngineConfig.apiBaseURL.absoluteString)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                }
-
-                Text("Leave blank to use the embedded localhost engine.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                HStack {
+            Section {
+                HStack(alignment: .center, spacing: 12) {
                     Circle()
                         .fill(appState.isBackendRunning ? Color.green : Color.red)
                         .frame(width: 10, height: 10)
 
-                    Text(appState.isBackendRunning ? "Connected" : "Disconnected")
-
-                    Spacer()
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(appState.isBackendRunning ? "Connected" : "Disconnected")
+                            .font(.headline)
+                        Text(connectionDescription)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
 
@@ -89,6 +79,8 @@ struct BackendSettingsView: View {
                     }
                 }
             }
+
+            AdvancedConnectionSection(engineHost: $engineHost)
         }
         .formStyle(.grouped)
         .task {
@@ -114,4 +106,39 @@ struct BackendSettingsView: View {
         }
     }
 
+    private var connectionDescription: String {
+        if appState.isBackendRunning {
+            return EngineConfig.requiresExternalBackendConnection
+                ? "This Mac is connected to another Fichero library."
+                : "Fichero is running on this Mac."
+        }
+        return EngineConfig.requiresExternalBackendConnection
+            ? "Check the shared library link in Advanced if this Mac should reconnect."
+            : "Start the library on this Mac to share it with other devices."
+    }
+
+}
+
+private struct AdvancedConnectionSection: View {
+    @Binding var engineHost: String
+
+    var body: some View {
+        Section {
+            DisclosureGroup("Advanced") {
+                TextField("Engine URL", text: $engineHost)
+                    .textFieldStyle(.roundedBorder)
+                    .autocorrectionDisabled()
+
+                LabeledContent("Effective API Base") {
+                    Text(EngineConfig.apiBaseURL.absoluteString)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+
+                Text("Leave blank only when this Mac should use its embedded local engine.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
 }

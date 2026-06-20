@@ -129,7 +129,6 @@ private enum RemoteConnectionSheet: Identifiable {
     }
 }
 
-// swiftlint:disable type_body_length
 private struct RemoteConnectionSetupView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var libraryManager: LibraryManager
@@ -137,215 +136,102 @@ private struct RemoteConnectionSetupView: View {
 
     let onConnected: @MainActor () async -> Void
 
-    @StateObject private var discovery = BonjourDiscoveryService()
     @State private var detectedPayload: PairingQRCodePayload?
     @State private var presentedSheet: RemoteConnectionSheet?
-    @State private var remoteURL = EngineConfig.usesCustomHost ? EngineConfig.hostString : ""
-    @State private var pairCode = ""
-    @State private var spkiPin = ""
-    @State private var deviceName = RemoteClientPairing.defaultDeviceName()
-    @State private var showAdvancedConnectionOptions = false
+    @State private var inviteText = ""
+    @State private var showManualInvite = false
     @State private var isPairing = false
     @State private var errorMessage: String?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                VStack(alignment: .leading, spacing: 16) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 28, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color.accentColor.opacity(0.20),
-                                        Color.accentColor.opacity(0.06)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-
-                        VStack(spacing: 12) {
-                            Image(platformImage: hostIconImage)
-                                .resizable()
-                                .interpolation(.high)
-                                .frame(width: 84, height: 84)
-
-                            Label("Mac host", systemImage: "qrcode.viewfinder")
-                                .font(.headline)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 8)
-                                .background(.thinMaterial, in: Capsule())
-                        }
-                        .foregroundStyle(Color.accentColor)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 200)
-
+        NavigationStack {
+            List {
+                Section {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Connect to your Mac host")
-                            .font(.largeTitle.weight(.semibold))
-                        Text(
-                            "Open Fichero on the Mac, enable Remote Access in Settings, and scan the QR code shown there."
-                        )
-                        .foregroundStyle(.secondary)
+                        Text("Connect to your Mac")
+                            .font(.title2.weight(.semibold))
+                        Text("Scan the QR code shown in Fichero Settings on the host Mac.")
+                            .foregroundStyle(.secondary)
                     }
-                }
 
-                VStack(alignment: .leading, spacing: 12) {
                     Button {
                         if supportsCameraScanner {
                             presentedSheet = .scanner
                         } else {
-                            showAdvancedConnectionOptions = true
-                            errorMessage = "Camera scanning is unavailable on visionOS. Use the fallback URL/code section below."
+                            showManualInvite = true
+                            errorMessage = "Camera scanning is unavailable here. Use the manual link below."
                         }
                     } label: {
                         Label("Scan QR Code", systemImage: "qrcode.viewfinder")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
+                }
 
-                    Text("Scan the QR shown in Fichero > Settings > Remote Access on the Mac.")
+                Section("Capture Queue") {
+                    Text("Save photos, PDFs, and web pages now. Fichero uploads them when this device connects.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
                     Button {
                         presentedSheet = .captureQueue
                     } label: {
-                        Label("Capture Photos", systemImage: "camera")
+                        Label("Open Capture Queue", systemImage: "tray.full")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
                 }
 
                 if let detectedPayload {
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Label("QR scanned", systemImage: "checkmark.circle.fill")
-                                .font(.headline)
-                            Text(
-                                "This Mac host QR expires at \(detectedPayload.expiresAt.formatted(date: .omitted, time: .shortened))."
-                            )
+                    Section {
+                        Text("Ready to connect to the Mac you scanned.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
 
-                DisclosureGroup("Fallback and debug options", isExpanded: $showAdvancedConnectionOptions) {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Use these options only if you cannot scan the QR code.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        if !discovery.hosts.isEmpty {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Nearby Macs")
-                                    .font(.headline)
-
-                                ForEach(discovery.hosts) { host in
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        HStack {
-                                            Text(host.displayName)
-                                                .font(.subheadline.weight(.semibold))
-                                            if host.hasReachableURL {
-                                                Spacer()
-                                                Button("Use Host") {
-                                                    if let reachableURL = host.reachableURL {
-                                                        remoteURL = reachableURL
-                                                    }
-                                                }
-                                                .buttonStyle(.bordered)
-                                            }
-                                        }
-
-                                        if let reachableURL = host.reachableURL {
-                                            Text(reachableURL)
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                                .textSelection(.enabled)
-                                        } else {
-                                            Text("Open Fichero on that Mac, enable Remote Access, and scan its QR code there.")
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    }
-                                    .padding(12)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
-                                }
-                            }
-                        }
-
-                        if let detectedPayload {
-                            DisclosureGroup("Scanned connection details") {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    LabeledContent("Host URL") {
-                                        Text(detectedPayload.apiURL)
-                                            .textSelection(.enabled)
-                                    }
-                                    LabeledContent("Pairing Code") {
-                                        Text(detectedPayload.pairCode)
-                                            .textSelection(.enabled)
-                                    }
-                                }
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .padding(.top, 4)
-                            }
-                        }
-
+                Section {
+                    DisclosureGroup("Manual link", isExpanded: $showManualInvite) {
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("Manual URL / code")
-                                .font(.headline)
-
-                            TextField("Host URL", text: $remoteURL)
-                                .textFieldStyle(.roundedBorder)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-
-                            TextField("Pairing Code", text: $pairCode)
-                                .textFieldStyle(.roundedBorder)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-
-                            TextField("Certificate SPKI pin", text: $spkiPin)
-                                .textFieldStyle(.roundedBorder)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-
-                            Text("The device name is assigned automatically.")
+                            Text("Use this only if scanning is unavailable.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                        }
 
-                        Button {
-                            Task { await pairUsingAvailableInput() }
-                        } label: {
-                            Label("Connect", systemImage: "link")
+                            TextField("Invite link or QR text", text: $inviteText, axis: .vertical)
+                                .textFieldStyle(.roundedBorder)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+
+                            Button {
+                                Task { await pairUsingAvailableInput() }
+                            } label: {
+                                Label("Connect", systemImage: "link")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(isPairing || inviteText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(isPairing || !canConnectWithCurrentInput)
+                        .padding(.top, 6)
                     }
-                    .padding(.top, 4)
                 }
 
                 if let errorMessage {
-                    Text(errorMessage)
-                        .font(.caption)
-                        .foregroundStyle(.red)
+                    Section {
+                        Text(errorMessage)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
                 }
 
                 if let backendError = appState.backendError {
-                    Text(backendError)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Section {
+                        Text(backendError)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
-            .padding(24)
-            .frame(maxWidth: 720, alignment: .leading)
+            .navigationTitle("Fichero")
         }
         .sheet(item: $presentedSheet) { sheet in
             switch sheet {
@@ -369,9 +255,6 @@ private struct RemoteConnectionSetupView: View {
                 )
             }
         }
-        .task {
-            discovery.start()
-        }
     }
 
     private var supportsCameraScanner: Bool {
@@ -382,20 +265,11 @@ private struct RemoteConnectionSetupView: View {
         #endif
     }
 
-    private var canConnectWithCurrentInput: Bool {
-        !remoteURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !pairCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !spkiPin.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
     private func handleScannedMessage(_ message: String) {
         do {
-            let pairingFields = try RemoteClientPairing.pairingFields(from: message)
             let payload = try PairingQRCodePayloadDecoder.decode(message: message)
             detectedPayload = payload
-            remoteURL = pairingFields.remoteURL
-            pairCode = pairingFields.pairCode
-            spkiPin = pairingFields.spkiPin
+            inviteText = try RemoteClientPairing.inviteLinkString(from: payload)
             errorMessage = nil
             Task { await pairUsingAvailableInput() }
         } catch {
@@ -409,11 +283,12 @@ private struct RemoteConnectionSetupView: View {
         defer { isPairing = false }
 
         do {
+            let pairingFields = try RemoteClientPairing.pairingFields(fromInviteOrPayload: inviteText)
             let url = try await RemoteClientPairing.pairAndPersistHost(
-                remoteURL: remoteURL,
-                pairCode: pairCode,
-                deviceName: deviceName,
-                expectedSPKIPin: spkiPin
+                remoteURL: pairingFields.remoteURL,
+                pairCode: pairingFields.pairCode,
+                deviceName: RemoteClientPairing.defaultDeviceName(),
+                expectedSPKIPin: pairingFields.spkiPin
             )
             appState.reconfigureGeneratedClientsForCurrentHost()
             libraryManager.reconfigureGeneratedClientsForCurrentHost()
@@ -425,24 +300,7 @@ private struct RemoteConnectionSetupView: View {
             errorMessage = error.localizedDescription
         }
     }
-
-    private var hostIconImage: PlatformImage {
-        if let resourcePath = Bundle.main.resourcePath {
-            let iconPath = "\(resourcePath)/Fichero Engine.app/Contents/Resources/engine.icns"
-            if let image = PlatformImage(contentsOfFile: iconPath) {
-                return image
-            }
-        }
-        #if canImport(AppKit)
-        return PlatformImage(systemSymbolName: "server.rack", accessibilityDescription: nil) ?? PlatformImage()
-        #elseif canImport(UIKit)
-        return PlatformImage(systemName: "server.rack") ?? PlatformImage()
-        #else
-        return PlatformImage()
-        #endif
-    }
 }
-// swiftlint:enable type_body_length
 
 private struct QRCodeScannerSheet: View {
     let onCancel: () -> Void
@@ -453,7 +311,7 @@ private struct QRCodeScannerSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 16) {
-                Text("Open Fichero on the Mac, open Settings > Remote Access, and scan the QR code shown there.")
+                Text("Open Fichero on the Mac, open Settings, and scan the QR code shown there.")
                     .font(.headline)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
@@ -462,7 +320,7 @@ private struct QRCodeScannerSheet: View {
                 VStack(spacing: 12) {
                     Image(systemName: "qrcode.viewfinder")
                         .font(.largeTitle)
-                    Text("Camera QR scanning is unavailable on visionOS. Use the manual URL/code section below.")
+                    Text("Camera QR scanning is unavailable on visionOS. Use the manual link section below.")
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.secondary)
                 }

@@ -92,7 +92,7 @@ struct LibraryWorkspaceRoot: View {
                 Button {
                     showingCaptureQueue = true
                 } label: {
-                    Label("Capture", systemImage: "camera")
+                    Label(captureQueue.pendingCount > 0 ? "Queue \(captureQueue.pendingCount)" : "Capture Queue", systemImage: "camera")
                 }
                 .help("Open the mobile capture queue")
             }

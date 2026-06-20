@@ -11,9 +11,16 @@ struct RemoteClientPairingFields: Equatable {
     let spkiPin: String
 }
 
+private struct PairingInviteLink {
+    static let scheme = "fichero"
+    static let host = "pair"
+    static let payloadQueryItem = "payload"
+}
+
 enum RemoteClientPairingError: LocalizedError, Equatable {
     case missingPairCode
     case missingDeviceName
+    case invalidInviteLink
 
     var errorDescription: String? {
         switch self {
@@ -21,6 +28,8 @@ enum RemoteClientPairingError: LocalizedError, Equatable {
             return "Scan the pairing QR code or enter a pairing code."
         case .missingDeviceName:
             return "Enter a device name."
+        case .invalidInviteLink:
+            return "The invite link is incomplete or invalid."
         }
     }
 }
@@ -41,6 +50,39 @@ enum RemoteClientPairing {
 
     static func pairingFields(from message: String) throws -> RemoteClientPairingFields {
         let payload = try PairingQRCodePayloadDecoder.decode(message: message)
+        return try pairingFields(from: payload)
+    }
+
+    static func pairingFields(fromInviteOrPayload message: String) throws -> RemoteClientPairingFields {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        if looksLikeInviteLink(trimmed) {
+            guard let payload = payloadFromInviteLink(trimmed) else {
+                throw RemoteClientPairingError.invalidInviteLink
+            }
+            return try pairingFields(from: payload)
+        }
+        return try pairingFields(from: trimmed)
+    }
+
+    static func inviteLinkString(from payload: PairingQRCodePayload) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(payload)
+
+        var components = URLComponents()
+        components.scheme = PairingInviteLink.scheme
+        components.host = PairingInviteLink.host
+        components.queryItems = [
+            URLQueryItem(name: PairingInviteLink.payloadQueryItem, value: data.base64EncodedString())
+        ]
+
+        guard let url = components.url else {
+            throw APIError.badRequest("Could not create an invite link.")
+        }
+        return url.absoluteString
+    }
+
+    private static func pairingFields(from payload: PairingQRCodePayload) throws -> RemoteClientPairingFields {
         let validatedURL = try validatedRemoteURL(
             from: payload.apiURL,
             allowLocalhost: false,
@@ -52,6 +94,25 @@ enum RemoteClientPairing {
             pairCode: payload.pairCode,
             spkiPin: validatedSPKIPin
         )
+    }
+
+    private static func payloadFromInviteLink(_ message: String) -> PairingQRCodePayload? {
+        guard let components = URLComponents(string: message),
+              components.scheme?.lowercased() == PairingInviteLink.scheme,
+              components.host?.lowercased() == PairingInviteLink.host,
+              let encodedPayload = components.queryItems?
+              .first(where: { $0.name == PairingInviteLink.payloadQueryItem })?.value,
+              let data = Data(base64Encoded: encodedPayload),
+              let payload = try? JSONDecoder.withISO8601Dates.decode(PairingQRCodePayload.self, from: data) else {
+            return nil
+        }
+        return payload
+    }
+
+    private static func looksLikeInviteLink(_ message: String) -> Bool {
+        guard let components = URLComponents(string: message) else { return false }
+        return components.scheme?.lowercased() == PairingInviteLink.scheme
+            && components.host?.lowercased() == PairingInviteLink.host
     }
 
     static func pairDevice(
@@ -134,5 +195,23 @@ enum RemoteClientPairing {
         AuthTokenMiddleware.clearRemoteToken(hostString: attemptedHost.absoluteString)
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: attemptedHost.absoluteString)
         UserDefaults.standard.set(previousHost, forKey: EngineConfig.userDefaultsKey)
+    }
+}
+
+private extension JSONDecoder {
+    static var withISO8601Dates: JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let raw = try container.decode(String.self)
+            guard let date = parseEngineDate(raw) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Cannot decode QR payload date: \(raw)"
+                )
+            }
+            return date
+        }
+        return decoder
     }
 }
