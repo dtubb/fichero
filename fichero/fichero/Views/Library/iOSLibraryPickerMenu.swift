@@ -42,6 +42,11 @@ struct IOSLibraryPickerMenu: View {
 
     var body: some View {
         Menu {
+            if let error = registry.fetchError {
+                Text("Failed: \(error)")
+                    .foregroundStyle(.secondary)
+            }
+
             ForEach(entries, id: \.path) { entry in
                 Button {
                     libraryManager.switchToRemoteLibrary(path: entry.path, displayName: entry.name)
@@ -54,7 +59,7 @@ struct IOSLibraryPickerMenu: View {
                 }
             }
 
-            if entries.isEmpty {
+            if entries.isEmpty && registry.fetchError == nil {
                 Text("No Libraries")
             }
 
@@ -69,9 +74,7 @@ struct IOSLibraryPickerMenu: View {
             Label("Libraries", systemImage: "books.vertical")
         }
         .task {
-            if registry.libraries.isEmpty {
-                await registry.refresh()
-            }
+            await registry.refresh()
         }
     }
 }

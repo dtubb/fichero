@@ -15,6 +15,7 @@ final class KnownLibraryRegistryStore: ObservableObject {
     static let shared = KnownLibraryRegistryStore()
 
     @Published private(set) var libraries: [KnownLibraryMenuEntry] = []
+    @Published private(set) var fetchError: String?
 
     private let apiClient = APIClient()
 
@@ -22,10 +23,25 @@ final class KnownLibraryRegistryStore: ObservableObject {
 
     func refresh() async {
         do {
-            let response: LibraryRegistryMenuResponse = try await apiClient.get("/registry")
-            libraries = response.libraries
+            let response = try await apiClient.api.listKnownLibrariesApiRegistryGet(.init())
+            switch response {
+            case .ok(let okResponse):
+                let body = try okResponse.body.json
+                libraries = body.libraries.map { lib in
+                    KnownLibraryMenuEntry(
+                        id: lib.id ?? lib.path,
+                        path: lib.path,
+                        name: lib.name,
+                        addedAt: lib.addedAt,
+                        lastAccessed: lib.lastAccessed
+                    )
+                }
+                fetchError = nil
+            default:
+                fetchError = "Unexpected response from registry"
+            }
         } catch {
-            libraries = []
+            fetchError = error.localizedDescription
         }
     }
 
@@ -63,11 +79,6 @@ final class KnownLibraryRegistryStore: ObservableObject {
             await remove(path: path)
         }
     }
-}
-
-private struct LibraryRegistryMenuResponse: Decodable {
-    let libraries: [KnownLibraryMenuEntry]
-    let count: Int
 }
 
 struct KnownLibraryMenuEntry: Decodable, Identifiable, Equatable {
