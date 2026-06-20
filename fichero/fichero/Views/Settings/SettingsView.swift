@@ -32,7 +32,7 @@ struct SettingsView: View {
             if featureManager.isSettingsShareTabEnabled {
                 ShareSettingsView()
                     .tabItem {
-                        Label("Share", systemImage: "square.and.arrow.up")
+                        Label("Connect", systemImage: "qrcode.viewfinder")
                     }
             }
             #endif

@@ -31,6 +31,7 @@ final class EmbeddedBackendService: ObservableObject {
 
     private var backendPID: pid_t?
     private var isExternalBackend = false  // Track if using external vs embedded backend
+    var isUsingExternalBackend: Bool { isExternalBackend }
     private var backendURL: URL {
         if RemoteAccessConfig.hostingEnabled, let publicBaseURL = RemoteAccessConfig.publicBaseURL {
             return publicBaseURL
@@ -238,6 +239,12 @@ final class EmbeddedBackendService: ObservableObject {
         Self.waitForPortToClear(8765, timeout: 3.0)
         #endif
 
+        let localAccessMaterial = try prepareLocalAccessTLSMaterial(executablePath: executablePath)
+        try RemoteCertificatePinning.persistHostedBackendSPKIPin(
+            localAccessMaterial.spkiPin,
+            hostString: EngineConfig.defaultHostString
+        )
+
         var remoteAccessMaterial: RemoteAccessTLSMaterial?
         var remoteAccessPublicBaseURL: URL?
         if RemoteAccessConfig.hostingEnabled {
@@ -274,6 +281,9 @@ final class EmbeddedBackendService: ObservableObject {
         // chance to call .stop() (e.g., SIGKILL). Belt-and-braces with the
         // applicationWillTerminate path.
         environment["FICHERO_PARENT_PID"] = String(ProcessInfo.processInfo.processIdentifier)
+        environment["FICHERO_TLS_CERTFILE"] = localAccessMaterial.certificatePath
+        environment["FICHERO_TLS_KEYFILE"] = localAccessMaterial.keyPath
+        environment["FICHERO_TLS_SPKI_HASH"] = localAccessMaterial.spkiPin
         if let remoteAccessMaterial, let remoteAccessPublicBaseURL {
             environment.merge(
                 RemoteAccessConfig.launchEnvironment(
@@ -321,17 +331,37 @@ final class EmbeddedBackendService: ObservableObject {
         logger.info("Tracking embedded backend PID: \(pid)")
     }
 
+    private func prepareLocalAccessTLSMaterial(executablePath: String) throws -> RemoteAccessTLSMaterial {
+        try prepareTLSMaterial(
+            executablePath: executablePath,
+            arguments: ["--prepare-local-access"],
+            failureMessage: "Local engine TLS preparation failed."
+        )
+    }
+
     private func prepareRemoteAccessTLSMaterial(
         executablePath: String,
         publicBaseURL: URL
     ) throws -> RemoteAccessTLSMaterial {
+        try prepareTLSMaterial(
+            executablePath: executablePath,
+            arguments: [
+                "--prepare-remote-access",
+                "--public-base-url",
+                publicBaseURL.absoluteString
+            ],
+            failureMessage: "Remote access TLS preparation failed."
+        )
+    }
+
+    private func prepareTLSMaterial(
+        executablePath: String,
+        arguments: [String],
+        failureMessage: String
+    ) throws -> RemoteAccessTLSMaterial {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executablePath)
-        process.arguments = [
-            "--prepare-remote-access",
-            "--public-base-url",
-            publicBaseURL.absoluteString
-        ]
+        process.arguments = arguments
 
         let stdout = Pipe()
         let stderr = Pipe()
@@ -345,7 +375,7 @@ final class EmbeddedBackendService: ObservableObject {
         let errorData = stderr.fileHandleForReading.readDataToEndOfFile()
         guard process.terminationStatus == 0 else {
             let message = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-                ?? "Remote access TLS preparation failed."
+                ?? failureMessage
             throw BackendError.launchFailed(
                 NSError(
                     domain: "EmbeddedBackendService",

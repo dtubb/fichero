@@ -6,7 +6,7 @@ import Foundation
 /// Single source of truth for the Fichero engine base URL.
 ///
 /// Every part of the app reads `EngineConfig.host` (engine root, e.g.
-/// `http://127.0.0.1:8765`) or `EngineConfig.apiBaseURL` (the `/api` base)
+/// `https://127.0.0.1:8765`) or `EngineConfig.apiBaseURL` (the `/api` base)
 /// instead of hardcoding `127.0.0.1:8765`. The host is user-configurable via
 /// Settings -> Backend. Only the macOS embedded-engine path implicitly
 /// resolves a blank host to localhost; mobile clients require an explicit
@@ -14,7 +14,7 @@ import Foundation
 /// silently resolving to localhost.
 enum EngineConfig {
     static let userDefaultsKey = "fichero.engine.host"
-    static let defaultHostString = "http://127.0.0.1:8765"
+    static let defaultHostString = "https://127.0.0.1:8765"
     static let engineHostDidChangeNotification = Notification.Name("engineHostDidChange")
 
     enum HostConfiguration: Equatable {
@@ -77,7 +77,7 @@ enum EngineConfig {
     }
 
     /// Engine root — host + port, no `/api`, no trailing slash.
-    /// (e.g. `http://127.0.0.1:8765`)
+    /// (e.g. `https://127.0.0.1:8765`)
     static var host: URL {
         if RemoteAccessConfig.hostingEnabled, let publicBaseURL = RemoteAccessConfig.publicBaseURL {
             return publicBaseURL
@@ -86,13 +86,20 @@ enum EngineConfig {
     }
 
     /// API base — the engine root with the `/api` prefix.
-    /// (e.g. `http://127.0.0.1:8765/api`)
+    /// (e.g. `https://127.0.0.1:8765/api`)
     static var apiBaseURL: URL {
         host.appendingPathComponent("api")
     }
 
     static var usesCustomHost: Bool {
         resolvedHostConfiguration.usesCustomHost
+    }
+
+    static var hasConfiguredHost: Bool {
+        if case .configured = resolvedHostConfiguration {
+            return true
+        }
+        return false
     }
 
     /// True when startup should connect to an explicit configured backend
@@ -124,6 +131,9 @@ enum EngineConfig {
             return allowsImplicitEmbeddedLocalDefault ? .embeddedLocal : .invalid("")
         }
         guard let url = makeURL(normalized), url.host != nil else {
+            return .invalid(normalized)
+        }
+        guard url.scheme?.lowercased() == "https" else {
             return .invalid(normalized)
         }
         return .configured(url)
@@ -330,7 +340,7 @@ func validatedRemoteURL(from raw: String, allowLocalhost: Bool, requireSecureTra
     }
     let normalizedHost = host.lowercased()
     let isLoopbackHost = EngineConfig.isLoopbackHostLiteral(normalizedHost)
-    if requireSecureTransportForRemote, scheme != "https", !isLoopbackHost {
+    if requireSecureTransportForRemote, scheme != "https" {
         throw RemoteURLValidationError.insecureRemoteTransport
     }
     if !allowLocalhost, isLoopbackHost {

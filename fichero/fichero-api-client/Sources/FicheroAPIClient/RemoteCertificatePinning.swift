@@ -43,6 +43,9 @@ public enum RemoteCertificatePinning {
 
     public static func shouldEnforcePinning(for baseURL: URL) -> Bool {
         guard let host = baseURL.host?.lowercased() else { return false }
+        if isLoopbackHostLiteral(host) {
+            return persistedSPKIPin(hostString: baseURL.absoluteString) != nil
+        }
         return shouldEnforcePinning(forHost: host)
     }
 
@@ -387,7 +390,14 @@ public enum RemoteCertificatePinning {
     }
 
     fileprivate static func shouldEnforcePinning(forHost host: String) -> Bool {
-        !isLoopbackHostLiteral(host)
+        if isLoopbackHostLiteral(host) {
+            return persistedSPKIPin(hostString: "https://\(host):8765") != nil
+        }
+        return true
+    }
+
+    fileprivate static func isLoopbackChallengeHost(_ host: String) -> Bool {
+        isLoopbackHostLiteral(host)
     }
 
     private static func clientSPKIPinUserDefaultsKey(hostString: String? = nil) -> String {
@@ -466,17 +476,21 @@ private final class DynamicPinnedSessionDelegate: NSObject, URLSessionDelegate {
             return
         }
 
-        let host = challenge.protectionSpace.host.lowercased()
-        guard RemoteCertificatePinning.shouldEnforcePinning(forHost: host) else {
-            completionHandler(.performDefaultHandling, nil)
-            return
-        }
         guard let trust = challenge.protectionSpace.serverTrust else {
             completionHandler(.cancelAuthenticationChallenge, nil)
             return
         }
         let hostString = RemoteCertificatePinning.challengeHostString(challenge.protectionSpace)
         guard let expectedSPKIPin = RemoteCertificatePinning.persistedSPKIPin(hostString: hostString) else {
+            let host = challenge.protectionSpace.host.lowercased()
+            if RemoteCertificatePinning.isLoopbackChallengeHost(host) {
+                completionHandler(.cancelAuthenticationChallenge, nil)
+                return
+            }
+            guard RemoteCertificatePinning.shouldEnforcePinning(forHost: host) else {
+                completionHandler(.performDefaultHandling, nil)
+                return
+            }
             completionHandler(.cancelAuthenticationChallenge, nil)
             return
         }
@@ -484,7 +498,7 @@ private final class DynamicPinnedSessionDelegate: NSObject, URLSessionDelegate {
         do {
             try RemoteCertificatePinning.validateServerTrust(
                 trust,
-                host: host,
+                host: challenge.protectionSpace.host.lowercased(),
                 expectedSPKIPin: expectedSPKIPin
             )
             completionHandler(.useCredential, URLCredential(trust: trust))

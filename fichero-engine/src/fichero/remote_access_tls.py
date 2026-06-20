@@ -41,6 +41,7 @@ def prepare_remote_access_tls(
     public_base_url: str,
     *,
     storage_root: Path | str | None = None,
+    allow_loopback: bool = False,
 ) -> RemoteAccessTLSMaterial:
     """Create or reuse the local HTTPS identity for a reachable private URL."""
 
@@ -49,7 +50,7 @@ def prepare_remote_access_tls(
     if host is None:
         raise ValueError("public_base_url must include a host name")
 
-    if _is_loopback_host(host):
+    if _is_loopback_host(host) and not allow_loopback:
         raise ValueError("public_base_url must not point at localhost")
     bind_host = _bind_host_for_public_host(host)
 

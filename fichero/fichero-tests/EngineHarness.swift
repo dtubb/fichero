@@ -68,7 +68,7 @@ enum EngineHarness {
     /// Cached so the (expensive) spawn happens once per test process.
     private static var cached: LiveEngine?
 
-    private static let baseURL = URL(string: "http://127.0.0.1:8765")!
+    private static let baseURL = URL(string: "https://127.0.0.1:8765")!
 
     /// Returns a live engine pointed at a freshly seeded test library.
     /// Reuses a running engine if present, else spawns one. Throws if neither
@@ -154,12 +154,23 @@ enum EngineHarness {
 
     private static func spawnEngine(repo: URL, libraryPath: String) throws {
         let uvicorn = repo.appendingPathComponent(".venv/bin/uvicorn")
+        let tlsMaterial = try prepareTLSMaterial(repo: repo)
+        try RemoteCertificatePinning.persistSPKIPin(tlsMaterial.spkiPin, hostString: baseURL.absoluteString)
+
         let proc = Process()
         proc.executableURL = uvicorn
-        proc.arguments = ["fichero.api.main:app", "--port", "8765"]
+        proc.arguments = [
+            "fichero.api.main:app",
+            "--port", "8765",
+            "--ssl-certfile", tlsMaterial.certificatePath,
+            "--ssl-keyfile", tlsMaterial.keyPath
+        ]
         var env = ProcessInfo.processInfo.environment
         env["PYTHONPATH"] = repo.appendingPathComponent("fichero-engine/src").path
         env["FICHERO_DISABLE_AUTH"] = "1"
+        env["FICHERO_TLS_CERTFILE"] = tlsMaterial.certificatePath
+        env["FICHERO_TLS_KEYFILE"] = tlsMaterial.keyPath
+        env["FICHERO_TLS_SPKI_HASH"] = tlsMaterial.spkiPin
         // Isolate the app DB so we never lock-fight the real one.
         env["FICHERO_BASE_PATH"] = repo
             .appendingPathComponent("fichero-engine").path + "/.itest-base"
@@ -183,13 +194,57 @@ enum EngineHarness {
         }
     }
 
+    private struct HarnessTLSMaterial: Decodable {
+        let certificatePath: String
+        let keyPath: String
+        let spkiPin: String
+
+        enum CodingKeys: String, CodingKey {
+            case certificatePath = "certificate_path"
+            case keyPath = "key_path"
+            case spkiPin = "spki_pin"
+        }
+    }
+
+    private static func prepareTLSMaterial(repo: URL) throws -> HarnessTLSMaterial {
+        let python = repo.appendingPathComponent(".venv/bin/python")
+        let process = Process()
+        process.executableURL = python
+        process.arguments = [
+            "-c",
+            """
+            from fichero.remote_access_tls import material_manifest_json, prepare_remote_access_tls
+            print(material_manifest_json(prepare_remote_access_tls("https://127.0.0.1:8765", allow_loopback=True)))
+            """
+        ]
+        var env = ProcessInfo.processInfo.environment
+        env["PYTHONPATH"] = repo.appendingPathComponent("fichero-engine/src").path
+        process.environment = env
+
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.standardOutput = stdout
+        process.standardError = stderr
+        try process.run()
+        process.waitUntilExit()
+
+        let output = stdout.fileHandleForReading.readDataToEndOfFile()
+        if process.terminationStatus != 0 {
+            let errorData = stderr.fileHandleForReading.readDataToEndOfFile()
+            let message = String(data: errorData, encoding: .utf8) ?? "unknown TLS material error"
+            throw HarnessError.engineUnavailable(message)
+        }
+        return try JSONDecoder().decode(HarnessTLSMaterial.self, from: output)
+    }
+
     // MARK: - Health
 
     private static func isHealthy(_ base: URL) async -> Bool {
         var req = URLRequest(url: base.appendingPathComponent("api/health"))
         req.timeoutInterval = 2
         do {
-            let (data, resp) = try await URLSession.shared.data(for: req)
+            let session = RemoteCertificatePinning.configuredSession()
+            let (data, resp) = try await session.data(for: req)
             guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else { return false }
             if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 return (obj["status"] as? String) == "healthy"

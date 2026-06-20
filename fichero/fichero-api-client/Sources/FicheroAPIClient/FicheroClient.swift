@@ -40,12 +40,12 @@ public final class FicheroClient: ObservableObject {
 
     /// Creates a new Fichero API client.
     /// - Parameters:
-    ///   - baseURL: The base URL of the Fichero backend (default: localhost:8765)
+    ///   - baseURL: The base URL of the Fichero backend (default: localhost:8765 over HTTPS)
     ///   - libraryPath: Optional library path header value
     ///   - session: Optional URL session override, used by callers that need
     ///     a custom transport such as certificate-pinned pairing probes.
     public init(
-        baseURL: URL = URL(string: "http://127.0.0.1:8765")!,
+        baseURL: URL = URL(string: "https://127.0.0.1:8765")!,
         libraryPath: String? = nil,
         session: URLSession? = nil
     ) {
@@ -72,7 +72,7 @@ public final class FicheroClient: ObservableObject {
     /// Convenience initializer for pairing probes that need to pin a specific
     /// host certificate before the remote device is persisted.
     public init(
-        baseURL: URL = URL(string: "http://127.0.0.1:8765")!,
+        baseURL: URL = URL(string: "https://127.0.0.1:8765")!,
         libraryPath: String? = nil,
         expectedSPKIPin: String?
     ) throws {

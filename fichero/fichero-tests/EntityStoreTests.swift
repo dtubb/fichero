@@ -242,7 +242,7 @@ final class EntityStoreTests: XCTestCase {
     }
 
     private func makeStore() -> EntityStore {
-        let client = FicheroClient(baseURL: URL(string: "http://127.0.0.1:8765")!, libraryPath: "/tmp/test.fichero")
+        let client = FicheroClient(baseURL: URL(string: "https://127.0.0.1:8765")!, libraryPath: "/tmp/test.fichero")
         let entityService = EntityServiceGenerated(ficheroClient: client)
         let kgCurationService = KGCurationServiceGenerated(ficheroClient: client)
         return EntityStore(

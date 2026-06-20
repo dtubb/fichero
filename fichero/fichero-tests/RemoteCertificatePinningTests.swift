@@ -23,6 +23,7 @@ final class RemoteCertificatePinningTests: XCTestCase {
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostTwo)
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostedBackendHost)
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostOneDefaultPort)
+        RemoteCertificatePinning.clearPersistedSPKIPin(hostString: "https://127.0.0.1:8765")
     }
 
     func testValidatedSPKIPinRejectsMissingPin() {
@@ -46,9 +47,15 @@ final class RemoteCertificatePinningTests: XCTestCase {
         )
     }
 
-    func testShouldEnforcePinningSkipsLoopbackHosts() {
-        XCTAssertFalse(RemoteCertificatePinning.shouldEnforcePinning(for: URL(string: "http://127.0.0.1:8765")!))
-        XCTAssertFalse(RemoteCertificatePinning.shouldEnforcePinning(for: URL(string: "https://localhost:8765")!))
+    func testLoopbackHTTPSUsesPinningOnlyWhenPinned() throws {
+        let loopbackHost = "https://127.0.0.1:8765"
+        RemoteCertificatePinning.clearPersistedSPKIPin(hostString: loopbackHost)
+
+        XCTAssertFalse(RemoteCertificatePinning.shouldEnforcePinning(for: URL(string: loopbackHost)!))
+
+        try RemoteCertificatePinning.persistSPKIPin(hostOnePin, hostString: loopbackHost)
+
+        XCTAssertTrue(RemoteCertificatePinning.shouldEnforcePinning(for: URL(string: loopbackHost)!))
         XCTAssertTrue(RemoteCertificatePinning.shouldEnforcePinning(for: URL(string: "https://host.tailnet.example")!))
     }
 

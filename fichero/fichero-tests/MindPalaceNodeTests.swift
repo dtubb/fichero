@@ -4,13 +4,13 @@ import XCTest
 final class MindPalaceNodeTests: XCTestCase {
 
     func testThumbnailURLUsesStorageEndpoint() {
-        let baseURL = URL(string: "http://127.0.0.1:8765/api")!
+        let baseURL = URL(string: "https://127.0.0.1:8765/api")!
 
         let url = MindPalaceNode.thumbnailURL(forSourceId: "doc-123", baseURL: baseURL)
 
         XCTAssertEqual(
             url?.absoluteString,
-            "http://127.0.0.1:8765/api/storage/thumbnail/doc-123"
+            "https://127.0.0.1:8765/api/storage/thumbnail/doc-123"
         )
     }
 

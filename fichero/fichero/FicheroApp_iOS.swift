@@ -4,6 +4,9 @@ import FicheroAPIClient
 import OSLog
 import SwiftUI
 import UIKit
+#if canImport(VisionKit) && !os(visionOS)
+import VisionKit
+#endif
 // swiftlint:disable file_length
 
 @main
@@ -36,6 +39,14 @@ struct FicheroAppIOS: App {
                 .environmentObject(captureQueue)
                 .environment(kgFocusState)
                 .task {
+                    guard EngineConfig.hasConfiguredHost else {
+                        appState.isCheckingBackend = false
+                        appState.isBackendRunning = false
+                        backendService.status = .failed
+                        backendService.errorMessage = nil
+                        return
+                    }
+
                     await appState.checkBackendHealth()
                     if appState.isBackendRunning {
                         backendService.status = .running
@@ -126,6 +137,7 @@ private struct RemoteConnectionSetupView: View {
     @State private var isPairing = false
     @State private var errorMessage: String?
     @State private var pickerSource: CaptureSource?
+    @State private var showingDocumentScanner = false
     @State private var captureError: String?
 
     var body: some View {
@@ -146,6 +158,14 @@ private struct RemoteConnectionSetupView: View {
                 onCancel: { pickerSource = nil }
             )
         }
+        #if canImport(VisionKit) && !os(visionOS)
+        .fullScreenCover(isPresented: $showingDocumentScanner) {
+            MobileDocumentScanner(
+                onImages: handleScannedDocumentImages,
+                onCancel: { showingDocumentScanner = false }
+            )
+        }
+        #endif
     }
 
     // MARK: — Connect
@@ -203,8 +223,14 @@ private struct RemoteConnectionSetupView: View {
                     .buttonStyle(.bordered)
                     .disabled(isPairing)
                     #else
-                    Button { pickerSource = .camera } label: {
-                        Label("Capture Document", systemImage: "camera")
+                    Button {
+                        if supportsDocumentScanner {
+                            showingDocumentScanner = true
+                        } else {
+                            pickerSource = .camera
+                        }
+                    } label: {
+                        Label("Capture Document", systemImage: "doc.viewfinder")
                             .frame(maxWidth: .infinity, minHeight: 46)
                     }
                     .buttonStyle(.bordered)
@@ -247,6 +273,14 @@ private struct RemoteConnectionSetupView: View {
         return false
         #else
         return AVCaptureDevice.default(for: .video) != nil
+        #endif
+    }
+
+    private var supportsDocumentScanner: Bool {
+        #if canImport(VisionKit) && !os(visionOS)
+        return VNDocumentCameraViewController.isSupported
+        #else
+        return false
         #endif
     }
 
@@ -300,6 +334,32 @@ private struct RemoteConnectionSetupView: View {
             captureError = nil
         } catch {
             captureError = error.localizedDescription
+        }
+    }
+
+    private func handleScannedDocumentImages(_ images: [UIImage]) {
+        #if canImport(VisionKit) && !os(visionOS)
+        showingDocumentScanner = false
+        #endif
+        for image in images {
+            let jpegData = image.jpegData(compressionQuality: 0.9)
+            guard let data = jpegData ?? image.pngData() else {
+                captureError = "Could not encode the scanned page."
+                return
+            }
+
+            do {
+                let catalog = MobileCaptureCatalogFields(sourceArchiveHint: "document-camera")
+                _ = try captureQueue.enqueueCapturedImage(
+                    data,
+                    catalog: catalog,
+                    fileExtension: jpegData == nil ? "png" : "jpg"
+                )
+                captureError = nil
+            } catch {
+                captureError = error.localizedDescription
+                return
+            }
         }
     }
 }

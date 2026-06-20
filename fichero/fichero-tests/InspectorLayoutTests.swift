@@ -477,7 +477,7 @@ struct DocumentKGPaneRouteTests {
     func requestIncludesLibraryHeader() throws {
         let originalHost = UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey)
         defer { restoreEngineHost(originalHost) }
-        UserDefaults.standard.set("http://127.0.0.1:8765", forKey: EngineConfig.userDefaultsKey)
+        UserDefaults.standard.set("https://127.0.0.1:8765", forKey: EngineConfig.userDefaultsKey)
 
         let request = try #require(
             DocumentKGPaneRoute.request(

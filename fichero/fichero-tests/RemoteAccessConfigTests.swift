@@ -117,7 +117,7 @@ final class RemoteAccessConfigTests: XCTestCase {
     }
 
     func testRemoteClientPairingFieldsRejectLocalhostPayloads() throws {
-        let apiRoot = URL(string: "http://127.0.0.1:8765/")!
+        let apiRoot = URL(string: "https://127.0.0.1:8765/")!
         let code = PairingCodeRecord(
             code: "PAIR-1234",
             expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
@@ -183,6 +183,7 @@ final class RemoteAccessConfigTests: XCTestCase {
 
     func testPairingBackendURLRejectsLocalhostAndPaths() {
         XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: "http://127.0.0.1:8765"))
+        XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: "https://127.0.0.1:8765"))
         XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: "http://127.2.3.4:8765"))
         XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: "http://[::1]:8765"))
         XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: "http://[::ffff:127.0.0.1]:8765"))
@@ -207,6 +208,18 @@ final class RemoteAccessConfigTests: XCTestCase {
             try validatedRemoteURL(
                 from: "http://pairing.example.com",
                 allowLocalhost: false,
+                requireSecureTransportForRemote: true
+            )
+        ) { error in
+            XCTAssertEqual(error as? RemoteURLValidationError, .insecureRemoteTransport)
+        }
+    }
+
+    func testValidatedRemoteURLRejectsLocalHTTPWhenSecureTransportRequired() {
+        XCTAssertThrowsError(
+            try validatedRemoteURL(
+                from: "http://127.0.0.1:8765",
+                allowLocalhost: true,
                 requireSecureTransportForRemote: true
             )
         ) { error in
@@ -290,15 +303,6 @@ final class RemoteAccessConfigTests: XCTestCase {
         let visibleDevices = activePairedDevices(from: [revoked, active])
 
         XCTAssertEqual(visibleDevices.map(\.id), ["active"])
-    }
-
-    func testValidatedRemoteURLAllowsLocalhostHTTPWhenExplicitlyAllowed() throws {
-        let url = try validatedRemoteURL(
-            from: "http://127.0.0.1:8765",
-            allowLocalhost: true,
-            requireSecureTransportForRemote: true
-        )
-        XCTAssertEqual(url.absoluteString, "http://127.0.0.1:8765")
     }
 
     func testValidatedRemoteURLAcceptsHTTPSWhenSecureTransportRequired() throws {

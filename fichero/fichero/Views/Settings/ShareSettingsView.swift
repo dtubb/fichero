@@ -251,6 +251,18 @@ struct ShareSettingsView: View {
             RemoteCertificatePinning.clearPersistedSPKIPin(hostString: publicBaseURL)
             loadSPKIPin()
         }
+
+        if backendService.isUsingExternalBackend {
+            await appState.checkBackendHealth()
+            appState.reconfigureGeneratedClientsForCurrentHost()
+            libraryManager.reconfigureGeneratedClientsForCurrentHost()
+            if hostingEnabled {
+                shareError = "Restart the development engine to finish sharing."
+                await refreshDevices()
+            }
+            return
+        }
+
         backendService.stop()
         do {
             try await backendService.start()

@@ -210,6 +210,17 @@ struct BackendSettingsRemoteAccessSection: View {
             loadAdvertisedSPKIPin()
         }
 
+        if backendService.isUsingExternalBackend {
+            await appState.checkBackendHealth()
+            appState.reconfigureGeneratedClientsForCurrentHost()
+            libraryManager.reconfigureGeneratedClientsForCurrentHost()
+            if hostingEnabled {
+                pairingError = "Restart the development engine to finish sharing."
+                await refreshPairedDevices()
+            }
+            return
+        }
+
         backendService.stop()
         do {
             try await backendService.start()

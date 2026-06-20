@@ -7,12 +7,12 @@ struct AuthTokenMiddlewareStorageTests {
     @Test(
         "localhost-class hosts use bootstrap token storage",
         arguments: [
-            "http://127.0.0.1:8765",
-            "http://127.2.3.4:8765",
-            "http://localhost:8765",
-            "http://[::1]:8765",
-            "http://[0:0:0:0:0:0:0:1]:8765",
-            "http://[::ffff:127.0.0.1]:8765",
+            "https://127.0.0.1:8765",
+            "https://127.2.3.4:8765",
+            "https://localhost:8765",
+            "https://[::1]:8765",
+            "https://[0:0:0:0:0:0:0:1]:8765",
+            "https://[::ffff:127.0.0.1]:8765",
             "",
             "   ",
             nil

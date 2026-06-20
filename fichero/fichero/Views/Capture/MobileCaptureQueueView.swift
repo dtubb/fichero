@@ -2,6 +2,9 @@
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
+#if canImport(VisionKit) && !os(visionOS)
+import VisionKit
+#endif
 
 struct MobileCaptureQueueView: View {
     @ObservedObject var queue: MobileCaptureQueueStore
@@ -9,6 +12,7 @@ struct MobileCaptureQueueView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var pickerSource: CaptureSource?
+    @State private var showingDocumentScanner = false
     @State private var captureError: String?
 
     var body: some View {
@@ -23,9 +27,13 @@ struct MobileCaptureQueueView: View {
                     }
                     #else
                     Button {
-                        pickerSource = .camera
+                        if supportsDocumentScanner {
+                            showingDocumentScanner = true
+                        } else {
+                            pickerSource = .camera
+                        }
                     } label: {
-                        Label("Take Photo", systemImage: "camera")
+                        Label("Capture Document", systemImage: "doc.viewfinder")
                     }
 
                     Button {
@@ -86,7 +94,7 @@ struct MobileCaptureQueueView: View {
                     }
                 }
             }
-            .navigationTitle("Capture Queue")
+            .navigationTitle("Capture Document")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") {
@@ -105,7 +113,23 @@ struct MobileCaptureQueueView: View {
                     }
                 )
             }
+            #if canImport(VisionKit) && !os(visionOS)
+            .fullScreenCover(isPresented: $showingDocumentScanner) {
+                MobileDocumentScanner(
+                    onImages: handleScannedDocumentImages,
+                    onCancel: { showingDocumentScanner = false }
+                )
+            }
+            #endif
         }
+    }
+
+    private var supportsDocumentScanner: Bool {
+        #if canImport(VisionKit) && !os(visionOS)
+        return VNDocumentCameraViewController.isSupported
+        #else
+        return false
+        #endif
     }
 
     private func handleCapturedImage(_ image: UIImage, source: CaptureSource) {
@@ -127,6 +151,33 @@ struct MobileCaptureQueueView: View {
             captureError = nil
         } catch {
             captureError = error.localizedDescription
+        }
+    }
+
+    private func handleScannedDocumentImages(_ images: [UIImage]) {
+        #if canImport(VisionKit) && !os(visionOS)
+        showingDocumentScanner = false
+        #endif
+        for image in images {
+            let imageData = image.jpegData(compressionQuality: 0.9)
+            let fallbackData = imageData ?? image.pngData()
+            guard let data = fallbackData else {
+                captureError = "Could not encode the scanned page."
+                return
+            }
+
+            do {
+                let catalog = MobileCaptureCatalogFields(sourceArchiveHint: "document-camera")
+                _ = try queue.enqueueCapturedImage(
+                    data,
+                    catalog: catalog,
+                    fileExtension: imageData == nil ? "png" : "jpg"
+                )
+                captureError = nil
+            } catch {
+                captureError = error.localizedDescription
+                return
+            }
         }
     }
 }
@@ -344,4 +395,52 @@ struct MobileCaptureImagePicker: UIViewControllerRepresentable {
         }
     }
 }
+
+#if canImport(VisionKit) && !os(visionOS)
+struct MobileDocumentScanner: UIViewControllerRepresentable {
+    let onImages: ([UIImage]) -> Void
+    let onCancel: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onImages: onImages, onCancel: onCancel)
+    }
+
+    func makeUIViewController(context: Context) -> VNDocumentCameraViewController {
+        let controller = VNDocumentCameraViewController()
+        controller.delegate = context.coordinator
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: VNDocumentCameraViewController, context: Context) {}
+
+    final class Coordinator: NSObject, VNDocumentCameraViewControllerDelegate {
+        private let onImages: ([UIImage]) -> Void
+        private let onCancel: () -> Void
+
+        init(onImages: @escaping ([UIImage]) -> Void, onCancel: @escaping () -> Void) {
+            self.onImages = onImages
+            self.onCancel = onCancel
+        }
+
+        func documentCameraViewController(
+            _ controller: VNDocumentCameraViewController,
+            didFinishWith scan: VNDocumentCameraScan
+        ) {
+            let images = (0..<scan.pageCount).map { scan.imageOfPage(at: $0) }
+            onImages(images)
+        }
+
+        func documentCameraViewControllerDidCancel(_ controller: VNDocumentCameraViewController) {
+            onCancel()
+        }
+
+        func documentCameraViewController(
+            _ controller: VNDocumentCameraViewController,
+            didFailWithError _: Error
+        ) {
+            onCancel()
+        }
+    }
+}
+#endif
 #endif

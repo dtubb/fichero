@@ -51,6 +51,22 @@ def test_prepare_remote_access_tls_rejects_localhost() -> None:
         prepare_remote_access_tls("https://localhost:9443")
 
 
+def test_prepare_remote_access_tls_allows_loopback_when_explicit(tmp_path: Path) -> None:
+    material = prepare_remote_access_tls(
+        "https://127.0.0.1:8765",
+        storage_root=tmp_path,
+        allow_loopback=True,
+    )
+
+    certificate = x509.load_pem_x509_certificate(Path(material.certificate_path).read_bytes())
+    san = certificate.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+
+    assert material.bind_host == "127.0.0.1"
+    assert san.get_values_for_type(x509.IPAddress) == [ipaddress.ip_address("127.0.0.1")]
+    assert Path(material.key_path).exists()
+    assert material.spki_pin
+
+
 def test_prepare_remote_access_tls_rejects_dns_host_names() -> None:
     with pytest.raises(ValueError, match="literal IP address or .local"):
         prepare_remote_access_tls("https://pairing.example.com:9443")

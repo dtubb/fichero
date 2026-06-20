@@ -20,7 +20,7 @@ import Security
 /// negligible compared to the network round-trip.
 public struct AuthTokenMiddleware: ClientMiddleware {
     private static let engineHostUserDefaultsKey = "fichero.engine.host"
-    private static let defaultHostString = "http://127.0.0.1:8765"
+    private static let defaultHostString = "https://127.0.0.1:8765"
     private static let bootstrapTokenFileName = ".api-key"
     private static let remoteTokenFilePrefix = ".remote-api-key-"
     private static let remoteTokenKeychainService = "app.fichero.fichero.remote-device-token"

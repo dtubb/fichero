@@ -4,6 +4,28 @@ import XCTest
 @testable import Fichero
 
 final class EngineConfigTests: XCTestCase {
+    private var originalHost: String?
+    private var originalRemoteEnabled: Bool?
+    private var originalPublicBaseURL: String?
+
+    override func setUp() {
+        super.setUp()
+        originalHost = UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey)
+        originalRemoteEnabled = UserDefaults.standard.object(forKey: RemoteAccessConfig.hostingEnabledKey) as? Bool
+        originalPublicBaseURL = UserDefaults.standard.string(forKey: RemoteAccessConfig.publicBaseURLKey)
+        restoreEngineHost(nil)
+        restoreRemoteAccessState(enabled: nil, publicBaseURL: nil)
+    }
+
+    override func tearDown() {
+        restoreEngineHost(originalHost)
+        restoreRemoteAccessState(enabled: originalRemoteEnabled, publicBaseURL: originalPublicBaseURL)
+        originalHost = nil
+        originalRemoteEnabled = nil
+        originalPublicBaseURL = nil
+        super.tearDown()
+    }
+
     private func restoreEngineHost(_ value: String?) {
         if let value {
             UserDefaults.standard.set(value, forKey: EngineConfig.userDefaultsKey)
@@ -45,9 +67,6 @@ final class EngineConfigTests: XCTestCase {
     }
 
     func testBlankHostUsesCurrentPlatformDefaultPolicy() {
-        let originalHost = UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey)
-        defer { restoreEngineHost(originalHost) }
-
         UserDefaults.standard.set("   ", forKey: EngineConfig.userDefaultsKey)
 
         #if os(macOS)
@@ -70,9 +89,6 @@ final class EngineConfigTests: XCTestCase {
     }
 
     func testValidRemoteHostIsPreserved() {
-        let originalHost = UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey)
-        defer { restoreEngineHost(originalHost) }
-
         let remoteHost = "https://host.tailnet.example/"
         let expectedURL = URL(string: "https://host.tailnet.example")!
         UserDefaults.standard.set(remoteHost, forKey: EngineConfig.userDefaultsKey)
@@ -86,9 +102,6 @@ final class EngineConfigTests: XCTestCase {
     }
 
     func testMalformedNonEmptyHostDoesNotBecomeLocalhost() {
-        let originalHost = UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey)
-        defer { restoreEngineHost(originalHost) }
-
         let malformedHost = "https://remote host/"
         UserDefaults.standard.set(malformedHost, forKey: EngineConfig.userDefaultsKey)
 
@@ -108,11 +121,8 @@ final class EngineConfigTests: XCTestCase {
         XCTAssertTrue(EngineConfig.requiresExternalBackendConnection)
     }
 
-    func testExplicitCustomLocalhostStillUsesExternalBackendConnection() {
-        let originalHost = UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey)
-        defer { restoreEngineHost(originalHost) }
-
-        let customLocalHost = "http://127.0.0.1:8765"
+    func testExplicitHTTPSLocalhostStillUsesExternalBackendConnection() {
+        let customLocalHost = "https://127.0.0.1:8765"
         let expectedURL = URL(string: customLocalHost)!
         UserDefaults.standard.set(customLocalHost, forKey: EngineConfig.userDefaultsKey)
 
@@ -121,6 +131,17 @@ final class EngineConfigTests: XCTestCase {
         XCTAssertTrue(EngineConfig.engineIsLocal)
         XCTAssertTrue(EngineConfig.usesCustomHost)
         XCTAssertTrue(EngineConfig.requiresExternalBackendConnection)
+    }
+
+    func testHTTPHostIsInvalid() {
+        XCTAssertEqual(
+            EngineConfig.hostConfiguration(from: "http://127.0.0.1:8765"),
+            .invalid("http://127.0.0.1:8765")
+        )
+        XCTAssertEqual(
+            EngineConfig.hostConfiguration(from: "http://host.tailnet.example"),
+            .invalid("http://host.tailnet.example")
+        )
     }
 
     func testValidatedHostedRemoteURLAcceptsLiteralIPAndLocalHost() throws {

@@ -25,9 +25,20 @@ def main(argv: list[str] | None = None) -> None:
 
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument("--prepare-remote-access", action="store_true")
+    parser.add_argument("--prepare-local-access", action="store_true")
     parser.add_argument("--public-base-url")
     parser.add_argument("--remote-access-dir")
     args, _remaining = parser.parse_known_args(argv)
+
+    if args.prepare_local_access:
+        material = prepare_remote_access_tls(
+            "https://127.0.0.1:8765",
+            storage_root=args.remote_access_dir,
+            allow_loopback=True,
+        )
+        sys.stdout.write(material_manifest_json(material))
+        sys.stdout.write("\n")
+        return
 
     if args.prepare_remote_access:
         if not args.public_base_url:

@@ -41,6 +41,79 @@ for arg in "$@"; do
   esac
 done
 
+DEFAULTS_REMOTE_ENABLED=false
+DEFAULTS_PUBLIC_BASE_URL=""
+DEFAULTS_BONJOUR_ENABLED=false
+if command -v defaults >/dev/null 2>&1; then
+  if [ "$(defaults read app.fichero.fichero fichero.remote_access.enabled 2>/dev/null || echo 0)" = "1" ]; then
+    DEFAULTS_REMOTE_ENABLED=true
+  fi
+  DEFAULTS_PUBLIC_BASE_URL="$(defaults read app.fichero.fichero fichero.remote_access.public_base_url 2>/dev/null || true)"
+  if [ "$(defaults read app.fichero.fichero fichero.remote_access.bonjour_enabled 2>/dev/null || echo 0)" = "1" ]; then
+    DEFAULTS_BONJOUR_ENABLED=true
+  fi
+fi
+
+if [ -z "${FICHERO_TLS_CERTFILE:-}" ] && [ -z "${FICHERO_TLS_KEYFILE:-}" ]; then
+  if [ "$DEFAULTS_REMOTE_ENABLED" = true ] && [ -n "$DEFAULTS_PUBLIC_BASE_URL" ]; then
+    PREPARE_URL="$DEFAULTS_PUBLIC_BASE_URL"
+    PREPARE_ALLOW_LOOPBACK=false
+  else
+    PREPARE_URL="https://127.0.0.1:8765"
+    PREPARE_ALLOW_LOOPBACK=true
+  fi
+  TLS_MANIFEST="$(
+    PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" - "$PREPARE_URL" "$PREPARE_ALLOW_LOOPBACK" <<'PY'
+import sys
+from fichero.remote_access_tls import material_manifest_json, prepare_remote_access_tls
+
+public_base_url = sys.argv[1]
+allow_loopback = sys.argv[2] == "true"
+material = prepare_remote_access_tls(public_base_url, allow_loopback=allow_loopback)
+print(material_manifest_json(material))
+PY
+  )"
+  FICHERO_TLS_CERTFILE="$(
+    "$PYTHON_BIN" -c 'import json, sys; print(json.loads(sys.stdin.read())["certificate_path"])' <<<"$TLS_MANIFEST"
+  )"
+  FICHERO_TLS_KEYFILE="$(
+    "$PYTHON_BIN" -c 'import json, sys; print(json.loads(sys.stdin.read())["key_path"])' <<<"$TLS_MANIFEST"
+  )"
+  FICHERO_TLS_SPKI_HASH="$(
+    "$PYTHON_BIN" -c 'import json, sys; print(json.loads(sys.stdin.read())["spki_pin"])' <<<"$TLS_MANIFEST"
+  )"
+  export FICHERO_TLS_CERTFILE FICHERO_TLS_KEYFILE FICHERO_TLS_SPKI_HASH
+  if [ "$DEFAULTS_REMOTE_ENABLED" = true ] && [ -n "$DEFAULTS_PUBLIC_BASE_URL" ]; then
+    FICHERO_MULTIUSER="${FICHERO_MULTIUSER:-1}"
+    FICHERO_ALLOW_NON_LOOPBACK_BIND="${FICHERO_ALLOW_NON_LOOPBACK_BIND:-I_UNDERSTAND_SHARED_SECRET_RISK}"
+    FICHERO_BIND_HOST="$(
+      "$PYTHON_BIN" -c 'import json, sys; print(json.loads(sys.stdin.read())["bind_host"])' <<<"$TLS_MANIFEST"
+    )"
+    FICHERO_PUBLIC_BASE_URL="${FICHERO_PUBLIC_BASE_URL:-$DEFAULTS_PUBLIC_BASE_URL}"
+    export FICHERO_MULTIUSER FICHERO_ALLOW_NON_LOOPBACK_BIND FICHERO_BIND_HOST FICHERO_PUBLIC_BASE_URL
+    if [ "$DEFAULTS_BONJOUR_ENABLED" = true ]; then
+      export FICHERO_ENABLE_BONJOUR="${FICHERO_ENABLE_BONJOUR:-1}"
+    fi
+  fi
+  if command -v defaults >/dev/null 2>&1; then
+    EXISTING_ENGINE_HOST="$(defaults read app.fichero.fichero fichero.engine.host 2>/dev/null || true)"
+    if [[ "$EXISTING_ENGINE_HOST" == http://127.* ]] ||
+       [[ "$EXISTING_ENGINE_HOST" == http://localhost:* ]] ||
+       [[ "$EXISTING_ENGINE_HOST" == "http://[::1]"* ]] ||
+       [[ "$EXISTING_ENGINE_HOST" == "http://[0:0:0:0:0:0:0:1]"* ]]; then
+      defaults delete app.fichero.fichero fichero.engine.host 2>/dev/null || true
+    fi
+    defaults write app.fichero.fichero "fichero.remote_access.client_spki_pin|$PREPARE_URL" \
+      -string "$FICHERO_TLS_SPKI_HASH"
+    defaults write app.fichero.fichero "fichero.remote_access.advertised_spki_pin|$PREPARE_URL" \
+      -string "$FICHERO_TLS_SPKI_HASH"
+    if [ "$PREPARE_URL" != "https://127.0.0.1:8765" ]; then
+      defaults write app.fichero.fichero "fichero.remote_access.client_spki_pin|https://127.0.0.1:8765" \
+        -string "$FICHERO_TLS_SPKI_HASH"
+    fi
+  fi
+fi
+
 if [ -n "${FICHERO_TLS_CERTFILE:-}" ] || [ -n "${FICHERO_TLS_KEYFILE:-}" ]; then
   if [ -z "${FICHERO_TLS_CERTFILE:-}" ] || [ -z "${FICHERO_TLS_KEYFILE:-}" ]; then
     echo "FICHERO_TLS_CERTFILE and FICHERO_TLS_KEYFILE must both be set."
