@@ -26,7 +26,7 @@ struct ShareSettingsView: View {
     private let qrContext = CIContext()
 
     // Derives https://<hostname>.local:<port> from the system Bonjour name.
-    // ponytail: port from EngineConfig so it stays in sync with the default.
+    // Port mirrors EngineConfig.defaultHostString so both stay in sync.
     private static var autoLocalBaseURL: String {
         var host = ProcessInfo.processInfo.hostName.lowercased()
         if !host.hasSuffix(".local") {
