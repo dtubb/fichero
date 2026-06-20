@@ -72,19 +72,21 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            content
-            if let actions = splitActions {
-                splitButtonsView(for: actions)
+        GlassEffectContainer {
+            HStack(spacing: 12) {
+                content
+                if let actions = splitActions {
+                    splitButtonsView(for: actions)
+                }
+                trailing
             }
-            trailing
+            .padding(.horizontal, 12)
+            .frame(height: Self.standardHeight)
+            #if !os(macOS)
+            .controlSize(.regular)
+            #endif
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 10))
         }
-        .padding(.horizontal, 12)
-        .frame(height: Self.standardHeight)
-        #if !os(macOS)
-        .controlSize(.regular)
-        #endif
-        .glassEffect()
     }
 
     /// Split-axis glyph font. Uses a *semantic* style so the icon scales with
@@ -190,11 +192,11 @@ struct LozengeButton: View {
             HStack(spacing: 3) {
                 if let icon {
                     Image(systemName: icon)
-                        .font(.system(size: 10, weight: .medium))
+                        .font(.caption2.weight(.medium))
                 }
                 if !title.isEmpty {
                     Text(title)
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.caption.weight(.medium))
                 }
             }
             .padding(.horizontal, 6)
@@ -235,13 +237,15 @@ struct PaneFilterBar<Content: View>: View {
     var body: some View {
         VStack(spacing: 0) {
             Divider()
-            HStack(spacing: 6) {
-                content
+            GlassEffectContainer {
+                HStack(spacing: 6) {
+                    content
+                }
+                .padding(.horizontal, 8)
+                .frame(height: Self.height)
+                .frame(maxWidth: .infinity)
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8))
             }
-            .padding(.horizontal, 8)
-            .frame(height: Self.height)
-            .frame(maxWidth: .infinity)
-            .glassEffect()
         }
     }
 }
@@ -447,6 +451,31 @@ struct PickerMiniToolbar<T: Hashable>: View {
                     .help(action.title)
                 }
             }
+        }
+    }
+}
+
+// MARK: - Workflow Button (#2415)
+
+/// Reusable "Run Workflow" bolt button for inclusion in `MiniToolbar` content or
+/// `PickerMiniToolbar` actions. Hidden when `isWorkflowRunOnSelectionEnabled` is off.
+/// The caller is responsible for presenting `WorkflowPickerSheet` on `action`.
+struct WorkflowMiniToolbarButton: View {
+    let isEnabled: Bool
+    let action: () -> Void
+
+    @ObservedObject private var featureManager = FeatureManager.shared
+
+    var body: some View {
+        if featureManager.isWorkflowRunOnSelectionEnabled {
+            Button(action: action) {
+                Image(systemName: "bolt")
+                    .accessibilityLabel("Run Workflow")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(isEnabled ? Color.accentColor : Color.secondary)
+            .disabled(!isEnabled)
+            .help("Run Workflow on Selection")
         }
     }
 }
