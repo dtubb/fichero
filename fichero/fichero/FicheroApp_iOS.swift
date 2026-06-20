@@ -190,14 +190,16 @@ private struct RemoteConnectionSetupView: View {
                         Label("Capture Document", systemImage: "photo.on.rectangle")
                             .frame(maxWidth: .infinity, minHeight: 46)
                     }
+                    .buttonStyle(.bordered)
+                    .disabled(isPairing)
                     #else
                     Button { pickerSource = .camera } label: {
                         Label("Capture Document", systemImage: "camera")
                             .frame(maxWidth: .infinity, minHeight: 46)
                     }
-                    #endif
                     .buttonStyle(.bordered)
                     .disabled(isPairing)
+                    #endif
 
                     if let errorMessage {
                         Text(errorMessage)
