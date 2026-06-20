@@ -115,11 +115,6 @@ private struct FicheroSharedPlatformRoot: View {
     }
 }
 
-private enum DeviceEntryPhase {
-    case connect
-    case capture
-}
-
 private struct RemoteConnectionSetupView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var libraryManager: LibraryManager
@@ -127,7 +122,6 @@ private struct RemoteConnectionSetupView: View {
 
     let onConnected: @MainActor () async -> Void
 
-    @State private var phase: DeviceEntryPhase = .connect
     @State private var showingScanner = false
     @State private var isPairing = false
     @State private var errorMessage: String?
@@ -135,14 +129,7 @@ private struct RemoteConnectionSetupView: View {
     @State private var captureError: String?
 
     var body: some View {
-        Group {
-            switch phase {
-            case .connect:
-                connectView
-            case .capture:
-                captureView
-            }
-        }
+        connectView
         .sheet(isPresented: $showingScanner) {
             QRCodeScannerSheet(
                 onCancel: { showingScanner = false },
@@ -164,12 +151,9 @@ private struct RemoteConnectionSetupView: View {
     // MARK: — Connect
 
     private var connectView: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Connect to Fichero on Mac")
-                    .font(.largeTitle.bold())
-
-                VStack(spacing: 14) {
+        NavigationStack {
+            List {
+                Section {
                     ZStack {
                         RoundedRectangle(cornerRadius: 22)
                             .fill(Color.accentColor.opacity(0.08))
@@ -186,6 +170,7 @@ private struct RemoteConnectionSetupView: View {
                         }
                     }
                     .frame(height: 220)
+                    .listRowInsets(EdgeInsets(top: 18, leading: 18, bottom: 14, trailing: 18))
 
                     Button {
                         if supportsCameraScanner {
@@ -200,49 +185,25 @@ private struct RemoteConnectionSetupView: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(isPairing)
 
-                    Button { phase = .capture } label: {
-                        Text("Capture Document")
-                            .frame(maxWidth: .infinity, minHeight: 46)
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(isPairing)
-                }
-                .padding(18)
-                .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 18))
-
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-            }
-            .padding(18)
-            .frame(maxWidth: 460)
-            .frame(maxWidth: .infinity, alignment: .center)
-        }
-        .background(Color(.systemGroupedBackground))
-    }
-
-    // MARK: — Capture
-
-    private var captureView: some View {
-        NavigationStack {
-            List {
-                Section {
                     #if os(visionOS)
                     Button { pickerSource = .library } label: {
-                        Label("Choose From Library", systemImage: "photo.on.rectangle")
+                        Label("Capture Document", systemImage: "photo.on.rectangle")
                             .frame(maxWidth: .infinity, minHeight: 46)
                     }
-                    .buttonStyle(.borderedProminent)
                     #else
                     Button { pickerSource = .camera } label: {
                         Label("Capture Document", systemImage: "camera")
                             .frame(maxWidth: .infinity, minHeight: 46)
                     }
-                    .buttonStyle(.borderedProminent)
                     #endif
+                    .buttonStyle(.bordered)
+                    .disabled(isPairing)
 
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
                     if let captureError {
                         Text(captureError)
                             .font(.caption)
@@ -263,12 +224,7 @@ private struct RemoteConnectionSetupView: View {
                     }
                 }
             }
-            .navigationTitle("Capture Document")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Back") { phase = .connect }
-                }
-            }
+            .navigationTitle("Connect to Fichero on Mac")
         }
     }
 

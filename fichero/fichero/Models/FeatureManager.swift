@@ -8,7 +8,7 @@ class FeatureManager: ObservableObject {
     static let shared = FeatureManager()
     // Bumped to re-apply workflow execution release defaults on existing
     // installs (langgraph preview, run-on-selection, files toolbar, import/export).
-    private static let releaseProfileVersion = 30
+    private static let releaseProfileVersion = 31
     private static let workflowV001EnabledTools =
         "files,collection,folder,aggregate,transcribe,catalogue,"
         + "extract_all,kg_writer,extract_entities,key_people,timeline,keywords,summarize_file,"
@@ -73,7 +73,7 @@ class FeatureManager: ObservableObject {
     @AppStorage("fichero.features.settings_users_tab")
     private var settingsUsersTabEnabledInternal: Bool = true
     @AppStorage("fichero.features.settings_capture_tab")
-    private var settingsCaptureTabEnabledInternal: Bool = false
+    private var settingsCaptureTabEnabledInternal: Bool = true
     @AppStorage("fichero.features.workflow_tools_mcp")
     private var workflowToolsMCPEnabledInternal: Bool = false
     @AppStorage("fichero.features.workflow_tools_agents")
@@ -221,11 +221,13 @@ class FeatureManager: ObservableObject {
         activityEnabledInternal = true
 
         settingsGeneralTabEnabledInternal = true
-        settingsBackendTabEnabledInternal = true
-        settingsModelsTabEnabledInternal = true
+        settingsBackendTabEnabledInternal = false
+        settingsModelsTabEnabledInternal = false
         settingsAIAdvancedTabEnabledInternal = false
         settingsEngineTabEnabledInternal = true
         settingsShareTabEnabledInternal = true
+        settingsUsersTabEnabledInternal = true
+        settingsCaptureTabEnabledInternal = true
         workflowToolsMCPEnabledInternal = false
         workflowToolsAgentsEnabledInternal = false
         workflowToolsAudioEnabledInternal = false
