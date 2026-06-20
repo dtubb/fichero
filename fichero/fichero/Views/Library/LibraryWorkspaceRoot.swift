@@ -1,4 +1,10 @@
 import SwiftUI
+#if canImport(UIKit) && !os(macOS)
+import UIKit
+#if canImport(VisionKit) && !os(visionOS)
+import VisionKit
+#endif
+#endif
 
 enum LibraryWorkspaceSelection {
     @MainActor
@@ -33,6 +39,10 @@ struct LibraryWorkspaceRoot: View {
     #if canImport(UIKit) && !os(macOS)
     @EnvironmentObject private var captureQueue: MobileCaptureQueueStore
     @State private var showingCaptureQueue = false
+    @State private var capturePickerSource: CaptureSource?
+    #if canImport(VisionKit) && !os(visionOS)
+    @State private var showingDirectDocumentScanner = false
+    #endif
     #endif
 
     let library: LibraryManager.LibraryReference
@@ -97,12 +107,38 @@ struct LibraryWorkspaceRoot: View {
             }
             #endif
             ToolbarItem(placement: .primaryAction) {
-                Button {
-                    showingCaptureQueue = true
+                Menu {
+                    #if os(tvOS)
+                    Text("Capture is unavailable on Apple TV.")
+                    #elseif os(visionOS)
+                    Button { capturePickerSource = .library } label: {
+                        Label("Choose from Library", systemImage: "photo.on.rectangle")
+                    }
+                    #else
+                    Button {
+                        if supportsDocumentScanner {
+                            showingDirectDocumentScanner = true
+                        } else {
+                            capturePickerSource = .camera
+                        }
+                    } label: {
+                        Label("Scan Document", systemImage: "doc.viewfinder")
+                    }
+                    Button { capturePickerSource = .library } label: {
+                        Label("Choose from Library", systemImage: "photo.on.rectangle")
+                    }
+                    #endif
+                    Divider()
+                    Button { showingCaptureQueue = true } label: {
+                        let label = captureQueue.pendingCount > 0
+                            ? "Queue (\(captureQueue.pendingCount))"
+                            : "Capture Queue"
+                        Label(label, systemImage: "tray.and.arrow.up")
+                    }
                 } label: {
-                    Label(captureQueue.pendingCount > 0 ? "Queue \(captureQueue.pendingCount)" : "Capture Queue", systemImage: "camera")
+                    Label("Capture", systemImage: "camera")
                 }
-                .help("Open the mobile capture queue")
+                .help("Capture or import a document into this library")
             }
         }
         .sheet(isPresented: $showingCaptureQueue) {
@@ -110,12 +146,85 @@ struct LibraryWorkspaceRoot: View {
                 queue: captureQueue,
                 retryPendingUploads: {
                     await captureQueue.resumePendingUploads(
-                        using: MobileCaptureBackendUploadClient(libraryManager: libraryManager),
+                        using: MobileCaptureBackendUploadClient(
+                            libraryManager: libraryManager,
+                            targetLibraryId: library.id
+                        ),
                         retryInterruptedUploads: true
                     )
                 }
             )
         }
+        #if !os(tvOS)
+        .sheet(item: $capturePickerSource) { source in
+            MobileCaptureImagePicker(
+                sourceType: source.sourceType,
+                onImage: { image in handleCapturedImage(image, source: source) },
+                onCancel: { capturePickerSource = nil }
+            )
+        }
+        #endif
+        #if canImport(VisionKit) && !os(visionOS)
+        .fullScreenCover(isPresented: $showingDirectDocumentScanner) {
+            MobileDocumentScanner(
+                onImages: handleScannedDocumentImages,
+                onCancel: { showingDirectDocumentScanner = false }
+            )
+        }
+        #endif
         #endif
     }
+
+    // MARK: — Capture helpers (iOS/iPadOS only)
+
+    #if canImport(UIKit) && !os(macOS)
+    private var supportsDocumentScanner: Bool {
+        #if canImport(VisionKit) && !os(visionOS)
+        return VNDocumentCameraViewController.isSupported
+        #else
+        return false
+        #endif
+    }
+
+    private func handleCapturedImage(_ image: UIImage, source: CaptureSource) {
+        capturePickerSource = nil
+        let imageData = image.jpegData(compressionQuality: 0.9)
+        let fallbackData = imageData ?? image.pngData()
+        guard let data = fallbackData else { return }
+        let catalog = MobileCaptureCatalogFields(sourceArchiveHint: source.defaultSourceHint)
+        guard (try? captureQueue.enqueueCapturedImage(
+            data,
+            catalog: catalog,
+            fileExtension: imageData == nil ? "png" : "jpg"
+        )) != nil else { return }
+        startUploadToActiveLibrary()
+    }
+
+    private func handleScannedDocumentImages(_ images: [UIImage]) {
+        #if canImport(VisionKit) && !os(visionOS)
+        showingDirectDocumentScanner = false
+        #endif
+        let catalog = MobileCaptureCatalogFields(sourceArchiveHint: "document-camera")
+        for image in images {
+            let imageData = image.jpegData(compressionQuality: 0.9)
+            guard let data = imageData ?? image.pngData() else { continue }
+            _ = try? captureQueue.enqueueCapturedImage(
+                data,
+                catalog: catalog,
+                fileExtension: imageData == nil ? "png" : "jpg"
+            )
+        }
+        startUploadToActiveLibrary()
+    }
+
+    private func startUploadToActiveLibrary() {
+        let client = MobileCaptureBackendUploadClient(
+            libraryManager: libraryManager,
+            targetLibraryId: library.id
+        )
+        Task {
+            await captureQueue.resumePendingUploads(using: client)
+        }
+    }
+    #endif
 }
