@@ -72,6 +72,8 @@ class FeatureManager: ObservableObject {
     private var settingsShareTabEnabledInternal: Bool = true
     @AppStorage("fichero.features.settings_users_tab")
     private var settingsUsersTabEnabledInternal: Bool = true
+    @AppStorage("fichero.features.settings_capture_tab")
+    private var settingsCaptureTabEnabledInternal: Bool = false
     @AppStorage("fichero.features.workflow_tools_mcp")
     private var workflowToolsMCPEnabledInternal: Bool = false
     @AppStorage("fichero.features.workflow_tools_agents")
@@ -149,6 +151,7 @@ class FeatureManager: ObservableObject {
     var isSettingsEngineTabEnabled: Bool { allFeaturesEnabled || settingsEngineTabEnabledInternal }
     var isSettingsShareTabEnabled: Bool { allFeaturesEnabled || settingsShareTabEnabledInternal }
     var isSettingsUsersTabEnabled: Bool { allFeaturesEnabled || settingsUsersTabEnabledInternal }
+    var isSettingsCaptureTabEnabled: Bool { allFeaturesEnabled || settingsCaptureTabEnabledInternal }
     var isWorkflowToolsMCPEnabled: Bool { allFeaturesEnabled || workflowToolsMCPEnabledInternal }
     var isWorkflowToolsAgentsEnabled: Bool { allFeaturesEnabled || workflowToolsAgentsEnabledInternal }
     var isWorkflowToolsAudioEnabled: Bool { allFeaturesEnabled || workflowToolsAudioEnabledInternal }
