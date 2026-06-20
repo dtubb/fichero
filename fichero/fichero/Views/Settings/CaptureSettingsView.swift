@@ -202,24 +202,26 @@ struct CaptureUserManageView: View {
 
     private var libraryPickerSheet: some View {
         NavigationStack {
-            List(libraries) { lib in
-                Button {
-                    policy.libraryId = lib.id.uuidString
-                    policy.libraryName = lib.displayName
-                    policy.workflowId = ""
-                    policy.workflowName = ""
-                    showingLibraryPicker = false
-                } label: {
-                    HStack {
-                        Text(lib.displayName)
-                        Spacer()
-                        if lib.id.uuidString == policy.libraryId {
-                            Image(systemName: "checkmark")
-                                .foregroundStyle(.accent)
+            List {
+                ForEach(Array(libraries.enumerated()), id: \.element.id) { _, lib in
+                    Button {
+                        policy.libraryId = lib.id.uuidString
+                        policy.libraryName = lib.displayName
+                        policy.workflowId = ""
+                        policy.workflowName = ""
+                        showingLibraryPicker = false
+                    } label: {
+                        HStack {
+                            Text(lib.displayName)
+                            Spacer()
+                            if lib.id.uuidString == policy.libraryId {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(Color.accentColor)
+                            }
                         }
                     }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
             .navigationTitle("Choose Library")
             .toolbar {
@@ -233,7 +235,7 @@ struct CaptureUserManageView: View {
 
     private var workflowPickerSheet: some View {
         NavigationStack {
-            Group {
+            VStack(spacing: 0) {
                 if availableWorkflows.isEmpty {
                     ContentUnavailableView(
                         "No Workflows",
@@ -241,22 +243,24 @@ struct CaptureUserManageView: View {
                         description: Text("Add workflows to this library first.")
                     )
                 } else {
-                    List(availableWorkflows) { workflow in
-                        Button {
-                            policy.workflowId = workflow.id
-                            policy.workflowName = workflow.name
-                            showingWorkflowPicker = false
-                        } label: {
-                            HStack {
-                                Text(workflow.name)
-                                Spacer()
-                                if workflow.id == policy.workflowId {
-                                    Image(systemName: "checkmark")
-                                        .foregroundStyle(.accent)
+                    List {
+                        ForEach(Array(availableWorkflows.enumerated()), id: \.element.id) { _, workflow in
+                            Button {
+                                policy.workflowId = workflow.id
+                                policy.workflowName = workflow.name
+                                showingWorkflowPicker = false
+                            } label: {
+                                HStack {
+                                    Text(workflow.name)
+                                    Spacer()
+                                    if workflow.id == policy.workflowId {
+                                        Image(systemName: "checkmark")
+                                            .foregroundStyle(Color.accentColor)
+                                    }
                                 }
                             }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
             }
