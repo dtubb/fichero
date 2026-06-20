@@ -67,7 +67,7 @@ class FeatureManager: ObservableObject {
     @AppStorage("fichero.features.settings_ai_advanced_tab")
     private var settingsAIAdvancedTabEnabledInternal: Bool = false
     @AppStorage("fichero.features.settings_users_tab")
-    private var settingsUsersTabEnabledInternal: Bool = false
+    private var settingsUsersTabEnabledInternal: Bool = true
     @AppStorage("fichero.features.workflow_tools_mcp")
     private var workflowToolsMCPEnabledInternal: Bool = false
     @AppStorage("fichero.features.workflow_tools_agents")

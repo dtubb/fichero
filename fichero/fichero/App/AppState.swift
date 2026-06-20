@@ -45,6 +45,7 @@ class AppState: ObservableObject {
     let providerService: ProviderServiceGenerated  // Public for @EnvironmentObject injection
     let mcpService: MCPService  // Public for @EnvironmentObject injection
     let modelService: ModelServiceGenerated  // Public for @EnvironmentObject injection (HuggingFace browsing)
+    let usersStore: UsersStore  // Public for Settings → Users tab
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "AppState")
 
     // MARK: - Initialization
@@ -55,6 +56,7 @@ class AppState: ObservableObject {
         self.providerService = ProviderServiceGenerated(ficheroClient: ficheroClient)
         self.mcpService = MCPService(apiClient: apiClient)
         self.modelService = ModelServiceGenerated(ficheroClient: ficheroClient)
+        self.usersStore = UsersStore(client: ficheroClient)
         logger.info("⏱ AppState.init services ready")
     }
 
