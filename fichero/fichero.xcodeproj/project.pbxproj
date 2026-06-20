@@ -505,6 +505,7 @@
 		F2A340AB9853DC0671499E68 /* DocumentInspectorArtifactsTab+CurationHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = F259EE92E81B78CBE35C9947 /* DocumentInspectorArtifactsTab+CurationHistory.swift */; };
 		F5924EAC2877F93A6178107C /* HeuristicReviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEAE79F9381616EC474F4ED /* HeuristicReviewSheet.swift */; };
 		F64E8DA9BA2DC3A188FE35B2 /* LibraryMapComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8F0249656F38A2DB7AE0C54 /* LibraryMapComponents.swift */; };
+		FB55B6D23D3573E8E04CCD50 /* UsersSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD5D9E12155EC0A6E738B878 /* UsersSettingsView.swift */; };
 		FBC6479F61CDE8E911D6BDBB /* NoteDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFD4DC8D0E00D06ECFFEA224 /* NoteDetailView.swift */; };
 		FC38FF82492B7D35C486CF71 /* EditClaimSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C61D10AF212650451E8C13B /* EditClaimSheet.swift */; };
 		FC3F95AC0E1F4A7DB6B9993E /* FeatureManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B27E2AF4EC43E993C19836 /* FeatureManager.swift */; };
@@ -1020,6 +1021,7 @@
 		C768E2159A6D869E204FC478 /* FileMenuCommands.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FileMenuCommands.swift; sourceTree = "<group>"; };
 		CAA77E9001736B77957513A4 /* NotesBrowserView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NotesBrowserView.swift; sourceTree = "<group>"; };
 		CAAFE05184A40A50ADFC54A9 /* QuickLookPreviewViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuickLookPreviewViews.swift; sourceTree = "<group>"; };
+		CD5D9E12155EC0A6E738B878 /* UsersSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UsersSettingsView.swift; sourceTree = "<group>"; };
 		CE9 /* SidebarItemBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItemBuilder.swift; sourceTree = "<group>"; };
 		CFD4DC8D0E00D06ECFFEA224 /* NoteDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NoteDetailView.swift; sourceTree = "<group>"; };
 		D18BA434B3CB3A8C31139293 /* EntityDetailView+FilterChips.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "EntityDetailView+FilterChips.swift"; sourceTree = "<group>"; };
@@ -1756,6 +1758,7 @@
 				67E28651A4F5835C8AD6A06B /* AuditHistoryView.swift */,
 				91100495C9D776E200E2F9C0 /* BackupsView.swift */,
 				70599D1C032FF0B54C7C18A2 /* BackendSettingsRemoteAccessSection.swift */,
+				CD5D9E12155EC0A6E738B878 /* UsersSettingsView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -2701,6 +2704,7 @@
 				B8D4C0037198A3136E49293B /* LibraryWorkspaceRoot.swift in Sources */,
 				D80C598CBAB2817738ECF0CB /* ChatDocumentDropPayload.swift in Sources */,
 				BA24BF71010589D1597B9025 /* BackendSettingsRemoteAccessSection.swift in Sources */,
+				FB55B6D23D3573E8E04CCD50 /* UsersSettingsView.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {

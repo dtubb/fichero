@@ -66,6 +66,8 @@ class FeatureManager: ObservableObject {
     private var settingsModelsTabEnabledInternal: Bool = false
     @AppStorage("fichero.features.settings_ai_advanced_tab")
     private var settingsAIAdvancedTabEnabledInternal: Bool = false
+    @AppStorage("fichero.features.settings_users_tab")
+    private var settingsUsersTabEnabledInternal: Bool = false
     @AppStorage("fichero.features.workflow_tools_mcp")
     private var workflowToolsMCPEnabledInternal: Bool = false
     @AppStorage("fichero.features.workflow_tools_agents")
@@ -140,6 +142,7 @@ class FeatureManager: ObservableObject {
     var isSettingsBackendTabEnabled: Bool { allFeaturesEnabled || settingsBackendTabEnabledInternal }
     var isSettingsModelsTabEnabled: Bool { allFeaturesEnabled || settingsModelsTabEnabledInternal }
     var isSettingsAIAdvancedTabEnabled: Bool { allFeaturesEnabled || settingsAIAdvancedTabEnabledInternal }
+    var isSettingsUsersTabEnabled: Bool { allFeaturesEnabled || settingsUsersTabEnabledInternal }
     var isWorkflowToolsMCPEnabled: Bool { allFeaturesEnabled || workflowToolsMCPEnabledInternal }
     var isWorkflowToolsAgentsEnabled: Bool { allFeaturesEnabled || workflowToolsAgentsEnabledInternal }
     var isWorkflowToolsAudioEnabled: Bool { allFeaturesEnabled || workflowToolsAudioEnabledInternal }

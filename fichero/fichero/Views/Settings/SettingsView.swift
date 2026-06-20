@@ -35,6 +35,13 @@ struct SettingsView: View {
                     }
             }
 
+            if featureManager.isSettingsUsersTabEnabled {
+                UsersSettingsView()
+                    .tabItem {
+                        Label("Users", systemImage: "person.2")
+                    }
+            }
+
             AuditHistorySettingsTab()
                 .tabItem {
                     Label("History", systemImage: "clock.arrow.circlepath")
