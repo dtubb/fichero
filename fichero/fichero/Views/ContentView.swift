@@ -45,15 +45,15 @@ struct ContentView: View {
     /// now overflow into a trailing menu when the rail gets tight (#1733), so
     /// the list can shrink far enough to let the adaptive thumbnail grid fall
     /// to a single column again (#1734).
-    static let contentListMinWidth: Double = 220
+    nonisolated static let contentListMinWidth: Double = 220
     /// Minimum width of the flexible PDF canvas pane so its mini-toolbar
     /// (zoom −/%/+, fit, actual-size, magnifier, loupe + two dividers) never
     /// clips when the reading-surface dividers are dragged inward. The
     /// resizable neighbours are already clamped by their ResizableDividers;
     /// this guards the one `.frame(maxWidth: .infinity)` pane that otherwise
     /// has no floor. (#1454)
-    static let pdfCanvasMinWidth: Double = 360
-    static let readingPaneMinWidth: Double = 220
+    nonisolated static let pdfCanvasMinWidth: Double = 360
+    nonisolated static let readingPaneMinWidth: Double = 220
 
     // MARK: - Environment
 
