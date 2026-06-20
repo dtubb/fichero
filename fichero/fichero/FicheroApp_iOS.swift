@@ -164,9 +164,19 @@ private struct RemoteConnectionSetupView: View {
                         if isPairing {
                             ProgressView("Connecting…")
                         } else {
-                            Image(systemName: "qrcode.viewfinder")
-                                .font(.system(size: 64))
-                                .foregroundStyle(Color.accentColor.opacity(0.45))
+                            VStack(spacing: 14) {
+                                Image("Engine")
+                                    .resizable()
+                                    .interpolation(.high)
+                                    .scaledToFit()
+                                    .frame(width: 112, height: 112)
+                                    .accessibilityHidden(true)
+
+                                Image(systemName: "qrcode.viewfinder")
+                                    .font(.system(size: 34))
+                                    .foregroundStyle(Color.accentColor)
+                                    .accessibilityHidden(true)
+                            }
                         }
                     }
                     .frame(height: 220)
@@ -255,8 +265,7 @@ private struct RemoteConnectionSetupView: View {
         errorMessage = nil
         defer { isPairing = false }
         do {
-            let inviteText = try RemoteClientPairing.inviteLinkString(from: payload)
-            let fields = try RemoteClientPairing.pairingFields(fromInviteOrPayload: inviteText)
+            let fields = try RemoteClientPairing.pairingFields(from: payload)
             _ = try await RemoteClientPairing.pairAndPersistHost(
                 remoteURL: fields.remoteURL,
                 pairCode: fields.pairCode,

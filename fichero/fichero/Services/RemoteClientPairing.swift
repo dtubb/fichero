@@ -79,7 +79,7 @@ enum RemoteClientPairing {
         return "\(PairingInviteLink.scheme)://\(PairingInviteLink.host)?\(PairingInviteLink.payloadQueryItem)=\(encodedPayload)"
     }
 
-    private static func pairingFields(from payload: PairingQRCodePayload) throws -> RemoteClientPairingFields {
+    static func pairingFields(from payload: PairingQRCodePayload) throws -> RemoteClientPairingFields {
         let validatedURL = try validatedRemoteURL(
             from: payload.apiURL,
             allowLocalhost: false,
