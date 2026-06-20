@@ -68,6 +68,7 @@ requires = [
     "pydantic-settings",
     "duckdb",
     "lancedb",
+    "pylance",  # provides the `lance` module — required for LanceDB full-text (FTS) search
     # AI/LLM — Ollama (local) + LiteLLM (provider routing)
     "langchain",
     "langchain-core",
@@ -163,6 +164,7 @@ dependencies = [
     "pydantic-settings",
     "duckdb",
     "lancedb",
+    "pylance",  # provides the `lance` module — required for LanceDB full-text (FTS) search
     "langchain",
     "langchain-core",
     "langchain-openai",
