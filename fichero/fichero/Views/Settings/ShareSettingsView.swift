@@ -25,6 +25,17 @@ struct ShareSettingsView: View {
 
     private let qrContext = CIContext()
 
+    // Derives https://<hostname>.local:<port> from the system Bonjour name.
+    // ponytail: port from EngineConfig so it stays in sync with the default.
+    private static var autoLocalBaseURL: String {
+        var host = ProcessInfo.processInfo.hostName.lowercased()
+        if !host.hasSuffix(".local") {
+            host = (host.components(separatedBy: ".").first ?? host) + ".local"
+        }
+        let port = URL(string: EngineConfig.defaultHostString)?.port ?? 8765
+        return "https://\(host):\(port)"
+    }
+
     var body: some View {
         Form {
             Section {
@@ -88,7 +99,10 @@ struct ShareSettingsView: View {
         .formStyle(.grouped)
         .task {
             loadSPKIPin()
-            if hostingEnabled, appState.isBackendRunning {
+            if hostingEnabled && publicBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                publicBaseURL = Self.autoLocalBaseURL
+                await applySharing()
+            } else if hostingEnabled, appState.isBackendRunning {
                 await refreshDevices()
             }
             didBootstrap = true
@@ -158,10 +172,10 @@ struct ShareSettingsView: View {
         }
         let url = publicBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !url.isEmpty else {
-            return "Enter a reachable address in Advanced to generate a QR code."
+            return "Setting up secure sharing…"
         }
         guard (try? RemoteCertificatePinning.validatedSPKIPin(spkiPin)) != nil else {
-            return "Finish certificate setup in Advanced to generate a QR code."
+            return "Applying certificate. Toggle sharing off and on if this persists."
         }
         return "Preparing…"
     }
@@ -217,7 +231,12 @@ struct ShareSettingsView: View {
             get: { hostingEnabled },
             set: { newValue in
                 hostingEnabled = newValue
-                if newValue { bonjourEnabled = true }
+                if newValue {
+                    bonjourEnabled = true
+                    if publicBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        publicBaseURL = Self.autoLocalBaseURL
+                    }
+                }
                 Task { await applySharing() }
             }
         )
