@@ -28,6 +28,12 @@ struct ContentView: View {
     static let defaultColumnVisibility: NavigationSplitViewVisibility = .detailOnly
     static let defaultColumnVisibilityRaw: Int = 1 // .detailOnly
     #endif
+    /// Column the split view roots at when collapsed on compact width
+    /// (#2329/#2334). `.sidebar` = a phone launches ON the library/folder
+    /// list (Daniel: "we don't see the sidebar, have to move around to get
+    /// to it") — then drill in: pick a library/folder → document list →
+    /// reader → swipe to inspector. SwiftUI advances this as the user pushes.
+    static let defaultPreferredCompactColumn: NavigationSplitViewColumn = .sidebar
     static let sidebarMinWidth: Double = 160
     static let inspectorMinWidth: Double = 220
     static let inspectorMaxWidth: Double = 420
@@ -77,6 +83,12 @@ struct ContentView: View {
     /// events. Drives the inspector without re-rooting the WebKit pane (#1463).
     @State var pageFocusDocument: Document?
     @State var columnVisibility: NavigationSplitViewVisibility = ContentView.defaultColumnVisibility
+    /// Which column the split view roots at when it COLLAPSES to a stack on
+    /// compact width (#2329/#2334). `.detail` lands a phone on the document
+    /// list/reader, with the sidebar (folder tree + library picker) one
+    /// swipe-back away. Inert at regular width / macOS, where the split never
+    /// collapses. SwiftUI mutates this as the user navigates the stack.
+    @State var preferredCompactColumn: NavigationSplitViewColumn = ContentView.defaultPreferredCompactColumn
     @State var browserSelection: Set<String> = []
 
     // Persisted state (@SceneStorage) - synced via .onAppear and .onChange
@@ -348,7 +360,10 @@ struct ContentView: View {
     /// type-check this expression in reasonable time").
     @ViewBuilder
     private var navigationSplitColumn: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
+        NavigationSplitView(
+            columnVisibility: $columnVisibility,
+            preferredCompactColumn: $preferredCompactColumn
+        ) {
             sidebarContent
         } detail: {
             centerContent
