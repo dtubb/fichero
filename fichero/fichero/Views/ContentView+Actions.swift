@@ -452,11 +452,7 @@ extension ContentView {
     /// document is an image or page, navigation is scoped to image/page siblings
     /// only; otherwise all folder siblings are navigable.
     private func navigableSiblings(for document: Document) -> [Document] {
-        let all = documentStore.currentDocuments
-        if document.fileType == .image || document.docType == .page {
-            return all.filter { $0.fileType == .image || $0.docType == .page }
-        }
-        return all
+        navigableFolderSiblings(for: document, in: documentStore.currentDocuments)
     }
 
     /// Move detailDocument + browserSelection to the previous sibling in the
@@ -522,4 +518,14 @@ private extension URL {
 
         return resourceValues?.isDirectory == true
     }
+}
+
+/// Returns the sibling set used for prev/next navigation. When `document` is an
+/// image or page, navigation is scoped to image/page siblings only; otherwise all
+/// folder siblings are navigable. Extracted so the filtering rule is unit-testable.
+func navigableFolderSiblings(for document: Document, in documents: [Document]) -> [Document] {
+    if document.fileType == .image || document.docType == .page {
+        return documents.filter { $0.fileType == .image || $0.docType == .page }
+    }
+    return documents
 }
