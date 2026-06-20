@@ -53,3 +53,20 @@ Worktrees under ~/code/fichero-worktrees/. **Kimi may EDIT but NOT COMMIT — ch
 ## Operating model now
 Manager token-limited → **kimi/codex workers only**, light wakeup loop to keep them fed until ~19:30,
 **no manager verify/integrate/build**. All work is GitHub-issue-tracked.
+
+## Kimi worker output (2026-06-20 ~19:37) — UNINTEGRATED, for Daniel to build-gate + cherry-pick
+The bash/ollama dispatcher (f_dispatcher) ran kimi workers until 19:30 (no Claude). Committed work waiting
+in ~/code/fichero-worktrees/ (NOT built/verified/pushed by manager):
+- **OpenAPI-only conversions** (1 commit each): openapi-import (#2412/#2406), openapi-storage (#2411),
+  openapi-activity (#2413/#2392 — has 1 UNCOMMITTED file, commit it before integrating), openapi-apiclient,
+  openapi-engineconfig, openapi-appstate, openapi-applescript (all #2414).
+- **Feature lanes**: connected-capture (#2401, 3 commits), pairing-link (#2399, 4 commits),
+  reader-zoom-nav (#2417/#2420, 3 commits), ios-reader-polish (#2331/#2332, 3 commits).
+- **shell-mockups** (2 commits + uncommitted refinements): the per-device HTML mockups incl. the iPhone
+  reader/buttons + iPad orientation-pair + visionOS-windows refinements in docs/design/shell-mockups/.
+- ios-shell-nav: already integrated earlier (0 commits remaining).
+Integration order suggestion: build-gate each via Xcode MCP (windowtab5), backend conversions need pytest,
+push only if green. ~60 issues filed today (#2391–#2449) — all current-release; the workflow-editor cluster
+(#2437–#2445), node-model consolidation (#2446/#2447), chat redesign (#2449), and the change-stream/TLS
+remote bugs (#2382/#2407/#2435/#2448) are the big themes. Manager stopped (token budget); resume integration
+or dispatch more kimi via f_dispatcher pattern when ready.
