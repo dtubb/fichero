@@ -183,7 +183,6 @@ struct DocumentInspector: View {
 
     // Tab content for the selected tab. One arm per inspector tab; complexity
     // scales with the (intentionally flat) tab list, not nested branching.
-    // swiftlint:disable:next cyclomatic_complexity
     @ViewBuilder private func tabContent(for doc: Document) -> some View {
         switch selectedTab {
         case .content:
@@ -202,8 +201,6 @@ struct DocumentInspector: View {
             artifactsTab(for: doc)
         case .citations:
             CitationsInspectorPane(document: doc)
-        case .references:
-            ReferencesInspectorPane(document: doc)
         case .edits:
             editsTab(for: doc)
         case .info:
@@ -215,7 +212,7 @@ struct DocumentInspector: View {
         guard let doc else { return InspectorTab.allCases }
         var tabs: [InspectorTab] = [
             .content, .annotations, .notes, .knowledgeGraph, .outline, .entities,
-            .artifacts, .citations, .references
+            .artifacts, .citations
         ]
         if doc.fileType == .image || doc.fileType == .pdf || doc.docType == .page {
             tabs.append(.edits)

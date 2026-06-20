@@ -20,7 +20,6 @@ enum InspectorTab: String, CaseIterable, Identifiable {
     case knowledgeGraph = "Knowledge Graph"
     case artifacts = "Artifacts"
     case citations = "Citations"
-    case references = "References"
     case edits = "Edits"
     case info = "Info"
 
@@ -36,7 +35,6 @@ enum InspectorTab: String, CaseIterable, Identifiable {
         case .knowledgeGraph: return "point.3.connected.trianglepath.dotted"
         case .artifacts: return "shippingbox"
         case .citations: return "text.quote"
-        case .references: return "books.vertical"
         case .edits: return "slider.horizontal.3"
         case .info: return "info.circle"
         }
@@ -60,9 +58,7 @@ enum InspectorTab: String, CaseIterable, Identifiable {
         case .artifacts:
             return "Artifacts — outputs generated for this document, such as summaries and transcripts"
         case .citations:
-            return "Citations — documents this one cites and documents that cite it"
-        case .references:
-            return "References — the document's extracted bibliography (works it cites)"
+            return "Citations — documents this one cites and documents that cite it; includes the document's extracted bibliography"
         case .edits:
             return "Edits — non-destructive image/page edit operations for this document"
         case .info:
