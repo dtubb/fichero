@@ -1,18 +1,10 @@
 import FicheroAPIClient
 import Foundation
+import OpenAPIRuntime
 import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "APIClient")
-// swiftlint:disable file_length
 
-/// HTTP client for communicating with the Fichero Python backend.
-///
-/// Uses Swift concurrency (async/await) for all network operations.
-/// The backend runs on localhost:8765 when started with `fichero serve`.
-///
-/// **Per-Window Instance**: Each DocumentTabView creates its own APIClient instance
-/// with its own currentLibraryPath. This ensures operations in one window don't
-/// affect other windows operating on different .fichero libraries.
 /// Parse a date string from the engine's API in any of the four formats
 /// the engine emits (ISO with/without fractional seconds, Python isoformat
 /// with/without fractional). Used by hand-written response parsers that
@@ -40,118 +32,136 @@ func parseEngineDate(_ dateString: String) -> Date? {
     return nil
 }
 
+/// HTTP client for communicating with the Fichero Python backend.
+///
+/// Wraps the generated `FicheroClient` so calls that have a generated
+/// operation flow through the typed OpenAPI client and its shared
+/// certificate-pinned, authenticated transport. Generic `get/post/put/patch/delete`
+/// helpers remain as compatibility shims for call sites that have not yet
+/// migrated to generated operations.
 @MainActor
 class APIClient: ObservableObject {
-    var baseURL: URL { EngineConfig.apiBaseURL }  // Internal access for SSE streaming services
+    /// The generated OpenAPI client.
+    let client: FicheroClient
+
+    /// Direct access to generated operations.
+    var api: Client { client.api }
+
+    /// Backend API base URL (`host` with the `/api` prefix). Generic helpers
+    /// append paths here; generated operations use `client.baseURL` directly
+    /// because their OpenAPI paths already include `/api`.
+    var baseURL: URL { client.baseURL.appendingPathComponent("api") }
+
+    /// Current library path - set by DocumentTabView when a library is loaded.
+    /// Propagated to the generated client's `LibraryPathMiddleware` so every
+    /// library-scoped request carries `X-Fichero-Library-Path`.
+    @Published var currentLibraryPath: String? {
+        didSet { client.currentLibraryPath = currentLibraryPath }
+    }
+
     private let session: URLSession
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
 
-    /// Current library path - set by DocumentTabView when a library is loaded
-    /// Sent as "X-Fichero-Library-Path" header with every request
-    /// This is the path to the .fichero package document (e.g., "/Users/name/Documents/MyLibrary.fichero")
-    @Published var currentLibraryPath: String?
+    init(baseURL: URL = EngineConfig.host, libraryPath: String? = nil) {
+        self.client = FicheroClient(baseURL: baseURL, libraryPath: libraryPath)
+        self.currentLibraryPath = libraryPath
 
-    init() {
-        // Configure session
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 300
         self.session = RemoteCertificatePinning.configuredSession(configuration: config)
 
-        // Configure decoder
         self.decoder = JSONDecoder()
-        // Don't use convertFromSnakeCase since we have explicit CodingKeys
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let dateString = try container.decode(String.self)
 
-            // Try ISO 8601 with fractional seconds first
             let formatter = ISO8601DateFormatter()
             formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
             if let date = formatter.date(from: dateString) {
                 return date
             }
 
-            // Fall back to standard ISO 8601
             formatter.formatOptions = [.withInternetDateTime]
             if let date = formatter.date(from: dateString) {
                 return date
             }
 
-            // Try DateFormatter for dates without timezone (Python's default format)
             let dateFormatter = DateFormatter()
             dateFormatter.locale = Locale(identifier: "en_US_POSIX")
             dateFormatter.timeZone = TimeZone(identifier: "UTC")
 
-            // Format: 2025-12-11T15:47:02.776163 (no timezone)
             dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS"
             if let date = dateFormatter.date(from: dateString) {
                 return date
             }
 
-            // Format: 2025-12-11T15:47:02 (no fractional seconds, no timezone)
             dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
             if let date = dateFormatter.date(from: dateString) {
                 return date
             }
 
-            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Cannot decode date: \(dateString)")
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Cannot decode date: \(dateString)"
+            )
         }
 
-        // Configure encoder
         self.encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
     }
 
-    // MARK: - Request Configuration
+    // MARK: - Generated Operations
+
+    /// Health check using the generated OpenAPI operation.
+    func healthCheck() async throws -> Components.Schemas.HealthResponse {
+        let response = try await client.api.healthCheckApiHealthGet(.init())
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .undocumented(let statusCode, _):
+            throw APIError.httpError(statusCode: statusCode, message: "Unexpected health response")
+        default:
+            throw APIError.invalidResponse
+        }
+    }
+
+    // MARK: - URL Builders (for images)
+
+    func thumbnailURL(for documentId: String) -> URL {
+        baseURL.appendingPathComponent("storage/thumbnail/\(documentId)")
+    }
+
+    func displayURL(for documentId: String) -> URL {
+        baseURL.appendingPathComponent("storage/display/\(documentId)")
+    }
+
+    func sourceURL(for documentId: String) -> URL {
+        baseURL.appendingPathComponent("storage/source/\(documentId)")
+    }
+
+    // MARK: - Legacy Generic Helpers
 
     /// Add library path header to request if currentLibraryPath is set.
-    /// Skips the header for app-wide endpoints (health check, providers).
-    /// Provider references (/providers/refs) still get the header since they are library-specific.
+    /// Skips the header for app-wide endpoints (health, providers, settings, registry).
+    /// Auth is applied via `URLRequest.addEngineAuth`.
     private func configureRequest(_ request: inout URLRequest) {
         let path = request.url?.path ?? ""
+        let isAppWide = LibraryPathMiddleware.isAppWidePath(path)
 
-        // App-wide endpoints that don't need library path header
-        let isHealthEndpoint = AuthTokenMiddleware.isUnauthenticatedPath(path)
-        let isAppWideEndpoint = LibraryPathMiddleware.isAppWidePath(path)
-
-        // Auth: every non-health request needs the engine's per-launch token
-        // (#742). Health is the readiness probe and stays unauthenticated;
-        // the rest must carry Bearer.
-        if !isHealthEndpoint, let token = AuthTokenMiddleware.waitForTokenBlocking() {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
-
-        // Skip library-path header for app-wide endpoints
-        if isAppWideEndpoint {
-            return
-        }
-
-        // Add library path header for all library-specific endpoints
-        if let libraryPath = currentLibraryPath {
-            request.setValue(libraryPath, forHTTPHeaderField: "X-Fichero-Library-Path")
-        } else {
-            // Warning: library-specific endpoint called without library path
+        if !isAppWide, currentLibraryPath == nil {
             logger.warning("Request to \(path) requires library path but currentLibraryPath is nil")
         }
+
+        request.addEngineAuth(libraryPath: isAppWide ? nil : currentLibraryPath)
     }
-
-    // MARK: - Health Check
-
-    func healthCheck() async throws -> HealthResponse {
-        try await get("/health")
-    }
-
-    // MARK: - Generic Methods
 
     func get<T: Decodable>(_ path: String, query: [String: String]? = nil) async throws -> T {
-        // Parse path and any inline query string to avoid URL encoding issues
-        // appendingPathComponent encodes ? and & which breaks query strings
         var pathOnly = path
         var mergedQuery: [String: String] = query ?? [:]
 
-        // Extract query string from path if present (e.g., "/activity?limit=10")
         if let queryStart = path.firstIndex(of: "?") {
             pathOnly = String(path[..<queryStart])
             let queryString = String(path[path.index(after: queryStart)...])
@@ -160,7 +170,6 @@ class APIClient: ObservableObject {
                 if parts.count == 2 {
                     let key = String(parts[0])
                     let value = String(parts[1])
-                    // Don't overwrite explicit query params
                     if mergedQuery[key] == nil {
                         mergedQuery[key] = value
                     }
@@ -168,7 +177,6 @@ class APIClient: ObservableObject {
             }
         }
 
-        // Build URL with proper path and query handling
         var components = URLComponents(url: baseURL.appendingPathComponent(pathOnly), resolvingAgainstBaseURL: false)!
         if !mergedQuery.isEmpty {
             components.queryItems = mergedQuery.map { URLQueryItem(name: $0.key, value: $0.value) }
@@ -207,12 +215,10 @@ class APIClient: ObservableObject {
         configureRequest(&request)
 
         logger.info("POST \(url.absoluteString)")
-        // Note: Request body logging removed to avoid potential sensitive data exposure
 
         do {
             let (data, response) = try await session.data(for: request)
             logger.info("Response received, \(data.count) bytes")
-            // Note: Response body logging removed to avoid potential sensitive data exposure
             try validateResponse(response, data: data)
             return try decoder.decode(T.self, from: data)
         } catch {
@@ -221,7 +227,6 @@ class APIClient: ObservableObject {
         }
     }
 
-    /// POST without body (for endpoints that take query params only)
     func post<T: Decodable>(_ path: String) async throws -> T {
         let url = baseURL.appendingPathComponent(path)
 
@@ -235,7 +240,6 @@ class APIClient: ObservableObject {
         do {
             let (data, response) = try await session.data(for: request)
             logger.info("Response received, \(data.count) bytes")
-            // Note: Response body logging removed to avoid potential sensitive data exposure
             try validateResponse(response, data: data)
             return try decoder.decode(T.self, from: data)
         } catch {
@@ -244,7 +248,6 @@ class APIClient: ObservableObject {
         }
     }
 
-    /// POST without body using explicit query params.
     func post<T: Decodable>(_ path: String, query: [String: String]) async throws -> T {
         var components = URLComponents(url: baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
         if !query.isEmpty {
@@ -288,7 +291,6 @@ class APIClient: ObservableObject {
         return try decoder.decode(T.self, from: data)
     }
 
-    /// PUT request with query parameters (no body)
     func put<T: Decodable>(_ path: String, query: [String: String]) async throws -> T {
         var urlComponents = URLComponents(string: baseURL.appendingPathComponent(path).absoluteString)!
         if !query.isEmpty {
@@ -320,20 +322,6 @@ class APIClient: ObservableObject {
         try validateResponse(response, data: data)
     }
 
-    // MARK: - URL Builders (for images)
-
-    func thumbnailURL(for documentId: String) -> URL {
-        EngineConfig.apiBaseURL.appendingPathComponent("storage/thumbnail/\(documentId)")
-    }
-
-    func displayURL(for documentId: String) -> URL {
-        EngineConfig.apiBaseURL.appendingPathComponent("storage/display/\(documentId)")
-    }
-
-    func sourceURL(for documentId: String) -> URL {
-        EngineConfig.apiBaseURL.appendingPathComponent("storage/source/\(documentId)")
-    }
-
     // MARK: - Response Validation
 
     private func validateResponse(_ response: URLResponse, data: Data) throws {
@@ -343,9 +331,7 @@ class APIClient: ObservableObject {
 
         switch httpResponse.statusCode {
         case 200...299:
-            return // Success
-        case 204:
-            return // No content (success for DELETE)
+            return
         case 400:
             throw APIError.badRequest(decodeError(data))
         case 404:
@@ -369,22 +355,16 @@ class APIClient: ObservableObject {
 
 extension APIClient {
     func patch<T: Decodable, B: Encodable>(_ path: String, body: B) async throws -> T {
-        let url = EngineConfig.apiBaseURL.appendingPathComponent(path)
+        let url = baseURL.appendingPathComponent(path)
 
         var request = URLRequest(url: url)
         request.httpMethod = "PATCH"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-
-        let encoder = JSONEncoder()
         request.httpBody = try encoder.encode(body)
         configureRequest(&request)
 
         logger.info("PATCH \(url.absoluteString)")
-
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
-        let session = RemoteCertificatePinning.configuredSession(configuration: config)
 
         let (data, response) = try await session.data(for: request)
 
@@ -397,7 +377,6 @@ extension APIClient {
             throw APIError.httpError(statusCode: httpResponse.statusCode, message: message)
         }
 
-        let decoder = JSONDecoder()
         return try decoder.decode(T.self, from: data)
     }
 
