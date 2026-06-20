@@ -204,10 +204,24 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         )
         XCTAssertEqual(
             ContentView.adaptiveWidescreenAvailableWidth(
-                windowWidth: 200,
+                windowWidth: ContentView.inspectorMinWidth,
                 inspectorVisible: true
             ),
             0
         )
+    }
+
+    func testWidescreenPanePlanStillCollapsesAtZeroAvailableWidth() {
+        let plan = WidescreenPanePlan.make(
+            showDocumentGrid: true,
+            showDocumentCanvas: true,
+            showReadingPane: true,
+            availableWidth: 0
+        )
+
+        XCTAssertTrue(plan.showsLibraryPane)
+        XCTAssertFalse(plan.showsCanvasPane)
+        XCTAssertFalse(plan.showsReadingPane)
+        XCTAssertEqual(plan.minimumWidth, ContentView.contentListMinWidth)
     }
 }

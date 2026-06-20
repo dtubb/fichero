@@ -120,12 +120,14 @@ struct WidescreenPanePlan: Equatable {
         showReadingPane: Bool,
         availableWidth: Double? = nil
     ) -> WidescreenPanePlan {
+        // Zero is a real collapse input here; it must still flow through the
+        // collapse policy so the plan can shed panes at the edge case.
         let plan = WidescreenPanePlan(
             showsLibraryPane: showDocumentGrid,
             showsCanvasPane: showDocumentCanvas,
             showsReadingPane: showReadingPane
         )
-        guard let availableWidth, availableWidth > 0 else {
+        guard let availableWidth else {
             return plan
         }
         return plan.collapsed(toFit: availableWidth)
