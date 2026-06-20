@@ -1,4 +1,4 @@
-#if canImport(UIKit) && !os(macOS)
+#if os(iOS) || os(visionOS)
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
@@ -263,7 +263,7 @@ private struct MobileCaptureQueueItemCard: View {
     }
 }
 
-private enum CaptureSource: Identifiable {
+enum CaptureSource: Identifiable {
     case camera
     case library
 
@@ -299,7 +299,7 @@ private enum CaptureSource: Identifiable {
     }
 }
 
-private struct MobileCaptureImagePicker: UIViewControllerRepresentable {
+struct MobileCaptureImagePicker: UIViewControllerRepresentable {
     let sourceType: UIImagePickerController.SourceType
     let onImage: (UIImage) -> Void
     let onCancel: () -> Void
