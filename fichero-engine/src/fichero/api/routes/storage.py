@@ -45,6 +45,10 @@ class DocumentDebugResponse(BaseModel):
     metadata: dict
 
 
+class NotFoundResponse(BaseModel):
+    detail: str
+
+
 def _normalize_document_id(doc_id: str) -> str:
     """Accept both bare ids and ``doc:``-prefixed sidebar ids."""
     return doc_id.removeprefix("doc:")
@@ -67,7 +71,18 @@ def _inline_content_disposition(filename: str) -> str:
     return f"inline; filename=\"{ascii_fallback}\"; filename*=UTF-8''{encoded_filename}"
 
 
-@router.get("/thumbnail/{doc_id}")
+@router.get(
+    "/thumbnail/{doc_id}",
+    responses={
+        200: {
+            "content": {
+                "image/jpeg": {"schema": {"type": "string", "format": "binary"}}
+            },
+            "description": "Thumbnail image bytes",
+        },
+        404: {"model": NotFoundResponse, "description": "Document or thumbnail not found"},
+    },
+)
 async def get_thumbnail(
     doc_id: str,
     background_tasks: BackgroundTasks,
@@ -119,7 +134,18 @@ async def get_thumbnail(
         )
 
 
-@router.get("/display/{doc_id}")
+@router.get(
+    "/display/{doc_id}",
+    responses={
+        200: {
+            "content": {
+                "image/jpeg": {"schema": {"type": "string", "format": "binary"}}
+            },
+            "description": "Display image bytes",
+        },
+        404: {"model": NotFoundResponse, "description": "Document or display image not found"},
+    },
+)
 async def get_display_image(
     doc_id: str,
     background_tasks: BackgroundTasks,
@@ -165,7 +191,18 @@ async def get_display_image(
     )
 
 
-@router.get("/source/{doc_id}")
+@router.get(
+    "/source/{doc_id}",
+    responses={
+        200: {
+            "content": {
+                "*/*": {"schema": {"type": "string", "format": "binary"}}
+            },
+            "description": "Original source file bytes",
+        },
+        404: {"model": NotFoundResponse, "description": "Document or source file not found"},
+    },
+)
 async def get_source_file(
     doc_id: str,
     db: Database = Depends(get_library_database),

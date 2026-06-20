@@ -15072,10 +15072,26 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Thumbnail image bytes",
             "content": {
               "application/json": {
                 "schema": {}
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Document or thumbnail not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundResponse"
+                }
               }
             }
           },
@@ -15113,10 +15129,26 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Display image bytes",
             "content": {
               "application/json": {
                 "schema": {}
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Document or display image not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundResponse"
+                }
               }
             }
           },
@@ -15154,10 +15186,26 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Original source file bytes",
             "content": {
               "application/json": {
                 "schema": {}
+              },
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Document or source file not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundResponse"
+                }
               }
             }
           },
@@ -47828,6 +47876,19 @@
           "stemming"
         ],
         "title": "NormalizeResponse"
+      },
+      "NotFoundResponse": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "NotFoundResponse"
       },
       "Note": {
         "properties": {
