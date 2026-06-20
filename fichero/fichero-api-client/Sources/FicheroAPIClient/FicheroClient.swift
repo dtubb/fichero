@@ -42,7 +42,13 @@ public final class FicheroClient: ObservableObject {
     /// - Parameters:
     ///   - baseURL: The base URL of the Fichero backend (default: localhost:8765)
     ///   - libraryPath: Optional library path header value
-    public init(baseURL: URL = URL(string: "http://127.0.0.1:8765")!, libraryPath: String? = nil) {
+    ///   - session: Optional URL session override, used by callers that need
+    ///     a custom transport such as certificate-pinned pairing probes.
+    public init(
+        baseURL: URL = URL(string: "http://127.0.0.1:8765")!,
+        libraryPath: String? = nil,
+        session: URLSession? = nil
+    ) {
         self.baseURL = baseURL
         self.libraryPathProvider = LibraryPathProvider(libraryPath: libraryPath)
         self.currentLibraryPath = libraryPath
@@ -55,7 +61,35 @@ public final class FicheroClient: ObservableObject {
         self.api = Client(
             serverURL: baseURL,
             configuration: .init(dateTranscoder: LenientISO8601DateTranscoder()),
-            transport: Self.makeTransport(),
+            transport: Self.makeTransport(session: session),
+            middlewares: [
+                AuthTokenMiddleware(),
+                libraryPathProvider.createMiddleware()
+            ]
+        )
+    }
+
+    /// Convenience initializer for pairing probes that need to pin a specific
+    /// host certificate before the remote device is persisted.
+    public init(
+        baseURL: URL = URL(string: "http://127.0.0.1:8765")!,
+        libraryPath: String? = nil,
+        expectedSPKIPin: String?
+    ) throws {
+        self.baseURL = baseURL
+        self.libraryPathProvider = LibraryPathProvider(libraryPath: libraryPath)
+        self.currentLibraryPath = libraryPath
+
+        let session: URLSession? = if let expectedSPKIPin {
+            try RemoteCertificatePinning.pinnedSession(expectedSPKIPin: expectedSPKIPin)
+        } else {
+            nil
+        }
+
+        self.api = Client(
+            serverURL: baseURL,
+            configuration: .init(dateTranscoder: LenientISO8601DateTranscoder()),
+            transport: Self.makeTransport(session: session),
             middlewares: [
                 AuthTokenMiddleware(),
                 libraryPathProvider.createMiddleware()
@@ -87,9 +121,9 @@ public final class FicheroClient: ObservableObject {
         FicheroClient()
     }
 
-    private static func makeTransport() -> URLSessionTransport {
+    private static func makeTransport(session: URLSession? = nil) -> URLSessionTransport {
         let configuration = URLSessionConfiguration.default
-        let session = RemoteCertificatePinning.configuredSession(configuration: configuration)
+        let session = session ?? RemoteCertificatePinning.configuredSession(configuration: configuration)
         return URLSessionTransport(configuration: .init(session: session))
     }
 }

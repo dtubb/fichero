@@ -68,7 +68,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Models/Document.swift::SearchResult": "§6b baseline — struct shadows Components.Schemas.SearchResult",
     "Models/Document.swift::Status": "§6b baseline — enum shadows Components.Schemas.Status",
     "Models/DocumentStore+CRUD.swift::IngestFolderRequest": "§6b baseline — struct shadows Components.Schemas.IngestFolderRequest",
-    "Models/LibraryManager+Helpers.swift::HealthResponse": "§6b baseline — struct shadows Components.Schemas.HealthResponse",
     "Models/Note.swift::Note": "§6b baseline — struct shadows Components.Schemas.Note",
     "Models/Note.swift::NoteType": "§6b baseline — enum shadows Components.Schemas.NoteType",
     "Models/ResearchModels.swift::BrowserSaveRequest": "§6b baseline — struct shadows Components.Schemas.BrowserSaveRequest",

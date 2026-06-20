@@ -1,6 +1,5 @@
 #if canImport(AppKit)
 // swiftlint:disable file_length
-import AppKit
 import CoreImage
 import CoreImage.CIFilterBuiltins
 import FicheroAPIClient
@@ -11,10 +10,11 @@ Use a private reachable URL such as a literal IP address or a .local hostname.
 Bonjour only announces that this Mac is available; the QR code still carries the URL the client should call.
 """
 
+// swiftlint:disable:next type_body_length
 struct BackendSettingsRemoteAccessSection: View {
-    @EnvironmentObject private var appState: AppState
-    @EnvironmentObject private var backendService: EmbeddedBackendService
-    @EnvironmentObject private var libraryManager: LibraryManager
+    @ObservedObject private var appState: AppState
+    @ObservedObject private var backendService: EmbeddedBackendService
+    @ObservedObject private var libraryManager: LibraryManager
     @AppStorage(EngineConfig.userDefaultsKey) private var engineHost = EngineConfig.defaultHostString
     @AppStorage(RemoteAccessConfig.hostingEnabledKey) private var hostingEnabled = false
     @AppStorage(RemoteAccessConfig.bonjourEnabledKey) private var bonjourEnabled = false
@@ -29,6 +29,16 @@ struct BackendSettingsRemoteAccessSection: View {
     @State private var didBootstrapPairingCard = false
     @State private var spkiPin = ""
     @State private var copiedInvite = false
+
+    init(
+        appState: AppState,
+        backendService: EmbeddedBackendService,
+        libraryManager: LibraryManager
+    ) {
+        self._appState = ObservedObject(wrappedValue: appState)
+        self._backendService = ObservedObject(wrappedValue: backendService)
+        self._libraryManager = ObservedObject(wrappedValue: libraryManager)
+    }
 
     private let qrContext = CIContext()
 
@@ -90,7 +100,7 @@ struct BackendSettingsRemoteAccessSection: View {
 
     private var ownerPairingService: PairingService? {
         guard canHostRemoteAccess else { return nil }
-                return PairingService(apiRoot: EngineConfig.host)
+        return PairingService(apiRoot: EngineConfig.host)
     }
 
     private var advertisedPairingService: PairingService? {
@@ -285,8 +295,7 @@ struct BackendSettingsRemoteAccessSection: View {
 
     private func copyInvite() {
         guard let inviteLinkString else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(inviteLinkString, forType: .string)
+        PlatformPasteboard.writeString(inviteLinkString)
         copiedInvite = true
         Task {
             try? await Task.sleep(for: .seconds(2))

@@ -114,9 +114,6 @@ extension LibraryManager {
     /// Initialize the backend database for a library
     func initializeBackendDatabase(for library: LibraryReference) async {
         do {
-            struct HealthResponse: Codable {
-                let status: String
-            }
             let _: HealthResponse = try await library.apiClient.get("/health")
             libraryManagerLogger.info("Initialized backend database for: \(library.displayName)")
         } catch {

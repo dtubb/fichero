@@ -1,10 +1,6 @@
 import FicheroAPIClient
 import Foundation
 
-#if canImport(UIKit) && !os(macOS)
-import UIKit
-#endif
-
 struct RemoteClientPairingFields: Equatable {
     let remoteURL: String
     let pairCode: String
@@ -15,6 +11,12 @@ private struct PairingInviteLink {
     static let scheme = "fichero"
     static let host = "pair"
     static let payloadQueryItem = "payload"
+
+    static let queryValueAllowedCharacters: CharacterSet = {
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "+/=")
+        return allowed
+    }()
 }
 
 enum RemoteClientPairingError: LocalizedError, Equatable {
@@ -41,11 +43,7 @@ enum RemoteClientPairing {
     }
 
     static func defaultDeviceName() -> String {
-        #if canImport(UIKit) && !os(macOS)
-        return UIDevice.current.name
-        #else
         return Host.current().localizedName ?? ProcessInfo.processInfo.hostName
-        #endif
     }
 
     static func pairingFields(from message: String) throws -> RemoteClientPairingFields {
@@ -68,18 +66,10 @@ enum RemoteClientPairing {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         let data = try encoder.encode(payload)
-
-        var components = URLComponents()
-        components.scheme = PairingInviteLink.scheme
-        components.host = PairingInviteLink.host
-        components.queryItems = [
-            URLQueryItem(name: PairingInviteLink.payloadQueryItem, value: data.base64EncodedString())
-        ]
-
-        guard let url = components.url else {
-            throw APIError.badRequest("Could not create an invite link.")
-        }
-        return url.absoluteString
+        let encodedPayload = data.base64EncodedString().addingPercentEncoding(
+            withAllowedCharacters: PairingInviteLink.queryValueAllowedCharacters
+        ) ?? data.base64EncodedString()
+        return "\(PairingInviteLink.scheme)://\(PairingInviteLink.host)?\(PairingInviteLink.payloadQueryItem)=\(encodedPayload)"
     }
 
     private static func pairingFields(from payload: PairingQRCodePayload) throws -> RemoteClientPairingFields {
@@ -97,11 +87,10 @@ enum RemoteClientPairing {
     }
 
     private static func payloadFromInviteLink(_ message: String) -> PairingQRCodePayload? {
-        guard let components = URLComponents(string: message),
-              components.scheme?.lowercased() == PairingInviteLink.scheme,
-              components.host?.lowercased() == PairingInviteLink.host,
-              let encodedPayload = components.queryItems?
-              .first(where: { $0.name == PairingInviteLink.payloadQueryItem })?.value,
+        guard let url = URL(string: message),
+              url.scheme?.lowercased() == PairingInviteLink.scheme,
+              url.host?.lowercased() == PairingInviteLink.host,
+              let encodedPayload = queryValue(named: PairingInviteLink.payloadQueryItem, in: url),
               let data = Data(base64Encoded: encodedPayload),
               let payload = try? JSONDecoder.withISO8601Dates.decode(PairingQRCodePayload.self, from: data) else {
             return nil
@@ -110,9 +99,20 @@ enum RemoteClientPairing {
     }
 
     private static func looksLikeInviteLink(_ message: String) -> Bool {
-        guard let components = URLComponents(string: message) else { return false }
-        return components.scheme?.lowercased() == PairingInviteLink.scheme
-            && components.host?.lowercased() == PairingInviteLink.host
+        guard let url = URL(string: message) else { return false }
+        return url.scheme?.lowercased() == PairingInviteLink.scheme
+            && url.host?.lowercased() == PairingInviteLink.host
+    }
+
+    private static func queryValue(named name: String, in url: URL) -> String? {
+        guard let query = url.query else { return nil }
+        for pair in query.split(separator: "&") {
+            let parts = pair.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+            guard parts.count == 2, parts[0] == name else { continue }
+            let rawValue = String(parts[1])
+            return rawValue.removingPercentEncoding ?? rawValue
+        }
+        return nil
     }
 
     static func pairDevice(
@@ -149,27 +149,19 @@ enum RemoteClientPairing {
         UserDefaults.standard.set(result.apiRoot.absoluteString, forKey: EngineConfig.userDefaultsKey)
     }
 
+    @MainActor
     static func probeRemoteHealth(at apiRoot: URL, expectedSPKIPin: String? = nil) async throws {
-        let requestURL = apiRoot.appendingPathComponent("api/health")
-        let session: URLSession
-        if let expectedSPKIPin {
-            session = try RemoteCertificatePinning.pinnedSession(expectedSPKIPin: expectedSPKIPin)
-        } else {
-            session = RemoteCertificatePinning.configuredSession()
-        }
+        let client = try FicheroClient(baseURL: apiRoot, expectedSPKIPin: expectedSPKIPin)
 
-        let (data, response) = try await session.data(from: requestURL)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            throw APIError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? -1, message: "API returned error status")
-        }
-
-        struct HealthResponse: Decodable {
-            let status: String
-        }
-
-        let health = try JSONDecoder().decode(HealthResponse.self, from: data)
-        guard isAcceptableHealthStatus(health.status) else {
-            throw APIError.badRequest("Remote host health check failed.")
+        let response = try await client.api.healthCheckApiHealthGet(.init())
+        switch response {
+        case .ok(let okResponse):
+            let health = try okResponse.body.json
+            guard isAcceptableHealthStatus(health.status) else {
+                throw APIError.badRequest("Remote host health check failed.")
+            }
+        default:
+            throw APIError.httpError(statusCode: -1, message: "API returned error status")
         }
     }
 

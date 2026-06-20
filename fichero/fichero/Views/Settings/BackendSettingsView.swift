@@ -35,11 +35,19 @@ struct BackendSettingsView: View {
             }
 
             #if canImport(AppKit)
-            MacRemoteClientPairingSection()
+            MacRemoteClientPairingSection(
+                appState: appState,
+                backendService: backendService,
+                libraryManager: libraryManager
+            )
             #endif
 
             #if canImport(AppKit)
-            BackendSettingsRemoteAccessSection()
+            BackendSettingsRemoteAccessSection(
+                appState: appState,
+                backendService: backendService,
+                libraryManager: libraryManager
+            )
             #endif
 
             Section("Statistics") {

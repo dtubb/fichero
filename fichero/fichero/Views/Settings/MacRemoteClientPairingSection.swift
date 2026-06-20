@@ -1,18 +1,27 @@
 #if canImport(AppKit)
-import AppKit
 import FicheroAPIClient
 import SwiftUI
 
 struct MacRemoteClientPairingSection: View {
-    @EnvironmentObject private var appState: AppState
-    @EnvironmentObject private var backendService: EmbeddedBackendService
-    @EnvironmentObject private var libraryManager: LibraryManager
+    @ObservedObject private var appState: AppState
+    @ObservedObject private var backendService: EmbeddedBackendService
+    @ObservedObject private var libraryManager: LibraryManager
     @AppStorage(EngineConfig.userDefaultsKey) private var engineHost = EngineConfig.defaultHostString
 
     @State private var clientInvite = ""
     @State private var clientPairingError: String?
     @State private var isClientPairing = false
     @State private var showingManualInvite = false
+
+    init(
+        appState: AppState,
+        backendService: EmbeddedBackendService,
+        libraryManager: LibraryManager
+    ) {
+        self._appState = ObservedObject(wrappedValue: appState)
+        self._backendService = ObservedObject(wrappedValue: backendService)
+        self._libraryManager = ObservedObject(wrappedValue: libraryManager)
+    }
 
     var body: some View {
         Section("Connect This Mac to Another Fichero") {
@@ -55,7 +64,7 @@ struct MacRemoteClientPairingSection: View {
     }
 
     private func pasteInviteFromClipboard() {
-        if let pasted = NSPasteboard.general.string(forType: .string) {
+        if let pasted = PlatformPasteboard.string() {
             clientInvite = pasted
             clientPairingError = nil
         }
