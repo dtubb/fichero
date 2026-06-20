@@ -116,7 +116,7 @@ struct CaptureSettingsView: View {
         "fichero.capture.policy.\(username)"
     }
 
-    // ponytail: raw call — replace with typed UsersService when /api/users is typed in OpenAPI
+    // GET /api/users is not yet exposed in the generated OpenAPI Swift client.
     private func fetchUsernames() async throws -> [String] {
         let url = EngineConfig.apiBaseURL.appendingPathComponent("users")
         var request = URLRequest(url: url)
