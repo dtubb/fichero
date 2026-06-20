@@ -184,6 +184,8 @@ protocol MobileCaptureQueueUploading {
 
 struct MobileCaptureBackendUploadClient: MobileCaptureQueueUploading {
     let libraryManager: LibraryManager
+    // ponytail: nil → global library fallback (startup/retry callers); set to active library id in connected-library context
+    var targetLibraryId: UUID?
 
     var backendHost: URL? {
         EngineConfig.host
@@ -194,7 +196,9 @@ struct MobileCaptureBackendUploadClient: MobileCaptureQueueUploading {
         guard RemoteAccessConfig.hasPairedLibraryPath else {
             throw MobileCaptureQueueStoreError.noLibraryAvailable
         }
-        guard let library = libraryManager.globalLibrary else {
+        let resolved = targetLibraryId.flatMap { libraryManager.getLibrary(id: $0) }
+            ?? libraryManager.globalLibrary
+        guard let library = resolved else {
             throw MobileCaptureQueueStoreError.noLibraryAvailable
         }
 
