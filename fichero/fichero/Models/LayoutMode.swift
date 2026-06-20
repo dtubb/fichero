@@ -125,7 +125,7 @@ struct WidescreenPanePlan: Equatable {
             showsCanvasPane: showDocumentCanvas,
             showsReadingPane: showReadingPane
         )
-        guard let availableWidth, availableWidth > 0 else {
+        guard let availableWidth else {
             return plan
         }
         return plan.collapsed(toFit: availableWidth)
