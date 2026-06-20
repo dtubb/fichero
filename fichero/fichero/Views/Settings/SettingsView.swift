@@ -21,6 +21,22 @@ struct SettingsView: View {
                     }
             }
 
+            #if canImport(AppKit)
+            if featureManager.isSettingsEngineTabEnabled {
+                EngineSettingsView()
+                    .tabItem {
+                        Label("Engine", systemImage: "square.grid.3x1.below.line.grid.1x2")
+                    }
+            }
+
+            if featureManager.isSettingsShareTabEnabled {
+                ShareSettingsView()
+                    .tabItem {
+                        Label("Share", systemImage: "square.and.arrow.up")
+                    }
+            }
+            #endif
+
             if featureManager.isSettingsBackendTabEnabled {
                 BackendSettingsView()
                     .tabItem {
