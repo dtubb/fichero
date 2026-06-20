@@ -17,6 +17,12 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         #endif
     }
 
+    func testCompactSplitViewRootsAtDetailColumn() {
+        // On a phone the collapsed stack should land on the content/reader
+        // (document list), with the sidebar one swipe-back away (#2329/#2334).
+        XCTAssertEqual(ContentView.defaultPreferredCompactColumn, .detail)
+    }
+
     func testAdaptiveShellPersistenceKeepsCollapsedAndExplicitWideStatesDistinct() {
         XCTAssertEqual(ContentView.restoredColumnVisibility(from: 0), .automatic)
         XCTAssertEqual(ContentView.restoredColumnVisibility(from: 1), .detailOnly)
