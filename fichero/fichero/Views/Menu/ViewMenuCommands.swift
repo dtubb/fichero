@@ -603,6 +603,7 @@ struct PaneVisibilitySection: View {
                 icon: "text.book.closed",
                 shortcut: nil
             )
+            ShowMiniToolbarToggle()
         }
     }
 }
@@ -644,6 +645,21 @@ struct SelectionDrivenLayoutToggle: View {
     var body: some View {
         Toggle(isOn: $layoutFollowsSelection) {
             Label("Selection Changes Layout", systemImage: "rectangle.on.rectangle")
+        }
+    }
+}
+
+// MARK: - Show Mini Toolbar (#2460)
+
+/// App-wide toggle for reader mini-toolbars. Toggle in a CommandMenu renders as
+/// a checkmark item that stays in sync with @AppStorage changes from any window
+/// (same rationale as ShowRulerButton). Key must match MiniToolbar.toolbarVisibilityKey.
+struct ShowMiniToolbarToggle: View {
+    @AppStorage("fichero.ui.showMiniToolbar") private var showMiniToolbar: Bool = true
+
+    var body: some View {
+        Toggle(isOn: $showMiniToolbar) {
+            Label("Show Mini Toolbar", systemImage: "rectangle.topthird.inset.filled")
         }
     }
 }

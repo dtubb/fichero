@@ -17,6 +17,15 @@ enum MiniToolbarMetricPolicy {
     }
 }
 
+/// App-wide show/hide preference for reader mini-toolbars (#2460).
+/// Non-generic companion so the constants are accessible without specifying
+/// MiniToolbar's generic type parameters. Key must stay in sync with
+/// ShowMiniToolbarToggle and MiniToolbarGate.
+enum MiniToolbarPreferences {
+    static let toolbarVisibilityKey: String = "fichero.ui.showMiniToolbar"
+    static let toolbarVisibilityDefault: Bool = true
+}
+
 /// A standardized mini toolbar component that can be used consistently across the app.
 /// Provides a translucent bar with automatic spacing, padding, and material background.
 ///
@@ -253,6 +262,8 @@ struct PaneFilterBar<Content: View>: View {
 /// View extension for easily adding mini toolbars to any view
 extension View {
     /// Adds a mini toolbar above this view using the standard material and spacing.
+    /// Respects the user's "Show Mini Toolbar" preference (#2460): when the
+    /// preference is off the toolbar is omitted and the content fills the space.
     ///
     /// Example:
     /// ```swift
@@ -268,9 +279,25 @@ extension View {
     func miniToolbar<Content: View>(
         @ViewBuilder content: () -> Content
     ) -> some View {
+        MiniToolbarGate(bottom: self, toolbar: MiniToolbar(content: content))
+    }
+}
+
+/// Gates the `.miniToolbar {}` extension behind the app-wide show/hide preference.
+/// Using a dedicated view struct (rather than an `if` inside the extension) gives
+/// AppStorage the stable identity it needs to re-render when UserDefaults changes.
+private struct MiniToolbarGate<Bottom: View, Toolbar: View>: View {
+    // Keep key in sync with MiniToolbar.toolbarVisibilityKey (#2460).
+    @AppStorage("fichero.ui.showMiniToolbar") private var isVisible = true
+    let bottom: Bottom
+    let toolbar: Toolbar
+
+    var body: some View {
         VStack(spacing: 0) {
-            MiniToolbar(content: content)
-            self
+            if isVisible {
+                toolbar
+            }
+            bottom
         }
     }
 }

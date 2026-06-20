@@ -40,4 +40,11 @@ final class MiniToolbarMetricPolicyTests: XCTestCase {
         _ = enabled
         _ = disabled
     }
+
+    // #2460: Mini-toolbar visibility preference key and default are stable.
+    // Changing the key silently breaks persisted user preference on existing installs.
+    func testMiniToolbarVisibilityPreferenceIsDefaultOn() {
+        XCTAssertEqual(MiniToolbarPreferences.toolbarVisibilityKey, "fichero.ui.showMiniToolbar")
+        XCTAssertTrue(MiniToolbarPreferences.toolbarVisibilityDefault)
+    }
 }
