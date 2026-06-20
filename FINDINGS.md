@@ -1,6 +1,84 @@
-# Lane B — iOS multiple libraries + swipe navigation — FINDINGS
+# Lane A — Per-page transcription scope — FINDINGS (#2303 #2395 #2396)
 
-Branch `worker/ios-shell-nav`. Do NOT push. Manager integrates + Daniel builds.
+Branch `worker/perpage-transcription`. Do NOT push. Manager integrates.
+
+## Root cause
+
+In `process_vision` (`fichero-engine/src/fichero/workflows/tools/vision_base.py`),
+the `_whole_pdf_parent` guard was:
+
+```python
+_whole_pdf_parent = (
+    resolve_path_to_doc(path_to_doc, file_path) if per_page_texts else None
+)
+```
+
+`per_page_texts` is a list — populated with **all** pages for the whole-PDF path,
+but also populated with a **1-element list** for the per-page fan-out path
+(Apple Vision single page, born-digital text layer for a single page, LLM single page).
+
+When `per_page_texts` had 1 element (truthy), `_whole_pdf_parent` was set to
+the **parent PDF's** document ID regardless of whether we were in per-page
+fan-out mode. Then `_propagate_to_page_children` was called with that parent ID
+and a 1-element `page_texts` list. `_propagate_to_page_children` writes by
+sequence-indexed position:
+
+- Page child with sequence=1 → `page_texts[0]` = page N's text → **wrong content, wrong page**
+- Page child with sequence=2 → index 1 >= len 1 → skipped
+- Page child with sequence=3 → index 2 >= len 1 → skipped
+
+Effect:
+- Transcribing page 2 of a 3-page PDF wrote page 2's content to page 1 (#2396).
+- Pages 2 and 3 never received their correct content (#2395/#2303).
+- Artifact on page 1 contained the wrong text; pages 2 and 3 had no artifact.
+
+## Fix
+
+One-line guard change in `vision_base.py` ~line 1987:
+
+```python
+# Before
+_whole_pdf_parent = (
+    resolve_path_to_doc(path_to_doc, file_path) if per_page_texts else None
+)
+
+# After
+_whole_pdf_parent = (
+    resolve_path_to_doc(path_to_doc, file_path)
+    if per_page_texts and requested_page_index is None
+    else None
+)
+```
+
+`requested_page_index is None` is only true when the whole PDF is processed at
+once. For per-page fan-out, `_whole_pdf_parent` is `None`, so the code falls
+through to `save_artifact` with `doc_id_for_file` — the page child's own ID.
+
+## Files changed
+
+| File | Change |
+|------|--------|
+| `fichero-engine/src/fichero/workflows/tools/vision_base.py` | Add `and requested_page_index is None` to `_whole_pdf_parent` guard |
+| `fichero-engine/tests/unit/test_transcription_save.py` | 3 new regression tests in `TestPerPageFanOutSaveRouting` |
+
+## Tests added (`TestPerPageFanOutSaveRouting`)
+
+1. `test_per_page_fanout_saves_to_page_child_not_parent` — regression: per-page fan-out
+   must call `save_artifact(document_id=page-2-id)` and must NOT call
+   `_propagate_to_page_children`. Goes RED on old code.
+2. `test_whole_pdf_path_still_propagates_all_pages` — whole-PDF path must still call
+   `_propagate_to_page_children` with all 3 page texts. Ensures fix doesn't break the working path.
+3. `test_siblings_untouched_when_page2_transcribed` — #2396: transcribing page 2 saves
+   only to page-2-id; page-1-id and page-3-id are never written.
+
+All 17 tests pass. ruff clean.
+
+## What was NOT verified
+
+- Live end-to-end run on ICANH archive (manager gate).
+- LLM per-page fan-out path: `_llm_multipage` is only set when `requested_page_index is None`
+  (line 1797), so per-page LLM fan-out already takes the single-page branch — same guard applies.
+- `transcribe_review` uses `process_vision` → fix applies automatically.
 
 ## What the shell already had (no rebuild needed — iterate)
 - iOS entry: `FicheroApp_iOS.swift` → pairs with Mac (QR) → `adoptPairedRemoteLibrary()`

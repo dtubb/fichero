@@ -1977,15 +1977,25 @@ async def process_vision(
 
                     save_config = LLMConfig(provider="apple", model="apple-vision")
 
-                # #2249: when per_page_texts is populated (whole-PDF path) and
+                # #2249/#2395: when per_page_texts is populated (whole-PDF path) and
                 # the current doc is the parent (path_to_doc has its path, so
                 # page children haven't been expanded yet by sources.py), route
                 # per-page texts directly to page-child artifacts and skip
                 # writing the concatenated transcript to the parent artifact.
                 # Falls back to the parent artifact when no page children exist
                 # (PDFs not yet ingested with per-page expansion).
+                # Guard: only trigger whole-PDF propagation when ALL pages were
+                # processed (requested_page_index is None). In per-page fan-out
+                # mode (requested_page_index is set), per_page_texts has exactly
+                # one element but it belongs to the focused page — running
+                # _propagate_to_page_children would write that page's text to
+                # page child #1 (index 0) regardless of the actual page, clobbering
+                # sibling content. Instead fall through to save_artifact with
+                # doc_id_for_file (the page child's own ID). (#2395/#2396)
                 _whole_pdf_parent = (
-                    resolve_path_to_doc(path_to_doc, file_path) if per_page_texts else None
+                    resolve_path_to_doc(path_to_doc, file_path)
+                    if per_page_texts and requested_page_index is None
+                    else None
                 )
                 if _whole_pdf_parent:
                     page_artifact_ids = await _propagate_to_page_children(
