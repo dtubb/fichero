@@ -388,7 +388,7 @@ private struct QRCodeScannerSheet: View {
                 VStack(spacing: 12) {
                     Image(systemName: "qrcode.viewfinder")
                         .font(.largeTitle)
-                    Text("Camera QR scanning is unavailable on visionOS. Use the manual link section below.")
+                    Text("Camera QR scanning is unavailable on visionOS. Use another Fichero device to scan the code.")
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.secondary)
                 }
