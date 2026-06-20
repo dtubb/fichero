@@ -310,14 +310,12 @@ func persistPageContent(
     documentService: DocumentServiceGenerated,
     documentStore: DocumentStore
 ) async -> String? {
-    do {
-        let updated = try await documentService.updateDocument(
-            document.id,
-            pageContent: content
-        )
-        documentStore.refreshLocalContent(updated)
-        return nil
-    } catch {
-        return error.localizedDescription
+    // Run the PUT inside a STORE-OWNED task so a view re-render / blur that
+    // cancels the editor's debounce/flush task can't abort the save mid-flight
+    // (NSURLError -999, #2466). `refreshLocalContent` happens inside the store
+    // task once the save lands.
+    let id = document.id
+    return await documentStore.savePageContent(documentId: id) {
+        try await documentService.updateDocument(id, pageContent: content)
     }
 }

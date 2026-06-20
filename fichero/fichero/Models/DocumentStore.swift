@@ -110,6 +110,15 @@ final class DocumentStore {
     @ObservationIgnored
     var pendingPatchIds: Set<String> = []
 
+    /// In-flight page-content saves, keyed by document id. These are
+    /// STORE-OWNED unstructured tasks so a view re-render / blur that cancels
+    /// the editor's own task can't abort the PUT mid-flight (NSURLError -999,
+    /// #2466). See `savePageContent(documentId:perform:)` in
+    /// `DocumentStore+Helpers`. Internal (not private) so that extension can
+    /// reach it.
+    @ObservationIgnored
+    var pageContentSaveTasks: [String: Task<String?, Never>] = [:]
+
     // MARK: - Initialization
 
     /// Initialize with a per-window APIClient instance.

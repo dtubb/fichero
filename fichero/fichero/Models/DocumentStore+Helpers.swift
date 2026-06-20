@@ -82,6 +82,57 @@ extension DocumentStore {
         }
     }
 
+    /// Persist a document's `page_content` via a STORE-OWNED task that runs to
+    /// completion regardless of view lifecycle.
+    ///
+    /// The Content-tab editor lives in a SwiftUI view (`ArtifactPanel`) whose
+    /// debounced and on-blur saves run inside view-owned `Task`s. When that view
+    /// re-renders, loses focus, or the document selection changes, SwiftUI
+    /// cancels those tasks — and because the `updateDocument` PUT used to run
+    /// *inside* them, the in-flight request was cancelled mid-flight
+    /// (NSURLError -999, #2466; same family as the old page-content bug #175).
+    ///
+    /// By owning the `Task` here and awaiting its `.value` — which does NOT
+    /// forward the caller's cancellation to an unstructured child task — a view
+    /// re-render/blur can no longer abort the save. Saves for the same document
+    /// are serialized so the most-recent edit lands last and concurrent PUTs
+    /// never interleave. A genuine save failure is still surfaced (returned as a
+    /// user-facing string); only the spurious cancellation is eliminated.
+    ///
+    /// - Parameters:
+    ///   - documentId: The document whose `page_content` is being saved.
+    ///   - save: The actual persistence work (the OpenAPI `updateDocument` PUT),
+    ///           returning the updated `Document`. Injectable for testing.
+    /// - Returns: `nil` on success, or a user-facing error string on failure.
+    @discardableResult
+    func savePageContent(
+        documentId: String,
+        perform save: @escaping @Sendable () async throws -> Document
+    ) async -> String? {
+        // Capture any earlier save of this document so we can wait for it first.
+        let previous = pageContentSaveTasks[documentId]
+        let task = Task { @MainActor [weak self] () -> String? in
+            // Let the prior save of this document finish before issuing ours so
+            // the last edit wins. We deliberately ignore its outcome and any
+            // cancellation of it.
+            _ = await previous?.value
+            do {
+                let updated = try await save()
+                self?.refreshLocalContent(updated)
+                return nil
+            } catch {
+                return error.localizedDescription
+            }
+        }
+        pageContentSaveTasks[documentId] = task
+        let result = await task.value
+        // Only clear if a newer save hasn't already replaced us.
+        if pageContentSaveTasks[documentId] == task {
+            pageContentSaveTasks[documentId] = nil
+        }
+        return result
+    }
+
     /// Clear all cached data.
     func clearCache() {
         childrenCache.removeAll()
