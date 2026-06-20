@@ -22,4 +22,12 @@ final class MiniToolbarMetricPolicyTests: XCTestCase {
             MiniToolbarMetrics(standardHeight: 64, touchTargetSide: 44)
         )
     }
+
+    // Glass treatment is visual-only; the static metric accessors on MiniToolbar
+    // must continue to delegate to MiniToolbarMetricPolicy unchanged. (#2041)
+    func testMiniToolbarStaticHeightMatchesMacPolicy() {
+        let policy = MiniToolbarMetricPolicy.metrics(isMac: true, isTV: false)
+        XCTAssertEqual(MiniToolbar<EmptyView, EmptyView>.standardHeight, policy.standardHeight)
+        XCTAssertEqual(MiniToolbar<EmptyView, EmptyView>.touchTargetSide, policy.touchTargetSide)
+    }
 }
