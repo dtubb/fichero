@@ -530,9 +530,6 @@ final class PairingService {
         case .ok(let okResponse):
             let record = try okResponse.body.json
             return PairingCodeRecord(code: record.code, expiresAt: record.expiresAt)
-        case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw APIError.httpError(statusCode: 422, message: detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
             throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
         }
@@ -554,9 +551,6 @@ final class PairingService {
                     revoked: device.revoked
                 )
             }
-        case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw APIError.httpError(statusCode: 422, message: detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
             throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
         }
