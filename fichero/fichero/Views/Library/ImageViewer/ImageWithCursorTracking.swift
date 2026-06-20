@@ -707,6 +707,7 @@ struct ImageWithCursorTracking: UIViewRepresentable {
         if let image = initialImage {
             imageView.image = image
             imageView.frame = CGRect(origin: .zero, size: image.size)
+            scrollView.contentSize = image.size
             Self.logger.info("makeUIView: Set image size=\(image.size.width)x\(image.size.height)")
             Task { @MainActor in
                 self.imageSize = image.size
@@ -756,7 +757,8 @@ struct ImageWithCursorTracking: UIViewRepresentable {
             }
         }
 
-        if abs(scrollView.zoomScale - scale) > 0.01 {
+        if !context.coordinator.isUserMagnifying,
+           abs(scrollView.zoomScale - scale) > 0.01 {
             scrollView.zoomScale = scale
         }
 
@@ -786,6 +788,7 @@ struct ImageWithCursorTracking: UIViewRepresentable {
                 if let image = newImage {
                     imageView.image = image
                     imageView.frame = CGRect(origin: .zero, size: image.size)
+                    scrollView.contentSize = image.size
                     imageView.loupePosition = nil
                     context.coordinator.currentURL = url
                     context.coordinator.currentOverrideImage = overrideImage
@@ -834,6 +837,9 @@ struct ImageWithCursorTracking: UIViewRepresentable {
         var onVisibleRectChanged: ((CGRect) -> Void)?
         var onScaleChanged: ((CGFloat) -> Void)?
         var needsInitialCenter: Bool = false
+        /// True while the user is actively pinching. Skips the binding-sync
+        /// in `updateUIView` so the scroll view's zoom isn't reverted mid-gesture.
+        var isUserMagnifying: Bool = false
 
         init(owner: ImageWithCursorTracking) {
             self.owner = owner
@@ -843,10 +849,24 @@ struct ImageWithCursorTracking: UIViewRepresentable {
             return imageView
         }
 
+        func scrollViewWillBeginZooming(_ scrollView: UIScrollView, with view: UIView?) {
+            isUserMagnifying = true
+        }
+
         func scrollViewDidZoom(_ scrollView: UIScrollView) {
             centerContent()
             updateVisibleRect()
             onScaleChanged?(scrollView.zoomScale)
+        }
+
+        func scrollViewDidEndZooming(_ scrollView: UIScrollView, with view: UIView?, atScale scale: CGFloat) {
+            onScaleChanged?(scale)
+            Task { @MainActor [weak self] in
+                // Yield so the binding-write task scheduled inside `onScaleChanged`
+                // runs before we reopen the gate, mirroring the macOS guard (#748).
+                await Task.yield()
+                self?.isUserMagnifying = false
+            }
         }
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
@@ -855,7 +875,6 @@ struct ImageWithCursorTracking: UIViewRepresentable {
 
         func centerContent() {
             guard let scrollView = scrollView,
-                  let imageView = imageView,
                   let image = (imageView as? UIImageView)?.image else { return }
 
             let imageSize = image.size
@@ -864,10 +883,9 @@ struct ImageWithCursorTracking: UIViewRepresentable {
             let scaledW = imageSize.width * zoom
             let scaledH = imageSize.height * zoom
 
-            let x = scaledW < viewSize.width ? (viewSize.width - scaledW) / 2 : 0
-            let y = scaledH < viewSize.height ? (viewSize.height - scaledH) / 2 : 0
-
-            imageView.frame = CGRect(origin: CGPoint(x: x, y: y), size: imageSize)
+            let x = max(0, (viewSize.width - scaledW) / 2)
+            let y = max(0, (viewSize.height - scaledH) / 2)
+            scrollView.contentInset = UIEdgeInsets(top: y, left: x, bottom: y, right: x)
         }
 
         func updateVisibleRect() {
@@ -878,11 +896,16 @@ struct ImageWithCursorTracking: UIViewRepresentable {
             let visibleSize = scrollView.bounds.size
             let zoom = scrollView.zoomScale
             let imageSize = image.size
+            let contentSize = CGSize(width: imageSize.width * zoom, height: imageSize.height * zoom)
 
-            let normalizedWidth = min(1.0, visibleSize.width / imageSize.width / zoom)
-            let normalizedHeight = min(1.0, visibleSize.height / imageSize.height / zoom)
-            let normalizedX = contentOffset.x / imageSize.width / zoom
-            let normalizedY = 1.0 - (contentOffset.y + visibleSize.height) / imageSize.height / zoom
+            // Account for content insets used to center smaller images.
+            let visibleOriginX = contentOffset.x + scrollView.contentInset.left
+            let visibleOriginY = contentOffset.y + scrollView.contentInset.top
+
+            let normalizedWidth = min(1.0, visibleSize.width / contentSize.width)
+            let normalizedHeight = min(1.0, visibleSize.height / contentSize.height)
+            let normalizedX = visibleOriginX / contentSize.width
+            let normalizedY = 1.0 - (visibleOriginY + visibleSize.height) / contentSize.height
 
             let rect = CGRect(
                 x: max(0, min(1 - normalizedWidth, normalizedX)),
@@ -909,9 +932,10 @@ struct ImageWithCursorTracking: UIViewRepresentable {
             guard let scrollView = scrollView,
                   let image = (imageView as? UIImageView)?.image else { return }
             let imageSize = image.size
-            let visibleHeight = scrollView.bounds.height / scrollView.zoomScale
-            let docX = normalizedOrigin.x * imageSize.width
-            let docY = (1.0 - normalizedOrigin.y) * imageSize.height - visibleHeight
+            let zoom = scrollView.zoomScale
+            let visibleHeight = scrollView.bounds.height / zoom
+            let docX = normalizedOrigin.x * imageSize.width * zoom - scrollView.contentInset.left
+            let docY = (1.0 - normalizedOrigin.y) * imageSize.height * zoom - visibleHeight - scrollView.contentInset.top
             scrollView.setContentOffset(CGPoint(x: docX, y: docY), animated: false)
         }
 
@@ -919,14 +943,18 @@ struct ImageWithCursorTracking: UIViewRepresentable {
         func panBy(x deltaX: CGFloat, y deltaY: CGFloat) {
             guard let scrollView = scrollView,
                   let image = (imageView as? UIImageView)?.image else { return }
+            let zoom = scrollView.zoomScale
             let visibleRect = CGRect(
-                origin: scrollView.contentOffset,
+                origin: CGPoint(
+                    x: scrollView.contentOffset.x + scrollView.contentInset.left,
+                    y: scrollView.contentOffset.y + scrollView.contentInset.top
+                ),
                 size: scrollView.bounds.size
             )
-            let maxX = max(0, image.size.width - visibleRect.width / scrollView.zoomScale)
-            let maxY = max(0, image.size.height - visibleRect.height / scrollView.zoomScale)
-            let targetX = min(max(0, visibleRect.origin.x + deltaX), maxX)
-            let targetY = min(max(0, visibleRect.origin.y + deltaY), maxY)
+            let maxX = max(0, image.size.width * zoom - visibleRect.width)
+            let maxY = max(0, image.size.height * zoom - visibleRect.height)
+            let targetX = min(max(0, visibleRect.origin.x + deltaX), maxX) - scrollView.contentInset.left
+            let targetY = min(max(0, visibleRect.origin.y + deltaY), maxY) - scrollView.contentInset.top
             scrollView.setContentOffset(CGPoint(x: targetX, y: targetY), animated: false)
         }
     }

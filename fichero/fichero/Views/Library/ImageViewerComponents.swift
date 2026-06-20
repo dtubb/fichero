@@ -437,17 +437,34 @@ struct ZoomableImagePreview: View {
         self.renderedImage = renderedImage
     }
 
+    @State private var scale: CGFloat = 1.0
+    @State private var cursorPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)
+    @State private var imageSize: CGSize = .zero
+    @State private var visibleRect: CGRect = .zero
+    @State private var loupeMagnification: CGFloat = 3.0
+    @State private var loupeSize: CGFloat = 150.0
+    @State private var imageCoordinator: ImageWithCursorTracking.Coordinator?
+
     var body: some View {
         Group {
-            if let image = renderedImage ?? url.flatMap({ PlatformImage(contentsOfFile: $0.path) }) {
-                ScrollView([.horizontal, .vertical]) {
-                    Image(platformImage: image)
-                        .resizable()
-                        .scaledToFit()
-                        .padding()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-                .background(Color(.systemBackground))
+            if renderedImage != nil || url != nil {
+                ImageWithCursorTracking(
+                    url: url ?? URL(fileURLWithPath: "/"),
+                    overrideImage: renderedImage,
+                    scale: $scale,
+                    cursorPosition: $cursorPosition,
+                    imageSize: $imageSize,
+                    visibleRect: $visibleRect,
+                    minScale: 0.01,
+                    maxScale: 10.0,
+                    loupeEnabled: false,
+                    loupeLocked: false,
+                    loupeMagnification: $loupeMagnification,
+                    loupeSize: $loupeSize,
+                    coordinator: $imageCoordinator
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(white: 0.88, opacity: 1.0))
             } else {
                 ContentUnavailableView(
                     "Image Preview",

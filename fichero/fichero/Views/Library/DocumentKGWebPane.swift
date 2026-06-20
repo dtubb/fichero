@@ -594,6 +594,7 @@ struct DocumentKGWebPane: UIViewRepresentable {
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.scrollView.backgroundColor = .clear
+        webView.scrollView.isMultipleTouchEnabled = true
         context.coordinator.webView = webView
         context.coordinator.loadIfNeeded(webView)
         return webView
@@ -631,6 +632,7 @@ struct DocumentKGWebPane: UIViewRepresentable {
 
             lastLoadedDocumentId = parent.documentId
             lastLoadedLibraryPath = parent.libraryPath
+            lastAppliedZoom = 0  // Force viewport injection on next load even when zoom == 1.0
             lastActiveTab = nil
             lastSelectedEntityId = nil
             lastSelectedClaimId = nil
@@ -725,7 +727,7 @@ struct DocumentKGWebPane: UIViewRepresentable {
                     el.name = 'viewport';
                     (document.head || document.documentElement).appendChild(el);
                 }
-                el.content = 'width=device-width, initial-scale=1.0';
+                el.content = 'width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=5.0, user-scalable=yes';
                 document.body.style.zoom = '\(literal)';
             })();
             """)
