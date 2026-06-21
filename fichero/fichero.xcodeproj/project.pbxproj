@@ -501,7 +501,6 @@
 		EBA0B270972261795158D09B /* CaptureSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF964748FC3450263DCB1D1 /* CaptureSettingsView.swift */; };
 		EBE6623631BD8E10280B09F8 /* DocumentInspectorArtifactsTab+KGModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F23C597BA2DF9A27BE94F609 /* DocumentInspectorArtifactsTab+KGModels.swift */; };
 		ECC8E5CB193E9BC5CE2E8294 /* SidebarItemRow+Drop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 588D0F19667B99B2AA69A1A3 /* SidebarItemRow+Drop.swift */; };
-		ED0E3300104D4A70958C3844 /* AttributedTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 004167806445469D9A3595E4 /* AttributedTextEditor.swift */; };
 		ED42BA29B511355E1180FB4D /* DocumentInspectorContentV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62708E3F674B9F832BF8DB9F /* DocumentInspectorContentV2.swift */; };
 		EEE878CB5349F5D321517F55 /* ContentView+WorkflowActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 923BD592D3257176C51CAC1C /* ContentView+WorkflowActions.swift */; };
 		F005FD31F4EE988533A672D9 /* Spatial2DCanvasGestures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DC44420C3D37275174DF38F /* Spatial2DCanvasGestures.swift */; };
@@ -554,7 +553,6 @@
 
 /* Begin PBXFileReference section */
 		003E584BBE51001B1E3F6843 /* ForceDirectedGraphView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ForceDirectedGraphView.swift; sourceTree = "<group>"; };
-		004167806445469D9A3595E4 /* AttributedTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AttributedTextEditor.swift; path = fichero/Views/Library/DocumentInspector/AttributedTextEditor.swift; sourceTree = SOURCE_ROOT; };
 		00B5245346C7E0A399A7A82A /* ContentViewHelperViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContentViewHelperViews.swift; sourceTree = "<group>"; };
 		015D191B1A9A578C0A4BC6BA /* iOSLibraryPickerMenu.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = iOSLibraryPickerMenu.swift; sourceTree = "<group>"; };
 		034677F6AF68D5DCA5CB3E8C /* SpeakerComparisonView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpeakerComparisonView.swift; sourceTree = "<group>"; };
@@ -1941,7 +1939,6 @@
 		D11000012F99900100ABC001 /* DocumentInspector */ = {
 			isa = PBXGroup;
 			children = (
-				004167806445469D9A3595E4 /* AttributedTextEditor.swift */,
 				DD03402A88F98251F388870F /* DocumentInspectorInfoTab.swift */,
 				E7B146AE8AC4CEEC3775CB94 /* DocumentInspectorMetadataTab.swift */,
 				312845068CA928DA393E0468 /* DocumentInspectorArtifactsTab.swift */,
@@ -2522,7 +2519,6 @@
 				AD284E03A3377968AE568677 /* DocumentInspectorMetadataTab.swift in Sources */,
 				7C874A46B0C0C85ACD9F23AA /* DocumentInspectorArtifactsTab.swift in Sources */,
 				3D3445F0B90D093149C9A7D6 /* DocumentInspectorContentTab.swift in Sources */,
-				ED0E3300104D4A70958C3844 /* AttributedTextEditor.swift in Sources */,
 				AF3C46E684A7D133B1BAA5D2 /* TriggerEditorFormPanel.swift in Sources */,
 				2ED84CCBA91252EA2D0C5D34 /* TriggerEditorPreviewPanel.swift in Sources */,
 				4EBA402FBE51F9F56366C3A5 /* FlowLayout.swift in Sources */,

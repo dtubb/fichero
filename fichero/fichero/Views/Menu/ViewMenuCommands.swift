@@ -45,7 +45,6 @@ struct ViewMenuCommands: View {
 
         Divider()
 
-        ShowRulerButton()
         ShowFindBarButton()
     }
 }
@@ -664,11 +663,6 @@ struct ShowMiniToolbarToggle: View {
     }
 }
 
-// MARK: - Show Ruler
-
-// Toggles the inspector's text-editor ruler globally. Lives in Format > Text
-// in spirit but attaches to the View menu (FicheroApp wires this in).
-// AppStorage key matches the editor's `editor.rulersVisible` flag.
 // MARK: - Go Up (Cmd+`)
 
 // Walks one level up the folder hierarchy via the focused window's
@@ -688,25 +682,10 @@ struct NavigateToParentButton: View {
     }
 }
 
-struct ShowRulerButton: View {
-    @AppStorage("editor.rulersVisible") private var rulersVisible: Bool = true
-
-    var body: some View {
-        // Toggle in a CommandMenu renders as a checkmark menu item — and
-        // unlike a Button with a dynamic label, the checkmark *does* update
-        // when @AppStorage changes from elsewhere (e.g. the keyboard
-        // shortcut). SwiftUI Commands cache Button labels and don't reliably
-        // re-evaluate them on UserDefaults change (#781 follow-up).
-        Toggle(isOn: $rulersVisible) {
-            Label("Show Ruler", systemImage: "ruler")
-        }
-        .keyboardShortcut("r", modifiers: [.command, .control])
-    }
-}
-
-/// Triggers the focused artifact panel's NSTextView inline find bar.
-/// `usesFindBar = true` is already set in AttributedTextEditor, so AppKit
-/// renders the bar across the top of that one editor — no app-wide search.
+/// Triggers the focused text view's inline find bar. Targets the first
+/// responder via `performFindPanelAction(_:)`, which SwiftUI's `TextEditor`
+/// (AppKit-backed on macOS) handles — no app-wide search. (#2453: the editor
+/// is now SwiftUI `TextEditor`, not a custom NSTextView representable.)
 struct ShowFindBarButton: View {
     var body: some View {
         #if canImport(AppKit)

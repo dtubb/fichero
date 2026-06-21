@@ -66,4 +66,19 @@ enum ArtifactRichTextCodec {
         }
         return rtfString
     }
+
+    // MARK: - AttributedString boundary (#2453)
+
+    /// Decode stored content into a SwiftUI-native `AttributedString` for the
+    /// unified `TextEditor(text:)`. Storage stays portable RTF/plain via the
+    /// `NSAttributedString` path above — raw RTF never reaches a view (#2454).
+    static func decodeAttributed(_ content: String) -> AttributedString {
+        AttributedString(decode(content))
+    }
+
+    /// Encode the editor's `AttributedString` back to the stored content string
+    /// (plain when unformatted, inline RTF otherwise).
+    static func encodeAttributed(_ attr: AttributedString) -> String {
+        encode(NSAttributedString(attr))
+    }
 }

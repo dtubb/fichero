@@ -667,64 +667,7 @@ struct ClaimFocusStateInjectionContractTests {
     }
 }
 
-// MARK: - V2 Inspector — RichTextController + Format/Find menu wiring
-
-@MainActor
-struct RichTextControllerTests {
-    @Test("toggleTrait is a no-op when no textView is attached")
-    func toggleTraitWithoutTextView() {
-        let controller = RichTextController()
-        controller.toggleTrait(Selector(("toggleBold:")))
-        controller.toggleTrait(Selector(("alignLeft:")))
-        #expect(controller.textView == nil)
-    }
-
-    @Test("textView property accepts assignment and reflects current value")
-    func textViewIsWeak() {
-        // The `weak` storage attribute on RichTextController.textView is
-        // a compile-time contract; runtime deallocation tests are flaky
-        // with NSTextView because AppKit's text-storage chain
-        // (NSTextStorage → NSLayoutManager → NSTextContainer → NSTextView)
-        // pins the view alive beyond the local strong ref. Earlier
-        // versions of this test tried to force dealloc via
-        // autoreleasepool + runloop pumping; both proved fragile.
-        //
-        // We narrow the assertion to what we can reliably test: the
-        // property accepts assignment, returns the same identity back,
-        // and a nil assignment clears it. That covers the rebinding +
-        // overwrite contract the RichText editor relies on.
-        let controller = RichTextController()
-        let textViewA = AppKit.NSTextView()
-        controller.textView = textViewA
-        #expect(controller.textView === textViewA)
-
-        let textViewB = AppKit.NSTextView()
-        controller.textView = textViewB
-        #expect(controller.textView === textViewB)
-        // Old reference should NOT come back; controller holds only
-        // the latest binding (which is what `weak` plus assignment do).
-        #expect(controller.textView !== textViewA)
-
-        controller.textView = nil
-        #expect(controller.textView == nil)
-    }
-
-    @Test("toggleTrait dispatches alignment change to attached textView")
-    func toggleTraitDispatch() {
-        let controller = RichTextController()
-        let textView = AppKit.NSTextView()
-        textView.string = "hello world"
-        textView.setSelectedRange(NSRange(location: 0, length: 5))
-        controller.textView = textView
-
-        controller.toggleTrait(Selector(("alignCenter:")))
-
-        let attrs = textView.textStorage?.attributes(at: 0, effectiveRange: nil) ?? [:]
-        if let paragraph = attrs[.paragraphStyle] as? NSParagraphStyle {
-            #expect(paragraph.alignment == .center)
-        }
-    }
-}
+// MARK: - V2 Inspector — Find menu wiring
 
 struct FindBarSelectorTests {
     @Test("performFindPanelAction selector exists on NSTextView")
