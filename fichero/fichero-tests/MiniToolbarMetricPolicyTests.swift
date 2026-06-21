@@ -47,4 +47,29 @@ final class MiniToolbarMetricPolicyTests: XCTestCase {
         XCTAssertEqual(MiniToolbarPreferences.toolbarVisibilityKey, "fichero.ui.showMiniToolbar")
         XCTAssertTrue(MiniToolbarPreferences.toolbarVisibilityDefault)
     }
+
+    // #2475: Sidebar bottom bar must meet the 52/44 touch tier on iPhone/iPad.
+    func testSidebarBottomBarTouchTierMeetsTouchMinimum() {
+        let metrics = MiniToolbarMetricPolicy.metrics(isMac: false, isTV: false)
+        XCTAssertGreaterThanOrEqual(
+            metrics.touchTargetSide,
+            44,
+            "Sidebar bottom bar requires ≥44pt tap targets on touch platforms"
+        )
+        XCTAssertGreaterThanOrEqual(
+            metrics.standardHeight,
+            44,
+            "Sidebar bottom bar height must be ≥44pt on touch platforms"
+        )
+    }
+
+    func testSidebarBottomBarMacMetricsDoNotInflateTouchTier() {
+        let macMetrics = MiniToolbarMetricPolicy.metrics(isMac: true, isTV: false)
+        let touchMetrics = MiniToolbarMetricPolicy.metrics(isMac: false, isTV: false)
+        XCTAssertLessThan(
+            macMetrics.touchTargetSide,
+            touchMetrics.touchTargetSide,
+            "Mac cursor targets are intentionally smaller than touch targets"
+        )
+    }
 }

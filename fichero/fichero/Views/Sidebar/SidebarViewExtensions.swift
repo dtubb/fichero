@@ -26,10 +26,43 @@ struct SidebarBottomToolbar: View {
     var deleteItem: (() -> Void)?
     var hasSelection: Bool = false
 
+    private var metrics: MiniToolbarMetrics {
+        #if os(macOS)
+        MiniToolbarMetricPolicy.metrics(isMac: true, isTV: false)
+        #elseif os(tvOS)
+        MiniToolbarMetricPolicy.metrics(isMac: false, isTV: true)
+        #else
+        MiniToolbarMetricPolicy.metrics(isMac: false, isTV: false)
+        #endif
+    }
+
+    private var iconFont: Font {
+        #if os(macOS)
+        .caption
+        #elseif os(tvOS)
+        .title
+        #else
+        .body
+        #endif
+    }
+
     var body: some View {
-        PaneFilterBar {
-            actionButtons
+        #if os(macOS) || os(visionOS)
+        PaneFilterBar { actionButtons }
+        #else
+        VStack(spacing: 0) {
+            Divider()
+            GlassEffectContainer {
+                HStack(spacing: 6) {
+                    actionButtons
+                }
+                .padding(.horizontal, 8)
+                .frame(minHeight: metrics.standardHeight)
+                .frame(maxWidth: .infinity)
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8))
+            }
         }
+        #endif
     }
 
     @ViewBuilder
@@ -85,8 +118,9 @@ struct SidebarBottomToolbar: View {
                 }
             } label: {
                 Image(systemName: "plus")
-                    .font(.system(size: 11))
-                    .frame(width: 20, height: 20)
+                    .font(iconFont)
+                    .frame(minWidth: metrics.touchTargetSide, minHeight: metrics.touchTargetSide)
+                    .contentShape(Rectangle())
             }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
@@ -98,11 +132,11 @@ struct SidebarBottomToolbar: View {
                 deleteItem?()
             } label: {
                 Image(systemName: "minus")
-                    .font(.system(size: 11))
-                    .frame(width: 20, height: 20)
+                    .font(iconFont)
+                    .frame(minWidth: metrics.touchTargetSide, minHeight: metrics.touchTargetSide)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
-            .controlSize(.small)
             .disabled(!hasSelection)
             .help("Remove selected item")
 
@@ -113,11 +147,11 @@ struct SidebarBottomToolbar: View {
             Button {
             } label: {
                 Image(systemName: "square.and.arrow.up")
-                    .font(.system(size: 11))
-                    .frame(width: 20, height: 20)
+                    .font(iconFont)
+                    .frame(minWidth: metrics.touchTargetSide, minHeight: metrics.touchTargetSide)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
-            .controlSize(.small)
             .disabled(true)
             .help("Export (not yet wired)")
 
@@ -145,8 +179,9 @@ struct SidebarBottomToolbar: View {
                 )
             } label: {
                 Image(systemName: "square.and.arrow.down")
-                    .font(.system(size: 11))
-                    .frame(width: 20, height: 20)
+                    .font(iconFont)
+                    .frame(minWidth: metrics.touchTargetSide, minHeight: metrics.touchTargetSide)
+                    .contentShape(Rectangle())
             }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
@@ -159,11 +194,11 @@ struct SidebarBottomToolbar: View {
                     createWorkflow()
                 } label: {
                     Image(systemName: "bolt")
-                        .font(.system(size: 11))
-                        .frame(width: 20, height: 20)
+                        .font(iconFont)
+                        .frame(minWidth: metrics.touchTargetSide, minHeight: metrics.touchTargetSide)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.borderless)
-                .controlSize(.small)
                 .disabled(!hasSelection)
                 .help("New Workflow")
             }
