@@ -50,6 +50,19 @@ _RTF_SKIP_GROUP_WORDS = frozenset(
     }
 )
 
+# Matches RTF hex-escape sequences: \'XX where XX are two hex digits.
+_RTF_HEX_FULL_RE = re.compile(r"\\'([0-9a-fA-F]{2})")
+# Matches the half-stripped form 'XX (backslash already removed by a prior pass).
+_RTF_HEX_BARE_RE = re.compile(r"'([0-9a-fA-F]{2})")
+
+
+def _decode_rtf_hex_byte(m: "re.Match[str]") -> str:
+    """Decode a single RTF \'XX byte via cp1252 (Windows-1252 / Latin-1 superset)."""
+    try:
+        return bytes([int(m.group(1), 16)]).decode("cp1252")
+    except (UnicodeDecodeError, ValueError):
+        return m.group(0)
+
 
 def _strip_rtf(text: str) -> str:
     """Convert raw RTF markup to plain text.
@@ -61,6 +74,14 @@ def _strip_rtf(text: str) -> str:
     stripped = text.lstrip()
     if not stripped.startswith("{\\rtf"):
         return text
+
+    # Decode \'XX hex escapes BEFORE the state machine strips control chars.
+    # Without this, \'f3 (ó) becomes bare "f3" because the state machine
+    # consumes ' as an unknown control symbol and outputs the hex digits as
+    # plain text.  Apply the full form first, then defensively catch the
+    # half-stripped 'XX form (backslash already removed by an earlier pass).
+    stripped = _RTF_HEX_FULL_RE.sub(_decode_rtf_hex_byte, stripped)
+    stripped = _RTF_HEX_BARE_RE.sub(_decode_rtf_hex_byte, stripped)
 
     output: list[str] = []
     # skip_until_depth > 0: skip content until depth drops below this value.
