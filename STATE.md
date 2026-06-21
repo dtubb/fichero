@@ -17,11 +17,30 @@ build-gates, and runs verify_all at checkpoints.
 - All networking via generated OpenAPI client; no hand-rolled URLSession. App never uses local paths.
 - Do NOT touch the TLS/auth perimeter (cert SAN -9807 = #2382, Daniel's call).
 
+## DONE TONIGHT (all on 0.0.2, build-green, pushed) — through ad0a5530
+- Inspector-editor reliability: #2476 #2477 #2478 (store-owned save, flush-on-nav, self-echo filter).
+- #2480 legacy-embeddings warning de-noise (backend, fires once/process).
+- Reader: #2428 (pin keeps page) #2424 (focus ring) #2427 (full-res image zoom).
+- #2482 entity garbage-name filter ("12:10"): LibraryView filter + EntityRow fallback + 422 manual-create guard.
+- #2469 image spinner + ±3 neighbor preload + bounded display cache.
+- #2438 (silent save, removed "Saved" flash) + #2445 (node help-text font) — done by manager directly.
+- **#2453 KEYSTONE — editor unification**: deleted AppKit AttributedTextEditor (531 lines), unified on
+  SwiftUI 26 AttributedString TextEditor across Mac/iPad/iPhone; ArtifactRichTextCodec RTF boundary;
+  Document made @unchecked Sendable for the cross-actor save. ⚠️ NEEDS DANIEL TESTING (rich-text + RTF round-trip).
+- #2439 (run output → Activity, removed editor bottom panel) + #2437 (node/edge spacing).
+- ~15 issues closed. Two worker lanes stalled mid-run (workflow-polish, editor-unify) and were
+  salvaged/redone by the manager — concrete file-pointer briefs avoid stalls.
+
 ## RUNNING NOW
-- **inspector-editor** (Opus) — #2453 unify on SwiftUI 26 AttributedString TextEditor (delete AppKit
-  NSTextView/ruler editor) + reliability fixes #2476 (flush-on-nav/tab) #2477 (width) #2478
-  (ignore self-echo, stable identity, no whole-editor reload) #2479-consumer (apply remote in place).
-  Decision locked in #2453.
+- **artifact-timestamps** (Sonnet) — #2429 show a timestamp per artifact in the inspector list.
+
+## HELD FOR DANIEL (don't piecemeal overnight)
+- **Toolbar-rationalization cluster #2431/#2432/#2436/#2423** — design-coupled (one consistent
+  view/mode-switch gesture, not per-view icon rows). Needs a unified design + Daniel's "frame-first"
+  direction; do with Opus, not piecemeal workers. #2481 (3-way panel split) + node model #2446/#2447
+  are likewise structural.
+- **worker/ios-reader-polish** branch (3 commits, net-new compact iOS PDF reader) — EditorView.swift
+  conflicts with merged reader-zoom; decide integrate-vs-superseded.
 
 ## PRIORITY BANDS for the night (after inspector-editor lands)
 1. **Inspector/reader reliability** (the editor cluster above) — landing.
