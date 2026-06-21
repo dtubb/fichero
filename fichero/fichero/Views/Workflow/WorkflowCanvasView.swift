@@ -343,8 +343,8 @@ extension WorkflowCanvasView {
         let duplicate = WorkflowNode(
             tool: original.tool,
             label: "\((original.label ?? original.tool)) Copy",
-            positionX: original.positionX + 50,
-            positionY: original.positionY + 50,
+            positionX: original.positionX + Double(nodeWidth) + 80,
+            positionY: original.positionY + 30,
             inputPorts: original.inputPorts,
             outputPorts: original.outputPorts,
             providerName: original.providerName,

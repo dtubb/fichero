@@ -14,8 +14,8 @@
       "id": "files-source",
       "tool": "files",
       "label": "Book PDF",
-      "position_x": 80,
-      "position_y": 200,
+      "position_x": 100,
+      "position_y": 300,
       "inputs": {},
       "config": {}
     },
@@ -23,8 +23,8 @@
       "id": "split_chapters",
       "tool": "split_chapters",
       "label": "Split Chapters",
-      "position_x": 300,
-      "position_y": 200,
+      "position_x": 360,
+      "position_y": 300,
       "inputs": {},
       "config": {}
     }

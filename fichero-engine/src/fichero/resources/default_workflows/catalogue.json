@@ -19,7 +19,7 @@
       "tool": "files",
       "label": "Files",
       "position_x": 80,
-      "position_y": 400,
+      "position_y": 600,
       "inputs": {},
       "config": {}
     },
@@ -27,8 +27,8 @@
       "id": "transcribe",
       "tool": "transcribe",
       "label": "Transcribe each file",
-      "position_x": 240,
-      "position_y": 400,
+      "position_x": 300,
+      "position_y": 600,
       "inputs": {},
       "config": {
         "vision_mode": "auto",
@@ -40,8 +40,8 @@
       "id": "extract_all",
       "tool": "extract_all",
       "label": "Extract All Entities",
-      "position_x": 400,
-      "position_y": 400,
+      "position_x": 520,
+      "position_y": 600,
       "inputs": {},
       "config": {
         "output_language": "auto",
@@ -50,22 +50,11 @@
       }
     },
     {
-      "id": "citations_extract",
-      "tool": "citations_extract",
-      "label": "Extract Citations",
-      "position_x": 560,
-      "position_y": 680,
-      "inputs": {},
-      "config": {
-        "provider_name": "$medium"
-      }
-    },
-    {
       "id": "people_folder_clean",
       "tool": "people_folder_cleanup",
       "label": "Clean People (folder)",
-      "position_x": 560,
-      "position_y": 80,
+      "position_x": 740,
+      "position_y": 180,
       "inputs": {},
       "config": {
         "provider_name": "$small"
@@ -75,8 +64,8 @@
       "id": "places_folder_clean",
       "tool": "places_folder_cleanup",
       "label": "Clean Places (folder)",
-      "position_x": 560,
-      "position_y": 180,
+      "position_x": 740,
+      "position_y": 320,
       "inputs": {},
       "config": {
         "provider_name": "$small"
@@ -86,8 +75,8 @@
       "id": "organizations_folder_clean",
       "tool": "organizations_folder_cleanup",
       "label": "Clean Organizations (folder)",
-      "position_x": 560,
-      "position_y": 280,
+      "position_x": 740,
+      "position_y": 460,
       "inputs": {},
       "config": {
         "provider_name": "$small"
@@ -97,8 +86,8 @@
       "id": "dates_folder_clean",
       "tool": "dates_folder_cleanup",
       "label": "Clean Dates (folder)",
-      "position_x": 560,
-      "position_y": 380,
+      "position_x": 740,
+      "position_y": 600,
       "inputs": {},
       "config": {
         "provider_name": "$small"
@@ -108,8 +97,8 @@
       "id": "events_folder_clean",
       "tool": "events_folder_cleanup",
       "label": "Clean Events (folder)",
-      "position_x": 560,
-      "position_y": 480,
+      "position_x": 740,
+      "position_y": 740,
       "inputs": {},
       "config": {
         "provider_name": "$small"
@@ -119,19 +108,30 @@
       "id": "keywords_folder_clean",
       "tool": "keywords_folder_cleanup",
       "label": "Clean Keywords (folder)",
-      "position_x": 560,
-      "position_y": 580,
+      "position_x": 740,
+      "position_y": 880,
       "inputs": {},
       "config": {
         "provider_name": "$small"
       }
     },
     {
+      "id": "citations_extract",
+      "tool": "citations_extract",
+      "label": "Extract Citations",
+      "position_x": 740,
+      "position_y": 1020,
+      "inputs": {},
+      "config": {
+        "provider_name": "$medium"
+      }
+    },
+    {
       "id": "merge_extracts",
       "tool": "aggregate",
       "label": "Combine all per-section outputs",
-      "position_x": 720,
-      "position_y": 400,
+      "position_x": 960,
+      "position_y": 600,
       "inputs": {},
       "config": {
         "mode": "concat",
@@ -142,8 +142,8 @@
       "id": "catalogue",
       "tool": "catalogue",
       "label": "Catalogue",
-      "position_x": 880,
-      "position_y": 400,
+      "position_x": 1180,
+      "position_y": 600,
       "inputs": {},
       "config": {
         "output_language": "auto",
