@@ -469,14 +469,27 @@ class Database(DatabaseEmbeddingMixin):
                 exc,
             )
 
-    def _execute(self, sql: str, params: Any | None = None):
-        """Execute SQL, retrying bounded DuckDB transient write conflicts."""
+    def _execute(self, sql: str, params: Any | None = None, fetch: str | None = None):
+        """Execute SQL, retrying bounded DuckDB transient write conflicts.
+
+        When ``fetch`` is ``"all"`` or ``"one"`` the fetch happens INSIDE the
+        lock, so a SELECT's rows are materialized before another thread can use
+        the one shared connection (#2508). ``fetch=None`` returns the raw cursor
+        (legacy in-method callers that fetch immediately under their own lock).
+        """
         with self._lock:
             for attempt in range(_DUCKDB_WRITE_CONFLICT_RETRIES + 1):
                 try:
-                    if params is None:
-                        return self.conn.execute(sql)
-                    return self.conn.execute(sql, params)
+                    cur = (
+                        self.conn.execute(sql)
+                        if params is None
+                        else self.conn.execute(sql, params)
+                    )
+                    if fetch == "all":
+                        return cur.fetchall()
+                    if fetch == "one":
+                        return cur.fetchone()
+                    return cur
                 except duckdb.Error as exc:
                     if self._is_invalidated_error(exc):
                         logger.warning(
@@ -503,6 +516,32 @@ class Database(DatabaseEmbeddingMixin):
                     )
                     time.sleep(delay)
             raise RuntimeError("DuckDB execution retry loop exited unexpectedly")
+
+    # =========================================================================
+    # Direct-SQL seam for the store modules (#2508)
+    # -------------------------------------------------------------------------
+    # The action/cache/checkpoint/activity/scheduler/task stores run raw SQL.
+    # Under the single shared connection (#2508) every such statement MUST be
+    # serialized on this Database's lock. These helpers are the only sanctioned
+    # way for those stores to touch SQL — they replace ``db.duck.execute(...)``
+    # (which ran outside the lock). The fetch happens INSIDE the lock so a
+    # SELECT's rows are materialized before another thread can use the
+    # connection. No new SQL — same statements, now serialized.
+    # =========================================================================
+
+    def execute(self, sql: str, params: Any | None = None):
+        """Run a statement for its side effect (DDL/DML), serialized on the
+        shared lock. Returns the cursor; do NOT fetch off it lazily — use
+        ``execute_fetchall`` / ``execute_fetchone`` when you need rows."""
+        return self._execute(sql, params)
+
+    def execute_fetchall(self, sql: str, params: Any | None = None) -> list:
+        """Execute + ``fetchall`` atomically under the lock (#2508)."""
+        return self._execute(sql, params, fetch="all")
+
+    def execute_fetchone(self, sql: str, params: Any | None = None):
+        """Execute + ``fetchone`` atomically under the lock (#2508)."""
+        return self._execute(sql, params, fetch="one")
 
     # =========================================================================
     # Core CRUD Operations
