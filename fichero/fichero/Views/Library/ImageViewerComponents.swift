@@ -203,24 +203,7 @@ struct ZoomableImagePreview: View {
 
             Divider()
 
-            // Unified, persistent reader toolbar (#2423 / #2421) — bottom-anchored.
-            // Image capabilities: zoom + magnifier-panel + loupe + image-edit +
-            // annotation enabled; page-navigation renders greyed (a single image
-            // has no pages). Split buttons are injected by MiniToolbar.
-            ReaderToolbar(
-                pageNav: nil,
-                scalePercent: Int(scale * 100),
-                zoomIn: zoomIn,
-                zoomOut: zoomOut,
-                fitToWindow: fitToWindow,
-                actualSize: actualSize,
-                magnifierEnabled: $magnifierEnabled,
-                loupeEnabled: $loupeEnabled,
-                loupeLocked: $loupeLocked,
-                loupeMagnification: $loupeMagnification,
-                isEditing: isEditing,
-                onAnnotate: requestAnnotation
-            )
+            readerToolbar
         }
         .onAppear {
             image = renderedImage ?? url.flatMap { NSImage(contentsOf: $0) }
@@ -335,6 +318,28 @@ struct ZoomableImagePreview: View {
         ))
     }
 
+    // Unified, persistent reader toolbar (#2423 / #2421) — bottom-anchored.
+    // Image capabilities: zoom + magnifier-panel + loupe + image-edit +
+    // annotation enabled; page-navigation renders greyed (a single image has no
+    // pages). Split buttons are injected by MiniToolbar. Extracted from the body
+    // so the (large) image-preview body stays under the type-checker's limit.
+    private var readerToolbar: some View {
+        ReaderToolbar(
+            pageNav: nil,
+            scalePercent: Int(scale * 100),
+            zoomIn: zoomIn,
+            zoomOut: zoomOut,
+            fitToWindow: fitToWindow,
+            actualSize: actualSize,
+            magnifierEnabled: $magnifierEnabled,
+            loupeEnabled: $loupeEnabled,
+            loupeLocked: $loupeLocked,
+            loupeMagnification: $loupeMagnification,
+            isEditing: isEditing,
+            onAnnotate: requestAnnotation
+        )
+    }
+
     // MARK: - Zoom Actions
 
     private func zoomIn() {
@@ -418,17 +423,23 @@ struct ZoomableImagePreview: View {
     var renderedImage: PlatformImage?
     /// Fired when the user steps to a sibling image in the folder image viewer.
     var onNavigateToDocument: ((String) -> Void)?
+    /// API parity with the macOS variant so the shared `DocumentCanvas` call
+    /// site compiles on every platform. The image editor is macOS-only, so this
+    /// is unused here. (#2421)
+    var isEditing: Binding<Bool>?
 
     init(
         url: URL? = nil,
         documentId: String? = nil,
         renderedImage: PlatformImage? = nil,
-        onNavigateToDocument: ((String) -> Void)? = nil
+        onNavigateToDocument: ((String) -> Void)? = nil,
+        isEditing: Binding<Bool>? = nil
     ) {
         self.url = url
         self.documentId = documentId
         self.renderedImage = renderedImage
         self.onNavigateToDocument = onNavigateToDocument
+        self.isEditing = isEditing
     }
 
     @Environment(DocumentStore.self) private var documentStore

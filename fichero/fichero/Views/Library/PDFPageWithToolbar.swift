@@ -105,81 +105,106 @@ struct PDFPageWithToolbar: View {
         )
     }
 
+    // Body kept tiny; the page content and the reader toolbar are each broken
+    // into bounded computed vars so neither sub-expression trips the Swift
+    // type-checker timeout (the LibraryWindow.body class of failure).
     var body: some View {
         VStack(spacing: 0) {
-            ZStack {
-                PDFPageView(
-                    documentId: effectiveDocumentId,
-                    pageIndex: effectivePageIndex,
-                    onPageIndexChange: { newIndex in
-                        if isSecondarySplitPane || isPinned {
-                            localPageIndex = newIndex
-                        } else {
-                            onPageIndexChange?(newIndex)
-                        }
-                    },
-                    zoomController: zoom,
-                    pageController: pageNav,
-                    onCursorMoved: { pos in loupePosition = pos }
-                )
-                .onAppear { localPageIndex = pageIndex }
-                .onChange(of: pageIndex) { _, newIndex in
-                    // Primary unpinned pane: keep in step with parent selection.
-                    // Secondary or pinned pane: ignore parent changes.
-                    if !isSecondarySplitPane && !isPinned { localPageIndex = newIndex }
-                }
+            pageContent
+            Divider()
+            readerToolbar
+        }
+    }
 
-                if loupeEnabled {
-                    PDFLoupeOverlay(
-                        documentId: effectiveDocumentId,
-                        pageIndex: effectivePageIndex,
-                        cursorPosition: effectiveLoupePosition,
-                        magnification: loupeMagnification,
-                        loupeSize: loupeSize
-                    )
-                    .allowsHitTesting(false)
-                }
+    private var pageContent: some View {
+        ZStack {
+            PDFPageView(
+                documentId: effectiveDocumentId,
+                pageIndex: effectivePageIndex,
+                onPageIndexChange: { newIndex in
+                    if isSecondarySplitPane || isPinned {
+                        localPageIndex = newIndex
+                    } else {
+                        onPageIndexChange?(newIndex)
+                    }
+                },
+                zoomController: zoom,
+                pageController: pageNav,
+                onCursorMoved: { pos in loupePosition = pos }
+            )
+            .onAppear { localPageIndex = pageIndex }
+            .onChange(of: pageIndex) { _, newIndex in
+                // Primary unpinned pane: keep in step with parent selection.
+                // Secondary or pinned pane: ignore parent changes.
+                if !isSecondarySplitPane && !isPinned { localPageIndex = newIndex }
             }
 
-            Divider()
-
-            // Unified, persistent reader toolbar (#2423 / #2421) — bottom-anchored.
-            // PDF capabilities: page-nav + zoom + loupe + annotation enabled;
-            // the magnifier-panel and image-edit tools render greyed because they
-            // don't apply to a PDF page. Pin lives in the trailing slot, after the
-            // split buttons MiniToolbar injects from the environment.
-            ReaderToolbar(
-                title: documentTitle,
-                onClose: (onClose != nil || isInSplit) ? closePane : nil,
-                isInSplit: isInSplit,
-                pageNav: ReaderPageNav(
-                    pageIndex: pageNav.pageIndex,
-                    pageCount: pageNav.pageCount,
-                    canGoPrevious: pageNav.canGoPrevious,
-                    canGoNext: pageNav.canGoNext,
-                    goPrevious: { pageNav.goToPrevious() },
-                    goNext: { pageNav.goToNext() }
-                ),
-                scalePercent: Int(zoom.scale * 100),
-                zoomIn: { zoom.zoomIn() },
-                zoomOut: { zoom.zoomOut() },
-                fitToWindow: { zoom.fitToWindow() },
-                actualSize: { zoom.actualSize() },
-                magnifierEnabled: nil,
-                loupeEnabled: $loupeEnabled,
-                loupeLocked: Binding(
-                    get: { loupeLocked },
-                    set: { newValue in
-                        if newValue, !loupeLocked { loupeLockedPosition = loupePosition }
-                        loupeLocked = newValue
-                    }
-                ),
-                loupeMagnification: $loupeMagnification,
-                isEditing: nil,
-                onAnnotate: requestAnnotation,
-                isPinned: $isPinned,
-                onTogglePin: togglePin
-            )
+            if loupeEnabled {
+                PDFLoupeOverlay(
+                    documentId: effectiveDocumentId,
+                    pageIndex: effectivePageIndex,
+                    cursorPosition: effectiveLoupePosition,
+                    magnification: loupeMagnification,
+                    loupeSize: loupeSize
+                )
+                .allowsHitTesting(false)
+            }
         }
+    }
+
+    /// × close handler — only present when there is something to close (an
+    /// onClose callback or an active split). Computed explicitly so the body
+    /// isn't a ternary mixing a method reference with `nil`.
+    private var closeHandler: (() -> Void)? {
+        guard onClose != nil || isInSplit else { return nil }
+        return closePane
+    }
+
+    private var pdfPageNav: ReaderPageNav {
+        ReaderPageNav(
+            pageIndex: pageNav.pageIndex,
+            pageCount: pageNav.pageCount,
+            canGoPrevious: pageNav.canGoPrevious,
+            canGoNext: pageNav.canGoNext,
+            goPrevious: { pageNav.goToPrevious() },
+            goNext: { pageNav.goToNext() }
+        )
+    }
+
+    private var loupeLockedBinding: Binding<Bool> {
+        Binding(
+            get: { loupeLocked },
+            set: { newValue in
+                if newValue, !loupeLocked { loupeLockedPosition = loupePosition }
+                loupeLocked = newValue
+            }
+        )
+    }
+
+    // Unified, persistent reader toolbar (#2423 / #2421) — bottom-anchored.
+    // PDF capabilities: page-nav + zoom + loupe + annotation enabled; the
+    // magnifier-panel and image-edit tools render greyed because they don't
+    // apply to a PDF page. Pin lives in the trailing slot, after the split
+    // buttons MiniToolbar injects from the environment.
+    private var readerToolbar: some View {
+        ReaderToolbar(
+            title: documentTitle,
+            onClose: closeHandler,
+            isInSplit: isInSplit,
+            pageNav: pdfPageNav,
+            scalePercent: Int(zoom.scale * 100),
+            zoomIn: { zoom.zoomIn() },
+            zoomOut: { zoom.zoomOut() },
+            fitToWindow: { zoom.fitToWindow() },
+            actualSize: { zoom.actualSize() },
+            magnifierEnabled: nil,
+            loupeEnabled: $loupeEnabled,
+            loupeLocked: loupeLockedBinding,
+            loupeMagnification: $loupeMagnification,
+            isEditing: nil,
+            onAnnotate: requestAnnotation,
+            isPinned: $isPinned,
+            onTogglePin: togglePin
+        )
     }
 }
