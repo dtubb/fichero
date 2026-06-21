@@ -49,6 +49,20 @@ from fichero.workflows.tools.llm_prompting import (  # noqa: F401 (re-exported)
 logger = logging.getLogger(__name__)
 
 
+class ArtifactLookupError(Exception):
+    """The artifact result-cache lookup could not run to completion.
+
+    Raised by find_existing_artifact when the underlying DB read itself
+    errors (transient cross-connection read race, DuckDB hiccup, …) — as
+    opposed to running cleanly and finding nothing. The distinction matters:
+    a clean "found nothing" is a real cache MISS and returns None, but a
+    failed lookup must NOT be silently reported as a miss, because that
+    re-runs the full paid vision/LLM call while hiding the fault (#2511).
+    Callers catch this, log loudly that they could not consult the cache,
+    and proceed to re-run (the lesser, visible evil) rather than crash.
+    """
+
+
 # =============================================================================
 # Base Port Definitions (inherited by all tools)
 # =============================================================================
@@ -417,8 +431,15 @@ def find_existing_artifact(
         artifacts.sort(key=lambda a: getattr(a, "created_at", 0) or 0, reverse=True)
         return artifacts[0]
     except Exception as exc:
-        logger.warning(f"find_existing_artifact failed: {exc}")
-        return None
+        # A clean "found nothing" already returned None above. Reaching here
+        # means the DB read itself FAILED (db.get/db.query raised) — we do NOT
+        # know whether a cached artifact exists. Reporting that as a miss
+        # (return None) would silently re-run the full paid call while hiding
+        # the fault. Surface it loudly as a distinct error so the caller can
+        # log "could not check cache" and decide to re-run, never pretend-miss
+        # (#2511, no silent fallback).
+        logger.error(f"find_existing_artifact lookup FAILED (not a miss): {exc}")
+        raise ArtifactLookupError(str(exc)) from exc
 
 
 # =============================================================================
@@ -546,8 +567,24 @@ async def save_artifact(
                 db.save(doc)
 
                 if tool_config.trigger_embedding:
-                    db.embed(doc)
-                    logger.info(f"Updated page_content and embedding for {doc.id}")
+                    # Embedding is a best-effort TAIL: the artifact and the
+                    # promoted page_content are already durably saved above, so
+                    # the result is not lost. A failed embed must NOT fail the
+                    # whole save (that would mask a successful write and report
+                    # false failure) — but it must be LOUD, never silently
+                    # swallowed, so a missing/stale vector is diagnosable
+                    # (#2510, no silent fallback).
+                    try:
+                        db.embed(doc)
+                        logger.info(f"Updated page_content and embedding for {doc.id}")
+                    except Exception as embed_exc:
+                        logger.error(
+                            "Embedding FAILED for %s after artifact + "
+                            "page_content saved — save still SUCCEEDED "
+                            "(best-effort embed tail): %s",
+                            doc.id,
+                            embed_exc,
+                        )
             elif tool_config.update_page_content and user_edited:
                 logger.info(
                     f"Preserved user-edited page_content on {doc.id}; "
@@ -555,9 +592,21 @@ async def save_artifact(
                 )
 
     except Exception as e:
-        logger.error(f"Failed to save artifact: {e}")
-        # Return artifact_id if the write succeeded before the exception
-        return artifact_id
+        # Reaching here means a CORE write failed: the artifact insert (step 1)
+        # or the page_content promotion (step 2, db.save(doc)). The best-effort
+        # embed tail (step 3) is caught above and never lands here. Returning
+        # artifact_id now would record FALSE SUCCESS — the doc content was not
+        # promoted, nothing was rolled back, and the caller would believe the
+        # operation completed (#2510). Surface the failure instead so the caller
+        # (per-file loop / workflow node) records a real error and can retry.
+        #
+        # NOTE: without a Database transaction boundary (#2508) the step-1
+        # artifact row may already be committed when step 2 fails; we cannot
+        # atomically roll it back here. Making artifact+doc writes truly atomic
+        # is the systemic #2508 work — this fix only stops the false-success
+        # report, which is the minimal no-silent-fallback change.
+        logger.error(f"Failed to save artifact (core write, surfacing): {e}")
+        raise
 
     # Metadata decoration is non-fatal — keep it isolated so it can never
     # hide a successful artifact + page_content save.

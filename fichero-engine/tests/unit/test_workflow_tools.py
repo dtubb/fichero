@@ -808,7 +808,13 @@ class TestDatabaseSaving:
                 result = await transcribe(
                     {
                         "files": [str(test_image)],
-                        "documents": [{"id": "doc123", "path": str(test_image)}],
+                        # Must include the required `name` field: save_artifact
+                        # re-validates the passed document dict (Document.
+                        # model_validate), and a missing field now surfaces
+                        # loudly instead of being silently swallowed (#2510).
+                        "documents": [
+                            {"id": "doc123", "path": str(test_image), "name": "test.jpg"}
+                        ],
                         "save_to_db": True,
                         "vision_mode": "llm",  # Use LLM, not Apple Vision OCR
                     },
@@ -1125,6 +1131,112 @@ class TestSaveArtifact:
             assert saved_artifact.source_document_id == "source-doc-id"
             assert saved_artifact.model == "apple-vision"
             assert saved_artifact.provider == "apple"
+
+    # ------------------------------------------------------------------
+    # #2510 — save_artifact must not report false success on a partial write.
+    # save_artifact is a multi-step write: (1) db.save(artifact) →
+    # (2) doc.page_content promotion + db.save(doc) → (3) db.embed(doc).
+    # A failure in the CORE steps (1 or 2) must SURFACE (raise), never return
+    # an artifact_id that implies the whole op succeeded. The EMBED tail (3) is
+    # best-effort: a failure there must NOT fail the save, but must log loud.
+    # ------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_save_artifact_surfaces_core_doc_write_failure(self):
+        """Step-2 (page_content promotion) failure must raise, not return an id.
+
+        Monkeypatch the SECOND db.save (the doc-side write) to raise. Before
+        #2510 the except returned the already-set artifact_id, recording FALSE
+        success while the doc content was never promoted. The fixed contract
+        surfaces the error so the caller records a real failure.
+        """
+        from fichero.workflows.tools.llm_base import save_artifact, LLMToolConfig
+
+        mock_doc = MagicMock()
+        mock_doc.id = "doc-core"
+        mock_doc.metadata = {}
+
+        mock_db = MagicMock()
+        mock_db.get.return_value = mock_doc
+        # 1st save (artifact) succeeds; 2nd save (doc page_content) explodes.
+        mock_db.save.side_effect = [None, RuntimeError("disk full mid-write")]
+
+        tool_config = LLMToolConfig(
+            artifact_type="transcription",
+            update_page_content=True,   # forces step-2 db.save(doc)
+            trigger_embedding=False,
+        )
+        llm_config = LLMConfig(provider="test", model="test-model")
+
+        with patch("fichero.db.db_manager") as mock_manager:
+            mock_manager.get_database.return_value = mock_db
+
+            with pytest.raises(RuntimeError, match="disk full"):
+                await save_artifact(
+                    document_id="doc-core",
+                    file_path=None,
+                    content="Promoted text",
+                    data=None,
+                    library_path="/test/library.fichero",
+                    llm_config=llm_config,
+                    task_id="task-core",
+                    tool_config=tool_config,
+                )
+
+            # Both writes were attempted (artifact, then the failing doc save) —
+            # confirming the failure is the CORE doc write, not a no-op.
+            assert mock_db.save.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_save_artifact_embed_failure_is_best_effort(self, caplog):
+        """Step-3 (embed) failure must NOT fail the save, but must log loud.
+
+        The artifact + page_content are already durable, so a failed embed is a
+        best-effort tail: save_artifact still returns the artifact_id (success)
+        and emits a loud error — never a silent swallow (#2510).
+        """
+        import logging
+        from fichero.workflows.tools.llm_base import save_artifact, LLMToolConfig
+
+        mock_doc = MagicMock()
+        mock_doc.id = "doc-embed"
+        mock_doc.metadata = {}
+
+        mock_db = MagicMock()
+        mock_db.get.return_value = mock_doc
+        mock_db.save.return_value = None            # artifact + doc writes OK
+        mock_db.embed.side_effect = RuntimeError("vector index offline")
+
+        tool_config = LLMToolConfig(
+            artifact_type="transcription",
+            update_page_content=True,
+            trigger_embedding=True,                 # forces step-3 db.embed
+        )
+        llm_config = LLMConfig(provider="test", model="test-model")
+
+        with patch("fichero.db.db_manager") as mock_manager:
+            mock_manager.get_database.return_value = mock_db
+
+            with caplog.at_level(logging.ERROR):
+                result = await save_artifact(
+                    document_id="doc-embed",
+                    file_path=None,
+                    content="Promoted text",
+                    data=None,
+                    library_path="/test/library.fichero",
+                    llm_config=llm_config,
+                    task_id="task-embed",
+                    tool_config=tool_config,
+                )
+
+            # Save still succeeds (artifact id returned) despite the embed blowing up.
+            assert result is not None
+            mock_db.embed.assert_called_once()
+            # …and the embed failure was logged LOUD, not silently swallowed.
+            assert any(
+                "Embedding FAILED" in rec.message and rec.levelno == logging.ERROR
+                for rec in caplog.records
+            )
 
 
 class TestSaveToFile:

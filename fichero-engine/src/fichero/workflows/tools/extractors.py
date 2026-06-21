@@ -49,6 +49,7 @@ from fichero.workflows.tools._workflow_change_emit import emit_workflow_artifact
 from fichero.workflows.registry import register_tool
 from fichero.workflows.tools.catalogue import _resolve_write_target
 from fichero.workflows.tools.llm_base import (
+    ArtifactLookupError,
     BASE_CONFIG_SCHEMA,
     BASE_OUTPUT_PORTS,
     find_existing_artifact,
@@ -1164,14 +1165,29 @@ async def _run_extractor(
             if not pid:
                 every_page_cached = False
                 break
-            cached = find_existing_artifact(
-                document_id=pid,
-                file_path=None,
-                artifact_type=section["artifact"],
-                library_path=library_path,
-                provider=getattr(llm_config, "provider", None),
-                model=getattr(llm_config, "model", None),
-            )
+            try:
+                cached = find_existing_artifact(
+                    document_id=pid,
+                    file_path=None,
+                    artifact_type=section["artifact"],
+                    library_path=library_path,
+                    provider=getattr(llm_config, "provider", None),
+                    model=getattr(llm_config, "model", None),
+                )
+            except ArtifactLookupError as exc:
+                # Cache read FAILED — we do not know if a page artifact exists.
+                # Don't treat that as a hit OR a clean miss: log loud and force
+                # the full re-extract path (visible re-run, never a silent
+                # cache decision on an unknown). (#2511)
+                logger.error(
+                    "%s: per-page cache check FAILED for page %s — re-extracting "
+                    "all pages (not assuming cache state): %s",
+                    section["name"],
+                    pid,
+                    exc,
+                )
+                every_page_cached = False
+                break
             if cached and cached.content:
                 if isinstance(cached.data, dict):
                     all_cached_items.extend(cached.data.get("items") or [])
@@ -1192,14 +1208,27 @@ async def _run_extractor(
 
     # Container-level cache (legacy / no records flow).
     if not is_per_page and container and library_path:
-        cached = find_existing_artifact(
-            document_id=container.id,
-            file_path=None,
-            artifact_type=section["artifact"],
-            library_path=library_path,
-            provider=getattr(llm_config, "provider", None),
-            model=getattr(llm_config, "model", None),
-        )
+        try:
+            cached = find_existing_artifact(
+                document_id=container.id,
+                file_path=None,
+                artifact_type=section["artifact"],
+                library_path=library_path,
+                provider=getattr(llm_config, "provider", None),
+                model=getattr(llm_config, "model", None),
+            )
+        except ArtifactLookupError as exc:
+            # Cache read FAILED — re-run rather than silently treat as a miss
+            # (which would hide the fault) or a hit (which we cannot prove).
+            # (#2511)
+            logger.error(
+                "%s: cache check FAILED for %s — re-extracting (not assuming "
+                "cache state): %s",
+                section["name"],
+                container.id,
+                exc,
+            )
+            cached = None
         if cached and cached.content:
             logger.info(
                 f"{section['name']}: cache hit on {section['artifact']} for "

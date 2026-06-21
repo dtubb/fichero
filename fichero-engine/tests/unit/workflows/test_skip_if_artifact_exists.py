@@ -14,7 +14,13 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from fichero.workflows.tools.llm_base import LLMToolConfig, find_existing_artifact
+import pytest
+
+from fichero.workflows.tools.llm_base import (
+    ArtifactLookupError,
+    LLMToolConfig,
+    find_existing_artifact,
+)
 
 
 class TestLLMToolConfigDefault:
@@ -128,17 +134,21 @@ class TestFindExistingArtifact:
             )
         assert result is None
 
-    def test_swallows_db_errors_and_returns_none(self):
+    def test_db_error_raises_not_silent_miss(self):
+        # #2511: a FAILED lookup must NOT be reported as a clean cache miss
+        # (return None). Returning None here would silently re-run the full
+        # paid vision/LLM call while hiding the fault. The lookup must surface
+        # a distinct ArtifactLookupError so callers can log "could not check
+        # cache" and decide to re-run, never pretend-miss. (This replaces the
+        # old test that asserted the buggy swallow-and-return-None behavior.)
         db = MagicMock()
-        db.get.side_effect = RuntimeError("db offline")
+        db.query.side_effect = RuntimeError("db offline")
 
         with self._patch_db(db):
-            result = find_existing_artifact(
-                document_id="d1",
-                file_path=None,
-                artifact_type="transcription",
-                library_path="/tmp/lib.fichero",
-            )
-        # Lookup must not propagate failures — the tool should fall through
-        # to its normal processing path and not crash the whole workflow.
-        assert result is None
+            with pytest.raises(ArtifactLookupError):
+                find_existing_artifact(
+                    document_id="d1",
+                    file_path=None,
+                    artifact_type="transcription",
+                    library_path="/tmp/lib.fichero",
+                )

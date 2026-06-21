@@ -75,6 +75,7 @@ from fichero.workflows.tools.llm_base import (
     build_reference_section,
     build_thinking_preamble,
     apply_reference_matching,
+    ArtifactLookupError,
     find_existing_artifact,
     save_artifact as llm_save_artifact,
     save_to_file as llm_save_to_file,
@@ -1748,14 +1749,27 @@ async def process_vision(
                 # unkeyed match (any transcription artifact for this doc).
                 cache_provider = getattr(llm_config, "provider", None) if vision_mode != "apple" else None
                 cache_model = getattr(llm_config, "model", None) if vision_mode != "apple" else None
-                existing = find_existing_artifact(
-                    document_id=doc_id_for_file,
-                    file_path=file_path,
-                    artifact_type=tool_config.artifact_type,
-                    library_path=library_path,
-                    provider=cache_provider,
-                    model=cache_model,
-                )
+                try:
+                    existing = find_existing_artifact(
+                        document_id=doc_id_for_file,
+                        file_path=file_path,
+                        artifact_type=tool_config.artifact_type,
+                        library_path=library_path,
+                        provider=cache_provider,
+                        model=cache_model,
+                    )
+                except ArtifactLookupError as exc:
+                    # Skip-if-done cache read FAILED — we cannot prove a cached
+                    # transcription exists, so do NOT silently skip-as-hit nor
+                    # treat it as a clean miss. Log loud and fall through to the
+                    # real OCR/LLM path (visible re-run on an unknown). (#2511)
+                    logger.error(
+                        "Skip-if-done cache check FAILED for %s — re-running "
+                        "(could not consult cache, not assuming miss): %s",
+                        Path(file_path).name,
+                        exc,
+                    )
+                    existing = None
                 cached_text = getattr(existing, "content", None) if existing else None
                 if isinstance(cached_text, str) and cached_text:
                     logger.info(
