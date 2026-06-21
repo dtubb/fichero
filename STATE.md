@@ -74,10 +74,14 @@ build-gates, and runs verify_all at checkpoints.
   - `worktree-agent-a6f4aac6c892361cf` — DELETED (was 451bd643, reflog-recoverable). Confirmed superseded:
     all 4 of its files exist on 0.0.2 + 22 #2376/#2399/#2401 onboarding/pairing commits merged since its base;
     it was just an early snapshot 0.0.2 evolved past.
-  - NOTE: ~40 other stale local branches exist (codex53-*, gpt-*, ms/*, tmp-*, feat/*, fix/*, opus/sonnet/
-    haiku, …) — accumulated cruft. NOT mass-deleted (each needs per-branch merge verification per the
-    safe-deletion rule). A focused branch-cleanup pass (confirm --merged or superseded, print, then -D)
-    could prune these when you want; low priority, not done blind.
+  - BRANCH-CRUFT TRIAGE (merge-status scan done): NONE are in `--merged`, but two tiers:
+    * SAFE-PRUNE SET (unique=1, ~3wk stale, reference CLOSED issues — superseded throwaway/model-bakeoffs):
+      tmp-1306/1307/1306v2/1307v2, gpt*, codex53-*, issue-1359, issue-1156-graph-rag-chat, feat/*, fix/*,
+      ms/activity-255/importers/macos-gating, work/real-data-processing-1594. Spot-confirmed tmp-1318
+      (issue #1318 CLOSED) → DELETED it as proof. The rest can be bulk-pruned after a quick "issue closed?"
+      confirm each (all reflog-recoverable). Low priority.
+    * REVIEW SET (real divergent work, higher unique counts): opus=28, haiku=22, sonnet=9, backend/1382=13,
+      ms/ai-backend-harden=8, ms/importer-fixes=3, gptmini-*=2, ms/kg-hermeneutics=2. Don't delete — verify content first.
 
 ## DONE (borderline-design, post-drain) — through 2dae7aab
 - #2405 column/list view: real navigable page+artifact rows instead of count badges (→ reader focus #1463).
