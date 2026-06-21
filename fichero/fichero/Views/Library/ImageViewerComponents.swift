@@ -483,7 +483,12 @@ struct ZoomableImagePreview: View {
     @State private var visibleRect: CGRect = .zero
     @State private var loupeMagnification: CGFloat = 3.0
     @State private var loupeSize: CGFloat = 150.0
+    @State private var loupeEnabled: Bool = false
+    @State private var loupeLocked: Bool = false
     @State private var imageCoordinator: ImageWithCursorTracking.Coordinator?
+
+    private let minScale: CGFloat = 0.01
+    private let maxScale: CGFloat = 10.0
 
     /// Image/page siblings in the current folder, in display order.
     private var siblingImageDocs: [Document] {
@@ -523,62 +528,103 @@ struct ZoomableImagePreview: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            Group {
-                if renderedImage != nil || url != nil {
-                    ImageWithCursorTracking(
-                        url: url ?? URL(fileURLWithPath: "/"),
-                        overrideImage: renderedImage,
-                        scale: $scale,
-                        cursorPosition: $cursorPosition,
-                        imageSize: $imageSize,
-                        visibleRect: $visibleRect,
-                        minScale: 0.01,
-                        maxScale: 10.0,
-                        loupeEnabled: false,
-                        loupeLocked: false,
-                        loupeMagnification: $loupeMagnification,
-                        loupeSize: $loupeSize,
-                        coordinator: $imageCoordinator
-                    )
-                } else {
-                    ContentUnavailableView(
-                        "Image Preview",
-                        systemImage: "photo",
-                        description: Text("The image could not be loaded.")
-                    )
+        VStack(spacing: 0) {
+            MiniToolbar {
+                Spacer(minLength: 0)
+                Button(action: zoomOut) {
+                    Image(systemName: "minus.magnifyingglass")
                 }
+                .buttonStyle(.plain)
+                .help("Zoom Out")
+
+                Text("\(Int(scale * 100))%")
+                    .font(.caption)
+                    .monospacedDigit()
+                    .frame(width: 50)
+
+                Button(action: zoomIn) {
+                    Image(systemName: "plus.magnifyingglass")
+                }
+                .buttonStyle(.plain)
+                .help("Zoom In")
+
+                Divider()
+                    .frame(height: 16)
+
+                Button(action: fitToWindow) {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                }
+                .buttonStyle(.plain)
+                .help("Fit to Window")
+
+                Button(action: actualSize) {
+                    Image(systemName: "1.square")
+                }
+                .buttonStyle(.plain)
+                .help("Actual Size (100%)")
+
+                Spacer()
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(white: 0.88, opacity: 1.0))
 
-            // iOS touch prev/next overlay for folder image siblings (#2420).
-            if previousAction != nil || nextAction != nil {
-                HStack(spacing: 16) {
-                    Button {
-                        previousAction?()
-                    } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.title3.weight(.semibold))
-                            .frame(width: 40, height: 40)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(previousAction == nil)
-                    .accessibilityIdentifier("folderImagePrev")
+            Divider()
 
-                    Button {
-                        nextAction?()
-                    } label: {
-                        Image(systemName: "chevron.right")
-                            .font(.title3.weight(.semibold))
-                            .frame(width: 40, height: 40)
+            ZStack(alignment: .bottom) {
+                Group {
+                    if renderedImage != nil || url != nil {
+                        ImageWithCursorTracking(
+                            url: url ?? URL(fileURLWithPath: "/"),
+                            overrideImage: renderedImage,
+                            scale: $scale,
+                            cursorPosition: $cursorPosition,
+                            imageSize: $imageSize,
+                            visibleRect: $visibleRect,
+                            minScale: minScale,
+                            maxScale: maxScale,
+                            loupeEnabled: loupeEnabled,
+                            loupeLocked: loupeLocked,
+                            loupeMagnification: $loupeMagnification,
+                            loupeSize: $loupeSize,
+                            coordinator: $imageCoordinator
+                        )
+                    } else {
+                        ContentUnavailableView(
+                            "Image Preview",
+                            systemImage: "photo",
+                            description: Text("The image could not be loaded.")
+                        )
                     }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(nextAction == nil)
-                    .accessibilityIdentifier("folderImageNext")
                 }
-                .padding(.bottom, 16)
-                .padding(.horizontal, 24)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(white: 0.88, opacity: 1.0))
+
+                // iOS touch prev/next overlay for folder image siblings (#2420).
+                if previousAction != nil || nextAction != nil {
+                    HStack(spacing: 16) {
+                        Button {
+                            previousAction?()
+                        } label: {
+                            Image(systemName: "chevron.left")
+                                .font(.title3.weight(.semibold))
+                                .frame(width: 40, height: 40)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(previousAction == nil)
+                        .accessibilityIdentifier("folderImagePrev")
+
+                        Button {
+                            nextAction?()
+                        } label: {
+                            Image(systemName: "chevron.right")
+                                .font(.title3.weight(.semibold))
+                                .frame(width: 40, height: 40)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(nextAction == nil)
+                        .accessibilityIdentifier("folderImageNext")
+                    }
+                    .padding(.bottom, 16)
+                    .padding(.horizontal, 24)
+                }
             }
         }
         .task(id: documentId) {
@@ -586,6 +632,36 @@ struct ZoomableImagePreview: View {
             let neighbors = Self.preloadIds(from: siblingImageDocs, currentId: docId)
             guard !neighbors.isEmpty else { return }
             await storageService.prefetchDisplayImages(neighbors)
+        }
+    }
+
+    // MARK: - Zoom Actions
+
+    private func zoomIn() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            scale = min(scale * 1.25, maxScale)
+        }
+    }
+
+    private func zoomOut() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            scale = max(scale / 1.25, minScale)
+        }
+    }
+
+    private func fitToWindow() {
+        if let fitScale = imageCoordinator?.calculateFitScale() {
+            scale = fitScale
+            DispatchQueue.main.async {
+                imageCoordinator?.centerContent()
+            }
+        }
+    }
+
+    private func actualSize() {
+        scale = 1.0
+        DispatchQueue.main.async {
+            imageCoordinator?.centerContent()
         }
     }
 }
