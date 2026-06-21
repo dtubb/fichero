@@ -1,4 +1,8 @@
 #!/usr/bin/env ruby
+# Force UTF-8 so reading project.pbxproj (which contains non-ASCII bytes) doesn't
+# fail with "invalid byte sequence in US-ASCII" under an ASCII default locale.
+Encoding.default_external = Encoding::UTF_8
+Encoding.default_internal = Encoding::UTF_8
 # add-swift-file.rb — add a new .swift file to the Fichero Xcode target
 #
 # Usage:

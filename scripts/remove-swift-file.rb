@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+Encoding.default_external = Encoding::UTF_8
+Encoding.default_internal = Encoding::UTF_8
 # remove-swift-file.rb — de-register a .swift file from the Fichero Xcode target.
 # Inverse of add-swift-file.rb. The file may already be deleted from disk; this
 # strips its file-ref + build-file entries from project.pbxproj so the build
