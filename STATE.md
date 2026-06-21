@@ -46,6 +46,11 @@ build-gates, and runs verify_all at checkpoints.
   creates a duplicate PBXGroup with a doubled path → build fails ("input file cannot be found"). #2434 hit this.
 
 ## MAINTENANCE (overnight, no code change)
+- BACKEND HEALTH CHECK (overnight): full unit suite as one process = 4133 passed / 1218 failed, BUT the
+  failures are ENVIRONMENTAL (sampled failing files pass in isolation; suite isn't built to run as one 5k-test
+  process against the live engine). HEAD is healthy. EXCEPTION — found ONE real bug hiding in the noise:
+  filed #2483 (default workflow 'Capture OCR + Transcribe' fails to build in LangGraph — builder names nodes
+  by label vs id inconsistently; 38/39 presets build fine, only this one fails, in isolation). Backend lane.
 - #2461 swiftlint: posted a scoping plan as an issue comment — 46 warnings, 0 serious; Batch 1 ~15
   mechanical (swiftlint --fix safe), Batch 2 ~30 structural (file/type/function length — manual splits,
   type-check-timeout risk, do file-by-file). Did NOT run --fix (would conflict with in-flight #2098 lane).
