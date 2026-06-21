@@ -1,11 +1,11 @@
 import FicheroAPIClient
 import SwiftUI
 
-// MARK: - WorkflowProvenancePanel (#1434)
+// MARK: - WorkflowProvenancePanel (#1434, #2434)
 
 /// Shows which workflow runs touched this document, backed by
-/// `GET /api/documents/{id}/workflow-runs`. Lets the user see
-/// which AI pipeline produced the document's entities and artifacts.
+/// `GET /api/documents/{id}/workflow-runs`. Lists name, relative timestamp,
+/// and derived status; newest run first.
 struct WorkflowProvenancePanel: View {
     let documentId: String
 
@@ -36,7 +36,7 @@ struct WorkflowProvenancePanel: View {
                     .foregroundStyle(.secondary)
             } else {
                 LazyVStack(alignment: .leading, spacing: 6) {
-                    ForEach(runs, id: \.workflowId) { run in
+                    ForEach(runs, id: \.stableId) { run in
                         provenanceRow(run)
                     }
                 }
@@ -48,9 +48,9 @@ struct WorkflowProvenancePanel: View {
     @ViewBuilder
     private func provenanceRow(_ run: Components.Schemas.WorkflowRunProvenanceResponse) -> some View {
         HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "gearshape.2")
+            Image(systemName: run.statusIcon)
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(run.statusColor)
                 .frame(width: 14)
             VStack(alignment: .leading, spacing: 2) {
                 Text(run.workflowName ?? run.workflowId)
@@ -90,9 +90,54 @@ struct WorkflowProvenancePanel: View {
         loadError = nil
         defer { isLoading = false }
         do {
-            runs = try await library.entityService.listDocumentWorkflowRuns(documentId: documentId)
+            let fetched = try await library.entityService.listDocumentWorkflowRuns(documentId: documentId)
+            runs = WorkflowProvenancePanel.sortNewestFirst(fetched)
         } catch {
             loadError = error.localizedDescription
         }
+    }
+
+    // MARK: - Testable sort
+
+    static func sortNewestFirst(
+        _ runs: [Components.Schemas.WorkflowRunProvenanceResponse]
+    ) -> [Components.Schemas.WorkflowRunProvenanceResponse] {
+        let fmt = ISO8601DateFormatter()
+        fmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return runs.sorted { lhs, rhs in
+            let lhsDate = lhs.startedAt.flatMap { fmt.date(from: $0) } ?? .distantPast
+            let rhsDate = rhs.startedAt.flatMap { fmt.date(from: $0) } ?? .distantPast
+            return lhsDate > rhsDate
+        }
+    }
+}
+
+// MARK: - WorkflowRunProvenanceResponse helpers
+
+private extension Components.Schemas.WorkflowRunProvenanceResponse {
+    /// Stable ForEach identity — thread+batch+workflow+time avoids duplicate-key crashes
+    /// when the same workflow ran multiple times on this document.
+    var stableId: String {
+        (threadId ?? "") + (batchId ?? "") + workflowId + (startedAt ?? "")
+    }
+
+    var statusIcon: String {
+        if completedAt != nil {
+            return "checkmark.circle.fill"
+        }
+        if startedAt != nil {
+            return "clock.circle.fill"
+        }
+        return "circle"
+    }
+
+    var statusColor: Color {
+        if completedAt != nil {
+            return .green
+        }
+        if startedAt != nil {
+            return .blue
+        }
+        return .secondary
     }
 }
