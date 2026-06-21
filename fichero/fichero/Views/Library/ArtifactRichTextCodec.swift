@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 #if canImport(AppKit)
 import AppKit
 #elseif canImport(UIKit)
@@ -104,6 +105,58 @@ enum ArtifactRichTextCodec {
     /// Encode the editor's `AttributedString` back to the stored content string
     /// (plain when unformatted, inline RTF otherwise).
     static func encodeAttributed(_ attr: AttributedString) -> String {
-        encode(NSAttributedString(attr))
+        encode(normalizedNSAttributedString(from: attr))
+    }
+
+    /// Bridge a SwiftUI `AttributedString` to an `NSAttributedString` with all
+    /// formatting expressed as **concrete AppKit attributes** so it survives RTF
+    /// serialization (#2494).
+    ///
+    /// The macOS 26 `TextEditor(text:)` format ribbon (Bold / Italic / underline
+    /// / strikethrough / colour) records formatting as SwiftUI *semantic*
+    /// attributes — `inlinePresentationIntent` and the `SwiftUI.UnderlineStyle` /
+    /// `StrikethroughStyle` / `ForegroundColor` scope keys. A plain
+    /// `NSAttributedString(attr)` bridge keeps those as opaque `SwiftUI.*` keys
+    /// that RTF can't encode, so `attr.data(...rtf...)` silently drops them —
+    /// bold typed in the inspector round-tripped back as plain text (#2494). We
+    /// fold each run's semantic attributes onto a real `NSFont` trait /
+    /// `.underlineStyle` / `.strikethroughStyle` / `.foregroundColor`, preserving
+    /// any concrete font already present (e.g. from decoded RTF). Runs with no
+    /// formatting stay attribute-free, so unformatted text still encodes as the
+    /// bare plain string and storage stays human-readable.
+    private static func normalizedNSAttributedString(from attr: AttributedString) -> NSAttributedString {
+        let result = NSMutableAttributedString(attr)
+        #if canImport(AppKit)
+        let fontManager = NSFontManager.shared
+        for run in attr.runs {
+            let nsRange = NSRange(run.range, in: attr)
+            guard nsRange.location != NSNotFound, nsRange.length > 0 else { continue }
+
+            if let intent = run.inlinePresentationIntent {
+                var font = (result.attribute(.font, at: nsRange.location, effectiveRange: nil) as? NSFont)
+                    ?? NSFont.preferredFont(forTextStyle: .body)
+                if intent.contains(.stronglyEmphasized) {
+                    font = fontManager.convert(font, toHaveTrait: .boldFontMask)
+                }
+                if intent.contains(.emphasized) {
+                    font = fontManager.convert(font, toHaveTrait: .italicFontMask)
+                }
+                result.addAttribute(.font, value: font, range: nsRange)
+                if intent.contains(.strikethrough) {
+                    result.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: nsRange)
+                }
+            }
+            if run.underlineStyle != nil {
+                result.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: nsRange)
+            }
+            if run.strikethroughStyle != nil {
+                result.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: nsRange)
+            }
+            if let color = run.foregroundColor {
+                result.addAttribute(.foregroundColor, value: NSColor(color), range: nsRange)
+            }
+        }
+        #endif
+        return result
     }
 }
