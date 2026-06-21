@@ -1271,10 +1271,17 @@ async def save_artifact(
     *,
     metadata_field: str | None = None,
     custom_metadata: dict | None = None,
+    document: object | None = None,
 ) -> str | None:
     """Save vision result to database.
 
     Wraps llm_base.save_artifact with file_path-based document lookup.
+
+    ``document`` is the pre-loaded page-child doc (dict or Document) that the
+    per-page fan-out already holds in LangGraph state. Forwarding it lets
+    llm_base.save_artifact skip the db.get re-fetch that transiently returns
+    None under the concurrent per-thread DuckDB connections — the #2430
+    data-loss race.
     """
     return await llm_save_artifact(
         document_id=document_id,
@@ -1287,6 +1294,7 @@ async def save_artifact(
         tool_config=tool_config,
         metadata_field=metadata_field,
         custom_metadata=custom_metadata,
+        document=document,
     )
 
 

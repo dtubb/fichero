@@ -278,3 +278,59 @@ class TestPerPageFanOutConcurrency:
         assert main_db.query(Artifact, document_id="pdf-parent") == [], (
             "#2430: artifact must never be routed to the parent PDF."
         )
+
+    def test_vision_wrapper_forwards_document_kwarg(self, temp_library):
+        """The REAL vision_base.save_artifact wrapper must accept+forward the
+        ``document=`` pre-loaded page dict.
+
+        process_vision calls this local wrapper with ``document=_preloaded_doc``
+        at every per-page save site. Earlier tests mock save_artifact, so they
+        never exercise the wrapper signature — and a missing ``document`` param
+        there raises ``TypeError`` at runtime on every per-page save (a latent
+        break worse than the original #2430 skip). This guards that seam against
+        the REAL DB: a pre-loaded dict whose row does NOT exist on this
+        connection must still produce an artifact keyed on the page id.
+        """
+        from fichero.workflows.tools.vision_base import save_artifact as vision_save_artifact
+        from fichero.models import Artifact
+
+        library_path, db_manager = temp_library
+        main_db = db_manager.get_database(library_path)
+        _seed_parent_and_pages(main_db, 0)  # parent row absent too
+
+        page_dict = {
+            "id": "page-pre",
+            "name": "scan.pdf — p1",
+            "doc_type": "page",
+            "parent_id": "pdf-parent",
+            "sequence": 1,
+            "path": None,
+            "page_content": None,
+            "status": "pending",
+            "metadata": {},
+            "created_at": "2026-01-01T00:00:00",
+            "updated_at": "2026-01-01T00:00:00",
+        }
+
+        artifact_id = asyncio.run(
+            vision_save_artifact(
+                file_path="/lib/scan.pdf",      # parent path — must NOT win
+                content="Pre-loaded page transcription.",
+                document_id="page-pre",
+                library_path=library_path,
+                llm_config=_make_llm_config(),
+                task_id="run-1",
+                tool_config=_make_tool_config(),
+                document=page_dict,             # the seam under test
+            )
+        )
+
+        assert artifact_id is not None, (
+            "vision_base.save_artifact must forward document= and save the "
+            "artifact (no TypeError, no skip)."
+        )
+        arts = main_db.query(Artifact, document_id="page-pre")
+        assert len(arts) == 1, f"Expected one artifact on page-pre, got {arts}"
+        assert main_db.query(Artifact, document_id="pdf-parent") == [], (
+            "#2430: pre-loaded page artifact must never route to the parent PDF."
+        )
