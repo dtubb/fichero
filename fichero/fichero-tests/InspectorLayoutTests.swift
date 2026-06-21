@@ -760,5 +760,33 @@ struct ArtifactRichTextCodecTests {
         let decoded = ArtifactRichTextCodec.decode(encoded)
         #expect(decoded.string == "abc 123")
     }
+
+    // MARK: htmlForWebView (#2454)
+
+    @Test("RTF content converts to HTML without raw RTF control words")
+    func htmlForWebViewRTFConverts() {
+        let rtf = ArtifactRichTextCodec.encode(bold("Hello WebKit"))
+        #expect(rtf.hasPrefix("{\\rtf"), "precondition: encode produced RTF")
+        let html = ArtifactRichTextCodec.htmlForWebView(rtf)
+        #expect(!html.hasPrefix("{\\rtf"), "raw RTF must not reach the DOM")
+        #expect(html.contains("Hello WebKit"), "source text must survive conversion")
+    }
+
+    @Test("Plain text passes through htmlForWebView unchanged")
+    func htmlForWebViewPlainPassthrough() {
+        let plain = "just plain text"
+        #expect(ArtifactRichTextCodec.htmlForWebView(plain) == plain)
+    }
+
+    @Test("Empty string does not crash and passes through")
+    func htmlForWebViewEmpty() {
+        #expect(ArtifactRichTextCodec.htmlForWebView("") == "")
+    }
+
+    @Test("Garbage non-RTF content passes through unchanged")
+    func htmlForWebViewGarbage() {
+        let garbage = "not rtf at all \u{0000}\u{FFFD}"
+        #expect(ArtifactRichTextCodec.htmlForWebView(garbage) == garbage)
+    }
 }
 #endif

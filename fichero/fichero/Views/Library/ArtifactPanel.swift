@@ -462,20 +462,7 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
             guard let content = artifact.content, !content.isEmpty else {
                 return "(no text)"
             }
-            // If the stored content is RTF source, render the plain string
-            // for the read view. The decode→encode round-trip on the editor
-            // path preserves the formatting; the read view shows plain so
-            // users see what's actually written without RTF chrome.
-            if content.hasPrefix("{\\rtf"),
-               let data = content.data(using: .utf8),
-               let attr = try? NSAttributedString(
-                data: data,
-                options: [.documentType: NSAttributedString.DocumentType.rtf],
-                documentAttributes: nil
-               ) {
-                return attr.string
-            }
-            return content
+            return ArtifactRichTextCodec.htmlForWebView(content)
         }
     }
 

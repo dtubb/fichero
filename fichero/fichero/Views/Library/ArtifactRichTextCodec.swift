@@ -67,6 +67,31 @@ enum ArtifactRichTextCodec {
         return rtfString
     }
 
+    // MARK: - WebKit boundary (#2454)
+
+    /// Convert stored content to an HTML string safe for `WKWebView.loadHTMLString`.
+    /// RTF source (detected by the `{\rtf` prefix) is parsed via `NSAttributedString`
+    /// and re-serialised as HTML so WebKit renders formatted text instead of raw RTF
+    /// control words (#2454). Plain text and any content that fails RTF parsing pass
+    /// through unchanged — the caller is responsible for HTML-escaping plain text
+    /// before inserting it into a larger HTML document if needed.
+    static func htmlForWebView(_ content: String) -> String {
+        guard content.hasPrefix("{\\rtf"),
+              let data = content.data(using: .utf8),
+              let attr = try? NSAttributedString(
+                  data: data,
+                  options: [.documentType: NSAttributedString.DocumentType.rtf],
+                  documentAttributes: nil
+              ),
+              let htmlData = try? attr.data(
+                  from: NSRange(location: 0, length: attr.length),
+                  documentAttributes: [.documentType: NSAttributedString.DocumentType.html]
+              ),
+              let html = String(data: htmlData, encoding: .utf8)
+        else { return content }
+        return html
+    }
+
     // MARK: - AttributedString boundary (#2453)
 
     /// Decode stored content into a SwiftUI-native `AttributedString` for the
