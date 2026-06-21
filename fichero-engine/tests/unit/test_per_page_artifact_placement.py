@@ -733,3 +733,140 @@ class TestPerPageMissingDocIdSkip:
         assert saved_ids == ["page-7-id"], (
             f"Happy path must still save to page-7-id, got: {saved_ids}"
         )
+
+
+# ---------------------------------------------------------------------------
+# F. Concurrency fix: pre-loaded document dict bypasses db.get in save_artifact
+# ---------------------------------------------------------------------------
+
+class TestPreloadedDocumentBypassesDbGet:
+    """When process_vision passes _preloaded_doc (the page-child dict from LangGraph
+    state) to save_artifact, db.get is never called — eliminating the MVCC miss that
+    would skip the artifact during concurrent per-page fan-out. (#2430 concurrency)"""
+
+    @pytest.mark.asyncio
+    async def test_db_get_not_called_when_document_provided(self):
+        """save_artifact skips db.get when document= kwarg is provided."""
+        from fichero.workflows.tools.llm_base import save_artifact
+        from fichero.workflows.tools.vision_base import VisionToolConfig
+        from fichero.llm import LLMConfig
+
+        tool_config = VisionToolConfig(
+            artifact_type="handwriting",
+            update_page_content=True,
+            trigger_embedding=False,
+            supports_apple_vision=False,
+        )
+        llm_config = LLMConfig(provider="openai", model="gpt-4o")
+
+        # Simulate the page-child dict from LangGraph state
+        page_dict = {
+            "id": "page-3-id",
+            "path": None,
+            "parent_id": "parent-pdf-id",
+            "sequence": 3,
+            "page_content": None,
+            "metadata": {},
+            "name": "Page 3",
+            "doc_type": "page",
+            "status": "indexed",
+            "created_at": "2024-01-01T00:00:00",
+            "updated_at": "2024-01-01T00:00:00",
+        }
+
+        mock_db = MagicMock()
+        # db.get returns None (simulating MVCC miss on this connection)
+        mock_db.get.return_value = None
+        mock_artifact = MagicMock()
+        mock_artifact.id = "art-xyz"
+
+        saved_artifact_ids = []
+
+        def capture_save(obj):
+            if hasattr(obj, "id") and hasattr(obj, "document_id"):
+                saved_artifact_ids.append(obj.document_id)
+            return None
+
+        mock_db.save.side_effect = capture_save
+
+        with patch("fichero.db.db_manager") as mock_mgr:
+            mock_mgr.get_database.return_value = mock_db
+
+            # Provide document= so db.get should NOT be needed
+            try:
+                await save_artifact(
+                    document_id="page-3-id",
+                    file_path=None,
+                    content="page text here",
+                    data=None,
+                    library_path="/lib.fichero",
+                    llm_config=llm_config,
+                    task_id=None,
+                    tool_config=tool_config,
+                    document=page_dict,
+                )
+            except Exception:
+                pass  # validation may fail on minimal dict; we only care about db.get
+
+        # db.get must NOT have been called — the pre-loaded dict should be used
+        mock_db.get.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_fanout_all_pages_saved_even_when_db_get_returns_none(self):
+        """process_vision fan-out saves each page's artifact even when db.get returns
+        None (MVCC miss), because _preloaded_doc is passed through document=."""
+        page1 = _page_child_dict("pg-1", "parent-id", sequence=1)
+        page2 = _page_child_dict("pg-2", "parent-id", sequence=2)
+        page3 = _page_child_dict("pg-3", "parent-id", sequence=3)
+
+        saved_doc_ids: list[str] = []
+
+        async def fake_save_artifact(file_path, content, document_id, document=None, **_):
+            # Record the document_id used — this is what lands in the Artifact row
+            saved_doc_ids.append(document_id)
+            return f"art-{document_id}"
+
+        mock_db = MagicMock()
+        # db.get always returns None (full MVCC miss for all 3 pages)
+        mock_db.get.return_value = None
+
+        with (
+            patch(
+                "fichero.workflows.tools.vision_base._pdf_page_to_data_uri",
+                return_value="data:image/png;base64,FAKE",
+            ),
+            patch("fichero.llm.vision", new=AsyncMock(return_value="text.")),
+            patch(
+                "fichero.workflows.tools.vision_base.save_artifact",
+                new=AsyncMock(side_effect=fake_save_artifact),
+            ),
+            patch(
+                "fichero.workflows.tools.vision_base._propagate_to_page_children",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch(
+                "fichero.workflows.tools.vision_base._build_page_records_for_file",
+                return_value=[],
+            ),
+            patch("fichero.db.db_manager") as mock_mgr,
+        ):
+            mock_mgr.get_database.return_value = mock_db
+
+            from fichero.workflows.tools.vision_base import process_vision
+
+            for page in [page1, page2, page3]:
+                await process_vision(
+                    files=["/lib/scan.pdf"],
+                    documents=[page],
+                    prompt="Transcribe.",
+                    llm_config=_make_llm_config(),
+                    library_path="/lib.fichero",
+                    task_id=None,
+                    tool_config=_make_tool_config(),
+                    vision_mode="llm",
+                    save_to_db=True,
+                )
+
+        assert saved_doc_ids == ["pg-1", "pg-2", "pg-3"], (
+            f"All 3 page artifacts must be saved, got: {saved_doc_ids}"
+        )

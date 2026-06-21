@@ -385,20 +385,27 @@ def find_existing_artifact(
 
         db = db_manager.get_database(library_path)
 
-        doc = None
+        # Resolve the document id to dedup against. Artifacts are keyed by
+        # document_id, so when the caller passes an explicit id we look up
+        # artifacts directly — no need to fetch the Document row, which can
+        # transiently miss during the concurrent per-page fan-out (each thread
+        # has its own DuckDB connection; MVCC snapshot skew) and would make us
+        # wrongly create a duplicate. Only fall back to file_path when no
+        # document_id was given; resolving a missing explicit id via file_path
+        # would silently return the parent PDF for page-child ids (#2430).
+        resolved_doc_id = None
         if document_id:
-            doc = db.get(_Document, document_id)
-        # Only fall back to file_path when no document_id was given; if a specific
-        # id was provided but not found, resolving via file_path would silently
-        # return the parent PDF for page-child ids (#2430).
-        if not doc and file_path and not document_id:
+            resolved_doc_id = document_id
+        elif file_path:
             docs = db.query(_Document, path=file_path)
             if docs:
-                doc = docs[0]
-        if not doc:
+                resolved_doc_id = docs[0].id
+        if not resolved_doc_id:
             return None
 
-        artifacts = list(db.query(_Artifact, document_id=doc.id, artifact_type=artifact_type))
+        artifacts = list(
+            db.query(_Artifact, document_id=resolved_doc_id, artifact_type=artifact_type)
+        )
         if provider is not None:
             artifacts = [a for a in artifacts if getattr(a, "provider", None) == provider]
         if model is not None:
@@ -431,6 +438,7 @@ async def save_artifact(
     *,
     metadata_field: str | None = None,
     custom_metadata: dict | None = None,
+    document: object | None = None,
 ) -> str | None:
     """Save LLM result to database.
 
@@ -463,8 +471,10 @@ async def save_artifact(
 
         db = db_manager.get_database(library_path)
 
-        # Find document
-        if document_id:
+        # Use pre-loaded document when available — eliminates the db.get re-fetch
+        # so concurrent per-page fan-out tasks never miss a page child. (#2430)
+        doc = Document.model_validate(document) if isinstance(document, dict) else document
+        if doc is None and document_id:
             doc = db.get(Document, document_id)
         # Only use file_path fallback when no document_id was given — if an
         # explicit id was provided but not found, silently resolving to whatever
@@ -473,22 +483,39 @@ async def save_artifact(
         if not doc and file_path and not document_id:
             doc = find_document_by_path(db, Document, file_path)
 
-        if not doc:
+        # Resolve the id we key the artifact on. When the caller passed an
+        # explicit document_id (the per-page fan-out always does — it holds
+        # the page-child id it already validated upstream), TRUST it even if
+        # the re-fetch above transiently returned None. The engine gives each
+        # thread its OWN DuckDB connection (db_manager keys by thread_ident;
+        # #1000 worker-thread model + #2118-2120 two-writer model), so a
+        # page-child doc just written on one connection can be briefly
+        # invisible on this thread's connection (MVCC snapshot skew) during
+        # the parallel fan-out. Skipping here would drop the page's artifact
+        # on the floor — the #2430 data-loss race. We must never lose the
+        # artifact, so we save it keyed on the validated id and merely skip
+        # the doc-side metadata/page_content update (which genuinely needs the
+        # live row) until the row is visible.
+        resolved_doc_id = doc.id if doc is not None else document_id
+        if not resolved_doc_id:
             logger.warning(
                 "Document not found for artifact save: id=%s path=%s",
                 document_id,
                 file_path,
             )
             return None
-
-        # Ensure metadata is a mutable dict (NULL in DB parses as None)
-        if not isinstance(doc.metadata, dict):
-            doc.metadata = {}
+        if doc is None:
+            logger.warning(
+                "Artifact save: document %s not visible on this connection yet "
+                "(concurrent fan-out, #2430) — saving artifact keyed on the id; "
+                "skipping page_content/metadata update",
+                document_id,
+            )
 
         # Create Artifact
         artifact = Artifact(
-            document_id=doc.id,
-            source_document_id=doc.id,
+            document_id=resolved_doc_id,
+            source_document_id=resolved_doc_id,
             artifact_type=tool_config.artifact_type,
             content=content,
             data=data,
@@ -507,30 +534,37 @@ async def save_artifact(
         # or other tool that produced this artifact should leave the text
         # alone. The artifact is still saved so the result is discoverable
         # on the Artifacts tab — just not promoted over the user's edit.
-        # See issue #672.
-        user_edited = (
-            isinstance(doc.metadata, dict)
-            and doc.metadata.get("page_content_user_edited_at")
-        )
-        if tool_config.update_page_content and not user_edited:
-            doc.page_content = content
-            # In-progress, NOT completed: a content-producing node may be one
-            # of several pipeline steps. The workflow boundary owns the flip to
-            # completed once the whole run finishes, so the green check no
-            # longer appears after just the first step (#1282). See
-            # fichero.workflows.completion.complete_run_documents.
-            doc.status = Status.processing
-            doc.updated_at = datetime.now()
-            db.save(doc)
-
-            if tool_config.trigger_embedding:
-                db.embed(doc)
-                logger.info(f"Updated page_content and embedding for {doc.id}")
-        elif tool_config.update_page_content and user_edited:
-            logger.info(
-                f"Preserved user-edited page_content on {doc.id}; "
-                f"artifact {artifact_id} saved but not promoted."
+        # See issue #672. Guarded on `doc is not None`: when the row wasn't
+        # visible on this connection (concurrent fan-out, #2430) the artifact
+        # above is still saved on the right page; only this doc-side update,
+        # which needs the live row, is deferred to a later/visible pass.
+        if doc is not None:
+            # Ensure metadata is a mutable dict (NULL in DB parses as None)
+            if not isinstance(doc.metadata, dict):
+                doc.metadata = {}
+            user_edited = (
+                isinstance(doc.metadata, dict)
+                and doc.metadata.get("page_content_user_edited_at")
             )
+            if tool_config.update_page_content and not user_edited:
+                doc.page_content = content
+                # In-progress, NOT completed: a content-producing node may be
+                # one of several pipeline steps. The workflow boundary owns the
+                # flip to completed once the whole run finishes, so the green
+                # check no longer appears after just the first step (#1282). See
+                # fichero.workflows.completion.complete_run_documents.
+                doc.status = Status.processing
+                doc.updated_at = datetime.now()
+                db.save(doc)
+
+                if tool_config.trigger_embedding:
+                    db.embed(doc)
+                    logger.info(f"Updated page_content and embedding for {doc.id}")
+            elif tool_config.update_page_content and user_edited:
+                logger.info(
+                    f"Preserved user-edited page_content on {doc.id}; "
+                    f"artifact {artifact_id} saved but not promoted."
+                )
 
     except Exception as e:
         logger.error(f"Failed to save artifact: {e}")

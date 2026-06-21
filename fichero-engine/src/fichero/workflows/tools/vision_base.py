@@ -1399,6 +1399,7 @@ async def process_vision(
     existing_text_by_index: list[str] = []
     page_doc_id_by_index: list[str | None] = []
     page_index_by_index: list[int | None] = []
+    page_doc_dict_by_index: list[dict | None] = []
     if documents:
         for index, doc in enumerate(documents):
             if isinstance(doc, dict):
@@ -1478,6 +1479,7 @@ async def process_vision(
                 )
                 existing_text_by_index.append(existing)
                 page_doc_id_by_index.append(doc_id)
+                page_doc_dict_by_index.append(doc if doc_id else None)
                 page_index: int | None = None
                 sequence = doc.get("sequence") or metadata.get("page_number")
                 if doc.get("parent_id") and sequence is not None:
@@ -1492,6 +1494,7 @@ async def process_vision(
                 existing_text_by_index.append("")
                 page_doc_id_by_index.append(None)
                 page_index_by_index.append(None)
+                page_doc_dict_by_index.append(None)
     logger.debug(
         f"process_vision: {len(files)} files, {len(documents)} documents, "
         f"{len(path_to_doc)} path mappings, "
@@ -1577,6 +1580,12 @@ async def process_vision(
                 values.append(None)
                 continue
             doc_id_for_file = _page_doc_id or resolve_path_to_doc(path_to_doc, file_path)
+            # Pre-loaded page-doc dict (eliminates db.get re-fetch in save_artifact, #2430)
+            _preloaded_doc = (
+                page_doc_dict_by_index[file_index]
+                if file_index < len(page_doc_dict_by_index)
+                else None
+            )
             if existing_text:
                 logger.info(
                     f"Pre-extracted text passthrough: {Path(file_path).name} "
@@ -1606,6 +1615,7 @@ async def process_vision(
                         tool_config=tool_config,
                         metadata_field=metadata_field,
                         custom_metadata=custom_metadata,
+                        document=_preloaded_doc,
                     )
                     if artifact_id:
                         artifact_ids.append(artifact_id)
@@ -1653,6 +1663,7 @@ async def process_vision(
                         tool_config=tool_config,
                         metadata_field=metadata_field,
                         custom_metadata=custom_metadata,
+                        document=_preloaded_doc,
                     )
                     if artifact_id:
                         artifact_ids.append(artifact_id)
@@ -2033,6 +2044,7 @@ async def process_vision(
                             tool_config=tool_config,
                             metadata_field=metadata_field,
                             custom_metadata=custom_metadata,
+                            document=_preloaded_doc,
                         )
                         if artifact_id:
                             result["artifact_id"] = artifact_id
@@ -2052,6 +2064,7 @@ async def process_vision(
                         tool_config=tool_config,
                         metadata_field=metadata_field,
                         custom_metadata=custom_metadata,
+                        document=_preloaded_doc,
                     )
                     if artifact_id:
                         result["artifact_id"] = artifact_id

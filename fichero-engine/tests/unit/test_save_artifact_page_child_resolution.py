@@ -118,24 +118,31 @@ class TestSaveArtifactPageChildResolution:
         )
 
     @pytest.mark.asyncio
-    async def test_artifact_not_saved_to_parent_when_db_get_returns_none(self, tmp_path):
+    async def test_artifact_saved_to_page_child_when_db_get_returns_none(self, tmp_path):
         """
-        #2430 regression path: db.get returns None for page_child_id.
+        #2430 ROOT-CAUSE path: db.get(page_child_id) transiently returns None
+        during the concurrent per-page fan-out (each thread gets its own DuckDB
+        connection; MVCC snapshot skew makes a just-created page-child doc
+        briefly invisible on this thread's connection).
 
-        BEFORE fix: file_path fallback resolves to parent PDF →
-            Artifact(document_id="parent-pdf-id") ← silently wrong
-        AFTER fix:  file_path fallback is skipped when document_id was given →
-            save_artifact returns None (no artifact saved)
+        Evolution of the fix:
+          - BEFORE the safety guard: file_path fallback resolved to the parent
+            PDF → Artifact(document_id="parent-pdf-id") ← silently wrong.
+          - safety guard (prior fix): fallback skipped, but save_artifact
+            returned None → the page's artifact was SKIPPED = DATA LOSS.
+          - THIS root-cause fix: when an explicit document_id was supplied we
+            TRUST it and save the artifact keyed on that page-child id even
+            when the row isn't visible yet — no skip, no parent routing.
 
-        This test FAILS on unfixed code (artifact.document_id == "parent-pdf-id")
-        and PASSES after the fix (no artifact saved at all).
+        The doc-side page_content/metadata update is deferred (it needs the
+        live row), but the artifact itself lands on its page.
         """
         parent_pdf = _make_document("parent-pdf-id", path="/lib/scan.pdf")
 
         saved_artifacts: list = []
 
         mock_db = MagicMock()
-        # db.get returns None — simulates the condition that triggers the bug
+        # db.get returns None — simulates the transient cross-connection miss.
         mock_db.get.return_value = None
         mock_db.save.side_effect = saved_artifacts.append
 
@@ -158,15 +165,21 @@ class TestSaveArtifactPageChildResolution:
                 tool_config=_make_tool_config(),
             )
 
-        # After fix: no artifact saved because document_id was given but not found
-        assert result is None, (
-            "save_artifact must return None when document_id given but not found in DB"
+        # After the root-cause fix: the artifact IS saved (no data loss) ...
+        assert result is not None, (
+            "#2430: save_artifact must NOT skip the artifact when an explicit "
+            "document_id was given but the row is transiently invisible — that "
+            "is the data-loss race."
         )
-        wrong_ids = [a.document_id for a in saved_artifacts if hasattr(a, "document_id")]
-        assert "parent-pdf-id" not in wrong_ids, (
-            f"#2430: save_artifact must NOT fall back to parent PDF "
-            f"when document_id was explicitly provided but not found. "
-            f"Got artifact document_ids: {wrong_ids}"
+        saved_ids = [a.document_id for a in saved_artifacts if hasattr(a, "document_id")]
+        # ... keyed on the page child ...
+        assert "page-child-id" in saved_ids, (
+            f"Artifact must be saved on the page child id, got: {saved_ids}"
+        )
+        # ... and NEVER on the parent PDF.
+        assert "parent-pdf-id" not in saved_ids, (
+            f"#2430: save_artifact must NOT route to the parent PDF when an "
+            f"explicit document_id was provided. Got: {saved_ids}"
         )
 
     @pytest.mark.asyncio
@@ -219,20 +232,32 @@ class TestFindExistingArtifactPageChildResolution:
     skip_if_artifact_exists would silently reuse a wrong cached artifact.
     """
 
-    def test_returns_none_when_document_id_given_but_not_found(self):
+    def test_dedups_on_page_child_id_never_parent(self):
         """
-        #2430: find_existing_artifact must not resolve via file_path when
-        document_id was explicitly provided but db.get returns None.
+        #2430: find_existing_artifact dedups against the EXPLICIT document_id,
+        never the parent PDF. With the root-cause fix it queries artifacts
+        directly by document_id (no racy db.get(Document) that could miss the
+        page child and reroute to the parent), so a stale parent-level artifact
+        can never mask a fresh per-page run.
         """
-        parent_pdf = _make_document("parent-pdf-id", path="/lib/scan.pdf")
-        fake_artifact = MagicMock()
-        fake_artifact.content = "Stale parent artifact."
-        fake_artifact.id = "stale-artifact-id"
-        fake_artifact.created_at = 0
+        # Stand-in for a stale artifact that lives on the PARENT PDF only.
+        stale_parent_artifact = MagicMock()
+        stale_parent_artifact.content = "Stale parent artifact."
+        stale_parent_artifact.id = "stale-artifact-id"
+        stale_parent_artifact.document_id = "parent-pdf-id"
+        stale_parent_artifact.created_at = 0
+        stale_parent_artifact.provider = None
+        stale_parent_artifact.model = None
+
+        def _query(model, **filters):
+            # Only the parent has an artifact; the page child has none yet.
+            if filters.get("document_id") == "parent-pdf-id":
+                return [stale_parent_artifact]
+            return []
 
         mock_db = MagicMock()
-        mock_db.get.return_value = None          # page child not found
-        mock_db.query.return_value = [parent_pdf]  # file_path would find parent
+        mock_db.get.return_value = None          # would-be racy miss; must be unused
+        mock_db.query.side_effect = _query
 
         from fichero.workflows.tools.llm_base import find_existing_artifact
 
@@ -245,9 +270,9 @@ class TestFindExistingArtifactPageChildResolution:
                 library_path="/lib",
             )
 
-        # After fix: must return None (no document found) rather than
-        # silently returning a parent-level artifact.
+        # No artifact exists for the page child yet → None, and crucially the
+        # parent's stale artifact is never returned.
         assert result is None, (
-            f"#2430: find_existing_artifact must return None when document_id "
-            f"is given but not found — got: {result}"
+            f"#2430: find_existing_artifact must dedup on the page-child id and "
+            f"must NOT return the parent's stale artifact — got: {result}"
         )
