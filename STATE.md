@@ -49,6 +49,11 @@ build-gates, and runs verify_all at checkpoints.
 - #2461 swiftlint: posted a scoping plan as an issue comment — 46 warnings, 0 serious; Batch 1 ~15
   mechanical (swiftlint --fix safe), Batch 2 ~30 structural (file/type/function length — manual splits,
   type-check-timeout risk, do file-by-file). Did NOT run --fix (would conflict with in-flight #2098 lane).
+- #2474 triaged: NOT a dup of the fixed #2475. It's a real SIBLING — `libraryBottomActionBar`
+  (LibraryView.swift:470), a 2nd bottom bar with small (.controlSize(.small)) buttons + no glass.
+  Exact fix scoped on the issue (mirror #2475: iOS 44pt touch tier + glassEffect, Mac stays native).
+  DEFERRED (not done blind): LibraryView.swift is at file-length limit + the in-flight #2098 lane edits
+  it — do after #2098 lands to avoid conflict. New issues check (last 24h): nothing newly actionable+small.
 - Stale LOCAL branches needing Daniel's call (NOT deleted — not in --merged):
   - `worker/ios-reader-polish` — 3 commits, deferred compact-iOS-reader (EditorView conflict). Integrate or drop.
   - `worktree-agent-a6f4aac6c892361cf` — 1 commit 451bd643 (#2376 onboarding redesign). #2376/#2399/#2401
