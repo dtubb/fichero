@@ -131,6 +131,11 @@ extension ContentView {
                     onRequestPreviousPaneFocus: { cyclePaneFocus(reverse: true) },
                     onRequestNextPaneFocus: { cyclePaneFocus(reverse: false) },
                     onNavigateInto: { doc in navigateToDocument(doc) },
+                    onPageFocus: { doc in
+                        if pageFocusDocument?.id != doc.id {
+                            pageFocusDocument = doc
+                        }
+                    },
                     sidebarHidden: !showSidebar,
                     onToolbarSearchSubmit: { query in
                         runToolbarSearch(query)

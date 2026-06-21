@@ -84,6 +84,25 @@ extension LibraryView {
                 }
             }
         }
+        .onChange(of: selection) { _, newSelection in
+            guard let nodeId = newSelection.first else { return }
+            if let pageDoc = pageDocumentForNodeId(nodeId) {
+                onPageFocus(pageDoc)
+            }
+        }
+    }
+
+    /// Search the current outline nodes' children for a `.pageItem` matching
+    /// the given node id. Used to fire `onPageFocus` on page-row selection.
+    private func pageDocumentForNodeId(_ nodeId: String) -> Document? {
+        for node in outlineNodes {
+            for child in node.children ?? [] {
+                if child.id == nodeId, case .pageItem(let page) = child.kind {
+                    return page
+                }
+            }
+        }
+        return nil
     }
 
     /// Node-typed sort-order binding mapped onto the existing
@@ -149,7 +168,7 @@ extension LibraryView {
     }
 
     /// Expansion binding for a document row. Flipping it open kicks the
-    /// document's rollup fetch so its child-group rows materialise.
+    /// document's rollup + artifact fetch so child rows materialise (#2405).
     private func expansionBinding(for node: LibraryOutlineNode) -> Binding<Bool> {
         Binding(
             get: { outlineExpanded.contains(node.id) },
@@ -157,12 +176,23 @@ extension LibraryView {
                 if isOpen {
                     outlineExpanded.insert(node.id)
                     let docId = node.document.id
-                    Task { await outlineModel?.loadRollup(for: docId) }
+                    Task {
+                        await outlineModel?.loadRollup(for: docId)
+                        await outlineModel?.loadArtifacts(for: docId)
+                    }
                 } else {
                     outlineExpanded.remove(node.id)
                 }
             }
         )
+    }
+
+    /// Push the current page documents (already in documentStore) into the
+    /// outline model so page-item rows have data without an extra fetch (#2405).
+    func syncPagesByParentId() {
+        guard let model = outlineModel else { return }
+        let pages = documentStore.currentDocuments.filter { $0.docType == .page }
+        model.pagesByParentId = Dictionary(grouping: pages, by: { $0.parentId ?? "" })
     }
 
     /// Shared columns for both the regular (outline) and compact (flat)
@@ -247,8 +277,8 @@ extension LibraryView {
         .defaultVisibility(.hidden)
     }
 
-    /// Name-column cell. Documents render the existing name cell; a
-    /// child-group renders its type icon + count summary ("12 entities").
+    /// Name-column cell. Documents render the existing name cell; child-group rows
+    /// show a count summary ("12 entities"); page/artifact items show their own label.
     @ViewBuilder
     private func outlineNameCell(for node: LibraryOutlineNode) -> some View {
         switch node.kind {
@@ -258,17 +288,31 @@ extension LibraryView {
             Label(type.groupLabel(count: node.count), systemImage: type.systemImage)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+        case .pageItem(let page):
+            Label(
+                page.pageThumbnailLabel.map { "Page \($0)" } ?? page.name,
+                systemImage: "doc.richtext"
+            )
+            .font(.subheadline)
+            .foregroundStyle(.primary)
+        case .artifactItem(let artifact):
+            Label(
+                artifact.stepName ?? artifact.artifactType,
+                systemImage: "shippingbox"
+            )
+            .font(.subheadline)
+            .foregroundStyle(.primary)
         }
     }
 
     /// Non-name columns render the document cell for document rows and
-    /// stay empty for child-group rows.
+    /// stay empty for child-group and item rows.
     @ViewBuilder
     private func documentColumnCell(for node: LibraryOutlineNode, columnId: String) -> some View {
         switch node.kind {
         case .document:
             tableCellView(for: columnId, document: node.document)
-        case .childGroup:
+        case .childGroup, .pageItem, .artifactItem:
             EmptyView()
         }
     }

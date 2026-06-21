@@ -30,6 +30,9 @@ struct LibraryView: View {
     var onRequestPreviousPaneFocus: () -> Void = {}  // Left arrow in list/table — move to sidebar
     var onRequestNextPaneFocus: () -> Void = {}  // Right arrow in list/table — move to inspector
     var onNavigateInto: (Document) -> Void = { _ in }  // Double-click on folder/PDF — navigate into it
+    /// Called when a page item row is selected in the outline table (#2405).
+    /// Callers should set `pageFocusDocument` to drive reader + inspector focus.
+    var onPageFocus: (Document) -> Void = { _ in }
     /// When the sidebar is hidden, single-click in the grid acts like Finder
     /// (no-sidebar fallback): plain click navigates INTO navigable containers
     /// instead of just selecting. Modified clicks (Shift/Cmd) still select
@@ -92,6 +95,7 @@ struct LibraryView: View {
     @EnvironmentObject var workflowStreamService: WorkflowStreamService
     @Environment(DocumentStore.self) var documentStore: DocumentStore
     @EnvironmentObject var entityService: EntityServiceGenerated
+    @EnvironmentObject var artifactService: ArtifactServiceGenerated
     @Environment(WorkflowExecutionObserver.self) var executionObserver
     @Environment(KGFocusState.self) var kgFocusState
     @Environment(\.isSecondarySplitPane) private var isSecondarySplitPane
@@ -322,8 +326,12 @@ struct LibraryView: View {
                     canvasItemStore = canvasItemStore ?? CanvasItemStore(client: client)
                 }
                 if outlineModel == nil {
-                    outlineModel = LibraryOutlineModel(service: entityService)
+                    outlineModel = LibraryOutlineModel(
+                        service: entityService,
+                        artifactService: artifactService
+                    )
                 }
+                syncPagesByParentId()
                 loadSortSettings(for: folderId)
                 syncSortOrder()
                 recomputeFiltered()
@@ -340,6 +348,9 @@ struct LibraryView: View {
                 // pending-open hand-off once rows arrive (#1685).
                 recomputeFiltered()
                 consumePendingOpen()
+            }
+            .onChange(of: documentStore.currentDocuments) { _, _ in
+                syncPagesByParentId()
             }
             .onChange(of: entities) { _, _ in
                 recomputeFiltered()
@@ -638,6 +649,7 @@ extension LibraryView {
 // MARK: - Previews
 
 #Preview("Empty") {
+    let client = FicheroClient(libraryPath: nil)
     LibraryView(
         documents: [],
         contentCollection: .documents,
@@ -652,10 +664,12 @@ extension LibraryView {
         displayMode: .icon,
         folderId: nil
     )
+    .environmentObject(ArtifactServiceGenerated(ficheroClient: client))
     .frame(width: 600, height: 500)
 }
 
 #Preview("Disconnected") {
+    let client = FicheroClient(libraryPath: nil)
     LibraryView(
         documents: [],
         contentCollection: .documents,
@@ -670,5 +684,6 @@ extension LibraryView {
         displayMode: .icon,
         folderId: nil
     )
+    .environmentObject(ArtifactServiceGenerated(ficheroClient: client))
     .frame(width: 600, height: 500)
 }

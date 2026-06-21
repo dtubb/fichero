@@ -1,6 +1,9 @@
 import FicheroAPIClient
 import Foundation
 import Observation
+import OSLog
+
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "LibraryOutlineModel")
 
 /// A node in the expandable library outline (#2258).
 ///
@@ -20,6 +23,10 @@ struct LibraryOutlineNode: Identifiable, Hashable {
     enum Kind: Hashable {
         case document
         case childGroup(ChildType)
+        /// An individual page document (PDF child) — shows as a navigable row (#2405).
+        case pageItem(Document)
+        /// An individual artifact belonging to a document (#2405).
+        case artifactItem(Artifact)
     }
 
     /// The typed child collections a document can disclose. Order here is
@@ -81,6 +88,10 @@ struct LibraryOutlineNode: Identifiable, Hashable {
             return document.id
         case .childGroup(let type):
             return "\(document.id):\(type.rawValue)"
+        case .pageItem(let page):
+            return "\(document.id):page:\(page.id)"
+        case .artifactItem(let artifact):
+            return "\(document.id):artifact:\(artifact.id)"
         }
     }
 
@@ -90,6 +101,14 @@ struct LibraryOutlineNode: Identifiable, Hashable {
 
     static func childGroup(_ type: ChildType, document: Document, count: Int) -> LibraryOutlineNode {
         LibraryOutlineNode(kind: .childGroup(type), document: document, count: count, children: nil)
+    }
+
+    static func pageItem(_ page: Document, parent: Document) -> LibraryOutlineNode {
+        LibraryOutlineNode(kind: .pageItem(page), document: parent, count: 0, children: nil)
+    }
+
+    static func artifactItem(_ artifact: Artifact, parent: Document) -> LibraryOutlineNode {
+        LibraryOutlineNode(kind: .artifactItem(artifact), document: parent, count: 0, children: nil)
     }
 }
 
@@ -119,15 +138,29 @@ extension LibraryOutlineNode.ChildType {
 final class LibraryOutlineModel {
     /// document id -> rollup counts. Bumping this dictionary re-renders
     /// only the affected rows (value identity is per-document).
-    private(set) var rollups: [String: Components.Schemas.DocumentRollupResponse] = [:]
+    /// Internal (not private) so tests can inject state directly.
+    var rollups: [String: Components.Schemas.DocumentRollupResponse] = [:]
     /// In-flight / failed ids so we never double-fetch or hammer a
     /// 404'd document on every disclosure toggle.
     private var requested: Set<String> = []
 
-    private let service: EntityServiceGenerated
+    /// Page documents grouped by their parent document id.
+    /// Populated by LibraryView from documentStore.currentDocuments
+    /// (pages are already loaded — no extra fetch needed).
+    var pagesByParentId: [String: [Document]] = [:]
 
-    init(service: EntityServiceGenerated) {
+    /// Own-scope artifacts (non-descendant) by document id.
+    /// Populated on demand when a document row is expanded.
+    /// Internal (not private) so tests can inject state directly.
+    var artifactsByDocumentId: [String: [Artifact]] = [:]
+    private var artifactRequested: Set<String> = []
+
+    private let service: EntityServiceGenerated
+    private let artifactService: ArtifactServiceGenerated
+
+    init(service: EntityServiceGenerated, artifactService: ArtifactServiceGenerated) {
         self.service = service
+        self.artifactService = artifactService
     }
 
     /// Fetch the rollup for a document once. Idempotent: repeat calls
@@ -144,22 +177,61 @@ final class LibraryOutlineModel {
         }
     }
 
-    /// Build the typed child-group nodes for one document from its cached
-    /// rollup. Returns `nil` if the rollup has not loaded yet (disclosure
-    /// shows but is empty); an empty array means the document genuinely
-    /// has no children of any type.
+    /// Fetch own-scope artifacts for a document once (non-descendant, matching
+    /// the V2 inspector scope). Idempotent — subsequent calls while in-flight
+    /// or already loaded are no-ops.
+    func loadArtifacts(for documentId: String) async {
+        guard artifactsByDocumentId[documentId] == nil,
+              !artifactRequested.contains(documentId) else { return }
+        artifactRequested.insert(documentId)
+        do {
+            let arts = try await artifactService.getArtifacts(
+                forDocumentId: documentId,
+                includeDescendants: false
+            )
+            artifactsByDocumentId[documentId] = arts
+        } catch {
+            logger.debug("Artifact load failed for \(documentId): \(error)")
+            // Failure keeps the count-fallback group visible until next expansion.
+        }
+    }
+
+    /// Build the typed child nodes for one document from its cached rollup.
+    /// - Pages → individual page item rows (from pagesByParentId, already loaded).
+    /// - Artifacts → individual artifact item rows once loaded; count-group fallback until then.
+    /// - Entities / notes / claims → count-group rows as before.
+    /// Returns `nil` if the rollup has not loaded yet (disclosure shows but is empty).
     func childNodes(for document: Document) -> [LibraryOutlineNode]? {
         guard let rollup = rollups[document.id] else { return nil }
-        return LibraryOutlineNode.ChildType.allCases.compactMap { type in
-            let count = type.count(in: rollup)
-            guard count > 0 else { return nil }
-            return LibraryOutlineNode.childGroup(type, document: document, count: count)
+        var nodes: [LibraryOutlineNode] = []
+        for type in LibraryOutlineNode.ChildType.allCases {
+            switch type {
+            case .pages:
+                let pages = (pagesByParentId[document.id] ?? [])
+                    .sorted { ($0.sequence ?? 0) < ($1.sequence ?? 0) }
+                nodes += pages.map { LibraryOutlineNode.pageItem($0, parent: document) }
+            case .artifacts:
+                if let arts = artifactsByDocumentId[document.id] {
+                    nodes += arts.map { LibraryOutlineNode.artifactItem($0, parent: document) }
+                } else if rollup.artifacts > 0 {
+                    // Show count summary until per-document fetch completes.
+                    nodes.append(
+                        LibraryOutlineNode.childGroup(type, document: document, count: rollup.artifacts)
+                    )
+                }
+            case .entities, .notes, .claims:
+                let count = type.count(in: rollup)
+                if count > 0 {
+                    nodes.append(LibraryOutlineNode.childGroup(type, document: document, count: count))
+                }
+            }
         }
+        return nodes
     }
 
     /// Assemble the top-level outline nodes for the visible documents.
     /// Each document node carries whatever child nodes are already known;
-    /// expanding a row triggers `loadRollup` to fill them in.
+    /// expanding a row triggers `loadRollup` + `loadArtifacts` to fill them in.
     func nodes(for documents: [Document]) -> [LibraryOutlineNode] {
         documents.map { document in
             LibraryOutlineNode.document(document, children: childNodes(for: document))
