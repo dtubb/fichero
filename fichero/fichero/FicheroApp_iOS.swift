@@ -156,7 +156,7 @@ private struct FicheroSharedPlatformRoot: View {
         await KnownLibraryRegistryStore.shared.refresh()
         libraryManager.adoptPairedRemoteLibrary()
         await libraryManager.backendDidBecomeReady()
-        await captureQueue.resumePendingUploads(
+        _ = await captureQueue.resumePendingUploads(
             using: MobileCaptureBackendUploadClient(libraryManager: libraryManager)
         )
     }
