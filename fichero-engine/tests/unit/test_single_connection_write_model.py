@@ -70,15 +70,6 @@ def _make_doc(doc_id: str):
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "#2508 Phase 0: get_database is keyed by thread_ident today, so each "
-        "thread gets a distinct Database + connection. Phase 2 collapses to one "
-        "shared instance per package; when it lands this XPASSes and the xfail "
-        "marker is removed to guard the single-connection invariant permanently."
-    ),
-)
 def test_get_database_returns_same_instance_across_threads(temp_library):
     """The single-connection invariant: one Database (and one DuckDB conn) per
     package, shared across every thread. RED today (per-thread), GREEN at Phase 2.

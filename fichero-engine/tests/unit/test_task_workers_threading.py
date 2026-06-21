@@ -1,15 +1,14 @@
-"""Thread-safety tests for BackgroundTaskExecutor workers (#2509).
+"""Thread-safety tests for BackgroundTaskExecutor workers (#2509 / #2508).
 
-A DuckDB ``Connection`` is not safe to share across threads, and
-``db_manager`` keys its connection pool by ``threading.get_ident()`` for
-exactly that reason. The workers run their database calls on arbitrary
-``asyncio.to_thread`` pool threads, so they must NOT capture the queue's
-``self.database`` (bound to the thread that created it) and ship it across
-the thread boundary — they must obtain a thread-local Database from
-``db_manager`` from WITHIN the pool thread.
+The workers run their database calls on arbitrary ``asyncio.to_thread`` pool
+threads, so they must NOT capture the queue's ``self.database`` and ship it
+across the thread boundary — they obtain the Database from ``db_manager`` from
+WITHIN the pool thread (#2509). Under the single-connection model (#2508) that
+call returns the ONE shared Database for the package (one connection serialized
+by one lock), so cross-thread access is safe by construction.
 
 These tests use REAL databases (no mocking of the unit under test) so a
-regression to the old capture-and-ship pattern surfaces as a real DuckDB
+regression to capturing a foreign connection surfaces as a real DuckDB
 threading error.
 """
 
@@ -37,9 +36,10 @@ async def real_task_queue(test_package, tmp_path):
 async def test_db_call_resolves_connection_inside_pool_thread(
     real_task_queue, monkeypatch
 ):
-    """The Database driven inside the to_thread callable must be obtained
-    FROM the pool thread — its connection owner is the pool thread ident,
-    not the event-loop thread that created the queue."""
+    """The Database driven inside the to_thread callable must be obtained via
+    db_manager FROM the pool thread (#2509), not captured+shipped from the
+    event-loop thread. Under #2508 it resolves to the one shared package
+    Database."""
     queue, package, _ = real_task_queue
     package_str = str(package)
     event_loop_ident = threading.get_ident()
@@ -65,18 +65,21 @@ async def test_db_call_resolves_connection_inside_pool_thread(
     assert task.status == TaskStatus.COMPLETED
     assert calls, "db_manager.get_database was never called inside the worker"
 
-    # Every resolution happened on a POOL thread, never the event-loop thread.
+    # Every resolution happened on a POOL thread, never the event-loop thread —
+    # i.e. the worker calls get_database from inside the to_thread callable
+    # rather than capturing+shipping the queue's Database (#2509).
     assert event_loop_ident not in calls, (
         "Database was resolved on the event-loop thread — the worker is "
         "capturing+shipping a connection across the thread boundary (#2509)"
     )
 
-    # And each pool thread got its OWN keyed connection in the manager pool.
-    for ident in calls:
-        assert (package_str, ident) in db_manager._databases, (
-            f"No connection keyed for pool thread {ident}; the worker did "
-            "not obtain a thread-local Database"
-        )
+    # Under the single-connection model (#2508) the manager holds exactly ONE
+    # shared Database for the package (keyed by package path, not per-thread);
+    # the in-thread get_database calls all return that shared instance.
+    assert package_str in db_manager._databases, (
+        "no shared Database keyed for the package"
+    )
+    assert db_manager.get_database(package) is db_manager._databases[package_str]
 
 
 @pytest.mark.asyncio
@@ -92,9 +95,9 @@ async def test_workers_under_concurrent_write_never_raise_threading_error(
     for i in range(5):
         main_db.save(Document(id=f"doc{i}", name=f"Doc {i}", page_content=None))
 
-    # A background writer thread hammering the DB on its OWN thread-local
-    # connection — the realistic "API thread writes while worker reindexes"
-    # scenario that the per-thread connection model must tolerate.
+    # A background writer thread hammering the DB on the shared connection —
+    # the realistic "API thread writes while worker reindexes" scenario that the
+    # single-connection model (#2508) must tolerate (serialized by one lock).
     stop = threading.Event()
     writer_errors: list[Exception] = []
 
