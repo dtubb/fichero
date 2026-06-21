@@ -110,7 +110,7 @@ enum Status: String, Codable, CaseIterable {
 // MARK: - Document Model
 
 /// Main document model matching Python Document (Pydantic)
-struct Document: Identifiable, Codable, Hashable {
+struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
     let id: String
     var parentId: String?
     var docType: DocType
