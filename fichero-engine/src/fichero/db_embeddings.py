@@ -140,6 +140,11 @@ class EmbeddableUnit:
 _EMBEDDER_CACHE: dict[str, Any] = {}
 _EMBEDDER_CACHE_LOCK = threading.Lock()
 
+# Tables for which the legacy-embedding warning has already been emitted this
+# process. Keyed by table name; shared across all Database instances and threads
+# so the log line fires at most once per table per process (#2480).
+_LEGACY_TABLE_WARNED: set[str] = set()
+
 
 def _get_shared_embedder(model_name: str, cache_dir: str) -> Any:
     """Return the process-global TextEmbedding for ``model_name``, loading once.
@@ -756,18 +761,15 @@ class DatabaseEmbeddingMixin:
         return {EMBEDDING_MODEL_ID_FIELD: self._get_embedding_model_id()}
 
     def _warn_legacy_vector_table(self, table_name: str) -> None:
-        warned = getattr(self, "_warned_legacy_embedding_tables", set())
-        if table_name in warned:
+        if table_name in _LEGACY_TABLE_WARNED:
             return
+        _LEGACY_TABLE_WARNED.add(table_name)
         logger.warning(
             "Vector table %s contains legacy/unstamped embeddings; allowing search "
             "for now, but future writes stamp %s.",
             table_name,
             self._get_embedding_model_id(),
         )
-        warned = set(warned)
-        warned.add(table_name)
-        self._warned_legacy_embedding_tables = warned
 
     def assert_vector_table_model_compatible(self, table_name: str) -> None:
         """Refuse semantic search when stored vectors use a different known model-id.
