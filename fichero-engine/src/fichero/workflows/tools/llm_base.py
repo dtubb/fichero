@@ -483,34 +483,22 @@ async def save_artifact(
         if not doc and file_path and not document_id:
             doc = find_document_by_path(db, Document, file_path)
 
-        # Resolve the id we key the artifact on. When the caller passed an
-        # explicit document_id (the per-page fan-out always does — it holds
-        # the page-child id it already validated upstream), TRUST it even if
-        # the re-fetch above transiently returned None. The engine gives each
-        # thread its OWN DuckDB connection (db_manager keys by thread_ident;
-        # #1000 worker-thread model + #2118-2120 two-writer model), so a
-        # page-child doc just written on one connection can be briefly
-        # invisible on this thread's connection (MVCC snapshot skew) during
-        # the parallel fan-out. Skipping here would drop the page's artifact
-        # on the floor — the #2430 data-loss race. We must never lose the
-        # artifact, so we save it keyed on the validated id and merely skip
-        # the doc-side metadata/page_content update (which genuinely needs the
-        # live row) until the row is visible.
-        resolved_doc_id = doc.id if doc is not None else document_id
-        if not resolved_doc_id:
+        # The per-page fan-out passes the page-child document through
+        # (document=) so we never re-fetch it by id across threads — that is
+        # what eliminates the #2430 race. If we STILL have no document here it
+        # genuinely cannot be resolved; do NOT fabricate an artifact keyed on an
+        # unverified id (that would orphan it, or — via the removed file_path
+        # fallback — mis-route to the parent PDF). Fail loud + return None so
+        # the miss is visible, never a silent substitute. (#2430)
+        if doc is None:
             logger.warning(
-                "Document not found for artifact save: id=%s path=%s",
+                "Document not found for artifact save: id=%s path=%s — "
+                "skipping (no silent orphan / parent reroute)",
                 document_id,
                 file_path,
             )
             return None
-        if doc is None:
-            logger.warning(
-                "Artifact save: document %s not visible on this connection yet "
-                "(concurrent fan-out, #2430) — saving artifact keyed on the id; "
-                "skipping page_content/metadata update",
-                document_id,
-            )
+        resolved_doc_id = doc.id
 
         # Create Artifact
         artifact = Artifact(

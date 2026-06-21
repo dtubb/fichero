@@ -74,15 +74,15 @@ class TestFindExistingArtifact:
         assert kwargs["document_id"] == "d1"
         assert kwargs["artifact_type"] == "transcription"
 
-    def test_falls_back_to_file_path_lookup_when_document_id_misses(self):
-        doc = MagicMock(id="d-from-path")
-        artifact = MagicMock(id="a2", created_at=1)
+    def test_no_file_path_fallback_when_explicit_document_id_misses(self):
+        # #2430: an explicit document_id is trusted as the dedup key — we query
+        # artifacts by it directly and must NOT fall back to a file_path document
+        # lookup when the id is given. For a page child the path resolves to the
+        # PARENT PDF, whose artifacts would wrongly dedup (skip) the page's. With
+        # no artifacts under the id, return None so the caller creates, not skips.
         db = MagicMock()
-        # First call with id returns None; the second query-by-path call returns doc.
-        db.get.return_value = None
-        # query is used both for the path-based document lookup AND the artifact lookup.
-        # The first call must return docs (list); the second must return artifacts (list).
-        db.query.side_effect = [[doc], [artifact]]
+        db.get.return_value = None     # doc row not visible / not fetched
+        db.query.return_value = []     # no existing artifacts for this id
 
         with self._patch_db(db):
             result = find_existing_artifact(
@@ -91,7 +91,10 @@ class TestFindExistingArtifact:
                 artifact_type="transcription",
                 library_path="/tmp/lib.fichero",
             )
-        assert result is artifact
+        assert result is None
+        # Only the artifact query ran — never a path-based document fallback.
+        for call in db.query.call_args_list:
+            assert "path" not in call.kwargs
 
     def test_returns_most_recent_when_multiple_artifacts_exist(self):
         doc = MagicMock(id="d1")

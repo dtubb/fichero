@@ -202,14 +202,17 @@ class TestPerPageFanOutConcurrency:
         )
 
     def test_explicit_id_survives_transient_invisibility(self, temp_library):
-        """Deterministic repro of the cross-connection MVCC miss.
+        """Deterministic repro of the cross-connection MVCC miss + the fix.
 
         A second real DuckDB connection opens a transaction that creates a page
         child but does NOT commit. ``save_artifact`` running against the main
-        connection therefore cannot see that row — ``db.get`` returns ``None``.
-        The previous code skipped the artifact (data loss). The fix trusts the
-        explicit document_id and still saves the artifact keyed on the page,
-        never the parent.
+        connection therefore cannot see that row — ``db.get`` would return
+        ``None`` (the old data-loss skip). The #2430 fix passes the page-child
+        document THROUGH (``document=``) so save_artifact uses it directly and
+        never re-fetches by id across threads — the artifact lands on the page,
+        never the parent, despite the invisible row. (A genuine miss with NO
+        document passed returns None — see
+        test_no_orphan_when_db_get_misses_and_no_document.)
         """
         from fichero.db import Database
         from fichero.workflows.tools.llm_base import save_artifact
@@ -259,6 +262,7 @@ class TestPerPageFanOutConcurrency:
                     llm_config=_make_llm_config(),
                     task_id="run-1",
                     tool_config=_make_tool_config(),
+                    document=hidden,  # pass-through: the real #2430 fix
                 )
             )
         finally:

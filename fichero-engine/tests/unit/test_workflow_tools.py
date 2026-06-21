@@ -1260,12 +1260,15 @@ class TestProcessVisionSave:
             metadata_field="description",
         )
 
-        mock_doc = MagicMock()
-        mock_doc.id = "doc_abc"
-        mock_doc.metadata = {}
+        # Production passes full Document model_dump() dicts in workflow state
+        # (see completion.py); save_artifact now uses that pass-through
+        # (document=) instead of a cross-thread db.get re-fetch (#2430). The test
+        # must therefore supply a COMPLETE document dict, not a partial one.
+        from fichero.models import Document
+        real_doc = Document(id="doc_abc", name="test.jpg", path=str(test_image))
 
         mock_db = MagicMock()
-        mock_db.get.return_value = mock_doc
+        mock_db.get.return_value = real_doc  # db.get fallback (not hit when document= is passed)
 
         with patch('fichero.llm.vision', new_callable=AsyncMock) as mock_vision:
             mock_vision.return_value = "A test description"
@@ -1275,7 +1278,7 @@ class TestProcessVisionSave:
 
                 result = await process_vision(
                     files=[str(test_image)],
-                    documents=[{"id": "doc_abc", "path": str(test_image)}],
+                    documents=[real_doc.model_dump()],
                     prompt="Describe this image",
                     llm_config=mock_llm_config,
                     library_path="/test/lib.fichero",
@@ -1289,7 +1292,15 @@ class TestProcessVisionSave:
                 assert len(result["artifacts"]) == 1
                 # Verify db.save was called (artifact + doc metadata)
                 assert mock_db.save.call_count == 2
-                assert mock_doc.metadata["description"] == "A test description"
+                # The pass-through doc (validated from the dict) carries the
+                # description — capture it from the db.save calls.
+                saved_docs = [
+                    c.args[0]
+                    for c in mock_db.save.call_args_list
+                    if isinstance(c.args[0], Document)
+                ]
+                assert saved_docs, "expected the document to be saved"
+                assert saved_docs[-1].metadata["description"] == "A test description"
 
     @pytest.mark.asyncio
     async def test_process_vision_propagates_pages_with_absolute_file_path(

@@ -118,24 +118,18 @@ class TestSaveArtifactPageChildResolution:
         )
 
     @pytest.mark.asyncio
-    async def test_artifact_saved_to_page_child_when_db_get_returns_none(self, tmp_path):
+    async def test_no_orphan_when_db_get_misses_and_no_document(self, tmp_path):
         """
-        #2430 ROOT-CAUSE path: db.get(page_child_id) transiently returns None
-        during the concurrent per-page fan-out (each thread gets its own DuckDB
-        connection; MVCC snapshot skew makes a just-created page-child doc
-        briefly invisible on this thread's connection).
+        #2430: the race is eliminated by passing the page-child document THROUGH
+        (document=) so save_artifact never re-fetches by id across threads — see
+        test_vision_wrapper_forwards_document_kwarg and the per-page placement
+        tests for the saved-on-its-page proof.
 
-        Evolution of the fix:
-          - BEFORE the safety guard: file_path fallback resolved to the parent
-            PDF → Artifact(document_id="parent-pdf-id") ← silently wrong.
-          - safety guard (prior fix): fallback skipped, but save_artifact
-            returned None → the page's artifact was SKIPPED = DATA LOSS.
-          - THIS root-cause fix: when an explicit document_id was supplied we
-            TRUST it and save the artifact keyed on that page-child id even
-            when the row isn't visible yet — no skip, no parent routing.
-
-        The doc-side page_content/metadata update is deferred (it needs the
-        live row), but the artifact itself lands on its page.
+        This test pins the COMPLEMENT: if NO document is passed AND db.get
+        misses, the doc genuinely cannot be resolved. save_artifact must FAIL
+        LOUD — return None, save NO artifact, and NEVER route to the parent PDF
+        via the file_path fallback. No silent orphan, no silent reroute
+        (Daniel's no-silent-fallback rule).
         """
         parent_pdf = _make_document("parent-pdf-id", path="/lib/scan.pdf")
 
@@ -163,23 +157,23 @@ class TestSaveArtifactPageChildResolution:
                 llm_config=_make_llm_config(),
                 task_id=None,
                 tool_config=_make_tool_config(),
+                # NB: no document= passed — the genuine-miss path.
             )
 
-        # After the root-cause fix: the artifact IS saved (no data loss) ...
-        assert result is not None, (
-            "#2430: save_artifact must NOT skip the artifact when an explicit "
-            "document_id was given but the row is transiently invisible — that "
-            "is the data-loss race."
+        # Genuine miss with no document passed → fail loud, never orphan/reroute.
+        assert result is None, (
+            "#2430: with no document passed and db.get missing, save_artifact "
+            "must return None (a visible miss), not fabricate an orphan artifact."
         )
         saved_ids = [a.document_id for a in saved_artifacts if hasattr(a, "document_id")]
-        # ... keyed on the page child ...
-        assert "page-child-id" in saved_ids, (
-            f"Artifact must be saved on the page child id, got: {saved_ids}"
+        # No orphan keyed on the unverified page id ...
+        assert "page-child-id" not in saved_ids, (
+            f"No orphan artifact may be saved on an unverified id. Got: {saved_ids}"
         )
         # ... and NEVER on the parent PDF.
         assert "parent-pdf-id" not in saved_ids, (
-            f"#2430: save_artifact must NOT route to the parent PDF when an "
-            f"explicit document_id was provided. Got: {saved_ids}"
+            f"#2430: save_artifact must NEVER route to the parent PDF. "
+            f"Got: {saved_ids}"
         )
 
     @pytest.mark.asyncio
