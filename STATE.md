@@ -32,21 +32,44 @@ build-gates, and runs verify_all at checkpoints.
 - #2475 sidebar bottom toolbar — 44pt touch tier (reused MiniToolbarMetricPolicy) + Liquid Glass.
 - #2472 iPhone sidebar empty-on-launch — root-caused (compact .task runs before loadCollections);
   fixed via @Published librariesLoadVersion + SidebarView.onChange (no withObservationTracking race).
-- **~18 issues closed**, all build-gated green (Xcode BuildProject; verify_all NOT run — GUI-window rule).
-  HEAD = b6428fa2. Three worker lanes stalled mid-run (workflow-polish, editor-unify, + briefly others)
-  and were salvaged/redone/reviewed by the manager — concrete file-pointer briefs avoid stalls.
+- #2430 HTR per-page artifacts — already fixed (stale build); added 7 adversarial regression tests as guard.
+- #2459 image-editor save — root-caused (the #2469 display cache had ZERO callers); wired
+  onEditApplied→invalidateImageCache on success only (+3 tests). NOTE: other image-mutating paths may need invalidation too.
+- #2434 inspector workflow-history — improved existing panel: status badge + newest-first sort + STABLE
+  ForEach id (fixes duplicate-workflowId crash) + 5 tests.
+- **~21 issues closed**, all build-gated green (Xcode BuildProject; verify_all NOT run — GUI-window rule).
+  HEAD = 6063ac43. Several worker lanes stalled or erred mid-run (workflow-polish, editor-unify, + a bad
+  pbxproj test registration) and were salvaged/fixed/reviewed by the manager — build-gate every lane.
+
+## LESSON (add to worker briefs)
+- NEVER run add-swift-file.rb on fichero-tests/* — the test target is a SYNCED group; manual registration
+  creates a duplicate PBXGroup with a doubled path → build fails ("input file cannot be found"). #2434 hit this.
 
 ## RUNNING NOW
-- Nothing. Isolated-bug queue drained; remaining work is HELD (below) or hard-to-verify backend (#2430).
+- Nothing. The cleanly-isolated, verifiable-overnight queue is genuinely DRAINED. Everything remaining is
+  one of: (a) HELD design clusters, (b) device/data-specific (can't verify overnight), (c) perimeter
+  (Daniel's call), or (d) borderline-design. Categorized below — needs Daniel's direction to proceed well.
+
+## REMAINING OPEN — CATEGORIZED (for Daniel to direct)
+- **Held design clusters**: toolbar #2431/#2432/#2436/#2423/#2467/#2433; inspector redesign
+  #2468/#2470/#2455; workflow-node editor #2440/#2441/#2442/#2443/#2444; node model #2446/#2447;
+  splits #2422/#2481. → unified design + Opus, not piecemeal.
+- **Device/data-specific (can't verify overnight)**: #2464 (ICANH no PDFs — needs the real lib),
+  #2407/#2408/#2409 (iPad auth-race/perf/WebKit — needs iPad profiling), #2479 (cross-device sync — needs 2 devices).
+- **Perimeter (Daniel's call)**: #2400/#2403/#2435 (tailnet host / user-auth / KG-on-remote), #2382 cert SAN.
+- **Editor-area (hold until #2453 tested)**: #2416 (Mac RTF save bug) #2418 (cross-platform editor parity).
+- **Borderline-design (could do with a nudge)**: #2405 (list shows counts not items), #2404 (sidebar
+  expansion consistency), #2471 (iOS image-viewer toolbar overlay, low-pri).
+- **Backlog**: #2410-2414 (OpenAPI conversion EPIC), #2461 (~112 swiftlint — careful, no blanket font sweep).
 
 ## MORNING — DANIEL, START HERE
 1. ⚠️ **TEST #2453** (editor unification): rich-text editing (bold/italic/headings) + RTF round-trip
    (no formatting loss) + save persists, on Mac AND iPad AND iPhone. It deleted the AppKit editor.
-2. Quick-test the other UI changes: image zoom/preload, reader focus ring, entity list (no "12:10"),
-   iPhone sidebar populates on launch, sidebar bottom toolbar tap targets, workflow canvas spacing.
-3. Decide the HELD items below (need your direction).
+2. Quick-test the other UI changes: image zoom/preload + edit-then-view, reader focus ring, entity list
+   (no "12:10"), iPhone sidebar populates on launch, sidebar bottom toolbar tap targets, workflow spacing,
+   inspector workflow-history.
+3. Pick the next milestone/cluster to direct (see categorized list) — the held clusters need your call.
 4. `worker/ios-reader-polish` branch: integrate (resolve EditorView conflict) or confirm superseded.
-5. #2430 (HTR per-page artifacts) — backend/architectural; best done with engine free for full pytest.
 
 ## HELD FOR DANIEL (don't piecemeal overnight)
 - **Toolbar-rationalization cluster #2431/#2432/#2436/#2423** — design-coupled (one consistent
