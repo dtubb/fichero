@@ -102,6 +102,14 @@ class NodeCache:
             db_path: Path to the library's DuckDB file
         """
         self.db_path = Path(db_path)
+        # ponytail: not a managed shared conn (#2508). This is NodeCache's OWN
+        # raw duckdb connection to the library file — it is NOT the package's
+        # managed Database connection, so it is not guarded by Database._lock
+        # and the locked execute()/execute_fetchall() helpers do not apply.
+        # Within one process duckdb shares the underlying instance across
+        # connect() calls, so writes here are visible to the managed Database
+        # via MVCC. Folding NodeCache onto the shared Database (pass a Database
+        # instead of db_path) is a separate architectural decision (lead review).
         self.conn = duckdb.connect(str(self.db_path))
         self._ensure_schema()
 

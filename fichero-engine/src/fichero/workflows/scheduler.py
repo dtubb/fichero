@@ -171,6 +171,12 @@ class WorkflowScheduler:
 
     def _init_database(self) -> None:
         """Initialize database tables for schedule tracking."""
+        # ponytail: not a managed shared conn (#2508). Every method here opens a
+        # FRESH ``conn = duckdb.connect(self.db_path)`` per operation and closes
+        # it — a connection-per-operation pattern, not the package's managed
+        # Database connection. Database._lock and the locked execute() helpers do
+        # not apply. Folding the scheduler onto the shared Database is a separate
+        # architectural call (lead review).
         conn = duckdb.connect(self.db_path)
         try:
             conn.execute("""

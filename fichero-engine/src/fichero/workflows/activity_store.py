@@ -277,6 +277,14 @@ class ActivityStore:
         self.db_path = db_path
         self._init_database()
 
+    # ponytail: not a managed shared conn (#2508). Every method below opens a
+    # FRESH ``conn = duckdb.connect(self.db_path)`` for the duration of one
+    # operation and closes it — a connection-per-operation pattern, never the
+    # package's managed Database connection. So the Database._lock seam and the
+    # locked execute()/execute_fetchall() helpers do not apply here. Folding
+    # ActivityStore onto the shared Database is a separate architectural call
+    # (lead review).
+
     def _init_database(self) -> None:
         """Initialize database tables for activity tracking."""
         conn = duckdb.connect(self.db_path)

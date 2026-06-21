@@ -89,6 +89,12 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
             serde: Serializer for checkpoint data (defaults to JsonPlusSerializer)
         """
         super().__init__(serde=serde or JsonCheckpointSerializer())
+        # ponytail: already locked / not a managed shared conn (#2508). This is
+        # the checkpointer's OWN raw duckdb connection (opened by from_db_path),
+        # not the package's managed Database. Every access below is already
+        # serialized on this object's own RLock (self._lock), so it is internally
+        # thread-safe; Database._lock and the locked execute() helpers do not
+        # apply because this connection is not the managed shared one.
         self.conn = conn
         self._lock = threading.RLock()
         self._setup()
