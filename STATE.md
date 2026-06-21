@@ -45,10 +45,16 @@ build-gates, and runs verify_all at checkpoints.
 - NEVER run add-swift-file.rb on fichero-tests/* — the test target is a SYNCED group; manual registration
   creates a duplicate PBXGroup with a doubled path → build fails ("input file cannot be found"). #2434 hit this.
 
+## DONE (borderline-design, post-drain) — through 2dae7aab
+- #2405 column/list view: real navigable page+artifact rows instead of count badges (→ reader focus #1463).
+- #2404 sidebar: PDF is now a LEAF (stop expanding pages in the tree) — coherent pair with #2405.
+- #2471 iOS image viewer: inline glass MiniToolbar (zoom/fit/actual-size) — assessed clean drop-in, no #2423/#2467 touch.
+- **~24 issues closed total this run.**
+
 ## RUNNING NOW
-- Nothing. The cleanly-isolated, verifiable-overnight queue is genuinely DRAINED. Everything remaining is
+- Nothing. Isolated AND the three borderline-design items are now DONE. Everything remaining is
   one of: (a) HELD design clusters, (b) device/data-specific (can't verify overnight), (c) perimeter
-  (Daniel's call), or (d) borderline-design. Categorized below — needs Daniel's direction to proceed well.
+  (Daniel's call). Categorized below — needs Daniel's direction to proceed well.
 
 ## REMAINING OPEN — CATEGORIZED (for Daniel to direct)
 - **Held design clusters**: toolbar #2431/#2432/#2436/#2423/#2467/#2433; inspector redesign
