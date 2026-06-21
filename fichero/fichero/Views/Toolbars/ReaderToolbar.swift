@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import SwiftUI
 
 // MARK: - Reader annotation tools
@@ -102,9 +103,12 @@ struct ReaderToolbar: View {
     var isPinned: Binding<Bool>?
     var onTogglePin: (() -> Void)?
 
-    // NOTE: a `@ViewBuilder` block accepts at most 10 child expressions, so the
-    // content below is kept to exactly 10 — each section folds in its own
-    // trailing divider rather than adding standalone `Divider` children.
+    // Primary controls (chrome / page-nav / zoom / fit) stay inline; the
+    // secondary tools (magnifier / loupe / edit / annotation) collapse into a
+    // trailing '…' menu when the pane is too narrow to show them — e.g. two PDF
+    // panes side by side (#2488). `ViewThatFits` picks the inline row when it
+    // fits and falls back to the overflow menu otherwise, so the bar never
+    // wraps or crams. Mirrors the content-rail overflow pattern (#1733).
     var body: some View {
         MiniToolbar(content: {
             chromeSection
@@ -112,10 +116,10 @@ struct ReaderToolbar: View {
             Spacer(minLength: 0)
             zoomSection
             fitSection
-            magnifierButton
-            loupeSection
-            editButton
-            annotationSection
+            ViewThatFits(in: .horizontal) {
+                inlineSecondaryTools
+                overflowMenu
+            }
             Spacer()
         }, trailing: {
             pinButton
@@ -352,5 +356,62 @@ struct ReaderToolbar: View {
             .foregroundStyle(isPinned.wrappedValue ? Color.accentColor : Color.secondary)
             .help(isPinned.wrappedValue ? "Unpin — follow current selection" : "Pin to this document")
         }
+    }
+}
+
+// MARK: - Overflow ('…') collapse (#2488)
+
+extension ReaderToolbar {
+    /// The secondary tools rendered inline, in priority order. This is the
+    /// preferred `ViewThatFits` candidate; when it doesn't fit, the overflow
+    /// menu is used instead.
+    var inlineSecondaryTools: some View {
+        HStack(spacing: 12) {
+            magnifierButton
+            loupeSection
+            editButton
+            annotationSection
+        }
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    /// Trailing '…' menu holding the secondary tools when the bar is too narrow
+    /// to show them inline. Greyed (disabled) tools stay listed but inert, so
+    /// the menu's contents match the inline row exactly.
+    var overflowMenu: some View {
+        Menu {
+            Toggle("Magnifier Panel", isOn: magnifierEnabled ?? .constant(false))
+                .disabled(magnifierEnabled == nil)
+
+            Toggle("Loupe", isOn: loupeEnabled ?? .constant(false))
+                .disabled(loupeEnabled == nil)
+            if loupeEnabled?.wrappedValue == true, loupeLocked != nil {
+                Toggle("Lock Loupe", isOn: loupeLocked ?? .constant(false))
+            }
+
+            Divider()
+
+            Toggle("Edit Image", isOn: isEditing ?? .constant(false))
+                .disabled(isEditing == nil)
+
+            Divider()
+
+            Section("Annotate") {
+                ForEach(ReaderAnnotationTool.allCases) { tool in
+                    Button {
+                        onAnnotate?(tool)
+                    } label: {
+                        Label(tool.label, systemImage: tool.icon)
+                    }
+                    .disabled(onAnnotate == nil)
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+        }
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("More tools")
+        .accessibilityIdentifier("readerToolbarOverflow")
     }
 }
