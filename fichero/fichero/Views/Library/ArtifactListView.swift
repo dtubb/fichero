@@ -134,6 +134,10 @@ private struct ArtifactRow: View {
                 }
             }
             Spacer(minLength: 4)
+            Text(artifact.createdAt, format: .relative(presentation: .named))
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
             if artifact.reviewed {
                 Image(systemName: "checkmark.seal.fill")
                     .font(.caption)

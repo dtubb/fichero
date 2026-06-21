@@ -154,6 +154,38 @@ final class ArtifactTests: XCTestCase {
         XCTAssertEqual(a.artifactTypeIcon, "doc")
     }
 
+    // MARK: - Timestamps
+
+    func testCreatedAtDefaultIsRecent() {
+        let before = Date()
+        let artifact = Artifact(documentId: "d", artifactType: "summary")
+        let after = Date()
+        XCTAssertGreaterThanOrEqual(artifact.createdAt, before)
+        XCTAssertLessThanOrEqual(artifact.createdAt, after)
+    }
+
+    func testCreatedAtDecodesExpectedDate() throws {
+        let json = """
+        {
+            "id": "ts-2",
+            "document_id": "d1",
+            "version": 1,
+            "artifact_type": "summary",
+            "reviewed": false,
+            "created_at": "2026-06-21T00:00:00Z"
+        }
+        """.data(using: .utf8)!
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = try decoder.decode(Artifact.self, from: json)
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        let comps = cal.dateComponents([.year, .month, .day], from: decoded.createdAt)
+        XCTAssertEqual(comps.year, 2026)
+        XCTAssertEqual(comps.month, 6)
+        XCTAssertEqual(comps.day, 21)
+    }
+
     // MARK: - Equatable / Hashable
 
     func testEqualityByValueNotIdentity() {
