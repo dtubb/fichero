@@ -1,3 +1,4 @@
+import OSLog
 import SwiftUI
 
 // MARK: - PDFPageWithToolbar
@@ -76,180 +77,36 @@ struct PDFPageWithToolbar: View {
         onClose?()
     }
 
+    private static let log = Logger(subsystem: "app.fichero.fichero", category: "ReaderToolbar")
+
+    /// True when this pane is inside an active split — the × collapses the split.
+    private var isInSplit: Bool {
+        splitAxisActions.map { $0.hasVertical || $0.hasHorizontal } ?? false
+    }
+
+    /// Pin/unpin this pane to its current document + page.
+    private func togglePin() {
+        if isPinned {
+            isPinned = false
+        } else {
+            pinnedDocumentId = documentId
+            localPageIndex = pageIndex
+            isPinned = true
+        }
+    }
+
+    /// Annotation tools are present in the unified reader toolbar but their
+    /// region-anchored creation + on-canvas rendering is owned by **#2458**.
+    /// Until that lands this is a clearly-marked stub so the section is visible
+    /// and tappable without creating orphan annotations.
+    private func requestAnnotation(_ tool: ReaderAnnotationTool) {
+        Self.log.info(
+            "Reader annotation '\(tool.rawValue, privacy: .public)' on PDF — pending region capture + rendering (#2458)"
+        )
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            // Toolbar: zoom controls + loupe toggle. Uses MiniToolbar so the
-            // PDF preview header is the same 44pt height as the list mode rail,
-            // image preview, knowledge surface, and inspector tab strip (#1228).
-            // Layout: [× close] [title] [page nav] [spacer] [zoom] [loupe] | [split] [pin]
-            MiniToolbar(content: {
-                // × close — far left. Collapses active split if one is open;
-                // otherwise hides the whole pane via onClose.
-                let isInSplit = splitAxisActions.map { $0.hasVertical || $0.hasHorizontal } ?? false
-                if onClose != nil || isInSplit {
-                    Button {
-                        closePane()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help(isInSplit ? "Close this split" : "Close this pane")
-
-                    Divider().frame(height: 16)
-                }
-
-                if let title = documentTitle, !title.isEmpty {
-                    Image(systemName: "doc.richtext")
-                        .imageScale(.small)
-                        .foregroundStyle(.secondary)
-                    Text(title)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-
-                    Divider().frame(height: 16)
-                }
-
-                // Page-within-document navigation (◀ N / M ▶). Document-scoped,
-                // so it lives here on the canvas toolbar rather than the window
-                // toolbar. Only shown for multi-page documents. (#1531)
-                if pageNav.pageCount > 1 {
-                    Button {
-                        pageNav.goToPrevious()
-                    } label: {
-                        Image(systemName: "chevron.left")
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!pageNav.canGoPrevious)
-                    .help("Previous Page")
-                    .accessibilityIdentifier("pdfPreviousPage")
-
-                    Text("\(pageNav.pageIndex + 1) / \(pageNav.pageCount)")
-                        .font(.caption)
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                        .frame(minWidth: 48)
-
-                    Button {
-                        pageNav.goToNext()
-                    } label: {
-                        Image(systemName: "chevron.right")
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!pageNav.canGoNext)
-                    .help("Next Page")
-                    .accessibilityIdentifier("pdfNextPage")
-
-                    Divider().frame(height: 16)
-                }
-
-                Spacer(minLength: 0)
-                Button {
-                    zoom.zoomOut()
-                } label: {
-                    Image(systemName: "minus.magnifyingglass")
-                }
-                .buttonStyle(.plain)
-                .help("Zoom Out")
-
-                Text("\(Int(zoom.scale * 100))%")
-                    .font(.caption)
-                    .monospacedDigit()
-                    .frame(width: 50)
-
-                Button {
-                    zoom.zoomIn()
-                } label: {
-                    Image(systemName: "plus.magnifyingglass")
-                }
-                .buttonStyle(.plain)
-                .help("Zoom In")
-
-                Divider().frame(height: 16)
-
-                Button {
-                    zoom.fitToWindow()
-                } label: {
-                    Image(systemName: "arrow.up.left.and.arrow.down.right")
-                }
-                .buttonStyle(.plain)
-                .help("Fit to Window")
-
-                Button {
-                    zoom.actualSize()
-                } label: {
-                    Image(systemName: "1.square")
-                }
-                .buttonStyle(.plain)
-                .help("Actual Size (100%)")
-
-                Divider().frame(height: 16)
-
-                // Loupe controls
-                HStack(spacing: 4) {
-                    Button {
-                        loupeEnabled.toggle()
-                    } label: {
-                        Image(systemName: loupeEnabled
-                                ? "magnifyingglass.circle.fill"
-                                : "magnifyingglass.circle")
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundColor(loupeEnabled ? .accentColor : .primary)
-                    .help("Toggle loupe")
-
-                    if loupeEnabled {
-                        Button {
-                            if !loupeLocked { loupeLockedPosition = loupePosition }
-                            loupeLocked.toggle()
-                        } label: {
-                            Image(systemName: loupeLocked ? "lock.fill" : "lock.open")
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundColor(loupeLocked ? .accentColor : .secondary)
-                        .help(loupeLocked ? "Unlock loupe" : "Lock loupe")
-
-                        Text(String(format: "%.1fx", loupeMagnification))
-                            .font(.caption2)
-                            .monospacedDigit()
-                            .foregroundColor(.secondary)
-                            .frame(width: 32)
-
-                        Slider(value: $loupeMagnification, in: 1...8, step: 0.5)
-                            .frame(width: 80)
-                    }
-                }
-
-                Spacer()
-            }, trailing: {
-                // Pin — far right, after split buttons. Keeps this pane on its
-                // current document + page while the global selection changes.
-                Divider().frame(height: 16)
-
-                Button {
-                    if isPinned {
-                        isPinned = false
-                    } else {
-                        pinnedDocumentId = documentId
-                        // Use pageNav.pageIndex (what PDFKit is actually showing),
-                        // not the parent prop pageIndex — in a secondary split pane
-                        // the user may have swiped away from the parent's selection
-                        // before pinning, and pageIndex would reset to page 0 (#2428).
-                        localPageIndex = pageNav.pageIndex
-                        isPinned = true
-                    }
-                } label: {
-                    Image(systemName: isPinned ? "pin.fill" : "pin")
-                        .font(.system(size: 11))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(isPinned ? Color.accentColor : Color.secondary)
-                .help(isPinned ? "Unpin — follow current selection" : "Pin to this document")
-            })
-
-            Divider()
-
             ZStack {
                 PDFPageView(
                     documentId: effectiveDocumentId,
@@ -284,11 +141,45 @@ struct PDFPageWithToolbar: View {
                 }
             }
 
-            // Bottom annotation/editor toolbar — placeholder for tools
-            // (highlight, note, drawing, etc.) that will live here.
-            PaneFilterBar {
-                Spacer(minLength: 0)
-            }
+            Divider()
+
+            // Unified, persistent reader toolbar (#2423 / #2421) — bottom-anchored.
+            // PDF capabilities: page-nav + zoom + loupe + annotation enabled;
+            // the magnifier-panel and image-edit tools render greyed because they
+            // don't apply to a PDF page. Pin lives in the trailing slot, after the
+            // split buttons MiniToolbar injects from the environment.
+            ReaderToolbar(
+                title: documentTitle,
+                onClose: (onClose != nil || isInSplit) ? closePane : nil,
+                isInSplit: isInSplit,
+                pageNav: ReaderPageNav(
+                    pageIndex: pageNav.pageIndex,
+                    pageCount: pageNav.pageCount,
+                    canGoPrevious: pageNav.canGoPrevious,
+                    canGoNext: pageNav.canGoNext,
+                    goPrevious: { pageNav.goToPrevious() },
+                    goNext: { pageNav.goToNext() }
+                ),
+                scalePercent: Int(zoom.scale * 100),
+                zoomIn: { zoom.zoomIn() },
+                zoomOut: { zoom.zoomOut() },
+                fitToWindow: { zoom.fitToWindow() },
+                actualSize: { zoom.actualSize() },
+                magnifierEnabled: nil,
+                loupeEnabled: $loupeEnabled,
+                loupeLocked: Binding(
+                    get: { loupeLocked },
+                    set: { newValue in
+                        if newValue, !loupeLocked { loupeLockedPosition = loupePosition }
+                        loupeLocked = newValue
+                    }
+                ),
+                loupeMagnification: $loupeMagnification,
+                isEditing: nil,
+                onAnnotate: requestAnnotation,
+                isPinned: $isPinned,
+                onTogglePin: togglePin
+            )
         }
     }
 }

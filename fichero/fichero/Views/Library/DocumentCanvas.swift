@@ -17,6 +17,11 @@ struct DocumentCanvas: View {
     var onPageIndexChange: ((Int) -> Void)?
     /// Fired when the user steps to a sibling image in the folder image viewer.
     var onNavigateToDocument: ((String) -> Void)?
+    /// Drives the image reader toolbar's edit button. `nil` greys the tool out
+    /// (e.g. PDFs, which have no in-app editor). Threaded down to the image
+    /// viewer so the edit control lives in the bottom reader toolbar instead of
+    /// floating over the split control (#2421).
+    var isEditing: Binding<Bool>?
 
     enum Content {
         /// A backend storage display image, resolved by document id.
@@ -32,13 +37,15 @@ struct DocumentCanvas: View {
         case .imageStorageDisplay(let docId):
             StorageDisplayImageCanvas(
                 documentId: docId,
-                onNavigateToDocument: onNavigateToDocument
+                onNavigateToDocument: onNavigateToDocument,
+                isEditing: isEditing
             )
         case .imageRendered(let nsImage, let docId):
             ZoomableImagePreview(
                 documentId: docId,
                 renderedImage: nsImage,
-                onNavigateToDocument: onNavigateToDocument
+                onNavigateToDocument: onNavigateToDocument,
+                isEditing: isEditing
             )
         case .pdf(let documentId, let pageIndex):
             PDFPageWithToolbar(
@@ -53,6 +60,7 @@ struct DocumentCanvas: View {
 private struct StorageDisplayImageCanvas: View {
     let documentId: String
     var onNavigateToDocument: ((String) -> Void)?
+    var isEditing: Binding<Bool>?
 
     @EnvironmentObject private var storageService: StorageServiceGenerated
     @State private var image: PlatformImage?
@@ -63,7 +71,8 @@ private struct StorageDisplayImageCanvas: View {
             if image != nil {
                 DocumentCanvas(
                     content: .imageRendered(image: image, documentId: documentId),
-                    onNavigateToDocument: onNavigateToDocument
+                    onNavigateToDocument: onNavigateToDocument,
+                    isEditing: isEditing
                 )
             } else if loadError != nil {
                 Image(systemName: "photo")

@@ -165,20 +165,18 @@ struct EditorView: View {
             containerPlaceholder(doc)
         case .storageDisplay(let documentId):
             let supportsFolderNav = doc.fileType == .image || doc.docType == .page
-            #if os(macOS)
-            ZStack(alignment: .topTrailing) {
-                DocumentCanvas(
-                    content: .imageStorageDisplay(documentId: documentId),
-                    onNavigateToDocument: supportsFolderNav ? onNavigateToDocument : nil
-                )
-                editModeToggle
-            }
-            #else
+            // Image editing is only meaningful for image-backed previews. Passing
+            // the `isEditing` binding into the canvas surfaces the edit control in
+            // the unified bottom reader toolbar (greyed for PDFs) instead of a
+            // floating toggle that overlapped the split control (#2421). On PDFs
+            // and non-mac platforms the binding is nil, so the tool greys out.
+            let isImageEditable = (doc.fileType == .image || doc.docType == .page)
+                && Self.supportsImageEditingPreview
             DocumentCanvas(
                 content: .imageStorageDisplay(documentId: documentId),
-                onNavigateToDocument: supportsFolderNav ? onNavigateToDocument : nil
+                onNavigateToDocument: supportsFolderNav ? onNavigateToDocument : nil,
+                isEditing: isImageEditable ? $isEditing : nil
             )
-            #endif
         case .imageEditor:
             ImageEditorView(
                 document: doc,
@@ -199,35 +197,11 @@ struct EditorView: View {
     }
 
     // MARK: - Edit-mode Toggle
-
-    /// Far-corner toggle that flips the image canvas between view and edit
-    /// mode. Floats at the top-trailing edge so it is visible whether or not
-    /// the document header is shown (the reading surface hides the header). (#1453)
-    #if os(macOS)
-    private var editModeToggle: some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.15)) {
-                isEditing.toggle()
-            }
-        } label: {
-            // Plain icon button matching the canvas toolbar convention (the
-            // PDF loupe toggle): a filled/outline `pencil.circle` pair shows the
-            // selected state via accent tint instead of a grey filled circle, at
-            // the same default icon size as its neighbours. (#1528)
-            Image(systemName: isEditing ? "pencil.circle.fill" : "pencil.circle")
-        }
-        .buttonStyle(.plain)
-        .foregroundColor(isEditing ? .accentColor : .primary)
-        .help(isEditing ? "Done — return to viewing" : "Edit image (crop, rotate, enhance, remove background)")
-        .accessibilityIdentifier("canvasEditModeToggle")
-        // Center within the canvas toolbar's standard band and inset from the
-        // trailing edge so the edit icon sits on the same baseline as the zoom /
-        // loupe icons in the mini-toolbar, instead of floating slightly high
-        // with its own padding (#1556).
-        .frame(height: MiniToolbar<EmptyView, EmptyView>.standardHeight, alignment: .center)
-        .padding(.trailing, 12)
-    }
-    #endif
+    //
+    // The edit toggle moved out of this floating overlay and into the unified
+    // bottom reader toolbar (`ReaderToolbar`), driven by the `isEditing` binding
+    // threaded through `DocumentCanvas`. This removed the overlap with the split
+    // control (#2421). See `previewContent(_:)` `.storageDisplay`.
 
     // MARK: - Text Preview
 

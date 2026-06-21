@@ -24,12 +24,33 @@ struct ZoomableImagePreview: View {
     /// relies on the window-level sibling navigation (#593); the parameter is
     /// kept for API parity with the iOS overlay buttons (#2420).
     var onNavigateToDocument: ((String) -> Void)?
+    /// Drives the host's view↔edit toggle from the unified reader toolbar's edit
+    /// button. `nil` greys the edit tool out (e.g. a context without an editor).
+    /// Threading it here removes the floating edit toggle that used to overlap
+    /// the split control (#2421).
+    var isEditing: Binding<Bool>?
 
-    init(url: URL? = nil, documentId: String? = nil, renderedImage: NSImage? = nil, onNavigateToDocument: ((String) -> Void)? = nil) {
+    init(
+        url: URL? = nil,
+        documentId: String? = nil,
+        renderedImage: NSImage? = nil,
+        onNavigateToDocument: ((String) -> Void)? = nil,
+        isEditing: Binding<Bool>? = nil
+    ) {
         self.url = url
         self.documentId = documentId
         self.renderedImage = renderedImage
         self.onNavigateToDocument = onNavigateToDocument
+        self.isEditing = isEditing
+    }
+
+    /// Annotation tools are present in the unified reader toolbar but their
+    /// region-anchored creation + on-canvas rendering is owned by **#2458**.
+    /// Stub until that lands so the section is visible without orphan writes.
+    private func requestAnnotation(_ tool: ReaderAnnotationTool) {
+        Self.logger.info(
+            "Reader annotation '\(tool.rawValue, privacy: .public)' on image — pending region capture + rendering (#2458)"
+        )
     }
 
     private static let logger = Logger(subsystem: "app.fichero.fichero", category: "ZoomableImagePreview")
@@ -95,96 +116,10 @@ struct ZoomableImagePreview: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Zoom toolbar. Uses MiniToolbar so the image preview header is the
-            // same standard 44pt height as the PDF preview, list mode rail,
-            // knowledge surface, and inspector tab strip — instead of the short
-            // ad-hoc padded strip it used to be (#1555).
-            MiniToolbar {
-                Button(action: zoomOut) {
-                    Image(systemName: "minus.magnifyingglass")
-                }
-                .buttonStyle(.plain)
-                .help("Zoom Out")
-
-                Text("\(Int(scale * 100))%")
-                    .font(.caption)
-                    .monospacedDigit()
-                    .frame(width: 50)
-
-                Button(action: zoomIn) {
-                    Image(systemName: "plus.magnifyingglass")
-                }
-                .buttonStyle(.plain)
-                .help("Zoom In")
-
-                Divider()
-                    .frame(height: 16)
-
-                Button(action: fitToWindow) {
-                    Image(systemName: "arrow.up.left.and.arrow.down.right")
-                }
-                .buttonStyle(.plain)
-                .help("Fit to Window")
-
-                Button(action: actualSize) {
-                    Image(systemName: "1.square")
-                }
-                .buttonStyle(.plain)
-                .help("Actual Size (100%)")
-
-                Divider()
-                    .frame(height: 16)
-
-                // Magnifier panel toggle
-                Button {
-                    magnifierEnabled.toggle()
-                } label: {
-                    Image(systemName: "rectangle.bottomhalf.inset.filled")
-                }
-                .buttonStyle(.plain)
-                .foregroundColor(magnifierEnabled ? .accentColor : .primary)
-                .help("Magnifier Panel")
-
-                // Loupe toggle with zoom controls
-                HStack(spacing: 4) {
-                    Button {
-                        loupeEnabled.toggle()
-                    } label: {
-                        Image(systemName: loupeEnabled ? "magnifyingglass.circle.fill" : "magnifyingglass.circle")
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundColor(loupeEnabled ? .accentColor : .primary)
-                    .help("Loupe (crosshairs follow cursor, Option+move to reposition, lock to freeze)")
-
-                    if loupeEnabled {
-                        Button {
-                            loupeLocked.toggle()
-                        } label: {
-                            Image(systemName: loupeLocked ? "lock.fill" : "lock.open")
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundColor(loupeLocked ? .accentColor : .secondary)
-                        .help(loupeLocked ? "Unlock loupe (crosshairs follow cursor)" : "Lock loupe (freeze view)")
-
-                        Text(String(format: "%.1fx", CGFloat(loupeMagnification)))
-                            .font(.caption2)
-                            .monospacedDigit()
-                            .foregroundColor(.secondary)
-                            .frame(width: 32)
-
-                        Text("\(Int(loupeSize))px")
-                            .font(.caption2)
-                            .monospacedDigit()
-                            .foregroundColor(.secondary.opacity(0.7))
-                    }
-                }
-
-                Spacer()
-            }
-
-            Divider()
-
-            // Main content area
+            // Main content area. The reader toolbar (zoom / magnifier / loupe /
+            // edit / annotation) now lives at the BOTTOM of the canvas via the
+            // shared ReaderToolbar (#2423), so the image and PDF readers present
+            // one identical, persistent bar.
             ZStack(alignment: .topTrailing) {
                 VStack(spacing: 0) {
                     if renderedImage != nil || url != nil {
@@ -265,6 +200,27 @@ struct ZoomableImagePreview: View {
                     .padding(8)
                 }
             }
+
+            Divider()
+
+            // Unified, persistent reader toolbar (#2423 / #2421) — bottom-anchored.
+            // Image capabilities: zoom + magnifier-panel + loupe + image-edit +
+            // annotation enabled; page-navigation renders greyed (a single image
+            // has no pages). Split buttons are injected by MiniToolbar.
+            ReaderToolbar(
+                pageNav: nil,
+                scalePercent: Int(scale * 100),
+                zoomIn: zoomIn,
+                zoomOut: zoomOut,
+                fitToWindow: fitToWindow,
+                actualSize: actualSize,
+                magnifierEnabled: $magnifierEnabled,
+                loupeEnabled: $loupeEnabled,
+                loupeLocked: $loupeLocked,
+                loupeMagnification: $loupeMagnification,
+                isEditing: isEditing,
+                onAnnotate: requestAnnotation
+            )
         }
         .onAppear {
             image = renderedImage ?? url.flatMap { NSImage(contentsOf: $0) }
