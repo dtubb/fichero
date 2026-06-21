@@ -71,6 +71,7 @@ extension ChatView {
 extension ChatView {
     func startNewChat() {
         currentConversation = Conversation()
+        backendConversationId = nil
         selectedDocuments.removeAll()
         inputText = ""
         errorMessage = nil
@@ -91,10 +92,12 @@ extension ChatView {
             do {
                 logger.info("Sending message: \(query)")
 
-                // Call the RAG API
+                // Call the RAG API — pass backendConversationId (nil for first
+                // message). The backend creates the conversation on first POST
+                // and returns its ID; passing a client-generated UUID returns 404.
                 let response = try await chatService.chat(
                     message: query,
-                    conversationId: currentConversation.id,
+                    conversationId: backendConversationId,
                     documentIds: selectedDocuments.isEmpty ? nil : Array(selectedDocuments),
                     includeSources: true,
                     maxSources: 5,
@@ -115,6 +118,7 @@ extension ChatView {
                 )
 
                 await MainActor.run {
+                    backendConversationId = response.conversationId
                     currentConversation.messages.append(assistantMessage)
                     isLoading = false
                     // Notify that conversation was updated (for sidebar refresh)

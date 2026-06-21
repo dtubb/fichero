@@ -61,4 +61,37 @@ final class ChatWithDocsRoutingTests: XCTestCase {
         XCTAssertTrue(source.contains("sidebarState.dropErrorMessage = error.localizedDescription"))
         XCTAssertTrue(source.contains("onOpenChatWithCurrentScope()"))
     }
+
+    // MARK: - #2451: chat-with-document conversationId fix
+
+    func testChatViewTracksBackendConversationId() throws {
+        let source = try Self.appSource("Views/Chat/ChatView.swift")
+        // Confirms the nil-sentinel state variable exists so first POST has no
+        // client-generated UUID (the backend would 404 on an unknown UUID).
+        XCTAssertTrue(source.contains("backendConversationId: String?"))
+    }
+
+    func testSendMessageUsesBackendConversationIdNotLocalUUID() throws {
+        let source = try Self.appSource("Views/Chat/ChatView+Extensions.swift")
+        // First message passes nil so the backend auto-creates the conversation.
+        XCTAssertTrue(source.contains("conversationId: backendConversationId"))
+        // The old pattern (client UUID) must be gone.
+        XCTAssertFalse(source.contains("conversationId: currentConversation.id"))
+    }
+
+    func testBackendConversationIdIsUpdatedAfterFirstResponse() throws {
+        let source = try Self.appSource("Views/Chat/ChatView+Extensions.swift")
+        XCTAssertTrue(source.contains("backendConversationId = response.conversationId"))
+    }
+
+    func testStartNewChatResetsBackendConversationId() throws {
+        let source = try Self.appSource("Views/Chat/ChatView+Extensions.swift")
+        XCTAssertTrue(source.contains("backendConversationId = nil"))
+    }
+
+    func testDocumentScopeIsPassedToRAGRequest() throws {
+        let source = try Self.appSource("Views/Chat/ChatView+Extensions.swift")
+        // documentIds is non-nil only when selectedDocuments is non-empty.
+        XCTAssertTrue(source.contains("documentIds: selectedDocuments.isEmpty ? nil : Array(selectedDocuments)"))
+    }
 }
