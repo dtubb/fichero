@@ -42,6 +42,14 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
     /// persisting it. nil hides the edit affordance (read-only panel).
     var onSave: ((String) async -> Void)?
 
+    /// The owning document store. Passed only by the Content-tab inspector so
+    /// the focused Page Content editor can register its flush with the store —
+    /// an external navigation (image prev/next, inspector tab switch) calls
+    /// `flushActivePageEdit()` before changing the focused document so the
+    /// in-flight edit isn't lost when the editor reseeds (#2476). nil for
+    /// read-only / detached hosts (no flush needed).
+    var documentStore: DocumentStore?
+
     @AppStorage("editor.rulersVisible") private var rulersVisible = true
     @AppStorage("editor.fontName") private var fontName: String = "System"
     @AppStorage("editor.fontSize") private var fontSize: Double = 14
@@ -85,12 +93,14 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
         kind: PanelKind,
         defaultExpanded: Bool = true,
         fillsHeight: Bool = false,
+        documentStore: DocumentStore? = nil,
         onDelete: (() -> Void)? = nil,
         onSave: ((String) async -> Void)? = nil
     ) {
         self.kind = kind
         self.defaultExpanded = defaultExpanded
         self.fillsHeight = fillsHeight
+        self.documentStore = documentStore
         self.onDelete = onDelete
         self.onSave = onSave
 
@@ -173,6 +183,12 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
         // Clip so the editor's AppKit text view can't paint outside the panel's
         // SwiftUI frame onto the attribute strip above it (#1245).
         .clipped()
+        .onDisappear {
+            // Stop offering this editor's flush once it leaves the hierarchy
+            // (tab switched away, document deselected) so a later
+            // flushActivePageEdit() doesn't call into a gone editor (#2476).
+            if isPageContent { documentStore?.unregisterActivePageEdit() }
+        }
         .onChange(of: isExpanded) { _, newValue in
             // Persist the user's choice so it carries across documents
             // and across app launches. See `storageKey(for:)` for keying.
@@ -281,7 +297,19 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
                     contentRevision: editorRevision,
                     onTextChanged: { scheduleAutoSave() },
                     onEditingChanged: { editing in
-                        if !editing { Task { await flushAutoSave() } }
+                        if editing {
+                            // Register this editor's flush so an external
+                            // navigation (image prev/next) or inspector tab
+                            // switch can persist the in-flight edit BEFORE the
+                            // focused document changes and the editor reseeds
+                            // (#2476). Only the Page Content editor registers;
+                            // it's the single editor the Content tab nav affects.
+                            if isPageContent {
+                                documentStore?.registerActivePageEdit { await flushAutoSave() }
+                            }
+                        } else {
+                            Task { await flushAutoSave() }
+                        }
                     },
                     onRulerVisibilityChanged: { visible in
                         if rulersVisible != visible { rulersVisible = visible }

@@ -34,7 +34,14 @@ extension DocumentStore: ObservableDomainStore {
         case "deleted":
             removeDocuments(ids: ids)
         case "updated", "created":
-            pendingPatchIds.formUnion(ids)
+            // Drop the echo of writes THIS device just made — re-fetching and
+            // re-splicing our own save changes the row's identity and forces the
+            // page editor to rebuild (width / cursor / scroll reset, #2478). A
+            // legitimate update from another device has no fresh own-write marker
+            // and is still patched in place (#2479).
+            let remoteIds = ids.filter { !consumeOwnWriteEcho($0) }
+            guard !remoteIds.isEmpty else { return }
+            pendingPatchIds.formUnion(remoteIds)
             reloadDebouncer.schedule { [weak self] in
                 await self?.flushPendingPatches()
             }

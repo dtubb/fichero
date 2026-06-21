@@ -63,7 +63,20 @@ extension ContentView {
 
     /// Select a document by ID
     func selectDocument(withId documentId: String) {
-        if let doc = documentStore.currentDocuments.first(where: { $0.id == documentId }) {
+        guard let doc = documentStore.currentDocuments.first(where: { $0.id == documentId }) else { return }
+        // Image prev/next (and any other id-based navigation) flows through
+        // here. If a Page Content editor has an in-flight edit, persist it via
+        // the store-owned save BEFORE the focused document changes, otherwise
+        // the edit is discarded when the editor reseeds to the new doc (#2476).
+        // Only defer when an editor is actually registered so ordinary
+        // selection stays synchronous.
+        if documentStore.activePageEditFlush != nil {
+            Task { @MainActor in
+                await documentStore.flushActivePageEdit()
+                detailDocument = doc
+                browserSelection = [documentId]
+            }
+        } else {
             detailDocument = doc
             browserSelection = [documentId]
         }

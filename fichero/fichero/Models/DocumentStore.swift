@@ -119,6 +119,32 @@ final class DocumentStore {
     @ObservationIgnored
     var pageContentSaveTasks: [String: Task<String?, Never>] = [:]
 
+    /// Document ids this device just wrote, with the time of the write. Used to
+    /// drop the change-stream ECHO of our own save so a self-echoed
+    /// `document.updated` doesn't re-fetch + re-splice the row (which changes the
+    /// inspector's `document` identity and forces the page editor to rebuild —
+    /// width / cursor / scroll reset, #2478). A genuine update from ANOTHER
+    /// device is keyed differently in time and still applies in place (#2479).
+    /// Entries self-expire via `ownWriteEchoWindow` so a marker can never
+    /// suppress a later, legitimate remote edit to the same document.
+    @ObservationIgnored
+    var recentOwnWrites: [String: Date] = [:]
+
+    /// How long an own-write marker suppresses its echo. The echo arrives over
+    /// SSE within a few hundred ms of the PUT; a generous window absorbs jitter
+    /// while staying far below the cadence of human cross-device edits.
+    @ObservationIgnored
+    let ownWriteEchoWindow: TimeInterval = 5
+
+    /// Flush hook the active page-content editor registers (#2476). An external
+    /// navigation (image prev/next, inspector tab switch) calls
+    /// `flushActivePageEdit()` BEFORE changing the focused document so the
+    /// in-flight edit is persisted via the store-owned save instead of being
+    /// discarded when the editor reseeds to the new document. Nil when no
+    /// editable page-content editor is focused.
+    @ObservationIgnored
+    var activePageEditFlush: (@MainActor () async -> Void)?
+
     // MARK: - Initialization
 
     /// Initialize with a per-window APIClient instance.

@@ -11,6 +11,7 @@ struct DocumentInspector: View {
     var onNavigateToSource: ((String) -> Void)?
 
     @SceneStorage("inspectorSelectedTab") private var selectedTab: InspectorTab = .content
+    @Environment(DocumentStore.self) private var documentStore
     @EnvironmentObject private var entityService: EntityServiceGenerated
     @EnvironmentObject private var artifactService: ArtifactServiceGenerated
     @EnvironmentObject private var kgCurationService: KGCurationServiceGenerated
@@ -141,7 +142,7 @@ struct DocumentInspector: View {
                         .opacity(selectedTab == tab || selectedTab == tabs[index - 1] ? 0 : 1)
                 }
                 Button {
-                    selectedTab = tab
+                    selectTab(tab)
                 } label: {
                     Image(systemName: tab.icon)
                         .font(.system(size: 15, weight: .regular))
@@ -179,6 +180,20 @@ struct DocumentInspector: View {
         .frame(height: MiniToolbar<EmptyView, EmptyView>.standardHeight)
         // XCUITest hook for the inspector tab bar (#1230).
         .accessibilityIdentifier("inspectorTabBar")
+    }
+
+    /// Switch the inspector tab, first persisting any in-flight Page Content
+    /// edit so it isn't lost when the Content tab's editor disappears (#2476).
+    /// Only defers when an editor is registered, so tab switching stays snappy.
+    private func selectTab(_ tab: InspectorTab) {
+        if documentStore.activePageEditFlush != nil {
+            Task { @MainActor in
+                await documentStore.flushActivePageEdit()
+                selectedTab = tab
+            }
+        } else {
+            selectedTab = tab
+        }
     }
 
     // Tab content for the selected tab. One arm per inspector tab; complexity
@@ -372,6 +387,7 @@ private struct DocumentInspectorImageEditsTab: View {
     DocumentInspector(document: nil)
         .environmentObject(library.artifactService)
         .environmentObject(library.entityService)
+        .environment(library.documentStore)
         .environment(library.entityStore)
         .environment(library.claimStore)
         .environment(KGFocusState.shared)
@@ -401,6 +417,7 @@ private struct DocumentInspectorImageEditsTab: View {
     DocumentInspector(document: mockDocument)
         .environmentObject(library.artifactService)
         .environmentObject(library.entityService)
+        .environment(library.documentStore)
         .environment(library.entityStore)
         .environment(library.claimStore)
         .environment(KGFocusState.shared)

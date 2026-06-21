@@ -116,6 +116,12 @@ extension DocumentStore {
             // the last edit wins. We deliberately ignore its outcome and any
             // cancellation of it.
             _ = await previous?.value
+            // Mark this as our own write BEFORE the PUT so the change-stream
+            // echo — which the backend emits the moment it processes the PUT,
+            // and which can race ahead of this task returning — is recognised
+            // and dropped (#2478). Recorded even on failure; a stale marker just
+            // expires via `ownWriteEchoWindow`.
+            self?.markOwnWrite(documentId)
             do {
                 let updated = try await save()
                 self?.refreshLocalContent(updated)
@@ -131,6 +137,45 @@ extension DocumentStore {
             pageContentSaveTasks[documentId] = nil
         }
         return result
+    }
+
+    // MARK: - Self-echo suppression (#2478 / #2479)
+
+    /// Record that this device just wrote `documentId`, so the change-stream
+    /// echo of that write can be dropped instead of triggering a redundant
+    /// re-fetch + re-splice (which resets the page editor — #2478).
+    func markOwnWrite(_ documentId: String) {
+        recentOwnWrites[documentId] = Date()
+    }
+
+    /// Returns true (and consumes the marker) if `documentId` is the echo of a
+    /// write this device just made. A genuine update from another device has no
+    /// fresh marker and returns false, so it still applies in place (#2479).
+    /// Expired markers are treated as not-ours and pruned.
+    func consumeOwnWriteEcho(_ documentId: String) -> Bool {
+        guard let writtenAt = recentOwnWrites[documentId] else { return false }
+        recentOwnWrites[documentId] = nil
+        return Date().timeIntervalSince(writtenAt) <= ownWriteEchoWindow
+    }
+
+    // MARK: - Active page-edit flush (#2476)
+
+    /// Register the focused page-content editor's flush so an external
+    /// navigation can persist its in-flight edit before the document changes.
+    func registerActivePageEdit(_ flush: @escaping @MainActor () async -> Void) {
+        activePageEditFlush = flush
+    }
+
+    /// Clear the registered flush (editor blurred away / disappeared).
+    func unregisterActivePageEdit() {
+        activePageEditFlush = nil
+    }
+
+    /// Persist the focused page-content editor's in-flight edit, if any. Call
+    /// this BEFORE switching the focused document (image prev/next) or the
+    /// inspector tab so the edit isn't lost when the editor reseeds (#2476).
+    func flushActivePageEdit() async {
+        await activePageEditFlush?()
     }
 
     /// Clear all cached data.

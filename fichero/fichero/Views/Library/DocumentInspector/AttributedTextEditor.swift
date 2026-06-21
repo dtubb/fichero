@@ -362,6 +362,13 @@ private func configureTextViewState(
 ) {
     textView.isEditable = configuration.isEditable
     textView.usesInspectorBar = false
+    // Re-affirm horizontal clamping on every update so no reconfiguration
+    // (ruler toggle, content reseed, typography change) can leave the text
+    // view horizontally resizable and let it paint past the inspector pane
+    // width (#2477). The container tracks the view's width; the view never
+    // grows horizontally beyond its frame, so text always wraps to the pane.
+    textView.isHorizontallyResizable = false
+    textView.textContainer?.widthTracksTextView = true
     if scrollView.rulersVisible != configuration.rulersVisible {
         context.coordinator.isApplyingRulerUpdate = true
         textView.usesRuler = configuration.rulersVisible

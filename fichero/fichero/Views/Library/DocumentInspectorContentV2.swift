@@ -92,6 +92,10 @@ struct DocumentInspectorContentV2: View {
                     // In pageContentOnly there's no outer ScrollView, so the
                     // editor fills the pane top-down instead of centring (#1286).
                     fillsHeight: mode == .pageContentOnly,
+                    // Hand the store the page editor's flush so image prev/next
+                    // and inspector tab switches persist the in-flight edit
+                    // before the focused document changes (#2476).
+                    documentStore: documentStore,
                     onSave: { newContent in
                         await savePageContent(newContent)
                     }
