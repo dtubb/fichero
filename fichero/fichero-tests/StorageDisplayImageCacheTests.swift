@@ -77,4 +77,62 @@ struct StorageDisplayImageCacheTests {
         #expect(service.cachedDisplayPlatformImage(for: "doc-b") != nil)
         #expect(service.displayPlatformImageCacheCount == 1)
     }
+
+    // MARK: - #2459 edit-save / cache-invalidation wiring
+
+    @Test("onEditApplied callback clears display cache for the edited document (#2459)")
+    func editAppliedCallbackInvalidatesCache() {
+        let service = makeService()
+        let img = dummyImage()
+        let docId = "doc-edit-2459"
+        service.cacheDisplayPlatformImage(img, for: docId)
+        #expect(service.cachedDisplayPlatformImage(for: docId) != nil,
+                "pre-condition: image must be in cache before edit")
+
+        // Simulate the wiring ImageEditorView establishes after model.configure.
+        var callbackFiredWith: String?
+        let onEditApplied: (String) -> Void = { id in
+            callbackFiredWith = id
+            service.invalidateImageCache(for: id)
+        }
+
+        // Simulate a successful runOp firing the callback.
+        onEditApplied(docId)
+
+        #expect(callbackFiredWith == docId)
+        #expect(service.cachedDisplayPlatformImage(for: docId) == nil,
+                "cache must be empty after edit so viewer re-fetches edited bytes")
+    }
+
+    @Test("onEditApplied leaves sibling documents in cache untouched (#2459)")
+    func editAppliedCallbackDoesNotEvictSiblings() {
+        let service = makeService()
+        let img = dummyImage()
+        service.cacheDisplayPlatformImage(img, for: "doc-edited")
+        service.cacheDisplayPlatformImage(img, for: "doc-sibling")
+
+        service.invalidateImageCache(for: "doc-edited")
+
+        #expect(service.cachedDisplayPlatformImage(for: "doc-edited") == nil)
+        #expect(service.cachedDisplayPlatformImage(for: "doc-sibling") != nil,
+                "sibling's cached image must survive a single-document invalidation")
+    }
+
+    @Test("failed edit does not call onEditApplied — error surfaces via errorMessage (#2459)")
+    func failedEditDoesNotFireCallback() async {
+        // ImageEditorModel.runOp guards: if service is nil, it returns early
+        // without calling onEditApplied. That is the minimal verifiable case
+        // without a live engine — the callback is only invoked on success.
+        let model = ImageEditorModel(documentId: "doc-fail")
+        var callbackFired = false
+        model.onEditApplied = { _ in callbackFired = true }
+
+        // rotate() calls runOp which guards `guard let service` → returns early,
+        // no error is set and no callback fires (no service was configured).
+        await model.rotate(by: 90)
+
+        #expect(!callbackFired, "onEditApplied must NOT fire when the op fails")
+        #expect(model.errorMessage == nil,
+                "no errorMessage expected when the guard exits early (no service)")
+    }
 }

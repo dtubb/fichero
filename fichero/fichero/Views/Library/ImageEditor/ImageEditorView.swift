@@ -32,6 +32,7 @@ struct ImageEditorView: View {
     var selectedDocumentIDs: Set<String> = []
 
     @EnvironmentObject private var apiClient: APIClient
+    @EnvironmentObject private var storageService: StorageServiceGenerated
     @Environment(DocumentStore.self) private var documentStore: DocumentStore
     @State private var model = ImageEditorModel()
 
@@ -90,6 +91,12 @@ struct ImageEditorView: View {
                 documentId: document.id,
                 page: currentPage(for: document)
             )
+            // Invalidate the storage-display cache after every successful edit so
+            // StorageDisplayImageCanvas re-fetches edited bytes when exiting edit
+            // mode (#2459 / #2469).
+            model.onEditApplied = { [storageService] id in
+                storageService.invalidateImageCache(for: id)
+            }
         }
         .onChange(of: model.chain.operations.count) { _, _ in
             // An op changed the rendered image — a stale region would mismap.

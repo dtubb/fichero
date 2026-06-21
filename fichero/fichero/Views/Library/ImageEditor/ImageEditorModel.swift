@@ -37,6 +37,11 @@ final class ImageEditorModel {
     /// The inspector highlights this step; the canvas could show an overlay handle.
     var selectedStepIndex: Int?
 
+    /// Called after every successful edit or reset so the caller can evict
+    /// stale storage-display caches for the affected document. Set from
+    /// `ImageEditorView` once the view is configured.
+    var onEditApplied: ((String) -> Void)?
+
     private var service: ImageEditingServiceGenerated?
     private(set) var documentId: String = ""
 
@@ -208,6 +213,7 @@ final class ImageEditorModel {
         for id in documentIds {
             do {
                 try await operation(service, id)
+                onEditApplied?(id)
             } catch {
                 failures += 1
                 logger.error("batch op failed for \(id): \(error.localizedDescription)")
@@ -226,6 +232,7 @@ final class ImageEditorModel {
         do {
             try await service.resetChain(documentId: documentId)
             chain = ImageEditChain(documentId: documentId, operations: [], updatedAt: nil)
+            onEditApplied?(documentId)
             await reloadPreviews()
         } catch {
             errorMessage = error.localizedDescription
@@ -241,6 +248,7 @@ final class ImageEditorModel {
         defer { isBusy = false }
         do {
             chain = try await body(service)
+            onEditApplied?(documentId)
             showEdited = true
             await reloadPreviews()
         } catch {
