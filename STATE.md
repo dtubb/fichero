@@ -45,6 +45,16 @@ build-gates, and runs verify_all at checkpoints.
 - NEVER run add-swift-file.rb on fichero-tests/* — the test target is a SYNCED group; manual registration
   creates a duplicate PBXGroup with a doubled path → build fails ("input file cannot be found"). #2434 hit this.
 
+## MAINTENANCE (overnight, no code change)
+- #2461 swiftlint: posted a scoping plan as an issue comment — 46 warnings, 0 serious; Batch 1 ~15
+  mechanical (swiftlint --fix safe), Batch 2 ~30 structural (file/type/function length — manual splits,
+  type-check-timeout risk, do file-by-file). Did NOT run --fix (would conflict with in-flight #2098 lane).
+- Stale LOCAL branches needing Daniel's call (NOT deleted — not in --merged):
+  - `worker/ios-reader-polish` — 3 commits, deferred compact-iOS-reader (EditorView conflict). Integrate or drop.
+  - `worktree-agent-a6f4aac6c892361cf` — 1 commit 451bd643 (#2376 onboarding redesign). #2376/#2399/#2401
+    onboarding shipped via OTHER commits so this is likely superseded, but `git cherry` shows `+` (unique,
+    not patch-identical) → confirm it has nothing wanted, then `git branch -D` it.
+
 ## DONE (borderline-design, post-drain) — through 2dae7aab
 - #2405 column/list view: real navigable page+artifact rows instead of count badges (→ reader focus #1463).
 - #2404 sidebar: PDF is now a LEAF (stop expanding pages in the tree) — coherent pair with #2405.
