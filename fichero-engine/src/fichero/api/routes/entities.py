@@ -311,6 +311,16 @@ def _build_alias_to_entity_id_map(db: Database) -> dict[str, str]:
 # =============================================================================
 
 
+def _is_garbage_entity_name(name: str) -> bool:
+    """True when name has no letter characters (same heuristic as Swift isOcrGarbage).
+
+    Catches OCR noise like "12:10", pure-numeric fragments, timestamps, and
+    bbox/coordinate strings that extraction LLMs sometimes emit as entity names.
+    """
+    stripped = name.strip()
+    return len(stripped) < 2 or not any(c.isalpha() for c in stripped)
+
+
 @router.post("", response_model=KnowledgeEntity)
 async def upsert_entity(
     request: EntityUpsertRequest,
@@ -322,6 +332,14 @@ async def upsert_entity(
     actor: str = Depends(request_actor),
 ) -> KnowledgeEntity:
     """Create or update a knowledge entity."""
+    if _is_garbage_entity_name(request.canonical_name):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"canonical_name {request.canonical_name!r} contains no letter characters "
+                "and cannot be stored as an entity name"
+            ),
+        )
     entity = db.get(KnowledgeEntity, request.id) if request.id else None
     is_create = entity is None
     now = datetime.now()

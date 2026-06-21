@@ -33,6 +33,20 @@ struct EntityRow: View {
         }
     }
 
+    /// Canonical name to render, with a safe fallback when canonicalName is
+    /// empty or whitespace-only (guards against upstream extraction noise).
+    var displayLabelForTesting: String { displayLabel }
+
+    private var displayLabel: String {
+        let name = entity.canonicalName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else {
+            let typeStr = entity.entityType?.rawValue ?? "entity"
+            let idSuffix = entity.id.map { String($0.suffix(6)) } ?? "?"
+            return "\(typeStr) ·\(idSuffix)"
+        }
+        return name
+    }
+
     private var browserBody: some View {
         HStack(spacing: 8) {
             Image(systemName: iconForEntityType)
@@ -40,7 +54,7 @@ struct EntityRow: View {
                 .frame(width: 16)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(entity.canonicalName)
+                Text(displayLabel)
                     .font(.subheadline.weight(.medium))
                     .lineLimit(1)
 
@@ -78,7 +92,7 @@ struct EntityRow: View {
     private var digestBody: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(entity.canonicalName)
+                Text(displayLabel)
                     .font(.body)
                 if let type = entity.entityType {
                     Text(type.rawValue.capitalized)

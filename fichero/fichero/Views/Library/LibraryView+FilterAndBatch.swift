@@ -32,8 +32,9 @@ extension LibraryView {
         filteredDocuments = docs.sorted(using: sortOrder)
         thumbnailPrefetchKey = filteredDocuments.map(\.id).joined()
 
-        // Entities
-        var items = entities
+        // Entities — always strip OCR/extraction garbage names (no-letter fragments
+        // like "12:10" that the entity extractor occasionally produces).
+        var items = entities.filter { !OntologyBrowser.isOcrGarbage($0.canonicalName) }
         if !searchText.isEmpty {
             let query = searchText.localizedLowercase
             items = items.filter { entity in
