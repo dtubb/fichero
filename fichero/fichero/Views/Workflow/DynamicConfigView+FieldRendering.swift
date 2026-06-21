@@ -61,7 +61,7 @@ extension DynamicConfigView {
 
                 if type != "boolean", let desc = description {
                     Text(desc)
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }
@@ -270,7 +270,7 @@ extension DynamicConfigView {
 
         if folderOptions.isEmpty {
             Text("No folders found. Create one in Library first.")
-                .font(.caption2)
+                .font(.caption)
                 .foregroundColor(.secondary)
                 .italic()
         }

@@ -147,24 +147,8 @@ struct WorkflowEditor: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .overlay(alignment: .top) {
-            // Save status indicator
-            if showSaveSuccess {
-                HStack {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                    Text("Saved")
-                        .font(.caption)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(.regularMaterial)
-                .cornerRadius(8)
-                .padding(.top, 50)
-                .transition(.move(edge: .top).combined(with: .opacity))
-            }
-        }
-        .animation(.easeInOut(duration: 0.2), value: showSaveSuccess)
+        // Saving is silent — no "Saved" flash/toast (#2438). Save failures still
+        // surface via the alert below.
         .alert("Save Failed", isPresented: Binding(
             get: { saveError != nil },
             set: { if !$0 { saveError = nil } }
