@@ -202,6 +202,12 @@ struct SidebarView: View {
                 // Resubscribe to service changes for new libraries
                 setupServiceObservers()
             }
+            .onChange(of: libraryManager.librariesLoadVersion) { _, _ in
+                // Rebuild after any library finishes loading its data (#2472).
+                // On iPhone, SidebarView.task fires before loadCollections()
+                // completes; this is the stable signal that collections are ready.
+                rebuildCaches()
+            }
             .onChange(of: sidebarMode) { _, newMode in
                 // Switching sections should allow re-selecting the same item in the
                 // new section without onChange being blocked by lastHandledSelectionId

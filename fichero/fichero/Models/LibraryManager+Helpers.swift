@@ -100,6 +100,7 @@ extension LibraryManager {
         await loadLibraryData(for: library)
         await ensureInboxFolder(for: library)
         loadedLibraryIds.insert(library.id)
+        librariesLoadVersion += 1
     }
 
     /// Create the .fichero package directory structure

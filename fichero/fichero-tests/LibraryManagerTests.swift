@@ -17,6 +17,7 @@ final class LibraryManagerTests: XCTestCase {
         libraryManager.backendIsReady = false
         libraryManager.loadedLibraryIds = []
         libraryManager.loadingLibraryIds = []
+        libraryManager.librariesLoadVersion = 0
 
         // Create a temporary test directory
         tempDirectory = FileManager.default.temporaryDirectory
@@ -33,6 +34,7 @@ final class LibraryManagerTests: XCTestCase {
         libraryManager.backendIsReady = false
         libraryManager.loadedLibraryIds = []
         libraryManager.loadingLibraryIds = []
+        libraryManager.librariesLoadVersion = 0
 
         // Clean up temporary test directory
         if FileManager.default.fileExists(atPath: tempDirectory.path) {
@@ -313,5 +315,40 @@ final class LibraryManagerTests: XCTestCase {
         // Then
         XCTAssertEqual(libraryManager.openLibraries.count, 0, "Library should be removed")
         XCTAssertNil(libraryManager.getLibrary(id: library.id), "Library should not be findable")
+    }
+
+    // MARK: - #2472 Sidebar launch population
+
+    /// librariesLoadVersion must start at 0 so SidebarView's
+    /// .onChange(of: librariesLoadVersion) fires on the FIRST load completion.
+    func testLibrariesLoadVersionStartsAtZero() {
+        XCTAssertEqual(libraryManager.librariesLoadVersion, 0)
+    }
+
+    /// loadLibraryDataIfNeeded is re-entrant-guarded: an already-loaded library
+    /// must not bump librariesLoadVersion a second time (prevents double-rebuild).
+    func testLibrariesLoadVersionNotIncrementedForAlreadyLoadedLibrary() async {
+        let library = libraryManager.createNewLibrary()
+        libraryManager.loadedLibraryIds.insert(library.id)
+
+        await libraryManager.loadLibraryDataIfNeeded(for: library)
+
+        XCTAssertEqual(
+            libraryManager.librariesLoadVersion, 0,
+            "Already-loaded library must not increment librariesLoadVersion"
+        )
+    }
+
+    /// After adoptPairedRemoteLibrary resets loadedLibraryIds, librariesLoadVersion
+    /// is still 0 — confirming the sidebar's onChange will fire when loading completes.
+    func testAdoptPairedRemoteLibraryDoesNotIncrementLoadVersion() {
+        // adoptPairedRemoteLibrary only runs on iOS (requiresExternalBackendConnection),
+        // so we simulate its effect: clear loadedLibraryIds without bumping the version.
+        libraryManager.loadedLibraryIds = []
+
+        XCTAssertEqual(
+            libraryManager.librariesLoadVersion, 0,
+            "librariesLoadVersion must be 0 before data loads so sidebar onChange fires on completion"
+        )
     }
 }

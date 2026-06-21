@@ -43,6 +43,11 @@ class LibraryManager: ObservableObject {
     var loadedLibraryIds: Set<UUID> = []
     var loadingLibraryIds: Set<UUID> = []
 
+    /// Bumped each time a library's data finishes loading. SidebarView observes
+    /// this via @ObservedObject to trigger rebuildCaches() — ensures the sidebar
+    /// populates on iPhone even when its .task fires before loadCollections() (#2472).
+    @Published var librariesLoadVersion: Int = 0
+
     /// Represents an open library with its associated resources
     /// Each library has one instance of each service, shared across all windows/tabs viewing this library
     @MainActor
