@@ -693,6 +693,15 @@ extension ContentView {
                 }
             }
 
+            // Reader representation (Transcript/Digest/Graph/Claims/Timeline/
+            // Map) and the global Knowledge Graph view mode switch from the
+            // SAME main-toolbar control here as the macOS menu bar does — one
+            // consistent path across Mac/iPad/iOS (#2431). Each section reads a
+            // focused value and self-disables when its surface isn't focused.
+            RepresentationSection()
+
+            KnowledgeGraphViewModeSection()
+
             if supportsReadingWorkspace {
                 Section("Panes") {
                     Toggle("Library", isOn: $showDocumentGrid)

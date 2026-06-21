@@ -189,4 +189,17 @@ extension FocusedValues {
     /// pass with the same active tab does NOT republish, avoiding per-frame
     /// focused-value churn (#2032).
     @Entry var documentRepresentation: DocumentRepresentationFocus?
+
+    /// The active view mode of the global Knowledge Graph browser
+    /// (List/Graph/Chart/Timeline/Map), published by the focused
+    /// `OntologyBrowser`. Drives the View-menu "Knowledge Graph View" items and
+    /// the iOS toolbar View menu so the KG mode switcher lives in the menu /
+    /// main toolbar instead of a segmented icon row inside the KG pane toolbar
+    /// (#2436, same principle as `documentRepresentation`). Nil when the KG
+    /// browser is not focused, so the menu items disable.
+    ///
+    /// Uses the Equatable `KnowledgeGraphViewModeFocus` wrapper (not a raw
+    /// `Binding`) so SwiftUI dedupes it and the switcher does not republish a
+    /// "new" focused value every `body` pass.
+    @Entry var knowledgeGraphViewMode: KnowledgeGraphViewModeFocus?
 }

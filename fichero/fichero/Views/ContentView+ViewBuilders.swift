@@ -71,22 +71,13 @@ private struct ReadingPaneView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
 
-                Divider().frame(height: 16)
-
-                // View switcher — Transcript / Digest / Graph / Claims / Timeline / Map
-                HStack(spacing: 2) {
-                    ForEach(KGSurfaceTab.allCases) { tab in
-                        Button {
-                            activeTab = tab
-                        } label: {
-                            Image(systemName: tab.icon)
-                                .font(.system(size: 11))
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(activeTab == tab ? Color.accentColor : Color.secondary)
-                        .help(tab.helpText)
-                    }
-                }
+                // The view switcher (Transcript/Digest/Graph/Claims/Timeline/
+                // Map) is NOT a row of icons in this mini-toolbar anymore
+                // (#2432). The mini-toolbar carries reader ACTIONS only (zoom).
+                // Representation switching lives in the main window toolbar /
+                // View menu, driven by the `documentRepresentation` focused
+                // value that `DocumentKGSurface` publishes — `activeTab` below
+                // is updated through that path.
 
                 Spacer(minLength: 0)
 

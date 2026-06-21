@@ -1,6 +1,21 @@
 import FicheroAPIClient
 import SwiftUI
 
+/// Equatable focused-value wrapper for the global Knowledge Graph view mode.
+/// Mirrors `DocumentRepresentationFocus` (#2032): keys equality on the value so
+/// SwiftUI dedupes the focused value, letting the View-menu / main-toolbar
+/// switcher drive the focused `OntologyBrowser` without per-frame churn. Lets
+/// the KG mode switcher live in the menu/toolbar instead of a segmented icon
+/// row inside the KG pane toolbar (#2436).
+struct KnowledgeGraphViewModeFocus: Equatable {
+    let current: OntologyBrowser.ViewMode
+    let select: (OntologyBrowser.ViewMode) -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.current == rhs.current
+    }
+}
+
 /// Browser panel for exploring entities and their associated claims.
 /// Wires #498 — per-library Knowledge Graph view, peer to Workflows
 /// and Activity. Uses `EntityServiceGenerated` (\`/api/entities\` +
@@ -227,6 +242,17 @@ struct OntologyBrowser: View {
         }
         .frame(minWidth: 300, minHeight: 200)
         .modifier(OntologySheetsModifier(browser: self))
+        // Publish the active KG view mode so the View menu / main-toolbar View
+        // menu drives the switch — the segmented icon row no longer lives in
+        // the KG pane toolbar (#2436). Per-window, dedup'd via the Equatable
+        // wrapper (same rationale as `documentRepresentation`).
+        .focusedSceneValue(
+            \.knowledgeGraphViewMode,
+            KnowledgeGraphViewModeFocus(
+                current: viewMode,
+                select: { viewModeRaw = $0.rawValue }
+            )
+        )
         .onAppear { recomputeFilteredEntities() }
         .onChange(of: loadState.entities) { _, _ in recomputeFilteredEntities() }
         .onChange(of: hiddenKindsCSV) { _, _ in recomputeFilteredEntities() }
