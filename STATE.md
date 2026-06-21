@@ -1,3 +1,52 @@
+# STATE — Overnight autonomous run (2026-06-20 ~21:45, Daniel asleep)
+
+Branch `0.0.2`. Daniel is asleep; **work autonomously all night** fixing the filed bug backlog.
+Manager (Claude) dispatches Opus/Sonnet lanes (1–4 at a time, disjoint files), integrates,
+build-gates, and runs verify_all at checkpoints.
+
+## CADENCE (Daniel's rules, this session)
+- **1–4 lanes at a time**, disjoint files, claim issues (status:in-progress). Opus for important
+  UX/structural; sonnet for medium; backend lanes fine on sonnet. NO kimi (it 429-rate-limited).
+- Each lane: own worktree under ~/code/fichero-worktrees/<name>, commit (don't push), report.
+- Manager integrates: review diff, swiftlint/ruff, register new .swift (add-swift-file.rb — now
+  UTF-8-safe), cherry-pick to 0.0.2, BUILD-GATE via Xcode MCP BuildProject(windowtab5)=0 errors
+  (Daniel asleep → no conflict now), push only if green, close issue, remove worktree+branch,
+  shut down the agent. **Run full verify_all.sh at batch checkpoints** (it's slow).
+- `.buttonStyle(.glass)`/`.glassProminent` do NOT compile — bounce. `.glassEffect()` OK.
+- SwiftUI type-checker: large view bodies tip "unable to type-check in reasonable time" — split props.
+- All networking via generated OpenAPI client; no hand-rolled URLSession. App never uses local paths.
+- Do NOT touch the TLS/auth perimeter (cert SAN -9807 = #2382, Daniel's call).
+
+## RUNNING NOW
+- **inspector-editor** (Opus) — #2453 unify on SwiftUI 26 AttributedString TextEditor (delete AppKit
+  NSTextView/ruler editor) + reliability fixes #2476 (flush-on-nav/tab) #2477 (width) #2478
+  (ignore self-echo, stable identity, no whole-editor reload) #2479-consumer (apply remote in place).
+  Decision locked in #2453.
+
+## PRIORITY BANDS for the night (after inspector-editor lands)
+1. **Inspector/reader reliability** (the editor cluster above) — landing.
+2. **Reader/toolbar UX**: #2467 (glass + collapsible reader toolbars; absorbs the bright-blue
+   prev/next + #2419 magnifier + #2421 edit/annot toggle + #2432), #2423 (unified reader mini-toolbar
+   one code path), #2427 (full-res image zoom), #2428 (pin resets page), #2424 (focus ring),
+   #2475/#2474 (sidebar bottom toolbar touch size+glass), #2420 done.
+3. **Workflows editor**: #2443 umbrella — #2437 edges, #2438 saved-flash, #2439 output→Activity,
+   #2440 hidden tools, #2441 editable nodes, #2442 fan-out, #2444 DeepL tool, #2445 help font.
+4. **Mac shell**: #2431 toolbar control, #2450 activity status widget + Inbox header line,
+   #2408 rotation perf, #2409 WKWebView perf, #2436 KG toolbar icons.
+5. **Backend/quiet**: #2480 (embeddings stamp/de-noise), #2469 (image preload spinner),
+   #2470 (KG layers ontology/hermeneutic/interpretation), #2429 (artifact timestamps), #2430 (HTR per-page).
+6. **Node model / research-workspace**: #2446 (research/workspace into library tree), #2447
+   (entities into library), #2081.
+GATED ON DANIEL (perimeter): #2382 cert SAN, #2407 403 race, #2435 KG-pane remote, #2479 transport side.
+
+## DEFERRED BRANCH: worker/ios-reader-polish (3 commits, compact iOS PDF reader #2331/#2332) —
+conflicts with merged reader-zoom on EditorView; resolve + fold into a reader lane, or it's covered.
+
+## DONE THIS SESSION (all pushed to 0.0.2, build-gated where noted)
+Connection: #2448 Activity live-refresh, #2457 iPhone libs, #2465 connect-order, #2466 save -999,
+#2462 doc 404, #2473 workflow-diagram 500, #2451 chat-with-doc (was breaking ALL chat), #2452
+search→pages, #2463 pylance/FTS, OpenAPI conversions (#2410-2414), resumePendingUploads, SpatialView
+split+access fix, swift-file-script UTF-8. ~30 issues closed. Branch cleanup: 139 local branches deleted.
 # STATE — Manager cycle (2026-06-20 ~20:15) — integration done, 3 workers running
 
 **Priority (Daniel, explicit): CONNECTION → MAC SHELL → filed bugs.** Manager delegates
