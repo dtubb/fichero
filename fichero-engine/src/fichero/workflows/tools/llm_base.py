@@ -388,7 +388,10 @@ def find_existing_artifact(
         doc = None
         if document_id:
             doc = db.get(_Document, document_id)
-        if not doc and file_path:
+        # Only fall back to file_path when no document_id was given; if a specific
+        # id was provided but not found, resolving via file_path would silently
+        # return the parent PDF for page-child ids (#2430).
+        if not doc and file_path and not document_id:
             docs = db.query(_Document, path=file_path)
             if docs:
                 doc = docs[0]
@@ -463,7 +466,11 @@ async def save_artifact(
         # Find document
         if document_id:
             doc = db.get(Document, document_id)
-        if not doc and file_path:
+        # Only use file_path fallback when no document_id was given — if an
+        # explicit id was provided but not found, silently resolving to whatever
+        # file_path maps to (e.g. the parent PDF) would write the artifact to
+        # the wrong document (#2430 per-page fan-out regression).
+        if not doc and file_path and not document_id:
             doc = find_document_by_path(db, Document, file_path)
 
         if not doc:
