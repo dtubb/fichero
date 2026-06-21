@@ -54,16 +54,47 @@ def test_word_with_multiple_accents():
 
 
 # ---------------------------------------------------------------------------
-# Defensive fix: half-stripped 'XX form (backslash already removed)
+# #2505: bare 'XX form must NOT be decoded — it corrupts legit apostrophes
 # ---------------------------------------------------------------------------
 
-def test_half_stripped_form_defensive():
-    """When a prior pass stripped backslashes, 'f3 should still decode."""
-    # RTF body already has apostrophe-hex (backslash was removed upstream)
+def test_bare_hex_apostrophe_class_of_92_unchanged():
+    """'92 must not be decoded: '9' and '2' are hex digits, but this is plain text."""
+    rtf = make_rtf("class of '92 reunion")
+    result = _strip_rtf(rtf)
+    assert "'92" in result, f"'92 must survive unchanged, got: {result!r}"
+    assert "\x92" not in result and "\xfd" not in result, (
+        f"'92 must not be decoded to cp1252 byte, got: {result!r}"
+    )
+
+
+def test_bare_hex_apostrophe_49ers_unchanged():
+    """'49 must not be decoded: '4' and '9' are hex digits."""
+    rtf = make_rtf("the '49ers played well")
+    result = _strip_rtf(rtf)
+    assert "'49" in result, f"'49 must survive unchanged, got: {result!r}"
+
+
+def test_bare_hex_apostrophe_rock_n_roll_unchanged():
+    """'n' contains 'n' which is not hex — but test that generic apostrophes survive."""
+    rtf = make_rtf("rock 'n' roll and '98 vintage")
+    result = _strip_rtf(rtf)
+    assert "'98" in result, f"'98 must survive unchanged, got: {result!r}"
+
+
+def test_half_stripped_form_not_decoded():
+    """Bare 'XX form (backslash already removed) is NOT decoded (#2505 fix).
+
+    Dropping the bare-hex pass means 'f3 in body text stays as 'f3 — acceptable
+    because real RTF always has the backslash (\'f3) and the half-stripped form
+    was speculative. The full \'XX form is the correct fix; the bare pass
+    corrupted legitimate apostrophe text in actual corpora.
+    """
     rtf = make_rtf("compareci'f3 actu'f3")
     result = _strip_rtf(rtf)
-    assert "compareció" in result, repr(result)
-    assert "actuó" in result, repr(result)
+    # After fix: bare 'f3 is NOT decoded — compareció does not appear
+    assert "compareció" not in result, (
+        f"Bare 'f3 must not be decoded to ó after #2505 fix, got: {result!r}"
+    )
 
 
 # ---------------------------------------------------------------------------

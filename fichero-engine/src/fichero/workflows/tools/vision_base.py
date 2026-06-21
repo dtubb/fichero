@@ -1547,20 +1547,36 @@ async def process_vision(
                 if file_index < len(existing_text_by_index)
                 else ""
             )
-            # Prefer the page-doc's own id when present (per-page fan
-            # out passes the page child as documents[i]); fall back to
-            # the path-based lookup for callers that don't use the
-            # per-index pattern.
-            doc_id_for_file = (
-                page_doc_id_by_index[file_index]
-                if file_index < len(page_doc_id_by_index)
-                else None
-            ) or resolve_path_to_doc(path_to_doc, file_path)
+            # Compute per-page index first so we can gate the doc-id fallback.
             requested_page_index = (
                 page_index_by_index[file_index]
                 if file_index < len(page_index_by_index)
                 else None
             )
+            # Prefer the page-doc's own id when present (per-page fan
+            # out passes the page child as documents[i]); fall back to
+            # the path-based lookup for callers that don't use the
+            # per-index pattern.  In per-page mode, NEVER fall back to
+            # resolve_path_to_doc: file_path is the parent PDF's path,
+            # so the fallback would silently route to the parent.  If
+            # the page id is missing, skip and warn instead. (#2430)
+            _page_doc_id = (
+                page_doc_id_by_index[file_index]
+                if file_index < len(page_doc_id_by_index)
+                else None
+            )
+            if requested_page_index is not None and not _page_doc_id:
+                logger.warning(
+                    "Per-page mode: missing page doc id for file_index=%d "
+                    "file=%s — skipping artifact to avoid routing to parent PDF",
+                    file_index,
+                    file_path,
+                )
+                results.append({"file": file_path, "text": "", "value": None})
+                texts.append("")
+                values.append(None)
+                continue
+            doc_id_for_file = _page_doc_id or resolve_path_to_doc(path_to_doc, file_path)
             if existing_text:
                 logger.info(
                     f"Pre-extracted text passthrough: {Path(file_path).name} "

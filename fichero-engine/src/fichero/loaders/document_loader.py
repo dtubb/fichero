@@ -52,8 +52,6 @@ _RTF_SKIP_GROUP_WORDS = frozenset(
 
 # Matches RTF hex-escape sequences: \'XX where XX are two hex digits.
 _RTF_HEX_FULL_RE = re.compile(r"\\'([0-9a-fA-F]{2})")
-# Matches the half-stripped form 'XX (backslash already removed by a prior pass).
-_RTF_HEX_BARE_RE = re.compile(r"'([0-9a-fA-F]{2})")
 
 
 def _decode_rtf_hex_byte(m: "re.Match[str]") -> str:
@@ -78,10 +76,10 @@ def _strip_rtf(text: str) -> str:
     # Decode \'XX hex escapes BEFORE the state machine strips control chars.
     # Without this, \'f3 (ó) becomes bare "f3" because the state machine
     # consumes ' as an unknown control symbol and outputs the hex digits as
-    # plain text.  Apply the full form first, then defensively catch the
-    # half-stripped 'XX form (backslash already removed by an earlier pass).
+    # plain text.  Only the full \'XX form is decoded; the bare 'XX form
+    # (no backslash) is NOT decoded because it matches legitimate apostrophes
+    # in plain text ("class of '92", "the '49ers") and corrupts them. (#2505)
     stripped = _RTF_HEX_FULL_RE.sub(_decode_rtf_hex_byte, stripped)
-    stripped = _RTF_HEX_BARE_RE.sub(_decode_rtf_hex_byte, stripped)
 
     output: list[str] = []
     # skip_until_depth > 0: skip content until depth drops below this value.

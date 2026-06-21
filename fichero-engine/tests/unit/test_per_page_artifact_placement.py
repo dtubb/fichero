@@ -584,3 +584,152 @@ class TestPageChildPathNoneIdResolution:
         assert "parent-X-id" not in doc_ids, (
             f"parent-X-id leaked into page_records: {doc_ids}"
         )
+
+
+# ---------------------------------------------------------------------------
+# E. #2430 RESIDUAL: per-page mode + missing page id → skip, not parent fallback
+# ---------------------------------------------------------------------------
+
+class TestPerPageMissingDocIdSkip:
+    """
+    vision_base.py #2430 residual: if page_doc_id_by_index[i] is falsy while
+    requested_page_index is not None (per-page mode), the code MUST skip that
+    file and log a warning rather than falling back to resolve_path_to_doc
+    (which would return the PARENT PDF id via file_path).
+    """
+
+    @pytest.mark.asyncio
+    async def test_missing_page_id_skips_artifact_not_routed_to_parent(self):
+        """
+        A page child dict with id=None in per-page mode → artifact NOT saved.
+
+        Before the fix: resolve_path_to_doc(path_to_doc, file_path) fires →
+        file_path is the parent PDF path → save_artifact(document_id=parent_id).
+        After the fix: the file is skipped (logged warning, continue).
+        """
+        # Page child with no id — simulates a malformed/missing page child dict
+        malformed_page = {
+            "id": None,           # falsy — triggers the bug in unpatched code
+            "path": None,
+            "parent_id": "parent-pdf-id",
+            "sequence": 3,        # non-None sequence → per-page mode
+            "page_content": None,
+            "metadata": {},
+        }
+
+        saved_ids: list[str | None] = []
+
+        async def fake_save_artifact(file_path, content, document_id, **_):
+            saved_ids.append(document_id)
+            return "art-" + str(document_id or "none")
+
+        mock_db = MagicMock()
+        mock_db.get.return_value = MagicMock(metadata={})
+
+        with (
+            patch(
+                "fichero.workflows.tools.vision_base._pdf_page_to_data_uri",
+                return_value="data:image/png;base64,FAKE",
+            ),
+            patch(
+                "fichero.llm.vision",
+                new=AsyncMock(return_value="Page 3 text."),
+            ),
+            patch(
+                "fichero.workflows.tools.vision_base.save_artifact",
+                new=AsyncMock(side_effect=fake_save_artifact),
+            ),
+            patch(
+                "fichero.workflows.tools.vision_base._propagate_to_page_children",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch(
+                "fichero.workflows.tools.vision_base._build_page_records_for_file",
+                return_value=[],
+            ),
+            patch("fichero.db.db_manager") as mock_mgr,
+        ):
+            mock_mgr.get_database.return_value = mock_db
+
+            from fichero.workflows.tools.vision_base import process_vision
+
+            await process_vision(
+                files=["/lib/scan.pdf"],
+                documents=[malformed_page],
+                prompt="Transcribe.",
+                llm_config=_make_llm_config(),
+                library_path="/lib.fichero",
+                task_id=None,
+                tool_config=_make_tool_config(),
+                vision_mode="llm",
+                save_to_db=True,
+            )
+
+        # No artifact must be saved at all — not to the parent PDF
+        assert saved_ids == [], (
+            f"#2430 residual: per-page mode with missing page id must skip "
+            f"save_artifact entirely, got saves to: {saved_ids}"
+        )
+        assert "parent-pdf-id" not in saved_ids, (
+            "Missing page id fell back to parent PDF via resolve_path_to_doc"
+        )
+
+    @pytest.mark.asyncio
+    async def test_normal_per_page_happy_path_still_saves_to_page_child(self):
+        """
+        Regression guard: a well-formed page child with a valid id still works
+        after the missing-id guard is added.
+        """
+        page = _page_child_dict("page-7-id", "parent-pdf-id", sequence=7)
+
+        saved_ids: list[str | None] = []
+
+        async def fake_save_artifact(file_path, content, document_id, **_):
+            saved_ids.append(document_id)
+            return "art-page-7"
+
+        mock_db = MagicMock()
+        mock_db.get.return_value = MagicMock(metadata={})
+
+        with (
+            patch(
+                "fichero.workflows.tools.vision_base._pdf_page_to_data_uri",
+                return_value="data:image/png;base64,FAKE",
+            ),
+            patch(
+                "fichero.llm.vision",
+                new=AsyncMock(return_value="Page 7 text."),
+            ),
+            patch(
+                "fichero.workflows.tools.vision_base.save_artifact",
+                new=AsyncMock(side_effect=fake_save_artifact),
+            ),
+            patch(
+                "fichero.workflows.tools.vision_base._propagate_to_page_children",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch(
+                "fichero.workflows.tools.vision_base._build_page_records_for_file",
+                return_value=[],
+            ),
+            patch("fichero.db.db_manager") as mock_mgr,
+        ):
+            mock_mgr.get_database.return_value = mock_db
+
+            from fichero.workflows.tools.vision_base import process_vision
+
+            await process_vision(
+                files=["/lib/scan.pdf"],
+                documents=[page],
+                prompt="Transcribe.",
+                llm_config=_make_llm_config(),
+                library_path="/lib.fichero",
+                task_id=None,
+                tool_config=_make_tool_config(),
+                vision_mode="llm",
+                save_to_db=True,
+            )
+
+        assert saved_ids == ["page-7-id"], (
+            f"Happy path must still save to page-7-id, got: {saved_ids}"
+        )
