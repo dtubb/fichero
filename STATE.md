@@ -71,9 +71,13 @@ build-gates, and runs verify_all at checkpoints.
     well enough, or (b) if you still want a dedicated swipe-pages compact reader, RE-IMPLEMENT the ~100-line delta
     fresh on current 0.0.2 (re-add iOSPDFReaderView via add-swift-file.rb, re-wire EditorView) — cleaner than
     untangling the stale merge. Your product call on whether (a) or (b).
-  - `worktree-agent-a6f4aac6c892361cf` — 1 commit 451bd643 (#2376 onboarding redesign). #2376/#2399/#2401
-    onboarding shipped via OTHER commits so this is likely superseded, but `git cherry` shows `+` (unique,
-    not patch-identical) → confirm it has nothing wanted, then `git branch -D` it.
+  - `worktree-agent-a6f4aac6c892361cf` — DELETED (was 451bd643, reflog-recoverable). Confirmed superseded:
+    all 4 of its files exist on 0.0.2 + 22 #2376/#2399/#2401 onboarding/pairing commits merged since its base;
+    it was just an early snapshot 0.0.2 evolved past.
+  - NOTE: ~40 other stale local branches exist (codex53-*, gpt-*, ms/*, tmp-*, feat/*, fix/*, opus/sonnet/
+    haiku, …) — accumulated cruft. NOT mass-deleted (each needs per-branch merge verification per the
+    safe-deletion rule). A focused branch-cleanup pass (confirm --merged or superseded, print, then -D)
+    could prune these when you want; low priority, not done blind.
 
 ## DONE (borderline-design, post-drain) — through 2dae7aab
 - #2405 column/list view: real navigable page+artifact rows instead of count badges (→ reader focus #1463).
