@@ -34,43 +34,43 @@ struct Spatial2DCanvas: View {
     var folderScopeId: String?
 
     // Live drag state for the chip currently being moved.
-    @State private var dragItemId: String?
-    @State private var dragTranslation: CGSize = .zero
+    @State var dragItemId: String?
+    @State var dragTranslation: CGSize = .zero
     /// Last-known canvas size, captured each frame so `.onDisappear` can flush
     /// any in-progress drag without access to the `GeometryReader` closure.
-    @State private var lastCanvasSize: CGSize = .zero
+    @State var lastCanvasSize: CGSize = .zero
 
     // Live resize state for the standalone item currently being resized via its
     // corner grab handle (#1748). `resizeItemId` is the item being sized;
     // `resizeSize` is the in-flight card size (committed to w/h on release).
-    @State private var resizeItemId: String?
-    @State private var resizeSize: CGSize = .zero
+    @State var resizeItemId: String?
+    @State var resizeSize: CGSize = .zero
     /// Card size captured when a resize drag begins, so the cumulative gesture
     /// translation isn't compounded against the live (growing) frame.
-    @State private var resizeOrigin: CGSize?
+    @State var resizeOrigin: CGSize?
 
     // Camera (pure view state — never persisted). Zoom is committed; pinchScale
     // is the live in-flight magnification. Pan is committed offset + live drag.
-    @State private var zoom: CGFloat = 1
-    @GestureState private var pinchScale: CGFloat = 1
-    @State private var panOffset: CGSize = .zero
-    @GestureState private var livePan: CGSize = .zero
+    @State var zoom: CGFloat = 1
+    @GestureState var pinchScale: CGFloat = 1
+    @State var panOffset: CGSize = .zero
+    @GestureState var livePan: CGSize = .zero
 
     /// Background-drag intent: pan the camera, or rubber-band a marquee.
-    private enum CanvasMode { case pan, marquee }
-    @State private var canvasMode: CanvasMode = .pan
+    enum CanvasMode { case pan, marquee }
+    @State var canvasMode: CanvasMode = .pan
     /// Live marquee rectangle in screen space (nil when not marqueeing).
-    @State private var marqueeRect: CGRect?
+    @State var marqueeRect: CGRect?
     /// Multi-selection accumulated by the marquee (in addition to the single
     /// `selectedNodeId` tap-selection binding).
-    @State private var marqueeSelection: Set<String> = []
+    @State var marqueeSelection: Set<String> = []
 
-    private let nodeDiameter: CGFloat = 14
+    let nodeDiameter: CGFloat = 14
     /// Non-private so the position-projection extension (in
     /// `Spatial2DCanvasItems.swift`) can read it.
     let padding: CGFloat = 48
-    private let minZoom: CGFloat = 0.25
-    private let maxZoom: CGFloat = 4.0
+    let minZoom: CGFloat = 0.25
+    let maxZoom: CGFloat = 4.0
 
     // MARK: - Level of detail (#2298)
     //
@@ -86,21 +86,21 @@ struct Spatial2DCanvas: View {
     /// the thumbnail fetch (#1744 path); at/above it the real page thumbnail
     /// loads. Picked so a chip's thumbnail is only fetched once it's large
     /// enough on screen to actually read.
-    private let thumbnailZoomThreshold: CGFloat = 0.6
+    let thumbnailZoomThreshold: CGFloat = 0.6
 
     /// Canvas-space margin added around the visible rect so chips just past the
     /// edge still render — avoids pop-in while panning at the current zoom.
-    private let cullMargin: CGFloat = 240
+    let cullMargin: CGFloat = 240
 
-    private var isInteractive: Bool { layoutStore != nil && folderScopeId != nil }
+    var isInteractive: Bool { layoutStore != nil && folderScopeId != nil }
 
     /// Clamped live zoom: committed zoom × in-flight pinch, bounded to range.
-    private var effectiveZoom: CGFloat {
+    var effectiveZoom: CGFloat {
         min(max(zoom * pinchScale, minZoom), maxZoom)
     }
 
     /// Committed pan plus the live drag translation.
-    private var effectiveOffset: CGSize {
+    var effectiveOffset: CGSize {
         CGSize(width: panOffset.width + livePan.width,
                height: panOffset.height + livePan.height)
     }
@@ -113,7 +113,7 @@ struct Spatial2DCanvas: View {
     /// coordinates, so we can cull chips whose base point falls outside it.
     /// Reads `effectiveZoom`/`effectiveOffset`, so the cull updates live as the
     /// camera pans/zooms.
-    private func visibleCanvasRect(in size: CGSize) -> CGRect {
+    func visibleCanvasRect(in size: CGSize) -> CGRect {
         let scale = effectiveZoom
         let offset = effectiveOffset
         let centre = CGPoint(x: size.width / 2, y: size.height / 2)
@@ -182,7 +182,7 @@ struct Spatial2DCanvas: View {
 
     /// Edges + node chips. Extracted so the camera transform applies as a unit.
     @ViewBuilder
-    private func canvasContent(layout: [String: CGPoint], in size: CGSize) -> some View {
+    func canvasContent(layout: [String: CGPoint], in size: CGSize) -> some View {
         let itemPoints = itemPositions(in: size)
         // Combined endpoint lookup: link items can join nodes and/or items.
         let combined = layout.merging(itemPoints) { _, item in item }
@@ -225,7 +225,7 @@ struct Spatial2DCanvas: View {
     }
 
     @ViewBuilder
-    private func chip(for node: MindPalaceNode, at point: CGPoint, base: CGPoint, in size: CGSize, loadThumbnail: Bool) -> some View {
+    func chip(for node: MindPalaceNode, at point: CGPoint, base: CGPoint, in size: CGSize, loadThumbnail: Bool) -> some View {
         let chipView = nodeChip(node, loadThumbnail: loadThumbnail)
             .position(point)
             .zIndex(dragItemId == node.id ? 1 : 0)
@@ -237,7 +237,7 @@ struct Spatial2DCanvas: View {
         }
     }
 
-    private func dragGesture(for node: MindPalaceNode, base: CGPoint, in size: CGSize) -> some Gesture {
+    func dragGesture(for node: MindPalaceNode, base: CGPoint, in size: CGSize) -> some Gesture {
         DragGesture(minimumDistance: 3)
             .onChanged { value in
                 dragItemId = node.id
@@ -254,7 +254,7 @@ struct Spatial2DCanvas: View {
             }
     }
 
-    private func nodeChip(_ node: MindPalaceNode, loadThumbnail: Bool) -> some View {
+    func nodeChip(_ node: MindPalaceNode, loadThumbnail: Bool) -> some View {
         let isSelected = node.id == selectedNodeId || marqueeSelection.contains(node.id)
         return HStack(spacing: 5) {
             // Image / PDF-page nodes render their actual thumbnail (#1744);
@@ -298,7 +298,7 @@ struct Spatial2DCanvas: View {
     /// plumbing — but persists through `persistItemPosition` (single row) since
     /// items have no projector default to pin.
     @ViewBuilder
-    private func itemChip(for item: CanvasItemDisplay, at point: CGPoint, base: CGPoint) -> some View {
+    func itemChip(for item: CanvasItemDisplay, at point: CGPoint, base: CGPoint) -> some View {
         let size = itemSize(for: item)
         let showHandle = isInteractive && item.id == selectedNodeId && item.kind != .link
         let card = CanvasItemView(
@@ -320,7 +320,7 @@ struct Spatial2DCanvas: View {
         }
     }
 
-    private func itemDragGesture(for item: CanvasItemDisplay, base: CGPoint) -> some Gesture {
+    func itemDragGesture(for item: CanvasItemDisplay, base: CGPoint) -> some Gesture {
         DragGesture(minimumDistance: 3)
             .onChanged { value in
                 dragItemId = item.id
@@ -338,4 +338,3 @@ struct Spatial2DCanvas: View {
     }
 
 }
-
