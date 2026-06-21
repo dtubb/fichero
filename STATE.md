@@ -55,7 +55,17 @@ build-gates, and runs verify_all at checkpoints.
   DEFERRED (not done blind): LibraryView.swift is at file-length limit + the in-flight #2098 lane edits
   it — do after #2098 lands to avoid conflict. New issues check (last 24h): nothing newly actionable+small.
 - Stale LOCAL branches needing Daniel's call (NOT deleted — not in --merged):
-  - `worker/ios-reader-polish` — 3 commits, deferred compact-iOS-reader (EditorView conflict). Integrate or drop.
+  - `worker/ios-reader-polish` — DIFF SUMMARY (vs 0.0.2): 3 commits (#2331/#2332/#2100). Adds a NET-NEW
+    compact iOS PDF reader — `iOSPDFReaderView.swift` (+48, not on 0.0.2, not superseded) doing swipe-pages +
+    pinch-zoom via PDFPageView, wired by a 12-line `EditorView.swift` edit, plus `CompactReaderPolicyTests`
+    (+44) and a junk FINDINGS.md. 0.0.2 has NO iOSPDFReader/CompactReader wiring today, so it's real added
+    functionality. BUT the branch base is ~1000 commits stale → a direct cherry-pick conflicts on pbxproj
+    (iOSPDFReaderView registration vs the diverged project file) + FINDINGS.md, and its EditorView edit predates
+    the #2453 editor-unification + reader-zoom changes. DECISION (recommend): do NOT cherry-pick the stale branch.
+    Either (a) DROP it if the shipped reader-zoom (#2417 pinch) + iOS-shell reading already cover iOS PDF reading
+    well enough, or (b) if you still want a dedicated swipe-pages compact reader, RE-IMPLEMENT the ~100-line delta
+    fresh on current 0.0.2 (re-add iOSPDFReaderView via add-swift-file.rb, re-wire EditorView) — cleaner than
+    untangling the stale merge. Your product call on whether (a) or (b).
   - `worktree-agent-a6f4aac6c892361cf` — 1 commit 451bd643 (#2376 onboarding redesign). #2376/#2399/#2401
     onboarding shipped via OTHER commits so this is likely superseded, but `git cherry` shows `+` (unique,
     not patch-identical) → confirm it has nothing wanted, then `git branch -D` it.
