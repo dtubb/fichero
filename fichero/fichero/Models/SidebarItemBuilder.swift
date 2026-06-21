@@ -65,14 +65,13 @@ enum SidebarItemBuilder {
     ///
     /// Included in the sidebar:
     ///   - Folders (navigation containers)
-    ///   - PDFs (first-class containers per #568)
-    ///   - PDF pages — expandable child rows under a PDF, in page order, when it
-    ///     has no structure outline (#2260, reform §6c/§I; a structured PDF shows
-    ///     its chapter outline instead). Each page row's `doc:` id drives the
-    ///     shared inspector. Reverses #581 (which kept pages out entirely).
+    ///   - PDFs (first-class containers per #568) — PDF is a LEAF in the sidebar;
+    ///     pages are reached via the column/content view (#2404). A structured PDF
+    ///     still exposes its chapter outline via buildStructureItems.
     ///
     /// **Not** included in the sidebar:
     ///   - Images, text, docx — stay in the main grid only.
+    ///   - PDF pages — not shown as sidebar children (#2404, reverses #2260).
     ///
     /// The sidebar is for containers, one level of drill-in at a time, like
     /// Finder.
@@ -97,19 +96,12 @@ enum SidebarItemBuilder {
             }
         }
 
-        // Pages are excluded from `visibleDocs`; group them by PDF parent so
-        // they hang as child rows (#2260). Already loaded via `/documents`.
-        let pageChildrenMap = Dictionary(
-            grouping: documents.filter { $0.docType == .page }, by: { $0.parentId ?? "" })
-
         // Recursively build the tree (children sorted by sequence, then name).
         func buildItem(_ doc: Document) -> SidebarItem {
             let raw = childrenMap[doc.id] ?? []
             let documentChildren = raw.sorted(by: childOrder).map { buildItem($0) }
             let structureChildren = buildStructureItems(for: doc, libraryId: libraryId)
-            let pageChildren = pageItems(
-                for: doc, in: pageChildrenMap, hasOutline: !structureChildren.isEmpty, libraryId: libraryId)
-            let combined = documentChildren + structureChildren + pageChildren
+            let combined = documentChildren + structureChildren
             return SidebarItem.fromDocument(doc, libraryId: libraryId, children: combined.isEmpty ? nil : combined)
         }
 
@@ -144,21 +136,6 @@ enum SidebarItemBuilder {
         result.append(contentsOf: rootDocuments.map { buildItem($0) })
 
         return result
-    }
-
-    /// Page child rows for a PDF, in page order, built via `fromDocument` so
-    /// each row's `doc:<id>` id drives the shared inspector. Suppressed when a
-    /// structure outline already exists, to avoid double-listing (#2260).
-    private static func pageItems(
-        for doc: Document,
-        in pageChildrenMap: [String: [Document]],
-        hasOutline: Bool,
-        libraryId: UUID
-    ) -> [SidebarItem] {
-        guard !hasOutline else { return [] }
-        return (pageChildrenMap[doc.id] ?? [])
-            .sorted(by: childOrder)
-            .map { SidebarItem.fromDocument($0, libraryId: libraryId) }
     }
 
     private static func buildStructureItems(
