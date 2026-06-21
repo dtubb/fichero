@@ -261,6 +261,7 @@
 		96DDD5373DEE2458D1D94450 /* BreadcrumbBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAE9F6E549990F086C442F3B /* BreadcrumbBuilder.swift */; };
 		98F8518B04D4313542B237D7 /* PDFPageWithToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CC15CD58C235F143320E172 /* PDFPageWithToolbar.swift */; };
 		9A321613F87806CF952668A1 /* PlatformAliases.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68BDC2DC273F8F91B9CA1B3C /* PlatformAliases.swift */; };
+		9A45089C636C56BF221BD7BC /* MiniToolbarComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC02D722B13BC58D4D4B37B7 /* MiniToolbarComponents.swift */; };
 		9C60CF320CB5560D66695318 /* ArtifactListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 935EF9A7E6549E855A80EA21 /* ArtifactListView.swift */; };
 		9D71A811170D438B938FC1DA /* LibraryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */; };
 		9FB2B2B858EA25B4757ECFEC /* EntitySourceGroupsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8B0073490980740B06C80D7 /* EntitySourceGroupsView.swift */; };
@@ -1025,6 +1026,7 @@
 		C768E2159A6D869E204FC478 /* FileMenuCommands.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FileMenuCommands.swift; sourceTree = "<group>"; };
 		CAA77E9001736B77957513A4 /* NotesBrowserView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NotesBrowserView.swift; sourceTree = "<group>"; };
 		CAAFE05184A40A50ADFC54A9 /* QuickLookPreviewViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuickLookPreviewViews.swift; sourceTree = "<group>"; };
+		CC02D722B13BC58D4D4B37B7 /* MiniToolbarComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MiniToolbarComponents.swift; sourceTree = "<group>"; };
 		CD5D9E12155EC0A6E738B878 /* UsersSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UsersSettingsView.swift; sourceTree = "<group>"; };
 		CE9 /* SidebarItemBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItemBuilder.swift; sourceTree = "<group>"; };
 		CFD4DC8D0E00D06ECFFEA224 /* NoteDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NoteDetailView.swift; sourceTree = "<group>"; };
@@ -1786,6 +1788,7 @@
 				A1BFB4582F0AAC3700EAA55A /* ChatViewToolbar.swift */,
 				A1BFB45A2F0AAC3700EAA55A /* SearchViewToolbar.swift */,
 				A1BFB45B2F0AAC3700EAA55A /* WorkflowToolbar.swift */,
+				CC02D722B13BC58D4D4B37B7 /* MiniToolbarComponents.swift */,
 			);
 			path = Toolbars;
 			sourceTree = "<group>";
@@ -2721,6 +2724,7 @@
 				E2B03B964149B8CDE9958E69 /* ImportServiceGenerated+Upload.swift in Sources */,
 				201090099DFFEC36A41DB652 /* ActivityStore.swift in Sources */,
 				96DDD5373DEE2458D1D94450 /* BreadcrumbBuilder.swift in Sources */,
+				9A45089C636C56BF221BD7BC /* MiniToolbarComponents.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {

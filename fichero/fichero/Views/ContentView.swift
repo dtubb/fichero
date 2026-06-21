@@ -354,6 +354,36 @@ struct ContentView: View {
         }
     }
 
+    /// The NavigationSplitView detail column (centerContent + its modifiers).
+    /// Extracted from `navigationSplitColumn` so neither `some View` expression
+    /// exceeds the Swift type-checker's complexity budget (#"unable to type-check
+    /// this expression in reasonable time").
+    @ViewBuilder
+    private var detailColumn: some View {
+        centerContent
+            .toolbar { detailToolbarContent }
+            // The detail column carries only a MODEST hard floor — the
+            // always-present library-list spine width — NOT the full
+            // per-layout `paneAwareDetailMinWidth`. The full content
+            // reservation lives on the window-min frame in `mainContentView`
+            // (sidebar + detail). Pinning the FULL detail min here made
+            // NavigationSplitView sacrifice the SIDEBAR (whose column min
+            // yields first under pressure) whenever the window narrowed below
+            // sidebar+detail — the sidebar collapsed/disappeared. With a small
+            // floor the sidebar always keeps its `.navigationSplitViewColumnWidth`
+            // min and the CONTENT shrinks/scrolls instead (frame ① bug-fix).
+            .frame(minWidth: CGFloat(ContentView.contentListMinWidth), maxWidth: .infinity)
+            // Publish the per-window inspector binding from the detail
+            // column (always present) rather than the sidebar, which leaves
+            // the hierarchy when collapsed and made ⌘⌥I no-op (#1513/#1451).
+            .focusedSceneValue(\.showInspector, $showInspectorSidebar)
+            // Publish the reading-surface pane toggles so the View menu can
+            // mirror the toolbar buttons for each pane (#1215).
+            .focusedSceneValue(\.showDocumentGrid, $showDocumentGrid)
+            .focusedSceneValue(\.showDocumentCanvas, $showDocumentCanvas)
+            .focusedSceneValue(\.showReadingPane, $showReadingPane)
+    }
+
     /// NavigationSplitView + the FIRST half of its modifier chain.
     /// Split out of `mainContentView` so no single `some View` expression
     /// exceeds the Swift type-checker's complexity budget (#"unable to
@@ -366,31 +396,10 @@ struct ContentView: View {
         ) {
             sidebarContent
         } detail: {
-            centerContent
-                .toolbar { detailToolbarContent }
-                // The detail column carries only a MODEST hard floor — the
-                // always-present library-list spine width — NOT the full
-                // per-layout `paneAwareDetailMinWidth`. The full content
-                // reservation lives on the window-min frame in `mainContentView`
-                // (sidebar + detail). Pinning the FULL detail min here made
-                // NavigationSplitView sacrifice the SIDEBAR (whose column min
-                // yields first under pressure) whenever the window narrowed below
-                // sidebar+detail — the sidebar collapsed/disappeared. With a small
-                // floor the sidebar always keeps its `.navigationSplitViewColumnWidth`
-                // min and the CONTENT shrinks/scrolls instead (frame ① bug-fix).
-                .frame(minWidth: CGFloat(ContentView.contentListMinWidth), maxWidth: .infinity)
-                // Publish the per-window inspector binding from the detail
-                // column (always present) rather than the sidebar, which leaves
-                // the hierarchy when collapsed and made ⌘⌥I no-op (#1513/#1451).
-                .focusedSceneValue(\.showInspector, $showInspectorSidebar)
-                // Publish the reading-surface pane toggles so the View menu can
-                // mirror the toolbar buttons for each pane (#1215).
-                .focusedSceneValue(\.showDocumentGrid, $showDocumentGrid)
-                .focusedSceneValue(\.showDocumentCanvas, $showDocumentCanvas)
-                .focusedSceneValue(\.showReadingPane, $showReadingPane)
+            detailColumn
         }
         .navigationTitle(toolbarTitle)
-        .navigationSubtitle(breadcrumbSubtitle)
+        .modifier(NavigationSubtitleCompat(subtitle: breadcrumbSubtitle))
         .onAppear { handleOnAppear() }
         .onChange(of: documentStore.collections) { old, new in
             handleCollectionsChange(old: old, new: new)
@@ -815,6 +824,22 @@ extension ContentView {
 // `ToolbarItem` holding a search field bound to `$toolbarQuery` would risk the
 // documented duplicate-identifier crash and break the per-mode submit wiring,
 // so content-side search is intentionally deferred (smallest correct change).
+
+// MARK: - Platform compat
+
+/// `.navigationSubtitle` is unavailable in visionOS. This applies it on the
+/// platforms that support it (macOS/iOS) and is a no-op on visionOS, so the
+/// window-title breadcrumb (#2425) compiles for every target.
+private struct NavigationSubtitleCompat: ViewModifier {
+    let subtitle: String
+    func body(content: Content) -> some View {
+        #if os(visionOS)
+        content
+        #else
+        content.navigationSubtitle(subtitle)
+        #endif
+    }
+}
 
 // MARK: - Preview
 #Preview("Library Mode") {
