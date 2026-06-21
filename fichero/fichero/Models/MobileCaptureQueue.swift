@@ -345,6 +345,7 @@ final class MobileCaptureQueueStore: ObservableObject {
         if changed { persistQueue() }
     }
 
+    @discardableResult
     func resumePendingUploads(
         using uploader: some MobileCaptureQueueUploading,
         retryInterruptedUploads: Bool = false
