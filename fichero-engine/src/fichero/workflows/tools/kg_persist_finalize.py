@@ -18,6 +18,7 @@ that remains after raw claims exist.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +37,8 @@ from fichero.workflows.tools.import_artifacts import _coerce_documents
 from fichero.workflows.tools.progress import emit_progress_event
 from fichero.workflows.tools.sources import files_tool
 from fichero.workflows.types import DataType, PortDef, State
+
+logger = logging.getLogger(__name__)
 
 
 def _empty_summary() -> dict[str, int]:
@@ -66,12 +69,22 @@ def _descendant_doc_ids(db, root_ids: list[str]) -> set[str]:
 
 
 def _vector_row_count(db, table_name: str) -> int:
+    # The ONLY legitimate "empty" case is a table that does not exist yet
+    # (first run / never embedded). Gate on it explicitly and return 0.
+    # Any OTHER failure must NOT collapse to 0: a transient error would look
+    # like an empty vector store and silently trigger a full, expensive KG
+    # re-embed of every entity and claim (#2512). Log loudly and propagate.
     try:
         if table_name not in db._lance_tables():
             return 0
         return int(db.lance.open_table(table_name).count_rows())
     except Exception:
-        return 0
+        logger.exception(
+            "Failed to read vector row count for table %r; refusing to report "
+            "0 (a silent 0 would trigger a full KG re-embed)",
+            table_name,
+        )
+        raise
 
 
 @register_tool(
