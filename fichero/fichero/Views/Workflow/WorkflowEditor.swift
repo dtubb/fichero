@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Workflow editor content view - canvas with optional output log
-/// This view goes in the content column, with WorkflowInspector in the detail column
+/// Workflow editor content view - canvas with optional output log.
+/// This view goes in the content column, with WorkflowInspector in the detail column.
 struct WorkflowEditor: View {
     /// Reference to the selected workflow from sidebar (for display info)
     let selectedWorkflow: WorkflowSidebarItem?
@@ -87,63 +87,52 @@ struct WorkflowEditor: View {
                 }
             )
 
-            // Canvas and output log
-            PlatformVSplitView {
-                // Main content area (adapts to displayMode)
-                Group {
-                    switch displayMode {
-                    case .icon:
-                        // Note: WorkflowCanvasView reads nodeStates from @Environment(WorkflowExecutionObserver.self)
-                        WorkflowCanvasView(
-                            workflow: $editingWorkflow,
-                            scale: $scale,
-                            snapToGrid: $snapToGrid
-                        )
-                    case .list:
-                        workflowNodesListView
-                    case .table:
-                        if featureManager.isWorkflowEditorAdvancedViewsEnabled {
-                            workflowNodesTableView
-                        } else {
-                            WorkflowCanvasView(
-                                workflow: $editingWorkflow,
-                                scale: $scale,
-                                snapToGrid: $snapToGrid
-                            )
-                        }
-                    case .map:
-                        // Keep map/table as advanced-mode fallback to avoid adding extra surface in 0.0.1.
-                        WorkflowCanvasView(
-                            workflow: $editingWorkflow,
-                            scale: $scale,
-                            snapToGrid: $snapToGrid
-                        )
-                    case .realitykit:
-                        // RealityKit is a Mind-Palace spatial mode, not a workflow-editor surface —
-                        // fall back to the canvas like .map/.table.
-                        WorkflowCanvasView(
-                            workflow: $editingWorkflow,
-                            scale: $scale,
-                            snapToGrid: $snapToGrid
-                        )
-                    case .spatial, .workspace:
-                        // Collection-only stubs live at the library routing seam.
-                        // In the workflow editor they fall back to the canvas like .map/.realitykit.
+            // Canvas — run output surfaces in the Activity view (#2439)
+            Group {
+                switch displayMode {
+                case .icon:
+                    // Note: WorkflowCanvasView reads nodeStates from @Environment(WorkflowExecutionObserver.self)
+                    WorkflowCanvasView(
+                        workflow: $editingWorkflow,
+                        scale: $scale,
+                        snapToGrid: $snapToGrid
+                    )
+                case .list:
+                    workflowNodesListView
+                case .table:
+                    if featureManager.isWorkflowEditorAdvancedViewsEnabled {
+                        workflowNodesTableView
+                    } else {
                         WorkflowCanvasView(
                             workflow: $editingWorkflow,
                             scale: $scale,
                             snapToGrid: $snapToGrid
                         )
                     }
+                case .map:
+                    // Keep map/table as advanced-mode fallback to avoid adding extra surface in 0.0.1.
+                    WorkflowCanvasView(
+                        workflow: $editingWorkflow,
+                        scale: $scale,
+                        snapToGrid: $snapToGrid
+                    )
+                case .realitykit:
+                    // RealityKit is a Mind-Palace spatial mode, not a workflow-editor surface —
+                    // fall back to the canvas like .map/.table.
+                    WorkflowCanvasView(
+                        workflow: $editingWorkflow,
+                        scale: $scale,
+                        snapToGrid: $snapToGrid
+                    )
+                case .spatial, .workspace:
+                    // Collection-only stubs live at the library routing seam.
+                    // In the workflow editor they fall back to the canvas like .map/.realitykit.
+                    WorkflowCanvasView(
+                        workflow: $editingWorkflow,
+                        scale: $scale,
+                        snapToGrid: $snapToGrid
+                    )
                 }
-                .frame(minHeight: 200)
-
-                // Output log is always visible in 0.0.1 workflow editor.
-                WorkflowOutputLog(
-                    workflow: editingWorkflow,
-                    executionStateOverride: executionState
-                )
-                .frame(minHeight: 100, maxHeight: 250)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
