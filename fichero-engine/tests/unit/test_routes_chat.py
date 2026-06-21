@@ -288,3 +288,65 @@ class TestReorderConversations:
     def test_reorder_missing_conv_returns_404(self, client):
         r = client.post("/api/chat/conversations/reorder", json=["no-such-conv"])
         assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# _get_langchain_llm — model factory fix (#2490)
+# ---------------------------------------------------------------------------
+
+
+class TestGetLangchainLlm:
+    """_get_langchain_llm must route through llm.get_langchain_model (not ChatLiteLLM)."""
+
+    def test_no_chatllm_import_error(self, monkeypatch):
+        """The function must not attempt to import the removed ChatLiteLLM."""
+        from unittest.mock import MagicMock
+
+        fake_model = MagicMock()
+        fake_model.invoke.return_value = MagicMock(content="ok")
+
+        captured_config = {}
+
+        def fake_get_langchain_model(config):
+            captured_config["provider"] = config.provider
+            captured_config["model"] = config.model
+            captured_config["temperature"] = config.temperature
+            captured_config["max_tokens"] = config.max_tokens
+            return fake_model
+
+        fake_db = MagicMock()
+        fake_db.query.return_value = []  # no configured providers → fallback defaults
+
+        monkeypatch.setattr(
+            "fichero.api.routes.chat.get_langchain_model",
+            fake_get_langchain_model,
+        )
+
+        from fichero.api.routes.chat import _get_langchain_llm
+
+        result = _get_langchain_llm(fake_db, provider="openai", model="gpt-4o-mini")
+
+        assert result is fake_model
+        assert captured_config["provider"] == "openai"
+        assert captured_config["model"] == "gpt-4o-mini"
+        assert captured_config["temperature"] == 0.7
+        assert captured_config["max_tokens"] == 2048
+
+    def test_chat_endpoint_uses_central_factory(self, client, monkeypatch):
+        """POST /api/chat succeeds when get_langchain_model returns a stub."""
+        from unittest.mock import MagicMock
+
+        fake_model = MagicMock()
+        fake_model.invoke.return_value = MagicMock(content="Hello from stub")
+
+        monkeypatch.setattr(
+            "fichero.api.routes.chat.get_langchain_model",
+            lambda _config: fake_model,
+        )
+
+        r = client.post(
+            "/api/chat",
+            json={"message": "test", "provider": "openai", "model": "gpt-4o-mini"},
+        )
+        assert r.status_code == 200
+        assert r.json()["message"] == "Hello from stub"

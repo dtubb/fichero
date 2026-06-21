@@ -24,6 +24,7 @@ from fichero.models import (
     Provider as ProviderModel,
 )
 from fichero.keychain import has_api_key
+from fichero.llm import LLMConfig, get_langchain_model
 from fichero.providers import get_provider_info
 from fichero.prompts import compose_system_prompt
 from fichero.retrieval.graph_rag import GraphAwareRetriever
@@ -195,8 +196,6 @@ def _get_langchain_llm(db: Database, provider: str = None, model: str = None):
 
     Uses the unified llm.py interface which supports all providers via LiteLLM.
     """
-    from fichero.llm import get_api_key
-
     # Get first configured provider/model if not specified
     if not provider or not model:
         configured_providers = db.query(ProviderModel, enabled=True)
@@ -220,26 +219,14 @@ def _get_langchain_llm(db: Database, provider: str = None, model: str = None):
     provider_db = db.query(ProviderModel, provider_type=provider)
     api_base = provider_db[0].api_base if provider_db else None
 
-    # Use LiteLLM via langchain
-    from langchain_community.chat_models import ChatLiteLLM
-
-    # Build model name in LiteLLM format
-    if provider in ("ollama", "lmstudio"):
-        model_name = f"ollama/{model}"
-    elif provider == "huggingface":
-        model_name = f"huggingface/{model}"
-    else:
-        model_name = f"{provider}/{model}"
-
-    # Get API key from keychain
-    api_key = get_api_key(provider)
-
-    return ChatLiteLLM(
-        model=model_name,
-        api_key=api_key,
-        temperature=0.7,
-        max_tokens=2048,
-        api_base=api_base,
+    return get_langchain_model(
+        LLMConfig(
+            provider=provider,
+            model=model,
+            temperature=0.7,
+            max_tokens=2048,
+            api_base=api_base,
+        )
     )
 
 
