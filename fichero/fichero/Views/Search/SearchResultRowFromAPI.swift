@@ -26,8 +26,26 @@ struct SearchResultRowFromAPI: View {
 
             // Info
             VStack(alignment: .leading, spacing: 4) {
-                // Document ID (would ideally show name from metadata)
-                if let name = result.metadata["name"]?.value as? String {
+                // For page results: show parent document name with page badge.
+                // For other results: show the document's own name.
+                let parentName = result.metadata["parent_name"]?.value as? String
+                let pageLabel = pageLabelText
+                if let parentName {
+                    HStack(spacing: 6) {
+                        Text(parentName)
+                            .font(.body)
+                            .lineLimit(1)
+                        if let pageLabel {
+                            Text(pageLabel)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.accentColor)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(Color.accentColor.opacity(0.12))
+                                .clipShape(Capsule())
+                        }
+                    }
+                } else if let name = result.metadata["name"]?.value as? String {
                     Text(name)
                         .font(.body)
                         .lineLimit(1)
@@ -128,6 +146,9 @@ struct SearchResultRowFromAPI: View {
     var pageLabelText: String? {
         if let pageLabel = metadataString(keys: ["source_page_label", "page_label"]) {
             return "p. \(pageLabel)"
+        }
+        if let pageNum = Self.metadataInt(from: result, keys: ["page_number"]) {
+            return "p. \(pageNum)"
         }
         return nil
     }

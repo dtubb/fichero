@@ -307,6 +307,8 @@ def _project_pdf_file_hits_to_pages(
         page_metadata["file_type"] = str(best_page.file_type) if best_page.file_type else None
         page_metadata["pdf_parent_id"] = result.document_id
         page_metadata["page_number"] = best_page.sequence
+        if best_page.sequence is not None:
+            page_metadata["page_label"] = best_page.page_label or str(best_page.sequence)
         if isinstance(best_page.metadata, dict):
             page_metadata.update(best_page.metadata)
 
@@ -333,6 +335,93 @@ def _project_pdf_file_hits_to_pages(
     return projected
 
 
+def _enrich_page_results_with_parent_info(
+    db: Database,
+    results: list[SearchResult],
+) -> list[SearchResult]:
+    """Add pdf_parent_id / page_number / page_label / parent_name to page-type results.
+
+    When the vector index returns a page document directly (because pages are
+    indexed individually), the embedding metadata only carries the page's own
+    fields — it has no knowledge of the parent PDF's ID or display name.  This
+    function batch-fetches the page and parent docs and injects the missing
+    fields so that the frontend can show "ParentName — p.N" and navigate to
+    the right page.
+
+    Results that already have pdf_parent_id set (from _project_pdf_file_hits_to_pages)
+    are left unchanged.
+    """
+    # Collect page-type results that don't yet carry parent info.
+    needs_enrichment = [
+        result
+        for result in results
+        if str((result.metadata or {}).get("doc_type") or "").lower() == "page"
+        and not (result.metadata or {}).get("pdf_parent_id")
+    ]
+    if not needs_enrichment:
+        return results
+
+    page_ids = [r.document_id for r in needs_enrichment]
+
+    # Batch-fetch page docs.
+    pages_by_id: dict[str, Document] = {}
+    try:
+        for page in db.query_in(Document, "id", page_ids):
+            pages_by_id[page.id] = page
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("page enrichment: failed to fetch page docs: %s", exc)
+        return results
+
+    # Batch-fetch parent docs.
+    parent_ids = list({
+        page.parent_id
+        for page in pages_by_id.values()
+        if page.parent_id
+    })
+    parents_by_id: dict[str, Document] = {}
+    if parent_ids:
+        try:
+            for parent in db.query_in(Document, "id", parent_ids):
+                parents_by_id[parent.id] = parent
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("page enrichment: failed to fetch parent docs: %s", exc)
+
+    # Rebuild result list, enriching page hits in place.
+    enriched: list[SearchResult] = []
+    for result in results:
+        metadata = result.metadata or {}
+        if str(metadata.get("doc_type") or "").lower() != "page" or metadata.get("pdf_parent_id"):
+            enriched.append(result)
+            continue
+
+        page = pages_by_id.get(result.document_id)
+        if not page or not page.parent_id:
+            enriched.append(result)
+            continue
+
+        parent = parents_by_id.get(page.parent_id)
+        new_metadata = dict(metadata)
+        new_metadata["pdf_parent_id"] = page.parent_id
+        if page.sequence is not None:
+            new_metadata["page_number"] = page.sequence
+            new_metadata["page_label"] = page.page_label or str(page.sequence)
+        if parent:
+            new_metadata["parent_name"] = parent.name
+
+        enriched.append(SearchResult(
+            document_id=result.document_id,
+            score=result.score,
+            content_preview=result.content_preview,
+            metadata=new_metadata,
+            highlights=result.highlights,
+            transcript_excerpts=result.transcript_excerpts,
+            kg_claim_ids=result.kg_claim_ids,
+            kg_entity_ids=result.kg_entity_ids,
+        ))
+
+    return enriched
+
+
 def _run_content_search_sync(
     db: Database,
     request: Any,
@@ -352,6 +441,7 @@ def _run_content_search_sync(
         highlight_results=request.highlight_results,
     )
     results = _project_pdf_file_hits_to_pages(db, results, retrieval_query)
+    results = _enrich_page_results_with_parent_info(db, results)
     return results, len(results), search_stats
 
 
