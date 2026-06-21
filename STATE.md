@@ -28,11 +28,25 @@ build-gates, and runs verify_all at checkpoints.
   SwiftUI 26 AttributedString TextEditor across Mac/iPad/iPhone; ArtifactRichTextCodec RTF boundary;
   Document made @unchecked Sendable for the cross-actor save. ⚠️ NEEDS DANIEL TESTING (rich-text + RTF round-trip).
 - #2439 (run output → Activity, removed editor bottom panel) + #2437 (node/edge spacing).
-- ~15 issues closed. Two worker lanes stalled mid-run (workflow-polish, editor-unify) and were
-  salvaged/redone by the manager — concrete file-pointer briefs avoid stalls.
+- #2429 artifact relative-timestamp in inspector list.
+- #2475 sidebar bottom toolbar — 44pt touch tier (reused MiniToolbarMetricPolicy) + Liquid Glass.
+- #2472 iPhone sidebar empty-on-launch — root-caused (compact .task runs before loadCollections);
+  fixed via @Published librariesLoadVersion + SidebarView.onChange (no withObservationTracking race).
+- **~18 issues closed**, all build-gated green (Xcode BuildProject; verify_all NOT run — GUI-window rule).
+  HEAD = b6428fa2. Three worker lanes stalled mid-run (workflow-polish, editor-unify, + briefly others)
+  and were salvaged/redone/reviewed by the manager — concrete file-pointer briefs avoid stalls.
 
 ## RUNNING NOW
-- **artifact-timestamps** (Sonnet) — #2429 show a timestamp per artifact in the inspector list.
+- Nothing. Isolated-bug queue drained; remaining work is HELD (below) or hard-to-verify backend (#2430).
+
+## MORNING — DANIEL, START HERE
+1. ⚠️ **TEST #2453** (editor unification): rich-text editing (bold/italic/headings) + RTF round-trip
+   (no formatting loss) + save persists, on Mac AND iPad AND iPhone. It deleted the AppKit editor.
+2. Quick-test the other UI changes: image zoom/preload, reader focus ring, entity list (no "12:10"),
+   iPhone sidebar populates on launch, sidebar bottom toolbar tap targets, workflow canvas spacing.
+3. Decide the HELD items below (need your direction).
+4. `worker/ios-reader-polish` branch: integrate (resolve EditorView conflict) or confirm superseded.
+5. #2430 (HTR per-page artifacts) — backend/architectural; best done with engine free for full pytest.
 
 ## HELD FOR DANIEL (don't piecemeal overnight)
 - **Toolbar-rationalization cluster #2431/#2432/#2436/#2423** — design-coupled (one consistent
