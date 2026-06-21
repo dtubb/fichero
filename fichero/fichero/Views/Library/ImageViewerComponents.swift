@@ -2,6 +2,7 @@
 #if canImport(AppKit)
 import AppKit
 #endif
+import FicheroAPIClient
 import OSLog
 import SwiftUI
 
