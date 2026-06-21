@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from fichero.api.main import get_library_database
+from fichero.api.routes.documents import _document_or_404, _normalize_document_id
 from fichero.db import Database
 from fichero.hermeneutics_models import Interpretation
 from fichero.knowledge_models import (
@@ -99,9 +100,8 @@ async def inspector(
     document_id: str,
     db: Database = Depends(get_library_database),
 ) -> DocumentInspectorResponse:
-    doc = db.get(Document, document_id)
-    if doc is None:
-        raise HTTPException(404, f"Document not found: {document_id}")
+    document_id = _normalize_document_id(document_id)
+    doc = _document_or_404(db, document_id)
 
     from fichero.api.routes.claims import _descendant_doc_ids
 
@@ -203,9 +203,8 @@ async def document_outline(
     document_id: str,
     db: Database = Depends(get_library_database),
 ) -> DocumentOutlineResponse:
-    doc = db.get(Document, document_id)
-    if doc is None:
-        raise HTTPException(404, f"Document not found: {document_id}")
+    document_id = _normalize_document_id(document_id)
+    _document_or_404(db, document_id)
 
     from fichero.api.routes.claims import _descendant_doc_ids
 
