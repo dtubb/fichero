@@ -475,6 +475,7 @@ struct ZoomableImagePreview: View {
     }
 
     @Environment(DocumentStore.self) private var documentStore
+    @EnvironmentObject private var storageService: StorageServiceGenerated
 
     @State private var scale: CGFloat = 1.0
     @State private var cursorPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)
@@ -509,6 +510,16 @@ struct ZoomableImagePreview: View {
               index < siblingImageDocs.count - 1 else { return nil }
         let target = siblingImageDocs[index + 1]
         return { onNavigateToDocument(target.id) }
+    }
+
+    /// Document ids in the ±`radius` window around `currentId`, excluding `currentId` itself.
+    /// Static so it can be called in unit tests without a live view (#2469).
+    static func preloadIds(from docs: [Document], currentId: String, radius: Int = 3) -> [String] {
+        guard let index = docs.firstIndex(where: { $0.id == currentId }) else { return [] }
+        let start = max(0, index - radius)
+        let end = min(docs.count - 1, index + radius)
+        guard start <= end else { return [] }
+        return (start...end).compactMap { idx in idx == index ? nil : docs[idx].id }
     }
 
     var body: some View {
@@ -570,12 +581,19 @@ struct ZoomableImagePreview: View {
                 .padding(.horizontal, 24)
             }
         }
+        .task(id: documentId) {
+            guard let docId = documentId else { return }
+            let neighbors = Self.preloadIds(from: siblingImageDocs, currentId: docId)
+            guard !neighbors.isEmpty else { return }
+            await storageService.prefetchDisplayImages(neighbors)
+        }
     }
 }
 
 #if canImport(UIKit)
 #Preview("Compact Zoomable Image Preview") {
     ZoomableImagePreview(renderedImage: UIImage(systemName: "photo"))
+        .environmentObject(StorageServiceGenerated(ficheroClient: FicheroClient(libraryPath: nil)))
         .frame(width: 280, height: 360)
 }
 #endif

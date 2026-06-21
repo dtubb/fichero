@@ -38,17 +38,29 @@ class StorageServiceGenerated: ObservableObject {
     /// oldest-inserted entries are evicted first (FIFO) — by the time the
     /// cache is this full the user has scrolled well past those rows.
     static let thumbnailCacheLimit = 1000
+    /// Upper bound on the display-platform-image cache. Display images are
+    /// larger than thumbnails (~1–5 MB each); a small window around the
+    /// current position is all we need (#2469).
+    static let displayPlatformImageCacheLimit = 12
     static let maxImageBytes = 50 * 1024 * 1024
     static let maxSourceBytes = 500 * 1024 * 1024
     /// Insertion order of thumbnail-cache keys, oldest first. Drives FIFO
     /// eviction in `cacheThumbnail`.
     private var thumbnailCacheOrder: [String] = []
+    /// Insertion order for `displayPlatformImageCache`. FIFO eviction.
+    private var displayPlatformImageCacheOrder: [String] = []
 
     /// Number of cached thumbnails. Exposed for tests (#719 eviction).
     var thumbnailCacheCount: Int { thumbnailCache.count }
 
     /// Cached thumbnail for `docId`, if present. Exposed for tests (#719).
     func cachedThumbnail(for docId: String) -> Image? { thumbnailCache[docId] }
+
+    /// Number of cached display platform images. Exposed for tests (#2469).
+    var displayPlatformImageCacheCount: Int { displayPlatformImageCache.count }
+
+    /// Cached display platform image for `docId`, if present. Exposed for tests (#2469).
+    func cachedDisplayPlatformImage(for docId: String) -> PlatformImage? { displayPlatformImageCache[docId] }
 
     private var baseURL: URL {
         configuredBaseURL ?? EngineConfig.apiBaseURL
@@ -137,8 +149,44 @@ class StorageServiceGenerated: ObservableObject {
         guard let image = PlatformImage(data: data) else {
             throw StorageServiceError.invalidImageData
         }
-        displayPlatformImageCache[docId] = image
+        cacheDisplayPlatformImage(image, for: docId)
         return image
+    }
+
+    /// Insert a display platform image into the bounded cache, evicting the
+    /// oldest entries (FIFO) once the cache exceeds `displayPlatformImageCacheLimit`.
+    /// Internal so the eviction bound can be unit-tested without a live backend. (#2469)
+    func cacheDisplayPlatformImage(_ image: PlatformImage, for docId: String) {
+        if displayPlatformImageCache[docId] == nil {
+            displayPlatformImageCacheOrder.append(docId)
+        }
+        displayPlatformImageCache[docId] = image
+        while displayPlatformImageCacheOrder.count > Self.displayPlatformImageCacheLimit {
+            let oldest = displayPlatformImageCacheOrder.removeFirst()
+            displayPlatformImageCache.removeValue(forKey: oldest)
+        }
+    }
+
+    /// Warm the display-image cache for a batch of document ids (#2469).
+    /// Fires concurrent fetches (max 4 at a time) only for uncached ids.
+    /// Errors are swallowed — this is best-effort prefetch, not critical load.
+    func prefetchDisplayImages(_ docIds: [String]) async {
+        let uncached = docIds.filter { displayPlatformImageCache[$0] == nil }
+        guard !uncached.isEmpty else { return }
+        await withTaskGroup(of: Void.self) { group in
+            var inFlight = 0
+            for docId in uncached {
+                if inFlight >= 4 {
+                    await group.next()
+                    inFlight -= 1
+                }
+                group.addTask { [weak self] in
+                    guard let self else { return }
+                    _ = try? await self.getDisplayPlatformImage(docId)
+                }
+                inFlight += 1
+            }
+        }
     }
 
     /// Fetch display image bytes via the generated OpenAPI client.
@@ -210,6 +258,7 @@ class StorageServiceGenerated: ObservableObject {
         displayPlatformImageCache.removeValue(forKey: docId)
         sourceDataCache.removeValue(forKey: docId)
         thumbnailCacheOrder.removeAll { $0 == docId }
+        displayPlatformImageCacheOrder.removeAll { $0 == docId }
     }
 
     /// Decode image bytes into a SwiftUI `Image` off the main thread.
