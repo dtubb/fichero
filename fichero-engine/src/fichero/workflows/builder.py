@@ -530,12 +530,24 @@ def build_graph(
             continue
         unconditional_by_target.setdefault(edge.target, []).append(edge)
 
+    # Node ids that were registered as _process + _aggregate (not bare name).
+    # Any edge whose TARGET is in this set must route to "{name}_process".
+    parallel_target_node_ids: set[str] = (
+        {target for (_, target) in parallel_edges} | set(route_map_parallel.keys())
+    )
+
+    def _target_graph_name(target_id: str) -> str:
+        name = node_names[target_id]
+        if target_id in parallel_target_node_ids:
+            return f"{name}_process"
+        return name
+
     waiting_edge_targets: set[str] = set()
     for target_id, incoming in unconditional_by_target.items():
         source_names = list(dict.fromkeys(_source_graph_name(edge.source) for edge in incoming))
         if len(source_names) <= 1:
             continue
-        graph.add_edge(source_names, node_names[target_id])
+        graph.add_edge(source_names, _target_graph_name(target_id))
         waiting_edge_targets.add(target_id)
 
     # Add non-parallel edges
@@ -565,7 +577,7 @@ def build_graph(
                 graph.add_conditional_edges(source_name, route_fn, path_map)
             continue
 
-        target_name = node_names[edge.target]
+        target_name = _target_graph_name(edge.target)
 
         if (edge.source, edge.target) in parallel_edges:
             continue  # Already handled above
