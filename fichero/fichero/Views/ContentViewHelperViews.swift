@@ -54,10 +54,11 @@ struct ResizableDivider: View {
     }
 }
 
-/// A border that briefly shows accent color when focus changes, then fades out.
+/// A border that briefly shows accent color when focus changes, then fades out quickly.
 struct FadingFocusBorder: View {
     let isActive: Bool
     @State private var opacity: Double = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         RoundedRectangle(cornerRadius: 0)
@@ -65,17 +66,25 @@ struct FadingFocusBorder: View {
             .opacity(opacity)
             .onChange(of: isActive) { _, active in
                 if active {
-                    withAnimation(.easeIn(duration: 0.15)) {
+                    if reduceMotion {
                         opacity = 1.0
-                    }
-                    Task { @MainActor in
-                        try? await Task.sleep(for: .seconds(2))
-                        withAnimation(.easeOut(duration: 0.8)) {
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(400))
                             opacity = 0
+                        }
+                    } else {
+                        withAnimation(.easeIn(duration: 0.1)) {
+                            opacity = 1.0
+                        }
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(400))
+                            withAnimation(.easeOut(duration: 0.3)) {
+                                opacity = 0
+                            }
                         }
                     }
                 } else {
-                    withAnimation(.easeOut(duration: 0.2)) {
+                    withAnimation(.easeOut(duration: 0.15)) {
                         opacity = 0
                     }
                 }

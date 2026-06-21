@@ -232,7 +232,11 @@ struct PDFPageWithToolbar: View {
                         isPinned = false
                     } else {
                         pinnedDocumentId = documentId
-                        localPageIndex = pageIndex
+                        // Use pageNav.pageIndex (what PDFKit is actually showing),
+                        // not the parent prop pageIndex — in a secondary split pane
+                        // the user may have swiped away from the parent's selection
+                        // before pinning, and pageIndex would reset to page 0 (#2428).
+                        localPageIndex = pageNav.pageIndex
                         isPinned = true
                     }
                 } label: {

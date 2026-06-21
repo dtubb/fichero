@@ -7,7 +7,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Content
 
 /// Identifies which main pane has keyboard focus for Tab cycling
 enum PaneFocus: Hashable {
-    case sidebar, content, preview, inspector
+    case sidebar, content, preview, reading, inspector
 }
 
 // Main content view with three-column navigation

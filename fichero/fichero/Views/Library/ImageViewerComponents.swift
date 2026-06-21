@@ -49,6 +49,8 @@ struct ZoomableImagePreview: View {
     @AppStorage("imagePreview.magnifierLocked") private var magnifierLocked = false
     @AppStorage("imagePreview.loupeLocked") private var loupeLocked = false
 
+    @EnvironmentObject private var storageService: StorageServiceGenerated
+
     @State private var scale: CGFloat = 1.0
     @State private var minScale: CGFloat = 0.01
     @State private var maxScale: CGFloat = 10.0
@@ -58,6 +60,9 @@ struct ZoomableImagePreview: View {
     @State private var image: NSImage?
     @State private var visibleRect: CGRect = .zero  // Normalized 0-1
     @State private var imageCoordinator: ImageWithCursorTracking.Coordinator?
+    // Full-resolution source image fetched lazily when zoom exceeds 1.5× (#2427).
+    @State private var highResImage: NSImage?
+    @State private var isLoadingHighRes = false
 
     private func loadSavedScale(for key: String) -> CGFloat? {
         guard let data = zoomScalesByDocumentJSON.data(using: .utf8),
@@ -184,7 +189,7 @@ struct ZoomableImagePreview: View {
                     if renderedImage != nil || url != nil {
                         ImageWithCursorTracking(
                             url: url ?? URL(fileURLWithPath: "/"),
-                            overrideImage: renderedImage,
+                            overrideImage: highResImage ?? renderedImage,
                             scale: $scale,
                             cursorPosition: $cursorPosition,
                             imageSize: $imageSize,
@@ -300,6 +305,25 @@ struct ZoomableImagePreview: View {
             if let key = scaleKey {
                 saveScale(newScale, for: key)
             }
+            // Fetch full-res source on first zoom past 1.5× (#2427). The display
+            // image is JPEG-compressed for fast loading; once zoomed the source file
+            // provides the real pixel detail. Only fires once per document.
+            if newScale > 1.5, highResImage == nil, !isLoadingHighRes, let docId = documentId {
+                isLoadingHighRes = true
+                Task {
+                    if let data = try? await storageService.getSourceData(docId),
+                       let img = NSImage(data: data) {
+                        highResImage = img
+                        image = img
+                        imageSize = img.size
+                    }
+                    isLoadingHighRes = false
+                }
+            }
+        }
+        .onChange(of: documentId) { _, _ in
+            highResImage = nil
+            isLoadingHighRes = false
         }
         .onKeyPress(.init("+"), phases: .down) { _ in
             zoomIn()
