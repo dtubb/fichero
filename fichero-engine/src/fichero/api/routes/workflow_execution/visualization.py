@@ -132,9 +132,15 @@ async def get_workflow_visualization_png(
         from langchain_core.runnables.graph import MermaidDrawMethod  # noqa: PLC0415
         app = build_graph(workflow_def, enable_parallel=True, checkpointer=None)
 
-        # Get PNG bytes using local PYPPETEER rendering, not remote mermaid.ink
+        # Get PNG bytes using local PYPPETEER rendering, not remote mermaid.ink.
+        # draw_mermaid_png is SYNC and internally calls asyncio.run(), which cannot be
+        # nested inside this async route's running event loop (#2473). Offload to a
+        # worker thread so the nested asyncio.run() gets a loop-free thread.
+        from starlette.concurrency import run_in_threadpool  # noqa: PLC0415
         graph_obj = app.get_graph(xray=xray)
-        png_bytes = graph_obj.draw_mermaid_png(draw_method=MermaidDrawMethod.PYPPETEER)
+        png_bytes = await run_in_threadpool(
+            graph_obj.draw_mermaid_png, draw_method=MermaidDrawMethod.PYPPETEER
+        )
 
         return Response(
             content=png_bytes,
