@@ -1,49 +1,31 @@
-# STATE — Overnight autonomous run (2026-06-22 ~01:25, Daniel asleep, "work all night")
+# STATE — Session end 2026-06-22 (workflow review + integration + GH hygiene)
 
-Branch `0.0.2` @ c703c06e (= origin, clean). Daniel: "it builds, going to bed, keep working."
+Branch `0.0.2` @ **1921aa35** (= origin, clean). Today's project: the **workflow / node-editor** system.
 
-## SHIPPED OVERNIGHT 2026-06-22 (after Daniel slept) — 0.0.2 @ 151d52c9, all baseline-diff 0-new + pushed
-- **#2518 — live results fixed** (5ddb380c): emit gap, NOT transport. complete_run_documents + kg_persist_finalize
-  now emit document/entity/claim.updated → UI refreshes live on completion. + permanent emit-coverage guardrail
-  + key canonicalization + Swift surfaces connect failures (liveUpdatesUnavailable). Activity-progress was a SEPARATE
-  already-working stream (thread_id-keyed) — if Activity still looks frozen, the new surfacing flags it = new ticket.
-- **#2430 — per-page transcription fixed** (151d52c9): multi-page PDFs were processed whole-doc → combined blob on
-  parent because the import page-split SILENTLY FAILED (Kreuzberg). 3 fixes: split-fail-loud + fitz fallback + stamp;
-  on-the-spot split in sources (AUTO-BACKFILLS existing PDFs next run); process_vision guard raises not combined-blob.
-  Sequential fan-out (500-page safe). Catalogue = rollup. RE-TEST: import/re-run a multi-page PDF → per-page artifacts.
-- STILL RUNNING: `backend-hardening-finish` (Opus) #2513 (ValidationError swallow) + #2514 (remove DBWriter) → finishes #90.
-- NEXT (panes free): UI bug batch — #2515 toolbar-overlap, #2517 library-toolbar=reader, #2496-#2504, #2506; #2516 annotation
-  palette (design=floating-right decided); #2507 silent-fallback sweep. iOS branch worker/ios-reader-polish: I build-gate+merge.
+## SHIPPED THIS SESSION (0.0.2, each full-suite baseline-diff 0-new, pushed)
+- **#2513** (3b4b4d8b) — save_artifact ValidationError no longer swallowed (fail loud).
+- **#2514** (4ee6b3be) — removed redundant DBWriter; single connection+lock is the sole write path → **#90 AI Backend Hardening DONE**.
+- **#2523** (1921aa35) — **HTR two-pass saves PER-PAGE** (wired the unwired `documents` port across all 5 transcribe presets + DB-resolve backstop). RE-TEST: run Transcribe HTR on a multi-page PDF or folder of images → each page/image gets its own transcription + review; parent stays empty.
 
-## SHIPPED TODAY (0.0.2, baseline-diff-verified 0-new-failures, pushed)
-- **#2508 KEYSTONE — single DuckDB connection + lock per package** (was per-thread → root of #2430/#2462).
-  P0-P4 + permanent guardrail (bans get_ident keying). Read-after-write now deterministic. c703c06e.
-- #2509 (cross-thread conn) · #2510 (false-success partial write) · #2511 (cache-miss swallow) · #2512 (silent re-embed).
-- Earlier: #2430 DB-race half, #2486 accents, #2490 chat, #2494 editor P0, unified reader toolbar (#2421/#2423/#2488).
+## PARKED — `worker/untested-flag` @ 6d1d7406 (2 commits, NOT landed)
+- "Untested" tool badge (ToolDef.tested; only the 4 HTR-chain tools tested) + "(Untested)" on all presets except Transcribe HTR + the existing-library in-place-rename fix (old names → `_DEPRECATED_PRESET_NAMES`).
+- **TODO before merge:** dedupe catalogue.json duplicate `config` key, fold #2445 (font), gate (ruff + swiftlint + compile-only Swift build — NOT RunAllTests on Daniel's desktop), full backend baseline-diff, cherry-pick to 0.0.2, push, remove worktree.
 
-## RUNNING NOW (lanes, ~/code/fichero-worktrees/, commit-not-push, manager baseline-diff-gates before merge)
-- `backend-hardening-finish` (Opus) — #2513 (ValidationError swallow) + #2514 (remove redundant DBWriter). Finishes #90.
-- `changestream-probe` (Opus) — #2518 FIX: the live-results bug = an EMIT GAP (complete_run_documents + kg_persist_finalize
-  save terminal state but never emit document/entity/claim.updated to the change-stream → UI never refreshes; reload shows all).
-  Fix = 2 best-effort emits + add terminal nodes to check_emit_change_coverage.py + tests. (NOT transport/HTTPS.)
-- QUEUED (tmux full): `transcribe-per-page` — #2430 granularity. PDFs aren't split into page-children (split silently
-  fails at import) → whole-PDF→parent. Folder-of-images works (per-item). Fix: split-on-import fail-loud + per-page guard
-  + bounded fan-out (docs up to 500 pages, ONE page/call). Worktree ready, dispatch when a pane frees.
+## THE WORKFLOW PATHWAY (the project — Workflows & Catalogue Hardening milestone, EPIC #2524)
+Grounded in **docs/reviews/workflow-nodes-backend-review.md**. North star: atomic tools the user chains → tests on one folder → copies the chain to another (per-page save is the contract).
+1. Land Phase 1 (untested-flag, above).
+2. **Structural** (review order): **#2532** P0 parallel-fork (preview graph ≠ run graph) → **#2537** P1 typed Workflow.nodes/edges boundary → **#2533** P1 collapse save-wrappers → **#2534** P2 bundle.
+3. **Editor form** (#2524): clickable/editable edges, user-chosen fan-out, native diagram (#2525 drop Pyppeteer), minitoolbar-at-bottom (#2527), import (#2528), compare-as-sidebar (#2526), font (#2445).
+4. **Capabilities:** HTR bboxes (#2530), human-in-loop (#2529), auto_detect port (#2531), RAG-in-HTR cleanup, exporter (#2535).
 
-## DANIEL'S DECISIONS (this session) — fold into the work
-- Annotation tools (#2516) = floating right-side palette, annotate mode. PDFs auto-split into page docs (#2430).
-- worker/ios-reader-polish (3 unmerged iOS commits) = I build-gate (Mac MCP) + merge; he builds iPhone later.
-- Red baseline (~1218 env-dependent pytest fails + 13 arch-checks): triage soon (real-bug vs needs-deps).
-- Page-level FIRST for everything; catalogue = later rollup reading per-page records. NO silent fallbacks.
-
-## OPEN UI BUGS FILED (frontend, not yet laned): #2515 toolbar overlaps library · #2517 library toolbar=reader toolbar
-  · #2496-#2504 (list-click, merge dest #2499, iPhone merge #2500, mirror libs #2498, iPhone space #2497, RTF-in-list #2502,
-  iOS view 2-tap #2503, 3D-circle #2504) · #2506 editor fast-nav lost-edit.
-
-## NEXT (morning / as panes free): integrate the 2 running lanes (baseline-diff) → dispatch transcribe-per-page (#2430)
-  → then the UI bug batch. #2514 finishes #90 hardening. Follow-up #2513-style: silent-fallback sweep #2507.
+## NEXT SESSION — START HERE
+1. `git -C ~/code/fichero status` — 0.0.2 should be 1921aa35 = origin; worktree `untested-flag` @ 6d1d7406 carries parked work.
+2. Daniel's call: **land `untested-flag`** (do the TODO above) OR start the workflow **structural** lane #2532.
+3. GOTCHA: workers spawned before the overnight run are 50-110 commits STALE — never merge them wholesale (ios-reader-polish would revert ~5000 lines). Verify "closed" issues against actual code (#2445 was closed-but-unfixed).
+4. Build gate on Daniel's active desktop = swiftlint + compile-only `BuildProject`, NEVER RunAllTests/verify_all (launches Fichero GUI windows).
 
 ---
+## (history — overnight 2026-06-22, mostly shipped/superseded this session)
 ## (history below) STATE — Overnight autonomous run (2026-06-20 ~21:45, Daniel asleep)
 
 Branch `0.0.2`. Daniel is asleep; **work autonomously all night** fixing the filed bug backlog.

@@ -1044,3 +1044,9 @@ For representable types with shared coordinator logic (FicheroWebView / WKWebVie
 ## Chat owns first-party sidebar/chat work — 2026-06-18
 
 Sidebar/chat/drag-drop review filed focused issues #2336-#2346 and updated roadmap ownership. `Chat` is the owning milestone for `Chat with Docs` routing, chat document-scope drag/drop payloads, stale `SidebarChatSurface`, command-vs-selection semantics, `onCreateChatWithDocuments`, and model-comparison sidebar visibility. `Library & Reading Surface` owns sidebar/library drag-drop correctness (transactional cross-folder moves, Finder temp cleanup, mixed-provider classification). `Multiplatform — iOS / iPadOS / Mac` owns compact/touch alternatives for sidebar/chat drag-drop.
+
+## Stale worker worktrees: never merge wholesale; "closed" ≠ fixed — 2026-06-22
+
+Workers spawned before a big push sit on a base 50-110 commits behind `0.0.2`. On a worker hand-off, check `git rev-list --count worker/X..0.0.2` (how far BEHIND) FIRST. A large behind-count + a `git diff 0.0.2..worker/X` full of DELETIONS = stale base, NOT new work — merging it reverts the interim work. Examples this session: `ios-reader-polish` (110 behind) would have re-added `db_writer.py`, deleted `change_stream.py` + the HTR tests, −5007 lines; `pdf-page-save` re-solved an already-fixed bug (`save_artifact` + `find_existing_artifact` already had the `and not document_id` guard on 0.0.2). For a stale branch with a real net delta: re-implement the delta fresh on current 0.0.2 or capture it as an issue — do NOT cherry-pick.
+
+Corollary: a CLOSED GitHub issue is NOT proof the fix is in the code. #2445 (help-text font) was closed but `DynamicConfigView+FieldRendering.swift` still had `.caption2`. Always grep the actual code before trusting "closed"; reopen if the code disagrees.
