@@ -23,6 +23,12 @@
         "data_type": "files",
         "required": true,
         "description": "Selected page image paths to transcribe."
+      },
+      {
+        "id": "documents",
+        "data_type": "any",
+        "required": false,
+        "description": "Per-page document metadata (index-aligned with files) so each page gets its own transcription artifact instead of the parent PDF."
       }
     ],
     "output_contract": [
@@ -42,7 +48,8 @@
       "position_x": 120,
       "position_y": 260,
       "inputs": {
-        "files": "$.inputs.files"
+        "files": "$.inputs.files",
+        "documents": "$.inputs.documents"
       },
       "config": {
         "provider_name": "$vision_small",
@@ -72,7 +79,8 @@
       "position_x": 560,
       "position_y": 180,
       "inputs": {
-        "files": "$.inputs.files"
+        "files": "$.inputs.files",
+        "documents": "$.inputs.documents"
       },
       "config": {
         "provider_name": "$vision_medium",
@@ -90,7 +98,8 @@
       "position_x": 780,
       "position_y": 340,
       "inputs": {
-        "files": "$.inputs.files"
+        "files": "$.inputs.files",
+        "documents": "$.inputs.documents"
       },
       "config": {
         "provider_name": "$vision_large",

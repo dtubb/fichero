@@ -44,7 +44,8 @@
       "position_x": 520,
       "position_y": 100,
       "inputs": {
-        "files": "$.nodes.files-source.files"
+        "files": "$.nodes.files-source.files",
+        "documents": "$.nodes.files-source.documents"
       },
       "config": {
         "vision_mode": "auto",
@@ -60,7 +61,8 @@
       "position_x": 520,
       "position_y": 280,
       "inputs": {
-        "files": "$.nodes.files-source.files"
+        "files": "$.nodes.files-source.files",
+        "documents": "$.nodes.files-source.documents"
       },
       "config": {
         "vision_mode": "auto",
@@ -76,7 +78,8 @@
       "position_x": 520,
       "position_y": 460,
       "inputs": {
-        "files": "$.nodes.files-source.files"
+        "files": "$.nodes.files-source.files",
+        "documents": "$.nodes.files-source.documents"
       },
       "config": {
         "vision_mode": "auto",
@@ -106,7 +109,8 @@
       "position_x": 760,
       "position_y": 460,
       "inputs": {
-        "files": "$.nodes.files-source.files"
+        "files": "$.nodes.files-source.files",
+        "documents": "$.nodes.files-source.documents"
       },
       "config": {
         "vision_mode": "llm",
@@ -123,7 +127,8 @@
       "position_x": 520,
       "position_y": 660,
       "inputs": {
-        "files": "$.nodes.files-source.files"
+        "files": "$.nodes.files-source.files",
+        "documents": "$.nodes.files-source.documents"
       },
       "config": {
         "vision_mode": "auto",
@@ -153,7 +158,8 @@
       "position_x": 760,
       "position_y": 660,
       "inputs": {
-        "files": "$.nodes.files-source.files"
+        "files": "$.nodes.files-source.files",
+        "documents": "$.nodes.files-source.documents"
       },
       "config": {
         "vision_mode": "llm",

@@ -42,6 +42,12 @@
             "data_type": "files",
             "required": true,
             "description": "Selected page image paths to transcribe."
+          },
+          {
+            "id": "documents",
+            "data_type": "any",
+            "required": false,
+            "description": "Per-page document metadata (index-aligned with files) so each page gets its own transcription artifact instead of the parent PDF."
           }
         ],
         "output_contract": [
@@ -67,6 +73,13 @@
       "target": "spanish-script-v2",
       "source_port": "files",
       "target_port": "files"
+    },
+    {
+      "id": "edge-files-subworkflow-documents",
+      "source": "files-source",
+      "target": "spanish-script-v2",
+      "source_port": "documents",
+      "target_port": "documents"
     }
   ]
 }

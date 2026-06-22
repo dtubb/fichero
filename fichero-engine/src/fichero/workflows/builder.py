@@ -492,13 +492,18 @@ def build_graph(
             graph.add_node(node_name, node_fn)
 
     # Add edges
-    # Group parallel edges by source node (one conditional edge per source)
+    # Group parallel edges by source node (one conditional edge per source).
+    # A source may connect to the SAME parallel target through more than one
+    # port (e.g. files-source → transcribe carries both `files` and the
+    # per-page `documents` port, #2523). The fan-out is per (source, target),
+    # not per port, so the target must appear ONCE — otherwise the per-file
+    # Send list is duplicated and every page is transcribed twice.
     parallel_by_source: dict[str, list[str]] = {}
     for edge in workflow.edges:
         if (edge.source, edge.target) in parallel_edges:
-            if edge.source not in parallel_by_source:
-                parallel_by_source[edge.source] = []
-            parallel_by_source[edge.source].append(edge.target)
+            targets = parallel_by_source.setdefault(edge.source, [])
+            if edge.target not in targets:
+                targets.append(edge.target)
 
     # Add fan-out conditional edges (one per source node)
     for source_id, target_ids in parallel_by_source.items():

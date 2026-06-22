@@ -458,12 +458,20 @@ class TestLoadPresetFiles:
             node_by_id["transcribe-final-large"]["config"]["provider_name"]
             == "$vision_large"
         )
-        assert node_by_id["transcribe-draft"]["inputs"] == {"files": "$.inputs.files"}
+        # files + documents both forwarded from the sub-workflow inputs so each
+        # PAGE gets its own per-page transcription artifact (#2523), not the
+        # parent PDF. Mirrors the gold-standard HTR documents-port wiring.
+        assert node_by_id["transcribe-draft"]["inputs"] == {
+            "files": "$.inputs.files",
+            "documents": "$.inputs.documents",
+        }
         assert node_by_id["transcribe-review-medium"]["inputs"] == {
-            "files": "$.inputs.files"
+            "files": "$.inputs.files",
+            "documents": "$.inputs.documents",
         }
         assert node_by_id["transcribe-final-large"]["inputs"] == {
-            "files": "$.inputs.files"
+            "files": "$.inputs.files",
+            "documents": "$.inputs.documents",
         }
 
         assert node_by_id["transcribe-final-large"]["config"]["update_page_content"] is True
@@ -487,8 +495,27 @@ class TestLoadPresetFiles:
                 "data_type": "files",
                 "required": True,
                 "description": "Selected page image paths to transcribe.",
-            }
+            },
+            {
+                "id": "documents",
+                "data_type": "any",
+                "required": False,
+                "description": (
+                    "Per-page document metadata (index-aligned with files) so "
+                    "each page gets its own transcription artifact instead of "
+                    "the parent PDF."
+                ),
+            },
         ]
+        # The parent must forward the selected documents into the sub-workflow
+        # so the per-page fix (#2523) survives the sub-workflow boundary.
+        assert any(
+            edge["source"] == "files-source"
+            and edge["target"] == "spanish-script-v2"
+            and edge["source_port"] == "documents"
+            and edge["target_port"] == "documents"
+            for edge in parent_data["edges"]
+        )
         assert config["output_contract"] == [
             {
                 "id": "text",
@@ -1475,6 +1502,94 @@ class TestTranscriptionPresetConvention:
             f"node — remove them from TestTranscriptionPresetConvention.EXCEPTIONS: "
             f"{stale}"
         )
+
+    def test_every_transcribe_node_receives_source_documents(self):
+        """Permanent per-page guard (#2523).
+
+        EVERY shipped `transcribe` / `transcribe_review` node must receive the
+        source's per-page `documents` so each PAGE is transcribed onto its own
+        per-page artifact instead of the whole parent PDF. The files source
+        emits a per-page, index-aligned (files, documents) pair; the transcribe
+        tool reads `inputs["documents"]` to anchor each transcription to the
+        right page document. Without that wiring the workflow silently OCRs the
+        parent PDF and the per-page fix is lost.
+
+        Two equivalent wiring mechanisms are accepted, matching how each preset
+        already routes its `files`:
+          (a) a graph EDGE into the node's `documents` input port
+              (source_port/target_port == "documents"), used by the gold-
+              standard HTR/Paleography/cloud/manuscript/typescript presets and
+              the catalogue/clean-up/translate family; or
+          (b) a static INPUT mapping `inputs["documents"]` resolving a source's
+              documents output, used by the routed Auto-Detect preset and the
+              Spanish Script sub-workflow child (which pull files the same way).
+
+        If you add a new transcription preset, wire its documents port the same
+        way you wire files — this test fails until you do.
+        """
+        missing: list[str] = []
+        for preset in self._all_preset_dicts():
+            edges = preset.get("edges", [])
+            for node in preset.get("nodes", []):
+                if node.get("tool") not in ("transcribe", "transcribe_review"):
+                    continue
+                node_id = node.get("id", "")
+                has_edge = any(
+                    e.get("target") == node_id
+                    and e.get("target_port") == "documents"
+                    for e in edges
+                )
+                has_input = "documents" in (node.get("inputs") or {})
+                if not (has_edge or has_input):
+                    missing.append(f"{preset['name']}[{node_id}]")
+        assert not missing, (
+            "These transcribe/transcribe_review nodes do not receive the "
+            "source `documents` port, so they will transcribe the parent PDF "
+            "instead of each page (#2523). Wire documents into each (an edge "
+            "into the documents port, or inputs['documents']):\n"
+            + "\n".join(missing)
+        )
+
+    def test_spanish_script_child_forwards_documents_contract(self):
+        """The Spanish Script sub-workflow must carry `documents` across the
+        sub-workflow boundary (#2523): the child declares a `documents` input
+        contract and forwards it to every pass, and the parent declares the
+        matching contract entry plus the files-source → sub_workflow documents
+        edge. Without all four, per-page documents never reach the child and
+        the sub-workflow transcribes the parent PDF."""
+        presets = {p["name"]: p for p in self._all_preset_dicts()}
+
+        child = presets["Spanish Script v2 Child Passes (19th-20th C.)"]
+        child_contract_ids = {
+            entry["id"] for entry in child["config"]["input_contract"]
+        }
+        assert "documents" in child_contract_ids, (
+            "child must declare a `documents` input contract"
+        )
+        for node in child["nodes"]:
+            if node.get("tool") in ("transcribe", "transcribe_review"):
+                assert (
+                    node.get("inputs", {}).get("documents")
+                    == "$.inputs.documents"
+                ), f"child node {node['id']} must forward documents"
+
+        parent = presets["Transcribe Spanish Script (19th-20th C.)"]
+        sub_node = next(
+            n for n in parent["nodes"] if n["tool"] == "sub_workflow"
+        )
+        parent_contract_ids = {
+            entry["id"] for entry in sub_node["config"]["input_contract"]
+        }
+        assert "documents" in parent_contract_ids, (
+            "parent sub_workflow node must declare a `documents` input contract"
+        )
+        assert any(
+            e["source"] == "files-source"
+            and e["target"] == sub_node["id"]
+            and e["source_port"] == "documents"
+            and e["target_port"] == "documents"
+            for e in parent["edges"]
+        ), "parent must feed files-source documents into the sub_workflow node"
 
     def test_transcribe_review_nodes_always_use_llm_vision_mode(self):
         """Review nodes (tool='transcribe_review') must always use

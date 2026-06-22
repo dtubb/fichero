@@ -55,6 +55,13 @@
       "target_port": "files"
     },
     {
+      "id": "edge-files-transcribe-documents",
+      "source": "files-source",
+      "target": "transcribe",
+      "source_port": "documents",
+      "target_port": "documents"
+    },
+    {
       "id": "edge-transcribe-translate",
       "source": "transcribe",
       "target": "translate",

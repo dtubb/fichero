@@ -157,6 +157,13 @@
       "target_port": "files"
     },
     {
+      "id": "e-files-transcribe-documents",
+      "source": "files-source",
+      "target": "transcribe",
+      "source_port": "documents",
+      "target_port": "documents"
+    },
+    {
       "id": "e-transcribe-extract_all-text",
       "source": "transcribe",
       "target": "extract_all",
