@@ -2,6 +2,19 @@
 
 Branch `0.0.2` @ c703c06e (= origin, clean). Daniel: "it builds, going to bed, keep working."
 
+## SHIPPED OVERNIGHT 2026-06-22 (after Daniel slept) — 0.0.2 @ 151d52c9, all baseline-diff 0-new + pushed
+- **#2518 — live results fixed** (5ddb380c): emit gap, NOT transport. complete_run_documents + kg_persist_finalize
+  now emit document/entity/claim.updated → UI refreshes live on completion. + permanent emit-coverage guardrail
+  + key canonicalization + Swift surfaces connect failures (liveUpdatesUnavailable). Activity-progress was a SEPARATE
+  already-working stream (thread_id-keyed) — if Activity still looks frozen, the new surfacing flags it = new ticket.
+- **#2430 — per-page transcription fixed** (151d52c9): multi-page PDFs were processed whole-doc → combined blob on
+  parent because the import page-split SILENTLY FAILED (Kreuzberg). 3 fixes: split-fail-loud + fitz fallback + stamp;
+  on-the-spot split in sources (AUTO-BACKFILLS existing PDFs next run); process_vision guard raises not combined-blob.
+  Sequential fan-out (500-page safe). Catalogue = rollup. RE-TEST: import/re-run a multi-page PDF → per-page artifacts.
+- STILL RUNNING: `backend-hardening-finish` (Opus) #2513 (ValidationError swallow) + #2514 (remove DBWriter) → finishes #90.
+- NEXT (panes free): UI bug batch — #2515 toolbar-overlap, #2517 library-toolbar=reader, #2496-#2504, #2506; #2516 annotation
+  palette (design=floating-right decided); #2507 silent-fallback sweep. iOS branch worker/ios-reader-polish: I build-gate+merge.
+
 ## SHIPPED TODAY (0.0.2, baseline-diff-verified 0-new-failures, pushed)
 - **#2508 KEYSTONE — single DuckDB connection + lock per package** (was per-thread → root of #2430/#2462).
   P0-P4 + permanent guardrail (bans get_ident keying). Read-after-write now deterministic. c703c06e.
