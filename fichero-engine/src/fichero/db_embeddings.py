@@ -457,6 +457,30 @@ class DatabaseEmbeddingMixin:
         logger.info("Reindexed %s/%s documents", indexed, total)
         return indexed
 
+    def embed_many(
+        self,
+        docs: list[Any],
+        *,
+        mode: Literal["passage", "page"] = "passage",
+    ) -> int:
+        """Embed a batch of documents with one forward pass and one append.
+
+        Additive bulk path for the 100k-image problem (#2542): pair it with
+        ``Database.save_many`` so a batch of imported docs persists in one
+        DuckDB transaction and embeds/appends to LanceDB once, instead of N
+        per-doc ``embed`` calls (each its own forward pass + micro-append).
+
+        Reuses the already-tested ``_embed_document_batch`` machinery (single
+        ``_embed_texts`` forward pass + one ``save_vectors`` append), so the
+        per-page single-doc ``embed`` contract is untouched. A batch-level
+        failure falls back to per-doc embedding inside ``_embed_document_batch``
+        (logged, never silently dropped). Returns the number of docs embedded.
+        """
+        docs = [doc for doc in docs if doc is not None]
+        if not docs:
+            return 0
+        return len(self._embed_document_batch(docs, mode=mode))
+
     def _embed_document_batch(
         self,
         docs: list[Any],

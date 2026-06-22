@@ -45,6 +45,7 @@ from datetime import datetime
 import math
 import json
 import logging
+import os
 import re
 import threading
 import time
@@ -80,6 +81,25 @@ _VALID_IDENTIFIER = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 _DUCKDB_WRITE_CONFLICT_RETRIES = 3
 _DUCKDB_WRITE_CONFLICT_BACKOFF_SECONDS = 0.01
+
+
+def _vector_compaction_interval() -> int:
+    """How many LanceDB appends to a table before an automatic compaction.
+
+    At 100k images the save path does one tiny LanceDB append per document,
+    leaving 100k micro-fragments that rot read performance and pile up
+    compaction debt (#2542). We bound that by running ``table.optimize()``
+    (compaction + prune) every N appends, NOT on every write — compacting on
+    every append would be strictly worse than the problem it solves.
+
+    0 (or a negative value) disables the automatic trigger; callers can still
+    invoke ``Database.compact_vectors()`` explicitly.
+    """
+    raw = os.getenv("FICHERO_VECTOR_COMPACTION_INTERVAL", "200").strip()
+    try:
+        return int(raw)
+    except ValueError:
+        return 200
 
 
 def _collect_folder_descendants_helper(conn: duckdb.DuckDBPyConnection, folder_id: str) -> set[str]:
@@ -387,6 +407,9 @@ class Database(DatabaseEmbeddingMixin):
         self._embedding_model_name = None
         self._tables_created: set[str] = set()
         self._lock = threading.RLock()
+        # Per-table count of LanceDB appends since the last compaction. Drives
+        # the bounded auto-compaction trigger in save_vectors (#2542).
+        self._vector_append_counts: dict[str, int] = {}
 
         # Migrate tables if needed
         from fichero.db_migrations import (
@@ -547,6 +570,66 @@ class Database(DatabaseEmbeddingMixin):
     # Core CRUD Operations
     # =========================================================================
 
+    @staticmethod
+    def _dump_row(obj: BaseModel) -> dict[str, Any]:
+        """Serialise a Pydantic instance into a DuckDB-ready column dict.
+
+        Excludes computed fields and JSON-encodes nested structures, exactly as
+        the single-row ``save`` path does. Shared with ``save_many`` so the
+        batched path produces byte-identical column values (#2542).
+        """
+        model_cls = type(obj)
+        computed_keys = (
+            set(model_cls.model_computed_fields.keys())
+            if hasattr(model_cls, "model_computed_fields")
+            else set()
+        )
+        data = obj.model_dump(exclude=computed_keys)
+
+        # Convert dict/list/tuple/Path fields for DuckDB (recursively handle
+        # nested Pydantic models with datetimes).
+        def _json_safe(value):
+            if isinstance(value, BaseModel):
+                return _json_safe(value.model_dump())
+            elif isinstance(value, dict):
+                return {k: _json_safe(v) for k, v in value.items()}
+            elif isinstance(value, (list, tuple)):
+                return [_json_safe(item) for item in value]
+            elif isinstance(value, datetime):
+                return value.isoformat()
+            return value
+
+        for key, value in data.items():
+            if isinstance(value, (dict, list, tuple)):
+                data[key] = json.dumps(_json_safe(value))
+            elif isinstance(value, Path):
+                data[key] = str(value)
+            elif isinstance(value, datetime):
+                data[key] = value.isoformat()
+        return data
+
+    @staticmethod
+    def _upsert_sql(sql_table: str, cols: list[str], placeholders: str) -> str:
+        """Build the DuckDB ON CONFLICT upsert statement for ``cols``.
+
+        ``placeholders`` is the pre-rendered VALUES clause body (named ``$col``
+        for single-row execute, positional ``?`` for executemany batches).
+        """
+        col_names = ", ".join(cols)
+        update_cols = [c for c in cols if c != "id"]
+        if update_cols:
+            set_clause = ", ".join(f"{c} = EXCLUDED.{c}" for c in update_cols)
+            return (
+                f"INSERT INTO {sql_table} ({col_names}) VALUES ({placeholders}) "
+                f"ON CONFLICT (id) DO UPDATE SET {set_clause}"
+            )
+        # Edge case: a table whose only column is `id` — ON CONFLICT has
+        # nothing to update, so DO NOTHING is the right semantics.
+        return (
+            f"INSERT INTO {sql_table} ({col_names}) VALUES ({placeholders}) "
+            f"ON CONFLICT (id) DO NOTHING"
+        )
+
     def save(self, obj: BaseModel, auto_embed: bool = False) -> None:
         """Save a Pydantic object (insert or update by ID).
 
@@ -557,35 +640,7 @@ class Database(DatabaseEmbeddingMixin):
         sql_table = self._sql_table_name(obj)
         self._ensure_table(type(obj))
 
-        # Exclude computed fields (they're derived, not stored)
-        model_cls = type(obj)
-        computed_keys = (
-            set(model_cls.model_computed_fields.keys())
-            if hasattr(model_cls, "model_computed_fields")
-            else set()
-        )
-        data = obj.model_dump(exclude=computed_keys)
-
-        # Convert dict/list/tuple/Path fields for DuckDB (recursively handle nested Pydantic models with datetimes)
-        def _json_safe(obj):
-            """Recursively convert Pydantic models and datetime for JSON serialization."""
-            if isinstance(obj, BaseModel):
-                return _json_safe(obj.model_dump())
-            elif isinstance(obj, dict):
-                return {k: _json_safe(v) for k, v in obj.items()}
-            elif isinstance(obj, (list, tuple)):
-                return [_json_safe(item) for item in obj]
-            elif isinstance(obj, datetime):
-                return obj.isoformat()
-            return obj
-
-        for key, value in data.items():
-            if isinstance(value, (dict, list, tuple)):
-                data[key] = json.dumps(_json_safe(value))
-            elif isinstance(value, Path):
-                data[key] = str(value)
-            elif isinstance(value, datetime):
-                data[key] = value.isoformat()
+        data = self._dump_row(obj)
 
         # Build a native DuckDB UPSERT (#1120).
         #
@@ -611,35 +666,106 @@ class Database(DatabaseEmbeddingMixin):
         # typed save contract ("give me a Pydantic instance and I'll
         # persist it; idempotent on id") is unchanged; callers see no
         # SQL state.
-        cols = list(data.keys())
-        col_names = ", ".join(cols)
-        placeholders = ", ".join(f"${c}" for c in cols)
         # ON CONFLICT requires that the target table actually has `id` as
         # the conflict key, which is true for every model in this layer
         # (PRIMARY KEY (id) is set in `_ensure_table`). The
         # SET <c> = EXCLUDED.<c> clause covers every non-key column;
         # without it, ON CONFLICT degenerates to DO NOTHING and we'd
         # silently drop updates.
-        update_cols = [c for c in cols if c != "id"]
-        if update_cols:
-            set_clause = ", ".join(f"{c} = EXCLUDED.{c}" for c in update_cols)
-            sql = (
-                f"INSERT INTO {sql_table} ({col_names}) VALUES ({placeholders}) "
-                f"ON CONFLICT (id) DO UPDATE SET {set_clause}"
-            )
-        else:
-            # Edge case: a table whose only column is `id` — ON CONFLICT
-            # has nothing to update, so DO NOTHING is the right semantics.
-            sql = (
-                f"INSERT INTO {sql_table} ({col_names}) VALUES ({placeholders}) "
-                f"ON CONFLICT (id) DO NOTHING"
-            )
+        cols = list(data.keys())
+        placeholders = ", ".join(f"${c}" for c in cols)
+        sql = self._upsert_sql(sql_table, cols, placeholders)
 
         self._execute(sql, data)
 
         # Auto-embed if requested and has content
+        # ponytail: bulk callers (importers / reindex loops) that save many
+        # rows + embed should adopt save_many()/embed_many() instead of a
+        # per-row save(auto_embed=True) loop — one transaction + one Lance
+        # append amortises the single-connection lock at 100k images (#2542).
         if auto_embed and hasattr(obj, "page_content") and obj.page_content:
             self.embed(obj)
+
+    def save_many(self, objs: Sequence[BaseModel]) -> int:
+        """Batch-upsert many same-typed Pydantic objects in ONE transaction.
+
+        Additive bulk path for the 100k-image save problem (#2542): instead of
+        N separate ``save`` calls (N lock acquisitions + N autocommitted
+        statements), this performs a single ``executemany`` inside one
+        DuckDB transaction under the shared lock.
+
+        Semantics:
+        - All objects must be the same model type (one table, one column set).
+        - All-or-nothing: a bad row aborts the whole batch (ROLLBACK) and the
+          error is raised — never a silent partial write (Daniel's rule).
+        - Empty input is a no-op returning 0.
+        - Does NOT auto-embed; callers that also need vectors should pair this
+          with ``embed_many`` so the embedding append batches too.
+
+        Returns the number of rows written.
+        """
+        objs = list(objs)
+        if not objs:
+            return 0
+
+        first_type = type(objs[0])
+        for obj in objs:
+            if type(obj) is not first_type:
+                raise TypeError(
+                    "save_many requires all objects to be the same model type; "
+                    f"got {first_type.__name__} and {type(obj).__name__}"
+                )
+
+        sql_table = self._sql_table_name(objs[0])
+        self._ensure_table(first_type)
+
+        rows = [self._dump_row(obj) for obj in objs]
+        cols = list(rows[0].keys())
+        placeholders = ", ".join("?" for _ in cols)
+        sql = self._upsert_sql(sql_table, cols, placeholders)
+        # Positional params in stable column order for every row. Missing keys
+        # would silently shift columns, so demand a uniform shape up front.
+        param_rows: list[list[Any]] = []
+        for row in rows:
+            if row.keys() != rows[0].keys():
+                raise ValueError(
+                    "save_many rows have inconsistent columns; refusing to "
+                    "write a misaligned batch"
+                )
+            param_rows.append([row[c] for c in cols])
+
+        with self._lock:
+            for attempt in range(_DUCKDB_WRITE_CONFLICT_RETRIES + 1):
+                try:
+                    self.conn.execute("BEGIN TRANSACTION")
+                    try:
+                        self.conn.executemany(sql, param_rows)
+                    except Exception:
+                        # Abort the partial batch — no half-written rows.
+                        self.conn.execute("ROLLBACK")
+                        raise
+                    self.conn.execute("COMMIT")
+                    return len(param_rows)
+                except duckdb.Error as exc:
+                    if self._is_invalidated_error(exc):
+                        logger.warning(
+                            "DuckDB connection for %s was invalidated during "
+                            "save_many; reopening and retrying",
+                            self.path,
+                        )
+                        self._reconnect_after_invalidated()
+                        continue
+                    if not self._is_write_conflict_error(exc):
+                        raise
+                    if attempt >= _DUCKDB_WRITE_CONFLICT_RETRIES:
+                        raise RuntimeError(
+                            "DuckDB write conflict did not resolve after "
+                            f"{_DUCKDB_WRITE_CONFLICT_RETRIES} retries for "
+                            f"{self.path} (save_many)."
+                        ) from exc
+                    delay = _DUCKDB_WRITE_CONFLICT_BACKOFF_SECONDS * (attempt + 1)
+                    time.sleep(delay)
+            raise RuntimeError("save_many retry loop exited unexpectedly")
 
     def get(self, model: Type[T], id: str) -> T | None:
         """Get a single object by ID."""
@@ -1146,6 +1272,57 @@ class Database(DatabaseEmbeddingMixin):
                 table.add(data)
             else:
                 self.lance.create_table(table_name, data)
+            # One append == one LanceDB fragment. Count appends per table and
+            # run a bounded compaction every N of them so 100k micro-appends
+            # don't rot read performance (#2542). Compacting on every write
+            # would be strictly worse, so it's gated on the interval.
+            self._note_vector_append(table_name)
+
+    def _note_vector_append(self, table_name: str) -> None:
+        """Increment the per-table append counter and compact at the interval."""
+        interval = _vector_compaction_interval()
+        if interval <= 0:
+            return
+        count = self._vector_append_counts.get(table_name, 0) + 1
+        if count >= interval:
+            self._vector_append_counts[table_name] = 0
+            self.compact_vectors(table_name)
+        else:
+            self._vector_append_counts[table_name] = count
+
+    def compact_vectors(self, table_name: str | None = None) -> dict[str, bool]:
+        """Compact (optimize) one or all LanceDB vector tables.
+
+        Merges accumulated micro-fragments into larger files and prunes old
+        versions via ``table.optimize()`` (#2542). Safe to call explicitly at
+        the end of a bulk import; also fired automatically by the append-count
+        trigger. Data is never lost — optimize only rewrites storage layout.
+
+        Returns a map of ``table_name -> compacted?`` so callers/tests can see
+        which tables were touched. A per-table failure is logged loudly and
+        recorded as ``False`` rather than aborting the others; the data is
+        intact either way (optimize is atomic per table).
+        """
+        results: dict[str, bool] = {}
+        with self._lock:
+            available = set(self._lance_tables())
+            targets = (
+                [table_name] if table_name is not None else sorted(available)
+            )
+            for name in targets:
+                if name not in available:
+                    results[name] = False
+                    continue
+                try:
+                    self.lance.open_table(name).optimize()
+                    self._vector_append_counts[name] = 0
+                    results[name] = True
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "LanceDB compaction failed for table %s: %s", name, exc
+                    )
+                    results[name] = False
+        return results
 
     def search_vectors(
         self, table_name: str, query_vector: list[float], limit: int = 10
