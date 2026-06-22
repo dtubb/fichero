@@ -637,6 +637,49 @@ async def save_artifact(
     return artifact_id
 
 
+async def save_file_artifact(
+    file_path: str | None,
+    content: str,
+    document_id: str | None,
+    library_path: str,
+    llm_config: LLMConfig,
+    task_id: str | None,
+    tool_config: LLMToolConfig,
+    *,
+    metadata_field: str | None = None,
+    custom_metadata: dict | None = None,
+    document: object | None = None,
+) -> str | None:
+    """File-oriented entry point to ``save_artifact`` for media/file tools.
+
+    This is the SINGLE shared wrapper that the per-media-family tools (vision,
+    audio, video) and file-keyed text tools (extract) all use. It exists so the
+    per-page save contract — an explicit ``document_id`` means NO ``file_path``
+    fallback; a genuine lookup miss FAILS LOUD (returns None, never reroutes to
+    the parent PDF, #2430/#2523); the ``document=`` pass-through dodges the
+    cross-thread re-fetch race — is enforced in exactly ONE place
+    (``save_artifact`` above) and is never re-derived per family.
+
+    The only family-specific convention it encodes is that file/media artifacts
+    carry no structured ``data`` (hardcoded ``data=None``); everything else is a
+    straight pass-through. ``file_path`` is listed first because callers key on
+    the source path, but every call site uses keyword arguments.
+    """
+    return await save_artifact(
+        document_id=document_id,
+        file_path=file_path,
+        content=content,
+        data=None,
+        library_path=library_path,
+        llm_config=llm_config,
+        task_id=task_id,
+        tool_config=tool_config,
+        metadata_field=metadata_field,
+        custom_metadata=custom_metadata,
+        document=document,
+    )
+
+
 async def save_to_file(
     content: str,
     data: dict | None,

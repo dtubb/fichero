@@ -44,7 +44,7 @@ from fichero.workflows.tools.llm_base import (
     parse_output,
     build_context_section,
     build_reference_section,
-    save_artifact as llm_save_artifact,
+    save_file_artifact as save_artifact,
     save_to_file as llm_save_to_file,
 )
 
@@ -318,33 +318,12 @@ Describe the video content based on these frames, noting any progression or chan
 # =============================================================================
 # Database Operations
 # =============================================================================
-
-
-async def save_artifact(
-    file_path: str,
-    content: str,
-    document_id: str | None,
-    library_path: str,
-    llm_config: LLMConfig,
-    task_id: str | None,
-    tool_config: VideoToolConfig,
-    *,
-    metadata_field: str | None = None,
-    custom_metadata: dict | None = None,
-) -> str | None:
-    """Save video result to database."""
-    return await llm_save_artifact(
-        document_id=document_id,
-        file_path=file_path,
-        content=content,
-        data=None,
-        library_path=library_path,
-        llm_config=llm_config,
-        task_id=task_id,
-        tool_config=tool_config,
-        metadata_field=metadata_field,
-        custom_metadata=custom_metadata,
-    )
+#
+# `save_artifact` here is `llm_base.save_file_artifact` (imported as that name
+# above) — the single shared file-oriented wrapper around the canonical
+# `llm_base.save_artifact`. Video no longer re-declares its own wrapper, so the
+# per-page document-resolution contract (incl. the `document=` pass-through) is
+# enforced in exactly one place and can never drift here.
 
 
 # =============================================================================

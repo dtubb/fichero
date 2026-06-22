@@ -77,7 +77,7 @@ from fichero.workflows.tools.llm_base import (
     apply_reference_matching,
     ArtifactLookupError,
     find_existing_artifact,
-    save_artifact as llm_save_artifact,
+    save_file_artifact as save_artifact,
     save_to_file as llm_save_to_file,
 )
 from fichero.workflows.tools._doc_lookup import (
@@ -1258,46 +1258,15 @@ def _pdf_page_to_data_uri(file_path: str, page_index: int = 0, max_dimension: in
 
 
 # =============================================================================
-# Database Operations (wraps llm_base.save_artifact for file-based saving)
+# Database Operations
 # =============================================================================
-
-
-async def save_artifact(
-    file_path: str,
-    content: str,
-    document_id: str | None,
-    library_path: str,
-    llm_config: LLMConfig,
-    task_id: str | None,
-    tool_config: VisionToolConfig,
-    *,
-    metadata_field: str | None = None,
-    custom_metadata: dict | None = None,
-    document: object | None = None,
-) -> str | None:
-    """Save vision result to database.
-
-    Wraps llm_base.save_artifact with file_path-based document lookup.
-
-    ``document`` is the pre-loaded page-child doc (dict or Document) that the
-    per-page fan-out already holds in LangGraph state. Forwarding it lets
-    llm_base.save_artifact skip the db.get re-fetch that transiently returns
-    None under the concurrent per-thread DuckDB connections — the #2430
-    data-loss race.
-    """
-    return await llm_save_artifact(
-        document_id=document_id,
-        file_path=file_path,
-        content=content,
-        data=None,
-        library_path=library_path,
-        llm_config=llm_config,
-        task_id=task_id,
-        tool_config=tool_config,
-        metadata_field=metadata_field,
-        custom_metadata=custom_metadata,
-        document=document,
-    )
+#
+# `save_artifact` here is `llm_base.save_file_artifact` (imported as that name
+# above) — the single shared file-oriented wrapper around the canonical
+# `llm_base.save_artifact`. Vision (and audio/video/extract) no longer each
+# re-declare a wrapper; the per-page document-resolution contract lives in
+# exactly one place. The import alias is kept so every call site below and the
+# test patch target `vision_base.save_artifact` continue to resolve unchanged.
 
 
 # =============================================================================

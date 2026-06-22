@@ -20,13 +20,13 @@ from fichero.workflows.tools.llm_base import (
     merge_config_schema,
     merge_ports,
     build_context_section,
+    save_file_artifact as save_artifact,
 )
 from fichero.workflows.tools.vision_base import (
     VISION_INPUT_PORTS,
     VISION_CONFIG_SCHEMA,
     VisionToolConfig,
     file_to_data_uri,
-    save_artifact,
 )
 from fichero.llm import vision, LLMConfig
 
