@@ -1032,15 +1032,29 @@ def _make_fan_out_function(
                             "parallel_document": doc,
                             "parallel_index": i,
                             "parallel_total": total,
-                            # Preserve essential state
+                            # Preserve essential state. Intentionally NOT
+                            # copying the whole "outputs" dict here (#2532):
+                            # _make_parallel_node_function reads only
+                            # parallel_file/document/index/total + library_path,
+                            # and its tool reads library_path/task_id from
+                            # state — none read "outputs". At thousands of files
+                            # this Send list materialises one payload per file
+                            # BEFORE the vision semaphore throttles anything, so
+                            # duplicating the full outputs-blob per Send was a
+                            # multiplicative RAM cost for data nobody consumed.
+                            # The aggregator runs in the main graph and still
+                            # sees the full outputs channel.
                             "task_id": state.get("task_id", ""),
                             "workflow_id": state.get("workflow_id", ""),
                             "library_path": state.get("library_path", ""),
-                            "outputs": state.get("outputs", {}),
                         },
                     )
                 )
 
+        # ponytail: at very large fan-out widths even the trimmed Send list is
+        # O(files) objects held at once. A follow-up could chunk the fan-out
+        # (process N files per Send) to bound peak task count — deferred here
+        # because it changes execution semantics and needs its own design.
         return sends
 
     return fan_out
@@ -1122,10 +1136,12 @@ def _make_route_map_fan_out_function(
                         "parallel_document": doc,
                         "parallel_index": i,
                         "parallel_total": total,
+                        # No "outputs" blob per Send — see _make_fan_out_function
+                        # (#2532): the parallel worker + its tool read only the
+                        # parallel_* keys + library_path/task_id, never outputs.
                         "task_id": state.get("task_id", ""),
                         "workflow_id": state.get("workflow_id", ""),
                         "library_path": state.get("library_path", ""),
-                        "outputs": state.get("outputs", {}),
                     },
                 )
             )
