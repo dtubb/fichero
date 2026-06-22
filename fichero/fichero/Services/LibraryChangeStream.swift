@@ -125,6 +125,13 @@ final class LibraryChangeStream {
 
     private(set) var isConnected = false
 
+    /// True once a connect/stream attempt has failed and live updates are NOT
+    /// arriving — the UI can surface a "live updates unavailable" affordance
+    /// instead of silently showing stale data while the run completes server-side
+    /// (#2518 — no-silent-fallback). Cleared on every successful (re)connect.
+    /// Observed (not `@ObservationIgnored`) so views react to it.
+    private(set) var liveUpdatesUnavailable = false
+
     init(baseURL: URL, libraryPath: String, windowId: String = UUID().uuidString) {
         self.baseURLProvider = { baseURL }
         self.libraryPath = libraryPath
@@ -176,12 +183,22 @@ final class LibraryChangeStream {
                 backoffNanos = 1_000_000_000  // clean end → reset backoff
             } catch {
                 if !Task.isCancelled {
-                    changeStreamLogger.debug(
+                    // No-silent-fallback (#2518): a failed connect/stream means
+                    // live updates are NOT arriving. Log at .error and flag it so
+                    // the UI can show "live updates unavailable" instead of
+                    // silently presenting stale data. The retry below still runs.
+                    changeStreamLogger.error(
                         "change-stream dropped: \(error.localizedDescription, privacy: .public)"
                     )
+                    liveUpdatesUnavailable = true
                 }
             }
             isConnected = false
+            if !Task.isCancelled {
+                // A clean server-side close (no throw) also means we are no
+                // longer receiving live updates until the reconnect below lands.
+                liveUpdatesUnavailable = true
+            }
             if Task.isCancelled { break }
             try? await Task.sleep(nanoseconds: backoffNanos)
             backoffNanos = min(backoffNanos * 2, 30_000_000_000)
@@ -206,6 +223,7 @@ final class LibraryChangeStream {
         }
 
         isConnected = true
+        liveUpdatesUnavailable = false  // (re)connected — live updates flowing (#2518)
         // On a *re*connect we may have missed events while down — resync stores.
         if resyncOnConnect {
             await resyncConsumers()
