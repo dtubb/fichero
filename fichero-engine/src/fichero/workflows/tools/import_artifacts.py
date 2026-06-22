@@ -10,7 +10,6 @@ catalogue artifacts. Those belong to follow-up stages under #1757.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Any
 
@@ -169,7 +168,6 @@ async def import_artifacts(
         if artifact.document_id in doc_ids and artifact.artifact_type in _ARTIFACT_TYPES
     }
 
-    writer = db_manager.get_db_writer(library_path)
     progress_callback = inputs.get("__progress_callback")
     created = 0
     skipped = 0
@@ -203,7 +201,7 @@ async def import_artifacts(
                 run_id=state.get("task_id"),
                 confidence=1.0,
             )
-            writer.save(artifact)
+            db.save(artifact)
             created_artifact_ids.append(artifact.id)
             created_document_ids.add(document.id)
             existing_keys.add(receipt_key)
@@ -215,7 +213,7 @@ async def import_artifacts(
             if transcription_key in existing_keys:
                 skipped += 1
             else:
-                writer.save(
+                db.save(
                     artifact := Artifact(
                         document_id=document.id,
                         artifact_type="transcription",
@@ -247,16 +245,8 @@ async def import_artifacts(
             message=f"Registered step-1 artifacts for {document.name}",
         )
 
-    await emit_progress_event(
-        progress_callback,
-        "file_complete",
-        "",
-        "Import Artifacts flush",
-        len(documents),
-        len(documents),
-        message="Flushing import-artifact writes",
-    )
-    await asyncio.to_thread(writer.flush)
+    # Artifact writes above are direct + already durable, serialized on the
+    # single per-package connection lock (#2508/#2514) — no queue to flush.
     if created_artifact_ids:
         emit_workflow_artifact_changes(
             str(db.path.parent),

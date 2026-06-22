@@ -50,7 +50,6 @@ ALLOWLIST: frozenset[str] = frozenset(
         "db_embeddings.py",
         "db_migrations.py",
         "db_manager.py",
-        "db_writer.py",
         "app_db.py",
         "migrations.py",
         "api/change_stream.py",

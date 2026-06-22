@@ -202,10 +202,6 @@ class TestExtractAllCooperativeScheduling:
             query=lambda *_args, **_kwargs: [],
             save=lambda *_args, **_kwargs: None,
         )
-        fake_writer = SimpleNamespace(
-            save=lambda *_args, **_kwargs: None,
-            flush=lambda: None,
-        )
         write_calls = 0
 
         def slow_write(*_args, **_kwargs):
@@ -221,7 +217,6 @@ class TestExtractAllCooperativeScheduling:
         monkeypatch.setattr(module, "_write_kg_rows", slow_write)
         monkeypatch.setattr(module, "_resolve_write_target", lambda *_: container)
         monkeypatch.setattr(module.db_manager, "get_database", lambda *_: fake_db)
-        monkeypatch.setattr(module.db_manager, "get_db_writer", lambda *_: fake_writer)
 
         progress_events = []
 
@@ -345,10 +340,6 @@ class TestExtractAllGuardrailFallback:
             query=lambda *_args, **_kwargs: [],
             save=lambda *_args, **_kwargs: None,
         )
-        fake_writer = SimpleNamespace(
-            save=lambda *_args, **_kwargs: None,
-            flush=lambda: None,
-        )
 
         monkeypatch.setattr(
             module, "chat_structured_with_fallback", fake_chat_structured_with_fallback
@@ -357,7 +348,6 @@ class TestExtractAllGuardrailFallback:
         monkeypatch.setattr(module, "_resolve_write_target", lambda *_: container)
         monkeypatch.setattr(module, "_write_kg_rows", lambda *_args, **_kw: None)
         monkeypatch.setattr(module.db_manager, "get_database", lambda *_: fake_db)
-        monkeypatch.setattr(module.db_manager, "get_db_writer", lambda *_: fake_writer)
 
         result = await module.extract_all(
             {"text": "Beatriz lived in Cali.", "extraction_mode": "oneshot"},

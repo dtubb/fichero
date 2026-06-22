@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fichero.db import Database
-    from fichero.db_writer import DBWriter
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +42,6 @@ class DatabaseManager:
         # globally. NEVER re-introduce a thread_ident in this key — that is the
         # exact hazard #2508 removed (see test_single_connection_guardrail).
         self._databases: dict[str, Database] = {}
-        # Key: package_str -> DBWriter (one per package).
-        self._db_writers: dict[str, "DBWriter"] = {}
         self._lock = threading.Lock()
         logger.info("DatabaseManager initialized")
 
@@ -112,46 +109,12 @@ class DatabaseManager:
 
             return self._databases[cache_key]
 
-    def get_db_writer(self, package_path: str | Path) -> "DBWriter":
-        """Get or create the single-writer queue for a package (#1000 Phase 2).
-
-        One writer per package, bound to the package's one shared ``Database``
-        connection (#2508). Lifecycle is tied to the connection:
-        ``close_database`` / ``close_all`` / ``quiesce_database`` stop it.
-        """
-        from fichero.db_writer import DBWriter
-
-        package_path = Path(package_path)
-        package_str = str(package_path)
-        cache_key = package_str
-
-        # get_database is itself locked; call it before taking the lock.
-        db = self.get_database(package_path)
-        with self._lock:
-            if cache_key not in self._db_writers:
-                writer = DBWriter(db, name=f"db-writer-{package_str}")
-                writer.start()
-                self._db_writers[cache_key] = writer
-                logger.info(f"DBWriter created: {package_str}")
-            return self._db_writers[cache_key]
-
-    def _stop_writers(self, keys: list[str]) -> None:
-        """Stop and drop the DBWriters for the given cache keys.
-        Caller must hold ``self._lock``."""
-        for key in keys:
-            writer = self._db_writers.pop(key, None)
-            if writer is not None:
-                writer.stop()
-
     def close_database(self, package_path: str | Path):
-        """Close every thread's connection (and writer) for a package."""
+        """Close the shared connection for a package."""
         package_str = str(Path(package_path))
 
         with self._lock:
             keys = [k for k in self._databases if k == package_str]
-            self._stop_writers(
-                [k for k in self._db_writers if k == package_str]
-            )
             for key in keys:
                 self._databases.pop(key).conn.close()
                 logger.info(f"Closed database connection: {package_str}")
@@ -164,21 +127,18 @@ class DatabaseManager:
         close: bool = False,
         timeout: float | None = 120.0,
     ) -> None:
-        """Drain managed writers and optionally checkpoint/close a package DB.
+        """Checkpoint and optionally close a package DB.
 
-        This is the safety seam for filesystem-level snapshot/restore work. It
-        covers connections and DBWriter queues owned by this process's
-        DatabaseManager; independent direct DuckDB connections outside the
-        manager remain outside this lock's scope.
+        This is the safety seam for filesystem-level snapshot/restore work. All
+        writes serialize on the package's single shared connection lock (#2508),
+        so taking that lock to CHECKPOINT is sufficient to quiesce managed
+        writes; independent direct DuckDB connections outside the manager remain
+        outside this lock's scope.
         """
         package_str = str(Path(package_path))
 
         with self._lock:
             keys = [k for k in self._databases if k == package_str]
-            writer_keys = [k for k in self._db_writers if k == package_str]
-
-            for key in writer_keys:
-                self._db_writers[key].flush(timeout=timeout)
 
             if checkpoint:
                 for key in keys:
@@ -188,7 +148,6 @@ class DatabaseManager:
                     logger.info("Checkpointed database: %s", package_str)
 
             if close:
-                self._stop_writers(writer_keys)
                 for key in keys:
                     self._databases.pop(key).conn.close()
                     logger.info("Closed database connection: %s", package_str)
@@ -212,9 +171,8 @@ class DatabaseManager:
         return len(self._databases)
 
     def close_all(self):
-        """Close every package's shared connection + writer."""
+        """Close every package's shared connection."""
         with self._lock:
-            self._stop_writers(list(self._db_writers))
             for cache_key, db in list(self._databases.items()):
                 db.conn.close()
                 logger.info(f"Closed database: {cache_key}")

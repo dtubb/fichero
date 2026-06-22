@@ -139,7 +139,6 @@ _CONN_EXECUTE_ALLOWLIST: frozenset[str] = frozenset(
     {
         # Persistence layer — defines the seam.
         "db.py",
-        "db_writer.py",
         "db_manager.py",
         "db_migrations.py",
         "db_embeddings.py",

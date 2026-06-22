@@ -1224,10 +1224,9 @@ async def _run_workflow_in_background(
         # Signal end of stream
         event_queue.put(None)  # Sentinel to signal stream end
 
-        # Release this worker thread's DuckDB connection + DBWriter so a
-        # finished run doesn't leak them — the worker thread is daemon
-        # and about to exit, but its db_manager entries would otherwise
-        # linger keyed by the dead thread id. (#1000)
+        # No-op under the single shared connection model (#2508): the worker
+        # thread does not own a per-thread connection to release. Kept for the
+        # daemon-thread teardown seam; close_current_thread() is a no-op.
         try:
             from fichero.db_manager import db_manager
             db_manager.close_current_thread()

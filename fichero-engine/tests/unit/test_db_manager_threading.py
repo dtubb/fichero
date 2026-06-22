@@ -67,43 +67,13 @@ def test_active_count_counts_packages(tmp_path):
         mgr.close_all()
 
 
-def test_get_db_writer_is_shared_per_package(tmp_path):
-    """get_db_writer returns ONE writer per package, shared across threads —
-    a real single writer (it binds to the package's one shared connection). (#2508)"""
-    pkg = tmp_path / "lib.fichero"
-    pkg.mkdir()
-    mgr = DatabaseManager()
-    try:
-        main_writer = mgr.get_db_writer(pkg)
-        assert mgr.get_db_writer(pkg) is main_writer  # cached
-
-        worker_holder: dict[str, object] = {}
-
-        def worker() -> None:
-            worker_holder["writer"] = mgr.get_db_writer(pkg)
-
-        t = threading.Thread(target=worker)
-        t.start()
-        t.join()
-
-        assert worker_holder["writer"] is main_writer
-    finally:
-        mgr.close_all()
-
-
-def test_db_writer_persists_through_the_pool(tmp_path):
-    """A row saved via the manager's DBWriter lands in the package's database."""
-    pkg = tmp_path / "lib.fichero"
-    pkg.mkdir()
-    mgr = DatabaseManager()
-    try:
-        writer = mgr.get_db_writer(pkg)
-        writer.save(Document(name="via-writer", doc_type=DocType.file))
-        writer.flush()
-        names = {d.name for d in mgr.get_database(pkg).query(Document)}
-        assert "via-writer" in names
-    finally:
-        mgr.close_all()
+# NOTE (#2514): the per-package DBWriter queue was removed — the single shared
+# connection lock (#2508) already serializes every write, so the queue was
+# redundant. The former test_get_db_writer_is_shared_per_package and
+# test_db_writer_persists_through_the_pool tested that removed API. Direct
+# db.save persistence is covered by test_cross_thread_writes_are_immediately_visible
+# below, and the extract_all/import_artifacts direct-save paths by
+# test_workflow_artifact_direct_save.py.
 
 
 def test_close_current_thread_is_noop_and_keeps_shared_connection(tmp_path):
@@ -115,7 +85,6 @@ def test_close_current_thread_is_noop_and_keeps_shared_connection(tmp_path):
     mgr = DatabaseManager()
     try:
         db = mgr.get_database(pkg)
-        mgr.get_db_writer(pkg)
         assert mgr.active_count == 1
 
         # Simulate a finished workflow worker calling its finally hook.

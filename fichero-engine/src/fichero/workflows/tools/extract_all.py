@@ -1830,12 +1830,9 @@ async def extract_all(
     if container and library_path:
         try:
             db = _registry_db if _registry_db is not None else db_manager.get_database(library_path)
-            # Append-only artifact writes funnel through the
-            # single-writer queue (#1000 Phase 2). KG entity/claim
-            # writes (_write_kg_rows) stay direct — they're
-            # read-modify-write and need immediate consistency for the
-            # upsert dedup, so they can't be queued async.
-            db_writer = db_manager.get_db_writer(library_path)
+            # All writes go direct through the package's one shared connection;
+            # the single per-package lock (#2508) serializes them, so the #1000
+            # Phase-2 DBWriter queue is redundant and was removed (#2514).
             for section in _SECTIONS:
                 key = section["schema_key"]
                 # Skip sections that aren't in the default preset's
@@ -1938,7 +1935,7 @@ async def extract_all(
                             model=getattr(llm_config, "model", None),
                             run_id=state.get("task_id"),
                         )
-                        db_writer.save(artifact)
+                        db.save(artifact)
                         created_artifact_ids.append(artifact.id)
                         artifact_document_ids.add(page_doc_id)
                 else:
@@ -1955,7 +1952,7 @@ async def extract_all(
                             model=getattr(llm_config, "model", None),
                             run_id=state.get("task_id"),
                         )
-                        db_writer.save(artifact)
+                        db.save(artifact)
                         created_artifact_ids.append(artifact.id)
                         artifact_document_ids.add(container.id)
             # Per-page extraction_error artifacts: write one for each
@@ -2043,9 +2040,9 @@ async def extract_all(
                         written_claim_ids.extend(claim_ids)
                         written_document_ids.add(target_doc_id)
 
-            # Drain the queued artifact writes before this node returns
-            # — downstream folder-cleanup nodes read these artifacts.
-            await asyncio.to_thread(db_writer.flush)
+            # Artifact writes above are direct + already durable (serialized on
+            # the single per-package connection lock, #2508/#2514) — no queue to
+            # drain before downstream folder-cleanup nodes read them.
             container.updated_at = datetime.now()
             db.save(container)
             if persist_kg and (written_entity_ids or written_claim_ids):
