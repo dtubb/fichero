@@ -1513,7 +1513,32 @@ async def process_vision(
         ".txt", ".md", ".markdown", ".rst", ".html", ".htm", ".xml", ".csv",
     }
 
-    for file_index, file_path in enumerate(files):
+    # Per-file processing is extracted into a coroutine so the node can run the
+    # files BOUNDED-CONCURRENTLY (#2539) instead of strictly one-at-a-time.
+    # Each call uses its OWN local accumulators and returns them; the driver
+    # below merges the per-file outcomes back in input order so
+    # results/texts/values/records/artifacts stay index-aligned to `files`
+    # (asyncio.gather preserves argument order). The big try/except keeps the
+    # existing per-file ERROR ISOLATION: one file failing records its error and
+    # never aborts the siblings or the node.
+    async def _process_file(file_index: int, file_path: str) -> dict:
+        results: list = []
+        texts: list = []
+        values: list = []
+        artifact_ids: list = []
+        output_files: list = []
+        page_records: list[dict] = []
+
+        def _outcome() -> dict:
+            return {
+                "results": results,
+                "texts": texts,
+                "values": values,
+                "artifact_ids": artifact_ids,
+                "output_files": output_files,
+                "page_records": page_records,
+            }
+
         try:
             # Pre-extracted text fast path. If the document record for
             # this file already has non-empty page_content (because
@@ -1557,7 +1582,7 @@ async def process_vision(
                 results.append({"file": file_path, "text": "", "value": None})
                 texts.append("")
                 values.append(None)
-                continue
+                return _outcome()
             doc_id_for_file = _page_doc_id or resolve_path_to_doc(path_to_doc, file_path)
             # Pre-loaded page-doc dict (eliminates db.get re-fetch in save_artifact, #2430)
             _preloaded_doc = (
@@ -1598,7 +1623,7 @@ async def process_vision(
                     )
                     if artifact_id:
                         artifact_ids.append(artifact_id)
-                continue
+                return _outcome()
 
             # Text-file fast path: read directly and treat as the
             # "transcription" output. We still save the artifact and
@@ -1646,7 +1671,7 @@ async def process_vision(
                     )
                     if artifact_id:
                         artifact_ids.append(artifact_id)
-                continue
+                return _outcome()
 
             per_page_texts: list[str] | None = None
 
@@ -1760,7 +1785,7 @@ async def process_vision(
                             None,
                         )
                     )
-                    continue
+                    return _outcome()
 
             # Process with Apple Vision or LLM (the PDF text-layer
             # short-circuit ran above, before the skip-if-artifact cache).
@@ -1981,7 +2006,7 @@ async def process_vision(
                 )
                 texts.append("")
                 values.append(None)
-                continue
+                return _outcome()
 
             result = {"file": file_path, "text": text, "value": parsed}
 
@@ -1992,8 +2017,9 @@ async def process_vision(
                 if pdf_layer_used:
                     save_config = LLMConfig(provider="pdf_text", model="pdf-text-layer")
                 elif vision_mode == "apple":
-                    from fichero.llm import LLMConfig
-
+                    # LLMConfig is already imported at the top of process_vision
+                    # (closure scope); a local re-import here would shadow it and
+                    # break the pdf_text branch above (referenced-before-assign).
                     save_config = LLMConfig(provider="apple", model="apple-vision")
 
                 # #2249/#2395: when per_page_texts is populated (whole-PDF path) and
@@ -2179,6 +2205,66 @@ async def process_vision(
             )
             texts.append("")
             values.append(None)
+
+        return _outcome()
+
+    # Run the per-file coroutines BOUNDED-CONCURRENTLY (#2539). Each task
+    # acquires the shared vision semaphore (builder._get_vision_semaphore,
+    # capped at VISION_FAN_OUT_CONCURRENCY) around its WHOLE body — exactly as
+    # builder.py wraps each fan-out tool call — so the peak number of
+    # simultaneously in-flight vision/LLM calls stays capped even though every
+    # file is scheduled. asyncio.gather preserves argument order, so merging the
+    # outcomes below keeps results/texts/values/records/artifacts index-aligned
+    # to `files`. Files are scheduled in bounded windows so a huge `files` list
+    # never materialises an unbounded number of coroutines at once (peak overlap
+    # is still the semaphore cap, not the window size).
+    from fichero.workflows.builder import (
+        VISION_FAN_OUT_CONCURRENCY,
+        _get_vision_semaphore,
+    )
+
+    _vision_sem = _get_vision_semaphore()
+
+    async def _run_one(file_index: int, file_path: str) -> dict:
+        try:
+            async with _vision_sem:
+                return await _process_file(file_index, file_path)
+        except Exception as exc:  # defensive: _process_file already isolates
+            # per-file errors via its own try/except, but never let an
+            # unexpected escape abort the sibling files.
+            err = str(exc)
+            logger.error(
+                "Vision per-file task crashed for %s: %s",
+                Path(file_path).name,
+                err,
+            )
+            return {
+                "results": [
+                    {"file": file_path, "text": "", "value": None, "error": err}
+                ],
+                "texts": [""],
+                "values": [None],
+                "artifact_ids": [],
+                "output_files": [],
+                "page_records": [],
+            }
+
+    _schedule_window = max(VISION_FAN_OUT_CONCURRENCY * 8, 32)
+    for _start in range(0, len(files), _schedule_window):
+        _chunk = files[_start : _start + _schedule_window]
+        _outcomes = await asyncio.gather(
+            *(
+                _run_one(_start + _offset, _file_path)
+                for _offset, _file_path in enumerate(_chunk)
+            )
+        )
+        for _outcome in _outcomes:
+            results.extend(_outcome["results"])
+            texts.extend(_outcome["texts"])
+            values.extend(_outcome["values"])
+            artifact_ids.extend(_outcome["artifact_ids"])
+            output_files.extend(_outcome["output_files"])
+            page_records.extend(_outcome["page_records"])
 
     # Check for errors
     errors = [r.get("error") for r in results if r.get("error")]
