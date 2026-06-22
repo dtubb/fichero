@@ -14,11 +14,23 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Workflo
 /// All event state is managed by WorkflowExecutionObserver (single source of truth).
 @MainActor
 class WorkflowStreamService: ObservableObject {
-    private let api: APIClient
-
-    /// Generated client for the plain-JSON REST calls (execute / stop / resume).
-    /// The SSE byte-stream in `subscribeToStream` stays on `api` (raw URLSession) —
-    /// the generated client can't surface a streaming body (#1714).
+    /// Single source for BOTH the generated REST calls (execute / stop / resume)
+    /// AND the SSE byte-stream's host, library path, auth and certificate pinning.
+    ///
+    /// The stream stays on a raw byte sequence (not the generated
+    /// `streamWorkflowEvents…` operation) because that operation buffers its body
+    /// via `getResponseBodyAsJSON` — the OpenAPI schema declares the 200 as
+    /// `application/json`, not a streaming `text/event-stream` body — so it can
+    /// never surface an infinite SSE `HTTPBody` (#1714 / #1943 / #2538).
+    ///
+    /// But the raw path now derives its host (`client.baseURL`), library path
+    /// (`client.currentLibraryPath`), auth (`addEngineAuth`, the same on-disk
+    /// token `AuthTokenMiddleware` reads) and certificate pinning
+    /// (`RemoteCertificatePinning.configuredSession()`, the same factory
+    /// `FicheroClient.makeTransport` uses) from THIS one client — the same one the
+    /// generated calls use. That removes the second `FicheroClient` instance the
+    /// stream used to read from (via `APIClient`), so the streaming transport can
+    /// no longer drift from the generated transport (the #2376 regression).
     private let client: FicheroClient
 
     /// Current streaming status
@@ -35,8 +47,7 @@ class WorkflowStreamService: ObservableObject {
 
     private var streamTask: Task<Void, Never>?
 
-    init(apiClient: APIClient, ficheroClient: FicheroClient) {
-        self.api = apiClient
+    init(ficheroClient: FicheroClient) {
         self.client = ficheroClient
     }
 
@@ -134,17 +145,20 @@ class WorkflowStreamService: ObservableObject {
         threadId: String,
         onEvent: ((WorkflowStreamEvent) -> Void)?
     ) async {
-        guard let streamUrl = URL(string: "\(api.baseURL)/workflow-execution/stream/\(threadId)") else {
-            await MainActor.run {
-                self.error = "Invalid stream URL"
-                self.isStreaming = false
-            }
-            return
-        }
+        // Build the stream URL from the SAME FicheroClient the execute/stop/resume
+        // calls use. `client.baseURL` is the host root; the OpenAPI `/api` prefix
+        // is appended here to match the generated operation paths. Deriving the
+        // host, library path, auth and pinning from this one client keeps the raw
+        // byte stream from drifting off the generated transport (#2376 / #2538).
+        let streamUrl = client.baseURL
+            .appendingPathComponent("api")
+            .appendingPathComponent("workflow-execution")
+            .appendingPathComponent("stream")
+            .appendingPathComponent(threadId)
 
         var request = URLRequest(url: streamUrl)
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-        request.addEngineAuth(libraryPath: api.currentLibraryPath)
+        request.addEngineAuth(libraryPath: client.currentLibraryPath)
 
         logger.info("Subscribing to event stream: \(streamUrl)")
 

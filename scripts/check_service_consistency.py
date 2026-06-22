@@ -52,7 +52,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "AppleScriptSupport.swift": "#1943 — AppleScript bridge still uses raw URLSession/URLRequest",
     "ImageEditingServiceGenerated.swift": "#1943 — image editing service still hand-builds image endpoints",
     "WorkflowServiceGenerated.swift": "#1943 — workflow service still has raw preview transport helper",
-    "WorkflowStreamService.swift": "#1943 — SSE stream still uses raw URLSession",
 }
 
 # Raw transport that is intentionally allowed because the generated client
@@ -67,6 +66,14 @@ SANCTIONED_RAW_TRANSPORT: dict[str, str] = {
     "StorageServiceGenerated.swift": (
         "#1943 — thumbnail/display/source-file endpoints return binary image/source "
         "bytes and a download URL; generated schema exposes JSON containers"
+    ),
+    "WorkflowStreamService.swift": (
+        "#1943/#2538 — the generated streamWorkflowEvents… operation buffers its "
+        "200 body via getResponseBodyAsJSON (OpenAPI schema declares application/json, "
+        "not a streaming text/event-stream body), so it can never surface an infinite "
+        "SSE HTTPBody. The raw byte stream now derives host, library path, auth and "
+        "certificate pinning from the SAME FicheroClient the execute/stop/resume calls "
+        "use, so it shares the generated transport's pinning/auth and cannot drift (#2376)."
     ),
 }
 

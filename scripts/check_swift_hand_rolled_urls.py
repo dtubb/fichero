@@ -72,15 +72,10 @@ _APIPATH_RE = re.compile(r'"/api/')
 # Keys are `relpath#sha1(normalized-line)[:10]`. Several call sites share an
 # identical line (and thus hash) within a file — that is expected.
 KNOWN_VIOLATIONS: dict[str, str] = {
-    "App/AppState.swift#10ac98dccd": "§6b baseline — hand-built URLRequest(url:)",
-    "App/AppState.swift#2f0ffa82d9": "§6b baseline — raw URLSession",
-    "App/AppState.swift#341aa25da3": "§6b baseline — raw URLSession",
-"Models/DocumentStore+CRUD.swift#72a4ce5c4a": "§6b baseline — raw URLSession",
     "Models/DocumentStore+CRUD.swift#842cbd3a0a": "§6b baseline — hand-built URLRequest(url:)",
     "Views/Components/FicheroWebView.swift#72bc3c3d1f": "§6b baseline — hand-built URLRequest(url:)",
     "Views/Library/DocumentKGWebPane.swift#10ac98dccd": "§6b baseline — hand-built URLRequest(url:)",
     "Views/Library/QuickLookComponents.swift#59d9159ae2": "§6b baseline — hand-built URLRequest(url:)",
-    "Views/Library/QuickLookComponents.swift#d619ce3d04": "§6b baseline — raw URLSession",
 }
 
 

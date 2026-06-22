@@ -17,7 +17,7 @@ struct WorkflowStreamParsingTests {
     // MARK: - Helper
 
     private func makeService() -> WorkflowStreamService {
-        WorkflowStreamService(apiClient: APIClient(), ficheroClient: FicheroClient())
+        WorkflowStreamService(ficheroClient: FicheroClient())
     }
 
     private func json(
