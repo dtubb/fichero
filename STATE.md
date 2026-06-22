@@ -1,4 +1,37 @@
-# STATE — Overnight autonomous run (2026-06-20 ~21:45, Daniel asleep)
+# STATE — Overnight autonomous run (2026-06-22 ~01:25, Daniel asleep, "work all night")
+
+Branch `0.0.2` @ c703c06e (= origin, clean). Daniel: "it builds, going to bed, keep working."
+
+## SHIPPED TODAY (0.0.2, baseline-diff-verified 0-new-failures, pushed)
+- **#2508 KEYSTONE — single DuckDB connection + lock per package** (was per-thread → root of #2430/#2462).
+  P0-P4 + permanent guardrail (bans get_ident keying). Read-after-write now deterministic. c703c06e.
+- #2509 (cross-thread conn) · #2510 (false-success partial write) · #2511 (cache-miss swallow) · #2512 (silent re-embed).
+- Earlier: #2430 DB-race half, #2486 accents, #2490 chat, #2494 editor P0, unified reader toolbar (#2421/#2423/#2488).
+
+## RUNNING NOW (lanes, ~/code/fichero-worktrees/, commit-not-push, manager baseline-diff-gates before merge)
+- `backend-hardening-finish` (Opus) — #2513 (ValidationError swallow) + #2514 (remove redundant DBWriter). Finishes #90.
+- `changestream-probe` (Opus) — #2518 FIX: the live-results bug = an EMIT GAP (complete_run_documents + kg_persist_finalize
+  save terminal state but never emit document/entity/claim.updated to the change-stream → UI never refreshes; reload shows all).
+  Fix = 2 best-effort emits + add terminal nodes to check_emit_change_coverage.py + tests. (NOT transport/HTTPS.)
+- QUEUED (tmux full): `transcribe-per-page` — #2430 granularity. PDFs aren't split into page-children (split silently
+  fails at import) → whole-PDF→parent. Folder-of-images works (per-item). Fix: split-on-import fail-loud + per-page guard
+  + bounded fan-out (docs up to 500 pages, ONE page/call). Worktree ready, dispatch when a pane frees.
+
+## DANIEL'S DECISIONS (this session) — fold into the work
+- Annotation tools (#2516) = floating right-side palette, annotate mode. PDFs auto-split into page docs (#2430).
+- worker/ios-reader-polish (3 unmerged iOS commits) = I build-gate (Mac MCP) + merge; he builds iPhone later.
+- Red baseline (~1218 env-dependent pytest fails + 13 arch-checks): triage soon (real-bug vs needs-deps).
+- Page-level FIRST for everything; catalogue = later rollup reading per-page records. NO silent fallbacks.
+
+## OPEN UI BUGS FILED (frontend, not yet laned): #2515 toolbar overlaps library · #2517 library toolbar=reader toolbar
+  · #2496-#2504 (list-click, merge dest #2499, iPhone merge #2500, mirror libs #2498, iPhone space #2497, RTF-in-list #2502,
+  iOS view 2-tap #2503, 3D-circle #2504) · #2506 editor fast-nav lost-edit.
+
+## NEXT (morning / as panes free): integrate the 2 running lanes (baseline-diff) → dispatch transcribe-per-page (#2430)
+  → then the UI bug batch. #2514 finishes #90 hardening. Follow-up #2513-style: silent-fallback sweep #2507.
+
+---
+## (history below) STATE — Overnight autonomous run (2026-06-20 ~21:45, Daniel asleep)
 
 Branch `0.0.2`. Daniel is asleep; **work autonomously all night** fixing the filed bug backlog.
 Manager (Claude) dispatches Opus/Sonnet lanes (1–4 at a time, disjoint files), integrates,
