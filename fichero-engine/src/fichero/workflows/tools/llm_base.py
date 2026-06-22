@@ -23,6 +23,7 @@ Inheritance model:
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import json
 import logging
@@ -483,9 +484,6 @@ async def save_artifact(
     if not library_path:
         return None
 
-    artifact_id: str | None = None
-    doc = None
-
     # Validate a pass-through document dict UP FRONT, outside the catch-all
     # `try` below. That try is meant to absorb DB-write failures (artifact
     # insert / page_content promotion) and report them as a miss; if a caller
@@ -493,15 +491,67 @@ async def save_artifact(
     # surface LOUD, not be swallowed as a silent None artifact loss. A None
     # document is fine (falls through to db.get); only a non-None dict that
     # fails validation must fail here. (#2513, no silent fallback)
-    from fichero.models import Document, Artifact, Status
+    from fichero.models import Document
 
     if isinstance(document, dict):
         doc = Document.model_validate(document)
     else:
         doc = document
 
+    # Offload the synchronous DB-write + embed sequence off the event loop in a
+    # SINGLE thread hop. The shared Database connection is guarded by a
+    # re-entrant threading.RLock, so running this on a threadpool thread is safe
+    # (the lock serializes one-at-a-time access) and is consistent with the
+    # FastAPI-threadpool design the lock was built for. Doing this here is what
+    # lets per-file concurrency actually overlap — previously db.save / db.embed
+    # ran ON the loop and pinned it, so nothing else could make progress while a
+    # save was in flight (#2540). Behaviour is identical: same rows, same
+    # per-page contract, same fail-loud return-None / raise semantics, all of
+    # which live verbatim inside _save_artifact_sync.
+    return await asyncio.to_thread(
+        _save_artifact_sync,
+        doc,
+        document_id,
+        file_path,
+        content,
+        data,
+        library_path,
+        llm_config,
+        task_id,
+        tool_config,
+        metadata_field,
+        custom_metadata,
+    )
+
+
+def _save_artifact_sync(
+    doc: object | None,
+    document_id: str | None,
+    file_path: str | None,
+    content: str,
+    data: dict | None,
+    library_path: str,
+    llm_config: LLMConfig,
+    task_id: str | None,
+    tool_config: LLMToolConfig,
+    metadata_field: str | None,
+    custom_metadata: dict | None,
+) -> str | None:
+    """Synchronous DB-write + embed core of :func:`save_artifact`.
+
+    Runs OFF the event loop via ``asyncio.to_thread`` (see caller). All the
+    blocking work — ``db.save`` (artifact + doc), ``db.embed`` (ONNX inference),
+    and metadata decoration — happens here on a threadpool thread. The shared
+    Database connection's re-entrant RLock serializes concurrent threads, so
+    this is safe. The per-page contract (#2430/#2523) and fail-loud /
+    return-None / raise semantics are unchanged from the original inline body.
+    """
+    from fichero.models import Artifact, Status
+
+    artifact_id: str | None = None
     try:
         from fichero.db import db_manager
+        from fichero.models import Document
 
         db = db_manager.get_database(library_path)
 
