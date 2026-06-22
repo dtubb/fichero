@@ -14,7 +14,8 @@
     "two-pass"
   ],
   "config": {
-    "preset_version": 5
+    "preset_version": 5,
+    "tested": true
   },
   "nodes": [
     {

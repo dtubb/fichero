@@ -96,6 +96,7 @@ final class WorkflowStore: ChangeEventConsumer {
                     folderPath: workflow.folderPath,
                     sortOrder: workflow.sortOrder,
                     isSystem: workflow.isSystem,
+                    isUntested: workflow.isUntested,
                     createdAt: Date(),  // Backend doesn't return these yet
                     updatedAt: Date()
                 )

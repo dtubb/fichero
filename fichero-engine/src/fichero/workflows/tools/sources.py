@@ -101,6 +101,7 @@ def _resolve_page_to_parent(doc: "Document", db) -> "Document | None":
     color="green",
     uses_llm=False,
     supports_batch=False,
+    tested=True,  # part of the validated HTR transcription chain
     input_ports=[
         PortDef(
             id="query",
@@ -739,6 +740,7 @@ async def folder_tool(
     color="green",
     uses_llm=False,
     supports_batch=False,
+    tested=True,  # part of the validated HTR transcription chain
     input_ports=[],
     output_ports=[
         PortDef(

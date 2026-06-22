@@ -55,7 +55,7 @@ extension DynamicConfigView {
 
                 default:
                     Text("Unsupported type: \(type)")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundColor(.red)
                 }
 
@@ -132,7 +132,7 @@ extension DynamicConfigView {
                     removeConfig(key: key)
                 } label: {
                     Label("Reset to default", systemImage: "arrow.counterclockwise")
-                        .font(.caption2)
+                        .font(.caption)
                 }
                 .buttonStyle(.plain)
                 .foregroundColor(.accentColor)

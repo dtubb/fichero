@@ -33,11 +33,12 @@ struct ToolInfo: Codable, Identifiable {
     let supportsStreaming: Bool
     let supportsStructuredOutput: Bool
     let sortOrder: Int
+    let tested: Bool  // false = UNTESTED; only the HTR chain is tested today
 
     var id: String { name }
 
     enum CodingKeys: String, CodingKey {
-        case name, description, category, icon, color
+        case name, description, category, icon, color, tested
         case displayName = "display_name"
         case inputPorts = "input_ports"
         case outputPorts = "output_ports"
@@ -50,6 +51,29 @@ struct ToolInfo: Codable, Identifiable {
         case supportsStreaming = "supports_streaming"
         case supportsStructuredOutput = "supports_structured_output"
         case sortOrder = "sort_order"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decode(String.self, forKey: .name)
+        displayName = try container.decode(String.self, forKey: .displayName)
+        description = try container.decode(String.self, forKey: .description)
+        category = try container.decode(String.self, forKey: .category)
+        icon = try container.decode(String.self, forKey: .icon)
+        color = try container.decode(String.self, forKey: .color)
+        inputPorts = try container.decode([PortInfo].self, forKey: .inputPorts)
+        outputPorts = try container.decode([PortInfo].self, forKey: .outputPorts)
+        configSchema = try container.decodeIfPresent([String: AnyCodableValue].self, forKey: .configSchema) ?? [:]
+        configDefaults = try container.decodeIfPresent([String: AnyCodableValue].self, forKey: .configDefaults) ?? [:]
+        defaultOutputSchema = try container.decodeIfPresent([String: AnyCodableValue].self, forKey: .defaultOutputSchema)
+        defaultPrompt = try container.decodeIfPresent(String.self, forKey: .defaultPrompt)
+        usesLLM = try container.decode(Bool.self, forKey: .usesLLM)
+        supportsBatch = try container.decode(Bool.self, forKey: .supportsBatch)
+        supportsStreaming = try container.decode(Bool.self, forKey: .supportsStreaming)
+        supportsStructuredOutput = try container.decode(Bool.self, forKey: .supportsStructuredOutput)
+        sortOrder = try container.decode(Int.self, forKey: .sortOrder)
+        // Default to UNTESTED when the backend omits the field (older engines).
+        tested = try container.decodeIfPresent(Bool.self, forKey: .tested) ?? false
     }
 
     /// Memberwise initializer for creating ToolInfo from code
@@ -70,7 +94,8 @@ struct ToolInfo: Codable, Identifiable {
         supportsBatch: Bool,
         supportsStreaming: Bool,
         supportsStructuredOutput: Bool,
-        sortOrder: Int
+        sortOrder: Int,
+        tested: Bool = false
     ) {
         self.name = name
         self.displayName = displayName
@@ -89,6 +114,7 @@ struct ToolInfo: Codable, Identifiable {
         self.supportsStreaming = supportsStreaming
         self.supportsStructuredOutput = supportsStructuredOutput
         self.sortOrder = sortOrder
+        self.tested = tested
     }
 }
 

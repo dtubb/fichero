@@ -10,9 +10,6 @@
     "catalogue",
     "small"
   ],
-  "config": {
-    "preset_version": 2
-  },
   "nodes": [
     {
       "id": "files-source",

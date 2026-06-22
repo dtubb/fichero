@@ -112,6 +112,7 @@ def build_transcribe_review_prompt(config: dict) -> str:
     uses_llm=True,
     supports_batch=True,
     supports_structured_output=False,
+    tested=True,  # part of the validated HTR transcription chain
     input_ports=VISION_INPUT_PORTS,
     output_ports=BASE_OUTPUT_PORTS,
     config_schema=merge_config_schema(VISION_CONFIG_SCHEMA, REVIEW_CONFIG),

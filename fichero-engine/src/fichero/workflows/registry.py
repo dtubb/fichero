@@ -51,6 +51,7 @@ def register_tool(
     supports_streaming: bool = False,
     supports_structured_output: bool = False,
     sort_order: int = 100,
+    tested: bool = False,
 ):
     """Decorator to register a tool function.
 
@@ -111,6 +112,7 @@ def register_tool(
             supports_streaming=supports_streaming,
             supports_structured_output=supports_structured_output,
             sort_order=sort_order,
+            tested=tested,
         )
 
         logger.debug(f"Registered tool: {name}")

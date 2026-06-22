@@ -311,7 +311,7 @@ struct WorkflowListView: View {
                 HStack {
                     Image(systemName: "flowchart")
                         .foregroundColor(.accentColor)
-                    Text(workflow.name)
+                    Text(workflow.displayName)
                     if workflow.isSystem {
                         Image(systemName: "lock.fill")
                             .font(.caption2)

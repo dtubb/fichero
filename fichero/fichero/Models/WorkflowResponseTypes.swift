@@ -57,12 +57,15 @@ struct WorkflowResponse: Codable {
     let folderPath: String
     let sortOrder: Int
     let isSystem: Bool
+    // True = shipped preset not yet validated end-to-end; UI appends "(Untested)".
+    var isUntested: Bool = false
 
     enum CodingKeys: String, CodingKey {
         case id, name, description, provider, model, nodes, edges
         case folderPath = "folder_path"
         case sortOrder = "sort_order"
         case isSystem = "is_system"
+        case isUntested = "untested"
     }
 }
 

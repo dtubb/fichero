@@ -505,12 +505,14 @@ extension WorkflowServiceGenerated {
             if let anim = edge.animated { dict["animated"] = AnyCodable(anim) }
             return dict
         }
-        // Extract is_system via JSON round-trip since generated client lags schema changes
+        // Extract is_system + untested via JSON round-trip since the generated
+        // client can lag schema changes (both are derived backend response fields).
         var isSystem = false
+        var isUntested = false
         if let data = try? JSONEncoder().encode(workflow),
-           let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let systemFlag = dict["is_system"] as? Bool {
-            isSystem = systemFlag
+           let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            isSystem = (dict["is_system"] as? Bool) ?? false
+            isUntested = (dict["untested"] as? Bool) ?? false
         }
         return WorkflowResponse(
             id: workflow.id,
@@ -522,7 +524,8 @@ extension WorkflowServiceGenerated {
             edges: edgeDicts,
             folderPath: workflow.folderPath,
             sortOrder: workflow.sortOrder,
-            isSystem: isSystem
+            isSystem: isSystem,
+            isUntested: isUntested
         )
     }
 

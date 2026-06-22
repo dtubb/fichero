@@ -583,6 +583,11 @@ class ToolDef(BaseModel):
     # Sort order for UI
     sort_order: int = 100  # Lower = higher in list
 
+    # Trust signal: has this tool been validated end-to-end? Defaults to False
+    # so every tool reads as UNTESTED unless explicitly marked. Only the HTR
+    # transcription chain is tested=True today.
+    tested: bool = False
+
     def get_prompt(self, config: dict[str, Any] | None = None) -> str | None:
         """Get the prompt for this tool, optionally customized by config.
 

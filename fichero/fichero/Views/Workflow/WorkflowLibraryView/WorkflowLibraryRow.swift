@@ -13,7 +13,7 @@ struct WorkflowLibraryRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
-                    Text(workflow.name)
+                    Text(workflow.displayName)
                         .font(.headline)
                     if workflow.isSystem {
                         Image(systemName: "lock.fill")

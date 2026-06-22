@@ -80,6 +80,7 @@ class ToolResponse(BaseModel):
     supports_streaming: bool
     supports_structured_output: bool
     sort_order: int
+    tested: bool = False  # False = UNTESTED; only the HTR chain is tested today
 
 
 class CategoryToolsResponse(BaseModel):
@@ -124,6 +125,22 @@ class WorkflowResponse(BaseModel):
     edges: list[EdgeDef]
     folder_path: str
     sort_order: int
+    # True = shipped preset that has NOT been validated end-to-end. The UI
+    # appends "(Untested)" to the name. A preset is trusted only when its JSON
+    # config carries `"tested": true` (today: only "Transcribe HTR"). User
+    # workflows (is_system=False) are never flagged.
+    untested: bool = False
+
+
+def _workflow_untested(wf) -> bool:
+    """A shipped preset is untested unless its config opts in with tested=true.
+
+    Tied to the preset definition, not the node tools: several presets reuse
+    the same validated HTR tools yet are not themselves validated workflows.
+    """
+    return bool(getattr(wf, "is_system", False)) and not bool(
+        (getattr(wf, "config", None) or {}).get("tested", False)
+    )
 
 
 class WorkflowListResponse(BaseModel):
@@ -279,6 +296,7 @@ def _tool_to_response(tool: ToolDef) -> ToolResponse:
         supports_streaming=tool.supports_streaming,
         supports_structured_output=tool.supports_structured_output,
         sort_order=tool.sort_order,
+        tested=tool.tested,
     )
 
 
@@ -541,6 +559,7 @@ async def create_workflow(
             edges=[_dict_to_edge_def(e) for e in db_workflow.edges],
             folder_path=db_workflow.folder_path,
             sort_order=db_workflow.sort_order,
+            untested=_workflow_untested(db_workflow),
         )
     except Exception as e:
         logger.exception("Failed to create workflow")
@@ -615,6 +634,7 @@ async def import_workflow(
             edges=[_dict_to_edge_def(e) for e in db_workflow.edges],
             folder_path=db_workflow.folder_path,
             sort_order=db_workflow.sort_order,
+            untested=_workflow_untested(db_workflow),
         )
     except HTTPException:
         raise
@@ -725,6 +745,7 @@ async def list_workflows(
                 edges=[_dict_to_edge_def(e) for e in workflow.edges],
                 folder_path=workflow.folder_path,
                 sort_order=workflow.sort_order,
+                untested=_workflow_untested(workflow),
             )
             for workflow in sorted(workflows, key=lambda w: w.sort_order)
         ]
@@ -760,6 +781,7 @@ async def get_workflow(
             edges=[_dict_to_edge_def(e) for e in workflow.edges],
             folder_path=workflow.folder_path,
             sort_order=workflow.sort_order,
+            untested=_workflow_untested(workflow),
         )
     except HTTPException:
         raise
@@ -898,6 +920,7 @@ async def update_workflow(
             edges=[_dict_to_edge_def(e) for e in existing.edges],
             folder_path=existing.folder_path,
             sort_order=existing.sort_order,
+            untested=_workflow_untested(existing),
         )
     except HTTPException:
         raise
@@ -987,6 +1010,7 @@ async def patch_workflow(
             edges=[_dict_to_edge_def(e) for e in workflow.edges],
             folder_path=workflow.folder_path,
             sort_order=workflow.sort_order,
+            untested=_workflow_untested(workflow),
         )
     except HTTPException:
         raise
@@ -1067,6 +1091,7 @@ def duplicate_workflow_impl(db: Database, workflow_id: str) -> "Workflow":  # no
         edges=original.edges,
         folder_path=original.folder_path,  # Keep in same folder
         sort_order=original.sort_order,  # Preserve order preference
+        untested=_workflow_untested(original),
     )
     db.save(new_workflow)  # generates a new id
     return new_workflow
@@ -1106,6 +1131,7 @@ async def duplicate_workflow(
             edges=[_dict_to_edge_def(e) for e in new_workflow.edges],
             folder_path=new_workflow.folder_path,
             sort_order=new_workflow.sort_order,
+            untested=_workflow_untested(new_workflow),
         )
     except HTTPException:
         raise

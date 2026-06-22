@@ -55746,6 +55746,11 @@
           "sort_order": {
             "type": "integer",
             "title": "Sort Order"
+          },
+          "tested": {
+            "type": "boolean",
+            "title": "Tested",
+            "default": false
           }
         },
         "type": "object",
@@ -57754,6 +57759,11 @@
           "sort_order": {
             "type": "integer",
             "title": "Sort Order"
+          },
+          "untested": {
+            "type": "boolean",
+            "title": "Untested",
+            "default": false
           }
         },
         "type": "object",

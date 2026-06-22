@@ -89,6 +89,8 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
     var folderPath: String
     var sortOrder: Int
     var isSystem: Bool
+    // True = shipped preset not yet validated end-to-end; UI appends "(Untested)".
+    var isUntested: Bool
     var createdAt: Date
     var updatedAt: Date
 
@@ -102,6 +104,7 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         case folderPath = "folder_path"
         case sortOrder = "sort_order"
         case isSystem = "is_system"
+        case isUntested = "untested"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -116,6 +119,7 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         folderPath: String = "/",
         sortOrder: Int = 0,
         isSystem: Bool = false,
+        isUntested: Bool = false,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -128,7 +132,13 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         self.folderPath = folderPath
         self.sortOrder = sortOrder
         self.isSystem = isSystem
+        self.isUntested = isUntested
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+    }
+
+    /// Display name with the trust label appended (never stored in `name`).
+    var displayName: String {
+        isUntested ? "\(name) (Untested)" : name
     }
 }
