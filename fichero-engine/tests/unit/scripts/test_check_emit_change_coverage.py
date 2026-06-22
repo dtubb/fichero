@@ -263,3 +263,52 @@ class NoteStore {
         if row.gap and row.key not in check_emit_change_coverage.EXEMPT
     }
     assert gaps == {}
+
+
+# ---------------------------------------------------------------------------
+# Terminal-node emit coverage (#2518): the contract that should have caught the
+# missing completion + kg-finalize broadcasts. These nodes live outside
+# api/routes, so the route/save scans never saw them.
+# ---------------------------------------------------------------------------
+
+
+def test_required_terminal_emits_present_on_real_tree():
+    """The real tree must satisfy the terminal-node emit contract (the #2518
+    fix is in place)."""
+    assert check_emit_change_coverage.scan_required_terminal_emits() == []
+
+
+def test_required_terminal_emits_flags_missing(tmp_path):
+    """If a terminal node stops broadcasting, the guardrail FAILS (this is the
+    regression it now prevents)."""
+    rel = "fichero-engine/src/fichero/workflows/completion.py"
+    target = tmp_path / rel
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(
+        "def complete_run_documents(db, ids):\n"
+        "    for i in ids:\n"
+        "        db.save(i)\n",  # marks completed but never emits — the bug
+        encoding="utf-8",
+    )
+    required = ((rel, frozenset({"emit_change"})),)
+    violations = check_emit_change_coverage.scan_required_terminal_emits(
+        root=tmp_path, required=required
+    )
+    assert len(violations) == 1
+    assert "missing required emit" in violations[0]
+
+
+def test_required_terminal_emits_passes_when_present(tmp_path):
+    rel = "node.py"
+    (tmp_path / rel).write_text(
+        "def finalize():\n"
+        "    emit_change('/lib/A.fichero', type='document.updated')\n",
+        encoding="utf-8",
+    )
+    required = ((rel, frozenset({"emit_change"})),)
+    assert (
+        check_emit_change_coverage.scan_required_terminal_emits(
+            root=tmp_path, required=required
+        )
+        == []
+    )

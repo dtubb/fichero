@@ -103,6 +103,66 @@ EXEMPT: set[str] = {
 }
 
 
+# Terminal workflow nodes that finalize a run's state and MUST broadcast it to
+# the library change-stream (#2518). These live OUTSIDE api/routes/*.py — under
+# workflows/ and the nested workflow_execution/ package — so neither the route
+# scan (top-level routes/*.py only) nor the non-route save scan (skips the
+# routes/ subtree) ever sees them. That blind spot is exactly why completed
+# status + finalized KG never pushed live: the run wrote the rows but emitted
+# only to the per-run PROGRESS stream. Each entry pins a file to the emit callee
+# that must appear in it; the check FAILS if the emit is removed.
+REQUIRED_TERMINAL_EMITS: tuple[tuple[str, frozenset[str]], ...] = (
+    # complete_run_documents marks docs completed and broadcasts document.updated
+    # (centralised here so BOTH the main runner and the batch path are covered).
+    (
+        "fichero-engine/src/fichero/workflows/completion.py",
+        frozenset({"emit_change"}),
+    ),
+    # kg_persist_finalize rebuilds the graph/embeddings then broadcasts
+    # entity.updated / claim.updated / document.updated for the finalized scope.
+    (
+        "fichero-engine/src/fichero/workflows/tools/kg_persist_finalize.py",
+        frozenset({"emit_workflow_kg_changes"}),
+    ),
+)
+
+
+def scan_required_terminal_emits(
+    *,
+    root: Path | None = None,
+    required: tuple[tuple[str, frozenset[str]], ...] | None = None,
+) -> list[str]:
+    """Return violations: required terminal-node files missing their emit (#2518).
+
+    A violation string names the file and the emit callee(s) it must contain.
+    Empty list == all terminal nodes broadcast. Pure-AST, no imports executed.
+    """
+    base_root = root or ROOT
+    spec = required if required is not None else REQUIRED_TERMINAL_EMITS
+    violations: list[str] = []
+    for rel_path, required_callees in spec:
+        path = base_root / rel_path
+        if not path.exists():
+            violations.append(f"{rel_path} (file missing)")
+            continue
+        try:
+            module = ast.parse(_read_text(path))
+        except SyntaxError:
+            violations.append(f"{rel_path} (unparseable)")
+            continue
+        found = {
+            _call_name(node)
+            for node in ast.walk(module)
+            if isinstance(node, ast.Call)
+        }
+        if not (required_callees & found):
+            violations.append(
+                f"{rel_path} (missing required emit: "
+                f"{' or '.join(sorted(required_callees))})"
+            )
+    return violations
+
+
 @dataclass(frozen=True)
 class Row:
     file: str
@@ -480,12 +540,27 @@ def main() -> int:
     stale = sorted(known - set(gaps))
     covered = len(rows) - len(gaps)
     save_covered = len(save_rows) - len(save_gaps)
+    terminal_violations = scan_required_terminal_emits()
 
     print("emit-change coverage:")
     print(f"  {len(rows)} mutating route(s) checked")
     print(f"  emit-change coverage: {len(known)} known gaps, {covered} routes covered")
     print(f"  {len(save_rows)} non-route observable save(s) checked")
     print(f"  non-route save coverage: {save_covered} covered/allowed")
+    print(
+        f"  {len(REQUIRED_TERMINAL_EMITS)} terminal workflow node(s) checked "
+        f"({len(REQUIRED_TERMINAL_EMITS) - len(terminal_violations)} broadcasting)"
+    )
+
+    if terminal_violations:
+        print(f"\n  {len(terminal_violations)} terminal-node emit gap(s) (#2518):")
+        for entry in terminal_violations:
+            print(f"      {entry}")
+        print(
+            "\nFix: a terminal workflow node that finalizes run state MUST call "
+            "emit_change / emit_workflow_kg_changes so the UI refreshes live."
+        )
+        return 1
 
     if stale:
         print(f"\n  {len(stale)} KNOWN_GAPS entries are now clean; remove them:")

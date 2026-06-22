@@ -1568,3 +1568,121 @@ class TestLibraryPathCanonicalization:
             assert hub.emit("/lib/Lonely.fichero", event) == 0
 
         assert not [r for r in caplog.records if r.levelno == logging.WARNING]
+
+
+# ---------------------------------------------------------------------------
+# Terminal workflow-node emits (#2518) — the core "I can't see results" bug.
+#
+# A workflow runs to completion server-side but the UI shows nothing live: the
+# terminal nodes wrote state (completed status, finalized KG) yet broadcast ONLY
+# to the per-run progress stream, never to the library change-stream. These tests
+# drive the real terminal functions against a real temp library with a live
+# change-stream subscriber and assert the change events now arrive.
+# RED before the emits were added, GREEN after.
+# ---------------------------------------------------------------------------
+
+
+class TestTerminalNodeEmits:
+    def test_complete_run_documents_emits_document_updated(self, db):
+        """Marking a run's docs completed must broadcast document.updated so the
+        green-check status appears live (centralised emit covers main + batch)."""
+        from pathlib import Path
+
+        from fichero.workflows.completion import complete_run_documents
+
+        library_path = str(Path(db.path).parent)
+        doc = Document(
+            id="doc-term-1",
+            name="terminal",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            status=Status.processing,  # only processing docs advance → emit
+            page_content="x",
+        )
+        db.save(doc)
+
+        queue = change_stream._change_hub.subscribe(library_path)
+        try:
+            updated = complete_run_documents(db, {"doc-term-1"})
+            assert updated == 1
+            event = queue.get_nowait()
+            assert event.type == "document.updated"
+            assert "doc-term-1" in event.document_ids
+            assert event.actor == "workflow"
+        finally:
+            change_stream._change_hub.unsubscribe(library_path, queue)
+
+    def test_complete_run_documents_no_change_no_emit(self, db):
+        """An already-completed doc isn't re-saved, so nothing is broadcast —
+        no spurious events (and no empty-document_ids noise)."""
+        from pathlib import Path
+
+        from fichero.workflows.completion import complete_run_documents
+
+        library_path = str(Path(db.path).parent)
+        doc = Document(
+            id="doc-term-2",
+            name="already-done",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            status=Status.completed,
+            page_content="x",
+        )
+        db.save(doc)
+
+        queue = change_stream._change_hub.subscribe(library_path)
+        try:
+            assert complete_run_documents(db, {"doc-term-2"}) == 0
+            with pytest.raises(asyncio.QueueEmpty):
+                queue.get_nowait()
+        finally:
+            change_stream._change_hub.unsubscribe(library_path, queue)
+
+    def test_kg_persist_finalize_emits_kg_changes(self, db, monkeypatch):
+        """Finalize must broadcast entity/claim/document updates so the KG and
+        entity/claim views refresh live. The heavy KG machinery (rebuild_kg,
+        embeddings, support counts) is stubbed — this isolates the EMIT, which
+        is the behaviour #2518 was missing."""
+        import asyncio as _asyncio
+        from pathlib import Path
+
+        from fichero.llm import LLMConfig
+        from fichero.workflows.tools import kg_persist_finalize as kpf
+
+        library_path = str(Path(db.path).parent)
+        doc = Document(
+            id="doc-kgf-1",
+            name="finalize",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            status=Status.completed,
+            page_content="x",
+        )
+        db.save(doc)
+
+        monkeypatch.setattr(kpf, "_coerce_documents", lambda raw, _db, _lp: [doc])
+        monkeypatch.setattr(kpf, "_descendant_doc_ids", lambda _db, _ids: {"doc-kgf-1"})
+        monkeypatch.setattr(kpf, "persist_support_counts", lambda _db: 0)
+        monkeypatch.setattr(kpf, "rebuild_kg", lambda *a, **k: {"triples_written": 0})
+        monkeypatch.setattr(kpf, "_vector_row_count", lambda *a, **k: 0)
+
+        queue = change_stream._change_hub.subscribe(library_path)
+        try:
+            _asyncio.run(
+                kpf.kg_persist_finalize(
+                    inputs={"documents": [doc]},
+                    state={"library_path": library_path},
+                    llm_config=LLMConfig(provider="", model=""),
+                )
+            )
+            types_seen: set[str] = set()
+            while True:
+                try:
+                    types_seen.add(queue.get_nowait().type)
+                except asyncio.QueueEmpty:
+                    break
+            assert "entity.updated" in types_seen
+            assert "claim.updated" in types_seen
+            assert "document.updated" in types_seen
+        finally:
+            change_stream._change_hub.unsubscribe(library_path, queue)
