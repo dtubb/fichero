@@ -476,6 +476,7 @@
 		C994E1D675749951376E8FEA /* FocusedAnnotation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5004AD7FDB9A8BE0953643C5 /* FocusedAnnotation.swift */; };
 		CB8C5EB090F3F95C861D1A2E /* InspectorPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD8FD4EEA01D859C3DB5EADB /* InspectorPresenter.swift */; };
 		CC357CD884EE29BAE8A64F4B /* PlatformPasteboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 772A6A57C4986C2765A174EE /* PlatformPasteboard.swift */; };
+		CFC9C70DBE40510A012E46EE /* WorkflowExecutionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 669F81AC0106B415218C419D /* WorkflowExecutionStore.swift */; };
 		D0D540A3F924325236C1E440 /* DocumentInspectorArtifactsTab+Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FDDBCA3101A6E468A3105D2 /* DocumentInspectorArtifactsTab+Shared.swift */; };
 		D2A64087B8C786EE95E842A5 /* LocalModelsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F4F4939BDACA726554E086D /* LocalModelsSettingsView.swift */; };
 		D584DA0264AC18C07D78233A /* KGFocusState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D82A9BAC0F995F9199F94B69 /* KGFocusState.swift */; };
@@ -780,6 +781,7 @@
 		63B044A60D5A8C7BA256FF24 /* NavigationHistoryManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NavigationHistoryManager.swift; sourceTree = "<group>"; };
 		6538828411C92CBA8CD33DC9 /* AnnotationListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnnotationListView.swift; sourceTree = "<group>"; };
 		6650E28284D750D9076B0612 /* ContentView+ReadingLayout.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ContentView+ReadingLayout.swift"; sourceTree = "<group>"; };
+		669F81AC0106B415218C419D /* WorkflowExecutionStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkflowExecutionStore.swift; sourceTree = "<group>"; };
 		675E69DE1A8C941ABBEBB0E0 /* NewEntitySheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NewEntitySheet.swift; sourceTree = "<group>"; };
 		67E28651A4F5835C8AD6A06B /* AuditHistoryView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AuditHistoryView.swift; sourceTree = "<group>"; };
 		688ECE0FC82045A06149A5FA /* SidebarView+UnifiedRows.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SidebarView+UnifiedRows.swift"; sourceTree = "<group>"; };
@@ -1511,6 +1513,7 @@
 				DA1EB898A19FAA64EF466CD2 /* UsersStore.swift */,
 				98C0EC9D283E4FFF816B0460 /* ActivityStore.swift */,
 				DAE9F6E549990F086C442F3B /* BreadcrumbBuilder.swift */,
+				669F81AC0106B415218C419D /* WorkflowExecutionStore.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -2737,6 +2740,7 @@
 				20ED240D4093078C1DD920D5 /* Spatial2DCanvasItems.swift in Sources */,
 				283826C50E2AE354A7EB5611 /* MindPalaceNodeThumbnail.swift in Sources */,
 				600993746CBF4F9F5E6AE35B /* ReaderToolbar.swift in Sources */,
+				CFC9C70DBE40510A012E46EE /* WorkflowExecutionStore.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {

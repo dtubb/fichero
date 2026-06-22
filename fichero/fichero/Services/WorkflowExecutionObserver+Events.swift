@@ -5,10 +5,14 @@ extension WorkflowExecutionObserver {
 
     // MARK: - Event Handling
 
-    // swiftlint:disable:next todo
-    // TODO: Refactor handleEvent - extract case handlers into separate methods
-    // Function is 145 lines, target <100
-    // swiftlint:disable:next function_body_length cyclomatic_complexity
+    /// Apply one parsed SSE event to the execution tracked under `workflowId`.
+    ///
+    /// The per-event state reduction now lives on `WorkflowExecution.apply(_:)`
+    /// (below) so it can be shared with the threadId-keyed `WorkflowExecutionStore`
+    /// (#2546) — the Activity monitor reduces the SAME events into the SAME model
+    /// without duplicating this logic. This method keeps the observer-specific
+    /// concerns: the workflowId lookup, the missing-execution warning, the
+    /// `fileCompletedCount` inspector signal, and the write-back.
     func handleEvent(_ event: WorkflowStreamEvent, for workflowId: String) {
         // Log every event for debugging
         let eventDesc = String(describing: event).prefix(80)
@@ -21,6 +25,35 @@ extension WorkflowExecutionObserver {
             )
             return
         }
+
+        execution.apply(event)
+
+        // Inspector signal: a file finished — let DocumentInspector re-fetch
+        // artifacts without polling. (Observer-only concern, not part of the
+        // shared reducer.)
+        if case .fileComplete = event {
+            fileCompletedCount += 1
+        }
+
+        // Save updated execution
+        activeExecutions[workflowId] = execution
+    }
+}
+
+// MARK: - Shared Event Reducer
+
+extension WorkflowExecution {
+
+    // swiftlint:disable function_body_length cyclomatic_complexity
+    /// Reduce one parsed SSE event into this execution's state.
+    ///
+    /// Pure, value-typed, side-effect-free: mutates only `self`. Shared by
+    /// `WorkflowExecutionObserver` (keyed by workflowId, fed by the editor) and
+    /// `WorkflowExecutionStore` (keyed by threadId, fed by Activity's
+    /// subscribe-on-select) — one reducer, two homes (#2546).
+    mutating func apply(_ event: WorkflowStreamEvent) {
+        var execution = self
+        defer { self = execution }
 
         switch event {
         case .start(_, let workflowName):
@@ -110,9 +143,8 @@ extension WorkflowExecutionObserver {
             // Track overall progress
             execution.processedFiles += 1
             execution.currentFilePath = nil  // Clear current file
-
-            // Signal inspectors to refresh artifacts for this file
-            fileCompletedCount += 1
+            // (The observer raises `fileCompletedCount` in `handleEvent` — it is
+            // an observer-level inspector signal, not part of this reducer.)
 
         case .fileError(_, let nodeId, let filePath, let error, let progress):
             let fileName = (filePath as NSString).lastPathComponent
@@ -187,8 +219,6 @@ extension WorkflowExecutionObserver {
         case .log(_, let line):
             execution.logLines.append(line)
         }
-
-        // Save updated execution
-        activeExecutions[workflowId] = execution
     }
+    // swiftlint:enable function_body_length cyclomatic_complexity
 }

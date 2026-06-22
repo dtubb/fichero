@@ -266,9 +266,15 @@ async def execute_workflow(
             daemon=True,
         ).start()
 
-        # Build stream URL
+        # Build stream URL. The live SSE handler is `stream_workflow_events`,
+        # registered on THIS router (`@router.get("/stream/{thread_id}")`), which
+        # is mounted at `/api/workflow-execution` (see main.py). The previous
+        # `/api/workflows/stream/...` path had no handler — the `workflows`
+        # router exposes no `/stream` route — so the advertised URL 404'd. The
+        # SwiftUI client hardcoded the correct path; this makes the advertised
+        # `stream_url` honest so any consumer can use it directly (#2546).
         base_url = str(http_request.base_url).rstrip("/")
-        stream_url = f"{base_url}/api/workflows/stream/{thread_id}"
+        stream_url = f"{base_url}/api/workflow-execution/stream/{thread_id}"
 
         print(f"[EXECUTE] Started background execution, stream at: {stream_url}")
 

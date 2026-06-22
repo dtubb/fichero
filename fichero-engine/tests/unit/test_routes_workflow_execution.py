@@ -332,8 +332,10 @@ class TestExecuteWorkflow:
         assert data["workflow_name"] == "Gate Workflow"
         assert data["status"] == "accepted"
         assert data["thread_id"].startswith("thread-")
+        # The live SSE handler is stream_workflow_events on the workflow-execution
+        # router; the old /api/workflows/stream/ path had no handler (#2546).
         assert data["stream_url"].endswith(
-            f"/api/workflows/stream/{data['thread_id']}"
+            f"/api/workflow-execution/stream/{data['thread_id']}"
         )
         fake_thread.start.assert_called_once()
 

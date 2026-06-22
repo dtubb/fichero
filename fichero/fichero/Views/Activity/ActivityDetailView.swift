@@ -3,6 +3,7 @@ import SwiftUI
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "ActivityDetailView")
 
+// swiftlint:disable type_body_length
 /// Detail view for a selected activity run
 /// Shows content based on sidebar selection (Console, Progress, Errors, or Overview)
 struct ActivityDetailView: View {
@@ -10,15 +11,30 @@ struct ActivityDetailView: View {
     @EnvironmentObject var apiClient: APIClient
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
 
+    /// Shared live-execution store keyed by threadId (#2546). Optional so the
+    /// view never crashes where the store isn't injected (e.g. previews); the
+    /// store is registered on `LibraryReference` and injected by
+    /// `LibraryWorkspaceRoot`.
+    @Environment(WorkflowExecutionStore.self) private var executionStore: WorkflowExecutionStore?
+
     @State private var activityItems: [ActivityItem] = []
     @State private var isLoading = false
     @State private var error: String?
     @State private var selectedSectionId: String = "overview"
     @State private var isActingOnRun = false
 
-    /// Live/completed execution looked up by workflowId (the actual key in activeExecutions).
-    /// Falls back to completedExecutions so post-run tabs keep their data.
+    /// Live/completed execution for the selected run.
+    ///
+    /// Prefers the threadId-keyed `WorkflowExecutionStore` (#2546) so a run
+    /// started ANYWHERE shows live progress once Activity subscribes-on-select
+    /// (see `.task` below). Falls back to the editor-fed `WorkflowExecutionObserver`
+    /// (keyed by workflowId, incl. its `completedExecutions` archive) so runs
+    /// started in the Workflow editor keep their existing live + post-run data.
     private var liveExecution: WorkflowExecution? {
+        if let threadId = selectedRun.threadId,
+           let stored = executionStore?.execution(forThreadId: threadId) {
+            return stored
+        }
         guard let workflowId = selectedRun.workflowId else { return nil }
         return executionObserver.activeExecutions[workflowId]
             ?? executionObserver.completedExecutions[workflowId]
@@ -50,6 +66,7 @@ struct ActivityDetailView: View {
         .task(id: selectedRun.id) {
             guard !Task.isCancelled else { return }
             selectedSectionId = sectionId(for: selectedRun.childType)
+            subscribeToLiveExecutionIfRunning()
             await loadActivityDetails()
         }
     }
@@ -248,6 +265,23 @@ struct ActivityDetailView: View {
         childType?.rawValue ?? "overview"
     }
 
+    // MARK: - Live Subscription (#2546)
+
+    /// Subscribe-on-select: when a running run is selected, ensure the shared
+    /// store is streaming its live SSE progress — so Activity shows live progress
+    /// even if the run was started in another window / the Workflow editor (or
+    /// the editor has since closed). Idempotent in the store.
+    private func subscribeToLiveExecutionIfRunning() {
+        guard selectedRun.status == .running,
+              let threadId = selectedRun.threadId,
+              let store = executionStore else { return }
+        store.subscribe(
+            threadId: threadId,
+            workflowId: selectedRun.workflowId ?? selectedRun.id,
+            name: selectedRun.name
+        )
+    }
+
     // MARK: - Data Loading
 
     private func loadActivityDetails() async {
@@ -328,6 +362,7 @@ struct ActivityDetailView: View {
         }
     }
 }
+// swiftlint:enable type_body_length
 
 #Preview {
     ActivityDetailView(

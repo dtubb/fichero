@@ -125,6 +125,17 @@ class LibraryManager: ObservableObject {
         /// `activity.*` events).
         lazy var activityStore: ActivityStore = ActivityStore(service: activityService)
 
+        /// Per-library live workflow-execution store (#2546). Keyed by `threadId`,
+        /// it is the shared home for live execution state feeding the Activity
+        /// monitor: it subscribes-on-select to a running thread's SSE stream
+        /// (reusing `WorkflowStreamService`) and reduces events via the shared
+        /// `WorkflowExecution.apply(_:)`, so Activity shows live progress for ANY
+        /// running workflow regardless of where it was started.
+        lazy var workflowExecutionStore: WorkflowExecutionStore = WorkflowExecutionStore(
+            ficheroClient: ficheroClient,
+            activityService: activityService
+        )
+
         /// Per-library audit store (#2085). Reads the global "who changed what"
         /// action-registry log (`GET /api/actions/audit`) and undoes rows
         /// (`POST /api/actions/audit/{id}/undo`) through the generated client.

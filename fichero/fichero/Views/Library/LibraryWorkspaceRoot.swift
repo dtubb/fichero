@@ -83,6 +83,7 @@ struct LibraryWorkspaceRoot: View {
         .environment(library.annotationStore)
         .environment(library.actionStore)
         .environment(library.activityStore)
+        .environment(library.workflowExecutionStore)
         .environment(library.auditStore)
         .environment(library.researchStore)
         .environment(library.searchStore)

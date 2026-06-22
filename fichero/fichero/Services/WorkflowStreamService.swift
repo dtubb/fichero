@@ -139,6 +139,25 @@ class WorkflowStreamService: ObservableObject {
         return acceptedResponse
     }
 
+    /// Subscribe to the live SSE stream for an already-running thread, without
+    /// re-POSTing `/execute`. This is the entry point the Activity monitor uses
+    /// (`WorkflowExecutionStore`, #2546): a run may have been started in another
+    /// window / the Workflow editor, so the only handle we have is its
+    /// `threadId`. The byte stream is built from the SAME `FicheroClient` and the
+    /// SAME live endpoint (`/api/workflow-execution/stream/{threadId}`) that
+    /// `execute(...)` connects to — there is one streaming code path, not two.
+    func subscribe(threadId: String, onEvent: @escaping (WorkflowStreamEvent) -> Void) {
+        streamTask?.cancel()
+        error = nil
+        hadError = false
+        isStreaming = true
+        currentThreadId = threadId
+
+        streamTask = Task { [weak self] in
+            await self?.subscribeToStream(threadId: threadId, onEvent: onEvent)
+        }
+    }
+
     // Subscribe to SSE events for a running workflow thread
     // swiftlint:disable:next function_body_length cyclomatic_complexity
     private func subscribeToStream(
