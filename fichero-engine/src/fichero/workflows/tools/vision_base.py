@@ -2054,8 +2054,52 @@ async def process_vision(
                         artifact_type=tool_config.artifact_type,
                         llm_config=save_config,
                     )
-                    if page_artifact_ids is None:
-                        # No page children — save combined text to parent as fallback
+                    if page_artifact_ids is None and len(per_page_texts) > 1:
+                        # Multi-page PDF with NO page children. Per #2430 /
+                        # Daniel's one-page-at-a-time rule we must NEVER write the
+                        # concatenated whole-PDF transcript onto the parent. Try
+                        # to split on the spot, then re-propagate per-page.
+                        try:
+                            from fichero.db import db_manager as _dbm
+                            from fichero.ingest import _create_pdf_page_children
+                            from fichero.models import Document as _Document
+
+                            _db = _dbm.get_database(library_path)
+                            _parent_doc = _db.get(_Document, _whole_pdf_parent)
+                            if _parent_doc is not None:
+                                _create_pdf_page_children(
+                                    _parent_doc, Path(file_path), _db, auto_embed=False
+                                )
+                        except Exception as _split_exc:
+                            logger.error(
+                                "Whole-PDF guard: on-the-spot split failed for "
+                                "%s: %s",
+                                file_path,
+                                _split_exc,
+                            )
+                        page_artifact_ids = await _propagate_to_page_children(
+                            _whole_pdf_parent,
+                            per_page_texts,
+                            library_path,
+                            artifact_type=tool_config.artifact_type,
+                            llm_config=save_config,
+                        )
+                        if page_artifact_ids is None:
+                            # Still unsplittable. FAIL LOUD rather than write a
+                            # combined --- Page N --- blob onto the parent PDF
+                            # (#2430, no-silent-fallback).
+                            raise ValueError(
+                                f"Per-page transcription guard: PDF "
+                                f"{Path(file_path).name} has {len(per_page_texts)} "
+                                f"pages but could not be split into page children; "
+                                f"refusing to write a combined transcript onto the "
+                                f"parent (one-page-at-a-time, #2430)."
+                            )
+                        artifact_ids.extend(page_artifact_ids)
+                    elif page_artifact_ids is None:
+                        # Genuinely single-page PDF (per_page_texts has one entry):
+                        # the parent IS the page, so saving the transcript onto it
+                        # is correct — no combined blob, no granularity bug.
                         artifact_id = await save_artifact(
                             file_path=file_path,
                             content=text,

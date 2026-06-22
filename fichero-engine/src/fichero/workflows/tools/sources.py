@@ -229,7 +229,37 @@ async def files_tool(
                     Document, parent_id=file_doc.id, doc_type=DocType.page
                 )
                 if not page_children:
-                    return False
+                    # No page children — a PDF imported before per-page splitting
+                    # landed, or where the split silently failed at ingest
+                    # (#2430). Split on the spot so the workflow fans out
+                    # per-page instead of transcribing the whole PDF onto the
+                    # parent. This auto-backfills already-imported PDFs on their
+                    # next workflow run. (no-silent-fallback)
+                    from pathlib import Path
+
+                    from fichero.ingest import _create_pdf_page_children
+
+                    abs_path = _abs(file_doc)
+                    try:
+                        created = _create_pdf_page_children(
+                            file_doc, Path(abs_path), db, auto_embed=False
+                        )
+                    except Exception as exc:
+                        logger.error(
+                            "files_tool: on-the-spot PDF split failed for %s: %s",
+                            file_doc.id,
+                            exc,
+                        )
+                        created = []
+                    if not created:
+                        return False
+                    logger.info(
+                        "files_tool: split %s into %d page children on the spot "
+                        "(was unsplit at ingest, #2430)",
+                        file_doc.id,
+                        len(created),
+                    )
+                    page_children = created
                 ordered = sorted(page_children, key=lambda p: p.sequence or 0)
                 abs_path = _abs(file_doc)  # resolve the parent file once, not per page
                 for page in ordered:

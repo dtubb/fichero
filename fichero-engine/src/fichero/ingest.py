@@ -402,6 +402,30 @@ def _load_bibliography_sidecar(path: Path) -> dict[str, Any] | None:
     return None
 
 
+def _kreuzberg_pdf_pages(path: Path) -> list[dict[str, Any]]:
+    """Extract per-page records from a PDF via Kreuzberg.
+
+    Returns a list of page dicts (``page_number``, ``content``, ``is_blank``,
+    …) or an empty list when Kreuzberg is unavailable or fails. Callers must
+    treat an empty list as a splitter MISS, not as a 0-page PDF — a multi-page
+    PDF that Kreuzberg can't read still has pages (#2430).
+    """
+    try:
+        from kreuzberg import ExtractionConfig, PageConfig, extract_file_sync
+    except ImportError as exc:
+        logger.debug("Kreuzberg not available for PDF page splitting: %s", exc)
+        return []
+
+    try:
+        cfg = ExtractionConfig(pages=PageConfig(extract_pages=True))
+        result = extract_file_sync(str(path), None, cfg)
+    except Exception as exc:
+        logger.warning("Kreuzberg PDF page extraction failed for %s: %s", path, exc)
+        return []
+
+    return result.pages or []
+
+
 def _create_pdf_page_children(
     parent_doc: Document,
     path: Path,
@@ -425,33 +449,81 @@ def _create_pdf_page_children(
     rather than at ingest time (avoids ~200 pages × ~500ms × large disk use
     for archival PDFs).
     """
-    try:
-        from kreuzberg import ExtractionConfig, PageConfig, extract_file_sync
-    except ImportError as exc:
-        logger.debug("Kreuzberg not available for PDF page splitting: %s", exc)
-        return []
-
-    try:
-        cfg = ExtractionConfig(pages=PageConfig(extract_pages=True))
-        result = extract_file_sync(str(path), None, cfg)
-    except Exception as exc:
-        logger.warning("PDF page extraction failed for %s: %s", path, exc)
-        return []
-
-    page_records = result.pages or []
-    if not page_records:
-        logger.debug("PDF %s has no extractable pages", path.name)
-        return []
-
+    # Open the PDF once with fitz (PyMuPDF) up front: it provides page labels,
+    # the authoritative page count, AND a second splitter to fall back on when
+    # Kreuzberg fails. A PDF is a CONTAINER of pages — a multi-page PDF left
+    # unsplit would later be transcribed whole-doc onto the parent (#2430), so
+    # the split must never fail silently. (no-silent-fallback)
     pdf_doc = None
     pdf_has_named_labels = False
+    fitz_page_count = 0
     try:
         import fitz  # PyMuPDF
 
         pdf_doc = fitz.open(str(path))
         pdf_has_named_labels = bool(pdf_doc.get_page_labels())
     except Exception as exc:
-        logger.debug("PDF page labels unavailable for %s: %s", path, exc)
+        logger.debug("fitz unavailable for %s: %s", path, exc)
+    if pdf_doc is not None:
+        try:
+            fitz_page_count = pdf_doc.page_count
+        except Exception as exc:
+            logger.debug("fitz page_count unavailable for %s: %s", path, exc)
+
+    page_records = _kreuzberg_pdf_pages(path)
+
+    if not page_records and pdf_doc is not None and fitz_page_count >= 1:
+        # Kreuzberg produced nothing — fall back to fitz so a silent Kreuzberg
+        # failure can't leave a multi-page PDF unsplit (#2430).
+        logger.warning(
+            "Kreuzberg produced no pages for %s — falling back to fitz to "
+            "split %d page(s) (no-silent-fallback, #2430)",
+            path.name,
+            fitz_page_count,
+        )
+        page_records = []
+        for _i in range(fitz_page_count):
+            try:
+                _content = pdf_doc[_i].get_text() or ""
+            except Exception as _pexc:
+                logger.debug(
+                    "fitz text extract failed for %s p%d: %s",
+                    path.name,
+                    _i + 1,
+                    _pexc,
+                )
+                _content = ""
+            page_records.append(
+                {
+                    "page_number": _i + 1,
+                    "content": _content,
+                    "is_blank": not _content.strip(),
+                }
+            )
+
+    if not page_records:
+        # Both splitters failed. Surface loudly and stamp the parent so the
+        # failure is diagnosable; downstream per-page tools refuse to transcribe
+        # an unsplit multi-page PDF onto the parent (#2430).
+        logger.error(
+            "PDF page-splitting FAILED for %s (Kreuzberg + fitz both produced "
+            "no pages); leaving unsplit. Per-page tools will refuse whole-doc "
+            "transcription onto the parent (#2430).",
+            path.name,
+        )
+        if isinstance(parent_doc.metadata, dict):
+            parent_doc.metadata["pdf_page_split_failed"] = True
+            try:
+                db.save(parent_doc)
+            except Exception as _serr:
+                logger.debug(
+                    "Could not stamp pdf_page_split_failed on %s: %s",
+                    parent_doc.id,
+                    _serr,
+                )
+        if pdf_doc is not None:
+            pdf_doc.close()
+        return []
 
     pages: list[Document] = []
     try:
