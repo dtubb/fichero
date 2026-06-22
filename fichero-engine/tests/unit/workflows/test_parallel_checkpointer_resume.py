@@ -33,12 +33,14 @@ No real LLM/vision/provider is called — fake tools are injected into the regis
 
 from __future__ import annotations
 
+import json
 import shutil
 import tempfile
 from pathlib import Path
 
 import pytest
 
+import fichero
 from fichero.workflows import registry
 from fichero.workflows.builder import build_graph
 from fichero.workflows.cache import compute_cache_key
@@ -454,3 +456,196 @@ async def test_resume_from_mid_fanout_completes_each_branch_once(
     assert len(rec["downstream_runs"]) == 1, (
         f"downstream must run exactly once, ran {len(rec['downstream_runs'])}x"
     )
+
+
+# ---------------------------------------------------------------------------
+# 4. #1665 on the REAL Catalogue preset topology (#2532 Part A)
+# ---------------------------------------------------------------------------
+#
+# The minimal graphs above did NOT reproduce #1665. This one loads the ACTUAL
+# shipped Catalogue preset
+#
+#   files ──fan-out──▶ transcribe (parallel) ──▶ extract_all ──▶ 6×folder_cleanup ─┐
+#   files ───────────────────────────────────────────────────▶ citations_extract ─┤
+#                                                                                   ▼
+#                                          merge_extracts (aggregate, 7-way fan-in) ──▶ catalogue
+#
+# builds it with enable_parallel=True + a REAL AsyncDuckDBCheckpointer, fakes
+# EVERY tool so no LLM/network is hit, and drives it through astream_events v2
+# with 3 page-children of one PDF. It asserts the FINAL downstream node
+# (catalogue) actually executes — the realistic-topology version of the #1665
+# scheduling check.
+
+
+def _build_catalogue_workflow() -> WorkflowDef:
+    """Load the actual shipped Catalogue preset JSON into a WorkflowDef.
+
+    The ``$small``/``$medium`` provider aliases in node configs are stripped:
+    they are LLM-routing hints irrelevant to graph SCHEDULING (what #1665 is
+    about), and resolving them would reach into the app DB. With no provider
+    declared, each node falls back to the workflow default (openai/gpt-4o),
+    which the fakes ignore anyway. Topology + ports are preserved verbatim.
+    """
+    preset_path = (
+        Path(fichero.__file__).parent
+        / "resources"
+        / "default_workflows"
+        / "catalogue.json"
+    )
+    data = json.loads(preset_path.read_text())
+    for node in data.get("nodes", []):
+        cfg = node.get("config") or {}
+        cfg.pop("provider_name", None)
+        node["config"] = cfg
+    data["id"] = "catalogue-preset"
+    data["provider"] = "openai"
+    data["model"] = "gpt-4o"
+    return WorkflowDef.model_validate(data)
+
+
+def _install_catalogue_fakes(monkeypatch, source_files, source_documents):
+    """Fake EVERY tool the Catalogue preset references.
+
+    Returns recorders: per-branch transcribe calls + catalogue runs. Each fake
+    returns the output ports its outgoing edges read (mostly ``text``), so the
+    graph flows end-to-end without any LLM/vision/network call.
+    """
+    transcribe_calls: list[dict] = []
+    catalogue_runs: list[dict] = []
+
+    async def fake_files(*, inputs=None, state=None, llm_config=None, **_kw):
+        return {"files": list(source_files), "documents": list(source_documents)}
+
+    async def fake_transcribe(*, inputs=None, state=None, llm_config=None, **_kw):
+        # PARALLEL tool: one invocation per page-child via the Send fan-out.
+        inputs = inputs or {}
+        files = inputs.get("files") or []
+        docs = inputs.get("documents") or []
+        file_path = files[0] if files else ""
+        doc = docs[0] if docs else None
+        doc_id = doc.get("id") if isinstance(doc, dict) else None
+        transcribe_calls.append({"file": file_path, "doc_id": doc_id})
+        text = f"transcribed::{doc_id}"
+        return {
+            "text": text,
+            "records": [{"document_id": doc_id, "text": text}],
+            "artifacts": [{"document_id": doc_id, "file": file_path, "text": text}],
+        }
+
+    async def fake_extract_all(*, inputs=None, state=None, llm_config=None, **_kw):
+        return {"text": "extracted-entities", "records": []}
+
+    def _make_text_fake(label):
+        async def fake(*, inputs=None, state=None, llm_config=None, **_kw):
+            return {"text": label}
+        return fake
+
+    async def fake_catalogue(*, inputs=None, state=None, llm_config=None, **_kw):
+        inputs = inputs or {}
+        catalogue_runs.append({"inputs": dict(inputs)})
+        return {"text": "catalogue-entry", "catalogue_done": True}
+
+    monkeypatch.setitem(registry.TOOLS, "files", fake_files)
+    monkeypatch.setitem(registry.TOOLS, "transcribe", fake_transcribe)
+    monkeypatch.setitem(registry.TOOLS, "extract_all", fake_extract_all)
+    monkeypatch.setitem(registry.TOOLS, "catalogue", fake_catalogue)
+    monkeypatch.setitem(
+        registry.TOOLS, "people_folder_cleanup", _make_text_fake("people")
+    )
+    monkeypatch.setitem(
+        registry.TOOLS, "places_folder_cleanup", _make_text_fake("places")
+    )
+    monkeypatch.setitem(
+        registry.TOOLS,
+        "organizations_folder_cleanup",
+        _make_text_fake("organizations"),
+    )
+    monkeypatch.setitem(
+        registry.TOOLS, "dates_folder_cleanup", _make_text_fake("dates")
+    )
+    monkeypatch.setitem(
+        registry.TOOLS, "events_folder_cleanup", _make_text_fake("events")
+    )
+    monkeypatch.setitem(
+        registry.TOOLS, "keywords_folder_cleanup", _make_text_fake("keywords")
+    )
+    monkeypatch.setitem(
+        registry.TOOLS, "citations_extract", _make_text_fake("citations")
+    )
+    # merge_extracts uses the registry "aggregate" tool. The auto-created
+    # transcribe_aggregate barrier is INTERNAL (_make_aggregation_function) and
+    # is NOT affected by this fake.
+    monkeypatch.setitem(registry.TOOLS, "aggregate", _make_text_fake("merged"))
+
+    return {"transcribe_calls": transcribe_calls, "catalogue_runs": catalogue_runs}
+
+
+@pytest.mark.asyncio
+async def test_catalogue_preset_schedules_final_node_under_parallel(
+    temp_db, page_paths, monkeypatch
+):
+    """#2532 Part A: the REAL Catalogue topology must schedule its final node.
+
+    Builds the shipped Catalogue preset with enable_parallel=True + a real
+    checkpointer, fakes every tool, and drives 3 page-children through
+    astream_events v2. Asserts:
+
+    * the parallel transcribe branch ran EXACTLY once per page (3 total), and
+    * the final ``catalogue`` node executed and produced output.
+
+    If catalogue is NEVER scheduled, #1665 reproduces on the real topology — the
+    assertion message dumps outputs keys / completed_nodes / snapshot.next so the
+    failure is actionable.
+    """
+    files, documents = _three_pages(page_paths)
+    rec = _install_catalogue_fakes(monkeypatch, files, documents)
+
+    checkpointer = AsyncDuckDBCheckpointer.from_db_path(temp_db)
+    app = build_graph(
+        _build_catalogue_workflow(),
+        enable_parallel=True,
+        checkpointer=checkpointer,
+        skip_cache=True,
+    )
+
+    config = {"configurable": {"thread_id": "t-catalogue", "checkpoint_ns": ""}}
+    initial_state = {
+        "workflow_id": "catalogue-preset",
+        "library_path": "",
+        "inputs": {},
+        "selected_doc_ids": [],
+    }
+
+    await _drive(app, initial_state, config)
+
+    transcribe_calls = rec["transcribe_calls"]
+    snapshot = await app.aget_state(config)
+    values = snapshot.values
+    outputs = values.get("outputs", {})
+    completed = values.get("completed_nodes", [])
+
+    # Each parallel branch ran exactly once, one per distinct page child.
+    assert len(transcribe_calls) == 3, (
+        f"expected 3 fan-out branches, got {len(transcribe_calls)}: "
+        f"{[c['doc_id'] for c in transcribe_calls]}"
+    )
+    assert sorted(c["doc_id"] for c in transcribe_calls) == [
+        "page-1",
+        "page-2",
+        "page-3",
+    ]
+
+    # The crux of #1665 on the REAL preset: the final downstream node runs.
+    assert "catalogue" in outputs, (
+        "#1665 REPRODUCES on the real Catalogue topology: the parallel "
+        "fan-out + 7-way fan-in completed but the final 'catalogue' node was "
+        f"never scheduled. outputs keys={sorted(outputs)}, "
+        f"completed_nodes={completed}, next={getattr(snapshot, 'next', None)}"
+    )
+    assert outputs["catalogue"].get("catalogue_done") is True
+    assert len(rec["catalogue_runs"]) == 1, (
+        f"catalogue must run exactly once, ran {len(rec['catalogue_runs'])}x"
+    )
+    # The whole spine completed.
+    for nid in ("transcribe", "extract_all", "merge_extracts", "catalogue"):
+        assert nid in outputs, f"node {nid} missing from outputs: {sorted(outputs)}"
