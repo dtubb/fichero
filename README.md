@@ -65,9 +65,9 @@ All surfaces are thin clients on the engine. They render and accept input; they 
 
 ## Running
 
-**Start the backend:**
+**Start the backend** (serves HTTPS on `127.0.0.1:8765`; the app pins it fail-closed, so a plain-HTTP engine cannot connect):
 ```bash
-PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
+bash fichero-engine/scripts/start_backend.sh
 ```
 
 **Run the SwiftUI app:**

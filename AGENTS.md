@@ -15,7 +15,7 @@ Every agent starts with `/session-start` (or a lane variant — `-manager`, `-wo
 # Backend — PYTHONPATH=fichero-engine/src on every Python command
 PYTHONPATH=fichero-engine/src .venv/bin/ruff check fichero-engine/src/
 PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived
-PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765   # server, when needed
+bash fichero-engine/scripts/start_backend.sh   # server (serves HTTPS; app pins it fail-closed — never bare uvicorn/HTTP, #2538)
 
 # Swift — lint your diff; the manager runs the build + test (prefer the Xcode MCP)
 swiftlint lint fichero/fichero/

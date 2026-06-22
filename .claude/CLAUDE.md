@@ -65,15 +65,16 @@ This rule is embedded in every worker dispatch prompt.
 ## Build + Test + Lint
 
 ```bash
-# Backend server (production-style: no autoreload)
-PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
+# Backend server — MUST serve HTTPS. The SwiftUI app pins https://127.0.0.1:8765
+# fail-closed (RemoteCertificatePinning, #2376/#2370), so a plain-HTTP engine is
+# unreachable — the SSE Activity stream and every loopback call die silently
+# (#2538). start_backend.sh is the supported launcher: it prepares loopback TLS
+# material, persists the SPKI pin, and runs uvicorn with --ssl-* (and already
+# scopes --reload to fichero-engine/src, so no reload-storm from worktrees).
+bash fichero-engine/scripts/start_backend.sh
 
-# Backend server (DEV with autoreload) — ALWAYS scope --reload-dir to the engine
-# source. A bare `--reload` watches the whole repo tree, which includes worker
-# worktrees under .claude/worktrees/ (the Agent tool hardcodes that path) and
-# triggers a reload storm + RAM blowup on every worker edit. Scope it:
-PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765 \
-  --reload --reload-dir fichero-engine/src
+# Do NOT run a bare `uvicorn fichero.api.main:app --port 8765` for the app — it
+# serves HTTP and the pinned app cannot connect to it.
 
 # Python tests
 PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived

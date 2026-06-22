@@ -20,10 +20,10 @@ Multi-window, multi-library (per-library service instances). Each window is a re
 
 ## Development Commands
 
-Build, test, lint, and OpenAPI-sync commands — and who runs which — live in **`AGENTS.md`** (the operational manual). The backend must be running on `localhost:8765` before the Swift app works:
+Build, test, lint, and OpenAPI-sync commands — and who runs which — live in **`AGENTS.md`** (the operational manual). The backend must be running on `localhost:8765` before the Swift app works, and it **must serve HTTPS** — the app pins `https://127.0.0.1:8765` fail-closed (#2376/#2370), so a plain-HTTP engine is unreachable (Activity SSE + all loopback calls die, #2538). Use the supported launcher, which prepares loopback TLS + persists the pin:
 
 ```bash
-PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
+bash fichero-engine/scripts/start_backend.sh   # serves HTTPS; never bare `uvicorn ... --port 8765`
 ```
 
 Two build notes worth keeping here: prefer the **Xcode MCP** (`mcp__xcode__BuildProject`) so the build shares Xcode.app's cache and avoids `build.db` lock contention; CLI `xcodebuild` needs `-skipPackagePluginValidation` (the OpenAPIGenerator SPM plugin fails without it) and should build into the default DerivedData, not an isolated `-derivedDataPath`, to keep the user's ⌘R incremental.
