@@ -81,6 +81,7 @@ from fichero.workflows.tools.llm_base import (
     save_to_file as llm_save_to_file,
 )
 from fichero.workflows.tools._doc_lookup import (
+    find_document_by_path,
     iter_document_lookup_paths,
     resolve_path_to_doc,
 )
@@ -2041,11 +2042,40 @@ async def process_vision(
                 # page child #1 (index 0) regardless of the actual page, clobbering
                 # sibling content. Instead fall through to save_artifact with
                 # doc_id_for_file (the page child's own ID). (#2395/#2396)
-                _whole_pdf_parent = (
-                    resolve_path_to_doc(path_to_doc, file_path)
-                    if per_page_texts and requested_page_index is None
-                    else None
-                )
+                _whole_pdf_parent = None
+                if per_page_texts and requested_page_index is None:
+                    _whole_pdf_parent = resolve_path_to_doc(path_to_doc, file_path)
+                    if (
+                        not _whole_pdf_parent
+                        and library_path
+                        and len(per_page_texts) > 1
+                    ):
+                        # #2523 backstop: the per-page `documents` port was not
+                        # wired into this node (path_to_doc is empty), so the
+                        # parent can't be found in the map. Resolve it straight
+                        # from the DB by path so the whole-PDF guard below fires
+                        # (split per-page / fail loud) instead of letting
+                        # save_artifact route the combined transcript onto the
+                        # parent PDF. Single-page PDFs are left alone — there the
+                        # parent IS the page and saving onto it is correct.
+                        try:
+                            from fichero.db import db_manager as _dbm
+                            from fichero.models import Document as _Document
+
+                            _parent = find_document_by_path(
+                                _dbm.get_database(library_path),
+                                _Document,
+                                file_path,
+                            )
+                            if _parent is not None:
+                                _whole_pdf_parent = _parent.id
+                        except Exception as _resolve_exc:
+                            logger.warning(
+                                "Whole-PDF backstop: could not resolve parent for "
+                                "%s by path: %s",
+                                file_path,
+                                _resolve_exc,
+                            )
                 if _whole_pdf_parent:
                     page_artifact_ids = await _propagate_to_page_children(
                         _whole_pdf_parent,

@@ -7,7 +7,7 @@
   "folder_path": "/Transcribe",
   "tags": ["preset", "transcribe", "typescript", "ocr", "printed"],
   "config": {
-    "preset_version": 3
+    "preset_version": 4
   },
   "nodes": [
     {
@@ -41,6 +41,13 @@
       "target": "transcribe",
       "source_port": "files",
       "target_port": "files"
+    },
+    {
+      "id": "edge-files-transcribe-documents",
+      "source": "files-source",
+      "target": "transcribe",
+      "source_port": "documents",
+      "target_port": "documents"
     }
   ]
 }

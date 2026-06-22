@@ -14,7 +14,7 @@
     "two-pass"
   ],
   "config": {
-    "preset_version": 4
+    "preset_version": 5
   },
   "nodes": [
     {
@@ -79,11 +79,25 @@
       "target_port": "files"
     },
     {
+      "id": "edge-files-transcribe-documents",
+      "source": "files-source",
+      "target": "transcribe",
+      "source_port": "documents",
+      "target_port": "documents"
+    },
+    {
       "id": "edge-files-review",
       "source": "files-source",
       "target": "transcribe_review",
       "source_port": "files",
       "target_port": "files"
+    },
+    {
+      "id": "edge-files-review-documents",
+      "source": "files-source",
+      "target": "transcribe_review",
+      "source_port": "documents",
+      "target_port": "documents"
     },
     {
       "id": "edge-transcribe-reference-search",
