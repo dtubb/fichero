@@ -597,6 +597,18 @@ class BatchManager:
                                 "completed_at": item.completed_at,
                             },
                         )
+                        # Push completed status to the library change-stream so
+                        # the UI updates live (#2518 — completion only emitted to
+                        # the per-run PROGRESS stream before). Best-effort.
+                        if run_doc_ids:
+                            from fichero.api.change_stream import emit_change
+
+                            emit_change(
+                                str(Path(self.db_path).parent),
+                                type="document.updated",
+                                document_ids=sorted(run_doc_ids),
+                                actor="workflow",
+                            )
                     except Exception as completion_exc:
                         logger.warning(
                             f"Batch {batch_id} item {item.item_index} "

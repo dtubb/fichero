@@ -1066,6 +1066,20 @@ async def _run_workflow_in_background(
                 await log_execution(
                     f"Marked {completed_count} document(s) completed"
                 )
+            # Push the terminal status to the library change-stream so the UI's
+            # green-check / completed badge updates live, not on next reload
+            # (#2518 — completion previously emitted only to the per-run PROGRESS
+            # stream, never to the library change hub). Best-effort, never raises.
+            if run_doc_ids:
+                from fichero.api.change_stream import emit_change
+
+                emit_change(
+                    str(db.path.parent),
+                    type="document.updated",
+                    document_ids=sorted(run_doc_ids),
+                    run_id=thread_id,
+                    actor="workflow",
+                )
         except Exception as completion_exc:  # pragma: no cover - defensive
             logger.warning(
                 f"Per-document completion failed for workflow {workflow_id}: "

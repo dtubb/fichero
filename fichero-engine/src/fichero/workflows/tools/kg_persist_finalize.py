@@ -33,6 +33,7 @@ from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
 from fichero.llm import LLMConfig
 from fichero.models import Document
 from fichero.workflows.registry import register_tool
+from fichero.workflows.tools._workflow_change_emit import emit_workflow_kg_changes
 from fichero.workflows.tools.import_artifacts import _coerce_documents
 from fichero.workflows.tools.progress import emit_progress_event
 from fichero.workflows.tools.sources import files_tool
@@ -237,6 +238,16 @@ async def kg_persist_finalize(
         3,
         3,
         message=f"KG graph finalized ({summary['triples_written']} triples written)",
+    )
+
+    # Broadcast the finalized KG to the library change-stream so the KG/entity/
+    # claim views refresh live, not on next reload (#2518 — finalize previously
+    # emitted only to the per-run PROGRESS stream, never to the library change
+    # hub). Best-effort; ids are left empty because the consumer stores reload
+    # their scope on the verb alone, which avoids a huge id payload here.
+    emit_workflow_kg_changes(
+        str(db.path.parent),
+        document_ids=sorted(scoped_doc_ids),
     )
 
     return {"summary": summary, "count": len(scoped_doc_ids)}
