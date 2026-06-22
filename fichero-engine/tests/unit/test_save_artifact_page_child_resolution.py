@@ -219,6 +219,98 @@ class TestSaveArtifactPageChildResolution:
         )
 
 
+class TestSaveArtifactDocumentValidation:
+    """
+    #2513: the document= pass-through (#2430) is validated UP FRONT, outside the
+    catch-all try that absorbs DB-write failures. A malformed/partial dict must
+    raise its ValidationError LOUD — never be swallowed and reported as a silent
+    None artifact miss (Daniel's no-silent-fallback rule).
+    """
+
+    @pytest.mark.asyncio
+    async def test_partial_dict_document_raises_loud(self, tmp_path):
+        """A partial dict (missing required `name`) must raise, not return None."""
+        from pydantic import ValidationError
+        from fichero.workflows.tools.llm_base import save_artifact
+
+        # Missing required Document fields (e.g. name/doc_type) → ValidationError.
+        partial = {"id": "page-child-id"}
+
+        # No db needed: validation fires before the try block touches db_manager.
+        with pytest.raises(ValidationError):
+            await save_artifact(
+                document_id="page-child-id",
+                file_path="/lib/scan.pdf",
+                content="Page 1.",
+                data=None,
+                library_path="/lib",
+                llm_config=_make_llm_config(),
+                task_id=None,
+                tool_config=_make_tool_config(),
+                document=partial,           # malformed pass-through → must fail LOUD
+            )
+
+    @pytest.mark.asyncio
+    async def test_full_dict_document_still_works(self, tmp_path):
+        """A complete dict round-trips through model_validate and saves normally."""
+        full_doc = _make_document("page-child-id", path=None).model_dump()
+
+        saved_artifacts: list = []
+        mock_db = MagicMock()
+        mock_db.save.side_effect = saved_artifacts.append
+
+        from fichero.workflows.tools.llm_base import save_artifact
+
+        with patch("fichero.db.db_manager") as mgr:
+            mgr.get_database.return_value = mock_db
+            await save_artifact(
+                document_id="page-child-id",
+                file_path="/lib/scan.pdf",
+                content="Page 1.",
+                data=None,
+                library_path="/lib",
+                llm_config=_make_llm_config(),
+                task_id=None,
+                tool_config=_make_tool_config(),
+                document=full_doc,          # full model_dump() → validates + saves
+            )
+
+        # db.get must NOT be used — the passed document is the resolution source.
+        mock_db.get.assert_not_called()
+        assert saved_artifacts, "full-dict document must still save the artifact"
+        assert saved_artifacts[0].document_id == "page-child-id"
+
+    @pytest.mark.asyncio
+    async def test_none_document_uses_db_get_path(self, tmp_path):
+        """document=None (the default) falls through to db.get by id — unchanged."""
+        page_child = _make_document("page-child-id", path=None)
+
+        saved_artifacts: list = []
+        mock_db = MagicMock()
+        mock_db.get.return_value = page_child
+        mock_db.save.side_effect = saved_artifacts.append
+
+        from fichero.workflows.tools.llm_base import save_artifact
+
+        with patch("fichero.db.db_manager") as mgr:
+            mgr.get_database.return_value = mock_db
+            await save_artifact(
+                document_id="page-child-id",
+                file_path="/lib/scan.pdf",
+                content="Page 1.",
+                data=None,
+                library_path="/lib",
+                llm_config=_make_llm_config(),
+                task_id=None,
+                tool_config=_make_tool_config(),
+                # document defaults to None → db.get path
+            )
+
+        mock_db.get.assert_called_once()
+        assert saved_artifacts, "None document must resolve via db.get and save"
+        assert saved_artifacts[0].document_id == "page-child-id"
+
+
 class TestFindExistingArtifactPageChildResolution:
     """
     find_existing_artifact has the same file_path fallback as save_artifact.

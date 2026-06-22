@@ -486,15 +486,25 @@ async def save_artifact(
     artifact_id: str | None = None
     doc = None
 
+    # Validate a pass-through document dict UP FRONT, outside the catch-all
+    # `try` below. That try is meant to absorb DB-write failures (artifact
+    # insert / page_content promotion) and report them as a miss; if a caller
+    # passes a malformed/partial dict, model_validate's ValidationError must
+    # surface LOUD, not be swallowed as a silent None artifact loss. A None
+    # document is fine (falls through to db.get); only a non-None dict that
+    # fails validation must fail here. (#2513, no silent fallback)
+    from fichero.models import Document, Artifact, Status
+
+    if isinstance(document, dict):
+        doc = Document.model_validate(document)
+    else:
+        doc = document
+
     try:
         from fichero.db import db_manager
-        from fichero.models import Document, Artifact, Status
 
         db = db_manager.get_database(library_path)
 
-        # Use pre-loaded document when available — eliminates the db.get re-fetch
-        # so concurrent per-page fan-out tasks never miss a page child. (#2430)
-        doc = Document.model_validate(document) if isinstance(document, dict) else document
         if doc is None and document_id:
             doc = db.get(Document, document_id)
         # Only use file_path fallback when no document_id was given — if an
