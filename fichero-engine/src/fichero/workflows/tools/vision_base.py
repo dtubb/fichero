@@ -85,8 +85,32 @@ from fichero.workflows.tools._doc_lookup import (
     iter_document_lookup_paths,
     resolve_path_to_doc,
 )
+from fichero.workflows.circuit_breaker import (
+    ProviderCircuitBreaker,
+    ProviderRateLimitedError,
+    call_with_breaker,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _vision_backoff_settings() -> dict:
+    """Exponential-backoff knobs for retryable provider quota errors (#2543).
+
+    Overridable via env so an operator can tune behaviour for a huge run
+    without code changes; defaults match circuit_breaker.py.
+    """
+    return {
+        "max_retries": int(os.getenv("FICHERO_VISION_MAX_RETRIES", "4")),
+        "base_delay": float(os.getenv("FICHERO_VISION_BACKOFF_BASE", "1.0")),
+        "max_delay": float(os.getenv("FICHERO_VISION_BACKOFF_CAP", "30.0")),
+        "jitter": float(os.getenv("FICHERO_VISION_BACKOFF_JITTER", "0.25")),
+    }
+
+
+def _vision_breaker_threshold() -> int:
+    """Consecutive-quota-failure count that OPENS a provider's breaker (#2543)."""
+    return int(os.getenv("FICHERO_VISION_BREAKER_THRESHOLD", "5"))
 
 
 def _is_non_retriable_provider_error(message: str) -> bool:
@@ -1513,6 +1537,16 @@ async def process_vision(
         ".txt", ".md", ".markdown", ".rst", ".html", ".htm", ".xml", ".csv",
     }
 
+    # #2543: one circuit breaker per RUN, shared across all the concurrent
+    # per-file tasks below (asyncio.gather). After K consecutive quota/
+    # rate-limit failures for a provider it OPENS, so the remaining files for
+    # that provider fail fast instead of hammering a dead provider for ~99k
+    # calls. The breaker's internal state is asyncio.Lock-guarded so it is safe
+    # under the bounded-concurrent gather. `_vision_backoff` holds the
+    # exponential-backoff knobs reused for the retryable path.
+    _vision_breaker = ProviderCircuitBreaker(threshold=_vision_breaker_threshold())
+    _vision_backoff = _vision_backoff_settings()
+
     # Per-file processing is extracted into a coroutine so the node can run the
     # files BOUNDED-CONCURRENTLY (#2539) instead of strictly one-at-a-time.
     # Each call uses its OWN local accumulators and returns them; the driver
@@ -1538,6 +1572,27 @@ async def process_vision(
                 "output_files": output_files,
                 "page_records": page_records,
             }
+
+        # #2543: route every vision/LLM call for this file through the shared
+        # per-provider circuit breaker + exponential backoff. `make_coro` is a
+        # zero-arg callable returning a fresh awaitable so retries re-issue the
+        # request. On a retryable (429/quota/rate-limit) error it backs off and
+        # retries; once K consecutive failures OPEN the breaker for this
+        # provider, this and every subsequent file for that provider raise
+        # ProviderRateLimitedError WITHOUT calling the provider. The shared
+        # vision semaphore is released during each backoff sleep (handled inside
+        # call_with_breaker) so a backed-off file never pins a concurrency slot.
+        _vision_provider = getattr(effective_config, "provider", "") or "unknown"
+
+        async def _vision_resilient(make_coro):
+            return await call_with_breaker(
+                make_coro,
+                provider=_vision_provider,
+                breaker=_vision_breaker,
+                semaphore=_vision_sem,
+                label=Path(file_path).name,
+                **_vision_backoff,
+            )
 
         try:
             # Pre-extracted text fast path. If the document record for
@@ -1864,25 +1919,35 @@ async def process_vision(
                                 max_dimension=max_image_dimension,
                             )
                             if is_thinking_model(effective_config.model):
-                                _raw = await vision_inference_api(
-                                    images=[_page_uri],
-                                    prompt=final_prompt,
-                                    model=effective_config.model,
-                                    api_key=effective_config.api_key,
-                                    temperature=effective_config.temperature,
-                                    max_tokens=effective_config.max_tokens,
+                                _raw = await _vision_resilient(
+                                    lambda: vision_inference_api(
+                                        images=[_page_uri],
+                                        prompt=final_prompt,
+                                        model=effective_config.model,
+                                        api_key=effective_config.api_key,
+                                        temperature=effective_config.temperature,
+                                        max_tokens=effective_config.max_tokens,
+                                    )
                                 )
                                 _ans, _thk = parse_thinking_response(_raw)
                                 if _thk:
                                     logger.info("Thinking (page %d): %s...", _page_idx, _thk[:100])
                                 _llm_page_texts.append(str(_ans or ""))
                             else:
-                                _pt = await vision(
-                                    images=[_page_uri],
-                                    prompt=final_prompt,
-                                    config=effective_config,
+                                _pt = await _vision_resilient(
+                                    lambda: vision(
+                                        images=[_page_uri],
+                                        prompt=final_prompt,
+                                        config=effective_config,
+                                    )
                                 )
                                 _llm_page_texts.append(_pt if isinstance(_pt, str) else "")
+                        except ProviderRateLimitedError:
+                            # #2543: breaker is OPEN for this provider — abort
+                            # the per-page loop and fail this file fast rather
+                            # than silently emitting empty pages. Propagates to
+                            # the per-file handler, which records the loud error.
+                            raise
                         except Exception as _pe:
                             logger.warning(
                                 "LLM Vision: page %d of %s failed: %s",
@@ -1927,13 +1992,15 @@ async def process_vision(
                             f"Using HF Inference API for thinking model: {effective_config.model}"
                         )
                         try:
-                            text = await vision_inference_api(
-                                images=[image_uri],
-                                prompt=final_prompt,
-                                model=effective_config.model,
-                                api_key=effective_config.api_key,
-                                temperature=effective_config.temperature,
-                                max_tokens=effective_config.max_tokens,
+                            text = await _vision_resilient(
+                                lambda: vision_inference_api(
+                                    images=[image_uri],
+                                    prompt=final_prompt,
+                                    model=effective_config.model,
+                                    api_key=effective_config.api_key,
+                                    temperature=effective_config.temperature,
+                                    max_tokens=effective_config.max_tokens,
+                                )
                             )
 
                             # Parse thinking response
@@ -1951,10 +2018,12 @@ async def process_vision(
                             raise
                     else:
                         # Use standard LangChain router for regular models
-                        text = await vision(
-                            images=[image_uri],
-                            prompt=final_prompt,
-                            config=effective_config,
+                        text = await _vision_resilient(
+                            lambda: vision(
+                                images=[image_uri],
+                                prompt=final_prompt,
+                                config=effective_config,
+                            )
                         )
                         # Parse output according to format
                         parsed = parse_output(text, output_format, output_options)
@@ -1979,14 +2048,20 @@ async def process_vision(
                     f"retrying once before declaring failure"
                 )
                 try:
-                    text = await vision(
-                        images=[image_uri],
-                        prompt=final_prompt,
-                        config=effective_config,
+                    text = await _vision_resilient(
+                        lambda: vision(
+                            images=[image_uri],
+                            prompt=final_prompt,
+                            config=effective_config,
+                        )
                     )
                     parsed = parse_output(text, output_format, output_options)
                     if reference_values:
                         parsed = apply_reference_matching(parsed, reference_values)
+                except ProviderRateLimitedError:
+                    # #2543: breaker opened during the empty-response retry —
+                    # fail this file fast instead of saving an empty result.
+                    raise
                 except Exception as retry_exc:
                     logger.warning(
                         f"Retry failed for {Path(file_path).name}: {retry_exc}"
@@ -2190,6 +2265,21 @@ async def process_vision(
                 )
             )
 
+        except ProviderRateLimitedError as e:
+            # #2543: the per-provider circuit breaker is OPEN — record a loud,
+            # unmistakable per-file error so the run surfaces WHY it stopped
+            # transcribing instead of silently burning the remaining files.
+            err = str(e)
+            msg = (
+                f"Vision processing skipped for {Path(file_path).name}: {err}"
+            )
+            logger.error(msg)
+            _log_vision_warning(msg, file_path)
+            results.append(
+                {"file": file_path, "text": "", "value": None, "error": err}
+            )
+            texts.append("")
+            values.append(None)
         except Exception as e:
             err = str(e)
             if _is_non_retriable_provider_error(err):
