@@ -25,6 +25,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
+from pathlib import Path
 from collections import OrderedDict, defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -134,6 +135,21 @@ class _ChangeHub:
         self._next_event_ids: dict[str, int] = {}
         self._lock = threading.Lock()
 
+    @staticmethod
+    def _canonical_key(library_path: str) -> str:
+        """The canonical hub key form. BOTH seams — subscriber register
+        (``connect``/``unsubscribe``) and publish (``emit``) — MUST funnel through
+        this so a raw header (``/lib/Foo.fichero/``) and a path-derived emit key
+        (``str(db.path.parent)`` → ``/lib/Foo.fichero``) map to the SAME subscriber
+        set (#2518). ``Path()`` strips trailing slashes and redundant separators.
+
+        ``.resolve()`` is deliberately NOT used: it would touch the filesystem and
+        resolve symlinks. Add it only if a real ``/private``-vs-``/var`` (or
+        security-scoped bookmark) divergence between the header and the db path is
+        proven — see the #2518 follow-up note.
+        """
+        return str(Path(library_path)) if library_path else library_path
+
     def subscribe(self, library_path: str) -> asyncio.Queue:
         """Register a new subscriber queue for ``library_path`` and return it."""
         return self.connect(library_path).queue
@@ -145,6 +161,7 @@ class _ChangeHub:
         last_event_id: str | None = None,
     ) -> _Subscription:
         """Register a subscriber and atomically snapshot replay state."""
+        library_path = self._canonical_key(library_path)
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -170,6 +187,7 @@ class _ChangeHub:
 
     def unsubscribe(self, library_path: str, queue: asyncio.Queue) -> None:
         """Remove a subscriber queue (on window disconnect)."""
+        library_path = self._canonical_key(library_path)
         with self._lock:
             subscriber = self._subscriber_by_queue.pop(queue, None)
             if subscriber is not None:
@@ -188,10 +206,18 @@ class _ChangeHub:
         Returns the number of queues delivered to. Best-effort: a failing
         queue is skipped, never raised.
         """
+        library_path = self._canonical_key(library_path)
         with self._lock:
             self._assign_event_id_locked(library_path, event)
             self._replay_buffer_locked(library_path).append(event)
             subs = list(self._subscribers.get(library_path, ()))
+            # Snapshot other live keys so a delivered=0 emit can name them — a
+            # loud signal of key drift instead of a silent drop (#2518).
+            other_live_keys = (
+                [k for k, s in self._subscribers.items() if s and k != library_path]
+                if not subs
+                else []
+            )
         delivered = 0
         for subscriber in subs:
             try:
@@ -199,9 +225,23 @@ class _ChangeHub:
                 delivered += 1
             except Exception as exc:  # pragma: no cover - defensive
                 logger.debug("change-hub: drop event for one queue: %s", exc)
+        if delivered == 0 and other_live_keys:
+            # Emitted into the void while OTHER libraries have subscribers — the
+            # emit key and a subscribe key have drifted apart. No-silent-fallback:
+            # make it a WARNING with both sides so the drift is debuggable.
+            logger.warning(
+                "change-hub: %s emit to key %r reached 0 subscribers, but "
+                "%d subscriber(s) are live under different key(s): %r — "
+                "library_path key drift? (#2518)",
+                event.type,
+                library_path,
+                len(other_live_keys),
+                other_live_keys,
+            )
         return delivered
 
     def subscriber_count(self, library_path: str) -> int:
+        library_path = self._canonical_key(library_path)
         with self._lock:
             return len(self._subscribers.get(library_path, ()))
 

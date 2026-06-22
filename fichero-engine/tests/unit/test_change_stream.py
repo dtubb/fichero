@@ -1487,3 +1487,84 @@ class TestHermeneuticsMutationsEmitChange:
         assert call["library_path"] == str(test_package)
         assert call["type"] == "interpretation.updated"
         assert state.id in call["interpretation_ids"]
+
+
+# ---------------------------------------------------------------------------
+# library_path key canonicalization (#2518)
+#
+# The SSE subscriber registers under the RAW X-Fichero-Library-Path header,
+# while workflow completion emits under str(db.path.parent) (path-normalized).
+# A trailing slash (or other non-canonical form) on one side used to route the
+# emit to a dead key with zero subscribers — the live-update never arrived.
+# Both seams now funnel through _ChangeHub._canonical_key.
+# ---------------------------------------------------------------------------
+
+
+class TestLibraryPathCanonicalization:
+    def test_trailing_slash_subscriber_receives_slashless_emit(self):
+        """Subscribe under '/lib/Foo.fichero/' (trailing slash, as a header may
+        carry it) and emit under '/lib/Foo.fichero' (as str(Path(...)) yields):
+        the event MUST still be delivered. RED before canonicalization, GREEN
+        after."""
+        hub = _ChangeHub()
+        queue = hub.subscribe("/lib/Foo.fichero/")  # raw header form
+
+        event = ChangeEvent(type="document.updated", document_ids=["d1"])
+        delivered = hub.emit("/lib/Foo.fichero", event)  # path-derived form
+
+        assert delivered == 1
+        assert queue.get_nowait() is event
+
+    def test_same_key_still_delivers(self):
+        """Canonicalization must not regress the identical-key path."""
+        hub = _ChangeHub()
+        queue = hub.subscribe("/lib/Foo.fichero")
+
+        event = ChangeEvent(type="entity.updated", entity_ids=["e1"])
+        assert hub.emit("/lib/Foo.fichero", event) == 1
+        assert queue.get_nowait() is event
+
+    def test_canonical_subscriber_count_matches_either_form(self):
+        hub = _ChangeHub()
+        hub.subscribe("/lib/Foo.fichero/")
+        # Either spelling resolves to the same canonical key.
+        assert hub.subscriber_count("/lib/Foo.fichero") == 1
+        assert hub.subscriber_count("/lib/Foo.fichero/") == 1
+
+    def test_unsubscribe_canonicalizes(self):
+        hub = _ChangeHub()
+        queue = hub.subscribe("/lib/Foo.fichero/")
+        hub.unsubscribe("/lib/Foo.fichero", queue)  # slashless form
+        assert hub.subscriber_count("/lib/Foo.fichero/") == 0
+
+    def test_emit_to_zero_subscribers_with_other_key_warns(self, caplog):
+        """No-silent-fallback: emitting into the void while OTHER libraries have
+        live subscribers logs a WARNING naming both keys, so genuine key drift is
+        loud, not silent."""
+        import logging
+
+        hub = _ChangeHub()
+        hub.subscribe("/lib/A.fichero")  # a different, genuinely distinct library
+
+        event = ChangeEvent(type="document.updated", document_ids=["d1"])
+        with caplog.at_level(logging.WARNING, logger="fichero.api.change_stream"):
+            delivered = hub.emit("/lib/B.fichero", event)
+
+        assert delivered == 0
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert any("0 subscribers" in r.getMessage() for r in warnings)
+        msg = warnings[0].getMessage()
+        assert "/lib/B.fichero" in msg  # the dead emit key
+        assert "/lib/A.fichero" in msg  # the live key it drifted from
+
+    def test_emit_to_zero_subscribers_no_other_keys_is_quiet(self, caplog):
+        """An emit to a library nobody is watching (the common idle case) must
+        NOT warn — that would be noise, not signal."""
+        import logging
+
+        hub = _ChangeHub()
+        event = ChangeEvent(type="document.updated", document_ids=["d1"])
+        with caplog.at_level(logging.WARNING, logger="fichero.api.change_stream"):
+            assert hub.emit("/lib/Lonely.fichero", event) == 0
+
+        assert not [r for r in caplog.records if r.levelno == logging.WARNING]
