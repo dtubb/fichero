@@ -115,6 +115,7 @@ def complete_run_documents(
     workflow_run_entry = _normalize_workflow_run(workflow_run)
 
     updated = 0
+    changed_ids: list[str] = []
 
     def _complete(doc: Any, explicit: bool = False) -> None:
         nonlocal updated
@@ -143,6 +144,9 @@ def complete_run_documents(
         if changed:
             db.save(doc)
             updated += 1
+            doc_id = getattr(doc, "id", None)
+            if doc_id:
+                changed_ids.append(doc_id)
 
     for doc_id in document_ids:
         try:
@@ -162,4 +166,33 @@ def complete_run_documents(
         logger.info(
             "Workflow completion: marked %d document(s) completed", updated
         )
+
+    # Broadcast the terminal status to the library change-stream so the UI's
+    # green-check / completed badge updates live, not on next reload (#2518).
+    # Centralised here — both the main runner and the batch path call this — so
+    # the completed-status emit can't be added to one caller and forgotten on
+    # the other. Best-effort: a broadcast failure must never fail the run.
+    if changed_ids:
+        try:
+            from pathlib import Path
+
+            from fichero.api.change_stream import emit_change
+
+            run_id = (
+                workflow_run_entry.get("thread_id") if workflow_run_entry else None
+            )
+            emit_change(
+                str(Path(db.path).parent),
+                type="document.updated",
+                document_ids=changed_ids,
+                run_id=run_id,
+                actor="workflow",
+            )
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning(
+                "complete_run_documents: change-stream emit failed "
+                "(documents persisted; UI will refresh on reload): %s",
+                exc,
+            )
+
     return updated

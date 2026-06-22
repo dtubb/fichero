@@ -243,11 +243,20 @@ async def kg_persist_finalize(
     # Broadcast the finalized KG to the library change-stream so the KG/entity/
     # claim views refresh live, not on next reload (#2518 — finalize previously
     # emitted only to the per-run PROGRESS stream, never to the library change
-    # hub). Best-effort; ids are left empty because the consumer stores reload
-    # their scope on the verb alone, which avoids a huge id payload here.
-    emit_workflow_kg_changes(
-        str(db.path.parent),
-        document_ids=sorted(scoped_doc_ids),
-    )
+    # hub). Best-effort: a broadcast failure must never fail the run. entity/claim
+    # ids are the finalized library scope (already queried above for embeddings).
+    try:
+        emit_workflow_kg_changes(
+            str(db.path.parent),
+            entity_ids=[e.id for e in entities if getattr(e, "id", None)],
+            claim_ids=[c.id for c in claims if getattr(c, "id", None)],
+            document_ids=sorted(scoped_doc_ids),
+        )
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning(
+            "kg_persist_finalize: change-stream emit failed "
+            "(KG persisted; UI will refresh on reload): %s",
+            exc,
+        )
 
     return {"summary": summary, "count": len(scoped_doc_ids)}
