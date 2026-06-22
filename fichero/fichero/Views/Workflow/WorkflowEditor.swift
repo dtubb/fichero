@@ -46,9 +46,15 @@ struct WorkflowEditor: View {
     // Uses @Observable pattern - injected via .environment() from LibraryWindow
     @Environment(WorkflowExecutionObserver.self) var executionObserver
 
-    /// Node execution states from the observer (single source of truth)
+    /// Node execution states for the editor's list/table/icon node views.
+    ///
+    /// Intentionally empty (#2546 / B2): run progress now lives ONLY in the
+    /// Activity monitor, so the editor's node rows/cards/table cells stay in
+    /// their idle state during a run — the editor is for editing, Activity is
+    /// the single monitor. (`executionObserver` is still used to seed the
+    /// run/compare sheets below.)
     var nodeStates: [String: NodeExecutionState] {
-        executionObserver.activeExecutions[editingWorkflow.id]?.nodeStates ?? [:]
+        [:]
     }
 
     init(

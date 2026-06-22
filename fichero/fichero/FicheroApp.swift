@@ -361,6 +361,19 @@ struct FicheroApp: App {
         }
         .defaultSize(width: 480, height: 620)
 
+        // Activity monitor (#2546 / B2): the poppable live workflow monitor —
+        // the window's root IS the hierarchical outline table. Resolves the
+        // active library's shared WorkflowExecutionStore via LibraryManager and
+        // observes it live; needs libraryManager + the app-level execution
+        // observer injected here (env from the main window does not flow into a
+        // separate scene). Opened via `openWindow(id: "activity-monitor")`.
+        WindowGroup("Activity", id: "activity-monitor") {
+            ActivityMonitorWindow()
+                .environmentObject(libraryManager)
+                .environment(appExecutionObserver)
+        }
+        .defaultSize(width: 720, height: 480)
+
         // `Settings` is a SEPARATE Scene: environment objects injected into the
         // main WindowGroup do NOT flow into it. Every object a settings pane
         // reads via @EnvironmentObject must be re-injected here, or its body

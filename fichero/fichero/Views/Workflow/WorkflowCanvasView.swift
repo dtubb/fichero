@@ -15,9 +15,15 @@ struct WorkflowCanvasView: View {
     // App state for accessing AI defaults
     @EnvironmentObject var appState: AppState
 
-    /// Node execution states from the observer (reactive via @Observable)
+    /// Node execution states for the editor canvas.
+    ///
+    /// Intentionally empty (#2546 / B2): run progress now lives ONLY in the
+    /// Activity monitor, so the editor stays a pure editing surface — no node
+    /// progress badges, status coloring, or "∑ N files" edge labels light up
+    /// during a run. Watch progress in Activity (in-sidebar or its own window).
+    /// The node/edge views already render gracefully with no state.
     private var nodeStates: [String: NodeExecutionState] {
-        executionObserver.activeExecutions[workflow.id]?.nodeStates ?? [:]
+        [:]
     }
 
     /// Live file count for a fan edge, or nil when idle. Fan-out edges

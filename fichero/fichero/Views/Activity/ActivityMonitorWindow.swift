@@ -1,0 +1,40 @@
+import SwiftUI
+
+/// Root of the poppable "Activity" window (#2546 / B2) — the window *is* the
+/// hierarchical monitor table.
+///
+/// It resolves the active library from `LibraryManager` and injects exactly the
+/// environment `ActivityMonitorView` needs: the shared `WorkflowExecutionStore`
+/// (live data) and the library's `APIClient` (log fetch + pause/stop). The
+/// `WorkflowExecutionObserver` arrives from the `WindowGroup` (the app-level
+/// fallback observer). The store is shared per-library, so this detached window
+/// shows the same live runs as the in-sidebar Activity surface.
+struct ActivityMonitorWindow: View {
+    @EnvironmentObject private var libraryManager: LibraryManager
+
+    private var library: LibraryManager.LibraryReference? {
+        if let id = libraryManager.currentLibraryId,
+           let library = libraryManager.getLibrary(id: id) {
+            return library
+        }
+        return libraryManager.globalLibrary
+    }
+
+    var body: some View {
+        Group {
+            if let library {
+                ActivityMonitorView()
+                    .environmentObject(library.apiClient)
+                    .environment(library.workflowExecutionStore)
+            } else {
+                ContentUnavailableView(
+                    "No Library Open",
+                    systemImage: "tray",
+                    description: Text("Open a library to monitor its workflow activity.")
+                )
+            }
+        }
+        .navigationTitle("Activity")
+        .frame(minWidth: 560, minHeight: 360)
+    }
+}
