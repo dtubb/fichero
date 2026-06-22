@@ -248,17 +248,15 @@ def _dict_to_node_def(node_dict: dict, enrich_ports: bool = True) -> NodeDef:
 
 
 def _dict_to_edge_def(edge_dict: dict) -> EdgeDef:
-    """Convert an edge dict from database to EdgeDef."""
-    return EdgeDef(
-        id=edge_dict.get("id", ""),
-        source=edge_dict.get("source", ""),
-        target=edge_dict.get("target", ""),
-        source_port=edge_dict.get("source_port", "output"),
-        target_port=edge_dict.get("target_port", "input"),
-        condition=edge_dict.get("condition"),
-        label=edge_dict.get("label"),
-        animated=edge_dict.get("animated", False),
-    )
+    """Convert a persisted edge dict to a typed EdgeDef.
+
+    Delegates to ``EdgeDef.model_validate`` so the single typed boundary owns
+    deserialization: it normalizes the ``source_port``/``source_port_id`` (and
+    ``source``/``source_node_id``) drift and preserves conditional-routing
+    fields (``condition``/``route_key``/``route_map``) that an explicit
+    field-by-field copy previously dropped (#2537).
+    """
+    return EdgeDef.model_validate(edge_dict)
 
 
 def _port_to_response(port: PortDef) -> PortResponse:

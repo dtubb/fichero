@@ -17,7 +17,7 @@ from __future__ import annotations
 import uuid
 from enum import Enum
 from typing import TypedDict, Any, Literal, Annotated
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 def _merge_parallel_results(
@@ -450,6 +450,38 @@ class EdgeDef(BaseModel):
     # Visual styling
     animated: bool = False  # Show animated flow
     label: str | None = None  # Label on edge (None for none)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_edge_field_drift(cls, data: Any) -> Any:
+        """Normalize legacy/alternate edge field spellings onto the canonical
+        names BEFORE field validation runs.
+
+        The canonical edge fields are ``source`` / ``target`` (node IDs) and
+        ``source_port`` / ``target_port`` (port IDs). Older persisted workflows
+        and some payloads used ``source_node_id`` / ``target_node_id`` and
+        ``source_port_id`` / ``target_port_id``. Accept either spelling on input
+        and collapse it onto the canonical field so a single shape is stored and
+        read everywhere (#2537). The canonical key always wins when both are
+        present; the ``*_id`` alias is consumed so it can't linger as stray
+        extra data.
+        """
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)  # never mutate the caller's dict
+        for canonical, legacy in (
+            ("source", "source_node_id"),
+            ("target", "target_node_id"),
+            ("source_port", "source_port_id"),
+            ("target_port", "target_port_id"),
+        ):
+            if legacy in data:
+                legacy_value = data.pop(legacy)
+                # Only adopt the legacy value when the canonical field is absent
+                # or empty — the canonical spelling is authoritative.
+                if not data.get(canonical):
+                    data[canonical] = legacy_value
+        return data
 
 
 class WorkflowDef(BaseModel):

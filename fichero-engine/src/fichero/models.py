@@ -28,7 +28,7 @@ Usage:
     db.delete(doc)
 """
 
-from pydantic import BaseModel, Field, ConfigDict, computed_field
+from pydantic import BaseModel, Field, ConfigDict, computed_field, field_validator
 from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Any
@@ -616,10 +616,13 @@ class Workflow(BaseModel):
     # Visual workflow nodes and edges
     nodes: list[dict[str, Any]] = Field(default_factory=list)
     edges: list[dict[str, Any]] = Field(default_factory=list)
+    # Stored shape is the registry-stripped NodeDef / canonical EdgeDef dict.
     # Node example:
     # {"id": "node1", "tool": "transcribe", "label": "Transcribe", "position_x": 100, "position_y": 200, ...}
-    # Edge example:
-    # {"source_node_id": "node1", "source_port_id": "output", "target_node_id": "node2", "target_port_id": "input"}
+    # Edge example (canonical field names):
+    # {"source": "node1", "source_port": "output", "target": "node2", "target_port": "input"}
+    # Legacy ``source_node_id`` / ``source_port_id`` spellings are accepted on
+    # input and normalized to the canonical names by the validators below.
 
     # Default config for steps/nodes
     config: dict[str, Any] = Field(default_factory=dict)
@@ -631,6 +634,89 @@ class Workflow(BaseModel):
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
+
+    @field_validator("nodes", mode="before")
+    @classmethod
+    def _validate_nodes(cls, v: Any) -> list[dict[str, Any]]:
+        """Validate + normalize persisted nodes at the storage boundary (#2537).
+
+        The persisted ``nodes`` column was previously ``list[dict]`` that nothing
+        type-checked, so a malformed node (missing ``tool``, wrong field types)
+        surfaced as a runtime KeyError/None deep in the graph builder instead of
+        a clean validation error at save/load time.
+
+        Each node is round-tripped through the typed ``NodeDef`` so malformed
+        nodes raise a Pydantic ``ValidationError`` *here*. The stored shape stays
+        a minimal dict via ``model_dump_for_storage()`` — ports are stripped and
+        re-hydrated from the tool registry on read (``enrich_node_with_ports``),
+        so persisted JSON stays small and the running graph is unaffected.
+        """
+        from pydantic import ValidationError
+        from fichero.workflows.types import NodeDef
+
+        if v is None:
+            return []
+        if not isinstance(v, list):
+            raise ValueError("Workflow.nodes must be a list")
+
+        out: list[dict[str, Any]] = []
+        for idx, item in enumerate(v):
+            if isinstance(item, NodeDef):
+                node = item
+            elif isinstance(item, dict):
+                try:
+                    node = NodeDef.model_validate(item)
+                except ValidationError as exc:
+                    raise ValueError(
+                        f"invalid workflow node at index {idx}: {exc}"
+                    ) from exc
+            else:
+                raise ValueError(
+                    f"workflow node at index {idx} must be a dict or NodeDef, "
+                    f"got {type(item).__name__}"
+                )
+            out.append(node.model_dump_for_storage())
+        return out
+
+    @field_validator("edges", mode="before")
+    @classmethod
+    def _validate_edges(cls, v: Any) -> list[dict[str, Any]]:
+        """Validate + normalize persisted edges at the storage boundary (#2537).
+
+        Each edge is round-tripped through the typed ``EdgeDef`` so a malformed
+        edge raises a Pydantic ``ValidationError`` at save/load time rather than
+        a runtime KeyError during graph construction. ``EdgeDef`` also resolves
+        the ``source_port`` vs ``source_port_id`` (and ``source`` vs
+        ``source_node_id``) drift: legacy spellings on already-stored workflows
+        are accepted and normalized onto the canonical field, so existing
+        libraries keep loading without a migration.
+        """
+        from pydantic import ValidationError
+        from fichero.workflows.types import EdgeDef
+
+        if v is None:
+            return []
+        if not isinstance(v, list):
+            raise ValueError("Workflow.edges must be a list")
+
+        out: list[dict[str, Any]] = []
+        for idx, item in enumerate(v):
+            if isinstance(item, EdgeDef):
+                edge = item
+            elif isinstance(item, dict):
+                try:
+                    edge = EdgeDef.model_validate(item)
+                except ValidationError as exc:
+                    raise ValueError(
+                        f"invalid workflow edge at index {idx}: {exc}"
+                    ) from exc
+            else:
+                raise ValueError(
+                    f"workflow edge at index {idx} must be a dict or EdgeDef, "
+                    f"got {type(item).__name__}"
+                )
+            out.append(edge.model_dump())
+        return out
 
 
 # =============================================================================
