@@ -108,6 +108,42 @@ _LANGCHAIN_MODEL_CACHE: weakref.WeakKeyDictionary[
 _LANGCHAIN_MODEL_CACHE_NO_LOOP: OrderedDict[_ModelCacheKey, Any] = OrderedDict()
 _LANGCHAIN_MODEL_CACHE_LOCK = threading.Lock()
 
+# Process-level cache of RESOLVED provider API keys (#2545, M1 — 100k-image
+# hardening). The resolved key is part of the model-cache key, so it is looked
+# up BEFORE every model-cache lookup; at 100k images × N LLM nodes that is
+# hundreds of thousands of synchronous Keychain round-trips. We cache the
+# resolved value keyed on the exact `provider` string passed to get_api_key()
+# (the only input it takes — see get_api_key). Different providers never collide
+# because they get distinct dict keys. We cache None too, so a genuinely missing
+# key is not re-read on every call; callers MUST clear the cache when a
+# credential is created/rotated/deleted (see clear_api_key_cache).
+# Ceiling: one entry per provider string seen — bounded by the provider set, so
+# no eviction/TTL machinery is warranted beyond the existing lock.
+_API_KEY_CACHE: dict[str, str | None] = {}
+_API_KEY_CACHE_LOCK = threading.Lock()
+
+
+def clear_api_key_cache(provider: str | None = None) -> None:
+    """Invalidate the resolved-API-key cache.
+
+    Call whenever a provider credential is created, updated, rotated, or
+    deleted so the next resolution re-reads the Keychain/env instead of serving
+    a stale key. Pass ``provider`` to clear just that entry, or omit to clear
+    everything.
+
+    TODO(#2545): hook this into the provider-key write paths that own those
+    files — ``fichero/api/routes/provider_keys.py`` (``set_api_key`` /
+    ``delete_api_key`` actions, ~L97/L114) and
+    ``fichero/api/routes/providers.py`` (~L296/L548/L550) — so rotations bust
+    the cache automatically. This lane may not edit those files (other lanes
+    own them); until then those write paths must call this function.
+    """
+    with _API_KEY_CACHE_LOCK:
+        if provider is None:
+            _API_KEY_CACHE.clear()
+        else:
+            _API_KEY_CACHE.pop(provider, None)
+
 # Content-addressed result cache for vision (and future LLM) calls (#2224).
 # Keyed by SHA-256 of (provider, model, prompt, per-image content hashes).
 # Caps at 1 000 entries with FIFO eviction. Thread-safe via a lock.
@@ -910,6 +946,22 @@ def get_api_key(provider: str) -> str | None:
     Returns:
         API key or None if not found
     """
+    # Process-level cache (#2545): avoid a synchronous Keychain round-trip on
+    # every call. Cached by `provider` — the only input that determines the
+    # result. Bust via clear_api_key_cache() when a credential changes.
+    with _API_KEY_CACHE_LOCK:
+        if provider in _API_KEY_CACHE:
+            return _API_KEY_CACHE[provider]
+
+    resolved = _read_api_key_uncached(provider)
+
+    with _API_KEY_CACHE_LOCK:
+        _API_KEY_CACHE[provider] = resolved
+    return resolved
+
+
+def _read_api_key_uncached(provider: str) -> str | None:
+    """Resolve an API key from the Keychain then env, without caching."""
     from fichero.providers import get_provider_info
 
     # Try keychain first
@@ -3645,6 +3697,7 @@ __all__ = [
     "list_models_for_provider",
     # Key resolution
     "get_api_key",
+    "clear_api_key_cache",
     # LangChain
     "get_langchain_model",
 ]
