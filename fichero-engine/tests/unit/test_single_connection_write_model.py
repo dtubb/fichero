@@ -126,3 +126,97 @@ def test_concurrent_writes_have_no_lost_rows(temp_library):
     present = {d.id for d in verify.all(Document)}
     missing = [f"d-{i}" for i in range(n) if f"d-{i}" not in present]
     assert not missing, f"committed rows missing on fresh read: {missing[:5]}"
+
+
+def test_cross_thread_read_after_write_is_immediately_visible_under_load(temp_library):
+    """THE #2462/#2430 guarantee, deterministic: a row written on one thread is
+    visible to a DIFFERENT thread the instant the write returns — because they
+    share one connection. Looped 100x with a handoff so a regression to
+    per-thread connections (MVCC snapshot lag) would surface as misses.
+    """
+    library_path, db_manager = temp_library
+    import queue as _queue
+
+    from fichero.models import Document
+
+    handoff: _queue.Queue = _queue.Queue()
+    misses: list[str] = []
+    errors: list[str] = []
+    rounds = 100
+
+    def writer():
+        try:
+            db = db_manager.get_database(library_path)
+            for i in range(rounds):
+                db.save(_make_doc(f"x-{i}"))
+                handoff.put(f"x-{i}")
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"writer: {exc!r}")
+        finally:
+            handoff.put(None)  # sentinel
+
+    def reader():
+        db = db_manager.get_database(library_path)
+        while True:
+            try:
+                doc_id = handoff.get(timeout=10)
+            except Exception:  # noqa: BLE001
+                errors.append("reader: handoff timed out")
+                return
+            if doc_id is None:
+                return
+            try:
+                if db.get(Document, doc_id) is None:
+                    misses.append(doc_id)
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"reader {doc_id}: {exc!r}")
+
+    wt = threading.Thread(target=writer)
+    rt = threading.Thread(target=reader)
+    rt.start()
+    wt.start()
+    wt.join(timeout=30)
+    rt.join(timeout=30)
+
+    assert not errors, f"errors: {errors[:5]}"
+    assert not misses, (
+        f"{len(misses)}/{rounds} cross-thread read-after-write MISSES — the "
+        f"#2462/#2430 phantom miss is back: {misses[:5]}"
+    )
+
+
+def test_no_deadlock_under_concurrent_mixed_ops(temp_library):
+    """One RLock per package serializes save/get/query/all across threads.
+    16 threads hammering mixed ops must all finish (no deadlock / lock
+    starvation) and every row must land — re-entrant RLock, no cross-package
+    nesting, so no lock-order cycle."""
+    library_path, db_manager = temp_library
+    from fichero.models import Document
+
+    errors: list[str] = []
+    n_threads, per = 16, 25
+
+    def worker(t: int):
+        try:
+            db = db_manager.get_database(library_path)
+            for i in range(per):
+                db.save(_make_doc(f"m-{t}-{i}"))
+                db.get(Document, f"m-{t}-{i}")
+                _ = list(db.query(Document))
+                _ = list(db.all(Document))
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"t{t}: {exc!r}")
+
+    threads = [threading.Thread(target=worker, args=(t,)) for t in range(n_threads)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=60)
+
+    assert not any(t.is_alive() for t in threads), "deadlock/hang: threads did not finish in 60s"
+    assert not errors, f"concurrent mixed-op errors: {errors[:5]}"
+
+    present = {d.id for d in db_manager.get_database(library_path).all(Document)}
+    expected = {f"m-{t}-{i}" for t in range(n_threads) for i in range(per)}
+    missing = expected - present
+    assert not missing, f"rows lost under concurrent mixed ops: {list(missing)[:5]}"
