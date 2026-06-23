@@ -93,3 +93,6 @@ agent-work/.cascade.lock
 BLOCK.md
 .kreuzberg/
 .swiftlint-cache/
+
+# release-notes generator cursor (local state)
+.release-notes-cursor
