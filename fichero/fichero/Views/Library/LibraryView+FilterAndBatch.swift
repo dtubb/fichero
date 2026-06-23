@@ -91,31 +91,35 @@ extension LibraryView {
         VStack(spacing: 0) {
             Divider()
 
-            HStack(spacing: 6) {
-                Image(systemName: "line.3.horizontal.decrease.circle")
-                    .foregroundStyle(.secondary)
-                    .font(.body)
-                    .imageScale(.small)
+            // Translucent Liquid Glass background, matching the sidebar mini-toolbars
+            // and the library action bar for a consistent glass look (#2550).
+            GlassEffectContainer {
+                HStack(spacing: 6) {
+                    Image(systemName: "line.3.horizontal.decrease.circle")
+                        .foregroundStyle(.secondary)
+                        .font(.body)
+                        .imageScale(.small)
 
-                TextField("Filter", text: $searchText)
-                    .textFieldStyle(.plain)
-                    .font(.callout)
-                    .focused($filterFieldFocused)
+                    TextField("Filter", text: $searchText)
+                        .textFieldStyle(.plain)
+                        .font(.callout)
+                        .focused($filterFieldFocused)
 
-                if !searchText.isEmpty {
-                    Button {
-                        searchText = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
+                    if !searchText.isEmpty {
+                        Button {
+                            searchText = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Clear filter")
                     }
-                    .buttonStyle(.plain)
-                    .help("Clear filter")
                 }
+                .padding(.horizontal, 10)
+                .frame(height: 30)
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8))
             }
-            .padding(.horizontal, 10)
-            .frame(height: 30)
-            .background(.bar)
         }
         // Escape hides the bottom filter bar and clears the filter so no rows
         // are left silently hidden once the bar disappears.

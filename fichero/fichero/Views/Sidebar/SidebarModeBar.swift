@@ -15,102 +15,107 @@ struct SidebarModeBar: View {
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
 
     var body: some View {
-        HStack(spacing: 2) {
-            // Content modes (1-4)
-            Group {
-                SidebarModeIcon(
-                    mode: .library,
-                    isSelected: selectedMode == .library,
-                    badgeCount: badgeCount(for: .library)
-                ) {
-                    selectMode(.library)
-                }
-
-                if featureManager.isSearchEnabled {
+        // Modern translucent Liquid Glass background, matching SidebarBottomToolbar
+        // and the pane mini-toolbars (PaneFilterBar / MiniToolbar) for a consistent
+        // glass look across the sidebar chrome (#2550).
+        GlassEffectContainer {
+            HStack(spacing: 2) {
+                // Content modes (1-4)
+                Group {
                     SidebarModeIcon(
-                        mode: .search,
-                        isSelected: selectedMode == .search,
-                        badgeCount: badgeCount(for: .search)
+                        mode: .library,
+                        isSelected: selectedMode == .library,
+                        badgeCount: badgeCount(for: .library)
                     ) {
-                        selectMode(.search)
+                        selectMode(.library)
+                    }
+
+                    if featureManager.isSearchEnabled {
+                        SidebarModeIcon(
+                            mode: .search,
+                            isSelected: selectedMode == .search,
+                            badgeCount: badgeCount(for: .search)
+                        ) {
+                            selectMode(.search)
+                        }
+                    }
+
+                    if featureManager.isChatEnabled {
+                        SidebarModeIcon(
+                            mode: .chat,
+                            isSelected: selectedMode == .chat,
+                            badgeCount: badgeCount(for: .chat)
+                        ) {
+                            selectMode(.chat)
+                        }
+                    }
+
+                    if featureManager.isWorkflowsEnabled {
+                        SidebarModeIcon(
+                            mode: .workflows,
+                            isSelected: selectedMode == .workflows,
+                            badgeCount: badgeCount(for: .workflows)
+                        ) {
+                            selectMode(.workflows)
+                        }
+                    }
+
+                    if featureManager.isResearchEnabled {
+                        SidebarModeIcon(
+                            mode: .research,
+                            isSelected: selectedMode == .research,
+                            badgeCount: 0
+                        ) {
+                            selectMode(.research)
+                        }
+                    }
+
+                    if featureManager.isKnowledgeGraphEnabled {
+                        SidebarModeIcon(
+                            mode: .knowledgeGraph,
+                            isSelected: selectedMode == .knowledgeGraph,
+                            badgeCount: 0
+                        ) {
+                            selectMode(.knowledgeGraph)
+                        }
                     }
                 }
 
-                if featureManager.isChatEnabled {
-                    SidebarModeIcon(
-                        mode: .chat,
-                        isSelected: selectedMode == .chat,
-                        badgeCount: badgeCount(for: .chat)
-                    ) {
-                        selectMode(.chat)
-                    }
-                }
-
-                if featureManager.isWorkflowsEnabled {
-                    SidebarModeIcon(
-                        mode: .workflows,
-                        isSelected: selectedMode == .workflows,
-                        badgeCount: badgeCount(for: .workflows)
-                    ) {
-                        selectMode(.workflows)
-                    }
-                }
-
-                if featureManager.isResearchEnabled {
-                    SidebarModeIcon(
-                        mode: .research,
-                        isSelected: selectedMode == .research,
-                        badgeCount: 0
-                    ) {
-                        selectMode(.research)
-                    }
-                }
-
-                if featureManager.isKnowledgeGraphEnabled {
-                    SidebarModeIcon(
-                        mode: .knowledgeGraph,
-                        isSelected: selectedMode == .knowledgeGraph,
-                        badgeCount: 0
-                    ) {
-                        selectMode(.knowledgeGraph)
-                    }
-                }
-            }
-
-            if featureManager.isAutomationEnabled {
-                modeSeparator
-            }
-
-            // Automation mode
-            Group {
                 if featureManager.isAutomationEnabled {
-                    SidebarModeIcon(
-                        mode: .automation,
-                        isSelected: selectedMode == .automation,
-                        badgeCount: badgeCount(for: .automation)
-                    ) {
-                        selectMode(.automation)
+                    modeSeparator
+                }
+
+                // Automation mode
+                Group {
+                    if featureManager.isAutomationEnabled {
+                        SidebarModeIcon(
+                            mode: .automation,
+                            isSelected: selectedMode == .automation,
+                            badgeCount: badgeCount(for: .automation)
+                        ) {
+                            selectMode(.automation)
+                        }
                     }
                 }
-            }
 
-            if featureManager.isActivityEnabled {
-                modeSeparator
+                if featureManager.isActivityEnabled {
+                    modeSeparator
 
-                // Monitoring mode (7)
-                SidebarModeIcon(
-                    mode: .activity,
-                    isSelected: selectedMode == .activity,
-                    badgeCount: badgeCount(for: .activity)
-                ) {
-                    selectMode(.activity)
+                    // Monitoring mode (7)
+                    SidebarModeIcon(
+                        mode: .activity,
+                        isSelected: selectedMode == .activity,
+                        badgeCount: badgeCount(for: .activity)
+                    ) {
+                        selectMode(.activity)
+                    }
                 }
-            }
 
+            }
+            .padding(.horizontal, 8)
+            .frame(maxWidth: .infinity, maxHeight: MiniToolbar<EmptyView, EmptyView>.standardHeight)  // Normalize to 44pt
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8))
         }
-        .padding(.horizontal, 8)
-        .frame(maxWidth: .infinity, maxHeight: MiniToolbar<EmptyView, EmptyView>.standardHeight)  // Normalize to 44pt
-        .background(.bar, ignoresSafeAreaEdges: .horizontal)
     }
 
     // MARK: - Helper Views

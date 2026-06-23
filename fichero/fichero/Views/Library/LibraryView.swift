@@ -471,70 +471,75 @@ extension LibraryView {
         VStack(spacing: 0) {
             Divider()
 
-            HStack(spacing: 12) {
-                Button {
-                    handleCreateNewFolder()
-                } label: {
-                    Image(systemName: "plus")
-                        .accessibilityLabel("New Folder")
-                }
-                .buttonStyle(.borderless)
-                .controlSize(.small)
-                .help("Create a new folder")
+            // Translucent Liquid Glass background, matching the sidebar mini-toolbars
+            // (SidebarModeBar / SidebarBottomToolbar / PaneFilterBar) for a consistent
+            // glass look across the window chrome (#2550).
+            GlassEffectContainer {
+                HStack(spacing: 12) {
+                    Button {
+                        handleCreateNewFolder()
+                    } label: {
+                        Image(systemName: "plus")
+                            .accessibilityLabel("New Folder")
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+                    .help("Create a new folder")
 
-                Button {
-                    promptDeleteSelected()
-                } label: {
-                    Image(systemName: "minus")
-                        .accessibilityLabel("Delete")
-                }
-                .buttonStyle(.borderless)
-                .controlSize(.small)
-                .help("Delete selection")
-                .disabled(isShowingEntitiesCollection || selection.isEmpty)
+                    Button {
+                        promptDeleteSelected()
+                    } label: {
+                        Image(systemName: "minus")
+                            .accessibilityLabel("Delete")
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+                    .help("Delete selection")
+                    .disabled(isShowingEntitiesCollection || selection.isEmpty)
 
-                Spacer()
+                    Spacer()
 
-                if displayMode == .list {
-                    entityFilterMenu
-                }
+                    if displayMode == .list {
+                        entityFilterMenu
+                    }
 
-                Button {
-                    Task { await exportSelectedBibtex() }
-                } label: {
-                    Image(systemName: "square.and.arrow.up")
-                        .accessibilityLabel("Export BibTeX")
-                }
-                .buttonStyle(.borderless)
-                .controlSize(.small)
-                .help("Export selection as BibTeX")
-                .disabled(isShowingEntitiesCollection || selection.isEmpty)
+                    Button {
+                        Task { await exportSelectedBibtex() }
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                            .accessibilityLabel("Export BibTeX")
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+                    .help("Export selection as BibTeX")
+                    .disabled(isShowingEntitiesCollection || selection.isEmpty)
 
-                Button {
-                    showingFileImporter = true
-                } label: {
-                    Image(systemName: "square.and.arrow.down")
-                        .accessibilityLabel("Import")
-                }
-                .buttonStyle(.borderless)
-                .controlSize(.small)
-                .help("Import files")
+                    Button {
+                        showingFileImporter = true
+                    } label: {
+                        Image(systemName: "square.and.arrow.down")
+                            .accessibilityLabel("Import")
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+                    .help("Import files")
 
-                Button {
-                    selectedDocumentIdsForBatch = Array(selection)
-                    showWorkflowPicker = true
-                } label: {
-                    Image(systemName: "bolt")
-                        .accessibilityLabel("Run Workflow")
+                    Button {
+                        selectedDocumentIdsForBatch = Array(selection)
+                        showWorkflowPicker = true
+                    } label: {
+                        Image(systemName: "bolt")
+                            .accessibilityLabel("Run Workflow")
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+                    .help("Run workflow on selection")
+                    .disabled(isShowingEntitiesCollection || selection.isEmpty || !featureManager.isWorkflowRunOnSelectionEnabled)
                 }
-                .buttonStyle(.borderless)
-                .controlSize(.small)
-                .help("Run workflow on selection")
-                .disabled(isShowingEntitiesCollection || selection.isEmpty || !featureManager.isWorkflowRunOnSelectionEnabled)
+                .padding(.horizontal, 10)
+                .frame(height: 28)
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8))
             }
-            .padding(.horizontal, 10)
-            .frame(height: 28)
-            .background(.bar)
         }
     }
 
