@@ -362,9 +362,18 @@ extension ContentView {
 
     @ViewBuilder
     var centerContent: some View {
-        // Non-library/search modes (activity, workflows, chat, etc.) never use the
-        // preview split — they own the full content area themselves.
-        if !showsPreviewPane {
+        // COMPACT (iPhone/iOS) — Overcast-style forward navigation (#2551).
+        // The library/search LIST is the root of a NavigationStack; tapping a
+        // leaf document PUSHES the reader (the SAME EditorView the regular
+        // content pane shows in its preview slot) with a Back button to return.
+        // The macOS/iPad-regular split path is the `else` chain below and is
+        // UNCHANGED — `usesCompactReaderFlow` is compile-time `false` on macOS
+        // (shouldUseCompactNavigationFlow) and only ever true at compact width.
+        if usesCompactReaderFlow {
+            compactLibraryReaderStack
+        } else if !showsPreviewPane {
+            // Non-library/search modes (activity, workflows, chat, etc.) never use
+            // the preview split — they own the full content area themselves.
             contentWithOptionalModeRail
                 .overlay { paneFocusIndicator(for: .content) }
                 .frame(maxWidth: .infinity)
@@ -468,6 +477,75 @@ extension ContentView {
                 }
             }
             .animation(.easeInOut(duration: 0.18), value: layout)
+        }
+    }
+
+    // MARK: - Compact (iPhone) forward navigation (#2551)
+
+    /// True only on COMPACT width for the library/search modes that own the
+    /// list → reader pipeline (#2551). macOS/iPad-regular return `false` (the
+    /// split layout is used instead, untouched). The entities browser is
+    /// excluded — it drives the KG focus state, not a document reader.
+    private var usesCompactReaderFlow: Bool {
+        guard Self.shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) else {
+            return false
+        }
+        switch viewMode {
+        case .library:
+            return !isEntityLibrarySelection
+        case .search:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Compact-only push trigger (#2551). Resolves to a LEAF document — never a
+    /// folder, so tapping a folder still drills in place rather than pushing a
+    /// reader screen for a container. Falls back to the current selection when
+    /// no promoted `detailDocument` exists, so the push works in every compact
+    /// layout mode (the .none/.standard promote policy is regular-width only).
+    /// Setting `nil` (Back button / back-swipe) returns to the list and clears
+    /// the selection.
+    private var compactReaderDocument: Binding<Document?> {
+        Binding(
+            get: {
+                let candidate = detailDocument
+                    ?? browserSelection.first.flatMap { id in
+                        documentStore.currentDocuments.first(where: { $0.id == id })
+                    }
+                guard let doc = candidate, doc.docType != .folder else { return nil }
+                return doc
+            },
+            set: { newValue in
+                if newValue == nil {
+                    detailDocument = nil
+                    browserSelection = []
+                }
+            }
+        )
+    }
+
+    /// Compact (iPhone) library/search reader stack (#2551). The list is the
+    /// root; selecting a leaf document pushes the reader — the SAME `previewView`
+    /// EditorView the regular content pane shows in its preview slot, so there is
+    /// no parallel reader. `NavigationStack` supplies the Back affordance.
+    @ViewBuilder
+    private var compactLibraryReaderStack: some View {
+        NavigationStack {
+            contentWithOptionalModeRail
+                .overlay { paneFocusIndicator(for: .content) }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .navigationDestination(item: compactReaderDocument) { doc in
+                    previewView
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .navigationTitle(doc.name)
+                        // ponytail: full edge-swipe paging between pipeline stages
+                        // is deferred. Back (NavigationStack) returns to the list,
+                        // and EditorView already hosts SwipeSiblingNavigator for
+                        // two/three-finger sibling paging. Add explicit
+                        // stage-to-stage swiping later if Daniel wants it. (#2551)
+                }
         }
     }
 
