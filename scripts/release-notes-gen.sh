@@ -17,7 +17,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 MODEL="${OLLAMA_MODEL:-kimi-k2.7-code:cloud}"
 NOTES="RELEASE_NOTES.md"
 CURSOR_FILE=".release-notes-cursor"
-PIVOT="2025-11-01"     # SwiftUI/Python migration ~here; stop at it
+PIVOT="2025-12-05"     # SwiftUI/Python transition (GLAM, Dec 3-5 2025); stop here — no pre-pivot notes
 CHUNK=5
 
 prev_day() { date -v-1d -j -f "%Y-%m-%d" "$1" +%Y-%m-%d; }
@@ -38,7 +38,7 @@ while :; do
     echo "$cursor" > "$CURSOR_FILE"
     if [[ -z "$commits" && -z "$issues" ]]; then echo "$cursor: no activity, skip"; continue; fi
 
-    prompt="You write ONE day's entry for Fichero's release notes, Apple 'what's new' style. Fichero is a macOS document-management app (SwiftUI) with a Python FastAPI/LangGraph engine for archival OCR/transcription + a knowledge graph. Date: $cursor.
+    prompt="You write ONE day's entry as polished macOS 'What's New' release notes — the concise, benefit-led voice Apple uses in Mac App Store app updates (NOT a developer changelog, NOT raw dev notes, NOT a commit list). Lead each item with a bold heading: **New — <short title>.** / **Improved — <short title>.** / **Fixed — <short title>.** then 1–2 crisp end-user sentences in plain language. Fichero is a macOS document-management app (SwiftUI) with a Python FastAPI/LangGraph engine for archival OCR/transcription + a knowledge graph. Date: $cursor.
 
 Below are that day's git commits and closed GitHub issues. Write a SHORT entry grouped under **New** / **Improved** / **Fixed** (omit any empty group). User-facing voice — summarize the meaningful changes, do NOT transcribe every commit. If the day is purely internal (refactors, tests, CI, deps, docs) with nothing a user would notice, write SKIP. Never invent features. Wrap your answer EXACTLY between a line ===NOTES_START=== and a line ===NOTES_END=== — put ONLY the entry body (or the word SKIP) between those markers, and nothing else outside them.
 
