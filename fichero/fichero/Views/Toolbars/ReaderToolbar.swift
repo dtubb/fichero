@@ -66,6 +66,16 @@ struct ReaderPageNav {
 /// Split-axis (h/v) buttons are injected automatically by `MiniToolbar` from the
 /// `\.splitAxisActions` environment, so split keeps working for both viewers.
 struct ReaderToolbar: View {
+    // On compact width (iPhone) the desktop-centric zoom in/out + fit/actual-size
+    // controls are dropped — pinch-zoom is the platform idiom there, so the
+    // explicit scaling buttons are clutter (#2549). macOS reports `nil` and
+    // iPad-regular reports `.regular`, so both keep the full control set; only
+    // `.compact` (iPhone) hides zoom/fit. Page navigation is kept on every size
+    // class — a reader still needs to turn pages.
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    private var isCompact: Bool { horizontalSizeClass == .compact }
+
     // ─── Pane chrome (the PDF reader supplies these; the image viewer leaves nil) ───
     var title: String?
     var onClose: (() -> Void)?
@@ -114,8 +124,12 @@ struct ReaderToolbar: View {
             chromeSection
             pageNavSection
             Spacer(minLength: 0)
-            zoomSection
-            fitSection
+            // Zoom/fit are desktop-centric; on compact width pinch-zoom handles
+            // scaling, so we drop them to de-clutter the bar (#2549).
+            if !isCompact {
+                zoomSection
+                fitSection
+            }
             ViewThatFits(in: .horizontal) {
                 inlineSecondaryTools
                 overflowMenu
