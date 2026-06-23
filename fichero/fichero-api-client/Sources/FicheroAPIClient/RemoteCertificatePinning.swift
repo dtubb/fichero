@@ -510,14 +510,46 @@ private final class ExplicitPinnedSessionDelegate: NSObject, URLSessionDelegate 
     }
 }
 
-private final class DynamicPinnedSessionDelegate: NSObject, URLSessionDelegate {
+internal final class DynamicPinnedSessionDelegate: NSObject, URLSessionDelegate {
     func urlSession(
         _ session: URLSession,
         didReceive challenge: URLAuthenticationChallenge,
         completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
     ) {
-        let (disposition, credential) = RemoteCertificatePinning.resolveServerTrustChallenge(challenge)
-        completionHandler(disposition, credential)
+        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust else {
+            completionHandler(.performDefaultHandling, nil)
+            return
+        }
+
+        guard let trust = challenge.protectionSpace.serverTrust else {
+            completionHandler(.cancelAuthenticationChallenge, nil)
+            return
+        }
+        let hostString = RemoteCertificatePinning.challengeHostString(challenge.protectionSpace)
+        guard let expectedSPKIPin = RemoteCertificatePinning.persistedSPKIPin(hostString: hostString) else {
+            let host = challenge.protectionSpace.host.lowercased()
+            if RemoteCertificatePinning.isLoopbackChallengeHost(host) {
+                completionHandler(.cancelAuthenticationChallenge, nil)
+                return
+            }
+            guard RemoteCertificatePinning.shouldEnforcePinning(forHost: host) else {
+                completionHandler(.performDefaultHandling, nil)
+                return
+            }
+            completionHandler(.cancelAuthenticationChallenge, nil)
+            return
+        }
+
+        do {
+            try RemoteCertificatePinning.validateServerTrust(
+                trust,
+                host: challenge.protectionSpace.host.lowercased(),
+                expectedSPKIPin: expectedSPKIPin
+            )
+            completionHandler(.useCredential, URLCredential(trust: trust))
+        } catch {
+            completionHandler(.cancelAuthenticationChallenge, nil)
+        }
     }
 }
 #endif

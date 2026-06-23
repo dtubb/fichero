@@ -24,6 +24,7 @@ final class RemoteCertificatePinningTests: XCTestCase {
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostedBackendHost)
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostOneDefaultPort)
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: "https://127.0.0.1:8765")
+        RemoteCertificatePinning.clearPersistedSPKIPin(hostString: "https://pairing.example.com")
     }
 
     func testValidatedSPKIPinRejectsMissingPin() {
@@ -143,10 +144,107 @@ final class RemoteCertificatePinningTests: XCTestCase {
             XCTAssertEqual(error as? RemoteCertificatePinningError, .serverIdentityMismatch)
         }
     }
+
+    func testConfiguredSessionDelegateAcceptsPinnedSelfSignedCertificate() throws {
+        let trustContext = try SelfSignedTrustFixture.makeTrust()
+        let hostString = "https://\(trustContext.host)"
+        RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostString)
+        try RemoteCertificatePinning.persistSPKIPin(trustContext.spkiPin, hostString: hostString)
+
+        let delegate = DynamicPinnedSessionDelegate()
+        let protectionSpace = MockServerTrustProtectionSpace(
+            host: trustContext.host,
+            port: 443,
+            protocol: "https",
+            realm: nil,
+            authenticationMethod: NSURLAuthenticationMethodServerTrust,
+            serverTrust: trustContext.trust
+        )
+        let sender = MockChallengeSender()
+        let challenge = MockServerTrustChallenge(
+            protectionSpace: protectionSpace,
+            proposedCredential: nil,
+            previousFailureCount: 0,
+            failureResponse: nil,
+            error: nil,
+            sender: sender
+        )
+
+        let expectation = self.expectation(description: "challenge completion")
+        var capturedDisposition: URLSession.AuthChallengeDisposition?
+        var capturedCredential: URLCredential?
+        delegate.urlSession(URLSession.shared, didReceive: challenge) { disposition, credential in
+            capturedDisposition = disposition
+            capturedCredential = credential
+            expectation.fulfill()
+        }
+        wait(for: [expectation], timeout: 1.0)
+
+        XCTAssertEqual(capturedDisposition, .useCredential)
+        XCTAssertNotNil(capturedCredential)
+    }
     #endif
 }
 
 #if canImport(Security)
+private final class MockServerTrustProtectionSpace: URLProtectionSpace {
+    private let testServerTrust: SecTrust?
+
+    override var serverTrust: SecTrust? { testServerTrust }
+
+    init(
+        host: String,
+        port: Int,
+        protocol scheme: String?,
+        realm: String?,
+        authenticationMethod: String,
+        serverTrust: SecTrust?
+    ) {
+        self.testServerTrust = serverTrust
+        super.init(host: host, port: port, protocol: scheme, realm: realm, authenticationMethod: authenticationMethod)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
+private final class MockServerTrustChallenge: URLAuthenticationChallenge {
+    private let testProtectionSpace: URLProtectionSpace
+
+    override var protectionSpace: URLProtectionSpace { testProtectionSpace }
+
+    init(
+        protectionSpace: URLProtectionSpace,
+        proposedCredential: URLCredential?,
+        previousFailureCount: Int,
+        failureResponse: URLResponse?,
+        error: Error?,
+        sender: URLAuthenticationChallengeSender
+    ) {
+        self.testProtectionSpace = protectionSpace
+        super.init(
+            protectionSpace: protectionSpace,
+            proposedCredential: proposedCredential,
+            previousFailureCount: previousFailureCount,
+            failureResponse: failureResponse,
+            error: error,
+            sender: sender
+        )
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
+private final class MockChallengeSender: NSObject, URLAuthenticationChallengeSender {
+    func use(_ credential: URLCredential, for challenge: URLAuthenticationChallenge) {}
+    func continueWithoutCredential(for challenge: URLAuthenticationChallenge) {}
+    func cancel(_ challenge: URLAuthenticationChallenge) {}
+    func rejectProtectionSpaceAndContinue(with challenge: URLAuthenticationChallenge) {}
+}
+
 private enum SelfSignedTrustFixture {
     private static let certificatePEM = """
     -----BEGIN CERTIFICATE-----
