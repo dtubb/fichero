@@ -1,8 +1,26 @@
 # Fichero
 
-Document management and AI processing for macOS. One engine, many surfaces.
+*Fichero* (Spanish: **file cabinet**, **card index**) is a document management
+system with AI processing for macOS. It gives a researcher's corpus — PDFs,
+fieldwork notes, audio, images, transcripts, references — a single home with
+semantic understanding: ask a question and find the relevant passage, not just
+the filename.
 
-For the what and why — in plain language — see [docs/about.md](docs/about.md).
+The aim is to move *beyond the chat box and beyond the opaque agent*. Rather than
+letting an AI decide how things get done behind the scenes, Fichero lets you
+build the steps yourself — visually, repeatably, across a whole corpus — and see
+what the machine actually did. AI here is an **instrument, not an interlocutor**:
+it surfaces facts and provenance; it does not interpret for you.
+
+Built primarily for historians and archivists (handwritten-document
+transcription with vision models, catalogue production), but it is ultimately a
+tool for using large language models in a programmatic, methodical,
+step-by-step way over documents.
+
+For the what and why in plain language, see [docs/about.md](docs/about.md);
+for the product north star, [CONSTITUTION.md](CONSTITUTION.md).
+
+**One engine, many surfaces.**
 
 ## Architecture
 
@@ -16,7 +34,7 @@ Fichero is a single backend engine ("engine is logic; clients are display surfac
          │                     │                     │
          └─────────────────────┴─────────────────────┘
                               │
-                  HTTP localhost:8765
+              HTTPS 127.0.0.1:8765  (TLS, pinned fail-closed)
                               │
                               ▼
               ┌──────────────────────────────┐
@@ -37,10 +55,10 @@ All surfaces are thin clients on the engine. They render and accept input; they 
 
 | Surface | Path | Status |
 |---|---|---|
-| SwiftUI app | `fichero/` (Xcode project: `fichero/fichero.xcodeproj`) | Live |
+| SwiftUI app (macOS) | `fichero/` (Xcode project: `fichero/fichero.xcodeproj`) | Live |
 | `fichero` CLI | `fichero-engine/src/fichero/cli/` | Live (typed, end-to-end verified) |
-| MCP server | `fichero-engine/` (planned / in flight) | Coming |
-| iPad app | future | Planned |
+| MCP server | `fichero-engine/src/fichero/mcp_server.py` (`fichero-mcp`) | Live |
+| iOS / iPad app | `fichero/fichero/FicheroApp_iOS.swift` (same project) | In progress |
 | Web client | future | Planned |
 
 ### Example Workflow: Catalogue
@@ -106,7 +124,8 @@ swiftlint lint fichero/fichero/
 - **Workflows**: Visual node editor for document processing pipelines (LangGraph)
 - **Knowledge Graph**: Entities, claims, and relationships extracted from documents (backend-owned; surfaces render)
 - **Ingest**: Comprehensive file ingestion with 37+ supported formats
-- **CLI / MCP**: Engine endpoints driven from terminal and (soon) MCP-aware agents
+- **CLI / MCP**: Engine endpoints driven from the terminal (`fichero`) and from MCP-aware agents (`fichero-mcp`)
+- **Privacy / offline-first**: Model-agnostic via LiteLLM; run local models (Ollama, LM Studio, MLX) with no internet, or bring your own cloud API key
 
 ## Ingest Module
 
@@ -212,3 +231,14 @@ PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ \
 ```
 
 See `docs/VALIDATION.md` for details and current known blockers.
+
+## Documentation
+
+- **End users**: [`docs/user/`](docs/user/) — getting started, importing, reading & editing, search & knowledge graph, AI & privacy.
+- **Developers / contributors**: [`docs/developer/`](docs/developer/) — architecture overview, setup & contributing, OpenAPI & clients, security model, workflows, the action registry.
+- **Architecture deep-dives**: [`docs/architecture/`](docs/architecture/) and the canonical agent guide [`docs/CLAUDE.md`](docs/CLAUDE.md).
+- Component READMEs: [`fichero/`](fichero/README.md) (SwiftUI app) and [`fichero-engine/`](fichero-engine/README.md) (Python engine).
+
+## License
+
+MIT — see [`LICENSE`](LICENSE). Copyright (c) 2025 Daniel Tubb.

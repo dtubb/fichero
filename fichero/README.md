@@ -1,30 +1,86 @@
-# fichero
+# fichero — SwiftUI app
 
-SwiftUI macOS frontend for Fichero.
+The native Apple front end for Fichero (macOS primary; an iOS/iPad target lives
+in the same project and is in progress). It is a **thin client**: it renders and
+accepts input, and talks to the FastAPI engine over pinned HTTPS loopback. The
+logic — ingest, search, knowledge graph, workflows — lives in the engine, not
+here. See the [top-level README](../README.md) for the whole-system picture.
 
 ## What lives here
-- `fichero.xcodeproj`: Xcode project
-- `fichero/`: app source code, resources, services, views
-- `fichero-api-client/`: generated Swift OpenAPI client package
-- `fichero-tests/`, `fichero-ui-tests/`: test target source folders
 
-## Build
-From repo root:
+| Path | What |
+|---|---|
+| `fichero.xcodeproj` | Xcode project (main target: `Fichero`) |
+| `fichero/` | App source — `App/`, `Views/`, `Models/`, `Services/`, `Intents/`, resources |
+| `fichero-api-client/` | Generated Swift OpenAPI client package (`Sources/FicheroAPIClient/` is generated — do not hand-edit) |
+| `fichero-tests/`, `fichero-ui-tests/` | Test target source folders |
+
+### Source layout (`fichero/fichero/`)
+
+```
+App/            FicheroApp (macOS) + FicheroApp_iOS, AppState, LibraryWindow, window/scene scaffolding
+Views/          Feature surfaces across ~19 domains:
+  Library/        document browser + PDF/image reading view + tabbed inspector
+  Search/         semantic search UI
+  Chat/           RAG conversation UI
+  Workflow/       visual LangGraph node editor + canvas
+  KnowledgeGraph/ entity / claim digests and graph views
+  Activity/ Settings/ AIProviders/ Automation/ …
+Models/         @Observable domain stores (DocumentStore, WorkflowStore, SidebarState, ObservableDomainStore, …)
+Services/       APIClient + hand-written *Generated.swift service wrappers over the OpenAPI client
+Intents/        App Intents / Shortcuts
+```
+
+## Key concepts
+
+- **Observable stores.** Views observe `@Observable` domain stores (e.g.
+  `DocumentStore`, `WorkflowStore`). The store is the single accessor for
+  endpoints and the change stream — views never call the API directly. This
+  keeps pure-display views, live observers, and multi-window sync on one path.
+- **Typed OpenAPI client.** All engine calls go through the generated
+  `FicheroAPIClient` package and the `Services/*Generated.swift` wrappers. When
+  building a request body, always use the typed `Components.Schemas.*` fields —
+  never `additionalProperties` for a declared field (it silently drops writes).
+- **Surfaces, not silos.** Library, Reader, Search, Chat, Workflows, and the
+  Knowledge Graph are all views onto the same engine-owned data model. The KG is
+  backend-owned; the app renders it.
+- **Pinned loopback transport.** The app pins `https://127.0.0.1:8765`
+  fail-closed (certificate pinning). A plain-HTTP engine is unreachable — the
+  backend must be started with `start_backend.sh` (see engine README).
+
+## Build & run
+
+Open `fichero/fichero.xcodeproj` in Xcode and run the `Fichero` scheme. Start the
+engine first (`bash fichero-engine/scripts/start_backend.sh`) so the app has
+something to connect to.
+
+Command-line build (from repo root):
 
 ```bash
 xcodebuild -project fichero/fichero.xcodeproj -scheme Fichero -configuration Debug build
 ```
 
+To launch an already-built `.app`, use the helper rather than exec-ing the
+binary (direct exec does not draw a window on macOS 26):
+
+```bash
+scripts/launch-release.sh          # Release
+scripts/launch-release.sh --debug  # Debug
+```
+
 ## Lint
-From repo root:
 
 ```bash
 swiftlint lint fichero/fichero/
 ```
 
 ## Notes
-The app expects the backend at `http://localhost:8765` in local development.
-Run `fichero-engine/scripts/sync_openapi_schema.sh` after backend API changes to refresh the Swift package schema consumed by the app.
 
-Sparkle updater release setup notes:
-- `fichero/docs/sparkle-release.md`
+- **New `.swift` files must be registered** with `ruby scripts/add-swift-file.rb <path>`
+  (the main target uses traditional PBX file references; a file on disk is
+  invisible to the compiler until registered). Never hand-edit `project.pbxproj`.
+- After backend API/schema changes, run `fichero-engine/scripts/sync_openapi_schema.sh`
+  to refresh the OpenAPI schema the Swift package consumes.
+- Sparkle updater release setup: `fichero/docs/sparkle-release.md`.
+- Swift conventions: `docs/architecture/swiftui/development_standards.md`;
+  OpenAPI round-trip contract: `docs/architecture/swiftui/api_client.md`.
