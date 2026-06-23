@@ -3,6 +3,84 @@ import SwiftUI
 // MARK: - Selection Handling
 
 extension SidebarView {
+    // Routes a `selectedItemId` value to the matching `sidebarMode` / `viewMode`.
+    //
+    // Extracted from the inline `.onChange(of: selectedItemId)` closure so the
+    // SAME routing can also be invoked to reconcile a restored selection once
+    // the sidebar caches are ready (#2548) — see `sidebarShouldReconcileSelection`.
+    // `lastHandledSelectionId` keeps this idempotent: re-invoking with the same
+    // id is a no-op, so the reconcile path never double-handles a live click.
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
+    func handleSelectionChange(_ newId: String?) {
+        sidebarViewLogger.info("selectedItemId changed to: \(newId ?? "nil")")
+        if newId == nil || !(newId?.hasPrefix("run:") ?? false) {
+            selectedActivityItemIds.removeAll()
+        } else if let runId = newId {
+            selectedActivityItemIds = [runId]
+        }
+        guard let id = newId else {
+            lastHandledSelectionId = nil
+            return
+        }
+        if lastHandledSelectionId == id {
+            return
+        }
+        lastHandledSelectionId = id
+        if let libraryId = selectedLibraryId(from: id) {
+            if windowState.libraryId != libraryId {
+                windowState.libraryId = libraryId
+            }
+            sidebarMode = .library
+            viewMode = .library(nil)
+            return
+        }
+        if id == "activity-browser" {
+            sidebarMode = .activity
+            viewMode = .activity(nil)
+            return
+        }
+        if id == "workflows-browser" {
+            sidebarMode = .workflows
+            viewMode = .workflow(nil)
+            return
+        }
+        if id == "batches-browser" {
+            viewMode = .batches
+            return
+        }
+        if id == "entities-browser" {
+            sidebarMode = .library
+            viewMode = .library(nil)
+            return
+        }
+        if id == "comparison-browser" {
+            sidebarMode = .chat
+            viewMode = .comparison(nil)
+            return
+        }
+        if id == "research-browser" {
+            sidebarMode = .research
+            return
+        }
+        if id.hasPrefix("run:"),
+           let selectedRun = unifiedSelectedRun(forSidebarId: id) {
+            viewMode = .activity(selectedRun.toSelectedRun())
+            return
+        }
+        let item = findItemById(id, in: allCachedItems)
+        handleSelection(item)
+    }
+
+    /// Drives a restored/persisted `selectedItemId` into the view mode when it
+    /// hasn't been handled yet (#2548). Idempotent via `lastHandledSelectionId`.
+    func reconcileRestoredSelection() {
+        guard sidebarShouldReconcileSelection(
+            selectedId: selectedItemId,
+            lastHandled: lastHandledSelectionId
+        ) else { return }
+        handleSelectionChange(selectedItemId)
+    }
+
     // Handle sidebar item selection and update view mode
     // swiftlint:disable:next cyclomatic_complexity function_body_length
     func handleSelection(_ item: SidebarItem?) {

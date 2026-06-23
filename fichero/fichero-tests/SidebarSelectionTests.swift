@@ -14,6 +14,37 @@ struct SidebarSelectionTests {
         #expect(sidebarSelectionFallback(current: "doc:1", tapped: "doc:2") == "doc:2")
     }
 
+    @Test("#2548 restored selection that was never handled is reconciled")
+    func restoredUnhandledSelectionReconciles() {
+        // Launch: @SceneStorage restored selectedItemId, but onChange never fired
+        // (value didn't change) so lastHandled is still nil → must reconcile.
+        #expect(sidebarShouldReconcileSelection(selectedId: "doc:1", lastHandled: nil))
+        // Browser tags restore the same way.
+        #expect(sidebarShouldReconcileSelection(selectedId: "activity-browser", lastHandled: nil))
+    }
+
+    @Test("#2548 already-handled selection is not reconciled again")
+    func handledSelectionDoesNotReconcile() {
+        // Once handleSelectionChange has run for an id, reconcile must be a no-op
+        // so the reconcile path never double-handles a live click.
+        #expect(!sidebarShouldReconcileSelection(selectedId: "doc:1", lastHandled: "doc:1"))
+    }
+
+    @Test("#2548 no selection means nothing to reconcile")
+    func noSelectionDoesNotReconcile() {
+        #expect(!sidebarShouldReconcileSelection(selectedId: nil, lastHandled: nil))
+        #expect(!sidebarShouldReconcileSelection(selectedId: nil, lastHandled: "doc:1"))
+    }
+
+    @Test("#2547 compact inspector sheet defaults to full-height .large")
+    func compactInspectorSheetDefaultsToLarge() throws {
+        // The sheet must NOT default to [.medium, .large] (which opens at 50%);
+        // it should default to a single .large detent so iPhone opens full-height.
+        let source = try appSource("Views/Library/InspectorPresenter.swift")
+        #expect(source.contains("detents: Set<PresentationDetent> = [.large]"))
+        #expect(!source.contains("[.medium, .large]"))
+    }
+
     @Test("#1736 Open in New Tab captures the originating window before opening")
     func openInNewTabCapturesHostWindowBeforeOpen() throws {
         let source = try appSource("Views/OpenAffordances.swift")

@@ -558,17 +558,16 @@ struct ContentView: View {
                 )
             #endif
         } else {
-            NavigationStack {
-                detailView
-                    .navigationTitle("Inspector")
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Done") {
-                                showInspectorSidebar = false
-                            }
-                        }
-                    }
-            }
+            // Compact width (iPhone): the inspector is presented as a
+            // full-height sheet by `.adaptiveInspector()` (#2547). This branch
+            // supplies ONLY the inspector CONTENT — no competing
+            // `NavigationStack`/"Done" chrome that would fight the adaptive
+            // presenter. The sheet opens at the `.large` detent and is dismissed
+            // by swiping down via its drag indicator (Overcast-style), which
+            // routes back through the `isPresented` binding and clears
+            // `showInspectorSidebar`. `.adaptiveInspector()` solely owns
+            // sheet-vs-docked presentation.
+            detailView
         }
     }
 }

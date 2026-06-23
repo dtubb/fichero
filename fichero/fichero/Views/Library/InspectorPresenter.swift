@@ -77,7 +77,7 @@ extension View {
     func adaptiveInspector<InspectorContent: View>(
         placement: InspectorPlacement,
         isPresented: Binding<Bool>,
-        detents: Set<PresentationDetent> = [.medium, .large],
+        detents: Set<PresentationDetent> = [.large],
         @ViewBuilder content: @escaping () -> InspectorContent
     ) -> some View {
         #if os(visionOS)
@@ -95,9 +95,13 @@ extension View {
     /// Presents detail `content` as a detented sheet — the ``InspectorPlacement/sheet``
     /// placement for compact / single-window platforms. A no-op shape-wise on
     /// macOS where the docked column is used instead.
+    ///
+    /// Defaults to a single `.large` detent so the sheet opens FULL-HEIGHT
+    /// (Overcast-style) on compact width and is dismissed by swiping down via
+    /// the drag indicator — not a half-screen `.medium` sheet (#2547).
     func inspectorSheet<SheetContent: View>(
         isPresented: Binding<Bool>,
-        detents: Set<PresentationDetent> = [.medium, .large],
+        detents: Set<PresentationDetent> = [.large],
         @ViewBuilder content: @escaping () -> SheetContent
     ) -> some View {
         sheet(isPresented: isPresented) {

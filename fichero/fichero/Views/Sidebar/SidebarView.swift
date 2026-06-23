@@ -60,7 +60,9 @@ struct SidebarView: View {
 
     // Store Combine subscriptions
     @State var cancellables = Set<AnyCancellable>()
-    @State private var lastHandledSelectionId: String?
+    // Internal (not private) so the extracted `handleSelectionChange` routing in
+    // SidebarView+SelectionHandling.swift can read/update it (#2548).
+    @State var lastHandledSelectionId: String?
 
     init(
         sidebarMode: Binding<SidebarMode>,
@@ -134,66 +136,17 @@ struct SidebarView: View {
                 } else {
                     historicalRunsByLibrary = [:]
                 }
+
+                guard !Task.isCancelled else { return }
+
+                // Drive a restored (@SceneStorage) selection into the view mode
+                // now that caches exist — .onChange(of:) never fired for it
+                // because the value didn't change on launch (#2548).
+                reconcileRestoredSelection()
             }
             .onChange(of: selectedItemId) { _, newId in
-                // Handle selection changes
-                sidebarViewLogger.info("selectedItemId changed to: \(newId ?? "nil")")
-                if newId == nil || !(newId?.hasPrefix("run:") ?? false) {
-                    selectedActivityItemIds.removeAll()
-                } else if let runId = newId {
-                    selectedActivityItemIds = [runId]
-                }
-                if let id = newId {
-                    if lastHandledSelectionId == id {
-                        return
-                    }
-                    lastHandledSelectionId = id
-                    if let libraryId = selectedLibraryId(from: id) {
-                        if windowState.libraryId != libraryId {
-                            windowState.libraryId = libraryId
-                        }
-                        sidebarMode = .library
-                        viewMode = .library(nil)
-                        return
-                    }
-                    if id == "activity-browser" {
-                        sidebarMode = .activity
-                        viewMode = .activity(nil)
-                        return
-                    }
-                    if id == "workflows-browser" {
-                        sidebarMode = .workflows
-                        viewMode = .workflow(nil)
-                        return
-                    }
-                    if id == "batches-browser" {
-                        viewMode = .batches
-                        return
-                    }
-                    if id == "entities-browser" {
-                        sidebarMode = .library
-                        viewMode = .library(nil)
-                        return
-                    }
-                    if id == "comparison-browser" {
-                        sidebarMode = .chat
-                        viewMode = .comparison(nil)
-                        return
-                    }
-                    if id == "research-browser" {
-                        sidebarMode = .research
-                        return
-                    }
-                    if id.hasPrefix("run:"),
-                       let selectedRun = unifiedSelectedRun(forSidebarId: id) {
-                        viewMode = .activity(selectedRun.toSelectedRun())
-                        return
-                    }
-                    let item = findItemById(id, in: allCachedItems)
-                    handleSelection(item)
-                } else {
-                    lastHandledSelectionId = nil
-                }
+                // Route the live selection change to sidebarMode / viewMode.
+                handleSelectionChange(newId)
             }
             .onChange(of: libraryManager.openLibraries.count) { _, _ in
                 // Rebuild when libraries are added/removed
@@ -207,6 +160,9 @@ struct SidebarView: View {
                 // On iPhone, SidebarView.task fires before loadCollections()
                 // completes; this is the stable signal that collections are ready.
                 rebuildCaches()
+                // A restored selection may only now resolve against the freshly
+                // built caches — reconcile it into the view mode (#2548).
+                reconcileRestoredSelection()
             }
             .onChange(of: sidebarMode) { _, newMode in
                 // Switching sections should allow re-selecting the same item in the

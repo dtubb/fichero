@@ -8,6 +8,20 @@ func sidebarSelectionFallback(current: String?, tapped: String) -> String? {
     current == tapped ? nil : tapped
 }
 
+/// Whether a restored/persisted sidebar selection still needs to be driven into
+/// the view mode (#2548). `selectedItemId` is restored from `@SceneStorage` at
+/// launch, but `SidebarView.onChange(of: selectedItemId)` only fires on a
+/// *change* — so a restored selection that equals the persisted value never
+/// reaches `handleSelection`, leaving `viewMode` at its default. The visibly
+/// highlighted row then doesn't match the detail, and clicking that
+/// already-selected row is a no-op (native `List(selection:)` sees no change and
+/// the tap fallback guards `current == tapped`). Reconcile when a selection
+/// exists but hasn't been handled yet.
+func sidebarShouldReconcileSelection(selectedId: String?, lastHandled: String?) -> Bool {
+    guard let selectedId else { return false }
+    return selectedId != lastHandled
+}
+
 /// Transferable wrapper for sidebar row drags (#711).
 ///
 /// Two reasons this exists rather than `.draggable(item.id)` directly:
