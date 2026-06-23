@@ -12,7 +12,9 @@
 set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-MODEL="${OLLAMA_MODEL:-deepseek-v4-pro:cloud}"
+# Use a NON-reasoning model — reasoning models (deepseek-v4-pro, etc.) flood stdout with
+# chain-of-thought that the markers can't reliably fence. kimi/qwen3.5/gemma4 are clean.
+MODEL="${OLLAMA_MODEL:-kimi-k2.7-code:cloud}"
 NOTES="RELEASE_NOTES.md"
 CURSOR_FILE=".release-notes-cursor"
 PIVOT="2025-11-01"     # SwiftUI/Python migration ~here; stop at it
@@ -38,7 +40,7 @@ while :; do
 
     prompt="You write ONE day's entry for Fichero's release notes, Apple 'what's new' style. Fichero is a macOS document-management app (SwiftUI) with a Python FastAPI/LangGraph engine for archival OCR/transcription + a knowledge graph. Date: $cursor.
 
-Below are that day's git commits and closed GitHub issues. Write a SHORT entry grouped under **New** / **Improved** / **Fixed** (omit any empty group). User-facing voice — summarize the meaningful changes, do NOT transcribe every commit. If the day is purely internal (refactors, tests, CI, deps, docs) with nothing a user would notice, output exactly: SKIP. Never invent features. Output ONLY the entry body — no date header, no preamble.
+Below are that day's git commits and closed GitHub issues. Write a SHORT entry grouped under **New** / **Improved** / **Fixed** (omit any empty group). User-facing voice — summarize the meaningful changes, do NOT transcribe every commit. If the day is purely internal (refactors, tests, CI, deps, docs) with nothing a user would notice, write SKIP. Never invent features. Wrap your answer EXACTLY between a line ===NOTES_START=== and a line ===NOTES_END=== — put ONLY the entry body (or the word SKIP) between those markers, and nothing else outside them.
 
 COMMITS:
 ${commits:-（none）}
@@ -46,11 +48,11 @@ ${commits:-（none）}
 CLOSED ISSUES:
 ${issues:-（none）}"
 
-    out="$(printf '%s' "$prompt" | ollama run "$MODEL" 2>/dev/null)"
-    out="$(printf '%s' "$out" | awk 'NF||p{print; p=1}')"   # drop leading blank lines
-    if [[ -z "$out" ]] || { [[ "$out" == *SKIP* ]] && [[ ${#out} -lt 40 ]]; }; then
-      echo "$cursor: SKIP (internal-only)"; continue
-    fi
+    raw="$(printf '%s' "$prompt" | ollama run "$MODEL" 2>/dev/null | LC_ALL=C sed $'s/\x1b\\[[0-9;?]*[a-zA-Z]//g; s/\x08//g')"
+    # Extract ONLY between the sentinel markers (strips reasoning-model "thinking").
+    out="$(printf '%s' "$raw" | awk '/===NOTES_START===/{f=1;next} /===NOTES_END===/{f=0;next} f' | awk 'NF||p{print; p=1}')"
+    if [[ -z "$out" ]]; then echo "$cursor: no markers in output, skip"; continue; fi
+    if [[ "$out" == *SKIP* ]] && [[ ${#out} -lt 40 ]]; then echo "$cursor: SKIP (internal-only)"; continue; fi
     printf '\n## %s\n\n%s\n\n---\n' "$cursor" "$out" >> "$NOTES"
     echo "$cursor: appended"
   done
