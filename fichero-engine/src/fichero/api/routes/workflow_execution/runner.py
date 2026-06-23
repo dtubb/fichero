@@ -644,14 +644,20 @@ async def _run_workflow_in_background(
         app, checkpointer = create_compiled_app(
             workflow_def,
             db_path=db.path,
-            # The LangGraph Send fan-out path can checkpoint a completed
-            # aggregate while failing to schedule downstream nodes under the
-            # live astream_events runner (#1665/#1668 repro: Catalogue pauses
-            # after transcribe with branch:to:Extract All Entities = None).
-            # Prefer correctness for app/CLI workflows: process all selected
-            # files inside the tool node until the dynamic fan-out path has a
-            # checkpointer-backed regression test.
-            enable_parallel=False,
+            # Graph-level parallel fan-out is now ON for the live run path
+            # (#2532/#2541 C3). The #1665/#1668 fear — the Send fan-out
+            # checkpointing a completed aggregate but never scheduling the
+            # downstream node under astream_events — is covered by a
+            # checkpointer-backed regression suite that drives the REAL fan-out
+            # through the SAME astream_events v2 entry point this runner uses:
+            # tests/unit/workflows/test_parallel_checkpointer_resume.py proves
+            # downstream scheduling (minimal + real Catalogue topology),
+            # mid-fan-out resume (each branch exactly once), and the per-page
+            # save contract. Peak heavy memory is bounded by the vision
+            # semaphore (builder._get_vision_semaphore, cap 4), so this scales
+            # to thousands of files. (model_comparison.py is intentionally left
+            # sequential — out of scope for this flip.)
+            enable_parallel=True,
             event_callback=emit_parallel_event,
             interrupt_before=request.interrupt_before or None,
             interrupt_after=request.interrupt_after or None,

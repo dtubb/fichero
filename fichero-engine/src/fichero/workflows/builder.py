@@ -42,12 +42,32 @@ logger = logging.getLogger(__name__)
 # of multi-page PDFs processes steadily instead of exhausting RAM all at once.
 VISION_FAN_OUT_CONCURRENCY: int = 4
 _vision_fan_out_sem: asyncio.Semaphore | None = None
+_vision_fan_out_sem_loop: asyncio.AbstractEventLoop | None = None
 
 
 def _get_vision_semaphore() -> asyncio.Semaphore:
-    global _vision_fan_out_sem
-    if _vision_fan_out_sem is None:
+    """Return the shared vision/LLM fan-out concurrency semaphore.
+
+    The semaphore is a module global so a single cap (VISION_FAN_OUT_CONCURRENCY)
+    governs every concurrently in-flight vision/LLM call within a run — whether
+    they arrive via the graph-level Send fan-out (_make_parallel_node_function)
+    or the in-tool bounded path (vision_base). asyncio.Semaphore binds its
+    internal waiter Futures to whatever loop is running on first contention, so
+    a semaphore created on run A's event loop and reused (uncontended-or-not) on
+    run B's fresh loop can surface "got Future attached to a different loop".
+    The run path builds a fresh per-run event loop, so guard against it: rebind
+    the semaphore whenever the running loop differs from the one it was created
+    on. Within a single run (one loop) it is created once and shared, so the
+    cap-4 throttle is preserved; across runs/loops it is recreated cleanly.
+    """
+    global _vision_fan_out_sem, _vision_fan_out_sem_loop
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    if _vision_fan_out_sem is None or _vision_fan_out_sem_loop is not loop:
         _vision_fan_out_sem = asyncio.Semaphore(VISION_FAN_OUT_CONCURRENCY)
+        _vision_fan_out_sem_loop = loop
     return _vision_fan_out_sem
 
 
@@ -1056,10 +1076,34 @@ def _make_fan_out_function(
                     )
                 )
 
-        # ponytail: at very large fan-out widths even the trimmed Send list is
-        # O(files) objects held at once. A follow-up could chunk the fan-out
-        # (process N files per Send) to bound peak task count — deferred here
-        # because it changes execution semantics and needs its own design.
+        # Memory bound at large fan-out widths (#2532/#2541 C3). Three costs,
+        # only one of which is dangerous and it is already capped:
+        #
+        #  1. HEAVY in-flight work (image bytes, LLM request/response buffers).
+        #     This is the OOM risk. It is bounded NOT here but at execution
+        #     time: _make_parallel_node_function wraps each tool call in the
+        #     module-global vision semaphore (_get_vision_semaphore, cap
+        #     VISION_FAN_OUT_CONCURRENCY=4). LangGraph creates a coroutine per
+        #     Send, but all but ~4 block on the semaphore before allocating any
+        #     heavy buffer, so peak heavy memory is O(4), independent of file
+        #     count. test_parallel_fan_out_bounds_concurrency locks this.
+        #
+        #  2. This Send list: O(files) lightweight descriptors. Each payload was
+        #     trimmed (above) to a handful of small fields — NO "outputs" blob —
+        #     so 5,000 files is a few MB of dict descriptors, not the
+        #     multiplicative outputs-per-Send cost that motivated the trim.
+        #
+        #  3. parallel_results retention until the aggregator barrier — see the
+        #     ponytail note in _make_aggregation_function. That is the genuine
+        #     remaining O(files) ceiling; bounding it means streaming the
+        #     barrier, which is the invasive "needs its own design" change.
+        #
+        # ponytail: chunking files into multi-file Sends would shrink (2) but is
+        # deliberately NOT done — the per-file Send is a hard contract
+        # (exactly-once per-page resume + distinct per-page cache keys, #896,
+        # locked by test_parallel_checkpointer_resume), and a multi-file Send
+        # loses per-file checkpoint/resume granularity. (2) is cheap; the real
+        # throttle is the semaphore in (1).
         return sends
 
     return fan_out
@@ -1496,6 +1540,23 @@ def _make_aggregation_function(node_id: str):
         issue). The deferred-emission pattern lets LangGraph's Send fan-
         out work as a true barrier.
         """
+        # ponytail (#2541 C3 aggregator ceiling): this barrier holds ALL branch
+        # results in State until the last Send lands — parallel_results[node_id]
+        # is a list of `total` entries, each carrying the branch's full `result`
+        # dict (transcription text, page_records, artifacts). At thousands of
+        # files this is the dominant retained memory: O(files × result_size),
+        # e.g. ~5,000 pages × a few KB of text/records ≈ tens of MB, plus the
+        # per-Send checkpoint write-amplification the checkpointer must persist.
+        # Bounding it requires STREAMING aggregation (persist + drop each branch
+        # result as it lands, emit downstream incrementally) instead of the
+        # all-at-once barrier — but the barrier is a correctness contract:
+        # downstream nodes (catalogue, kg_writer) consume the COMPLETE aggregate,
+        # and the deferred-emission barrier is exactly what fixed #837. Streaming
+        # it is a separate design (incremental reducers + a downstream that can
+        # consume partial input) and is intentionally NOT half-done here. Ceiling
+        # for now: a run fans out at most one PARALLEL node's worth of pages at a
+        # time, so peak retention is bounded by the largest single fan-out's
+        # total page count, not the whole library.
         parallel_results = state.get("parallel_results", {}).get(node_id, [])
 
         if not parallel_results:
