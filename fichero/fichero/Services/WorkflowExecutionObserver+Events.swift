@@ -101,6 +101,16 @@ extension WorkflowExecution {
             let fileName = (filePath as NSString).lastPathComponent
             workflowExecutionLogger.debug("File start: \(fileName) (\(fileIndex + 1)/\(fileTotal))")
 
+            // Drive `overallProgress` off the accurate processedFiles/totalFiles
+            // path. The graph-parallel run path (enable_parallel=True, #2532/#2541)
+            // never emits `parallel_start` — only file_start/complete/error — so
+            // `totalFiles` would otherwise stay 0 and the Overall Progress bar sat
+            // at 0% (#2546 follow-up). The file events carry the same `file_total`
+            // `parallel_start` used to; seed it here (max, never shrink).
+            if fileTotal > 0 {
+                execution.totalFiles = max(execution.totalFiles, fileTotal)
+            }
+
             // Update node state
             var state = execution.nodeStates[nodeId] ?? NodeExecutionState(nodeId: nodeId)
             state.status = .running
@@ -122,6 +132,12 @@ extension WorkflowExecution {
         case .fileComplete(_, let nodeId, let filePath, let fileIndex, let fileTotal, let progress, let cached):
             let fileName = (filePath as NSString).lastPathComponent
             workflowExecutionLogger.debug("File complete: \(fileName) (\(fileIndex + 1)/\(fileTotal))")
+
+            // Seed totalFiles here too — a cached file_complete (#700) skips
+            // file_start, and a late Activity subscriber may land mid-batch.
+            if fileTotal > 0 {
+                execution.totalFiles = max(execution.totalFiles, fileTotal)
+            }
 
             // Update node state
             var state = execution.nodeStates[nodeId] ?? NodeExecutionState(nodeId: nodeId)
