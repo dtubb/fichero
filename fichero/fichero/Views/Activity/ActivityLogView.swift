@@ -10,12 +10,27 @@ struct ActivityLogView: View {
     @EnvironmentObject var apiClient: APIClient
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
 
+    /// Shared live-execution store keyed by threadId (#2546). Optional so the
+    /// view never crashes where the store isn't injected (e.g. previews).
+    @Environment(WorkflowExecutionStore.self) private var executionStore: WorkflowExecutionStore?
+
     @State private var workflowRun: WorkflowRunResponse?
     @State private var isLoading = false
     @State private var error: String?
 
-    /// Live/completed execution looked up by workflowId — the actual key.
+    /// Live/completed execution for the selected run.
+    ///
+    /// Prefers the threadId-keyed `WorkflowExecutionStore` (#2546) so the live
+    /// log streams for a run started ANYWHERE — Activity's subscribe-on-select
+    /// owns the SSE — not only runs the in-process editor fed into the
+    /// workflowId-keyed `WorkflowExecutionObserver`. Without this the Live Log
+    /// tab read an empty observer and sat at "Waiting for log output…" while the
+    /// store was already accumulating `logLines` (#2546 follow-up).
     private var liveExecution: WorkflowExecution? {
+        if let threadId = selectedRun.threadId,
+           let stored = executionStore?.execution(forThreadId: threadId) {
+            return stored
+        }
         guard let workflowId = selectedRun.workflowId else { return nil }
         return executionObserver.activeExecutions[workflowId]
             ?? executionObserver.completedExecutions[workflowId]
