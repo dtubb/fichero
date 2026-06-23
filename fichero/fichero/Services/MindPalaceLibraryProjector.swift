@@ -5,7 +5,7 @@ import Foundation
 //
 //   ┌─ Backend (today) ─────────┐    ┌─ Projector (this file) ─┐    ┌─ Renderer ─┐
 //   │ /api/documents            │ →  │  build nodes + links     │ →  │ SpatialScene3D
-//   │ /api/entities             │    │  pure data → data        │    │ MindPalaceLink edges
+//   │ /api/entities             │    │  pure data → data        │    │ SpatialLink edges
 //   │ /api/claims               │    │  seeded phyllotaxis      │    │
 //   └───────────────────────────┘    └──────────────────────────┘    └────────────┘
 //
@@ -18,7 +18,7 @@ import Foundation
 
 /// Pure-data input the projector turns into nodes + links. Decoupled from the
 /// generated schemas so it can be tested without spinning up the engine.
-struct MindPalaceLibraryInput: Hashable {
+struct SpatialLibraryInput: Hashable {
     /// One library document — a real file in the catalogue.
     struct Document: Hashable {
         let id: String
@@ -49,16 +49,16 @@ struct MindPalaceLibraryInput: Hashable {
 }
 
 /// Pure-data output the renderer consumes.
-struct MindPalaceLibraryProjection: Hashable {
+struct SpatialLibraryProjection: Hashable {
     /// Spatial nodes (documents + entities), with stable IDs.
-    let nodes: [MindPalaceNode]
+    let nodes: [SpatialNode]
     /// Typed links between the spatial nodes.
-    let links: [MindPalaceLink]
+    let links: [SpatialLink]
 
     var isEmpty: Bool { nodes.isEmpty }
 }
 
-enum MindPalaceLibraryProjector {
+enum SpatialLibraryProjector {
 
     // MARK: - Stable spatial-node IDs
 
@@ -78,8 +78,8 @@ enum MindPalaceLibraryProjector {
     /// on the XZ plane for documents, slightly raised in Y for entities. Index
     /// order is `documents` first, then `entities`, so adding documents at the
     /// end doesn't reshuffle existing positions.
-    static func project(_ input: MindPalaceLibraryInput) -> MindPalaceLibraryProjection {
-        var nodes: [MindPalaceNode] = []
+    static func project(_ input: SpatialLibraryInput) -> SpatialLibraryProjection {
+        var nodes: [SpatialNode] = []
         nodes.reserveCapacity(input.documents.count + input.entities.count)
 
         let docCount = input.documents.count
@@ -97,7 +97,7 @@ enum MindPalaceLibraryProjector {
                 radius * sin(theta)
             )
             nodes.append(
-                MindPalaceNode(
+                SpatialNode(
                     id: nodeId(forDocument: doc.id),
                     roomId: wholeLibraryRoomId,
                     nodeType: .source,
@@ -122,7 +122,7 @@ enum MindPalaceLibraryProjector {
                 radius * sin(theta)
             )
             nodes.append(
-                MindPalaceNode(
+                SpatialNode(
                     id: nodeId(forEntity: entity.id),
                     roomId: wholeLibraryRoomId,
                     nodeType: .entity,
@@ -139,12 +139,12 @@ enum MindPalaceLibraryProjector {
         // co-occurrences (entity ↔ entity through a shared claim).
         let docIds = Set(input.documents.map(\.id))
         let entityIds = Set(input.entities.map(\.id))
-        var links: Set<MindPalaceLink> = []
+        var links: Set<SpatialLink> = []
 
         for doc in input.documents {
             guard let parentId = doc.parentId, docIds.contains(parentId) else { continue }
             links.insert(
-                MindPalaceLink(
+                SpatialLink(
                     sourceId: nodeId(forDocument: parentId),
                     targetId: nodeId(forDocument: doc.id),
                     linkType: .parentChild
@@ -160,7 +160,7 @@ enum MindPalaceLibraryProjector {
             if let docId = claim.sourceDocumentId, docIds.contains(docId) {
                 for entId in presentEntityIds {
                     links.insert(
-                        MindPalaceLink(
+                        SpatialLink(
                             sourceId: nodeId(forDocument: docId),
                             targetId: nodeId(forEntity: entId),
                             linkType: .mentions,
@@ -179,7 +179,7 @@ enum MindPalaceLibraryProjector {
                     let target = presentEntityIds[pairIndex]
                     guard source != target else { continue }
                     links.insert(
-                        MindPalaceLink(
+                        SpatialLink(
                             sourceId: nodeId(forEntity: source),
                             targetId: nodeId(forEntity: target),
                             linkType: claimType,
@@ -190,7 +190,7 @@ enum MindPalaceLibraryProjector {
             }
         }
 
-        return MindPalaceLibraryProjection(
+        return SpatialLibraryProjection(
             nodes: nodes,
             links: Array(links).sorted { $0.id < $1.id }
         )
@@ -202,11 +202,11 @@ enum MindPalaceLibraryProjector {
         documents: [Components.Schemas.Document],
         entities: [Components.Schemas.KnowledgeEntity],
         claims: [Components.Schemas.KnowledgeClaim]
-    ) -> MindPalaceLibraryInput {
-        MindPalaceLibraryInput(
+    ) -> SpatialLibraryInput {
+        SpatialLibraryInput(
             documents: documents.compactMap { doc in
                 guard let id = doc.id else { return nil }
-                return MindPalaceLibraryInput.Document(
+                return SpatialLibraryInput.Document(
                     id: id,
                     name: doc.name,
                     parentId: doc.parentId
@@ -214,7 +214,7 @@ enum MindPalaceLibraryProjector {
             },
             entities: entities.compactMap { entity in
                 guard let id = entity.id else { return nil }
-                return MindPalaceLibraryInput.Entity(
+                return SpatialLibraryInput.Entity(
                     id: id,
                     canonicalName: entity.canonicalName,
                     entityType: entity.entityType?.rawValue
@@ -222,7 +222,7 @@ enum MindPalaceLibraryProjector {
             },
             claims: claims.compactMap { claim in
                 guard let id = claim.id else { return nil }
-                return MindPalaceLibraryInput.Claim(
+                return SpatialLibraryInput.Claim(
                     id: id,
                     predicateVerb: claim.predicateVerb,
                     sourceDocumentId: claim.sourceDocumentId,

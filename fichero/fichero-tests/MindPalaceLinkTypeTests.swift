@@ -48,10 +48,10 @@ struct LinkTypeTests {
         #expect(decoded == .related)
     }
 
-    /// `MindPalaceConnection.linkType` derives from `linkSubtype` when set,
+    /// `SpatialConnection.linkType` derives from `linkSubtype` when set,
     /// otherwise from `connectionType`. Lets the renderer paint a room edge
     /// and a content-level link with the same palette.
-    @Test("MindPalaceConnection.linkType derivation")
+    @Test("SpatialConnection.linkType derivation")
     func connectionLinkType() throws {
         // linkSubtype overrides connectionType.
         let withSubtype = try decodeConnection(
@@ -74,7 +74,7 @@ struct LinkTypeTests {
         #expect(hermeneutic.linkType == .mentions)
     }
 
-    private func decodeConnection(connectionType: String, linkSubtype: String?) throws -> MindPalaceConnection {
+    private func decodeConnection(connectionType: String, linkSubtype: String?) throws -> SpatialConnection {
         let subtypeJSON = linkSubtype.map { "\"\($0)\"" } ?? "null"
         let json = """
         {
@@ -86,18 +86,18 @@ struct LinkTypeTests {
           "linkSubtype": \(subtypeJSON)
         }
         """
-        return try JSONDecoder().decode(MindPalaceConnection.self, from: Data(json.utf8))
+        return try JSONDecoder().decode(SpatialConnection.self, from: Data(json.utf8))
     }
 }
 
 // MARK: - Library projector (Phase 3 / #1297 follow-up)
 
-struct MindPalaceLibraryProjectorTests {
+struct SpatialLibraryProjectorTests {
 
     /// Document count + entity count map directly onto node count.
     @Test("node count = docs + entities")
     func nodeCount() {
-        let input = MindPalaceLibraryInput(
+        let input = SpatialLibraryInput(
             documents: [
                 .init(id: "d1", name: "Doc 1", parentId: nil),
                 .init(id: "d2", name: "Doc 2", parentId: "d1")
@@ -109,7 +109,7 @@ struct MindPalaceLibraryProjectorTests {
             ],
             claims: []
         )
-        let projection = MindPalaceLibraryProjector.project(input)
+        let projection = SpatialLibraryProjector.project(input)
         #expect(projection.nodes.count == 5)
         #expect(projection.nodes.filter { $0.nodeType == .source }.count == 2)
         #expect(projection.nodes.filter { $0.nodeType == .entity }.count == 3)
@@ -121,8 +121,8 @@ struct MindPalaceLibraryProjectorTests {
     @Test("projection is deterministic")
     func deterministic() {
         let input = sampleInput()
-        let first = MindPalaceLibraryProjector.project(input)
-        let second = MindPalaceLibraryProjector.project(input)
+        let first = SpatialLibraryProjector.project(input)
+        let second = SpatialLibraryProjector.project(input)
         #expect(first.nodes.map(\.id) == second.nodes.map(\.id))
         #expect(first.nodes.map(\.positionX) == second.nodes.map(\.positionX))
         #expect(first.nodes.map(\.positionZ) == second.nodes.map(\.positionZ))
@@ -132,7 +132,7 @@ struct MindPalaceLibraryProjectorTests {
     /// parent_id between two known docs becomes a `.parentChild` link.
     @Test("parent_child link emitted for known parent")
     func parentChildLinks() {
-        let input = MindPalaceLibraryInput(
+        let input = SpatialLibraryInput(
             documents: [
                 .init(id: "parent", name: "Parent", parentId: nil),
                 .init(id: "child", name: "Child", parentId: "parent"),
@@ -142,11 +142,11 @@ struct MindPalaceLibraryProjectorTests {
             entities: [],
             claims: []
         )
-        let projection = MindPalaceLibraryProjector.project(input)
+        let projection = SpatialLibraryProjector.project(input)
         let parentChildren = projection.links.filter { $0.linkType == .parentChild }
         #expect(parentChildren.count == 1)
-        #expect(parentChildren.first?.sourceId == MindPalaceLibraryProjector.nodeId(forDocument: "parent"))
-        #expect(parentChildren.first?.targetId == MindPalaceLibraryProjector.nodeId(forDocument: "child"))
+        #expect(parentChildren.first?.sourceId == SpatialLibraryProjector.nodeId(forDocument: "parent"))
+        #expect(parentChildren.first?.targetId == SpatialLibraryProjector.nodeId(forDocument: "child"))
     }
 
     /// A claim with `entity_ids` and a `sourceDocumentId` mints both
@@ -154,7 +154,7 @@ struct MindPalaceLibraryProjectorTests {
     /// claim's predicate.
     @Test("claim links — mentions + entity↔entity")
     func claimLinks() {
-        let input = MindPalaceLibraryInput(
+        let input = SpatialLibraryInput(
             documents: [.init(id: "d1", name: "Doc", parentId: nil)],
             entities: [
                 .init(id: "e1", canonicalName: "X", entityType: nil),
@@ -169,7 +169,7 @@ struct MindPalaceLibraryProjectorTests {
                 )
             ]
         )
-        let projection = MindPalaceLibraryProjector.project(input)
+        let projection = SpatialLibraryProjector.project(input)
         let mentions = projection.links.filter { $0.linkType == .mentions }
         #expect(mentions.count == 2)  // d1 ↔ e1, d1 ↔ e2
 
@@ -181,7 +181,7 @@ struct MindPalaceLibraryProjectorTests {
     /// dangling links). One malformed claim can't drop the whole scene.
     @Test("links to unknown entities are dropped")
     func dropUnknownTargets() {
-        let input = MindPalaceLibraryInput(
+        let input = SpatialLibraryInput(
             documents: [.init(id: "d1", name: "Doc", parentId: nil)],
             entities: [.init(id: "e1", canonicalName: "X", entityType: nil)],
             claims: [
@@ -193,7 +193,7 @@ struct MindPalaceLibraryProjectorTests {
                 )
             ]
         )
-        let projection = MindPalaceLibraryProjector.project(input)
+        let projection = SpatialLibraryProjector.project(input)
         // Only e1 is in scope → one mention link, no entity↔entity link.
         #expect(projection.links.allSatisfy { link in
             // Every endpoint must resolve to a node we actually rendered.
@@ -202,8 +202,8 @@ struct MindPalaceLibraryProjectorTests {
         })
     }
 
-    private func sampleInput() -> MindPalaceLibraryInput {
-        MindPalaceLibraryInput(
+    private func sampleInput() -> SpatialLibraryInput {
+        SpatialLibraryInput(
             documents: [
                 .init(id: "d1", name: "First", parentId: nil),
                 .init(id: "d2", name: "Second", parentId: "d1")

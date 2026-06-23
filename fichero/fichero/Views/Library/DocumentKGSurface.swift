@@ -248,7 +248,7 @@ struct FolderRealityKitSurface: View {
     @State private var scopedDocuments: [Document] = []
     @State private var isLoading = false
 
-    private var nodes: [MindPalaceNode] {
+    private var nodes: [SpatialNode] {
         scopedDocuments
             .sorted { lhs, rhs in
                 (lhs.sequence ?? lhs.sortOrder, lhs.name) < (rhs.sequence ?? rhs.sortOrder, rhs.name)
@@ -324,10 +324,10 @@ struct FolderRealityKitSurface: View {
         return [document]
     }
 
-    private func node(for document: Document, at index: Int, count: Int) -> MindPalaceNode {
+    private func node(for document: Document, at index: Int, count: Int) -> SpatialNode {
         let point = position(for: index, count: count)
         let scale = document.docType == .page ? 1.15 : 1.35
-        return MindPalaceNode(
+        return SpatialNode(
             id: "doc-\(document.id)",
             roomId: documentId,
             nodeType: .source,

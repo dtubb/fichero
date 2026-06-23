@@ -1,12 +1,12 @@
 @testable import Fichero
 import XCTest
 
-final class MindPalaceNodeTests: XCTestCase {
+final class SpatialNodeTests: XCTestCase {
 
     func testThumbnailURLUsesStorageEndpoint() {
         let baseURL = URL(string: "https://127.0.0.1:8765/api")!
 
-        let url = MindPalaceNode.thumbnailURL(forSourceId: "doc-123", baseURL: baseURL)
+        let url = SpatialNode.thumbnailURL(forSourceId: "doc-123", baseURL: baseURL)
 
         XCTAssertEqual(
             url?.absoluteString,
@@ -15,7 +15,7 @@ final class MindPalaceNodeTests: XCTestCase {
     }
 
     func testThumbnailURLRejectsEmptySourceId() {
-        let url = MindPalaceNode.thumbnailURL(forSourceId: "", baseURL: nil)
+        let url = SpatialNode.thumbnailURL(forSourceId: "", baseURL: nil)
 
         XCTAssertNil(url)
     }

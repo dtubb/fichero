@@ -19,7 +19,7 @@ import SwiftUI
 /// Kind of item placed in a room. Maps `NodeType` (source/claim/note/
 /// entity/transcription); decodes defensively to `.unknown` for any value
 /// the backend adds later.
-enum MindPalaceNodeType: String, Codable, CaseIterable {
+enum SpatialNodeType: String, Codable, CaseIterable {
     case source
     case claim
     case note
@@ -29,7 +29,7 @@ enum MindPalaceNodeType: String, Codable, CaseIterable {
 
     init(from decoder: Decoder) throws {
         let raw = try decoder.singleValueContainer().decode(String.self)
-        self = MindPalaceNodeType(rawValue: raw) ?? .unknown
+        self = SpatialNodeType(rawValue: raw) ?? .unknown
     }
 
     /// SF Symbol used to label a node by kind.
@@ -66,7 +66,7 @@ enum MindPalaceNodeType: String, Codable, CaseIterable {
 
 /// Typed link between two nodes. Maps `ConnectionType`
 /// (evidentiary/semantic/ontological/hermeneutic/user_drawn).
-enum MindPalaceConnectionType: String, Codable, CaseIterable {
+enum SpatialConnectionType: String, Codable, CaseIterable {
     case evidentiary
     case semantic
     case ontological
@@ -76,7 +76,7 @@ enum MindPalaceConnectionType: String, Codable, CaseIterable {
 
     init(from decoder: Decoder) throws {
         let raw = try decoder.singleValueContainer().decode(String.self)
-        self = MindPalaceConnectionType(rawValue: raw) ?? .unknown
+        self = SpatialConnectionType(rawValue: raw) ?? .unknown
     }
 
     /// Edge colour per connection type.
@@ -92,22 +92,13 @@ enum MindPalaceConnectionType: String, Codable, CaseIterable {
     }
 }
 
-/// A spatial workspace room. Mirrors `SpatialRoom`.
-struct MindPalaceRoom: Codable, Identifiable, Hashable {
-    let id: String
-    var name: String
-    var description: String?
-    var roomType: String?
-    var ownerId: String?
-}
-
 /// A node placed in 3D space. Mirrors `SpatialNode`. Phase 1 renders the
 /// 2D projection of `positionX`/`positionY`; `positionZ`, rotation, and
 /// scale are carried for the deferred 3D view (B5) but unused for now.
-struct MindPalaceNode: Codable, Identifiable, Hashable {
+struct SpatialNode: Codable, Identifiable, Hashable {
     let id: String
     let roomId: String
-    let nodeType: MindPalaceNodeType
+    let nodeType: SpatialNodeType
     var sourceId: String?
     var label: String
     var positionX: Double
@@ -128,7 +119,7 @@ struct MindPalaceNode: Codable, Identifiable, Hashable {
     init(
         id: String = UUID().uuidString,
         roomId: String,
-        nodeType: MindPalaceNodeType,
+        nodeType: SpatialNodeType,
         sourceId: String? = nil,
         label: String,
         positionX: Double,
@@ -159,7 +150,7 @@ struct MindPalaceNode: Codable, Identifiable, Hashable {
         // single malformed row can't drop the whole scene.
         id = (try? container.decode(String.self, forKey: .id)) ?? UUID().uuidString
         roomId = try container.decode(String.self, forKey: .roomId)
-        nodeType = try container.decode(MindPalaceNodeType.self, forKey: .nodeType)
+        nodeType = try container.decode(SpatialNodeType.self, forKey: .nodeType)
         sourceId = try? container.decode(String.self, forKey: .sourceId)
         label = (try? container.decode(String.self, forKey: .label)) ?? ""
         positionX = (try? container.decode(Double.self, forKey: .positionX)) ?? 0
@@ -213,12 +204,12 @@ struct MindPalaceNode: Codable, Identifiable, Hashable {
 }
 
 /// A visual link between nodes. Mirrors `SpatialConnection`.
-struct MindPalaceConnection: Codable, Identifiable, Hashable {
+struct SpatialConnection: Codable, Identifiable, Hashable {
     let id: String
     let roomId: String
     let sourceNodeId: String
     let targetNodeId: String
-    let connectionType: MindPalaceConnectionType
+    let connectionType: SpatialConnectionType
     var linkSubtype: String?
 
     enum CodingKeys: String, CodingKey {
@@ -231,13 +222,13 @@ struct MindPalaceConnection: Codable, Identifiable, Hashable {
         roomId = try container.decode(String.self, forKey: .roomId)
         sourceNodeId = try container.decode(String.self, forKey: .sourceNodeId)
         targetNodeId = try container.decode(String.self, forKey: .targetNodeId)
-        connectionType = try container.decode(MindPalaceConnectionType.self, forKey: .connectionType)
+        connectionType = try container.decode(SpatialConnectionType.self, forKey: .connectionType)
         linkSubtype = try? container.decode(String.self, forKey: .linkSubtype)
     }
 }
 
 /// A group/layer of nodes in a room. Mirrors `SpatialStack`.
-struct MindPalaceStack: Codable, Identifiable, Hashable {
+struct SpatialStack: Codable, Identifiable, Hashable {
     let id: String
     let roomId: String
     var name: String?
@@ -258,7 +249,7 @@ struct MindPalaceStack: Codable, Identifiable, Hashable {
 
 /// Camera + focus state for a room. Mirrors `SpatialViewport`. Phase 1 reads
 /// this to seed the canvas pan/zoom; B4 phase 2 will persist it back.
-struct MindPalaceViewport: Codable, Hashable {
+struct SpatialViewport: Codable, Hashable {
     var roomId: String
     var cameraX: Double
     var cameraY: Double

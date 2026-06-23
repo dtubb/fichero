@@ -30,7 +30,7 @@ struct CanvasItemDisplay: Identifiable, Hashable, Codable {
     }
 
     /// Decode tolerantly: a missing/unknown `kind` falls back to `.note` so one
-    /// odd row can't drop the whole list. Mirrors `MindPalaceNodeType`'s
+    /// odd row can't drop the whole list. Mirrors `SpatialNodeType`'s
     /// unknown-default idiom.
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)

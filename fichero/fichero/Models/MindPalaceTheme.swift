@@ -17,12 +17,12 @@ import UIKit
 /// free of `#if os(...)` and lets the same code paths compile on every Apple
 /// platform per the Phase-3 design (see
 /// `agent-work/proposals/2026-05-30-mindpalace-spatial-library.md`).
-enum MindPalaceTheme {
+enum SpatialTheme {
 
     // MARK: - Node colours
 
     /// SwiftUI colour for a node kind — used by 2D chrome (chips, inspectors).
-    static func swiftUIColor(for nodeType: MindPalaceNodeType) -> Color {
+    static func swiftUIColor(for nodeType: SpatialNodeType) -> Color {
         nodeType.color
     }
 
@@ -39,7 +39,7 @@ enum MindPalaceTheme {
     /// than `Material.Color` itself, because SwiftUI ships its own `Material`
     /// type (`.regularMaterial` etc.) and a bare `Material.Color` is ambiguous
     /// in files that import both frameworks.
-    static func materialColor(for nodeType: MindPalaceNodeType, alpha: CGFloat = 1.0) -> PlatformColor {
+    static func materialColor(for nodeType: SpatialNodeType, alpha: CGFloat = 1.0) -> PlatformColor {
         platformColor(for: nodeType).withAlphaComponent(alpha)
     }
 
@@ -51,7 +51,7 @@ enum MindPalaceTheme {
 
     /// Platform colour for a node kind. `NSColor` on macOS, `UIColor`
     /// elsewhere — both expose the same `system*` API the renderer relies on.
-    static func platformColor(for nodeType: MindPalaceNodeType) -> PlatformColor {
+    static func platformColor(for nodeType: SpatialNodeType) -> PlatformColor {
         switch nodeType {
         case .source:        return .systemBlue
         case .claim:         return .systemPurple

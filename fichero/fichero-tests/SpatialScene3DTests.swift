@@ -4,7 +4,7 @@ import XCTest
 final class SpatialScene3DTests: XCTestCase {
 
     func testPersistedDragEndPositionPrefersTrackedDragPosition() {
-        let originalNode = MindPalaceNode(
+        let originalNode = SpatialNode(
             id: "node-1",
             roomId: "room-1",
             nodeType: .source,
@@ -26,7 +26,7 @@ final class SpatialScene3DTests: XCTestCase {
     }
 
     func testPersistedDragEndPositionFallsBackToNodeSnapshot() {
-        let node = MindPalaceNode(
+        let node = SpatialNode(
             id: "node-1",
             roomId: "room-1",
             nodeType: .source,

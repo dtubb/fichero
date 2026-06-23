@@ -11,8 +11,8 @@
 /// `#if os(macOS)` so that the same form handles Catalyst and any future
 /// Apple platform without extra branches.
 ///
-/// `PlatformColor` was originally declared at the bottom of `MindPalaceTheme.swift`.
-/// It now lives here; `MindPalaceTheme.swift` references this canonical location.
+/// `PlatformColor` was originally declared at the bottom of `SpatialTheme.swift`.
+/// It now lives here; `SpatialTheme.swift` references this canonical location.
 
 #if canImport(AppKit)
 import AppKit

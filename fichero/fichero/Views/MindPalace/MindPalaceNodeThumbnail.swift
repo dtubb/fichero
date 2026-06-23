@@ -7,7 +7,7 @@ import SwiftUI
 /// never a local file path). Falls back to the kind icon while loading or if no
 /// thumbnail is available. Mirrors the 3D scene's texture path
 /// (`storageService.thumbnailData(for:)`).
-struct MindPalaceNodeThumbnail: View {
+struct SpatialNodeThumbnail: View {
     let sourceId: String
     let fallbackIcon: String
     let tint: Color

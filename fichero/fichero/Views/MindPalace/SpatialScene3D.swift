@@ -11,7 +11,7 @@ import RealityKit
 /// RealityKit 3D rendering of a Mind Palace room — the `.threeD` render mode,
 /// and the forward path toward streaming the palace to Vision Pro.
 ///
-/// Renders each `MindPalaceNode` as a page-card at its **backend-provided**
+/// Renders each `SpatialNode` as a page-card at its **backend-provided**
 /// `positionX/Y/Z` (with `rotation_*` and `scale` applied) and draws
 /// connections as thin links. When a node has a source thumbnail, the card is
 /// textured with the actual page image; otherwise it falls back to the
@@ -24,14 +24,14 @@ import RealityKit
 /// RealityKit gestures. When RealityKit is unavailable the view falls back to
 /// the 2D canvas.
 struct SpatialScene3D: View {
-    let nodes: [MindPalaceNode]
-    let connections: [MindPalaceConnection]
+    let nodes: [SpatialNode]
+    let connections: [SpatialConnection]
     /// Phase 3 (#1297 follow-up): content-level typed links (whole-library
     /// projection). Drawn with the same cylinder mesh as room `connections`,
     /// colored by `LinkType`. Empty by default — existing room scenes
     /// unaffected.
-    var links: [MindPalaceLink] = []
-    var initialViewport: MindPalaceViewport?
+    var links: [SpatialLink] = []
+    var initialViewport: SpatialViewport?
     var onNodePositionChanged: (String, SIMD3<Double>) -> Void = { _, _ in }
     var onNodeMoveEnded: (String, SIMD3<Double>) -> Void = { _, _ in }
     var onViewportChanged: (SIMD3<Double>, Double) -> Void = { _, _ in }
@@ -72,7 +72,7 @@ struct SpatialScene3D: View {
     /// The bounded set actually placed in the scene. Backend order is
     /// preserved; relative geometry of the rendered subset is untouched
     /// (`feedback_kg_logic_in_backend`).
-    private var renderedNodes: [MindPalaceNode] {
+    private var renderedNodes: [SpatialNode] {
         nodes.count > maxRenderedNodes ? Array(nodes.prefix(maxRenderedNodes)) : nodes
     }
 
@@ -237,7 +237,7 @@ struct SpatialScene3D: View {
             nodeDragOrigins.removeAll()
             nodeDragPositions.removeAll()
         }
-        .background(MindPalaceTheme.canvasBackground)
+        .background(SpatialTheme.canvasBackground)
         .overlay(alignment: .top) {
             if isTruncated { truncationBanner }
         }
@@ -365,13 +365,13 @@ struct SpatialScene3D: View {
     static func persistedDragEndPosition(
         nodeId: String,
         dragPositions: [String: SIMD3<Double>],
-        nodes: [MindPalaceNode]
+        nodes: [SpatialNode]
     ) -> SIMD3<Double>? {
         if let dragged = dragPositions[nodeId] {
             return SIMD3<Double>(
-                MindPalaceNode.snap(dragged.x),
-                MindPalaceNode.snap(dragged.y),
-                MindPalaceNode.snap(dragged.z)
+                SpatialNode.snap(dragged.x),
+                SpatialNode.snap(dragged.y),
+                SpatialNode.snap(dragged.z)
             )
         }
         return nodes.first(where: { $0.id == nodeId })?.snappedPosition()
@@ -483,7 +483,7 @@ struct SpatialScene3D: View {
         return (scale, center)
     }
 
-    private func position(for node: MindPalaceNode, scale: Float, center: SIMD3<Float>) -> SIMD3<Float> {
+    private func position(for node: SpatialNode, scale: Float, center: SIMD3<Float>) -> SIMD3<Float> {
         let effective = effectivePosition(for: node)
         let raw = SIMD3<Float>(Float(effective.x), Float(effective.y), Float(effective.z))
         return (raw - center) * scale
@@ -493,7 +493,7 @@ struct SpatialScene3D: View {
     /// the shared store where one exists, else the node's backend default. This
     /// is the single override point that makes the 3D scene a second renderer on
     /// the observable model (#2293) rather than a separate island.
-    private func effectivePosition(for node: MindPalaceNode) -> SIMD3<Double> {
+    private func effectivePosition(for node: SpatialNode) -> SIMD3<Double> {
         if let row = layoutStore?.layout.first(where: { $0.itemId == node.id }) {
             return SIMD3<Double>(row.x, row.y, row.z)
         }
@@ -608,11 +608,11 @@ struct SpatialScene3D: View {
         return root
     }
 
-    private func makeNodeEntity(_ node: MindPalaceNode, at position: SIMD3<Float>) -> ModelEntity {
+    private func makeNodeEntity(_ node: SpatialNode, at position: SIMD3<Float>) -> ModelEntity {
         let scale = Float(max(node.scale, 0.25))
         let cardWidth: Float = 0.8 * scale
         let cardHeight: Float = cardWidth / pageAspectRatio
-        let nodeColor = MindPalaceTheme.materialColor(for: node.nodeType)
+        let nodeColor = SpatialTheme.materialColor(for: node.nodeType)
         let mesh: MeshResource
         let materials: [any RealityFoundation.Material]
         let collisionShape: ShapeResource
@@ -656,7 +656,7 @@ struct SpatialScene3D: View {
         if let sourceId = node.sourceId, !sourceId.isEmpty, node.nodeType == .source {
             Task { @MainActor in
                 do {
-                    let texture = try await MindPalaceTextureCache.shared.texture(forSourceId: sourceId)
+                    let texture = try await SpatialTextureCache.shared.texture(forSourceId: sourceId)
                     entity.model?.materials = [UnlitMaterial(texture: texture)]
                 } catch {
                     // Keep the colored placeholder when the page image cannot be loaded.
@@ -682,7 +682,7 @@ struct SpatialScene3D: View {
         let length = max(simd_length(delta), 0.0001)
         let thickness: Float = 0.006 * Float(max(0.5, min(weight, 3.0)))
         let mesh = MeshResource.generateCylinder(height: length, radius: thickness)
-        let color = MindPalaceTheme.materialColor(for: linkType, alpha: linkType.isSolid ? 0.85 : 0.45)
+        let color = SpatialTheme.materialColor(for: linkType, alpha: linkType.isSolid ? 0.85 : 0.45)
         let material = SimpleMaterial(color: color, isMetallic: false)
         let entity = ModelEntity(mesh: mesh, materials: [material])
         entity.position = (from + endPoint) / 2
@@ -829,12 +829,12 @@ private extension SpatialScene3D {
 /// `StorageServiceGenerated` (the canonical, authenticated thumbnail path) so
 /// the 3D scene no longer hand-builds a storage URL or calls `URLSession`
 /// directly (#1902).
-actor MindPalaceTextureCache {
-    static let shared = MindPalaceTextureCache()
+actor SpatialTextureCache {
+    static let shared = SpatialTextureCache()
 
     private static let logger = Logger(
         subsystem: "app.fichero.fichero",
-        category: "MindPalaceTextureCache"
+        category: "SpatialTextureCache"
     )
 
     private var cache: [String: TextureResource] = [:]

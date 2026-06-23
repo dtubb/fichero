@@ -631,15 +631,15 @@ extension LibraryView {
     /// the `.realitykit` / `.spatial` views. Item positions are persisted
     /// separately via `CanvasLayoutStore` (#2293); this only supplies the
     /// projector's computed defaults.
-    var libraryProjection: MindPalaceLibraryProjection {
-        MindPalaceLibraryProjector.project(
-            MindPalaceLibraryInput(
+    var libraryProjection: SpatialLibraryProjection {
+        SpatialLibraryProjector.project(
+            SpatialLibraryInput(
                 documents: documents.map {
-                    MindPalaceLibraryInput.Document(id: $0.id, name: $0.name, parentId: $0.parentId)
+                    SpatialLibraryInput.Document(id: $0.id, name: $0.name, parentId: $0.parentId)
                 },
                 entities: entities.compactMap { entity in
                     guard let id = entity.id else { return nil }
-                    return MindPalaceLibraryInput.Entity(
+                    return SpatialLibraryInput.Entity(
                         id: id,
                         canonicalName: entity.canonicalName,
                         entityType: entity.entityType?.rawValue

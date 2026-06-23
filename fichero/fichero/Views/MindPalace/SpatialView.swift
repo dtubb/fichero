@@ -4,8 +4,8 @@ import SwiftUI
 /// 2D projection of a Mind Palace room — the `.twoD` render mode and the
 /// fallback when RealityKit isn't available.
 ///
-/// Renders each `MindPalaceNode` at its **backend-provided** `positionX/Y`,
-/// draws `MindPalaceConnection` edges, labels nodes by kind, and supports
+/// Renders each `SpatialNode` at its **backend-provided** `positionX/Y`,
+/// draws `SpatialConnection` edges, labels nodes by kind, and supports
 /// tap-to-select (writes `selectedNodeId`). The only client-side transform is
 /// a fit-to-view camera (uniform translate + scale of the whole scene so it's
 /// on-screen) — relative node geometry is never recomputed
@@ -19,8 +19,8 @@ import SwiftUI
 /// is view-only, exactly as before. The store is the only thing that touches
 /// the network; this view never calls the generated client directly.
 struct Spatial2DCanvas: View {
-    let nodes: [MindPalaceNode]
-    let connections: [MindPalaceConnection]
+    let nodes: [SpatialNode]
+    let connections: [SpatialConnection]
     @Binding var selectedNodeId: String?
 
     /// Observable layout store. When non-nil (together with `folderScopeId`)
@@ -225,7 +225,7 @@ struct Spatial2DCanvas: View {
     }
 
     @ViewBuilder
-    func chip(for node: MindPalaceNode, at point: CGPoint, base: CGPoint, in size: CGSize, loadThumbnail: Bool) -> some View {
+    func chip(for node: SpatialNode, at point: CGPoint, base: CGPoint, in size: CGSize, loadThumbnail: Bool) -> some View {
         let chipView = nodeChip(node, loadThumbnail: loadThumbnail)
             .position(point)
             .zIndex(dragItemId == node.id ? 1 : 0)
@@ -237,7 +237,7 @@ struct Spatial2DCanvas: View {
         }
     }
 
-    func dragGesture(for node: MindPalaceNode, base: CGPoint, in size: CGSize) -> some Gesture {
+    func dragGesture(for node: SpatialNode, base: CGPoint, in size: CGSize) -> some Gesture {
         DragGesture(minimumDistance: 3)
             .onChanged { value in
                 dragItemId = node.id
@@ -254,7 +254,7 @@ struct Spatial2DCanvas: View {
             }
     }
 
-    func nodeChip(_ node: MindPalaceNode, loadThumbnail: Bool) -> some View {
+    func nodeChip(_ node: SpatialNode, loadThumbnail: Bool) -> some View {
         let isSelected = node.id == selectedNodeId || marqueeSelection.contains(node.id)
         return HStack(spacing: 5) {
             // Image / PDF-page nodes render their actual thumbnail (#1744);
@@ -262,7 +262,7 @@ struct Spatial2DCanvas: View {
             // out (`loadThumbnail == false`) the thumbnail view draws the cheap
             // glyph placeholder and skips the network fetch — LOD (#2298).
             if let sourceId = node.sourceId, !sourceId.isEmpty {
-                MindPalaceNodeThumbnail(
+                SpatialNodeThumbnail(
                     sourceId: sourceId,
                     fallbackIcon: node.nodeType.icon,
                     tint: node.nodeType.color,

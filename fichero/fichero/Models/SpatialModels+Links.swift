@@ -4,11 +4,11 @@ import SwiftUI
 
 /// Reserved room ID for the "Whole Library" pseudo-room. When the selected
 /// room is this sentinel, the view loads the library projection
-/// (`MindPalaceLibraryProjector`) instead of a real room's nodes.
+/// (`SpatialLibraryProjector`) instead of a real room's nodes.
 let wholeLibraryRoomId = "__library__"
 
 /// Typed link between two content items (a document, page, entity, claim, or
-/// note) — not between user-placed room nodes. `MindPalaceConnection` carries
+/// note) — not between user-placed room nodes. `SpatialConnection` carries
 /// the spatial-room edge a user drew; `LinkType` is the **semantic** kind of
 /// the relation behind it.
 ///
@@ -80,8 +80,8 @@ enum LinkType: String, Codable, CaseIterable, Hashable {
 
 /// A typed link between two content items (document IDs or entity IDs).
 /// Content-level edge the whole-library projection emits — distinct from
-/// `MindPalaceConnection` (room-level).
-struct MindPalaceLink: Hashable, Identifiable {
+/// `SpatialConnection` (room-level).
+struct SpatialLink: Hashable, Identifiable {
     let sourceId: String
     let targetId: String
     let linkType: LinkType
@@ -100,7 +100,7 @@ struct MindPalaceLink: Hashable, Identifiable {
     var id: String { "\(sourceId)|\(targetId)|\(linkType.rawValue)" }
 }
 
-extension MindPalaceConnection {
+extension SpatialConnection {
     /// Best-effort `LinkType` for a room connection — reads `linkSubtype`
     /// first, then falls back to mapping the room-level `connectionType`.
     /// Lets the renderer paint room edges and content-level links with the
