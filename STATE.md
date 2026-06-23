@@ -1,4 +1,20 @@
-# STATE — Session end 2026-06-22 (workflow review + integration + GH hygiene)
+# STATE — 2026-06-22 PM/overnight (workflow 100k-hardening + Activity rebuild + shell UX)
+
+Branch `0.0.2` @ **0dc1f276+** (= origin, clean). **Overnight autonomous loop ACTIVE** (cron `66ececc5`, every 30m). Manager dispatches ONE Agent worktree worker per lane, gates (backend pytest; Swift Xcode MCP BuildProject windowtab1 + swiftlint + check_service_consistency.py + check_swift_hand_rolled_urls.py), cherry-picks→pushes→closes issue→removes worktree. NEVER RunAllTests/verify_all (GUI windows).
+
+## SHIPPED THIS SESSION (all gated + pushed to 0.0.2)
+**Workflows & Catalogue Hardening (#91):** untested-flag (display-only trust); #2533 (one save path); #2523 (per-page documents in ALL transcribe presets + builder double-fan-out bug); #2537 (typed nodes/edges boundary + source_port drift); #2538/#1943 (Activity SSE → shared FicheroClient; dev engine HTTPS).
+**100k-image reliability (EPIC #2545) — the whole chain is ON:** C2 #2540 (DB/embed off event loop) · C1 #2539 (vision loop bounded-concurrent) · C4 #2542 (batched writes + Lance compaction) · C5 #2543 (provider backoff + circuit breaker) · H1 #2544 (capped folder source) · M1 (API-key cache) · **#2532 FLIPPED — enable_parallel=True on the run path** (memory bounded O(4) by semaphore; 988 workflows pass).
+**Activity = live monitor (#2546):** B1 (shared @Observable WorkflowExecutionStore) + B2 (poppable hierarchical run→node→file table; editor inline progress removed) + **the live-stream FIX**: SSE /stream was a single-consumer queue (2nd subscriber starved → 0% + empty log); now a WorkflowEventHub pub/sub + replay buffer; plus overallProgress seeds totalFiles from file events. NEEDS Daniel visual confirm.
+**Mac App Shell (shell-reform):** #2547 (iPhone inspector full-height) + #2548 (Mac sidebar selection reconcile) shipped. RUNNING: #2549 (iOS reader hide zoom on compact). NEXT: #2550 (glass minitoolbars), EPIC #2551 (NotificationCenter→observable, @ObservedObject→@Environment, file-size splits, swipe-between-modes).
+
+## DEFERRED / NEEDS DANIEL
+- Visual confirm: Activity live progress+log now stream; per-page transcription all presets; B2 table (the ↗ pop-out button); the two shell P0 fixes.
+- Backend follow-up: aggregator-barrier retention at huge fan-out (ponytail note in builder.py, bounded by largest single fan-out).
+- Release pipeline tasks (#158-165) untouched.
+
+---
+# (history) STATE — Session end 2026-06-22 (workflow review + integration + GH hygiene)
 
 Branch `0.0.2` @ **1921aa35** (= origin, clean). Today's project: the **workflow / node-editor** system.
 
