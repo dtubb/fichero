@@ -13,6 +13,21 @@ Stability + reliability release: backend hardening, the knowledge-graph layer,
 a typed CLI surface, and the redesigned document inspector. Packaging
 (notarization, signing) is the only remaining gate.
 
+### Fixed
+
+- **Activity live progress + log** now stream — the workflow SSE was a
+  single-consumer queue that starved a second subscriber (0% progress, empty
+  log); replaced with a fan-out broadcaster + replay buffer, and `totalFiles`
+  is seeded from file events.
+- **Knowledge Graph + document reader** render again over the pinned-HTTPS
+  engine (the WKWebView now honours the same cert pin as the URLSession stack).
+- **Per-page transcription** applies across every Transcribe/Catalogue preset.
+- **Shell**: iPhone inspector opens full-height; macOS sidebar selection updates
+  the view; iOS reader hides desktop zoom on compact; sidebar/library
+  mini-toolbars use Liquid Glass.
+- *(known issue, in progress)* `/api/changes/stream` live-updates SSE fails TLS
+  on the self-signed/`.local` cert — its pinned-session trust path regressed.
+
 ### Added
 
 - **Knowledge Graph maturity** — claim/entity attribution (speaker, quotation

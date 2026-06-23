@@ -1,6 +1,17 @@
-# STATE — 2026-06-22 PM/overnight (workflow 100k-hardening + Activity rebuild + shell UX)
+# STATE — 2026-06-23 (architecture: node-model unification + iPhone connect bug)
 
-Branch `0.0.2` @ **0dc1f276+** (= origin, clean). **Overnight autonomous loop ACTIVE** (cron `66ececc5`, every 30m). Manager dispatches ONE Agent worktree worker per lane, gates (backend pytest; Swift Xcode MCP BuildProject windowtab1 + swiftlint + check_service_consistency.py + check_swift_hand_rolled_urls.py), cherry-picks→pushes→closes issue→removes worktree. NEVER RunAllTests/verify_all (GUI windows).
+Branch `0.0.2` (= origin). Daniel handed autonomy + said **use CODEX/OLLAMA workers** (conserve weekly Claude budget — NOT Claude Agent workers). The overnight cron loop is gone (session-only).
+
+## NEXT SESSION — START HERE
+1. **GATE the iPhone-connect fix** when worker `a8a7d312` (opus — the last Claude worker) returns. Root cause: `/api/changes/stream` (+ sweep ALL other transports, fix-then-sweep) uses the DEFAULT URLSession trust instead of the pinned `RemoteCertificatePinning.configuredSession()` → TLS `-9807` on the self-signed `macbook-pro-m1.local` cert. Cherry-pick → `BuildProject` (windowtab1) → guardrails → push → tell Daniel to rebuild.
+2. **THEN proceed CODEX/OLLAMA, step by step** on the node-model consolidation, cheapest-first: #2589 (position→doc attributes, retires mind_palace) → #2590 (links relation, reuse KG links) → #2591 (fold research/tasks/saved-searches) → #2593 (delete dead routers) → #2594 execution/ · #2595 importers/ · #2596 knowledge/ → #104 SwiftUI org. Each: codex on a 0.0.2 worktree → I gate → push → next.
+3. **Read first:** #2578 + #107 + #2566 + `docs/design/endpoints-vs-ux-audit.md` — the node-model decision (Canvas/Spatial are Library VIEW MODES; position=item attrs; links=library relation; content folds into the node Library, process gathers into execution/importers/knowledge). Memories: canvas-spatial-fold, llm-langchain-litellm.
+
+GOTCHAS: never RunAllTests/verify_all on Daniel's desktop; library data is reimportable (NO migration ceremony, but test); CHANGELOG.md is canonical (retire RELEASE_NOTES.md); `release-notes-gen.sh` ready (kimi model, Dec-5 2025 pivot) — run for CHANGELOG drafts at session-end.
+
+---
+## (recent context — earlier 2026-06-22 overnight; see HISTORY.md)
+Branch `0.0.2` @ **0dc1f276+**. Overnight loop shipped: workflow 100k-hardening, Activity rebuild, shell UX.
 
 ## SHIPPED THIS SESSION (all gated + pushed to 0.0.2)
 **Workflows & Catalogue Hardening (#91):** untested-flag (display-only trust); #2533 (one save path); #2523 (per-page documents in ALL transcribe presets + builder double-fan-out bug); #2537 (typed nodes/edges boundary + source_port drift); #2538/#1943 (Activity SSE → shared FicheroClient; dev engine HTTPS).
