@@ -13,6 +13,7 @@ by downstream processing tools like transcribe, describe, etc.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 from fichero.workflows.types import State, PortDef, DataType
@@ -85,6 +86,110 @@ def _resolve_page_to_parent(doc: "Document", db) -> "Document | None":
         doc.id, doc.sequence, parent.id,
     )
     return requested
+
+
+# =============================================================================
+# Eager-load cap (#2544)
+# =============================================================================
+
+# A folder/collection source otherwise loads ALL Documents eagerly into workflow
+# state: a 100k-image folder materializes 100k Document objects + 100k JSON dicts
+# before any processing starts, which blows up RAM up front. We bound that eager
+# load with a generous default cap, overridable per install via the
+# FICHERO_SOURCE_MAX_FILES env var. The default is high enough that normal
+# folders (Marshall/Choco) are never clipped; only pathologically huge folders
+# hit it, and when they do we LOG LOUDLY (no silent truncation).
+_DEFAULT_SOURCE_MAX_FILES = 5000
+
+
+def _source_max_files() -> int:
+    """Resolve the default eager-load cap from FICHERO_SOURCE_MAX_FILES (#2544).
+
+    Returns the configured cap, or ``_DEFAULT_SOURCE_MAX_FILES`` when unset/blank.
+    A value of ``0`` (or negative) is the explicit opt-in for "all files" — no
+    cap. An unparseable value falls back to the default with a loud warning.
+    """
+    raw = os.environ.get("FICHERO_SOURCE_MAX_FILES")
+    if raw is None or raw.strip() == "":
+        return _DEFAULT_SOURCE_MAX_FILES
+    try:
+        value = int(raw.strip())
+    except ValueError:
+        logger.warning(
+            "FICHERO_SOURCE_MAX_FILES=%r is not an integer — using default cap %d",
+            raw,
+            _DEFAULT_SOURCE_MAX_FILES,
+        )
+        return _DEFAULT_SOURCE_MAX_FILES
+    return value if value > 0 else 0  # <= 0 = unbounded (explicit "all files")
+
+
+def _resolve_source_limit(requested: int) -> int:
+    """Resolve the effective file cap for a source tool run (#2544).
+
+    An explicit per-run ``limit`` from the tool inputs always wins (it is already
+    a deliberate cap). When none is set — the common case, ``requested == 0`` —
+    fall back to the env-configured default cap so a huge folder doesn't blow up
+    RAM up front. Returns ``0`` for unbounded.
+    """
+    if requested and requested > 0:
+        return requested
+    return _source_max_files()
+
+
+def _load_capped_folder_files(
+    db,
+    folder_id: str,
+    *,
+    recursive: bool,
+    file_types: list[str] | None,
+    status_filter: str,
+    requested_limit: int,
+    source_label: str,
+) -> list["Document"]:
+    """Load files in a folder, bounded by the effective source cap (#2544).
+
+    Returns the (possibly truncated) list of Documents, preserving the existing
+    ``_get_files_in_folder`` ordering so ``files``/``documents`` stay index-
+    aligned downstream. When the cap clips the folder, logs LOUDLY that only the
+    first N were taken and how to raise the cap — it never silently truncates as
+    if it had processed everything (Daniel's no-silent-fallback rule).
+    """
+    cap = _resolve_source_limit(requested_limit)
+    if cap <= 0:
+        # Explicit opt-in to load every file (FICHERO_SOURCE_MAX_FILES=0).
+        return _get_files_in_folder(
+            db=db,
+            folder_id=folder_id,
+            recursive=recursive,
+            file_types=file_types,
+            status_filter=status_filter,
+            limit=0,
+        )
+    # Fetch one extra so we can distinguish "exactly cap files, all taken" from
+    # "more than cap exist, clipped" without a second full traversal.
+    files = _get_files_in_folder(
+        db=db,
+        folder_id=folder_id,
+        recursive=recursive,
+        file_types=file_types,
+        status_filter=status_filter,
+        limit=cap + 1,
+    )
+    if len(files) > cap:
+        taken = files[:cap]
+        logger.warning(
+            "%s: folder has MORE than the %d-file source cap — taking the first "
+            "%d of (at least) %d+ files; the remainder are NOT processed this "
+            "run. Raise FICHERO_SOURCE_MAX_FILES=<n> (or set it to 0 for all "
+            "files) to process everything.",
+            source_label,
+            cap,
+            cap,
+            cap,
+        )
+        return taken
+    return files
 
 
 # =============================================================================
@@ -207,8 +312,29 @@ async def files_tool(
             pairs: list[tuple[str, Document]] = []
             seen_ids: set[str] = set()
 
+            # Bound the eager load (#2544): selecting a 100k-image folder in the
+            # UI would otherwise expand to 100k (path, Document) pairs and 100k
+            # JSON dicts below. files_tool has no explicit limit input, so use
+            # the env-configured default cap. 0 = unbounded (explicit opt-in).
+            _pairs_cap = _source_max_files()
+            _cap_logged = False
+
             def _add(path: str, document: Document) -> None:
+                nonlocal _cap_logged
                 if document.id in seen_ids:
+                    return
+                if _pairs_cap > 0 and len(pairs) >= _pairs_cap:
+                    if not _cap_logged:
+                        logger.warning(
+                            "files_tool: selection expands to MORE than the "
+                            "%d-file source cap — taking the first %d files "
+                            "only; the remainder are NOT processed this run. "
+                            "Raise FICHERO_SOURCE_MAX_FILES=<n> (or 0 for all "
+                            "files) to process everything.",
+                            _pairs_cap,
+                            _pairs_cap,
+                        )
+                        _cap_logged = True
                     return
                 seen_ids.add(document.id)
                 pairs.append((path, document))
@@ -516,14 +642,15 @@ async def collection_tool(
     try:
         db = db_manager.get_database(library_path)
 
-        # Get all files in collection
-        files = _get_files_in_folder(
-            db=db,
-            folder_id=collection_id,
+        # Get all files in collection, bounded by the eager-load cap (#2544).
+        files = _load_capped_folder_files(
+            db,
+            collection_id,
             recursive=recursive,
             file_types=file_types,
             status_filter=status_filter,
-            limit=limit,
+            requested_limit=limit,
+            source_label=f"Collection {collection_id}",
         )
 
         # Keep file_paths and doc_data index-aligned: filter both by doc.path (#2240)
@@ -671,13 +798,15 @@ async def folder_tool(
                     "error": f"Folder not found: {folder_path}",
                 }
 
-        # Get files
-        files = _get_files_in_folder(
-            db=db,
-            folder_id=folder_id,
+        # Get files, bounded by the eager-load cap (#2544).
+        files = _load_capped_folder_files(
+            db,
+            folder_id,
             recursive=include_subfolders,
             file_types=file_types,
-            limit=limit,
+            status_filter="all",
+            requested_limit=limit,
+            source_label=f"Folder {folder_id}",
         )
 
         # Get direct subfolders (for hierarchical processing)
