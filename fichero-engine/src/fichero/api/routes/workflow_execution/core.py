@@ -40,6 +40,7 @@ from .schemas import (
     format_sse,
 )
 from .runner import (
+    WorkflowEventHub,
     _get_workflow_state,
     _run_workflow_in_background,
     _set_workflow_state,
@@ -129,32 +130,41 @@ async def stream_workflow_events(thread_id: str) -> StreamingResponse:
         )
 
     async def event_generator() -> AsyncGenerator[str, None]:
-        """Generate SSE events from the workflow's event queue.
+        """Generate SSE events from the workflow's event hub.
 
-        The queue is a thread-safe ``queue.Queue`` — the workflow runs
-        on a dedicated worker thread (#1000), so the blocking ``.get()``
-        is offloaded to a thread-pool worker via ``run_in_executor`` to
+        ``state["events"]`` is a :class:`WorkflowEventHub` (#2546). We take
+        a PRIVATE subscriber queue via ``.subscribe()`` so multiple watchers
+        (the Workflow editor AND the Activity panel, late or concurrent) each
+        receive EVERY event instead of competing for a single destructive
+        ``.get()``. The hub replays buffered events so a late subscriber
+        catches up. The workflow runs on a dedicated worker thread (#1000),
+        so the blocking ``.get()`` is offloaded via ``run_in_executor`` to
         keep the API event loop free.
         """
-        event_queue: queue.Queue = state["events"]
+        hub: WorkflowEventHub = state["events"]
+        subscriber = hub.subscribe()
         loop = asyncio.get_running_loop()
 
-        while True:
-            try:
-                # Wait for next event with timeout, off the event loop.
-                event = await loop.run_in_executor(
-                    None, event_queue.get, True, 60.0
-                )
+        try:
+            while True:
+                try:
+                    # Wait for next event with timeout, off the event loop.
+                    event = await loop.run_in_executor(
+                        None, subscriber.get, True, 60.0
+                    )
 
-                if event is None:
-                    # Sentinel value - stream is complete
-                    break
+                    if event is None:
+                        # Sentinel value - stream is complete
+                        break
 
-                yield format_sse(event)
+                    yield format_sse(event)
 
-            except queue.Empty:
-                # Send keepalive comment to prevent connection timeout
-                yield ": keepalive\n\n"
+                except queue.Empty:
+                    # Send keepalive comment to prevent connection timeout
+                    yield ": keepalive\n\n"
+        finally:
+            # Stop feeding this subscriber once the client disconnects.
+            hub.unsubscribe(subscriber)
 
     return StreamingResponse(
         event_generator(),
@@ -222,11 +232,14 @@ async def execute_workflow(
         else:
             thread_id = request.thread_id
 
-        # Create event queue for this workflow. A thread-safe queue.Queue
-        # (not asyncio.Queue) because the workflow runs on a dedicated
-        # worker thread (#1000) and pushes events across the thread
-        # boundary; the SSE endpoint drains it via run_in_executor.
-        event_queue: queue.Queue = queue.Queue()
+        # Create the event hub for this workflow. A WorkflowEventHub (#2546)
+        # fans events out to every SSE subscriber (editor + Activity, late or
+        # concurrent) instead of a single-consumer queue.Queue that only the
+        # first subscriber could drain. The producer side is thread-safe: the
+        # workflow runs on a dedicated worker thread (#1000) and calls
+        # ``hub.put(...)``; each subscriber drains its own queue via
+        # run_in_executor.
+        event_hub = WorkflowEventHub()
 
         # Register workflow state
         _set_workflow_state(
@@ -235,7 +248,7 @@ async def execute_workflow(
                 "workflow_id": request.workflow_id,
                 "workflow_name": workflow.name,
                 "status": "accepted",
-                "events": event_queue,
+                "events": event_hub,
                 "error": None,
                 "final_state": None,
             },

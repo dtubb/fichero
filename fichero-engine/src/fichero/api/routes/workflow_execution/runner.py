@@ -9,6 +9,7 @@ Contains:
 import logging
 import queue
 import re
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -32,9 +33,92 @@ logger = logging.getLogger(__name__)
 # Background Task State
 # =============================================================================
 
-# Key: thread_id, Value: dict with workflow state and a thread-safe
-# queue.Queue for events (the workflow runs on a worker thread — #1000)
+# Key: thread_id, Value: dict with workflow state and a WorkflowEventHub
+# for events (the workflow runs on a worker thread — #1000)
 _running_workflows: dict[str, dict[str, Any]] = {}
+
+
+class WorkflowEventHub:
+    """Fan-out pub/sub for a single workflow thread's SSE events (#2546).
+
+    Previously ``state["events"]`` was a bare ``queue.Queue`` and the SSE
+    endpoint drained it with a destructive ``.get()``. That made the stream
+    **single-consumer**: whichever subscriber drained first stole the events,
+    so a *second* concurrent subscriber (e.g. the Workflow editor that
+    launched the run AND the Activity panel watching it) was starved — its
+    live progress sat at 0%% and its log stayed empty. A subscriber that
+    connected *late* (after the producer had pushed early events that another
+    consumer already drained) likewise got nothing.
+
+    This hub keeps the producer interface identical — the runner still calls
+    ``.put(event)`` from its worker thread — but every SSE subscriber gets its
+    OWN queue via ``.subscribe()`` and receives EVERY event. A bounded replay
+    buffer lets a late subscriber catch up on what it missed. ``put(None)``
+    (the existing end-of-stream sentinel) closes the hub; subscribers that
+    connect after close still receive the full replay followed by the
+    sentinel so their generator terminates cleanly.
+
+    Thread-safe: the producer runs on a dedicated worker thread (#1000) and
+    subscribers drain from the API event loop via ``run_in_executor``.
+    """
+
+    # Cap the replay buffer so a thousands-of-files run (each file emits
+    # file_start/file_complete + log lines) can't grow it without bound. A
+    # late subscriber still gets file_total/progress from recent file events,
+    # which is what the live progress bar needs.
+    _REPLAY_LIMIT = 2000
+
+    def __init__(self, replay_limit: int | None = None) -> None:
+        self._lock = threading.Lock()
+        self._subscribers: list["queue.Queue"] = []
+        self._buffer: list[Any] = []
+        self._closed = False
+        self._replay_limit = (
+            replay_limit if replay_limit is not None else self._REPLAY_LIMIT
+        )
+
+    def put(self, event: Any) -> None:
+        """Publish an event to every subscriber and the replay buffer.
+
+        ``None`` is the end-of-stream sentinel: it closes the hub and is
+        broadcast so active subscribers terminate, but it is NOT retained in
+        the replay buffer (it is re-appended on subscribe-after-close).
+        """
+        with self._lock:
+            if event is None:
+                self._closed = True
+            else:
+                self._buffer.append(event)
+                if len(self._buffer) > self._replay_limit:
+                    # Drop oldest; keep the most recent window.
+                    del self._buffer[: -self._replay_limit]
+            for subscriber in self._subscribers:
+                subscriber.put(event)
+
+    def subscribe(self) -> "queue.Queue":
+        """Register a new subscriber and return its private queue.
+
+        The queue is pre-loaded with the replay buffer so a late subscriber
+        catches up on events it missed. If the run already finished, the
+        end-of-stream sentinel is appended after the replay.
+        """
+        sub: "queue.Queue" = queue.Queue()
+        with self._lock:
+            for event in self._buffer:
+                sub.put(event)
+            if self._closed:
+                sub.put(None)
+            else:
+                self._subscribers.append(sub)
+        return sub
+
+    def unsubscribe(self, sub: "queue.Queue") -> None:
+        """Remove a subscriber (on SSE disconnect) so we stop feeding it."""
+        with self._lock:
+            try:
+                self._subscribers.remove(sub)
+            except ValueError:
+                pass
 
 
 def _get_workflow_state(thread_id: str) -> dict[str, Any] | None:
@@ -366,12 +450,13 @@ async def _run_workflow_in_background(
     db: Database,
 ) -> None:
     """
-    Run a workflow in the background, publishing events to a queue.
+    Run a workflow in the background, publishing events to the event hub.
 
     Runs on a dedicated worker thread with its own event loop (#1000),
     spawned from the /execute route. Events go into
     ``_running_workflows[thread_id]["events"]`` — a thread-safe
-    ``queue.Queue`` the SSE endpoint drains from the API loop.
+    :class:`WorkflowEventHub` that fans them out to every SSE subscriber
+    (#2546). The producer interface is unchanged: ``.put(event)``.
     """
     # Re-acquire the Database on THIS worker thread. The `db` passed in
     # belongs to the API thread, and a DuckDB Connection is not
@@ -382,13 +467,13 @@ async def _run_workflow_in_background(
         from fichero.db_manager import db_manager
         db = db_manager.get_database(db.path.parent)
 
-    # Get the queue for this thread
+    # Get the event hub for this thread
     state = _get_workflow_state(thread_id)
     if not state:
         logger.error(f"No workflow state found for thread {thread_id}")
         return
 
-    event_queue: "queue.Queue" = state["events"]
+    event_queue: "WorkflowEventHub" = state["events"]
     workflow_id = request.workflow_id
 
     # Activity tracking
