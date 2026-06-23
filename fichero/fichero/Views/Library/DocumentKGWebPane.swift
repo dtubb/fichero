@@ -23,7 +23,19 @@ enum DocumentKGPaneRoute {
     }
 
     static func supportsAuthenticatedWebView() -> Bool {
-        !RemoteCertificatePinning.shouldEnforcePinning(for: EngineConfig.host)
+        let host = EngineConfig.host
+        // Plain trust (loopback HTTP, or a CA-valid host): WKWebView's default
+        // trust evaluation handles the connection, so the pane can load.
+        if !RemoteCertificatePinning.shouldEnforcePinning(for: host) {
+            return true
+        }
+        // Pinning is enforced (post-#2538 the loopback engine serves a
+        // self-signed pinned HTTPS cert). The pane's WKNavigationDelegate now
+        // validates the server trust against the persisted SPKI pin — the same
+        // pinning the URLSession transport uses — so it can load as long as we
+        // actually hold a pin for this host. Without a pin there is nothing to
+        // validate against, so fall back to the unavailable placeholder.
+        return RemoteCertificatePinning.persistedSPKIPin(hostString: host.absoluteString) != nil
     }
 
     static func request(documentId: String, libraryPath: String) -> URLRequest? {
@@ -408,6 +420,20 @@ struct DocumentKGWebPane: NSViewRepresentable {
             syncSelection(into: webView)
         }
 
+        /// Validate the engine's TLS certificate against Fichero's persisted
+        /// SPKI pin — the same pinned transport the URLSession stack uses. Post
+        /// -#2538 the loopback engine serves a self-signed pinned HTTPS cert;
+        /// without this the WebContent default trust evaluation rejects it and
+        /// the reading / KG pane loads nothing.
+        func webView(
+            _ webView: WKWebView,
+            didReceive challenge: URLAuthenticationChallenge,
+            completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+        ) {
+            let (disposition, credential) = RemoteCertificatePinning.resolveServerTrustChallenge(challenge)
+            completionHandler(disposition, credential)
+        }
+
         func userContentController(
             _ userContentController: WKUserContentController,
             didReceive message: WKScriptMessage
@@ -739,6 +765,18 @@ struct DocumentKGWebPane: UIViewRepresentable {
             webView.evaluateJavaScript(DocumentKGPaneRoute.scrollSyncScript(pageCount: parent.pageCount))
             syncSelection(into: webView)
             applyZoom(to: webView, zoom: parent.zoom)
+        }
+
+        /// Validate the engine's TLS certificate against Fichero's persisted
+        /// SPKI pin — the same pinned transport the URLSession stack uses (see
+        /// the macOS variant for the rationale, #2538).
+        func webView(
+            _ webView: WKWebView,
+            didReceive challenge: URLAuthenticationChallenge,
+            completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+        ) {
+            let (disposition, credential) = RemoteCertificatePinning.resolveServerTrustChallenge(challenge)
+            completionHandler(disposition, credential)
         }
 
         func userContentController(

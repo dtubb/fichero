@@ -146,6 +146,51 @@ public enum RemoteCertificatePinning {
     }
 
     #if canImport(Security)
+    /// Resolve a server-trust authentication challenge against the dynamic
+    /// (persisted-pin) policy, returning the disposition + credential the
+    /// caller should hand to its completion handler.
+    ///
+    /// This is the single implementation of Fichero's server-trust pinning:
+    /// the URLSession transport (`configuredSession`) AND the WKWebView reading
+    /// / KG panes (`DocumentKGWebPane`) both route their challenges through it,
+    /// so loopback + remote pinning behave identically regardless of which
+    /// networking stack issues the request. Post-#2538 the loopback engine
+    /// serves a self-signed pinned HTTPS cert; without this, WKWebView's
+    /// default trust evaluation rejects it and the panes load nothing.
+    public static func resolveServerTrustChallenge(
+        _ challenge: URLAuthenticationChallenge
+    ) -> (URLSession.AuthChallengeDisposition, URLCredential?) {
+        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust else {
+            return (.performDefaultHandling, nil)
+        }
+
+        guard let trust = challenge.protectionSpace.serverTrust else {
+            return (.cancelAuthenticationChallenge, nil)
+        }
+        let hostString = challengeHostString(challenge.protectionSpace)
+        guard let expectedSPKIPin = persistedSPKIPin(hostString: hostString) else {
+            let host = challenge.protectionSpace.host.lowercased()
+            if isLoopbackChallengeHost(host) {
+                return (.cancelAuthenticationChallenge, nil)
+            }
+            guard shouldEnforcePinning(forHost: host) else {
+                return (.performDefaultHandling, nil)
+            }
+            return (.cancelAuthenticationChallenge, nil)
+        }
+
+        do {
+            try validateServerTrust(
+                trust,
+                host: challenge.protectionSpace.host.lowercased(),
+                expectedSPKIPin: expectedSPKIPin
+            )
+            return (.useCredential, URLCredential(trust: trust))
+        } catch {
+            return (.cancelAuthenticationChallenge, nil)
+        }
+    }
+
     public static func validateServerTrust(
         _ trust: SecTrust,
         host: String,
@@ -471,40 +516,8 @@ private final class DynamicPinnedSessionDelegate: NSObject, URLSessionDelegate {
         didReceive challenge: URLAuthenticationChallenge,
         completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
     ) {
-        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust else {
-            completionHandler(.performDefaultHandling, nil)
-            return
-        }
-
-        guard let trust = challenge.protectionSpace.serverTrust else {
-            completionHandler(.cancelAuthenticationChallenge, nil)
-            return
-        }
-        let hostString = RemoteCertificatePinning.challengeHostString(challenge.protectionSpace)
-        guard let expectedSPKIPin = RemoteCertificatePinning.persistedSPKIPin(hostString: hostString) else {
-            let host = challenge.protectionSpace.host.lowercased()
-            if RemoteCertificatePinning.isLoopbackChallengeHost(host) {
-                completionHandler(.cancelAuthenticationChallenge, nil)
-                return
-            }
-            guard RemoteCertificatePinning.shouldEnforcePinning(forHost: host) else {
-                completionHandler(.performDefaultHandling, nil)
-                return
-            }
-            completionHandler(.cancelAuthenticationChallenge, nil)
-            return
-        }
-
-        do {
-            try RemoteCertificatePinning.validateServerTrust(
-                trust,
-                host: challenge.protectionSpace.host.lowercased(),
-                expectedSPKIPin: expectedSPKIPin
-            )
-            completionHandler(.useCredential, URLCredential(trust: trust))
-        } catch {
-            completionHandler(.cancelAuthenticationChallenge, nil)
-        }
+        let (disposition, credential) = RemoteCertificatePinning.resolveServerTrustChallenge(challenge)
+        completionHandler(disposition, credential)
     }
 }
 #endif

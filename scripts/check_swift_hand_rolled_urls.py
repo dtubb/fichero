@@ -75,6 +75,13 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Models/DocumentStore+CRUD.swift#842cbd3a0a": "§6b baseline — hand-built URLRequest(url:)",
     "Views/Components/FicheroWebView.swift#72bc3c3d1f": "§6b baseline — hand-built URLRequest(url:)",
     "Views/Library/DocumentKGWebPane.swift#10ac98dccd": "§6b baseline — hand-built URLRequest(url:)",
+    "Views/Library/DocumentKGWebPane.swift#734e0353f0": (
+        "WKNavigationDelegate server-trust challenge signature names "
+        "URLSession.AuthChallengeDisposition (an enum type, not a raw session); "
+        "the handler forwards to RemoteCertificatePinning.resolveServerTrustChallenge — "
+        "the shared pinned transport — so the KG/reader WKWebView validates the "
+        "engine's pinned HTTPS cert like every other call site (#2538)."
+    ),
     "Views/Library/QuickLookComponents.swift#59d9159ae2": "§6b baseline — hand-built URLRequest(url:)",
 }
 
