@@ -47,7 +47,7 @@ CLOSED ISSUES:
 ${issues:-（none）}"
 
     out="$(printf '%s' "$prompt" | ollama run "$MODEL" 2>/dev/null)"
-    out="$(printf '%s' "$out" | sed '/^[[:space:]]*$/d;1,/[^[:space:]]/{/^[[:space:]]*$/d}')"
+    out="$(printf '%s' "$out" | awk 'NF||p{print; p=1}')"   # drop leading blank lines
     if [[ -z "$out" ]] || { [[ "$out" == *SKIP* ]] && [[ ${#out} -lt 40 ]]; }; then
       echo "$cursor: SKIP (internal-only)"; continue
     fi
