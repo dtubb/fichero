@@ -21,7 +21,7 @@ version = "0.1.0.dev1"
 url = "https://www.tubb.ca/fichero/"
 license.file = "LICENSE"
 author = "Daniel Tubb"
-author_email = "dtubb@me.com"
+author_email = "dtubb@users.noreply.github.com"
 
 # =============================================================================
 # Briefcase App Definition - Embedded Backend

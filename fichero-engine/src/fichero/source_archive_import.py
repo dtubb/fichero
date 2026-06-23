@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -11,49 +12,39 @@ from fichero.db import db_manager
 from fichero.ingest import IngestMode, ingest_file
 from fichero.models import DocType, Document, Status
 
-DEFAULT_NEWTON_SOURCE = Path(
-    "/Users/danieltubb/Library/CloudStorage/Box-Box/Newton C Marshall Diary"
-).expanduser()
+# Library packages default to the standard macOS Application Support location.
+# Source-corpus locations are user/machine specific and are NOT hardcoded: pass
+# the path explicitly, or set the matching environment variable. If neither is
+# provided the import raises with a clear message (no silent fallback).
 DEFAULT_NEWTON_LIBRARY = Path(
     "~/Library/Application Support/Fichero/Newton-C-Marshall.fichero"
 ).expanduser()
-
 DEFAULT_ISTMINA_LIBRARY = Path(
     "~/Library/Application Support/Fichero/Istmina-Mineria.fichero"
-).expanduser()
-DEFAULT_ISTMINA_TRANSCRIPT = Path(
-    "/Users/danieltubb/Library/CloudStorage/Box-Box/JPG files (minería hasta 1980)/"
-    "Istmina_Minería 1980_Completo_Transcripcion"
-).expanduser()
-DEFAULT_ISTMINA_SPREADSHEET = Path(
-    "/Users/danieltubb/Library/CloudStorage/Box-Box/JPG files (minería hasta 1980)/"
-    "Workflow/05 Added to spreadsheet"
-).expanduser()
-DEFAULT_ISTMINA_REVIEW = Path(
-    "/Users/danieltubb/Library/CloudStorage/Box-Box/JPG files (minería hasta 1980)/"
-    "Workflow/04 Transcribed and catalogued, awaiting human check"
 ).expanduser()
 DEFAULT_ARCHIVO_JUDICIAL_LIBRARY = Path(
     "~/Library/Application Support/Fichero/Archivo-Judicial-Medellin.fichero"
 ).expanduser()
-DEFAULT_ARCHIVO_JUDICIAL_CATALOGUE = Path(
-    "/Users/danieltubb/Library/CloudStorage/Box-Box/Archivo Judicial de Medellín_UN/Catalogue"
-).expanduser()
 DEFAULT_GHC_LIBRARY = Path(
     "~/Library/Application Support/Fichero/GHC-Catalogued-Materials.fichero"
-).expanduser()
-DEFAULT_GHC_ACENET_ROOT = Path(
-    "/Users/danieltubb/Library/CloudStorage/Box-Box/GHC/ACENET imports"
-).expanduser()
-DEFAULT_GHC_CATALOGUED_ROOT = Path(
-    "/Users/danieltubb/Library/CloudStorage/Box-Box/GHC/already_catalogued"
 ).expanduser()
 DEFAULT_CHOTA_PACIFIC_LIBRARY = Path(
     "~/Library/Application Support/Fichero/Chota-Pacific-Maps.fichero"
 ).expanduser()
-DEFAULT_CHOTA_PACIFIC_SOURCE = Path(
-    "/Users/danieltubb/code/maps_southern_colombia"
-).expanduser()
+
+
+def _resolve_required(path: Path | None, *, env_var: str, flag: str) -> Path:
+    """Return an explicit path, else the env-var path, else raise loudly."""
+    if path is not None:
+        return path
+    raw = os.environ.get(env_var)
+    if raw:
+        return Path(raw).expanduser()
+    raise ValueError(
+        f"No source path configured. Pass {flag} or set the {env_var} "
+        f"environment variable to the corpus location."
+    )
+
 
 IMPORTABLE_EXTENSIONS = {
     ".jpg",
@@ -87,10 +78,13 @@ class SourceArchiveImportSummary:
 def import_newton_marshall_diary(
     *,
     library_path: Path = DEFAULT_NEWTON_LIBRARY,
-    source_path: Path = DEFAULT_NEWTON_SOURCE,
+    source_path: Path | None = None,
     reset: bool = False,
     auto_embed: bool = True,
 ) -> SourceArchiveImportSummary:
+    source_path = _resolve_required(
+        source_path, env_var="FICHERO_NEWTON_SOURCE", flag="--source-path"
+    )
     return _import_roots(
         provider="newton_marshall_diary",
         corpus_name="Newton C Marshall Diary",
@@ -104,12 +98,21 @@ def import_newton_marshall_diary(
 def import_istmina_mineria(
     *,
     library_path: Path = DEFAULT_ISTMINA_LIBRARY,
-    transcript_root: Path = DEFAULT_ISTMINA_TRANSCRIPT,
-    spreadsheet_root: Path = DEFAULT_ISTMINA_SPREADSHEET,
-    review_root: Path = DEFAULT_ISTMINA_REVIEW,
+    transcript_root: Path | None = None,
+    spreadsheet_root: Path | None = None,
+    review_root: Path | None = None,
     reset: bool = False,
     auto_embed: bool = True,
 ) -> SourceArchiveImportSummary:
+    transcript_root = _resolve_required(
+        transcript_root, env_var="FICHERO_ISTMINA_TRANSCRIPT", flag="--transcript-root"
+    )
+    spreadsheet_root = _resolve_required(
+        spreadsheet_root, env_var="FICHERO_ISTMINA_SPREADSHEET", flag="--spreadsheet-root"
+    )
+    review_root = _resolve_required(
+        review_root, env_var="FICHERO_ISTMINA_REVIEW", flag="--review-root"
+    )
     return _import_roots(
         provider="istmina_mineria",
         corpus_name="Istmina Mineria 1980",
@@ -127,10 +130,13 @@ def import_istmina_mineria(
 def import_archivo_judicial_medellin(
     *,
     library_path: Path = DEFAULT_ARCHIVO_JUDICIAL_LIBRARY,
-    catalogue_root: Path = DEFAULT_ARCHIVO_JUDICIAL_CATALOGUE,
+    catalogue_root: Path | None = None,
     reset: bool = False,
     auto_embed: bool = True,
 ) -> SourceArchiveImportSummary:
+    catalogue_root = _resolve_required(
+        catalogue_root, env_var="FICHERO_ARCHIVO_JUDICIAL_CATALOGUE", flag="--catalogue-root"
+    )
     return _import_roots(
         provider="archivo_judicial_medellin",
         corpus_name="Archivo Judicial de Medellin",
@@ -144,11 +150,17 @@ def import_archivo_judicial_medellin(
 def import_ghc_catalogued_materials(
     *,
     library_path: Path = DEFAULT_GHC_LIBRARY,
-    acenet_root: Path = DEFAULT_GHC_ACENET_ROOT,
-    catalogued_root: Path = DEFAULT_GHC_CATALOGUED_ROOT,
+    acenet_root: Path | None = None,
+    catalogued_root: Path | None = None,
     reset: bool = False,
     auto_embed: bool = True,
 ) -> SourceArchiveImportSummary:
+    acenet_root = _resolve_required(
+        acenet_root, env_var="FICHERO_GHC_ACENET_ROOT", flag="--acenet-root"
+    )
+    catalogued_root = _resolve_required(
+        catalogued_root, env_var="FICHERO_GHC_CATALOGUED_ROOT", flag="--catalogued-root"
+    )
     return _import_roots(
         provider="ghc_catalogued_materials",
         corpus_name="GHC Catalogued Materials",
@@ -165,10 +177,13 @@ def import_ghc_catalogued_materials(
 def import_chota_colombian_pacific_maps(
     *,
     library_path: Path = DEFAULT_CHOTA_PACIFIC_LIBRARY,
-    source_root: Path = DEFAULT_CHOTA_PACIFIC_SOURCE,
+    source_root: Path | None = None,
     reset: bool = False,
     auto_embed: bool = True,
 ) -> SourceArchiveImportSummary:
+    source_root = _resolve_required(
+        source_root, env_var="FICHERO_CHOTA_PACIFIC_SOURCE", flag="--source-root"
+    )
     return _import_roots(
         provider="chota_colombian_pacific_maps",
         corpus_name="Chota Valley + Colombian Pacific Maps",

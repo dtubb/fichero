@@ -590,18 +590,15 @@ def import_sergio_corpus_command(
         "--library-path",
         help="Target .fichero package to create/update.",
     ),
-    source_root: Path = typer.Option(
-        Path("/Users/danieltubb/Library/CloudStorage/Box-Box/Sergio Mosquera Notebooks"),
+    source_root: Optional[Path] = typer.Option(
+        None,
         "--source-root",
-        help="Notebook source directory.",
+        help="Notebook source directory (or set FICHERO_SERGIO_SOURCE_ROOT).",
     ),
-    spreadsheet_path: Path = typer.Option(
-        Path(
-            "/Users/danieltubb/Library/CloudStorage/Box-Box/01 Database/"
-            "Base de datos Cuadernos Sergio_Notaría Primera de Quibdó (1808-1825).xlsx"
-        ),
+    spreadsheet_path: Optional[Path] = typer.Option(
+        None,
         "--spreadsheet-path",
-        help="Catalogue spreadsheet (.xlsx).",
+        help="Catalogue spreadsheet (.xlsx) (or set FICHERO_SERGIO_SPREADSHEET).",
     ),
     limit: Optional[int] = typer.Option(
         None,
@@ -664,10 +661,10 @@ def import_newton_marshall_diary_command(
         "--library-path",
         help="Target .fichero package to create/update.",
     ),
-    source_path: Path = typer.Option(
-        Path("/Users/danieltubb/Library/CloudStorage/Box-Box/Newton C Marshall Diary"),
+    source_path: Optional[Path] = typer.Option(
+        None,
         "--source-path",
-        help="Newton C. Marshall diary source folder.",
+        help="Newton C. Marshall diary source folder (or set FICHERO_NEWTON_SOURCE).",
     ),
     reset: bool = typer.Option(False, "--reset", help="Delete target package before import."),
     no_embed: bool = typer.Option(False, "--no-embed", help="Skip embedding creation."),
@@ -709,29 +706,20 @@ def import_istmina_mineria_command(
         "--library-path",
         help="Target .fichero package to create/update.",
     ),
-    transcript_root: Path = typer.Option(
-        Path(
-            "/Users/danieltubb/Library/CloudStorage/Box-Box/JPG files (minería hasta 1980)/"
-            "Istmina_Minería 1980_Completo_Transcripcion"
-        ),
+    transcript_root: Optional[Path] = typer.Option(
+        None,
         "--transcript-root",
-        help="Transcribed corpus root.",
+        help="Transcribed corpus root (or set FICHERO_ISTMINA_TRANSCRIPT).",
     ),
-    spreadsheet_root: Path = typer.Option(
-        Path(
-            "/Users/danieltubb/Library/CloudStorage/Box-Box/JPG files (minería hasta 1980)/"
-            "Workflow/05 Added to spreadsheet"
-        ),
+    spreadsheet_root: Optional[Path] = typer.Option(
+        None,
         "--spreadsheet-root",
-        help="Spreadsheet-complete root.",
+        help="Spreadsheet-complete root (or set FICHERO_ISTMINA_SPREADSHEET).",
     ),
-    review_root: Path = typer.Option(
-        Path(
-            "/Users/danieltubb/Library/CloudStorage/Box-Box/JPG files (minería hasta 1980)/"
-            "Workflow/04 Transcribed and catalogued, awaiting human check"
-        ),
+    review_root: Optional[Path] = typer.Option(
+        None,
         "--review-root",
-        help="Awaiting-human-check root.",
+        help="Awaiting-human-check root (or set FICHERO_ISTMINA_REVIEW).",
     ),
     reset: bool = typer.Option(False, "--reset", help="Delete target package before import."),
     no_embed: bool = typer.Option(False, "--no-embed", help="Skip embedding creation."),
@@ -951,10 +939,10 @@ def import_archivo_judicial_medellin_command(
         "--library-path",
         help="Target .fichero package to create/update.",
     ),
-    catalogue_root: Path = typer.Option(
-        Path("/Users/danieltubb/Library/CloudStorage/Box-Box/Archivo Judicial de Medellín_UN/Catalogue"),
+    catalogue_root: Optional[Path] = typer.Option(
+        None,
         "--catalogue-root",
-        help="Archivo Judicial de Medellin catalogue root.",
+        help="Archivo Judicial de Medellin catalogue root (or set FICHERO_ARCHIVO_JUDICIAL_CATALOGUE).",
     ),
     reset: bool = typer.Option(False, "--reset", help="Delete target package before import."),
     no_embed: bool = typer.Option(False, "--no-embed", help="Skip embedding creation."),
@@ -996,15 +984,15 @@ def import_ghc_catalogued_materials_command(
         "--library-path",
         help="Target .fichero package to create/update.",
     ),
-    acenet_root: Path = typer.Option(
-        Path("/Users/danieltubb/Library/CloudStorage/Box-Box/GHC/ACENET imports"),
+    acenet_root: Optional[Path] = typer.Option(
+        None,
         "--acenet-root",
-        help="Root for ACENET import materials.",
+        help="Root for ACENET import materials (or set FICHERO_GHC_ACENET_ROOT).",
     ),
-    catalogued_root: Path = typer.Option(
-        Path("/Users/danieltubb/Library/CloudStorage/Box-Box/GHC/already_catalogued"),
+    catalogued_root: Optional[Path] = typer.Option(
+        None,
         "--catalogued-root",
-        help="Root for already-catalogued GHC materials.",
+        help="Root for already-catalogued GHC materials (or set FICHERO_GHC_CATALOGUED_ROOT).",
     ),
     reset: bool = typer.Option(False, "--reset", help="Delete target package before import."),
     no_embed: bool = typer.Option(False, "--no-embed", help="Skip embedding creation."),
@@ -1047,10 +1035,13 @@ def import_chota_colombian_pacific_maps_command(
         "--library-path",
         help="Target .fichero package to create/update.",
     ),
-    source_root: Path = typer.Option(
-        Path("/Users/danieltubb/code/maps_southern_colombia"),
+    source_root: Optional[Path] = typer.Option(
+        None,
         "--source-root",
-        help="Root folder containing Chota Valley + Colombian Pacific maps corpus.",
+        help=(
+            "Root folder containing Chota Valley + Colombian Pacific maps corpus "
+            "(or set FICHERO_CHOTA_PACIFIC_SOURCE)."
+        ),
     ),
     reset: bool = typer.Option(False, "--reset", help="Delete target package before import."),
     no_embed: bool = typer.Option(False, "--no-embed", help="Skip embedding creation."),

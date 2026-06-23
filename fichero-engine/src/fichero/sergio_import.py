@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -13,16 +14,26 @@ from fichero.ingest import IngestMode, detect_file_type, ingest_file
 from fichero.loaders.xlsx_reader import read_xlsx_records
 from fichero.models import DocType, Document, Status
 
-DEFAULT_SOURCE_ROOT = Path(
-    "/Users/danieltubb/Library/CloudStorage/Box-Box/Sergio Mosquera Notebooks"
-).expanduser()
-DEFAULT_SPREADSHEET = Path(
-    "/Users/danieltubb/Library/CloudStorage/Box-Box/01 Database/"
-    "Base de datos Cuadernos Sergio_Notaría Primera de Quibdó (1808-1825).xlsx"
-).expanduser()
+# Source-corpus locations are user/machine specific and are NOT hardcoded:
+# pass the path explicitly, or set the matching environment variable. If neither
+# is provided the import raises with a clear message (no silent fallback).
 DEFAULT_LIBRARY = Path(
     "~/Library/Application Support/Fichero/Sergio-Mosquera.fichero"
 ).expanduser()
+
+
+def _resolve_required(path: Path | None, *, env_var: str, flag: str) -> Path:
+    """Return an explicit path, else the env-var path, else raise loudly."""
+    if path is not None:
+        return path
+    raw = os.environ.get(env_var)
+    if raw:
+        return Path(raw).expanduser()
+    raise ValueError(
+        f"No source path configured. Pass {flag} or set the {env_var} "
+        f"environment variable to the corpus location."
+    )
+
 
 IMPORTABLE_EXTENSIONS = {
     ".jpg",
@@ -58,12 +69,18 @@ class SergioImportSummary:
 def import_sergio_corpus(
     *,
     library_path: Path = DEFAULT_LIBRARY,
-    source_root: Path = DEFAULT_SOURCE_ROOT,
-    spreadsheet_path: Path = DEFAULT_SPREADSHEET,
+    source_root: Path | None = None,
+    spreadsheet_path: Path | None = None,
     reset: bool = False,
     auto_embed: bool = True,
     limit: int | None = None,
 ) -> SergioImportSummary:
+    source_root = _resolve_required(
+        source_root, env_var="FICHERO_SERGIO_SOURCE_ROOT", flag="--source-root"
+    )
+    spreadsheet_path = _resolve_required(
+        spreadsheet_path, env_var="FICHERO_SERGIO_SPREADSHEET", flag="--spreadsheet-path"
+    )
     library_path = library_path.expanduser().resolve()
     source_root = source_root.expanduser().resolve()
     spreadsheet_path = spreadsheet_path.expanduser().resolve()

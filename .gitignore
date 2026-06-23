@@ -56,6 +56,9 @@ opencode.json
 # Project archives / large references
 sample_code/
 
+# Real archival corpus — kept out of the open-source tree (engineering notes stay)
+agent-work/icanh-clean/source/
+
 # Legacy paths still seen in historical docs
 old_tools/
 old code/
