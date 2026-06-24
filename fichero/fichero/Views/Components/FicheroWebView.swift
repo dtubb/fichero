@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import SwiftUI
 import WebKit
 
@@ -83,6 +84,24 @@ final class FicheroWebViewCoordinator: NSObject, WKNavigationDelegate {
             lastLoadedURL = currentURL
             parent.urlString = currentURL
         }
+    }
+
+    /// Validate engine TLS against the persisted SPKI pin when the web view is
+    /// loading the configured engine host. Non-engine traffic falls back to the
+    /// system trust evaluation so external browsing keeps working (#2601).
+    @MainActor
+    func webView(
+        _ webView: WKWebView,
+        didReceive challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping @MainActor @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+    ) {
+        guard let engineHost = EngineConfig.host.host?.lowercased(),
+              challenge.protectionSpace.host.lowercased() == engineHost else {
+            completionHandler(.performDefaultHandling, nil)
+            return
+        }
+        let (disposition, credential) = RemoteCertificatePinning.resolveServerTrustChallenge(challenge)
+        completionHandler(disposition, credential)
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: any Error) {

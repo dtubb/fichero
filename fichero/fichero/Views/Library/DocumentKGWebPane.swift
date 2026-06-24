@@ -425,10 +425,11 @@ struct DocumentKGWebPane: NSViewRepresentable {
         /// -#2538 the loopback engine serves a self-signed pinned HTTPS cert;
         /// without this the WebContent default trust evaluation rejects it and
         /// the reading / KG pane loads nothing.
+        @MainActor
         func webView(
             _ webView: WKWebView,
             didReceive challenge: URLAuthenticationChallenge,
-            completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+            completionHandler: @escaping @MainActor @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
         ) {
             let (disposition, credential) = RemoteCertificatePinning.resolveServerTrustChallenge(challenge)
             completionHandler(disposition, credential)
@@ -770,10 +771,11 @@ struct DocumentKGWebPane: UIViewRepresentable {
         /// Validate the engine's TLS certificate against Fichero's persisted
         /// SPKI pin — the same pinned transport the URLSession stack uses (see
         /// the macOS variant for the rationale, #2538).
+        @MainActor
         func webView(
             _ webView: WKWebView,
             didReceive challenge: URLAuthenticationChallenge,
-            completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+            completionHandler: @escaping @MainActor @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
         ) {
             let (disposition, credential) = RemoteCertificatePinning.resolveServerTrustChallenge(challenge)
             completionHandler(disposition, credential)

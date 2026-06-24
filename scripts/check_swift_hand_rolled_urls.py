@@ -74,8 +74,15 @@ _APIPATH_RE = re.compile(r'"/api/')
 KNOWN_VIOLATIONS: dict[str, str] = {
     "Models/DocumentStore+CRUD.swift#842cbd3a0a": "§6b baseline — hand-built URLRequest(url:)",
     "Views/Components/FicheroWebView.swift#72bc3c3d1f": "§6b baseline — hand-built URLRequest(url:)",
+    "Views/Components/FicheroWebView.swift#b0f6d9c546": (
+        "WKNavigationDelegate server-trust challenge signature names "
+        "URLSession.AuthChallengeDisposition (an enum type, not a raw session); "
+        "the handler forwards to RemoteCertificatePinning.resolveServerTrustChallenge — "
+        "the shared pinned transport — so the generic web view validates the "
+        "engine's pinned HTTPS cert like every other call site (#2601)."
+    ),
     "Views/Library/DocumentKGWebPane.swift#10ac98dccd": "§6b baseline — hand-built URLRequest(url:)",
-    "Views/Library/DocumentKGWebPane.swift#734e0353f0": (
+    "Views/Library/DocumentKGWebPane.swift#b0f6d9c546": (
         "WKNavigationDelegate server-trust challenge signature names "
         "URLSession.AuthChallengeDisposition (an enum type, not a raw session); "
         "the handler forwards to RemoteCertificatePinning.resolveServerTrustChallenge — "
