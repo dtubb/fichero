@@ -916,6 +916,37 @@ class TestUpdateDocument:
         assert payload["metadata"]["page_content_user_edited_at"]
         assert embed_calls == [doc.id]
 
+    def test_update_position_round_trips(self, client):
+        create = client.post("/api/documents", json={"name": "Positioned Node"})
+        assert create.status_code == 201
+        doc_id = create.json()["id"]
+        assert create.json().get("position_x") is None
+        assert create.json().get("position_y") is None
+        assert create.json().get("position_z") is None
+
+        update = client.put(
+            f"/api/documents/{doc_id}",
+            json={"position_x": 120.5, "position_y": 240.0, "position_z": 1.0},
+        )
+        assert update.status_code == 200
+        payload = update.json()
+        assert payload["position_x"] == 120.5
+        assert payload["position_y"] == 240.0
+        assert payload["position_z"] == 1.0
+
+        single = client.get(f"/api/documents/{doc_id}")
+        assert single.status_code == 200
+        assert single.json()["position_x"] == 120.5
+        assert single.json()["position_y"] == 240.0
+        assert single.json()["position_z"] == 1.0
+
+        list_resp = client.get("/api/documents")
+        assert list_resp.status_code == 200
+        item = next(i for i in list_resp.json()["items"] if i["id"] == doc_id)
+        assert item["position_x"] == 120.5
+        assert item["position_y"] == 240.0
+        assert item["position_z"] == 1.0
+
 
 class TestBatchExcludeDocuments:
     def test_batch_exclude_updates_documents_and_logs_mutation(self, client, db):

@@ -299,6 +299,13 @@ class Document(BaseModel):
     # one artifact per case instead of per folder.
     case_id: str | None = None
 
+    # Canvas position for a node in the library (#2589). Stored as first-class
+    # columns so the position rides on the document and survives list/get
+    # responses and updates.
+    position_x: float | None = None
+    position_y: float | None = None
+    position_z: float | None = None
+
     # =========================================================================
     # Typed accessors for common metadata
     # =========================================================================

@@ -147,6 +147,9 @@ class DocumentUpdate(BaseModel):
     exclude_from_processing: Optional[bool] = None
     metadata: Optional[dict] = None
     prototype_key: Optional[str] = None
+    position_x: Optional[float] = None
+    position_y: Optional[float] = None
+    position_z: Optional[float] = None
 
 
 class DocumentBatchExcludeRequest(BaseModel):
