@@ -160,7 +160,7 @@ final class EngineConfigTests: XCTestCase {
         }
     }
 
-    func testHostedRemoteAccessURLOverridesActiveEngineHost() {
+    func testHostedRemoteAccessURLDoesNotOverrideActiveEngineHost() {
         let originalHost = UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey)
         let originalRemoteEnabled = UserDefaults.standard.object(forKey: RemoteAccessConfig.hostingEnabledKey) as? Bool
         let originalPublicBaseURL = UserDefaults.standard.string(forKey: RemoteAccessConfig.publicBaseURLKey)
@@ -172,8 +172,8 @@ final class EngineConfigTests: XCTestCase {
         UserDefaults.standard.set(true, forKey: RemoteAccessConfig.hostingEnabledKey)
         UserDefaults.standard.set("https://192.168.1.42:9443", forKey: RemoteAccessConfig.publicBaseURLKey)
 
-        XCTAssertEqual(EngineConfig.host.absoluteString, "https://192.168.1.42:9443")
-        XCTAssertEqual(EngineConfig.apiBaseURL.absoluteString, "https://192.168.1.42:9443/api")
+        XCTAssertEqual(EngineConfig.host.absoluteString, EngineConfig.defaultHostString)
+        XCTAssertEqual(EngineConfig.apiBaseURL.absoluteString, EngineConfig.defaultHostString + "/api")
     }
 
     // MARK: - Connection candidate ordering (#2465)

@@ -33,10 +33,8 @@ final class EmbeddedBackendService: ObservableObject {
     private var isExternalBackend = false  // Track if using external vs embedded backend
     var isUsingExternalBackend: Bool { isExternalBackend }
     private var backendURL: URL {
-        if RemoteAccessConfig.hostingEnabled, let publicBaseURL = RemoteAccessConfig.publicBaseURL {
-            return publicBaseURL
-        }
-        return EngineConfig.host
+        // Own-engine traffic stays on loopback, never the advertised public URL (#2604).
+        EngineConfig.host
     }
 
     enum BackendStatus {

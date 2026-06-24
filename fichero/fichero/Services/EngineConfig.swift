@@ -79,12 +79,9 @@ enum EngineConfig {
     /// Engine root — host + port, no `/api`, no trailing slash.
     /// (e.g. `https://127.0.0.1:8765`)
     static var host: URL {
-        if RemoteAccessConfig.hostingEnabled, let publicBaseURL = RemoteAccessConfig.publicBaseURL {
-            return publicBaseURL
-        }
         #if os(macOS)
-        // macOS runs the engine locally, so the host resolved from
-        // `fichero.engine.host` (localhost-by-default) is the active host.
+        // macOS runs the engine locally. Keep the host app on loopback;
+        // publicBaseURL is only for QR/invite payloads consumed by others (#2604).
         return resolvedHostConfiguration.host
         #else
         // iOS/iPadOS never runs a local engine. Connect straight to the
