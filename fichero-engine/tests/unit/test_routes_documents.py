@@ -1220,3 +1220,40 @@ class TestDocumentPageRanges:
         at_page = client.get(f"/api/documents/{pdf.id}/page-ranges/at/12")
         assert at_page.status_code == 200
         assert at_page.json()["name"] == "Chapter 2"
+
+
+# ---------------------------------------------------------------------------
+# node_kind round-trip (#2591)
+# ---------------------------------------------------------------------------
+
+class TestNodeKind:
+    def test_default_node_kind_is_document(self, client):
+        r = client.get("/api/documents")
+        assert r.status_code == 200
+        inbox = next(item for item in r.json()["items"] if item["name"] == "Inbox")
+        assert inbox["node_kind"] == "document"
+
+    def test_create_document_with_node_kind(self, client):
+        r = client.post("/api/documents", json={"name": "Task A", "node_kind": "task"})
+        assert r.status_code == 201
+        assert r.json()["node_kind"] == "task"
+
+    def test_update_document_node_kind(self, client, db):
+        doc = _make_doc(db, "Doc")
+        r = client.put(f"/api/documents/{doc.id}", json={"node_kind": "workspace"})
+        assert r.status_code == 200
+        assert r.json()["node_kind"] == "workspace"
+        r = client.get(f"/api/documents/{doc.id}")
+        assert r.json()["node_kind"] == "workspace"
+
+    def test_list_documents_filter_by_node_kind(self, client, db):
+        _make_doc(db, "Plain Doc")
+        r = client.post("/api/documents", json={"name": "Saved Search A", "node_kind": "saved_search"})
+        assert r.status_code == 201
+
+        r = client.get("/api/documents?node_kind=saved_search")
+        assert r.status_code == 200
+        items = r.json()["items"]
+        assert len(items) == 1
+        assert items[0]["name"] == "Saved Search A"
+        assert items[0]["node_kind"] == "saved_search"

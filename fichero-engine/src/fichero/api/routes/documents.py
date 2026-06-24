@@ -121,6 +121,7 @@ class DocumentCreate(BaseModel):
 
     name: str
     parent_id: Optional[str] = None
+    node_kind: Optional[str] = None
     doc_type: DocType = DocType.file
     file_type: Optional[FileType] = None
     path: Optional[str] = None
@@ -136,6 +137,7 @@ class DocumentUpdate(BaseModel):
 
     name: Optional[str] = None
     parent_id: Optional[str] = None
+    node_kind: Optional[str] = None
     doc_type: Optional[DocType] = None
     file_type: Optional[FileType] = None
     path: Optional[str] = None
@@ -412,6 +414,7 @@ def _resolve_workspace_item_target(db: Database, item: dict[str, Any]) -> Any:
 async def list_documents(
     parent_id: Optional[str] = Query(None, description="Filter by parent ID"),
     doc_type: Optional[DocType] = Query(None, description="Filter by document type"),
+    node_kind: Optional[str] = Query(None, description="Filter by node kind"),
     file_type: Optional[FileType] = Query(None, description="Filter by file type"),
     status: Optional[Status] = Query(None, description="Filter by status"),
     include_deleted: bool = Query(
@@ -429,6 +432,7 @@ async def list_documents(
         logger=logger,
         parent_id=parent_id,
         doc_type=doc_type.value if doc_type else None,
+        node_kind=node_kind,
         file_type=file_type.value if file_type else None,
         status=status.value if status else None,
         limit=limit,
@@ -441,6 +445,8 @@ async def list_documents(
             filters["parent_id"] = normalized_parent_id
         if doc_type is not None:
             filters["doc_type"] = doc_type
+        if node_kind is not None:
+            filters["node_kind"] = node_kind
         if file_type is not None:
             filters["file_type"] = file_type
         if status is not None:
@@ -1683,6 +1689,7 @@ def create_document_impl(db: Database, doc: "DocumentCreate") -> Document:
     new_doc = Document(
         name=doc.name,
         parent_id=doc.parent_id,
+        node_kind=doc.node_kind,
         doc_type=doc.doc_type,
         file_type=doc.file_type,
         path=doc.path,

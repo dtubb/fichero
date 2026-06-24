@@ -168,6 +168,7 @@ class Document(BaseModel):
     parent_id: str | None = None
 
     # Type
+    node_kind: str | None = "document"
     doc_type: DocType = DocType.file
     file_type: FileType | None = None
 
