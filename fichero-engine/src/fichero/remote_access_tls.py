@@ -125,22 +125,26 @@ def _is_loopback_host(host: str) -> bool:
 def _bind_host_for_public_host(host: str) -> str:
     """Return a safe local bind target for a reachable private URL.
 
-    Remote-access HTTPS is intentionally narrower than arbitrary public DNS:
-    the bind host must be a concrete local address or a local-network name
-    that the Mac actually owns. DNS names that could point anywhere are
-    rejected here rather than being guessed at launch time.
+    Bind 0.0.0.0 in remote-access mode so the engine accepts both loopback
+    traffic from the host Mac app and LAN traffic from paired devices. The
+    certificate is still issued for the public hostname, so clients pin the
+    correct identity. Loopback preparation keeps its specific host so we do
+    not open all interfaces when remote access is off.
     """
+
+    if _is_loopback_host(host):
+        return host
 
     try:
         ipaddress.ip_address(host)
     except ValueError:
-        if host.lower().endswith(".local"):
-            return host
-        raise ValueError(
-            "public_base_url must use a literal IP address or .local host so "
-            "the engine can bind to a real local Mac address."
-        )
-    return host
+        if not host.lower().endswith(".local"):
+            raise ValueError(
+                "public_base_url must use a literal IP address or .local host so "
+                "the engine can bind to a real local Mac address."
+            )
+
+    return "0.0.0.0"
 
 
 def _material_directory(root: Path, *, host: str, port: int, url: str) -> Path:

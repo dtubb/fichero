@@ -55,6 +55,11 @@ if command -v defaults >/dev/null 2>&1; then
 fi
 
 if [ -z "${FICHERO_TLS_CERTFILE:-}" ] && [ -z "${FICHERO_TLS_KEYFILE:-}" ]; then
+  # Restore persisted Share/remote-access URL when no env override is set.
+  if [ -z "${FICHERO_PUBLIC_BASE_URL:-}" ] && [ "$DEFAULTS_REMOTE_ENABLED" = true ] && [ -n "$DEFAULTS_PUBLIC_BASE_URL" ]; then
+    FICHERO_PUBLIC_BASE_URL="$DEFAULTS_PUBLIC_BASE_URL"
+  fi
+
   # PHASE 1 (#2603): default to loopback binding. The legacy raw-LAN bind via
   # macOS defaults (macbook-pro-m1.local) is no longer the default; remote
   # access remains available when FICHERO_PUBLIC_BASE_URL is passed explicitly

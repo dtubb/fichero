@@ -23,7 +23,7 @@ def test_prepare_remote_access_tls_creates_reusable_material(tmp_path: Path) -> 
     certificate_path = Path(material.certificate_path)
     key_path = Path(material.key_path)
 
-    assert material.bind_host == "192.168.1.42"
+    assert material.bind_host == "0.0.0.0"
     assert certificate_path.exists()
     assert key_path.exists()
 

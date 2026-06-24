@@ -42,11 +42,13 @@ def resolve_bind_host(
     resolved = (raw_host or DEFAULT_BIND_HOST).strip()
 
     if resolved == "0.0.0.0":
-        raise ValueError(
-            "FICHERO_BIND_HOST=0.0.0.0 is not allowed. "
-            "Keep the engine on 127.0.0.1 and use the explicit HTTPS remote-"
-            "access launch path or SSH loopback forwarding."
-        )
+        if source.get(NON_LOOPBACK_BIND_ACK_ENV) != NON_LOOPBACK_BIND_ACK_VALUE:
+            raise ValueError(
+                "FICHERO_BIND_HOST=0.0.0.0 is not allowed without the shared-"
+                "secret risk acknowledgement. Set "
+                f"{NON_LOOPBACK_BIND_ACK_ENV}={NON_LOOPBACK_BIND_ACK_VALUE} to "
+                "bind all interfaces."
+            )
 
     if resolved == "::":
         raise ValueError(

@@ -40,10 +40,22 @@ def test_resolve_bind_host_accepts_non_loopback_with_explicit_ack() -> None:
         )
 
 
-def test_resolve_bind_host_refuses_blanket_wildcard() -> None:
-    with pytest.raises(ValueError, match="0\\.0\\.0\\.0 is not allowed"):
+def test_resolve_bind_host_refuses_wildcard_without_ack() -> None:
+    with pytest.raises(ValueError, match=r"0\.0\.0\.0 is not allowed"):
         resolve_bind_host({"FICHERO_BIND_HOST": "0.0.0.0"})
 
+
+def test_resolve_bind_host_accepts_wildcard_with_explicit_ack() -> None:
+    with pytest.warns(RuntimeWarning, match="non-loopback host"):
+        assert (
+            resolve_bind_host(
+                {
+                    "FICHERO_BIND_HOST": "0.0.0.0",
+                    NON_LOOPBACK_BIND_ACK_ENV: NON_LOOPBACK_BIND_ACK_VALUE,
+                }
+            )
+            == "0.0.0.0"
+        )
 
 def test_resolve_bind_host_refuses_ipv6_blanket_wildcard() -> None:
     with pytest.raises(ValueError, match="FICHERO_BIND_HOST=:: is not allowed"):
