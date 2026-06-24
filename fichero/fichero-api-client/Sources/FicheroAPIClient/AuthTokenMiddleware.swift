@@ -44,7 +44,11 @@ public struct AuthTokenMiddleware: ClientMiddleware {
 
     public static func isUnauthenticatedPath(_ path: String) -> Bool {
         unauthenticatedPaths.contains { allowedPath in
-            path == allowedPath || path.hasPrefix("\(allowedPath)/")
+            if path == allowedPath { return true }
+            // `/api/pair` is an exact unauthenticated exchange path; sub-paths
+            // such as `/api/pair/code` and `/api/pair/devices` require auth.
+            if allowedPath == "/api/pair" { return false }
+            return path.hasPrefix("\(allowedPath)/")
         }
     }
 

@@ -108,6 +108,13 @@ struct AuthTokenMiddlewareStorageTests {
         #expect(AuthTokenMiddleware.isUnauthenticatedPath("/docs"))
         #expect(AuthTokenMiddleware.isUnauthenticatedPath("/docs/index.html"))
 
+        // Regression (#2602): `/api/pair` itself must remain unauthenticated,
+        // but its sub-paths require the engine bearer token.
+        #expect(AuthTokenMiddleware.isUnauthenticatedPath("/api/pair"))
+        #expect(AuthTokenMiddleware.isUnauthenticatedPath("/api/pair/code") == false)
+        #expect(AuthTokenMiddleware.isUnauthenticatedPath("/api/pair/devices") == false)
+        #expect(AuthTokenMiddleware.isUnauthenticatedPath("/api/pair/devices/abc/revoke") == false)
+
         #expect(AuthTokenMiddleware.isUnauthenticatedPath("/api/healthcheck") == false)
         #expect(AuthTokenMiddleware.isUnauthenticatedPath("/api/healthz") == false)
         #expect(AuthTokenMiddleware.isUnauthenticatedPath("/api/docs") == false)
