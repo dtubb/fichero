@@ -55,8 +55,12 @@ if command -v defaults >/dev/null 2>&1; then
 fi
 
 if [ -z "${FICHERO_TLS_CERTFILE:-}" ] && [ -z "${FICHERO_TLS_KEYFILE:-}" ]; then
-  if [ "$DEFAULTS_REMOTE_ENABLED" = true ] && [ -n "$DEFAULTS_PUBLIC_BASE_URL" ]; then
-    PREPARE_URL="$DEFAULTS_PUBLIC_BASE_URL"
+  # PHASE 1 (#2603): default to loopback binding. The legacy raw-LAN bind via
+  # macOS defaults (macbook-pro-m1.local) is no longer the default; remote
+  # access remains available when FICHERO_PUBLIC_BASE_URL is passed explicitly
+  # (Phase 2 will wire Tailscale serve here instead of raw LAN).
+  if [ -n "${FICHERO_PUBLIC_BASE_URL:-}" ]; then
+    PREPARE_URL="$FICHERO_PUBLIC_BASE_URL"
     PREPARE_ALLOW_LOOPBACK=false
   else
     PREPARE_URL="https://127.0.0.1:8765"
@@ -83,13 +87,12 @@ PY
     "$PYTHON_BIN" -c 'import json, sys; print(json.loads(sys.stdin.read())["spki_pin"])' <<<"$TLS_MANIFEST"
   )"
   export FICHERO_TLS_CERTFILE FICHERO_TLS_KEYFILE FICHERO_TLS_SPKI_HASH
-  if [ "$DEFAULTS_REMOTE_ENABLED" = true ] && [ -n "$DEFAULTS_PUBLIC_BASE_URL" ]; then
+  if [ -n "${FICHERO_PUBLIC_BASE_URL:-}" ]; then
     FICHERO_MULTIUSER="${FICHERO_MULTIUSER:-1}"
     FICHERO_ALLOW_NON_LOOPBACK_BIND="${FICHERO_ALLOW_NON_LOOPBACK_BIND:-I_UNDERSTAND_SHARED_SECRET_RISK}"
     FICHERO_BIND_HOST="$(
       "$PYTHON_BIN" -c 'import json, sys; print(json.loads(sys.stdin.read())["bind_host"])' <<<"$TLS_MANIFEST"
     )"
-    FICHERO_PUBLIC_BASE_URL="${FICHERO_PUBLIC_BASE_URL:-$DEFAULTS_PUBLIC_BASE_URL}"
     export FICHERO_MULTIUSER FICHERO_ALLOW_NON_LOOPBACK_BIND FICHERO_BIND_HOST FICHERO_PUBLIC_BASE_URL
     if [ "$DEFAULTS_BONJOUR_ENABLED" = true ]; then
       export FICHERO_ENABLE_BONJOUR="${FICHERO_ENABLE_BONJOUR:-1}"
@@ -103,12 +106,45 @@ PY
        [[ "$EXISTING_ENGINE_HOST" == "http://[0:0:0:0:0:0:0:1]"* ]]; then
       defaults delete app.fichero.fichero fichero.engine.host 2>/dev/null || true
     fi
-    defaults write app.fichero.fichero "fichero.remote_access.client_spki_pin|$PREPARE_URL" \
+    # PHASE 1 (#2603): clear every stored SPKI pin key before writing fresh
+    # ones. A regenerated cert must not leave stale advertised vs client
+    # pins behind for any previously used bind URL.
+    "$PYTHON_BIN" - <<'PY'
+import plistlib
+import subprocess
+import sys
+
+try:
+    xml = subprocess.check_output(
+        ["defaults", "export", "app.fichero.fichero", "-"],
+        text=True,
+        stderr=subprocess.DEVNULL,
+    )
+    plist = plistlib.loads(xml.encode("utf-8"))
+except Exception:
+    plist = {}
+
+prefixes = (
+    "fichero.remote_access.advertised_spki_pin|",
+    "fichero.remote_access.client_spki_pin|",
+)
+for key in list(plist.keys()):
+    if any(key.startswith(prefix) for prefix in prefixes):
+        subprocess.run(
+            ["defaults", "delete", "app.fichero.fichero", key],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+PY
+    defaults write app.fichero.fichero "fichero.remote_access.client_spki_pin|https://127.0.0.1:8765" \
       -string "$FICHERO_TLS_SPKI_HASH"
-    defaults write app.fichero.fichero "fichero.remote_access.advertised_spki_pin|$PREPARE_URL" \
+    defaults write app.fichero.fichero "fichero.remote_access.advertised_spki_pin|https://127.0.0.1:8765" \
       -string "$FICHERO_TLS_SPKI_HASH"
     if [ "$PREPARE_URL" != "https://127.0.0.1:8765" ]; then
-      defaults write app.fichero.fichero "fichero.remote_access.client_spki_pin|https://127.0.0.1:8765" \
+      defaults write app.fichero.fichero "fichero.remote_access.client_spki_pin|$PREPARE_URL" \
+        -string "$FICHERO_TLS_SPKI_HASH"
+      defaults write app.fichero.fichero "fichero.remote_access.advertised_spki_pin|$PREPARE_URL" \
         -string "$FICHERO_TLS_SPKI_HASH"
     fi
   fi
