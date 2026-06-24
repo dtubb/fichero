@@ -1,13 +1,17 @@
-# STATE — 2026-06-23 (architecture: node-model unification + iPhone connect bug)
+# STATE — 2026-06-24 (codex-loop overnight: node-model lanes landed; reorgs held for Daniel)
 
-Branch `0.0.2` (= origin). Daniel handed autonomy + said **use CODEX/OLLAMA workers** (conserve weekly Claude budget — NOT Claude Agent workers). The overnight cron loop is gone (session-only).
+Branch `0.0.2` @ **a321609f** (= origin, green). Codex/ollama (tmux `f_codex`, kimi-k2.7-code) did the coding; manager (Claude) gated each. **Overnight loop STOPPED** (safe queue exhausted) — remaining lanes need Daniel's judgment.
 
-## NEXT SESSION — START HERE
-1. **GATE the iPhone-connect fix** when worker `a8a7d312` (opus — the last Claude worker) returns. Root cause: `/api/changes/stream` (+ sweep ALL other transports, fix-then-sweep) uses the DEFAULT URLSession trust instead of the pinned `RemoteCertificatePinning.configuredSession()` → TLS `-9807` on the self-signed `macbook-pro-m1.local` cert. Cherry-pick → `BuildProject` (windowtab1) → guardrails → push → tell Daniel to rebuild.
-2. **THEN proceed CODEX/OLLAMA, step by step** on the node-model consolidation, cheapest-first: #2589 (position→doc attributes, retires mind_palace) → #2590 (links relation, reuse KG links) → #2591 (fold research/tasks/saved-searches) → #2593 (delete dead routers) → #2594 execution/ · #2595 importers/ · #2596 knowledge/ → #104 SwiftUI org. Each: codex on a 0.0.2 worktree → I gate → push → next.
-3. **Read first:** #2578 + #107 + #2566 + `docs/design/endpoints-vs-ux-audit.md` — the node-model decision (Canvas/Spatial are Library VIEW MODES; position=item attrs; links=library relation; content folds into the node Library, process gathers into execution/importers/knowledge). Memories: canvas-spatial-fold, llm-langchain-litellm.
+## OVERNIGHT RESULT — 5 codex lanes gated + LANDED
+- **#2597** iPhone connect — `DynamicPinnedSessionDelegate` now validates the SPKI pin for the URLSession path (was `-9807` on changes-stream). **Daniel: rebuild to confirm the iPhone connects.**
+- **#2589** position_x/y/z on Document · **#2590** generic LibraryItemLink CRUD (reuse KG relations) · **#2591** node_kind attribute (gate caught + fixed a codex `str`-vs-`None` 500 regression) · **#2595** importers/ package (move+shim, additive, baseline-diffed zero new failures).
 
-GOTCHAS: never RunAllTests/verify_all on Daniel's desktop; library data is reimportable (NO migration ceremony, but test); CHANGELOG.md is canonical (retire RELEASE_NOTES.md); `release-notes-gen.sh` ready (kimi model, Dec-5 2025 pivot) — run for CHANGELOG drafts at session-end.
+## NEEDS DANIEL — held, NOT auto-landed
+1. **#2593 (dead routers) — HELD, reverted, branch `codex-dead-routers` kept.** Codex correctly found 8 uncalled routers BUT also deleted shipped security tests (`test_research_ssrf_security.py` #2140, `test_knowledge_graph_security.py`) + did an 11k-line OpenAPI regen. Re-scope: delete routers WITHOUT dropping the SSRF test (move its live-endpoint asserts into `research_crud`'s test).
+2. **#2594 execution/ + #2596 knowledge/** — god-node package reorgs (high blast-radius: `knowledge_models`, runner). Too risky for unattended codex; supervise these.
+3. **#104** SwiftUI file org · the #2589/#2590/#2591 **Swift+OpenAPI follow-ups** (consume the new backend fields in the app) · pre-existing **~22 auth-401 unit failures** need `FICHERO_AUTH_TOKEN` in the pytest env (test-infra debt).
+
+GOTCHAS: never RunAllTests/verify_all on Daniel's desktop; library data reimportable (no migration); each fresh codex launch hits a ponytail hook-trust gauntlet (its version keeps bumping); codex's tmux input buffer mashes on re-send (edit files directly for small fixes). Gate discipline that paid off: run the FULL changed test FILE + baseline-diff, never just the worker's new tests.
 
 ---
 ## (recent context — earlier 2026-06-22 overnight; see HISTORY.md)
