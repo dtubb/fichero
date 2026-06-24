@@ -1913,6 +1913,38 @@ class KnowledgeClaimLink(BaseModel):
     metadata: dict = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=datetime.now)
 
+class LibraryItemType(str, Enum):
+    """Node kinds that can participate in a general library link."""
+
+    document = "document"
+    note = "note"
+    entity = "entity"
+    claim = "claim"
+
+
+class LibraryItemLink(BaseModel):
+    """General node-to-node link between any two library items.
+
+    Reuses the typed :class:`ClaimRelationType` vocabulary from
+    :class:`KnowledgeClaimLink` so KG relations and library links share one
+    relation ontology. This is the backend slice of #2590; the canvas-specific
+    :class:`SpatialConnection` is intentionally not used here.
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    source_id: str
+    source_type: LibraryItemType
+    target_id: str
+    target_type: LibraryItemType
+    relation_type: ClaimRelationType
+    link_quality: float = 0.5
+    evidence: str | None = None
+    metadata: dict = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime | None = None
+
 
 class KnowledgeGraphInclusion(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="allow")

@@ -17,6 +17,7 @@ __all__ = [
     "hermeneutics",
     "ingest",
     "kg_curation_rules",
+    "library_links",
     "local_models",
     "mcp_servers",
     "mcp_tools",

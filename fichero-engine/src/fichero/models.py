@@ -44,6 +44,7 @@ from fichero.knowledge_models import (
     DocumentCitation,
     KnowledgeClaim,
     KnowledgeEntity,
+    LibraryItemLink,
 )
 
 # Forward refs — routes import from this file, so we can't import back. The
@@ -1530,6 +1531,13 @@ class ClaimLinkListResponse(BaseModel):
     """Standardized envelope for claim links list endpoints."""
 
     items: list[Any]  # Typically KnowledgeClaimLink or KnowledgeClaim
+    count: int
+
+
+class LibraryItemLinkListResponse(BaseModel):
+    """Standardized envelope for generic library-item link list endpoints."""
+
+    items: list[LibraryItemLink]
     count: int
 
 
