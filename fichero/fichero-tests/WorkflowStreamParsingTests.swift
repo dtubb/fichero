@@ -37,8 +37,13 @@ struct WorkflowStreamParsingTests {
         for (key, value) in extra {
             dict[key] = value
         }
-        let jsonData = try! JSONSerialization.data(withJSONObject: dict)
-        return String(data: jsonData, encoding: .utf8)!
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: dict) else {
+            fatalError("Failed to encode test SSE payload")
+        }
+        guard let jsonString = String(bytes: jsonData, encoding: .utf8) else {
+            fatalError("Failed to decode test SSE payload")
+        }
+        return jsonString
     }
 
     // MARK: - Start Event

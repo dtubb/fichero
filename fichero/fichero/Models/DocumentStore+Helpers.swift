@@ -250,8 +250,11 @@ extension DocumentStore {
         if matchCount == 0 {
             let logger = Logger(subsystem: "app.fichero.fichero", category: "DocumentStore")
             if let documentId {
+                let message =
+                    "updateProcessingStatus: no document matched id '\(documentId, privacy: .public)' " +
+                    "(path '\(filePath, privacy: .public)')"
                 logger.warning(
-                    "updateProcessingStatus: no document matched id '\(documentId, privacy: .public)' (path '\(filePath, privacy: .public)')"
+                    "\(message, privacy: .public)"
                 )
             } else {
                 logger.warning(
