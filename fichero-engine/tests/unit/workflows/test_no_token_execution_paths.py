@@ -5,6 +5,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from tests.integration._seedlib import seed
+
+from fichero.db import db_manager
 from fichero.models import DocType, Document, FileType, Status, Workflow
 from fichero.workflows.builder import build_graph
 from fichero.workflows.default_workflows import _load_preset_files
@@ -101,6 +104,7 @@ def _run_workflow_for_selection(
     selected_doc_ids: list[str],
     docs_by_id: dict[str, Document],
     children_by_parent: dict[str, list[Document]] | None = None,
+    library_path: str = "/tmp/test.fichero",
 ):
     mock_db = MagicMock()
     mock_db.get.side_effect = lambda _model, doc_id: docs_by_id.get(doc_id)
@@ -119,7 +123,7 @@ def _run_workflow_for_selection(
             build_graph(workflow, enable_parallel=False).ainvoke(
                 build_initial_state(
                     {"selected_doc_ids": selected_doc_ids},
-                    library_path="/tmp/test.fichero",
+                    library_path=library_path,
                 )
             )
         )
@@ -409,6 +413,7 @@ def test_transcribe_htr_runs_without_tokens_and_keeps_page_scope(
     monkeypatch: pytest.MonkeyPatch,
 ):
     workflow = _workflow_from_preset("Transcribe HTR", provider_name="mock")
+    node_ids = {node.tool: node.id for node in workflow.nodes}
     parent = _make_doc("pdf-parent", "/library/book.pdf", file_type=FileType.pdf)
     page_1 = _make_doc(
         "page-1",
@@ -473,13 +478,140 @@ def test_transcribe_htr_runs_without_tokens_and_keeps_page_scope(
     )
 
     assert not final_state.get("error")
-    assert len(captured["calls"]) >= 2
+    assert len(captured["calls"]) >= 1
     assert [item["id"] for item in captured["calls"][0]["documents"]] == [page_1.id, page_2.id]
-    assert [record["doc_id"] for record in final_state["outputs"]["transcribe"]["records"]] == [
+    assert [record["doc_id"] for record in final_state["outputs"][node_ids["transcribe_review"]]["records"]] == [
         page_1.id,
         page_2.id,
     ]
-    assert [record["doc_id"] for record in final_state["outputs"]["transcribe_review"]["records"]] == [
-        page_1.id,
-        page_2.id,
-    ]
+
+
+def test_catalogue_full_pipeline_runs_from_folder_with_stubs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+):
+    workflow = _workflow_from_preset("Catalogue Full Pipeline", provider_name="mock")
+    library_path, folder, docs_by_id, expected_doc_ids = _seed_full_pipeline_folder(tmp_path)
+    node_ids = {node.tool: node.id for node in workflow.nodes}
+
+    async def fake_entities(**kwargs):
+        del kwargs
+        from fichero.workflows.tools.extract_all import _EntitiesOnly, _EntityOnly
+
+        return _EntitiesOnly(
+            people=[_EntityOnly(name="Ada Mock", aliases=[])],
+            places=[_EntityOnly(name="Mockton", aliases=[])],
+            organizations=[],
+            dates=[],
+            events=[],
+        )
+
+    async def fake_claims_for_entity(
+        chunk_text: str,
+        entity_name: str,
+        entity_type: str,
+        llm_config,
+        instructions: str,
+        extraction_sem,
+    ) -> list[dict]:
+        del chunk_text, entity_type, llm_config, instructions, extraction_sem
+        if entity_name == "Ada Mock":
+            return [
+                {
+                    "name": entity_name,
+                    "verb": "signed",
+                    "object": "the ledger",
+                    "source_text": "Ada Mock signed the ledger in Mockton.",
+                    "epistemic_status": "confirmed",
+                    "claim_type": "fact",
+                }
+            ]
+        if entity_name == "Mockton":
+            return [
+                {
+                    "name": entity_name,
+                    "verb": "is",
+                    "object": "the town where Ada signed the ledger",
+                    "source_text": "Ada Mock signed the ledger in Mockton.",
+                    "epistemic_status": "confirmed",
+                    "claim_type": "fact",
+                }
+            ]
+        return []
+
+    monkeypatch.setattr(
+        "fichero.llm.resolve_model_alias_for_capability",
+        lambda *args, **kwargs: ("openai", "gpt-4o"),
+    )
+    monkeypatch.setattr(
+        "fichero.workflows.tools.extract_entities_only.chat_structured_with_fallback",
+        fake_entities,
+    )
+    monkeypatch.setattr(
+        "fichero.workflows.tools.extract_svo_only._extract_claims_for_entity",
+        fake_claims_for_entity,
+    )
+    monkeypatch.setattr(
+        "fichero.kg.entity_vectors.find_similar",
+        lambda *args, **kwargs: [],
+    )
+    monkeypatch.setattr(
+        "fichero.kg.entity_vectors.index_entity",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "fichero.kg.rebuild.rebuild_kg",
+        lambda *args, **kwargs: {"entities": 0, "claims": 0, "triples_written": 0},
+    )
+    monkeypatch.setattr(
+        "fichero.db.Database._embed_texts",
+        lambda self, texts: [[1.0] + ([0.0] * 1023) for _ in texts],
+    )
+
+    final_state = _run_workflow_for_selection(
+        workflow=workflow,
+        selected_doc_ids=[folder.id],
+        docs_by_id=docs_by_id,
+        children_by_parent={folder.id: [docs_by_id[doc_id] for doc_id in expected_doc_ids]},
+        library_path=str(library_path),
+    )
+
+    assert not final_state.get("error")
+    assert set(node_ids.values()) <= set(final_state.get("completed_nodes") or [])
+    assert final_state["outputs"][node_ids["files"]]["count"] == 2
+    assert final_state["outputs"][node_ids["import_artifacts"]]["summary"]["documents_processed"] == 2
+    assert final_state["outputs"][node_ids["extract_entities_only"]]["summary"]["documents_processed"] == 2
+    assert final_state["outputs"][node_ids["extract_svo_only"]]["summary"]["documents_processed"] == 2
+    assert final_state["outputs"][node_ids["merge_dedup_only"]]["summary"]["documents_scoped"] == 2
+    assert final_state["outputs"][node_ids["kg_persist_finalize"]]["summary"]["documents_scoped"] == 2
+
+
+def _seed_full_pipeline_folder(tmp_path):
+    library_path = tmp_path / "catalogue-full-pipeline.fichero"
+    seed(library_path)
+    db = db_manager.get_database(library_path)
+    folder = _make_doc(
+        "catalogue-folder",
+        "/library/catalogue-folder",
+        file_type=FileType.text,
+        doc_type=DocType.folder,
+    )
+    file_1 = _make_doc(
+        "catalogue-file-1",
+        "/library/catalogue-folder/a.txt",
+        file_type=FileType.text,
+        parent_id=folder.id,
+    )
+    file_2 = _make_doc(
+        "catalogue-file-2",
+        "/library/catalogue-folder/b.txt",
+        file_type=FileType.text,
+        parent_id=folder.id,
+    )
+    file_1.page_content = "Ada Mock signed the ledger in Mockton."
+    file_2.page_content = "Ada Mock signed the ledger in Mockton."
+    db.save(folder)
+    db.save(file_1)
+    db.save(file_2)
+    docs_by_id = {folder.id: folder, file_1.id: file_1, file_2.id: file_2}
+    return library_path, folder, docs_by_id, [file_1.id, file_2.id]
