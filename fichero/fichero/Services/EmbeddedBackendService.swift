@@ -237,16 +237,10 @@ final class EmbeddedBackendService: ObservableObject {
         Self.waitForPortToClear(8765, timeout: 3.0)
         #endif
 
-        let localAccessMaterial = try prepareLocalAccessTLSMaterial(executablePath: executablePath)
-        try RemoteCertificatePinning.persistHostedBackendSPKIPin(
-            localAccessMaterial.spkiPin,
-            hostString: EngineConfig.defaultHostString
-        )
-
-        var remoteAccessMaterial: RemoteAccessTLSMaterial?
-        var remoteAccessPublicBaseURL: URL?
+        let accessMaterial: RemoteAccessTLSMaterial
+        let publicBaseURL: URL?
         if RemoteAccessConfig.hostingEnabled {
-            guard let publicBaseURL = RemoteAccessConfig.publicBaseURL else {
+            guard let url = RemoteAccessConfig.publicBaseURL else {
                 throw BackendError.launchFailed(
                     NSError(
                         domain: "EmbeddedBackendService",
@@ -255,17 +249,27 @@ final class EmbeddedBackendService: ObservableObject {
                     )
                 )
             }
-            remoteAccessPublicBaseURL = publicBaseURL
-            remoteAccessMaterial = try prepareRemoteAccessTLSMaterial(
+            publicBaseURL = url
+            accessMaterial = try prepareRemoteAccessTLSMaterial(
                 executablePath: executablePath,
-                publicBaseURL: publicBaseURL
+                publicBaseURL: url
             )
-            if let remoteAccessMaterial {
-                try RemoteCertificatePinning.persistHostedBackendSPKIPin(
-                    remoteAccessMaterial.spkiPin,
-                    hostString: publicBaseURL.absoluteString
-                )
-            }
+        } else {
+            publicBaseURL = nil
+            accessMaterial = try prepareLocalAccessTLSMaterial(executablePath: executablePath)
+        }
+
+        // Persist the SPKI pin for every host the engine binds to. The
+        // remote-access cert is also served on loopback, so pins match (#2611).
+        try RemoteCertificatePinning.persistHostedBackendSPKIPin(
+            accessMaterial.spkiPin,
+            hostString: EngineConfig.defaultHostString
+        )
+        if let publicBaseURL {
+            try RemoteCertificatePinning.persistHostedBackendSPKIPin(
+                accessMaterial.spkiPin,
+                hostString: publicBaseURL.absoluteString
+            )
         }
 
         logger.info("Launching backend process: \(executablePath)")
@@ -273,23 +277,30 @@ final class EmbeddedBackendService: ObservableObject {
         // Use Process for direct process control - much simpler than NSWorkspace
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executablePath)
-        process.arguments = []
+        // Mirror start_backend.sh HTTPS args (#2603/#2604/#2611).
+        process.arguments = [
+            "--ssl-certfile", accessMaterial.certificatePath,
+            "--ssl-keyfile", accessMaterial.keyPath
+        ]
         var environment = ProcessInfo.processInfo.environment
         // Engine watches this PID and self-terminates if we die without a
         // chance to call .stop() (e.g., SIGKILL). Belt-and-braces with the
         // applicationWillTerminate path.
         environment["FICHERO_PARENT_PID"] = String(ProcessInfo.processInfo.processIdentifier)
-        environment["FICHERO_TLS_CERTFILE"] = localAccessMaterial.certificatePath
-        environment["FICHERO_TLS_KEYFILE"] = localAccessMaterial.keyPath
-        environment["FICHERO_TLS_SPKI_HASH"] = localAccessMaterial.spkiPin
-        if let remoteAccessMaterial, let remoteAccessPublicBaseURL {
+        environment["FICHERO_TLS_CERTFILE"] = accessMaterial.certificatePath
+        environment["FICHERO_TLS_KEYFILE"] = accessMaterial.keyPath
+        environment["FICHERO_TLS_SPKI_HASH"] = accessMaterial.spkiPin
+        environment["FICHERO_BIND_HOST"] = accessMaterial.bindHost
+        if let publicBaseURL {
+            // Reuse the same env contract as RemoteAccessConfig so the
+            // remote-access launch path cannot drift from the helper (#2611).
             environment.merge(
                 RemoteAccessConfig.launchEnvironment(
-                    for: remoteAccessPublicBaseURL,
-                    material: remoteAccessMaterial,
+                    for: publicBaseURL,
+                    material: accessMaterial,
                     bonjourEnabled: RemoteAccessConfig.bonjourEnabled
                 ),
-                uniquingKeysWith: { _, new in new }
+                uniquingKeysWith: { $1 }
             )
         }
         #if DEBUG
