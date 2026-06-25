@@ -173,6 +173,30 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         #endif
     }
 
+    func testSplittablePanesCollapseWhenWindowIsTooNarrow() {
+        XCTAssertFalse(
+            ContentView.shouldUseSplittablePane(
+                horizontalSizeClass: .compact,
+                windowWidth: 1200,
+                minimumWidth: 800
+            )
+        )
+        XCTAssertFalse(
+            ContentView.shouldUseSplittablePane(
+                horizontalSizeClass: .regular,
+                windowWidth: 799,
+                minimumWidth: 800
+            )
+        )
+        XCTAssertTrue(
+            ContentView.shouldUseSplittablePane(
+                horizontalSizeClass: .regular,
+                windowWidth: 801,
+                minimumWidth: 800
+            )
+        )
+    }
+
     func testSidebarRenderedPredicateMatchesActualSidebarColumnGate() {
         XCTAssertFalse(
             ContentView.shouldRenderSidebarColumn(

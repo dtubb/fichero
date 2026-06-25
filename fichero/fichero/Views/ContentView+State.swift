@@ -317,12 +317,26 @@ extension ContentView {
         #endif
     }
 
-    static func shouldUseSplittablePane(horizontalSizeClass: UserInterfaceSizeClass?) -> Bool {
+    static func shouldUseSplittablePane(
+        horizontalSizeClass: UserInterfaceSizeClass?,
+        windowWidth: Double? = nil,
+        minimumWidth: Double? = nil
+    ) -> Bool {
         #if os(macOS)
-        true
+        if horizontalSizeClass == .compact {
+            return false
+        }
         #else
-        horizontalSizeClass != .compact
+        if horizontalSizeClass == .compact {
+            return false
+        }
         #endif
+
+        guard let windowWidth, let minimumWidth else {
+            return true
+        }
+
+        return windowWidth >= minimumWidth
     }
 
     static func shouldRenderSidebarColumn(
@@ -388,7 +402,11 @@ extension ContentView {
     }
 
     var shouldUseSplittablePane: Bool {
-        Self.shouldUseSplittablePane(horizontalSizeClass: horizontalSizeClass)
+        Self.shouldUseSplittablePane(
+            horizontalSizeClass: horizontalSizeClass,
+            windowWidth: measuredWindowWidth,
+            minimumWidth: paneAwareWindowMinWidth
+        )
     }
 
     var inspectorPlacement: InspectorPlacement {
