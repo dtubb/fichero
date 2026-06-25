@@ -32,6 +32,21 @@ def to_workflow_def(workflow: Any) -> WorkflowDef:
             return obj
         return vars(obj)
 
+    def _edge_def(edge: Any) -> EdgeDef:
+        data = dict(_as_mapping(edge))
+        aliases = {
+            "sourceNodeId": "source",
+            "targetNodeId": "target",
+            "sourcePort": "source_port",
+            "targetPort": "target_port",
+        }
+        for old, new in aliases.items():
+            if old in data and not data.get(new):
+                data[new] = data.pop(old)
+        data["source_port"] = data.get("source_port") or "output"
+        data["target_port"] = data.get("target_port") or "input"
+        return EdgeDef.model_validate(data)
+
     return WorkflowDef(
         id=workflow.id,
         name=workflow.name,
@@ -58,31 +73,7 @@ def to_workflow_def(workflow: Any) -> WorkflowDef:
             )
             for n in workflow.nodes
         ],
-        edges=[
-            EdgeDef(
-                source=(
-                    _as_mapping(e).get("source")
-                    or _as_mapping(e).get("source_node_id")
-                    or _as_mapping(e).get("sourceNodeId", "")
-                ),
-                target=(
-                    _as_mapping(e).get("target")
-                    or _as_mapping(e).get("target_node_id")
-                    or _as_mapping(e).get("targetNodeId", "")
-                ),
-                source_port=(
-                    _as_mapping(e).get("source_port")
-                    or _as_mapping(e).get("sourcePort")
-                    or "output"
-                ),
-                target_port=(
-                    _as_mapping(e).get("target_port")
-                    or _as_mapping(e).get("targetPort")
-                    or "input"
-                ),
-            )
-            for e in workflow.edges
-        ],
+        edges=[_edge_def(e) for e in workflow.edges],
     )
 
 

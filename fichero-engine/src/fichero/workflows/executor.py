@@ -304,6 +304,8 @@ class WorkflowExecutor:
         state = DocumentState(
             task_id=str(uuid.uuid4()),
             workflow_id=self.workflow.id,
+            library_path=inputs.get("library_path", ""),
+            selected_doc_ids=inputs.get("selected_doc_ids", []),
             inputs=inputs,
             outputs={},
             current_node="",

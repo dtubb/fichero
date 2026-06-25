@@ -649,6 +649,8 @@ class ChainExecutor:
             mappings=step.input_mappings,
             static_inputs=step.static_inputs,
         )
+        if previous_result.step_id == "__initial__":
+            step_inputs = {**previous_result.inputs, **step_inputs}
 
         # Get input files from previous step
         input_files = previous_result.output_files or []

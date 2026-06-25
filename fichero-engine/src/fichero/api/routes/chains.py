@@ -545,9 +545,11 @@ async def execute_chain(
     # Define background task
     async def run_chain():
         try:
+            initial_inputs = dict(request.inputs)
+            initial_inputs["library_path"] = x_fichero_library_path
             result = await executor.execute(
                 chain=chain,
-                initial_inputs=request.inputs,
+                initial_inputs=initial_inputs,
                 initial_files=request.input_files,
             )
             _running_executions[execution_id] = result

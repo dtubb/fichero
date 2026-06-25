@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from fichero.workflows.builder import build_graph
+from fichero.workflows.executor import WorkflowExecutor
 from fichero.workflows.chaining import (
     WorkflowChain,
     ChainStep,
@@ -346,6 +347,23 @@ class TestChainExecutor:
         """Create a mock workflow loader."""
         return lambda wf_id: mock_workflow if wf_id == "wf-test" else None
 
+    def test_workflow_executor_initial_state_exposes_selection_inputs(
+        self, mock_workflow
+    ):
+        """Legacy executor state must expose selection fields at top level."""
+        with patch("fichero.workflows.executor.build_graph", return_value=MagicMock()):
+            executor = WorkflowExecutor(mock_workflow)
+
+        state = executor._create_initial_state(
+            {
+                "selected_doc_ids": ["doc-1"],
+                "library_path": "/tmp/test.fichero",
+            }
+        )
+
+        assert state["selected_doc_ids"] == ["doc-1"]
+        assert state["library_path"] == "/tmp/test.fichero"
+
     @pytest.mark.asyncio
     async def test_execute_single_step_chain(self, mock_loader, mock_workflow):
         """Test executing a chain with single step."""
@@ -374,6 +392,43 @@ class TestChainExecutor:
             assert result.status == ChainStepStatus.COMPLETED
             assert len(result.step_results) == 1
             assert result.step_results[0].status == ChainStepStatus.COMPLETED
+
+    @pytest.mark.asyncio
+    async def test_execute_first_step_preserves_initial_selection_inputs(
+        self, mock_loader, mock_workflow
+    ):
+        """First chain step must receive library selection context."""
+        chain = WorkflowChain(
+            name="Selection Chain",
+            steps=[ChainStep(id="step1", workflow_id="wf-test")],
+        )
+        captured: dict = {}
+
+        async def mock_execute(*args, **kwargs):
+            captured.update(kwargs)
+            return {
+                "outputs": {"result": {"text": "done"}},
+                "output_files": [],
+                "error": None,
+            }
+
+        with patch("fichero.execution.chaining.WorkflowExecutor") as MockExecutor:
+            mock_executor = MagicMock()
+            mock_executor.execute = mock_execute
+            MockExecutor.return_value = mock_executor
+
+            executor = ChainExecutor(workflow_loader=mock_loader)
+            result = await executor.execute(
+                chain,
+                initial_inputs={
+                    "selected_doc_ids": ["doc-1"],
+                    "library_path": "/tmp/test.fichero",
+                },
+            )
+
+        assert result.status == ChainStepStatus.COMPLETED
+        assert captured["inputs"]["selected_doc_ids"] == ["doc-1"]
+        assert captured["inputs"]["library_path"] == "/tmp/test.fichero"
 
     @pytest.mark.asyncio
     async def test_execute_multi_step_chain(self, mock_loader, mock_workflow):

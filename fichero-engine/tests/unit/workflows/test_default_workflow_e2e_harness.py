@@ -213,7 +213,7 @@ def test_all_default_workflows_complete_with_deterministic_tool_stubs(
     final_state = asyncio.run(build_graph(workflow, skip_cache=True).ainvoke(state))
     assert not final_state.get("error"), (preset_name, final_state.get("error"))
     completed = set(final_state.get("completed_nodes") or [])
-    expected = {n.id for n in workflow.nodes}
+    expected = _expected_completed_nodes_for_smoke(workflow)
     assert expected <= completed, (
         f"{preset_name}: expected all nodes completed; missing={sorted(expected - completed)}"
     )
@@ -465,6 +465,7 @@ def _install_generic_tool_smoke_stubs(
                 "value": text,
                 "text": text,
                 "summary": text,
+                "script_type": "typescript",
                 "records": [{"doc_id": "stub-doc-1", "text": text}],
                 "documents": [{"id": "stub-doc-1", "name": "stub.txt"}],
                 "files": ["/tmp/stub.txt"],
@@ -490,6 +491,25 @@ def _install_generic_tool_smoke_stubs(
     monkeypatch.setattr("fichero.llm.resolve_model_alias", resolve_alias)
     for node in workflow.nodes:
         monkeypatch.setitem(workflow_registry.TOOLS, node.tool, _stub_for(node.tool))
+
+
+def _expected_completed_nodes_for_smoke(workflow) -> set[str]:
+    route_targets = {
+        target
+        for edge in workflow.edges
+        for target in ((edge.route_map or {}).values())
+    }
+    branch_only = set(route_targets)
+    changed = True
+    while changed:
+        changed = False
+        for edge in workflow.edges:
+            if edge.route_map:
+                continue
+            if edge.source in branch_only and edge.target not in branch_only:
+                branch_only.add(edge.target)
+                changed = True
+    return {node.id for node in workflow.nodes if node.id not in branch_only}
 
 
 def _assert_workflow_completed(final_state: dict) -> None:

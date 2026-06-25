@@ -53,6 +53,12 @@ def test_to_workflow_def_accepts_camel_case_edge_aliases():
                 "targetNodeId": "b",
                 "sourcePort": "text",
                 "targetPort": "context",
+            },
+            {
+                "sourceNodeId": "a",
+                "targetNodeId": "b",
+                "sourcePort": "",
+                "targetPort": "",
             }
         ],
     )
@@ -62,6 +68,53 @@ def test_to_workflow_def_accepts_camel_case_edge_aliases():
     assert wf_def.edges[0].target == "b"
     assert wf_def.edges[0].source_port == "text"
     assert wf_def.edges[0].target_port == "context"
+    assert wf_def.edges[1].source_port == "output"
+    assert wf_def.edges[1].target_port == "input"
+
+
+def test_to_workflow_def_preserves_route_and_condition_edges():
+    workflow = SimpleNamespace(
+        id="wf-route",
+        name="Runtime Route Test",
+        nodes=[
+            {"id": "classify", "tool": "classify_script"},
+            {"id": "ts", "tool": "transcribe"},
+            {"id": "ms", "tool": "transcribe"},
+            {"id": "review", "tool": "transcribe_review"},
+        ],
+        edges=[
+            {
+                "id": "edge-route",
+                "source": "classify",
+                "target": "",
+                "route_key": "$.nodes.classify.script_type",
+                "route_map": {"typescript": "ts", "manuscript": "ms"},
+            },
+            {
+                "id": "edge-condition",
+                "source": "ts",
+                "target": "review",
+                "source_port": "text",
+                "target_port": "context",
+                "condition": "$.nodes.ts.text != ''",
+                "label": "has text",
+                "animated": True,
+            },
+        ],
+    )
+
+    wf_def = to_workflow_def(workflow)
+
+    route_edge = wf_def.edges[0]
+    assert route_edge.id == "edge-route"
+    assert route_edge.route_key == "$.nodes.classify.script_type"
+    assert route_edge.route_map == {"typescript": "ts", "manuscript": "ms"}
+
+    condition_edge = wf_def.edges[1]
+    assert condition_edge.id == "edge-condition"
+    assert condition_edge.condition == "$.nodes.ts.text != ''"
+    assert condition_edge.label == "has text"
+    assert condition_edge.animated is True
 
 
 def test_to_workflow_def_accepts_camel_case_node_provider_fields():
