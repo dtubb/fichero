@@ -564,15 +564,11 @@ struct ContentView: View {
                 )
             #endif
         } else {
-            // Compact width (iPhone): the inspector is presented as a
-            // full-height sheet by `.adaptiveInspector()` (#2547). This branch
-            // supplies ONLY the inspector CONTENT — no competing
-            // `NavigationStack`/"Done" chrome that would fight the adaptive
-            // presenter. The sheet opens at the `.large` detent and is dismissed
-            // by swiping down via its drag indicator (Overcast-style), which
-            // routes back through the `isPresented` binding and clears
-            // `showInspectorSidebar`. `.adaptiveInspector()` solely owns
-            // sheet-vs-docked presentation.
+            // Compact width (iPhone): the adaptive presenter routes the
+            // inspector into the collapsed navigation stack, so it pushes from
+            // the right and participates in back-swipe / back-button history.
+            // This branch supplies ONLY the inspector content; the presenter
+            // owns the stack-vs-docked choice outside this builder.
             detailView
         }
     }

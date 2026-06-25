@@ -27,4 +27,32 @@ final class InspectorPresenterTests: XCTestCase {
             .floating
         )
     }
+
+    func testAdaptivePresentationUsesNavigationPushForCompactWidth() {
+        XCTAssertEqual(
+            InspectorPlacement.adaptivePresentation(horizontalSizeClass: .compact),
+            .navigationPush
+        )
+    }
+
+    func testAdaptivePresentationUsesDockedInspectorForRegularWidth() {
+        XCTAssertEqual(
+            InspectorPlacement.adaptivePresentation(horizontalSizeClass: .regular),
+            .docked
+        )
+    }
+
+    func testAdaptivePresentationKeepsDockedInspectorForExplicitDockedPlacement() {
+        XCTAssertEqual(
+            InspectorPlacement.adaptivePresentation(horizontalSizeClass: .compact, requested: .docked),
+            .docked
+        )
+    }
+
+    func testAdaptivePresentationHonorsExplicitSheetPlacement() {
+        XCTAssertEqual(
+            InspectorPlacement.adaptivePresentation(horizontalSizeClass: .regular, requested: .sheet),
+            .sheet
+        )
+    }
 }

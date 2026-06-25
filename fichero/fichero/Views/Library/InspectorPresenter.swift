@@ -25,6 +25,17 @@ enum InspectorPlacement: String, CaseIterable, Sendable {
     case sheet
 }
 
+/// The concrete presentation the adaptive inspector uses at runtime.
+///
+/// Keep this separate from `InspectorPlacement`: the placement is the logical
+/// preference, while the runtime presentation can still adapt compact iPhone to
+/// a pushed navigation destination.
+enum InspectorPresentationStyle: Equatable, Sendable {
+    case docked
+    case sheet
+    case navigationPush
+}
+
 extension InspectorPlacement {
     /// The simplest sensible default for the current window's capabilities.
     ///
@@ -43,6 +54,18 @@ extension InspectorPlacement {
             return placement
         case .none:
             return horizontalSizeClass == .compact ? .sheet : .docked
+        }
+    }
+
+    static func adaptivePresentation(
+        horizontalSizeClass: UserInterfaceSizeClass?,
+        requested: InspectorPlacement? = nil
+    ) -> InspectorPresentationStyle {
+        switch adaptiveDefault(horizontalSizeClass: horizontalSizeClass, requested: requested) {
+        case .docked, .floating:
+            return .docked
+        case .sheet:
+            return horizontalSizeClass == .compact ? .navigationPush : .sheet
         }
     }
 }
@@ -80,16 +103,14 @@ extension View {
         detents: Set<PresentationDetent> = [.large],
         @ViewBuilder content: @escaping () -> InspectorContent
     ) -> some View {
-        #if os(visionOS)
-        inspectorSheet(isPresented: isPresented, detents: detents, content: content)
-        #else
-        switch placement {
-        case .sheet:
-            inspectorSheet(isPresented: isPresented, detents: detents, content: content)
-        case .docked, .floating:
-            inspector(isPresented: isPresented, content: content)
-        }
-        #endif
+        modifier(
+            AdaptiveInspectorModifier(
+                placement: placement,
+                isPresented: isPresented,
+                detents: detents,
+                content: content
+            )
+        )
     }
 
     /// Presents detail `content` as a detented sheet — the ``InspectorPlacement/sheet``
@@ -109,6 +130,38 @@ extension View {
                 .presentationDetents(detents)
                 .presentationDragIndicator(.visible)
         }
+    }
+}
+
+private struct AdaptiveInspectorModifier<InspectorContent: View>: ViewModifier {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    let placement: InspectorPlacement
+    let isPresented: Binding<Bool>
+    let detents: Set<PresentationDetent>
+    let content: () -> InspectorContent
+
+    @ViewBuilder
+    func body(content base: Content) -> some View {
+        let presentation = InspectorPlacement.adaptivePresentation(
+            horizontalSizeClass: horizontalSizeClass,
+            requested: placement
+        )
+
+        #if os(visionOS)
+        base.inspectorSheet(isPresented: isPresented, detents: detents, content: content)
+        #else
+        switch presentation {
+        case .sheet:
+            base.inspectorSheet(isPresented: isPresented, detents: detents, content: content)
+        case .docked:
+            base.inspector(isPresented: isPresented, content: content)
+        case .navigationPush:
+            base.navigationDestination(isPresented: isPresented) {
+                content()
+            }
+        }
+        #endif
     }
 }
 
