@@ -5,9 +5,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from fichero.models import DocType, Document, FileType, Status
+from fichero.models import DocType, Document, FileType, Status, Workflow
 from fichero.workflows.builder import build_graph
+from fichero.workflows.default_workflows import _load_preset_files
+from fichero.workflows import registry as workflow_registry
 from fichero.workflows.runtime import build_initial_state
+from fichero.workflows.runtime import to_workflow_def
 from fichero.workflows.types import EdgeDef, NodeDef, WorkflowDef
 
 # Import tool modules for registry side effects before build_graph().
@@ -60,6 +63,35 @@ def _workflow_for(tool_name: str) -> tuple[WorkflowDef, str]:
             ],
         ),
         tool_node_id,
+    )
+
+
+def _workflow_from_preset(name: str, *, provider_name: str | None = None) -> WorkflowDef:
+    preset = next(p for p in _load_preset_files() if p["name"] == name)
+    if provider_name is not None:
+        preset = {
+            **preset,
+            "nodes": [
+                {
+                    **node,
+                    "config": {
+                        **node.get("config", {}),
+                        **({"provider_name": provider_name} if node["tool"] != "files" else {}),
+                    },
+                }
+                for node in preset["nodes"]
+            ],
+        }
+    return to_workflow_def(
+        Workflow(
+            id=f"no-token-{name.lower().replace(' ', '-')}",
+            name=preset["name"],
+            description=preset.get("description", ""),
+            nodes=preset["nodes"],
+            edges=preset["edges"],
+            config=preset.get("config", {}),
+            folder_path=preset.get("folder_path", "/"),
+        )
     )
 
 
@@ -196,6 +228,139 @@ def test_transcribe_executes_only_the_selected_pdf_page(
 
 
 @pytest.mark.parametrize(
+    "case_name",
+    ["text", "docx", "selected_page", "whole_pdf", "folder", "multi_file"],
+)
+def test_transcribe_no_token_selection_matrix(
+    monkeypatch: pytest.MonkeyPatch,
+    case_name: str,
+):
+    workflow, tool_node_id = _workflow_for("transcribe")
+    captured: dict = {}
+
+    async def fake_process_vision(**kwargs):
+        captured["files"] = kwargs.get("files")
+        captured["documents"] = kwargs.get("documents")
+        records = []
+        for doc in kwargs.get("documents") or []:
+            doc_id = doc.get("id")
+            if doc_id:
+                records.append({"doc_id": doc_id, "text": f"fixture::{doc_id}"})
+        text = "\n\n".join(record["text"] for record in records)
+        return {
+            "text": text,
+            "value": text,
+            "records": records,
+            "page_records": records,
+            "artifacts": [],
+            "output_files": [],
+            "error": None,
+        }
+
+    monkeypatch.setattr("fichero.workflows.tools.transcribe.process_vision", fake_process_vision)
+
+    if case_name == "text":
+        doc = _make_doc("text-1", "/library/source.txt", file_type=FileType.text)
+        selected_doc_ids = [doc.id]
+        docs_by_id = {doc.id: doc}
+        children_by_parent = None
+        expected_files = [doc.path]
+        expected_docs = [doc.id]
+    elif case_name == "docx":
+        doc = _make_doc("docx-1", "/library/source.docx", file_type=FileType.docx)
+        selected_doc_ids = [doc.id]
+        docs_by_id = {doc.id: doc}
+        children_by_parent = None
+        expected_files = [doc.path]
+        expected_docs = [doc.id]
+    elif case_name == "selected_page":
+        parent = _make_doc("pdf-parent", "/library/book.pdf", file_type=FileType.pdf)
+        selected_page = _make_doc(
+            "page-7",
+            parent.path,
+            file_type=FileType.pdf,
+            doc_type=DocType.page,
+            parent_id=parent.id,
+            sequence=7,
+        )
+        sibling_page = _make_doc(
+            "page-8",
+            parent.path,
+            file_type=FileType.pdf,
+            doc_type=DocType.page,
+            parent_id=parent.id,
+            sequence=8,
+        )
+        selected_doc_ids = [selected_page.id]
+        docs_by_id = {
+            parent.id: parent,
+            selected_page.id: selected_page,
+            sibling_page.id: sibling_page,
+        }
+        children_by_parent = {parent.id: [selected_page, sibling_page]}
+        expected_files = [parent.path]
+        expected_docs = [selected_page.id]
+    elif case_name == "whole_pdf":
+        parent = _make_doc("pdf-parent", "/library/book.pdf", file_type=FileType.pdf)
+        page_1 = _make_doc(
+            "page-1",
+            parent.path,
+            file_type=FileType.pdf,
+            doc_type=DocType.page,
+            parent_id=parent.id,
+            sequence=1,
+        )
+        page_2 = _make_doc(
+            "page-2",
+            parent.path,
+            file_type=FileType.pdf,
+            doc_type=DocType.page,
+            parent_id=parent.id,
+            sequence=2,
+        )
+        selected_doc_ids = [parent.id]
+        docs_by_id = {parent.id: parent, page_1.id: page_1, page_2.id: page_2}
+        children_by_parent = {parent.id: [page_1, page_2]}
+        expected_files = [parent.path, parent.path]
+        expected_docs = [page_1.id, page_2.id]
+    elif case_name == "folder":
+        folder = _make_doc(
+            "folder-1",
+            "/library/folder",
+            file_type=FileType.text,
+            doc_type=DocType.folder,
+        )
+        file_1 = _make_doc("file-1", "/library/folder/a.txt", file_type=FileType.text, parent_id=folder.id)
+        file_2 = _make_doc("file-2", "/library/folder/b.docx", file_type=FileType.docx, parent_id=folder.id)
+        selected_doc_ids = [folder.id]
+        docs_by_id = {folder.id: folder, file_1.id: file_1, file_2.id: file_2}
+        children_by_parent = {folder.id: [file_1, file_2]}
+        expected_files = [file_1.path, file_2.path]
+        expected_docs = [file_1.id, file_2.id]
+    else:
+        file_1 = _make_doc("file-1", "/library/a.txt", file_type=FileType.text)
+        file_2 = _make_doc("file-2", "/library/b.txt", file_type=FileType.text)
+        selected_doc_ids = [file_1.id, file_2.id]
+        docs_by_id = {file_1.id: file_1, file_2.id: file_2}
+        children_by_parent = None
+        expected_files = [file_1.path, file_2.path]
+        expected_docs = [file_1.id, file_2.id]
+
+    final_state = _run_workflow_for_selection(
+        workflow=workflow,
+        selected_doc_ids=selected_doc_ids,
+        docs_by_id=docs_by_id,
+        children_by_parent=children_by_parent,
+    )
+
+    assert not final_state.get("error"), case_name
+    assert captured["files"] == expected_files, case_name
+    assert [item["id"] for item in captured["documents"]] == expected_docs, case_name
+    assert [record["doc_id"] for record in final_state["outputs"][tool_node_id]["records"]] == expected_docs, case_name
+    assert [record["doc_id"] for record in final_state["outputs"][tool_node_id]["page_records"]] == expected_docs, case_name
+
+
+@pytest.mark.parametrize(
     ("tool_name", "patch_target", "path", "file_type"),
     [
         ("audio_transcribe", "fichero.workflows.tools.audio_transcribe.process_audio", "/library/interview.mp3", FileType.audio),
@@ -238,3 +403,83 @@ def test_media_tools_execute_selected_file_without_external_calls(
     assert captured["files"] == [doc.path]
     assert [item["id"] for item in captured["documents"]] == [doc.id]
     assert final_state["outputs"][tool_node_id]["records"][0]["doc_id"] == doc.id
+
+
+def test_transcribe_htr_runs_without_tokens_and_keeps_page_scope(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    workflow = _workflow_from_preset("Transcribe HTR", provider_name="mock")
+    parent = _make_doc("pdf-parent", "/library/book.pdf", file_type=FileType.pdf)
+    page_1 = _make_doc(
+        "page-1",
+        parent.path,
+        file_type=FileType.pdf,
+        doc_type=DocType.page,
+        parent_id=parent.id,
+        sequence=1,
+    )
+    page_2 = _make_doc(
+        "page-2",
+        parent.path,
+        file_type=FileType.pdf,
+        doc_type=DocType.page,
+        parent_id=parent.id,
+        sequence=2,
+    )
+    captured: dict = {}
+
+    async def fake_process_vision(**kwargs):
+        captured.setdefault("calls", []).append(kwargs)
+        records = []
+        for doc in kwargs.get("documents") or []:
+            doc_id = doc.get("id")
+            if doc_id:
+                records.append({"doc_id": doc_id, "text": f"htr::{doc_id}"})
+        text = "\n\n".join(record["text"] for record in records)
+        return {
+            "text": text,
+            "value": text,
+            "records": records,
+            "page_records": records,
+            "artifacts": [],
+            "output_files": [],
+            "error": None,
+        }
+
+    async def fake_search(inputs, state, llm_config):
+        del inputs, state, llm_config
+        return {"files": [], "documents": [], "count": 0}
+
+    monkeypatch.setattr("fichero.workflows.tools.transcribe.process_vision", fake_process_vision)
+    monkeypatch.setattr(
+        "fichero.workflows.tools.transcribe_review.process_vision",
+        fake_process_vision,
+    )
+    monkeypatch.setattr(
+        "fichero.llm.resolve_model_alias_for_capability",
+        lambda *args, **kwargs: ("openai", "gpt-4o"),
+    )
+    monkeypatch.setitem(workflow_registry.TOOLS, "search", fake_search)
+
+    final_state = _run_workflow_for_selection(
+        workflow=workflow,
+        selected_doc_ids=[parent.id],
+        docs_by_id={
+            parent.id: parent,
+            page_1.id: page_1,
+            page_2.id: page_2,
+        },
+        children_by_parent={parent.id: [page_1, page_2]},
+    )
+
+    assert not final_state.get("error")
+    assert len(captured["calls"]) >= 2
+    assert [item["id"] for item in captured["calls"][0]["documents"]] == [page_1.id, page_2.id]
+    assert [record["doc_id"] for record in final_state["outputs"]["transcribe"]["records"]] == [
+        page_1.id,
+        page_2.id,
+    ]
+    assert [record["doc_id"] for record in final_state["outputs"]["transcribe_review"]["records"]] == [
+        page_1.id,
+        page_2.id,
+    ]
