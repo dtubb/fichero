@@ -132,6 +132,11 @@ final class LibraryChangeStream {
     /// Observed (not `@ObservationIgnored`) so views react to it.
     private(set) var liveUpdatesUnavailable = false
 
+    /// Certificate-pinned URLSession reused across reconnects.
+    /// `URLSession.bytes(for:)` only invokes the delegate challenge handler
+    /// when the session is retained at the class level, not as a per-call local.
+    private let urlSession: URLSession = RemoteCertificatePinning.configuredSession()
+
     init(baseURL: URL, libraryPath: String, windowId: String = UUID().uuidString) {
         self.baseURLProvider = { baseURL }
         self.libraryPath = libraryPath
@@ -213,8 +218,7 @@ final class LibraryChangeStream {
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         request.addEngineAuth(libraryPath: libraryPath)
 
-        let session = RemoteCertificatePinning.configuredSession()
-        let (bytes, response) = try await session.bytes(for: request)
+        let (bytes, response) = try await urlSession.bytes(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
         }
