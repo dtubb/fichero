@@ -14,6 +14,7 @@ import Testing
 
 // MARK: - Helpers
 
+@MainActor
 private func makeStore() -> ActivityStore {
     let client = FicheroClient(libraryPath: "/tmp/test.fichero")
     let service = ActivityServiceGenerated(ficheroClient: client)

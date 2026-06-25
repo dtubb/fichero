@@ -5,6 +5,7 @@ import OpenAPIRuntime
 import Testing
 
 @Suite("ImportServiceGenerated generated-client request")
+@MainActor
 struct ImportServiceGeneratedTests {
 
     @Test("upload input carries filename, content, and parent folder")

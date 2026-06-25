@@ -20,7 +20,7 @@ final class MockURLProtocol: URLProtocol {
 
     override func startLoading() {
         guard let handler = MockURLProtocol.requestHandler else {
-            client?.urlProtocolDidFailWithError(URLError(.notConnectedToInternet))
+            client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet))
             return
         }
         do {
@@ -29,7 +29,7 @@ final class MockURLProtocol: URLProtocol {
             client?.urlProtocol(self, didLoad: data)
             client?.urlProtocolDidFinishLoading(self)
         } catch {
-            client?.urlProtocolDidFailWithError(error)
+            client?.urlProtocol(self, didFailWithError: error)
         }
     }
 
@@ -83,13 +83,13 @@ struct StorageServiceGeneratedTests {
             return (response, Data("{\"detail\":\"not found\"}".utf8))
         }
 
-        await #expect(throws: StorageServiceError.self) {
+        do {
             try await service.thumbnailData(for: "doc-123")
-        } result: { error in
-            guard case StorageServiceError.notFound(let url, _) = error else {
-                return false
-            }
-            return url.path == "/storage/thumbnail/doc-123"
+            Issue.record("expected StorageServiceError.notFound")
+        } catch StorageServiceError.notFound(let url, _) {
+            #expect(url.path == "/storage/thumbnail/doc-123")
+        } catch {
+            Issue.record("unexpected error: \(error)")
         }
     }
 

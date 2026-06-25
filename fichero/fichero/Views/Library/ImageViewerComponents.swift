@@ -55,6 +55,16 @@ struct ZoomableImagePreview: View {
 
     private static let logger = Logger(subsystem: "app.fichero.fichero", category: "ZoomableImagePreview")
 
+    /// Document ids in the +/-`radius` window around `currentId`, excluding `currentId` itself.
+    /// Static so it can be called in unit tests without a live view (#2469).
+    static func preloadIds(from docs: [Document], currentId: String, radius: Int = 3) -> [String] {
+        guard let index = docs.firstIndex(where: { $0.id == currentId }) else { return [] }
+        let start = max(0, index - radius)
+        let end = min(docs.count - 1, index + radius)
+        guard start <= end else { return [] }
+        return (start...end).compactMap { idx in idx == index ? nil : docs[idx].id }
+    }
+
     private var scaleKey: String? {
         documentId.map { "imageZoom_\($0)" }
     }
@@ -485,7 +495,7 @@ struct ZoomableImagePreview: View {
         return { onNavigateToDocument(target.id) }
     }
 
-    /// Document ids in the ±`radius` window around `currentId`, excluding `currentId` itself.
+    /// Document ids in the +/-`radius` window around `currentId`, excluding `currentId` itself.
     /// Static so it can be called in unit tests without a live view (#2469).
     static func preloadIds(from docs: [Document], currentId: String, radius: Int = 3) -> [String] {
         guard let index = docs.firstIndex(where: { $0.id == currentId }) else { return [] }

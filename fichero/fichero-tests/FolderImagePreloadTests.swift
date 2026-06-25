@@ -6,6 +6,7 @@
 import Foundation
 import Testing
 
+@MainActor
 struct FolderImagePreloadTests {
 
     private func makeDoc(id: String) -> Document {
@@ -18,7 +19,7 @@ struct FolderImagePreloadTests {
             path: nil,
             sequence: nil,
             bbox: nil,
-            status: .ready,
+            status: .completed,
             metadata: [:],
             pageContent: nil,
             excludeFromProcessing: false,

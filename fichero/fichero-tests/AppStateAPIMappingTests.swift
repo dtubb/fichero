@@ -5,6 +5,7 @@ import XCTest
 /// Tests for AppState's generated-client mapping.
 /// Locks the local `AIDefaults` view model to the generated OpenAPI schemas
 /// used by `fetchAIDefaults()`, `saveAIDefaults()`, and `resetAIDefaults()`.
+@MainActor
 final class AppStateAPIMappingTests: XCTestCase {
 
     // MARK: - Generated → Local
