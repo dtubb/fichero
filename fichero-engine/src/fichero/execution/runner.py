@@ -975,6 +975,11 @@ async def _run_workflow_in_background(
 
                     # Build activity metadata from output
                     activity_metadata = {}
+                    node_status = "success"
+                    node_end_data = {
+                        "node": original_id,
+                        "duration_ms": node_duration_ms,
+                    }
 
                     # Check for parallel processing completion
                     if isinstance(output, dict) and "parallel_results" in output:
@@ -1034,11 +1039,6 @@ async def _run_workflow_in_background(
 
                         # #2613: a node that intentionally skipped (e.g. empty-query
                         # reference search) should surface a clear skipped status.
-                        node_status = "success"
-                        node_end_data = {
-                            "node": original_id,
-                            "duration_ms": node_duration_ms,
-                        }
                         if isinstance(output, dict) and output.get("skipped"):
                             node_status = "skipped"
                             skip_reason = str(output.get("skip_reason", "skipped"))
