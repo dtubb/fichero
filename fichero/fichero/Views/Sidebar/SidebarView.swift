@@ -200,6 +200,13 @@ struct SidebarView: View {
                     await loadActivityData()
                 }
             }
+            .onChange(of: libraryManager.globalLibrary?.activityStore.refreshToken ?? 0) { _, _ in
+                guard FeatureManager.shared.isActivityEnabled else { return }
+                guard case .activity = viewMode else { return }
+                Task { @MainActor in
+                    await loadActivityData()
+                }
+            }
             .sidebarFocusedValues(config: SidebarFocusedValuesConfig(
                 selectedItem: selectedItem,
                 createFolder: handleCreateNewFolder,

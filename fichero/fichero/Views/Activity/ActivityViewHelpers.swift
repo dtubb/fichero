@@ -124,26 +124,9 @@ struct ActivityBrowserView: View {
             }
         }
         .task { await loadRuns() }
-        // SSE-driven refresh: bumped by ActivityStore when workflow events arrive
+        // SSE-driven refresh: bumped by ActivityStore when activity events arrive
         .onChange(of: activityStore.refreshToken) { _, _ in
             Task { await loadRuns() }
-        }
-        // Live polling while runs are active; one delayed reload after completion
-        // to pick up the `workflow_completed` backend record (#2448).
-        .task(id: executionObserver.activeExecutions.isEmpty) {
-            if executionObserver.activeExecutions.isEmpty {
-                // Executions just drained — wait for the backend to write the
-                // completion record before reloading (covers the DB-write race).
-                try? await Task.sleep(for: .seconds(2))
-                guard !Task.isCancelled else { return }
-                await loadRuns()
-            } else {
-                // Active run: poll every 5 s to surface progress / status changes.
-                while !Task.isCancelled && !executionObserver.activeExecutions.isEmpty {
-                    await loadRuns()
-                    try? await Task.sleep(for: .seconds(5))
-                }
-            }
         }
         .onChange(of: selectedRunId) { _, newId in
             listSelection = newId
@@ -156,8 +139,7 @@ struct ActivityBrowserView: View {
         defer { isLoading = false }
 
         var result = executionObserver.activeExecutions.values.map { liveRunFromExecution($0) }
-        let seenThreadIds = Set(result.map { $0.runId })
-        let historical = await loadHistoricalRuns(excluding: seenThreadIds)
+        let historical = await loadHistoricalRuns(excluding: Set(result.map { $0.runId }))
         result.append(contentsOf: historical)
         runs = result.sorted { $0.timestamp > $1.timestamp }
     }
@@ -180,9 +162,10 @@ struct ActivityBrowserView: View {
     }
 
     private func loadHistoricalRuns(excluding seenThreadIds: Set<String>) async -> [ActivityRun] {
-        let types = ["workflow_completed", "workflow_failed", "workflow_cancelled"]
+        let types = ["workflow_started", "workflow_completed", "workflow_failed", "workflow_cancelled"]
         let since = Date().addingTimeInterval(-7 * 24 * 3600)
         var result: [ActivityRun] = []
+        var emittedThreadIds = seenThreadIds
         for library in libraryManager.openLibraries {
             guard !Task.isCancelled else { break }
             do {
@@ -191,9 +174,9 @@ struct ActivityBrowserView: View {
                     since: since,
                     limit: 100
                 )
-                for item in items {
+                for item in items.sorted(by: { ($0.parsedTimestamp ?? .distantPast) > ($1.parsedTimestamp ?? .distantPast) }) {
                     let threadId = item.threadId ?? item.batchId.map { "batch:\($0)" }
-                    guard let threadId, !seenThreadIds.contains(threadId) else { continue }
+                    guard let threadId, !emittedThreadIds.contains(threadId) else { continue }
                     result.append(ActivityRun(
                         id: threadId,
                         runId: threadId,
@@ -208,6 +191,7 @@ struct ActivityBrowserView: View {
                         fileCount: 0,
                         isLive: false
                     ))
+                    emittedThreadIds.insert(threadId)
                 }
             } catch {
                 // Individual library failure is non-fatal

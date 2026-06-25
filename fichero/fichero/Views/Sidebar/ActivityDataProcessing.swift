@@ -56,8 +56,9 @@ func runsByWorkflow(
         }
     }
 
-    let libraryRuns = historicalRuns[library.id] ?? []
-    for item in libraryRuns where item.type != "workflow_started" {
+    let libraryRuns = (historicalRuns[library.id] ?? [])
+        .sorted { ($0.parsedTimestamp ?? .distantPast) > ($1.parsedTimestamp ?? .distantPast) }
+    for item in libraryRuns {
         // Batch-level events can be missing threadId; use synthetic thread token.
         let threadId = item.threadId ?? item.batchId.map { "batch:\($0)" }
         guard let threadId else { continue }
@@ -108,6 +109,7 @@ func activityMapExecutionStatus(_ status: WorkflowStatus) -> ActivityRunStatus {
 
 func activityMapActivityType(_ type: String) -> ActivityRunStatus {
     switch type {
+    case "workflow_started": return .running
     case "workflow_completed": return .completed
     case "workflow_failed": return .failed
     case "workflow_cancelled": return .cancelled

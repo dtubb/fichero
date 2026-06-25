@@ -97,6 +97,7 @@ struct LibraryWorkspaceRoot: View {
                 windowState.libraryId = library.id
             }
             library.changeStream.start()
+            library.activityStore.start()
         }
         #if canImport(UIKit) && !os(macOS)
         .toolbar {

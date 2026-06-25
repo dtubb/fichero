@@ -61,7 +61,7 @@
   "GET /api/activity/metrics/summary": "store missing",
   "GET /api/activity/recent": "store missing",
   "GET /api/activity/stats": "store missing",
-  "GET /api/activity/stream": "store missing",
+  "GET /api/activity/stream": "#2633 app-only SSE refresh stream; SwiftUI consumes it via ActivityStreamService, CLI remains request/response",
   "GET /api/activity/top": "store missing",
   "GET /api/activity/trends": "store missing",
   "GET /api/activity/workflow/{workflow_id}": "store missing",

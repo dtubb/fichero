@@ -9,7 +9,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Activit
 /// Service for interacting with the Activity API using generated OpenAPI client
 @MainActor
 class ActivityServiceGenerated {
-    private let client: FicheroClient
+    let client: FicheroClient
 
     /// Initialize with FicheroClient (preferred - non-throwing)
     init(ficheroClient: FicheroClient) {

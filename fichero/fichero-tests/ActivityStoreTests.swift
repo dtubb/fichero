@@ -2,9 +2,8 @@
 //  ActivityStoreTests.swift
 //  FicheroTests
 //
-//  Unit tests for ActivityStore (#2448).  Verifies that the change-stream
-//  consumer plumbing — `changeDomains`, `apply(_:)`, `resync()` — produces
-//  the expected `refreshToken` increments so `ActivityBrowserView` reloads.
+//  Unit tests for ActivityStore (#2448, #2633).  Verifies that activity
+//  events, not workflow-definition change events, refresh the browser.
 //
 
 @testable import Fichero
@@ -37,15 +36,16 @@ struct ActivityStoreTests {
 
     // MARK: changeDomains
 
-    @Test("changeDomains contains \"workflow\" so store reacts to workflow SSE events")
-    func changeDomainIsWorkflow() {
+    @Test("changeDomains is empty because activity refresh uses /activity/stream")
+    func changeDomainsAreEmpty() {
         let store = makeStore()
-        #expect(store.changeDomains.contains("workflow"))
+        #expect(store.changeDomains.isEmpty)
     }
 
-    @Test("changeDomains does not contain unrelated domains")
+    @Test("changeDomains does not contain workflow definitions or unrelated domains")
     func changeDomainExcludesOthers() {
         let store = makeStore()
+        #expect(!store.changeDomains.contains("workflow"))
         #expect(!store.changeDomains.contains("document"))
         #expect(!store.changeDomains.contains("entity"))
         #expect(!store.changeDomains.contains("activity"))
@@ -53,32 +53,45 @@ struct ActivityStoreTests {
 
     // MARK: apply(_:)
 
-    @Test("apply increments refreshToken once per event")
-    func applySingleEventIncrementsToken() throws {
+    @Test("workflow change event does not increment refreshToken")
+    func workflowChangeEventDoesNotIncrementToken() throws {
         let store = makeStore()
         let before = store.refreshToken
         let event = try makeEvent(domain: "workflow", verb: "created")
         store.apply(event)
+        #expect(store.refreshToken == before)
+    }
+
+    @Test("applyActivityEvent increments refreshToken once per event")
+    func applyActivityEventIncrementsToken() {
+        let store = makeStore()
+        let before = store.refreshToken
+        let event = ActivityItem(
+            id: "act-1",
+            type: "workflow_started",
+            level: "info",
+            timestamp: "2026-06-25T12:00:00Z",
+            message: "Started",
+            threadId: "thread-1"
+        )
+        store.applyActivityEvent(event)
         #expect(store.refreshToken == before + 1)
     }
 
-    @Test("apply increments refreshToken independently for each event")
-    func applyMultipleEventsIncrementToken() throws {
+    @Test("duplicate activity events each bump refreshToken")
+    func duplicateActivityEventsBumpEveryTime() {
         let store = makeStore()
-        let event = try makeEvent(domain: "workflow", verb: "updated")
-        store.apply(event)
-        store.apply(event)
-        store.apply(event)
-        #expect(store.refreshToken == 3)
-    }
-
-    @Test("duplicate events each bump refreshToken (no dedup — caller controls)")
-    func applyDuplicateEventBumpsEveryTime() throws {
-        let store = makeStore()
-        let event = try makeEvent(domain: "workflow")
+        let event = ActivityItem(
+            id: "act-1",
+            type: "workflow_completed",
+            level: "info",
+            timestamp: "2026-06-25T12:00:01Z",
+            message: "Completed",
+            threadId: "thread-1"
+        )
         let first = store.refreshToken
-        store.apply(event)
-        store.apply(event)
+        store.applyActivityEvent(event)
+        store.applyActivityEvent(event)
         #expect(store.refreshToken == first + 2)
     }
 

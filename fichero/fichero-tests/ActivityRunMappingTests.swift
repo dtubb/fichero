@@ -28,6 +28,51 @@ struct ActivityRunStatusMappingTests {
         #expect(ActivityRunStatus.cancelled.toStatusType() == .cancelled)
     }
 
+    @Test("workflow_started maps to running")
+    func workflowStartedMapsToRunning() {
+        #expect(activityMapActivityType("workflow_started") == .running)
+    }
+
+    @MainActor
+    @Test("runsByWorkflow surfaces started run and lets terminal event win")
+    func runsByWorkflowUsesNewestActivityPerThread() {
+        let library = LibraryManager.LibraryReference(
+            url: FileManager.default.temporaryDirectory.appendingPathComponent("ActivityRunMappingTests.fichero"),
+            document: FicheroDocument(),
+            displayName: "Test Library",
+            id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")
+        )
+        let started = ActivityItem(
+            id: "started",
+            type: "workflow_started",
+            level: "info",
+            timestamp: "2026-06-25T12:00:00Z",
+            message: "Workflow 'Transcribe' started",
+            workflowId: "wf-1",
+            threadId: "thread-1"
+        )
+        let completed = ActivityItem(
+            id: "completed",
+            type: "workflow_completed",
+            level: "info",
+            timestamp: "2026-06-25T12:00:05Z",
+            message: "Workflow 'Transcribe' completed",
+            workflowId: "wf-1",
+            threadId: "thread-1"
+        )
+
+        let groups = runsByWorkflow(
+            for: library,
+            activeExecutions: [:],
+            historicalRuns: [library.id: [started, completed]]
+        )
+        let runs = groups.values.flatMap { $0 }
+
+        #expect(runs.count == 1)
+        #expect(runs.first?.runId == "thread-1")
+        #expect(runs.first?.status == .completed)
+    }
+
     @Test("icon is the expected SF Symbol for every case")
     func iconValues() {
         #expect(ActivityRunStatus.running.icon == "play.circle.fill")

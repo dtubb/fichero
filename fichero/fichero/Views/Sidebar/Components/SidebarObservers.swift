@@ -112,6 +112,7 @@ extension SidebarView {
         defer { activityIsLoading = false }
 
         let types = [
+            "workflow_started",
             "workflow_completed",
             "workflow_failed",
             "workflow_cancelled"

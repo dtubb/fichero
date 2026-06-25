@@ -282,6 +282,7 @@
 		A13E7C352F27F32E00EC9EE1 /* ScheduleRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C322F27F32E00EC9EE1 /* ScheduleRow.swift */; };
 		A13E7C382F27F33C00EC9EE1 /* WorkflowExecutionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C372F27F33C00EC9EE1 /* WorkflowExecutionRow.swift */; };
 		A13E7C3A2F27F36000EC9EE1 /* ActivityServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C392F27F36000EC9EE1 /* ActivityServiceGenerated.swift */; };
+		A13E7C3D2F27F36000EC9EE1 /* ActivityStreamService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C3E2F27F36000EC9EE1 /* ActivityStreamService.swift */; };
 		A13E7C3C2F27F36000EC9EE1 /* ActivityTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C3B2F27F36000EC9EE1 /* ActivityTypes.swift */; };
 		A13E7C462F280BE900EC9EE1 /* ActivityProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C432F280BE900EC9EE1 /* ActivityProgressView.swift */; };
 		A13E7C492F280BE900EC9EE1 /* ActivityConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C3C2F280BE900EC9EE1 /* ActivityConsoleView.swift */; };
@@ -854,6 +855,7 @@
 		A13E7C332F27F32E00EC9EE1 /* TriggerRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerRow.swift; sourceTree = "<group>"; };
 		A13E7C372F27F33C00EC9EE1 /* WorkflowExecutionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowExecutionRow.swift; sourceTree = "<group>"; };
 		A13E7C392F27F36000EC9EE1 /* ActivityServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityServiceGenerated.swift; sourceTree = "<group>"; };
+		A13E7C3E2F27F36000EC9EE1 /* ActivityStreamService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityStreamService.swift; sourceTree = "<group>"; };
 		A13E7C3B2F27F36000EC9EE1 /* ActivityTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityTypes.swift; sourceTree = "<group>"; };
 		A13E7C3C2F280BE900EC9EE1 /* ActivityConsoleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityConsoleView.swift; sourceTree = "<group>"; };
 		A13E7C412F280BE900EC9EE1 /* ActivityLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityLogView.swift; sourceTree = "<group>"; };
@@ -1549,6 +1551,7 @@
 				A13E7C2C2F27E17F00EC9EE1 /* ProviderServiceGenerated.swift */,
 				A13E7C2D2F27E17F00EC9EE1 /* SearchServiceGenerated.swift */,
 				A13E7C392F27F36000EC9EE1 /* ActivityServiceGenerated.swift */,
+				A13E7C3E2F27F36000EC9EE1 /* ActivityStreamService.swift */,
 				AUT00012F27F36000EC9EE1 /* AutomationServiceGenerated.swift */,
 				A13E7C632F27F36000EC9EE1 /* ArtifactServiceGenerated.swift */,
 				A13E7C662F27F36000EC9EE1 /* StorageServiceGenerated.swift */,
@@ -2340,6 +2343,7 @@
 				039 /* ChainService.swift in Sources */,
 				200BCF382F3D548000D7851A /* ContentView+Persistence.swift in Sources */,
 				A13E7C3A2F27F36000EC9EE1 /* ActivityServiceGenerated.swift in Sources */,
+				A13E7C3D2F27F36000EC9EE1 /* ActivityStreamService.swift in Sources */,
 				202674AA2F476453008EAB5D /* ExtractEntitiesNodeConfig.swift in Sources */,
 				202674B42F4783A9008EAB5D /* WorkflowNodeCard.swift in Sources */,
 				AUT00022F27F36000EC9EE1 /* AutomationServiceGenerated.swift in Sources */,
