@@ -70,10 +70,16 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
     /// Use for the pin button or other trailing actions.
     let trailing: Trailing
 
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
     // Split controls are injected by SplittablePane via environment so they
     // live inside the existing toolbar bar rather than requiring a separate
     // bar on top (#2309).
     @Environment(\.splitAxisActions) private var splitActions
+
+    private var shouldShowSplitButtons: Bool {
+        horizontalSizeClass != .compact
+    }
 
     init(@ViewBuilder content: () -> Content, @ViewBuilder trailing: () -> Trailing) {
         self.content = content()
@@ -84,7 +90,7 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
         #if os(visionOS)
         HStack(spacing: 12) {
             content
-            if let actions = splitActions {
+            if let actions = splitActions, shouldShowSplitButtons {
                 splitButtonsView(for: actions)
             }
             trailing
@@ -97,7 +103,7 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
         GlassEffectContainer {
             HStack(spacing: 12) {
                 content
-                if let actions = splitActions {
+                if let actions = splitActions, shouldShowSplitButtons {
                     splitButtonsView(for: actions)
                 }
                 trailing
@@ -325,4 +331,3 @@ private struct MiniToolbarGate<Bottom: View, Toolbar: View>: View {
         }
     }
 }
-
