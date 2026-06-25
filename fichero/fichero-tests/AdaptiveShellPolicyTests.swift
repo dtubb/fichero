@@ -249,6 +249,7 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         XCTAssertTrue(contentSource.contains("detailShellColumn"))
         XCTAssertTrue(buildersSource.contains("var detailShellColumn: some View"))
         XCTAssertTrue(buildersSource.contains("detailTabStrip"))
+        XCTAssertTrue(buildersSource.contains("detailLocationPathBar"))
         XCTAssertTrue(buildersSource.contains("detailStatusPathBar"))
         XCTAssertTrue(buildersSource.contains("WindowOpener.open(libraryId: windowState.libraryId, asTab: true"))
         XCTAssertTrue(buildersSource.contains("background(Color(platformColor: .windowBackgroundColor))"))

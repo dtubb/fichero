@@ -484,6 +484,7 @@ extension ContentView {
     var detailShellColumn: some View {
         VStack(spacing: 0) {
             detailTabStrip
+            detailLocationPathBar
             Divider()
             centerContent
             detailStatusPathBar
@@ -535,6 +536,22 @@ extension ContentView {
             .frame(height: 24)
             .background(.bar)
         }
+    }
+
+    private var detailLocationPathBar: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
+                .foregroundStyle(.secondary)
+            Text(selectionPathText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 22)
+        .background(.bar)
+        .accessibilityIdentifier("detailLocationPathBar")
     }
 
     // MARK: - Compact (iPhone) forward navigation (#2551)
