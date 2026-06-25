@@ -454,6 +454,7 @@ struct ZoomableImagePreview: View {
 
     @Environment(DocumentStore.self) private var documentStore
     @EnvironmentObject private var storageService: StorageServiceGenerated
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     @State private var scale: CGFloat = 1.0
     @State private var cursorPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)
@@ -467,6 +468,10 @@ struct ZoomableImagePreview: View {
 
     private let minScale: CGFloat = 0.01
     private let maxScale: CGFloat = 10.0
+
+    private var isCompact: Bool {
+        horizontalSizeClass == .compact
+    }
 
     /// Image/page siblings in the current folder, in display order.
     private var siblingImageDocs: [Document] {
@@ -509,37 +514,44 @@ struct ZoomableImagePreview: View {
         VStack(spacing: 0) {
             MiniToolbar {
                 Spacer(minLength: 0)
-                Button(action: zoomOut) {
-                    Image(systemName: "minus.magnifyingglass")
+                if isCompact {
+                    Text("\(Int(scale * 100))%")
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                } else {
+                    Button(action: zoomOut) {
+                        Image(systemName: "minus.magnifyingglass")
+                    }
+                    .buttonStyle(.plain)
+                    .help("Zoom Out")
+
+                    Text("\(Int(scale * 100))%")
+                        .font(.caption)
+                        .monospacedDigit()
+                        .frame(width: 50)
+
+                    Button(action: zoomIn) {
+                        Image(systemName: "plus.magnifyingglass")
+                    }
+                    .buttonStyle(.plain)
+                    .help("Zoom In")
+
+                    Divider()
+                        .frame(height: 16)
+
+                    Button(action: fitToWindow) {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    }
+                    .buttonStyle(.plain)
+                    .help("Fit to Window")
+
+                    Button(action: actualSize) {
+                        Image(systemName: "1.square")
+                    }
+                    .buttonStyle(.plain)
+                    .help("Actual Size (100%)")
                 }
-                .buttonStyle(.plain)
-                .help("Zoom Out")
-
-                Text("\(Int(scale * 100))%")
-                    .font(.caption)
-                    .monospacedDigit()
-                    .frame(width: 50)
-
-                Button(action: zoomIn) {
-                    Image(systemName: "plus.magnifyingglass")
-                }
-                .buttonStyle(.plain)
-                .help("Zoom In")
-
-                Divider()
-                    .frame(height: 16)
-
-                Button(action: fitToWindow) {
-                    Image(systemName: "arrow.up.left.and.arrow.down.right")
-                }
-                .buttonStyle(.plain)
-                .help("Fit to Window")
-
-                Button(action: actualSize) {
-                    Image(systemName: "1.square")
-                }
-                .buttonStyle(.plain)
-                .help("Actual Size (100%)")
 
                 Spacer()
             }
