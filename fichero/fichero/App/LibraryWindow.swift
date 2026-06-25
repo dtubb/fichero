@@ -109,15 +109,8 @@ struct LibraryWindow: View {
     // App-level sheet presenters, split out from the onChange chain in `body`.
     private var libraryWindowSheets: some View {
         libraryWindowChrome
-        // App-level sheets (providers, MCP servers) - must be here to work when no library is open
-        .sheet(isPresented: Binding(
-            get: { appState.showProvidersSettings },
-            set: { appState.showProvidersSettings = $0 }
-        )) {
-            ProvidersSettingsSheet()
-                .environmentObject(appState)
-                .environmentObject(appState.providerService)
-        }
+        // App-level sheets must be here to work when no library is open.
+        // AI providers/models now live inside the native Settings window (#2586).
         .sheet(isPresented: Binding(
             get: { appState.showAddProvider },
             set: { appState.showAddProvider = $0 }

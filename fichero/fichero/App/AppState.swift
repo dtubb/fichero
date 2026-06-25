@@ -23,7 +23,6 @@ class AppState: ObservableObject {
     // MARK: - Provider Management
 
     @Published var providers: [Components.Schemas.ProviderResponse] = []
-    @Published var showProvidersSettings: Bool = false
     @Published var showAddProvider: Bool = false
     @Published var hasCheckedProviders: Bool = false
     @Published var isFirstLaunchProviderSetup: Bool = false  // True when showing Add Provider on first launch

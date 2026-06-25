@@ -90,14 +90,6 @@ struct SheetModifiers: ViewModifier {
                 .environmentObject(appState.providerService)
             }
             .sheet(isPresented: Binding(
-                get: { appState.showProvidersSettings },
-                set: { appState.showProvidersSettings = $0 }
-            )) {
-                ProvidersSettingsSheet()
-                    .environmentObject(appState)
-                    .environmentObject(appState.providerService)
-            }
-            .sheet(isPresented: Binding(
                 get: { appState.showMCPServers },
                 set: { appState.showMCPServers = $0 }
             )) {

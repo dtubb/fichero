@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - AI Settings
 
-/// Settings for default AI models with Defaults and Advanced sub-tabs
+/// Settings for AI providers, defaults, and local model downloads.
 struct AISettingsView: View {
     @EnvironmentObject var appState: AppState
     @ObservedObject var featureManager = FeatureManager.shared
@@ -11,7 +11,7 @@ struct AISettingsView: View {
     @State var isLoading = true
     @State var isSaving = false
     @State var errorMessage: String?
-    @State private var selectedTab = 0
+    @State private var selectedTab = AISettingsTab.defaults
 
     // Model lists per category
     @State var textModels: [ModelInfo] = []
@@ -41,20 +41,31 @@ struct AISettingsView: View {
                 }
                 .formStyle(.grouped)
             } else {
-                if featureManager.isSettingsAIAdvancedTabEnabled {
-                    Picker("", selection: $selectedTab) {
-                        Text("Defaults").tag(0)
-                        Text("Advanced").tag(1)
+                Picker("", selection: $selectedTab) {
+                    Text("Defaults").tag(AISettingsTab.defaults)
+                    Text("Models & Providers").tag(AISettingsTab.providers)
+                    Text("Downloads").tag(AISettingsTab.downloads)
+                    if featureManager.isSettingsAIAdvancedTabEnabled {
+                        Text("Advanced").tag(AISettingsTab.advanced)
                     }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal)
-                    .padding(.top, 8)
                 }
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+                .padding(.top, 8)
 
-                if !featureManager.isSettingsAIAdvancedTabEnabled || selectedTab == 0 {
+                switch selectedTab {
+                case .defaults:
                     defaultsTab
-                } else {
-                    advancedTab
+                case .providers:
+                    providersTab
+                case .downloads:
+                    downloadsTab
+                case .advanced:
+                    if featureManager.isSettingsAIAdvancedTabEnabled {
+                        advancedTab
+                    } else {
+                        defaultsTab
+                    }
                 }
             }
 
@@ -76,4 +87,11 @@ struct AISettingsView: View {
             }
         }
     }
+}
+
+enum AISettingsTab: Hashable {
+    case defaults
+    case providers
+    case downloads
+    case advanced
 }

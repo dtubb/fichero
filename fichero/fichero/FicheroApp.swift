@@ -277,7 +277,7 @@ struct FicheroApp: App {
                 Divider()
 
                 Button {
-                    appState.showProvidersSettings = true
+                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
                 } label: {
                     Label("AI Providers & Models...", systemImage: "cpu")
                 }
@@ -378,9 +378,9 @@ struct FicheroApp: App {
         // main WindowGroup do NOT flow into it. Every object a settings pane
         // reads via @EnvironmentObject must be re-injected here, or its body
         // traps with "No ObservableObject of type … found" the moment the pane
-        // is constructed. TabView builds ALL tabs eagerly, so the Models tab's
-        // LocalModelsSettingsView (which needs LibraryManager) is constructed on
-        // open even when it isn't the front tab — hence the crash (#2051).
+        // is constructed. TabView builds ALL tabs eagerly, so AI's Downloads
+        // area (which needs LibraryManager) is constructed on open even when it
+        // isn't the front segment — hence the crash guard from #2051.
         Settings {
             SettingsView()
                 .environmentObject(appState)
