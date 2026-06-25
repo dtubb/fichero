@@ -1240,6 +1240,22 @@ def _make_parallel_node_function(
         index = state.get("parallel_index", 0)
         total = state.get("parallel_total", 1)
 
+        event_document_meta: dict[str, Any] = {}
+        if isinstance(document, dict):
+            leaf_id = document.get("id")
+            parent_id = document.get("parent_id")
+            display_name = document.get("name")
+            sequence = document.get("sequence")
+            if isinstance(parent_id, str) and parent_id and isinstance(leaf_id, str) and leaf_id:
+                event_document_meta["document_id"] = parent_id
+                event_document_meta["page_id"] = leaf_id
+            elif isinstance(leaf_id, str) and leaf_id:
+                event_document_meta["document_id"] = leaf_id
+            if isinstance(display_name, str) and display_name:
+                event_document_meta["display_name"] = display_name
+            if isinstance(sequence, int):
+                event_document_meta["sequence"] = sequence
+
         # Get library path for cache access
         library_path = state.get("library_path", "")
 
@@ -1297,12 +1313,13 @@ def _make_parallel_node_function(
                                     {
                                         "node_id": node_id,
                                         "file_path": file_path,
-                                        "file_index": index,
-                                        "file_total": total,
-                                        "progress": float(index + 1) / max(total, 1),
-                                        "cached": True,
-                                    },
-                                )
+                                    "file_index": index,
+                                    "file_total": total,
+                                    "progress": float(index + 1) / max(total, 1),
+                                    "cached": True,
+                                    **event_document_meta,
+                                },
+                            )
                             except Exception as cb_err:
                                 logger.warning(
                                     f"Failed to emit cached file_complete event: {cb_err}"
@@ -1337,6 +1354,7 @@ def _make_parallel_node_function(
                         "file_index": index,
                         "file_total": total,
                         "progress": float(index) / max(total, 1),
+                        **event_document_meta,
                     },
                 )
             except Exception as e:
@@ -1362,6 +1380,8 @@ def _make_parallel_node_function(
                     payload.setdefault("file_path", file_path)
                     payload.setdefault("file_index", index)
                     payload.setdefault("file_total", total)
+                    for meta_key, meta_value in event_document_meta.items():
+                        payload.setdefault(meta_key, meta_value)
                     await event_callback(event_type, payload)
 
                 tool_inputs["__progress_callback"] = emit_tool_progress
@@ -1402,6 +1422,7 @@ def _make_parallel_node_function(
                                 "file_total": total,
                                 "error": error_msg,
                                 "progress": float(index + 1) / max(total, 1),
+                                **event_document_meta,
                             },
                         )
                     except Exception as cb_err:
@@ -1456,6 +1477,7 @@ def _make_parallel_node_function(
                             "file_index": index,
                             "file_total": total,
                             "progress": float(index + 1) / max(total, 1),
+                            **event_document_meta,
                         },
                     )
                 except Exception as cb_err:
@@ -1502,6 +1524,7 @@ def _make_parallel_node_function(
                             "file_total": total,
                             "error": error_msg,
                             "progress": float(index + 1) / max(total, 1),
+                            **event_document_meta,
                         },
                     )
                 except Exception as cb_err:

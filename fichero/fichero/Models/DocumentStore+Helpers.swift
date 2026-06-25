@@ -185,22 +185,32 @@ extension DocumentStore {
 
     // MARK: - Processing Status Updates
 
-    /// Update the processing status of a document by its file path.
+    /// Update the processing status of a document by its stable identity when
+    /// available, falling back to the shared file path for older events.
     /// This is used during workflow execution to show visual feedback.
     /// The status is in-memory only and reverts on app restart.
-    func updateProcessingStatus(forPath filePath: String, status: Status) {
+    func updateProcessingStatus(for identity: FileProgressIdentity, status: Status) {
+        let filePath = identity.filePath
+        let documentId = identity.leafDocumentId
         var matchCount = 0
         var matchedDocId: String?
 
+        func matches(_ document: Document) -> Bool {
+            if let documentId {
+                return document.id == documentId
+            }
+            return document.path == filePath
+        }
+
         // Update in collections
-        if let index = collections.firstIndex(where: { $0.path == filePath }) {
+        if let index = collections.firstIndex(where: matches) {
             collections[index].status = status
             matchedDocId = collections[index].id
             matchCount += 1
         }
 
         // Update in current documents
-        if let index = currentDocuments.firstIndex(where: { $0.path == filePath }) {
+        if let index = currentDocuments.firstIndex(where: matches) {
             currentDocuments[index].status = status
             matchedDocId = currentDocuments[index].id
             matchCount += 1
@@ -208,7 +218,7 @@ extension DocumentStore {
 
         // Update in cache
         for (parentId, children) in childrenCache {
-            if let index = children.firstIndex(where: { $0.path == filePath }) {
+            if let index = children.firstIndex(where: matches) {
                 childrenCache[parentId]?[index].status = status
                 matchedDocId = children[index].id
                 matchCount += 1
@@ -216,7 +226,7 @@ extension DocumentStore {
         }
 
         // Update selection if needed
-        if selectedDocument?.path == filePath {
+        if let selectedDocument, matches(selectedDocument) {
             selectedDocument?.status = status
             matchedDocId = selectedDocument?.id
             matchCount += 1
@@ -239,28 +249,63 @@ extension DocumentStore {
         // fire" or "events fire but paths don't match".
         if matchCount == 0 {
             let logger = Logger(subsystem: "app.fichero.fichero", category: "DocumentStore")
-            logger.warning("updateProcessingStatus: no document matched path '\(filePath, privacy: .public)' — spinner won't update (#767)")
+            if let documentId {
+                logger.warning(
+                    "updateProcessingStatus: no document matched id '\(documentId, privacy: .public)' (path '\(filePath, privacy: .public)')"
+                )
+            } else {
+                logger.warning(
+                    "updateProcessingStatus: no document matched path '\(filePath, privacy: .public)' — spinner won't update (#767)"
+                )
+            }
         }
     }
 
-    /// Record that the per-file fanout slot for `filePath` has finished —
+    /// Compatibility wrapper for legacy path-only callers.
+    func updateProcessingStatus(forPath filePath: String, status: Status) {
+        updateProcessingStatus(
+            for: FileProgressIdentity(
+                filePath: filePath,
+                documentId: nil,
+                pageId: nil,
+                displayName: nil,
+                sequence: nil
+            ),
+            status: status
+        )
+    }
+
+    /// Record that the per-file fanout slot for this identity has finished —
     /// but DO NOT flip the document's status to `.completed` yet. Reduce-phase
     /// nodes (extract_all, folder_cleanup) keep touching pages after the
     /// fanout's `fileComplete` event fires. The status stays `.processing`
     /// until the workflow's `complete` event fires and
     /// `flushPendingFanoutCompletions` promotes everything. (#948)
+    func recordFanoutComplete(for identity: FileProgressIdentity) {
+        pendingFanoutCompletions[identity.stableId] = identity
+    }
+
+    /// Compatibility wrapper for legacy path-only callers.
     func recordFanoutComplete(forPath filePath: String) {
-        pendingFanoutCompletionPaths.insert(filePath)
+        recordFanoutComplete(
+            for: FileProgressIdentity(
+                filePath: filePath,
+                documentId: nil,
+                pageId: nil,
+                displayName: nil,
+                sequence: nil
+            )
+        )
     }
 
     /// Promote every path recorded via `recordFanoutComplete` to `.completed`.
     /// Called by workflow-runner sites when the workflow's terminal event
     /// (`complete` / `error` / `systemicError`) arrives. (#948)
     func flushPendingFanoutCompletions(status: Status = .completed) {
-        let paths = pendingFanoutCompletionPaths
-        pendingFanoutCompletionPaths.removeAll()
-        for path in paths {
-            updateProcessingStatus(forPath: path, status: status)
+        let completions = pendingFanoutCompletions.values
+        pendingFanoutCompletions.removeAll()
+        for identity in completions {
+            updateProcessingStatus(for: identity, status: status)
         }
     }
 

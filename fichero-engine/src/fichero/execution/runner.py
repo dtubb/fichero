@@ -655,6 +655,10 @@ async def _run_workflow_in_background(
                     "file_index",
                     "file_total",
                     "progress",
+                    "document_id",
+                    "page_id",
+                    "display_name",
+                    "sequence",
                 }
             }
             if event_type == "file_error":
@@ -674,6 +678,10 @@ async def _run_workflow_in_background(
                     file_index=data.get("file_index"),
                     file_total=data.get("file_total"),
                     progress=data.get("progress"),
+                    document_id=data.get("document_id"),
+                    page_id=data.get("page_id"),
+                    display_name=data.get("display_name"),
+                    sequence=data.get("sequence"),
                     data=event_payload,
                 )
             )
@@ -694,6 +702,8 @@ async def _run_workflow_in_background(
                         "type": "file",
                         "node_id": data.get("node_id", ""),
                         "file_path": file_path,
+                        "document_id": data.get("document_id"),
+                        "page_id": data.get("page_id"),
                         "file_index": file_index,
                         "file_total": file_total,
                         "started_at": datetime.now(timezone.utc).isoformat(),
@@ -711,6 +721,8 @@ async def _run_workflow_in_background(
                 for entry in reversed(progress_timeline["steps"]):
                     if (
                         entry.get("type") == "file"
+                        and entry.get("node_id") == data.get("node_id", "")
+                        and entry.get("page_id") == data.get("page_id")
                         and entry.get("file_path") == file_path
                         and entry.get("status") == "running"
                     ):
@@ -740,6 +752,8 @@ async def _run_workflow_in_background(
                 for entry in reversed(progress_timeline["steps"]):
                     if (
                         entry.get("type") == "file"
+                        and entry.get("node_id") == data.get("node_id", "")
+                        and entry.get("page_id") == data.get("page_id")
                         and entry.get("file_path") == file_path
                         and entry.get("status") == "running"
                     ):

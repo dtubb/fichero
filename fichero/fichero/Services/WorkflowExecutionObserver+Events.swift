@@ -97,8 +97,18 @@ extension WorkflowExecution {
             execution.totalFiles = fileTotal
             execution.processedFiles = 0
 
-        case .fileStart(_, let nodeId, let filePath, let fileIndex, let fileTotal, let progress):
-            let fileName = (filePath as NSString).lastPathComponent
+        case .fileStart(
+            _, let nodeId, let filePath, let fileIndex, let fileTotal, let progress,
+            let documentId, let pageId, let displayName, let sequence
+        ):
+            let identity = FileProgressIdentity(
+                filePath: filePath,
+                documentId: documentId,
+                pageId: pageId,
+                displayName: displayName,
+                sequence: sequence
+            )
+            let fileName = identity.resolvedDisplayName
             workflowExecutionLogger.debug("File start: \(fileName) (\(fileIndex + 1)/\(fileTotal))")
 
             // Drive `overallProgress` off the accurate processedFiles/totalFiles
@@ -120,17 +130,27 @@ extension WorkflowExecution {
             execution.nodeStates[nodeId] = state
 
             // Update document progress
-            var docProgress = execution.documentProgress[filePath] ?? DocumentProgress(
-                id: filePath,
+            var docProgress = execution.documentProgress[identity.stableId] ?? DocumentProgress(
+                id: identity.stableId,
                 documentName: fileName,
                 stepStatuses: [:]
             )
             docProgress.stepStatuses[nodeId] = .running
-            execution.documentProgress[filePath] = docProgress
+            execution.documentProgress[identity.stableId] = docProgress
             execution.currentFilePath = filePath
 
-        case .fileComplete(_, let nodeId, let filePath, let fileIndex, let fileTotal, let progress, let cached):
-            let fileName = (filePath as NSString).lastPathComponent
+        case .fileComplete(
+            _, let nodeId, let filePath, let fileIndex, let fileTotal, let progress, let cached,
+            let documentId, let pageId, let displayName, let sequence
+        ):
+            let identity = FileProgressIdentity(
+                filePath: filePath,
+                documentId: documentId,
+                pageId: pageId,
+                displayName: displayName,
+                sequence: sequence
+            )
+            let fileName = identity.resolvedDisplayName
             workflowExecutionLogger.debug("File complete: \(fileName) (\(fileIndex + 1)/\(fileTotal))")
 
             // Seed totalFiles here too — a cached file_complete (#700) skips
@@ -148,13 +168,13 @@ extension WorkflowExecution {
             execution.nodeStates[nodeId] = state
 
             // Update document progress
-            var docProgress = execution.documentProgress[filePath] ?? DocumentProgress(
-                id: filePath,
+            var docProgress = execution.documentProgress[identity.stableId] ?? DocumentProgress(
+                id: identity.stableId,
                 documentName: fileName,
                 stepStatuses: [:]
             )
             docProgress.stepStatuses[nodeId] = .completed(duration: nil, cached: cached)
-            execution.documentProgress[filePath] = docProgress
+            execution.documentProgress[identity.stableId] = docProgress
 
             // Track overall progress
             execution.processedFiles += 1
@@ -162,8 +182,18 @@ extension WorkflowExecution {
             // (The observer raises `fileCompletedCount` in `handleEvent` — it is
             // an observer-level inspector signal, not part of this reducer.)
 
-        case .fileError(_, let nodeId, let filePath, let error, let progress):
-            let fileName = (filePath as NSString).lastPathComponent
+        case .fileError(
+            _, let nodeId, let filePath, let error, let progress,
+            let documentId, let pageId, let displayName, let sequence
+        ):
+            let identity = FileProgressIdentity(
+                filePath: filePath,
+                documentId: documentId,
+                pageId: pageId,
+                displayName: displayName,
+                sequence: sequence
+            )
+            let fileName = identity.resolvedDisplayName
             workflowExecutionLogger.warning("File error: \(fileName) - \(error)")
 
             // Update node state
@@ -175,13 +205,13 @@ extension WorkflowExecution {
             execution.nodeStates[nodeId] = state
 
             // Update document progress
-            var docProgress = execution.documentProgress[filePath] ?? DocumentProgress(
-                id: filePath,
+            var docProgress = execution.documentProgress[identity.stableId] ?? DocumentProgress(
+                id: identity.stableId,
                 documentName: fileName,
                 stepStatuses: [:]
             )
             docProgress.stepStatuses[nodeId] = .failed(error: error)
-            execution.documentProgress[filePath] = docProgress
+            execution.documentProgress[identity.stableId] = docProgress
 
             // Track overall progress (errors also count as processed)
             execution.processedFiles += 1

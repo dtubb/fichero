@@ -68,14 +68,14 @@ final class DocumentStore {
     /// workspaces surfaced in the Research sidebar's Workspaces section (#1617).
     var workspaces: [Document] = []
 
-    /// File paths whose per-file fanout slot has finished (the `fileComplete`
-    /// SSE event arrived) but whose enclosing workflow is still running
-    /// reduce-phase nodes that further touch the page (extract_all, etc.).
-    /// Held here so the sidebar/grid keep showing a spinner — flipping to
-    /// the green checkmark happens only when the workflow's `complete`
-    /// event fires and `flushPendingFanoutCompletions` runs (#948).
+    /// File/page identities whose per-file fanout slot has finished (the
+    /// `fileComplete` SSE event arrived) but whose enclosing workflow is still
+    /// running reduce-phase nodes that further touch the page (extract_all,
+    /// etc.). Keyed by the stable page/document identity from the workflow
+    /// stream so sibling PDF pages that share one parent path do not collapse
+    /// onto one pending slot (#2634).
     @ObservationIgnored
-    var pendingFanoutCompletionPaths: Set<String> = []
+    var pendingFanoutCompletions: [String: FileProgressIdentity] = [:]
 
     /// Publisher for document changes.
     var documentChangePublisher: AnyPublisher<DocumentChange, Error> {

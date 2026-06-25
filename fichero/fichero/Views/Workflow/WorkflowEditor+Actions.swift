@@ -218,16 +218,22 @@ extension WorkflowEditor {
         guard let documentStore = documentStore else { return }
 
         switch event {
-        case .fileStart(_, _, let filePath, _, _, _):
-            documentStore.updateProcessingStatus(forPath: filePath, status: .processing)
+        case .fileStart:
+            if let identity = event.fileProgressIdentity {
+                documentStore.updateProcessingStatus(for: identity, status: .processing)
+            }
 
-        case .fileComplete(_, _, let filePath, _, _, _, _):
+        case .fileComplete:
             // Defer the green checkmark — reduce-phase nodes may still
             // be touching this page (#948).
-            documentStore.recordFanoutComplete(forPath: filePath)
+            if let identity = event.fileProgressIdentity {
+                documentStore.recordFanoutComplete(for: identity)
+            }
 
-        case .fileError(_, _, let filePath, _, _):
-            documentStore.updateProcessingStatus(forPath: filePath, status: .failed)
+        case .fileError:
+            if let identity = event.fileProgressIdentity {
+                documentStore.updateProcessingStatus(for: identity, status: .failed)
+            }
 
         case .complete:
             documentStore.flushPendingFanoutCompletions(status: .completed)

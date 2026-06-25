@@ -40,26 +40,50 @@ struct WorkflowExecutionReducerTests {
         )
     }
 
-    private func fileStart(_ index: Int, total: Int) -> WorkflowStreamEvent {
+    private func fileStart(
+        _ index: Int,
+        total: Int,
+        filePath: String? = nil,
+        documentId: String? = nil,
+        pageId: String? = nil,
+        displayName: String? = nil,
+        sequence: Int? = nil
+    ) -> WorkflowStreamEvent {
         .fileStart(
             threadId: "thread-1",
             nodeId: "node-1",
-            filePath: "/docs/page-\(index).pdf",
+            filePath: filePath ?? "/docs/page-\(index).pdf",
             fileIndex: index,
             fileTotal: total,
-            progress: Double(index) / Double(total)
+            progress: Double(index) / Double(total),
+            documentId: documentId,
+            pageId: pageId,
+            displayName: displayName,
+            sequence: sequence
         )
     }
 
-    private func fileComplete(_ index: Int, total: Int) -> WorkflowStreamEvent {
+    private func fileComplete(
+        _ index: Int,
+        total: Int,
+        filePath: String? = nil,
+        documentId: String? = nil,
+        pageId: String? = nil,
+        displayName: String? = nil,
+        sequence: Int? = nil
+    ) -> WorkflowStreamEvent {
         .fileComplete(
             threadId: "thread-1",
             nodeId: "node-1",
-            filePath: "/docs/page-\(index).pdf",
+            filePath: filePath ?? "/docs/page-\(index).pdf",
             fileIndex: index,
             fileTotal: total,
             progress: Double(index + 1) / Double(total),
-            cached: false
+            cached: false,
+            documentId: documentId,
+            pageId: pageId,
+            displayName: displayName,
+            sequence: sequence
         )
     }
 
@@ -114,7 +138,11 @@ struct WorkflowExecutionReducerTests {
                 nodeId: "node-1",
                 filePath: "/docs/page-1.pdf",
                 error: "boom",
-                progress: 1.0
+                progress: 1.0,
+                documentId: nil,
+                pageId: nil,
+                displayName: nil,
+                sequence: nil
             )
         )
 
@@ -132,5 +160,59 @@ struct WorkflowExecutionReducerTests {
 
         #expect(execution.isRunning == false)
         #expect(execution.overallProgress == nil)
+    }
+
+    @Test("duplicate parent paths stay distinct when page ids differ")
+    func duplicateParentPathsUseStablePageIdentity() {
+        var execution = runningExecution()
+        let sharedPath = "/docs/scan.pdf"
+
+        execution.apply(
+            fileStart(
+                0,
+                total: 2,
+                filePath: sharedPath,
+                documentId: "pdf-1",
+                pageId: "page-1",
+                displayName: "Page 1",
+                sequence: 1
+            )
+        )
+        execution.apply(
+            fileStart(
+                1,
+                total: 2,
+                filePath: sharedPath,
+                documentId: "pdf-1",
+                pageId: "page-2",
+                displayName: "Page 2",
+                sequence: 2
+            )
+        )
+        execution.apply(
+            fileComplete(
+                0,
+                total: 2,
+                filePath: sharedPath,
+                documentId: "pdf-1",
+                pageId: "page-1",
+                displayName: "Page 1",
+                sequence: 1
+            )
+        )
+
+        #expect(execution.documentProgress.count == 2)
+        #expect(execution.documentProgress["page-1"]?.documentName == "Page 1")
+        #expect(execution.documentProgress["page-2"]?.documentName == "Page 2")
+        if case .completed? = execution.documentProgress["page-1"]?.stepStatuses["node-1"] {
+            // expected
+        } else {
+            Issue.record("Expected page-1 to be completed")
+        }
+        if case .running? = execution.documentProgress["page-2"]?.stepStatuses["node-1"] {
+            // expected
+        } else {
+            Issue.record("Expected page-2 to remain running")
+        }
     }
 }

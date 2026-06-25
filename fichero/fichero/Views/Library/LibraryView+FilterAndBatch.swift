@@ -707,12 +707,18 @@ extension LibraryView {
         executionObserver.handleEvent(event, for: workflowId)
         if let store = documentStore {
             switch event {
-            case .fileStart(_, _, let filePath, _, _, _):
-                store.updateProcessingStatus(forPath: filePath, status: .processing)
-            case .fileComplete(_, _, let filePath, _, _, _, _):
-                store.recordFanoutComplete(forPath: filePath)
-            case .fileError(_, _, let filePath, _, _):
-                store.updateProcessingStatus(forPath: filePath, status: .failed)
+            case .fileStart:
+                if let identity = event.fileProgressIdentity {
+                    store.updateProcessingStatus(for: identity, status: .processing)
+                }
+            case .fileComplete:
+                if let identity = event.fileProgressIdentity {
+                    store.recordFanoutComplete(for: identity)
+                }
+            case .fileError:
+                if let identity = event.fileProgressIdentity {
+                    store.updateProcessingStatus(for: identity, status: .failed)
+                }
             default:
                 break
             }

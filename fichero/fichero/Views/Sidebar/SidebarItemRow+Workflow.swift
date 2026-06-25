@@ -81,14 +81,20 @@ extension SidebarItemRow {
         // Per-doc spinner: mirror SSE file events to Document.status so
         // grid icons + sidebar folders show processing state.
         switch event {
-        case .fileStart(_, _, let filePath, _, _, _):
-            store.updateProcessingStatus(forPath: filePath, status: .processing)
-        case .fileComplete(_, _, let filePath, _, _, _, _):
+        case .fileStart:
+            if let identity = event.fileProgressIdentity {
+                store.updateProcessingStatus(for: identity, status: .processing)
+            }
+        case .fileComplete:
             // Defer the green checkmark until workflow.complete so reduce-phase
             // nodes can keep processing the page.
-            store.recordFanoutComplete(forPath: filePath)
-        case .fileError(_, _, let filePath, _, _):
-            store.updateProcessingStatus(forPath: filePath, status: .failed)
+            if let identity = event.fileProgressIdentity {
+                store.recordFanoutComplete(for: identity)
+            }
+        case .fileError:
+            if let identity = event.fileProgressIdentity {
+                store.updateProcessingStatus(for: identity, status: .failed)
+            }
         default:
             break
         }

@@ -76,7 +76,11 @@ extension WorkflowStreamService {
                     filePath: filePath,
                     fileIndex: fileIndex,
                     fileTotal: fileTotal,
-                    progress: progress
+                    progress: progress,
+                    documentId: eventData.documentId,
+                    pageId: eventData.pageId,
+                    displayName: eventData.displayName,
+                    sequence: eventData.sequence
                 )
 
             case "file_complete":
@@ -94,7 +98,11 @@ extension WorkflowStreamService {
                     fileIndex: fileIndex,
                     fileTotal: fileTotal,
                     progress: progress,
-                    cached: cached
+                    cached: cached,
+                    documentId: eventData.documentId,
+                    pageId: eventData.pageId,
+                    displayName: eventData.displayName,
+                    sequence: eventData.sequence
                 )
 
             case "file_error":
@@ -108,7 +116,11 @@ extension WorkflowStreamService {
                     nodeId: nodeId,
                     filePath: filePath,
                     error: errorMsg,
-                    progress: progress
+                    progress: progress,
+                    documentId: eventData.documentId,
+                    pageId: eventData.pageId,
+                    displayName: eventData.displayName,
+                    sequence: eventData.sequence
                 )
 
             case "parallel_complete":

@@ -231,18 +231,29 @@ struct WorkflowStreamParsingTests {
                 "file_path": "/docs/test.pdf",
                 "file_index": 2,
                 "file_total": 10,
-                "progress": 0.2
+                "progress": 0.2,
+                "document_id": "pdf-1",
+                "page_id": "page-2",
+                "display_name": "Page 2",
+                "sequence": 2
             ]
         )
 
         let result = service.parseEvent(input)
 
-        if case .fileStart(_, let nodeId, let filePath, let fileIndex, let fileTotal, let progress) = result {
+        if case .fileStart(
+            _, let nodeId, let filePath, let fileIndex, let fileTotal, let progress,
+            let documentId, let pageId, let displayName, let sequence
+        ) = result {
             #expect(nodeId == "node-1")
             #expect(filePath == "/docs/test.pdf")
             #expect(fileIndex == 2)
             #expect(fileTotal == 10)
             #expect(progress == 0.2)
+            #expect(documentId == "pdf-1")
+            #expect(pageId == "page-2")
+            #expect(displayName == "Page 2")
+            #expect(sequence == 2)
         } else {
             Issue.record("Expected .fileStart event, got \(String(describing: result))")
         }
@@ -259,18 +270,29 @@ struct WorkflowStreamParsingTests {
                 "file_path": "/docs/done.pdf",
                 "file_index": 3,
                 "file_total": 10,
-                "progress": 0.3
+                "progress": 0.3,
+                "document_id": "pdf-1",
+                "page_id": "page-3",
+                "display_name": "Page 3",
+                "sequence": 3
             ]
         )
 
         let result = service.parseEvent(input)
 
-        if case .fileComplete(_, let nodeId, let filePath, let fileIndex, let fileTotal, let progress, _) = result {
+        if case .fileComplete(
+            _, let nodeId, let filePath, let fileIndex, let fileTotal, let progress, _,
+            let documentId, let pageId, let displayName, let sequence
+        ) = result {
             #expect(nodeId == "node-1")
             #expect(filePath == "/docs/done.pdf")
             #expect(fileIndex == 3)
             #expect(fileTotal == 10)
             #expect(progress == 0.3)
+            #expect(documentId == "pdf-1")
+            #expect(pageId == "page-3")
+            #expect(displayName == "Page 3")
+            #expect(sequence == 3)
         } else {
             Issue.record("Expected .fileComplete event, got \(String(describing: result))")
         }
@@ -285,17 +307,28 @@ struct WorkflowStreamParsingTests {
             extra: [
                 "node_id": "node-1",
                 "file_path": "/docs/bad.pdf",
-                "progress": 0.5
+                "progress": 0.5,
+                "document_id": "pdf-1",
+                "page_id": "page-4",
+                "display_name": "Page 4",
+                "sequence": 4
             ]
         )
 
         let result = service.parseEvent(input)
 
-        if case .fileError(_, let nodeId, let filePath, let error, let progress) = result {
+        if case .fileError(
+            _, let nodeId, let filePath, let error, let progress,
+            let documentId, let pageId, let displayName, let sequence
+        ) = result {
             #expect(nodeId == "node-1")
             #expect(filePath == "/docs/bad.pdf")
             #expect(error == "File corrupt")
             #expect(progress == 0.5)
+            #expect(documentId == "pdf-1")
+            #expect(pageId == "page-4")
+            #expect(displayName == "Page 4")
+            #expect(sequence == 4)
         } else {
             Issue.record("Expected .fileError event, got \(String(describing: result))")
         }
