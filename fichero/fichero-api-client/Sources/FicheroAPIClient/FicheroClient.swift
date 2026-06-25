@@ -27,6 +27,9 @@ public final class FicheroClient: ObservableObject {
     /// The base URL of the API server
     @Published public private(set) var baseURL: URL
 
+    /// The OpenAPI API root (`/api`) under `baseURL`.
+    public var apiBaseURL: URL { baseURL.appendingPathComponent("api") }
+
     /// The library path provider (for updating the path dynamically)
     private let libraryPathProvider: LibraryPathProvider
 

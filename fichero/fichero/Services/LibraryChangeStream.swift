@@ -211,12 +211,11 @@ final class LibraryChangeStream {
     }
 
     private func subscribeOnce(resyncOnConnect: Bool) async throws {
-        guard let url = URL(string: "\(baseURL)/changes/stream") else {
-            throw URLError(.badURL)
-        }
-        var request = URLRequest(url: url)
-        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-        request.addEngineAuth(libraryPath: libraryPath)
+        let request = engineEventStreamRequest(
+            baseURL: baseURL,
+            pathComponents: ["changes", "stream"],
+            libraryPath: libraryPath
+        )
 
         let (bytes, response) = try await urlSession.bytes(for: request)
         guard let http = response as? HTTPURLResponse else {

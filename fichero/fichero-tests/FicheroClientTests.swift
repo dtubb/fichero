@@ -12,11 +12,13 @@ struct FicheroClientTests {
         let client = FicheroClient(baseURL: originalURL, libraryPath: "/tmp/Test.fichero")
 
         #expect(client.baseURL == originalURL)
+        #expect(client.apiBaseURL == originalURL.appendingPathComponent("api"))
         #expect(client.currentLibraryPath == "/tmp/Test.fichero")
 
         client.reconfigure(baseURL: remoteURL)
 
         #expect(client.baseURL == remoteURL)
+        #expect(client.apiBaseURL == remoteURL.appendingPathComponent("api"))
         #expect(client.currentLibraryPath == "/tmp/Test.fichero")
     }
 }

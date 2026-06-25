@@ -50,7 +50,7 @@ class APIClient: ObservableObject {
     /// Backend API base URL (`host` with the `/api` prefix). Generic helpers
     /// append paths here; generated operations use `client.baseURL` directly
     /// because their OpenAPI paths already include `/api`.
-    var baseURL: URL { client.baseURL.appendingPathComponent("api") }
+    var baseURL: URL { client.apiBaseURL }
 
     /// Current library path - set by DocumentTabView when a library is loaded.
     /// Propagated to the generated client's `LibraryPathMiddleware` so every

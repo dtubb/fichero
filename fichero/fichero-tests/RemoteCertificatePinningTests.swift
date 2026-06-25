@@ -182,6 +182,23 @@ final class RemoteCertificatePinningTests: XCTestCase {
         XCTAssertNotNil(capture.credential)
     }
 
+    func testConfiguredSessionTaskDelegateAcceptsPinnedSelfSignedCertificate() throws {
+        let trustContext = try SelfSignedTrustFixture.makeTrust()
+        let hostString = "https://\(trustContext.host)"
+        RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostString)
+        try RemoteCertificatePinning.persistSPKIPin(trustContext.spkiPin, hostString: hostString)
+
+        let capture = try captureChallenge(
+            host: trustContext.host,
+            port: 443,
+            trust: trustContext.trust,
+            useTaskDelegate: true
+        )
+
+        XCTAssertEqual(capture.disposition, .useCredential)
+        XCTAssertNotNil(capture.credential)
+    }
+
     #if DEBUG
     func testConfiguredSessionDelegateBootstrapsLoopbackPinInDebug() throws {
         let trustContext = try SelfSignedTrustFixture.makeTrust()
@@ -220,7 +237,12 @@ final class RemoteCertificatePinningTests: XCTestCase {
 }
 
 #if canImport(Security)
-private func captureChallenge(host: String, port: Int, trust: SecTrust) throws -> ChallengeCapture {
+private func captureChallenge(
+    host: String,
+    port: Int,
+    trust: SecTrust,
+    useTaskDelegate: Bool = false
+) throws -> ChallengeCapture {
     let delegate = DynamicPinnedSessionDelegate()
     let protectionSpace = MockServerTrustProtectionSpace(
         host: host,
@@ -242,9 +264,17 @@ private func captureChallenge(host: String, port: Int, trust: SecTrust) throws -
 
     let expectation = XCTestExpectation(description: "challenge completion")
     let capture = ChallengeCapture()
-    delegate.urlSession(URLSession.shared, didReceive: challenge) { disposition, credential in
-        capture.set(disposition: disposition, credential: credential)
-        expectation.fulfill()
+    if useTaskDelegate {
+        let task = URLSession.shared.dataTask(with: URL(string: "https://\(host)")!)
+        delegate.urlSession(URLSession.shared, task: task, didReceive: challenge) { disposition, credential in
+            capture.set(disposition: disposition, credential: credential)
+            expectation.fulfill()
+        }
+    } else {
+        delegate.urlSession(URLSession.shared, didReceive: challenge) { disposition, credential in
+            capture.set(disposition: disposition, credential: credential)
+            expectation.fulfill()
+        }
     }
     _ = XCTWaiter.wait(for: [expectation], timeout: 1.0)
     return capture

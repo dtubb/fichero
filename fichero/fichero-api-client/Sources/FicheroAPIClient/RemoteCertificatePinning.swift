@@ -547,5 +547,15 @@ internal final class DynamicPinnedSessionDelegate: NSObject, URLSessionDelegate 
         let (disposition, credential) = RemoteCertificatePinning.resolveServerTrustChallenge(challenge)
         completionHandler(disposition, credential)
     }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didReceive challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+    ) {
+        let (disposition, credential) = RemoteCertificatePinning.resolveServerTrustChallenge(challenge)
+        completionHandler(disposition, credential)
+    }
 }
 #endif

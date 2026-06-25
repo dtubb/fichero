@@ -174,15 +174,12 @@ class WorkflowStreamService: ObservableObject {
         // is appended here to match the generated operation paths. Deriving the
         // host, library path, auth and pinning from this one client keeps the raw
         // byte stream from drifting off the generated transport (#2376 / #2538).
-        let streamUrl = client.baseURL
-            .appendingPathComponent("api")
-            .appendingPathComponent("workflow-execution")
-            .appendingPathComponent("stream")
-            .appendingPathComponent(threadId)
-
-        var request = URLRequest(url: streamUrl)
-        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-        request.addEngineAuth(libraryPath: client.currentLibraryPath)
+        let request = engineEventStreamRequest(
+            baseURL: client.apiBaseURL,
+            pathComponents: ["workflow-execution", "stream", threadId],
+            libraryPath: client.currentLibraryPath
+        )
+        let streamUrl = request.url!
 
         logger.info("Subscribing to event stream: \(streamUrl)")
 
