@@ -830,7 +830,7 @@ async def apple_vision_ocr_async(image_path: str, language: str = "en") -> str:
     return await loop.run_in_executor(None, apple_vision_ocr, image_path, language)
 
 
-@lru_cache(maxsize=32)
+@lru_cache(maxsize=4)
 def _batch_render_pdf_pages_to_cgimages(pdf_path: str, dpi: int = 300):
     """Open a PDF document ONCE and render all pages to CGImages. (#2247)
 
@@ -891,8 +891,8 @@ def _batch_render_pdf_pages_to_cgimages(pdf_path: str, dpi: int = 300):
         cg_image = CGBitmapContextCreateImage(ctx)
         cg_images.append(cg_image if cg_image else None)
 
-    # ponytail: cache the rendered pages per PDF path so per-page fan-out
-    # does not reopen the same source PDF for every page task.
+    # ponytail: small LRU for same-PDF fan-out; explicit render cache if
+    # cross-run PDF reuse ever matters.
     return tuple(cg_images), num_pages
 
 
