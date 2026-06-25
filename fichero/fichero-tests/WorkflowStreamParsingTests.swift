@@ -489,7 +489,7 @@ struct SSEEventDataDecodingTests {
             "data": {"workflow_name": "Test"},
             "timestamp": "2026-02-22T12:00:00Z"
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let event = try JSONDecoder().decode(SSEEventData.self, from: json)
         #expect(event.event == "start")
@@ -517,7 +517,7 @@ struct SSEEventDataDecodingTests {
             "file_total": 10,
             "progress": 0.2
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let event = try JSONDecoder().decode(SSEEventData.self, from: json)
         #expect(event.nodeId == "node-1")
@@ -540,7 +540,7 @@ struct SSEEventDataDecodingTests {
             },
             "timestamp": "2026-02-22T12:00:00Z"
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let event = try JSONDecoder().decode(SSEEventData.self, from: json)
         #expect(event.data["node_id"]?.stringValue == "node-abc")
@@ -562,7 +562,7 @@ struct ExecuteAcceptedResponseTests {
             "status": "running",
             "stream_url": "/api/stream/t-abc"
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let response = try JSONDecoder().decode(ExecuteAcceptedResponse.self, from: json)
         #expect(response.threadId == "t-abc")
