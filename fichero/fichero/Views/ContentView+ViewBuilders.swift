@@ -203,7 +203,7 @@ extension ContentView {
                 SidebarView(
                     sidebarMode: $sidebarMode,
                     viewMode: $viewMode,
-                    selectedItemId: $selectedSidebarItemId,
+                    selectionState: sidebarSelectionState,
                     libraryManager: LibraryManager.shared,
                     itemRegistry: itemRegistry,
                     apiClient: apiClient,

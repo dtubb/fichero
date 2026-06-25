@@ -306,7 +306,7 @@ extension ContentView {
     }
 
     var isEntityLibrarySelection: Bool {
-        selectedSidebarItemId == "entities-browser"
+        sidebarSelectionState.selectedItemId == "entities-browser"
     }
 
     static func shouldUseCompactNavigationFlow(horizontalSizeClass: UserInterfaceSizeClass?) -> Bool {
@@ -631,7 +631,7 @@ extension ContentView {
         )
         // sidebarSelectionId returns nil for "activity" with no run ID; use the
         // fixed tag so the Activity row stays highlighted after relaunch (#648).
-        selectedSidebarItemId = restoredId ?? (storedViewModeType == "activity" ? "activity-browser" : nil)
+        sidebarSelectionState.selectedItemId = restoredId ?? (storedViewModeType == "activity" ? "activity-browser" : nil)
     }
 
     /// Handles `.onChange(of: documentStore.currentDocuments)`.
@@ -820,7 +820,7 @@ extension ContentView {
                     let fetched: Document? = try? await documentStore.api.get(
                         "/documents/\(docId)"
                     )
-                    if let fetched, selectedSidebarItemId == prefixedId {
+                    if let fetched, sidebarSelectionState.selectedItemId == prefixedId {
                         applyDoc(fetched)
                     }
                 }

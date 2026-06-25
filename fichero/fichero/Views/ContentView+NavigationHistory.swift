@@ -9,7 +9,7 @@ extension ContentView {
         navigationHistory.push(AppNavigationHistory.Entry(
             viewType: serialized.type,
             viewItemId: serialized.id,
-            selectedSidebarItemId: selectedSidebarItemId,
+            selectedSidebarItemId: sidebarSelectionState.selectedItemId,
             browserSelection: browserSelection,
             detailDocumentId: detailDocument?.id
         ))
@@ -30,7 +30,7 @@ extension ContentView {
         isRestoringNavigationHistory = true
         sidebarMode = sidebarMode(for: entry.viewType)
         viewMode = restoreViewMode(type: entry.viewType, itemId: entry.viewItemId)
-        selectedSidebarItemId = entry.selectedSidebarItemId
+        sidebarSelectionState.selectedItemId = entry.selectedSidebarItemId
         browserSelection = entry.browserSelection
         storedViewModeType = entry.viewType
         storedViewModeItemId = entry.viewItemId

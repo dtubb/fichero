@@ -161,6 +161,7 @@ extension ContentView {
             )
             selectedSidebarItemId = restoredId ?? (storedViewModeType == "activity" ? "activity-browser" : nil)
         }
+        sidebarSelectionState.selectedItemId = selectedSidebarItemId
 
         logger.info("""
             Restored persisted state: viewMode=\(storedViewModeType), \
@@ -202,7 +203,7 @@ extension ContentView {
         let (type, id) = serializeViewMode(viewMode)
         storedViewModeType = type
         storedViewModeItemId = id
-        selectedSidebarItemId = sidebarSelectionId(for: type, itemId: id)
+        selectedSidebarItemId = sidebarSelectionState.selectedItemId ?? sidebarSelectionId(for: type, itemId: id)
     }
 
     // MARK: - Sidebar Selection ID Mapping

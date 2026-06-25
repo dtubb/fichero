@@ -47,3 +47,12 @@ class DeleteStateManager {
         showingDeleteConfirmation = false
     }
 }
+
+/// Shared live selection for the sidebar tree.
+/// Keep this as the single runtime source of truth so the List selection,
+/// row taps, and content routing all observe the same value.
+@MainActor
+@Observable
+class SidebarSelectionState {
+    var selectedItemId: String?
+}

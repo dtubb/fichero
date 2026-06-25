@@ -53,7 +53,7 @@ extension ContentView {
 
     func navigateToDocument(_ doc: Document) {
         viewMode = .library(doc)
-        selectedSidebarItemId = "doc:\(doc.id)"
+        sidebarSelectionState.selectedItemId = "doc:\(doc.id)"
     }
 
     /// Open the source page behind a KG entity click. The source claim
@@ -162,7 +162,7 @@ extension ContentView {
     /// the sidebar is hidden. (#786)
     @MainActor
     func navigateToParent() {
-        guard let prefixedId = selectedSidebarItemId,
+        guard let prefixedId = sidebarSelectionState.selectedItemId,
               prefixedId.hasPrefix("doc:") else {
             return
         }
@@ -171,9 +171,9 @@ extension ContentView {
             ?? detailDocument
         guard let current else { return }
         if let parentId = current.parentId, !parentId.isEmpty {
-            selectedSidebarItemId = "doc:\(parentId)"
+            sidebarSelectionState.selectedItemId = "doc:\(parentId)"
         } else {
-            selectedSidebarItemId = nil
+            sidebarSelectionState.selectedItemId = nil
             detailDocument = nil
             viewMode = .library(nil)
         }

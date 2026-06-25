@@ -12,7 +12,7 @@ let sidebarViewLogger = Logger(subsystem: "app.fichero.fichero", category: "Side
 struct SidebarView: View {
     @Binding var sidebarMode: SidebarMode
     @Binding var viewMode: AppViewMode
-    @Binding var selectedItemId: String?
+    @Bindable var selectionState: SidebarSelectionState
 
     // LibraryManager - shows all open libraries
     @ObservedObject var libraryManager: LibraryManager
@@ -68,7 +68,7 @@ struct SidebarView: View {
     init(
         sidebarMode: Binding<SidebarMode>,
         viewMode: Binding<AppViewMode>,
-        selectedItemId: Binding<String?>,
+        selectionState: SidebarSelectionState,
         libraryManager: LibraryManager,
         itemRegistry: ItemTypeRegistry,
         apiClient: APIClient,
@@ -77,7 +77,7 @@ struct SidebarView: View {
     ) {
         self._sidebarMode = sidebarMode
         self._viewMode = viewMode
-        self._selectedItemId = selectedItemId
+        self.selectionState = selectionState
         self.libraryManager = libraryManager
         self.itemRegistry = itemRegistry
         self.onOpenChatWithCurrentScope = onOpenChatWithCurrentScope
@@ -86,6 +86,11 @@ struct SidebarView: View {
         )
         // Initialize ChainService with apiClient
         self._chainService = StateObject(wrappedValue: ChainService(apiClient: apiClient))
+    }
+
+    var selectedItemId: String? {
+        get { selectionState.selectedItemId }
+        set { selectionState.selectedItemId = newValue }
     }
 
     var body: some View {
@@ -145,7 +150,7 @@ struct SidebarView: View {
                 // because the value didn't change on launch (#2548).
                 reconcileRestoredSelection()
             }
-            .onChange(of: selectedItemId) { _, newId in
+            .onChange(of: selectionState.selectedItemId) { _, newId in
                 // Route the live selection change to sidebarMode / viewMode.
                 handleSelectionChange(newId)
             }

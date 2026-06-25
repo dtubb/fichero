@@ -126,7 +126,7 @@ extension ContentView {
                     detailDocument: $detailDocument,
                     viewMode: $viewSettings.libraryLayout,
                     displayMode: viewDisplayMode,
-                    folderId: selectedSidebarItemId,
+                    folderId: sidebarSelectionState.selectedItemId,
                     onRequestFocus: { focusedPane = .content },
                     onRequestPreviousPaneFocus: { cyclePaneFocus(reverse: true) },
                     onRequestNextPaneFocus: { cyclePaneFocus(reverse: false) },

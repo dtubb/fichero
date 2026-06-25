@@ -107,7 +107,7 @@ extension SidebarView {
                 get: { sidebarState.expandedItems },
                 set: { sidebarState.expandedItems = $0 }
             ),
-            selectedItemId: $selectedItemId,
+            selectedItemId: $selectionState.selectedItemId,
             renameState: renameState,
             deleteState: deleteState,
             sidebarState: sidebarState,

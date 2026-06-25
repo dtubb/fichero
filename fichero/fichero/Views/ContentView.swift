@@ -89,6 +89,7 @@ struct ContentView: View {
     /// collapses. SwiftUI mutates this as the user navigates the stack.
     @State var preferredCompactColumn: NavigationSplitViewColumn = ContentView.defaultPreferredCompactColumn
     @State var browserSelection: Set<String> = []
+    @State var sidebarSelectionState = SidebarSelectionState()
 
     // Persisted state (@SceneStorage) - synced via .onAppear and .onChange
     @SceneStorage("selectedSidebarItem") var selectedSidebarItemId: String?
@@ -434,7 +435,8 @@ struct ContentView: View {
     @ViewBuilder
     private var decoratedNavigationSplitColumn: some View {
         navigationSplitColumn
-            .onChange(of: selectedSidebarItemId) { _, newFolderId in
+            .onChange(of: sidebarSelectionState.selectedItemId) { _, newFolderId in
+                selectedSidebarItemId = newFolderId
                 handleSidebarSelectionChange(newFolderId)
             }
             .onChange(of: sidebarMode) { _, _ in

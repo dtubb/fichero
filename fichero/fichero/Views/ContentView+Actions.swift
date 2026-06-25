@@ -217,7 +217,7 @@ extension ContentView {
             break
 
         case .collectionSelected(let collection):
-            selectedSidebarItemId = "doc:\(collection.id)"
+            sidebarSelectionState.selectedItemId = "doc:\(collection.id)"
 
         case .documentsUpdated:
             break
@@ -315,7 +315,7 @@ extension ContentView {
                     sortOrder: saved.sortOrder
                 )
 
-                selectedSidebarItemId = "search:\(saved.id)"
+                sidebarSelectionState.selectedItemId = "search:\(saved.id)"
                 sidebarMode = .search
                 viewMode = .search(search)
             } catch {
@@ -336,7 +336,7 @@ extension ContentView {
         case .table: .table
         case .map, .realitykit, .spatial, .workspace: .map
         }
-        saveDisplayMode(effectiveMode, for: selectedSidebarItemId)
+        saveDisplayMode(effectiveMode, for: sidebarSelectionState.selectedItemId)
         // Promote to the global default so a fresh window / new folder
         // / new launch all start in this mode. Per-folder overrides
         // (saveDisplayMode above) still win when present. (#943)

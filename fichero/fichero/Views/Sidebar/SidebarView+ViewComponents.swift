@@ -67,7 +67,7 @@ extension SidebarView {
     /// Unified sidebar content with feature-gated sections per library.
     @ViewBuilder
     var unifiedContent: some View {
-        List(selection: $selectedItemId) {
+        List(selection: $selectionState.selectedItemId) {
             ForEach(filteredLibraryHeaders) { libraryHeader in
                 unifiedLibrarySection(libraryHeader)
             }
