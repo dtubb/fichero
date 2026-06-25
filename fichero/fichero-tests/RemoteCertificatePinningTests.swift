@@ -199,8 +199,7 @@ final class RemoteCertificatePinningTests: XCTestCase {
         XCTAssertNotNil(capture.credential)
     }
 
-    #if DEBUG
-    func testConfiguredSessionDelegateBootstrapsLoopbackPinInDebug() throws {
+    func testConfiguredSessionDelegateBootstrapsLoopbackPin() throws {
         let trustContext = try SelfSignedTrustFixture.makeTrust()
         let hostString = "https://127.0.0.1:8765"
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostString)
@@ -216,7 +215,7 @@ final class RemoteCertificatePinningTests: XCTestCase {
         XCTAssertEqual(RemoteCertificatePinning.persistedSPKIPin(hostString: hostString), trustContext.spkiPin)
     }
 
-    func testConfiguredSessionDelegateRefreshesStaleLoopbackPinInDebug() throws {
+    func testConfiguredSessionDelegateRefreshesStaleLoopbackPin() throws {
         let trustContext = try SelfSignedTrustFixture.makeTrust()
         let hostString = "https://127.0.0.1:8765"
         let stalePin = Data("stale-loopback-pin".utf8).base64EncodedString()
@@ -232,7 +231,6 @@ final class RemoteCertificatePinningTests: XCTestCase {
         XCTAssertNotNil(capture.credential)
         XCTAssertEqual(RemoteCertificatePinning.persistedSPKIPin(hostString: hostString), trustContext.spkiPin)
     }
-    #endif
     #endif
 }
 

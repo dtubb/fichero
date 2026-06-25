@@ -171,11 +171,9 @@ public enum RemoteCertificatePinning {
         guard let expectedSPKIPin = persistedSPKIPin(hostString: hostString) else {
             let host = challenge.protectionSpace.host.lowercased()
             if isLoopbackChallengeHost(host) {
-                #if DEBUG
                 if bootstrapLoopbackSPKIPin(from: trust, hostString: hostString) {
                     return (.useCredential, URLCredential(trust: trust))
                 }
-                #endif
                 return (.cancelAuthenticationChallenge, nil)
             }
             guard shouldEnforcePinning(forHost: host) else {
@@ -192,13 +190,11 @@ public enum RemoteCertificatePinning {
             )
             return (.useCredential, URLCredential(trust: trust))
         } catch {
-            #if DEBUG
             let host = challenge.protectionSpace.host.lowercased()
             if isLoopbackChallengeHost(host),
                bootstrapLoopbackSPKIPin(from: trust, hostString: hostString) {
                 return (.useCredential, URLCredential(trust: trust))
             }
-            #endif
             return (.cancelAuthenticationChallenge, nil)
         }
     }
@@ -265,7 +261,6 @@ public enum RemoteCertificatePinning {
         return "sha256/\(Data(SHA256.hash(data: spkiData)).base64EncodedString())"
     }
 
-    #if DEBUG
     private static func bootstrapLoopbackSPKIPin(from trust: SecTrust, hostString: String) -> Bool {
         guard let certificate = SecTrustGetCertificateAtIndex(trust, 0),
               let publicKey = SecCertificateCopyKey(certificate),
@@ -279,7 +274,6 @@ public enum RemoteCertificatePinning {
             return false
         }
     }
-    #endif
 
     private static func normalizedExpectedPin(_ normalizedPin: String) throws -> ExpectedPin {
         if normalizedPin.hasPrefix("sha256/") {
