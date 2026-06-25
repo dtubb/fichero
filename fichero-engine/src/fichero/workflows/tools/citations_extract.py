@@ -362,8 +362,6 @@ def _resolve_source_document(inputs: dict[str, Any], state: State) -> Document |
         doc = db.get(Document, str(doc_id))
         if doc is None:
             continue
-        if doc.doc_type == DocType.page and doc.parent_id:
-            return db.get(Document, doc.parent_id) or doc
         return doc
     return None
 
