@@ -120,6 +120,11 @@ struct NavigateToParentActionKey: FocusedValueKey {
     typealias Value = FocusedLibraryAction
 }
 
+/// FocusedValue key for undoing the most recent navigation change.
+struct NavigationUndoActionKey: FocusedValueKey {
+    typealias Value = FocusedLibraryAction
+}
+
 /// FocusedValue key for the focused window's library view-display mode binding.
 /// Carries a `Binding<ViewDisplayMode>` so the View menu can both read (checkmark)
 /// and write (switch mode) without coupling directly to ContentView. (#2032 regression)
@@ -188,6 +193,11 @@ extension FocusedValues {
     var navigateToParentAction: NavigateToParentActionKey.Value? {
         get { self[NavigateToParentActionKey.self] }
         set { self[NavigateToParentActionKey.self] = newValue }
+    }
+
+    var navigationUndoAction: NavigationUndoActionKey.Value? {
+        get { self[NavigationUndoActionKey.self] }
+        set { self[NavigationUndoActionKey.self] = newValue }
     }
 
     var libraryDisplayMode: LibraryDisplayModeKey.Value? {
@@ -471,6 +481,7 @@ struct UndoLastActionButton: View {
     /// `@State` over the `@Observable` shared holder so the menu item's title +
     /// enabled state track the last recorded action without manual republishing.
     @State private var lastAction = LastAction.shared
+    @FocusedValue(\.navigationUndoAction) private var navigationUndoAction
 
     private var logger: Logger {
         Logger(subsystem: "app.fichero.fichero", category: "ActionUndo")
@@ -481,13 +492,20 @@ struct UndoLastActionButton: View {
             performUndo()
         }
         .keyboardShortcut("z", modifiers: .command)
-        .disabled(lastAction.auditId == nil)
+        .disabled(!isEnabled)
     }
 
     /// "Undo Merge" when an action is recorded, plain "Undo" otherwise.
     private var undoTitle: String {
+        if navigationUndoAction != nil {
+            return "Undo"
+        }
         guard let name = lastAction.actionName else { return "Undo" }
         return "Undo \(Self.menuLabel(for: name))"
+    }
+
+    private var isEnabled: Bool {
+        navigationUndoAction?.isEnabled == true || lastAction.auditId != nil
     }
 
     /// `"entity.merge"` → `"Merge"`. Falls back to the raw name if unverbed.
@@ -498,6 +516,10 @@ struct UndoLastActionButton: View {
     }
 
     private func performUndo() {
+        if let navigationUndoAction, navigationUndoAction.isEnabled {
+            navigationUndoAction.run()
+            return
+        }
         guard let auditId = lastAction.auditId,
               let service = LibraryManager.shared.globalLibrary?.actionsService else { return }
         // Clear up front so a second ⌘Z can't replay the inverse of the same row

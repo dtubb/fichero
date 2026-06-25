@@ -382,6 +382,10 @@ struct ContentView: View {
             .focusedSceneValue(\.showDocumentGrid, $showDocumentGrid)
             .focusedSceneValue(\.showDocumentCanvas, $showDocumentCanvas)
             .focusedSceneValue(\.showReadingPane, $showReadingPane)
+            .focusedSceneValue(
+                \.navigationUndoAction,
+                FocusedLibraryAction(isEnabled: navigationHistory.canGoBack, run: navigateBack)
+            )
     }
 
     /// NavigationSplitView + the FIRST half of its modifier chain.

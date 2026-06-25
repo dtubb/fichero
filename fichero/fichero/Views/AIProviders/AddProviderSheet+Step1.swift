@@ -17,7 +17,7 @@ extension AddProviderSheet {
 
             // First launch explanation
             if isFirstLaunch {
-                Text("Select an AI provider to enable transcription, chat, and other AI features.")
+                Text("Pick the cheapest provider that still works for your tasks. You can add stronger models later in Settings.")
                     .font(.callout)
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)

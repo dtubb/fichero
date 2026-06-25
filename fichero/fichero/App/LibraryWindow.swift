@@ -428,7 +428,7 @@ private extension LibraryWindow {
     var noLibraryView: some View {
         VStack(spacing: 24) {
             Image(systemName: "doc.richtext")
-                .font(.system(size: 64))
+                .font(.largeTitle.weight(.semibold))
                 .foregroundColor(.accentColor)
 
             Text("Fichero")
@@ -441,9 +441,12 @@ private extension LibraryWindow {
                 .multilineTextAlignment(.center)
 
             HStack(spacing: 16) {
-                Button(action: createNewLibrary) {
-                    Label("New Library", systemImage: "plus")
-                }
+                LibrarySetupActionsRow(
+                    primaryTitle: "New Library",
+                    primaryIcon: "plus",
+                    primaryAction: createNewLibrary,
+                    selectedLabel: nil
+                )
                 .buttonStyle(.borderedProminent)
 
                 Button { showingFileImporter = true } label: {

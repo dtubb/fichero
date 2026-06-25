@@ -118,18 +118,13 @@ struct FirstRunWindow: View {
                         }
                     ),
                     footer: {
-                        HStack(spacing: 10) {
-                            Button {
-                                openExistingLibraryPanel()
-                            } label: {
-                                Label("Open Existing", systemImage: "folder")
-                            }
-                            if let selectedLibraryName {
-                                Label(selectedLibraryName, systemImage: "checkmark.circle.fill")
-                                    .foregroundStyle(.green)
-                                    .lineLimit(1)
-                            }
-                        }
+                        LibrarySetupActionsRow(
+                            primaryTitle: "Open Existing",
+                            primaryIcon: "folder",
+                            primaryAction: openExistingLibraryPanel,
+                            selectedLabel: selectedLibraryName
+                        )
+                        .buttonStyle(.bordered)
                     }
                 )
             }
@@ -177,16 +172,15 @@ struct FirstRunWindow: View {
             }
         case .cloud:
             stepPage(
-                title: "Cloud LLM",
-                subtitle: "Optional OpenRouter setup for the $medium fallback tier.",
+                title: "Use the cheapest model that works",
+                subtitle: "Add a cloud fallback only if local providers are not enough.",
                 systemImage: "cloud"
             ) {
                 firstRunCard(
                     FirstRunCardConfig(
                         icon: "cloud",
-                        title: "Add a capable fallback",
-                        body: "OpenRouter is optional. Configure it now to handle structured extraction "
-                            + "when local providers are unavailable.",
+                        title: "Use the cheapest model that works",
+                        body: "OpenRouter is optional. Add it now if you need cloud models for tasks your local providers cannot handle.",
                         primaryTitle: openRouterKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                             ? "Finish Without Cloud"
                             : "Save and Finish",
@@ -214,7 +208,7 @@ struct FirstRunWindow: View {
         VStack(alignment: .leading, spacing: 20) {
             HStack(spacing: 12) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 28))
+                    .font(.title2)
                     .foregroundStyle(Color.accentColor)
                     .frame(width: 42, height: 42)
                 VStack(alignment: .leading, spacing: 3) {
@@ -253,7 +247,7 @@ struct FirstRunWindow: View {
     private func firstRunCard<Footer: View>(_ config: FirstRunCardConfig, @ViewBuilder footer: () -> Footer) -> some View {
         VStack(alignment: .leading, spacing: 18) {
             Image(systemName: config.icon)
-                .font(.system(size: 36, weight: .semibold))
+                .font(.largeTitle.weight(.semibold))
                 .foregroundStyle(Color.accentColor)
                 .frame(width: 64, height: 64)
                 .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
@@ -362,6 +356,27 @@ struct FirstRunWindow: View {
         featureManager.firstRunCompleted = true
         UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
         dismiss()
+    }
+}
+
+struct LibrarySetupActionsRow: View {
+    let primaryTitle: String
+    let primaryIcon: String
+    let primaryAction: () -> Void
+    let selectedLabel: String?
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button(action: primaryAction) {
+                Label(primaryTitle, systemImage: primaryIcon)
+            }
+
+            if let selectedLabel {
+                Label(selectedLabel, systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .lineLimit(1)
+            }
+        }
     }
 }
 
