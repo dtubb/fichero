@@ -252,7 +252,6 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         XCTAssertTrue(buildersSource.contains("detailLocationPathBar"))
         XCTAssertTrue(buildersSource.contains("detailStatusPathBar"))
         XCTAssertTrue(buildersSource.contains("WindowOpener.open(libraryId: windowState.libraryId, asTab: true"))
-        XCTAssertTrue(buildersSource.contains("background(Color(platformColor: .windowBackgroundColor))"))
     }
 
     func testSelectionStatusTextKeepsCountAndPathVisible() throws {
@@ -300,6 +299,21 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         XCTAssertTrue(contentSource.contains("setCanvasPaneVisible(!showDocumentCanvas)"))
         XCTAssertTrue(contentSource.contains("setReadingPaneVisible(!showReadingPane)"))
         XCTAssertFalse(buildersSource.contains("viewSettings.previewMode = .none"))
+    }
+
+    func testSidebarsUseSystemGlassMaterials() throws {
+        let sidebarSource = try Self.appSource("Views/Sidebar/SidebarView+ViewComponents.swift")
+        let buildersSource = try Self.appSource("Views/ContentView+ViewBuilders.swift")
+
+        XCTAssertTrue(sidebarSource.contains(".background(.bar)"))
+        XCTAssertFalse(sidebarSource.contains(".background(Color(platformColor: .windowBackgroundColor))"))
+
+        guard let detailRange = buildersSource.range(of: "var detailView: some View") else {
+            XCTFail("detailView missing")
+            return
+        }
+        let detailSource = buildersSource[detailRange.lowerBound...]
+        XCTAssertTrue(detailSource.contains(".background(.bar)"))
     }
 }
 // swiftlint:enable type_body_length

@@ -828,7 +828,7 @@ extension ContentView {
             // Focus tracking without .focusable() — avoids swallowing first click
             .overlay { paneFocusIndicator(for: .inspector) }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(platformColor: .windowBackgroundColor))
+            .background(.bar)
     }
 
     // MARK: - Breadcrumb
