@@ -32,6 +32,20 @@ from fichero.knowledge_models import (
 )
 
 
+def test_knowledge_import_shims_share_public_models():
+    from fichero import knowledge
+    from fichero.knowledge import KnowledgeClaim as PackageKnowledgeClaim
+    from fichero.knowledge import KnowledgeEntity as PackageKnowledgeEntity
+    from fichero.knowledge.knowledge_models import KnowledgeClaim as NewKnowledgeClaim
+    from fichero.knowledge.knowledge_models import KnowledgeEntity as NewKnowledgeEntity
+
+    assert knowledge.KnowledgeClaim is KnowledgeClaim
+    assert PackageKnowledgeClaim is KnowledgeClaim
+    assert NewKnowledgeClaim is KnowledgeClaim
+    assert PackageKnowledgeEntity is KnowledgeEntity
+    assert NewKnowledgeEntity is KnowledgeEntity
+
+
 class TestSourceMetadata:
     """Tests for SourceMetadata model and its validators."""
 
