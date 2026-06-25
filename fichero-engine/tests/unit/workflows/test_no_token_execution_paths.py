@@ -564,6 +564,18 @@ def test_catalogue_full_pipeline_runs_from_folder_with_stubs(
         lambda *args, **kwargs: {"entities": 0, "claims": 0, "triples_written": 0},
     )
     monkeypatch.setattr(
+        "fichero.workflows.tools.kg_persist_finalize._vector_row_count",
+        lambda *args, **kwargs: 0,
+    )
+    monkeypatch.setattr(
+        "fichero.db.Database.embed_entities",
+        lambda self, entities: 0,
+    )
+    monkeypatch.setattr(
+        "fichero.db.Database.embed_claims",
+        lambda self, claims: 0,
+    )
+    monkeypatch.setattr(
         "fichero.db.Database._embed_texts",
         lambda self, texts: [[1.0] + ([0.0] * 1023) for _ in texts],
     )
