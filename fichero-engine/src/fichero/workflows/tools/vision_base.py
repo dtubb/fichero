@@ -19,6 +19,7 @@ import os
 import tempfile
 import base64
 import dataclasses
+from functools import lru_cache
 import io
 import logging
 import re
@@ -829,6 +830,7 @@ async def apple_vision_ocr_async(image_path: str, language: str = "en") -> str:
     return await loop.run_in_executor(None, apple_vision_ocr, image_path, language)
 
 
+@lru_cache(maxsize=32)
 def _batch_render_pdf_pages_to_cgimages(pdf_path: str, dpi: int = 300):
     """Open a PDF document ONCE and render all pages to CGImages. (#2247)
 
@@ -889,7 +891,9 @@ def _batch_render_pdf_pages_to_cgimages(pdf_path: str, dpi: int = 300):
         cg_image = CGBitmapContextCreateImage(ctx)
         cg_images.append(cg_image if cg_image else None)
 
-    return cg_images, num_pages
+    # ponytail: cache the rendered pages per PDF path so per-page fan-out
+    # does not reopen the same source PDF for every page task.
+    return tuple(cg_images), num_pages
 
 
 def _apple_ocr_pdf_pages(pdf_path: str, language: str = "en") -> list[str]:
@@ -925,7 +929,10 @@ def _apple_ocr_pdf_pages(pdf_path: str, language: str = "en") -> list[str]:
 def _apple_ocr_pdf_page(pdf_path: str, page_index: int, language: str = "en") -> str:
     """OCR one PDF page by zero-based page index."""
     try:
-        cg_image, _ = _render_pdf_page_to_cgimage(pdf_path, page_index)
+        cg_images, _ = _batch_render_pdf_pages_to_cgimages(pdf_path)
+        cg_image = cg_images[page_index]
+        if cg_image is None:
+            raise ValueError(f"PDF page {page_index + 1} not found in: {pdf_path}")
         return _vision_ocr_cgimage(cg_image, language) or ""
     except Exception as e:
         msg = f"Page {page_index + 1} OCR failed: {e}"
@@ -1198,8 +1205,8 @@ def file_to_data_uri(file_path: str, max_dimension: int = 2048) -> str:
 def _pdf_page_to_data_uri(file_path: str, page_index: int = 0, max_dimension: int = 2048) -> str:
     """Render a single PDF page to a PNG and return a base64 data URI.
 
-    Uses the Quartz-based ``_render_pdf_page_to_cgimage`` renderer so the
-    LLM vision path receives a proper raster image instead of raw PDF bytes.
+    Reuses the cached Quartz batch render so the LLM vision path receives a
+    proper raster image instead of raw PDF bytes.
     Falls back to a simple PIL open attempt on non-macOS hosts (CI / Linux).
 
     Args:
@@ -1214,48 +1221,12 @@ def _pdf_page_to_data_uri(file_path: str, page_index: int = 0, max_dimension: in
         ValueError: If the page cannot be rendered.
     """
     try:
-        # Primary path: macOS Quartz renderer (available on production host).
-        cg_image, _ = _render_pdf_page_to_cgimage(file_path, page_index)
-
-        # Convert the CGImage → PIL Image via a PNG round-trip.
-        from Quartz import CGImageGetWidth, CGImageGetHeight
-        from PIL import Image
-
-        width = CGImageGetWidth(cg_image)
-        height = CGImageGetHeight(cg_image)
-
-        try:
-            # PyObjC ≥ 9: CGImage exposes a bytes buffer directly.
-            from Quartz import CGDataProviderCopyData, CGImageGetDataProvider
-            provider = CGImageGetDataProvider(cg_image)
-            raw_bytes = bytes(CGDataProviderCopyData(provider))
-            img = Image.frombytes("RGBA", (width, height), raw_bytes)
-        except Exception:
-            # Fallback: write to a temp PNG via ImageIO and re-open.
-            import tempfile
-            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-                tmp_path = tmp.name
-            from Quartz import (
-                CGImageDestinationCreateWithURL,
-                CGImageDestinationAddImage,
-                CGImageDestinationFinalize,
-                kUTTypePNG,
-            )
-            from Foundation import NSURL
-            url = NSURL.fileURLWithPath_(tmp_path)
-            dest = CGImageDestinationCreateWithURL(url, kUTTypePNG, 1, None)
-            CGImageDestinationAddImage(dest, cg_image, None)
-            CGImageDestinationFinalize(dest)
-            img = Image.open(tmp_path).copy()
-            Path(tmp_path).unlink(missing_ok=True)
-
-        if max_dimension > 0 and (img.width > max_dimension or img.height > max_dimension):
-            img.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
-
-        buf = io.BytesIO()
-        img.save(buf, format="PNG")
-        data = base64.b64encode(buf.getvalue()).decode("utf-8")
-        return f"data:image/png;base64,{data}"
+        # Primary path: reuse the cached batch render for the source PDF.
+        cg_images, _ = _batch_render_pdf_pages_to_cgimages(file_path)
+        cg_image = cg_images[page_index]
+        if cg_image is None:
+            raise ValueError(f"PDF page {page_index + 1} not found in: {file_path}")
+        return _cgimage_to_png_data_uri(cg_image, max_dimension=max_dimension)
 
     except Exception as quartz_err:
         # Non-macOS host (CI / Linux): Quartz not available.
@@ -1279,6 +1250,47 @@ def _pdf_page_to_data_uri(file_path: str, page_index: int = 0, max_dimension: in
                 f"Cannot render PDF page {page_index} to image: "
                 f"Quartz error: {quartz_err}; PIL error: {pil_err}"
             ) from pil_err
+
+
+def _cgimage_to_png_data_uri(cg_image, max_dimension: int = 2048) -> str:
+    """Convert a Quartz CGImage into a PNG data URI."""
+    from Quartz import CGImageGetWidth, CGImageGetHeight
+    from PIL import Image
+
+    width = CGImageGetWidth(cg_image)
+    height = CGImageGetHeight(cg_image)
+
+    try:
+        # PyObjC ≥ 9: CGImage exposes a bytes buffer directly.
+        from Quartz import CGDataProviderCopyData, CGImageGetDataProvider
+        provider = CGImageGetDataProvider(cg_image)
+        raw_bytes = bytes(CGDataProviderCopyData(provider))
+        img = Image.frombytes("RGBA", (width, height), raw_bytes)
+    except Exception:
+        # Fallback: write to a temp PNG via ImageIO and re-open.
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            tmp_path = tmp.name
+        from Quartz import (
+            CGImageDestinationCreateWithURL,
+            CGImageDestinationAddImage,
+            CGImageDestinationFinalize,
+            kUTTypePNG,
+        )
+        from Foundation import NSURL
+        url = NSURL.fileURLWithPath_(tmp_path)
+        dest = CGImageDestinationCreateWithURL(url, kUTTypePNG, 1, None)
+        CGImageDestinationAddImage(dest, cg_image, None)
+        CGImageDestinationFinalize(dest)
+        img = Image.open(tmp_path).copy()
+        Path(tmp_path).unlink(missing_ok=True)
+
+    if max_dimension > 0 and (img.width > max_dimension or img.height > max_dimension):
+        img.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    data = base64.b64encode(buf.getvalue()).decode("utf-8")
+    return f"data:image/png;base64,{data}"
 
 
 # =============================================================================

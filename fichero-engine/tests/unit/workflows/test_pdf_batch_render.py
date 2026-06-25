@@ -10,6 +10,8 @@ _batch_render_pdf_pages_to_cgimages directly.
 """
 from __future__ import annotations
 
+from types import ModuleType, SimpleNamespace
+
 import pytest
 from unittest.mock import MagicMock, patch
 
@@ -97,3 +99,68 @@ def test_apple_ocr_batch_render_error_returns_empty_list():
         result = _apple_ocr_pdf_pages("/bad/path.pdf")
 
     assert result == [], "A failed batch render must return an empty list, not raise"
+
+
+def test_pdf_page_to_data_uri_reuses_one_batch_render_for_multiple_pages():
+    """#2622: two per-page PDF renders must reuse the same batch open.
+
+    The page fan-out path calls _pdf_page_to_data_uri once per page task. After
+    the cache fix, those calls should reuse the same opened PDF instead of
+    reopening it for every page.
+    """
+    import sys
+
+    from fichero.workflows.tools.vision_base import (
+        _batch_render_pdf_pages_to_cgimages,
+        _pdf_page_to_data_uri,
+    )
+
+    _batch_render_pdf_pages_to_cgimages.cache_clear()
+
+    open_calls: list[str] = []
+    page_sequence = iter(
+        [SimpleNamespace(name="cg0"), SimpleNamespace(name="cg1")]
+    )
+
+    quartz = ModuleType("Quartz")
+    quartz.CGPDFDocumentCreateWithURL = lambda url: open_calls.append(url) or object()
+    quartz.CGPDFDocumentGetNumberOfPages = lambda _doc: 2
+    quartz.CGPDFDocumentGetPage = lambda _doc, page_number: SimpleNamespace(
+        page_number=page_number
+    )
+    quartz.CGPDFPageGetBoxRect = lambda _page, _box: SimpleNamespace(
+        size=SimpleNamespace(width=1, height=1)
+    )
+    quartz.CGColorSpaceCreateWithName = lambda _name: object()
+    quartz.CGBitmapContextCreate = lambda *args, **kwargs: object()
+    quartz.CGContextSetRGBFillColor = lambda *args, **kwargs: None
+    quartz.CGContextFillRect = lambda *args, **kwargs: None
+    quartz.CGContextScaleCTM = lambda *args, **kwargs: None
+    quartz.CGContextDrawPDFPage = lambda *args, **kwargs: None
+    quartz.CGBitmapContextCreateImage = lambda _ctx: next(page_sequence)
+    quartz.kCGColorSpaceGenericRGB = object()
+    quartz.kCGImageAlphaPremultipliedLast = object()
+    quartz.kCGPDFMediaBox = object()
+    quartz.CGRectMake = lambda *args: args
+
+    foundation = ModuleType("Foundation")
+    foundation.NSURL = SimpleNamespace(fileURLWithPath_=lambda path: path)
+
+    try:
+        with (
+            patch.dict(sys.modules, {"Quartz": quartz, "Foundation": foundation}),
+            patch(
+                "fichero.workflows.tools.vision_base._cgimage_to_png_data_uri",
+                side_effect=lambda cg_image, max_dimension=2048: f"data:{cg_image.name}",
+            ),
+        ):
+            first = _pdf_page_to_data_uri("/fake/path/doc.pdf", page_index=0)
+            second = _pdf_page_to_data_uri("/fake/path/doc.pdf", page_index=1)
+
+        assert open_calls == ["/fake/path/doc.pdf"], (
+            "#2622: the source PDF should be opened once and reused for each page task"
+        )
+        assert first == "data:cg0"
+        assert second == "data:cg1"
+    finally:
+        _batch_render_pdf_pages_to_cgimages.cache_clear()
