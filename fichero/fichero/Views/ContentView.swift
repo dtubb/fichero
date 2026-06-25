@@ -775,8 +775,8 @@ extension ContentView {
         .help(showInspectorSidebar ? "Hide Inspector (⌘⌥I)" : "Show Inspector (⌘⌥I)")
     }
 
-    /// PRINCIPAL zone: breadcrumb lozenge (#2309).
-    /// Layout: [📚 Library Name] > [📁 Folder / item icon + title]
+    /// PRINCIPAL zone: breadcrumb lozenge + scoped search (#2309/#2039).
+    /// Layout: [Library Name] > [item icon + title] [search current content]
     /// The whole breadcrumb sits in a subtle rounded-rect lozenge with
     /// extra horizontal padding so it reads as a single interactive label.
     @ToolbarContentBuilder
@@ -788,53 +788,48 @@ extension ContentView {
             }()
 
             HStack(spacing: 4) {
-                if let libraryName {
-                    // Library segment
-                    HStack(spacing: 3) {
-                        Image(systemName: "books.vertical")
-                            .imageScale(.small)
-                        Text(libraryName)
-                            .font(.subheadline)
+                HStack(spacing: 4) {
+                    if let libraryName {
+                        HStack(spacing: 3) {
+                            Image(systemName: "books.vertical")
+                                .imageScale(.small)
+                            Text(libraryName)
+                                .font(.subheadline)
+                        }
+                        .foregroundStyle(.secondary)
+
+                        Image(systemName: "chevron.right")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
                     }
-                    .foregroundStyle(.secondary)
 
-                    Image(systemName: "chevron.right")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                    HStack(spacing: 3) {
+                        Image(systemName: toolbarIcon)
+                            .imageScale(.small)
+                        Text(toolbarTitle)
+                            .font(.headline)
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(.primary)
                 }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.primary.opacity(0.06))
+                )
 
-                // Current-item segment (folder, file, page, etc.)
-                HStack(spacing: 3) {
-                    Image(systemName: toolbarIcon)
-                        .imageScale(.small)
-                    Text(toolbarTitle)
-                        .font(.headline)
-                        .lineLimit(1)
-                }
-                .foregroundStyle(.primary)
+                TextField("Search \(toolbarTitle)", text: $toolbarSearchText)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 220)
+                    .onSubmit {
+                        runToolbarSearch(toolbarSearchText)
+                    }
+                    .help("Search current content")
             }
-            // Lozenge treatment: extra padding + subtle fill so the breadcrumb
-            // reads as one clickable unit rather than floating text (#2309).
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(Color.primary.opacity(0.06))
-            )
         }
     }
 }
-
-// NOTE — content-side SEARCH (deferred). Search stays on the per-mode system
-// `.searchable(placement: .toolbar)` owned by LibraryView/SearchView inside the
-// NavigationSplitView detail (each with its own `$toolbarQuery` +
-// `onToolbarSearchSubmit` wiring — one per mode, to avoid the NSToolbar
-// duplicate-identifier crash). macOS renders one unified NSToolbar per window
-// and paints the system search field at the far trailing edge (above the
-// `.inspector()` column). Replacing `.searchable` with a custom content-zone
-// `ToolbarItem` holding a search field bound to `$toolbarQuery` would risk the
-// documented duplicate-identifier crash and break the per-mode submit wiring,
-// so content-side search is intentionally deferred (smallest correct change).
 
 // MARK: - Platform compat
 

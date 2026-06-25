@@ -261,4 +261,17 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         XCTAssertTrue(stateSource.contains("var selectionPathText: String"))
         XCTAssertTrue(stateSource.contains("return \"\\(breadcrumbSubtitle) › \\(leaf)\""))
     }
+
+    func testToolbarSearchStaysBesideContentTitle() throws {
+        let contentSource = try Self.appSource("Views/ContentView.swift")
+        guard let principalRange = contentSource.range(of: "private var principalToolbarContent: some ToolbarContent") else {
+            XCTFail("principal toolbar content missing")
+            return
+        }
+        let principalSource = contentSource[principalRange.lowerBound...]
+
+        XCTAssertTrue(principalSource.contains("Text(toolbarTitle)"))
+        XCTAssertTrue(principalSource.contains("TextField(\"Search \\(toolbarTitle)\", text: $toolbarSearchText)"))
+        XCTAssertTrue(principalSource.contains("runToolbarSearch(toolbarSearchText)"))
+    }
 }
