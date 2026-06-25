@@ -29,12 +29,14 @@ registry, mirroring test_parallel_checkpointer_resume.py.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import shutil
 import tempfile
 from pathlib import Path
 
 import pytest
 
+from fichero.execution import runner
 from fichero.workflows import registry
 from fichero.workflows.builder import (
     VISION_FAN_OUT_CONCURRENCY,
@@ -130,15 +132,7 @@ def test_runner_source_passes_enable_parallel_true():
     Source-level guard: catches a future edit that flips the live run path back
     to sequential (which would make the rendered diagram lie again).
     """
-    runner_src = (
-        Path(__file__).resolve().parents[3]
-        / "src"
-        / "fichero"
-        / "api"
-        / "routes"
-        / "workflow_execution"
-        / "runner.py"
-    ).read_text()
+    runner_src = inspect.getsource(runner)
     assert "enable_parallel=True" in runner_src, (
         "runner.py no longer passes enable_parallel=True"
     )
