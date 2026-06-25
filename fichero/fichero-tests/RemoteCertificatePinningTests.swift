@@ -171,23 +171,21 @@ final class RemoteCertificatePinningTests: XCTestCase {
         )
 
         let expectation = self.expectation(description: "challenge completion")
-        var capturedDisposition: URLSession.AuthChallengeDisposition?
-        var capturedCredential: URLCredential?
+        let capture = ChallengeCapture()
         delegate.urlSession(URLSession.shared, didReceive: challenge) { disposition, credential in
-            capturedDisposition = disposition
-            capturedCredential = credential
+            capture.set(disposition: disposition, credential: credential)
             expectation.fulfill()
         }
         wait(for: [expectation], timeout: 1.0)
 
-        XCTAssertEqual(capturedDisposition, .useCredential)
-        XCTAssertNotNil(capturedCredential)
+        XCTAssertEqual(capture.disposition, .useCredential)
+        XCTAssertNotNil(capture.credential)
     }
     #endif
 }
 
 #if canImport(Security)
-private final class MockServerTrustProtectionSpace: URLProtectionSpace {
+private final class MockServerTrustProtectionSpace: URLProtectionSpace, @unchecked Sendable {
     private let testServerTrust: SecTrust?
 
     override var serverTrust: SecTrust? { testServerTrust }
@@ -209,12 +207,12 @@ private final class MockServerTrustProtectionSpace: URLProtectionSpace {
     }
 }
 
-private final class MockServerTrustChallenge: URLAuthenticationChallenge {
+private final class MockServerTrustChallenge: URLAuthenticationChallenge, @unchecked Sendable {
     private let testProtectionSpace: URLProtectionSpace
 
     override var protectionSpace: URLProtectionSpace { testProtectionSpace }
 
-    init(
+    override init(
         protectionSpace: URLProtectionSpace,
         proposedCredential: URLCredential?,
         previousFailureCount: Int,
@@ -287,6 +285,31 @@ private enum SelfSignedTrustFixture {
             .joined()
         let derData = try XCTUnwrap(Data(base64Encoded: base64Body))
         return try XCTUnwrap(SecCertificateCreateWithData(nil, derData as CFData))
+    }
+}
+
+private final class ChallengeCapture: @unchecked Sendable {
+    private let lock = NSLock()
+    private var capturedDisposition: URLSession.AuthChallengeDisposition?
+    private var capturedCredential: URLCredential?
+
+    var disposition: URLSession.AuthChallengeDisposition? {
+        lock.lock()
+        defer { lock.unlock() }
+        return capturedDisposition
+    }
+
+    var credential: URLCredential? {
+        lock.lock()
+        defer { lock.unlock() }
+        return capturedCredential
+    }
+
+    func set(disposition: URLSession.AuthChallengeDisposition, credential: URLCredential?) {
+        lock.lock()
+        capturedDisposition = disposition
+        capturedCredential = credential
+        lock.unlock()
     }
 }
 #endif

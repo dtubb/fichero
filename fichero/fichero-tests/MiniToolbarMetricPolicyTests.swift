@@ -1,4 +1,5 @@
 @testable import Fichero
+import SwiftUI
 import XCTest
 
 final class MiniToolbarMetricPolicyTests: XCTestCase {
@@ -34,7 +35,7 @@ final class MiniToolbarMetricPolicyTests: XCTestCase {
     // #2415: WorkflowMiniToolbarButton must be constructable in both enabled and
     // disabled states. Behavioural gating by FeatureManager is exercised in
     // FeatureManagerTests.testWorkflowRunOnSelectionDefault.
-    func testWorkflowMiniToolbarButtonIsInstantiable() {
+    @MainActor func testWorkflowMiniToolbarButtonIsInstantiable() {
         let enabled = WorkflowMiniToolbarButton(isEnabled: true, action: {})
         let disabled = WorkflowMiniToolbarButton(isEnabled: false, action: {})
         _ = enabled

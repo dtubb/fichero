@@ -1,4 +1,6 @@
 @testable import Fichero
+import FicheroAPIClient
+import Foundation
 import Testing
 
 // Tests for LibraryOutlineModel page/artifact child rows (#2405).
@@ -10,7 +12,7 @@ struct LibraryOutlineModelTests {
 
     // MARK: - Helpers
 
-    private func makeModel() -> LibraryOutlineModel {
+    @MainActor private func makeModel() -> LibraryOutlineModel {
         let client = FicheroClient(libraryPath: "/tmp/test-outline.fichero")
         return LibraryOutlineModel(
             service: EntityServiceGenerated(ficheroClient: client),
@@ -23,8 +25,8 @@ struct LibraryOutlineModelTests {
     }
 
     private func makePage(id: String, parentId: String, sequence: Int) -> Document {
-        Document(id: id, parentId: parentId, name: "Page \(sequence)",
-                 docType: .page, sequence: sequence)
+        Document(id: id, parentId: parentId, docType: .page, name: "Page \(sequence)",
+                 sequence: sequence)
     }
 
     private func makeArtifact(id: String, documentId: String) -> Artifact {
