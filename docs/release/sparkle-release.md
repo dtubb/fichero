@@ -9,17 +9,15 @@ This project uses Sparkle for app updates via the **Check for Updates...** menu 
 - `SUFeedURL` -> `$(SPARKLE_FEED_URL)`
 - `SUPublicEDKey` -> `$(SPARKLE_PUBLIC_ED_KEY)`
 
-Default build settings in the app target (Debug + Release identical now --
-both ship-ready):
+Default build settings in the app target:
 
 - `SPARKLE_FEED_URL=https://raw.githubusercontent.com/dtubb/fichero-releases/main/appcast.xml`
 - `SPARKLE_PUBLIC_ED_KEY="z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY="`
 
-The matching EdDSA private key lives in Daniel's login Keychain (search
-"Sparkle" in Keychain Access -> service `https://sparkle-project.org`).
-**Critical**: this key must never be lost. If it's lost, every shipped
-Fichero install becomes update-stuck -- there's no recovery without
-reinstalling a fresh build with a new public key.
+The matching EdDSA private key must be stored securely outside the repo.
+**Critical**: this key must never be lost. If it is lost, every shipped
+Fichero install becomes update-stuck; recovery requires reinstalling a fresh
+build with a new public key.
 
 ## Local Development
 
