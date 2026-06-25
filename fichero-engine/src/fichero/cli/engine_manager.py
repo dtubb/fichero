@@ -18,6 +18,7 @@ from typing import Optional
 import typer
 
 from fichero.bind_host import resolve_bind_host
+from fichero.remote_access_tls import uvicorn_ssl_kwargs_from_env
 
 # PID file location: ~/.fichero/engine.pid
 PID_FILE = Path.home() / ".fichero" / "engine.pid"
@@ -177,6 +178,14 @@ def start(port: int = 8765, workers: int = 1, host: str | None = None) -> None:
         if sys.platform != "win32":
             kwargs["start_new_session"] = True
 
+        ssl_kwargs = uvicorn_ssl_kwargs_from_env()
+        if not ssl_kwargs:
+            raise ValueError(
+                "The engine must be started with TLS. Set both "
+                "FICHERO_TLS_CERTFILE and FICHERO_TLS_KEYFILE, or use "
+                "start_backend.sh which generates loopback TLS material."
+            )
+
         proc = subprocess.Popen(
             [
                 sys.executable,
@@ -189,6 +198,10 @@ def start(port: int = 8765, workers: int = 1, host: str | None = None) -> None:
                 str(port),
                 "--workers",
                 str(workers),
+                "--ssl-certfile",
+                ssl_kwargs["ssl_certfile"],
+                "--ssl-keyfile",
+                ssl_kwargs["ssl_keyfile"],
             ],
             **kwargs,  # type: ignore[arg-type]
         )

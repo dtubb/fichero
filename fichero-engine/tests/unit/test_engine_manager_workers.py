@@ -28,6 +28,8 @@ def _captured_start(monkeypatch, workers: int) -> list[str]:
         return _FakeProc()
 
     # Neutralize every real side effect of start().
+    monkeypatch.setenv("FICHERO_TLS_CERTFILE", "/tmp/fichero-test.crt")
+    monkeypatch.setenv("FICHERO_TLS_KEYFILE", "/tmp/fichero-test.key")
     monkeypatch.setattr(engine_manager, "_read_pid", lambda: None)
     monkeypatch.setattr(engine_manager, "_write_pid", lambda _pid: None)
     monkeypatch.setattr(engine_manager, "_remove_pid", lambda: None)
@@ -60,6 +62,8 @@ def test_start_default_is_single_worker(monkeypatch):
         captured["cmd"] = list(cmd)
         return _FakeProc()
 
+    monkeypatch.setenv("FICHERO_TLS_CERTFILE", "/tmp/fichero-test.crt")
+    monkeypatch.setenv("FICHERO_TLS_KEYFILE", "/tmp/fichero-test.key")
     monkeypatch.setattr(engine_manager, "_read_pid", lambda: None)
     monkeypatch.setattr(engine_manager, "_write_pid", lambda _pid: None)
     monkeypatch.setattr(engine_manager, "_remove_pid", lambda: None)
