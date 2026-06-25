@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Seconds to wait for the next event before emitting a keepalive comment.
-_KEEPALIVE_TIMEOUT = 30.0
+_KEEPALIVE_TIMEOUT = 10.0
 
 
 @router.get("/changes/stream")

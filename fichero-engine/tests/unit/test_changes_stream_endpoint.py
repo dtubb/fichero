@@ -7,6 +7,7 @@ through the returned SSE stream, library scoping, and unsubscribe-on-close.
 
 from __future__ import annotations
 
+import asyncio
 import json
 
 import pytest
@@ -280,9 +281,28 @@ class TestChangesStreamEndpoint:
         assert len(calls) == 1
         assert calls[0][1] == str(test_package)
 
-    @pytest.mark.skip(
-        reason="Hardcoded 30s keepalive timeout has no test seam; would require sleep."
-    )
-    async def test_stream_emits_keepalive_on_idle_timeout(self, test_package):
-        """Keepalive branch is not cleanly testable without a timeout seam."""
-        raise AssertionError("skipped")
+    async def test_stream_emits_keepalive_on_idle_timeout(
+        self, test_package, monkeypatch
+    ):
+        request = _FakeRequest()
+        library_path = str(test_package)
+
+        async def _timeout(*_args, **_kwargs):
+            request.disconnected = True
+            raise asyncio.TimeoutError
+
+        monkeypatch.setattr(changes.asyncio, "wait_for", _timeout)
+
+        response = await changes.stream_library_changes(
+            request,
+            x_fichero_library_path=library_path,
+        )
+        stream = response.body_iterator
+
+        try:
+            assert await anext(stream) == ": connected\n\n"
+            assert await anext(stream) == ": keepalive\n\n"
+            with pytest.raises(StopAsyncIteration):
+                await anext(stream)
+        finally:
+            await stream.aclose()
