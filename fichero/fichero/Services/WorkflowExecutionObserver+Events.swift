@@ -249,6 +249,13 @@ extension WorkflowExecution {
         case .pause:
             workflowExecutionLogger.info("Workflow paused")
             execution.status = .paused
+            execution.isRunning = false
+
+        case .cancelled:
+            workflowExecutionLogger.info("Workflow cancelled")
+            execution.status = .failed
+            execution.workflowError = "Cancelled by user"
+            execution.isRunning = false
 
         case .error(_, let error):
             workflowExecutionLogger.error("Workflow error: \(error)")

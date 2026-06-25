@@ -162,6 +162,17 @@ struct WorkflowExecutionReducerTests {
         #expect(execution.overallProgress == nil)
     }
 
+    @Test("cancelled event is terminal")
+    func cancelledEventIsTerminal() {
+        var execution = runningExecution()
+
+        execution.apply(.cancelled(threadId: "thread-1"))
+
+        #expect(execution.status == .failed)
+        #expect(execution.isRunning == false)
+        #expect(execution.workflowError == "Cancelled by user")
+    }
+
     @Test("duplicate parent paths stay distinct when page ids differ")
     func duplicateParentPathsUseStablePageIdentity() {
         var execution = runningExecution()

@@ -82,79 +82,36 @@ class AppleScriptBridge {
     static let shared = AppleScriptBridge()
 
     private let client: FicheroClient
+    private let workflowExecutionService: WorkflowExecutionService
 
     private init() {
         self.client = FicheroClient(baseURL: EngineConfig.host)
+        self.workflowExecutionService = WorkflowExecutionService(ficheroClient: client)
     }
 
     // MARK: - Workflow Operations
 
     func runWorkflow(workflowId: String, inputs: [String: any Sendable]) async throws -> String {
-        let response = try await client.api.executeWorkflowApiWorkflowExecutionExecutePost(
-            body: .json(.init(
-                workflowId: workflowId,
-                inputs: .init(additionalProperties: try makeObjectContainer(inputs))
-            ))
+        let accepted = try await workflowExecutionService.executeAccepted(
+            workflowId: workflowId,
+            inputs: Dictionary(uniqueKeysWithValues: inputs.map { ($0.key, $0.value as Any) })
         )
-
-        switch response {
-        case .accepted(let acceptedResponse):
-            return try acceptedResponse.body.json.threadId
-        case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw AppleScriptBridgeError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw AppleScriptBridgeError.unexpectedResponse(statusCode)
-        }
+        return accepted.threadId
     }
 
     func getWorkflowStatus(threadId: String) async throws -> String {
-        let response = try await client.api.getThreadStatusApiWorkflowExecutionThreadsThreadIdStatusGet(
-            path: .init(threadId: threadId)
-        )
-
-        switch response {
-        case .ok(let okResponse):
-            return try okResponse.body.json.status
-        case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw AppleScriptBridgeError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw AppleScriptBridgeError.unexpectedResponse(statusCode)
-        }
+        let status = try await workflowExecutionService.getThreadStatus(threadId: threadId)
+        return status.status.rawValue
     }
 
     func pauseWorkflow(threadId: String) async throws -> Bool {
-        let response = try await client.api.pauseWorkflowApiWorkflowExecutionThreadsThreadIdPausePost(
-            path: .init(threadId: threadId)
-        )
-
-        switch response {
-        case .ok:
-            return true
-        case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw AppleScriptBridgeError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw AppleScriptBridgeError.unexpectedResponse(statusCode)
-        }
+        try await workflowExecutionService.pauseWorkflow(threadId: threadId)
+        return true
     }
 
     func resumeWorkflow(threadId: String) async throws -> String {
-        let response = try await client.api.resumeWorkflowApiWorkflowExecutionThreadsThreadIdResumePost(
-            path: .init(threadId: threadId),
-            body: .none
-        )
-
-        switch response {
-        case .ok(let okResponse):
-            return try okResponse.body.json.status
-        case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw AppleScriptBridgeError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw AppleScriptBridgeError.unexpectedResponse(statusCode)
-        }
+        let status = try await workflowExecutionService.resumeWorkflow(threadId: threadId)
+        return status.status.rawValue
     }
 
     func listWorkflows() async throws -> [String] {

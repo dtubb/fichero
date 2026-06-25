@@ -561,21 +561,28 @@ async def delete_thread(
     try:
         checkpointer = AsyncDuckDBCheckpointer.from_db_path(db.path)
 
-        # Check if thread exists
+        # Check if thread exists in either canonical store. Accepted runs are
+        # persisted before the first checkpoint, so delete must not depend on
+        # checkpoint presence alone.
         config = {"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}}
         checkpoint_tuple = await checkpointer.aget_tuple(config)
+        activity_store = get_activity_tracker(str(db.path)).store
+        run = await activity_store.get_workflow_run(thread_id)
 
-        if not checkpoint_tuple:
+        if not checkpoint_tuple and not run:
             raise HTTPException(
                 status_code=404, detail=f"No checkpoint found for thread: {thread_id}"
             )
 
-        # Delete all checkpointer-owned state for this thread via the
-        # typed public API. The Checkpointer wraps the multi-table delete
-        # in a transaction so a partial delete cannot orphan rows. See #1116.
-        deleted = await checkpointer.adelete_thread(thread_id)
+        deleted = await checkpointer.adelete_thread(thread_id) if checkpoint_tuple else 0
+        activity_deleted = await activity_store.delete_workflow_run(thread_id)
 
-        logger.info(f"Deleted thread: {thread_id} (rows={deleted})")
+        logger.info(
+            "Deleted thread: %s (checkpoint_rows=%s, activity_rows=%s)",
+            thread_id,
+            deleted,
+            activity_deleted,
+        )
         return ThreadDeletedResponse(message=f"Thread deleted: {thread_id}")
 
     except HTTPException:
@@ -647,7 +654,7 @@ async def cancel_workflow(
         )
 
     current = state.get("status")
-    if current in ("completed", "failed", "cancelled"):
+    if current in ("completed", "error", "failed", "cancelled", "stopped"):
         return CancelResponse(
             thread_id=thread_id,
             status="already_terminal",
@@ -695,7 +702,7 @@ async def pause_workflow(
         )
 
     current = state.get("status")
-    if current in ("completed", "failed", "cancelled"):
+    if current in ("completed", "error", "failed", "cancelled", "stopped"):
         return PauseResponse(
             thread_id=thread_id,
             status="already_terminal",

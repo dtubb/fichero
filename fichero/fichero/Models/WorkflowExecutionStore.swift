@@ -133,7 +133,7 @@ final class WorkflowExecutionStore {
         executions[threadId] = execution
 
         switch event {
-        case .complete, .error, .systemicError:
+        case .complete, .cancelled, .error, .systemicError:
             unsubscribe(threadId: threadId)
         default:
             break
@@ -186,7 +186,7 @@ extension WorkflowExecution {
             return .failed
         case "paused":
             return .paused
-        case "cancelled", "canceled":
+        case "cancelled", "canceled", "stopped", "stop_requested":
             return .failed
         default:
             return .idle

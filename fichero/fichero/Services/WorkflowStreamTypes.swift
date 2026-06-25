@@ -20,6 +20,7 @@ enum WorkflowStreamEvent: Equatable {
     case parallelComplete(threadId: String, nodeId: String, successCount: Int, errorCount: Int, total: Int)
     case complete(threadId: String, checkpointId: String?, finalState: [String: Any]?)
     case pause(threadId: String, checkpointId: String?, currentState: [String: Any]?)
+    case cancelled(threadId: String)
     case error(threadId: String, error: String)
     case systemicError(threadId: String, error: String, errorCount: Int, totalCount: Int)
     case log(threadId: String, line: String)
@@ -51,6 +52,8 @@ enum WorkflowStreamEvent: Equatable {
         case (.complete(let lhsThread, _, _), .complete(let rhsThread, _, _)):
             return lhsThread == rhsThread
         case (.pause(let lhsThread, _, _), .pause(let rhsThread, _, _)):
+            return lhsThread == rhsThread
+        case (.cancelled(let lhsThread), .cancelled(let rhsThread)):
             return lhsThread == rhsThread
         case (.error(let lhsThread, let lhsError), .error(let rhsThread, let rhsError)):
             return lhsThread == rhsThread && lhsError == rhsError

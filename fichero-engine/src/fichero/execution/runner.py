@@ -609,6 +609,7 @@ async def _run_workflow_in_background(
                 }
                 for e in workflow.edges
             ],
+            "inputs": request.inputs,
         }
 
         # Build node name mapping (UUID → readable name)
@@ -876,6 +877,12 @@ async def _run_workflow_in_background(
                     thread_id=thread_id,
                     workflow_name=workflow.name,
                 )
+                await activity_tracker.store.update_workflow_run(
+                    thread_id=thread_id,
+                    status="paused",
+                    execution_log="\n".join(execution_log_lines),
+                    progress_timeline=progress_timeline,
+                )
                 return
 
             # #1127 — cancellation check. If the user POSTed
@@ -903,6 +910,13 @@ async def _run_workflow_in_background(
                 activity_tracker.workflow_cancelled(
                     workflow_id=workflow_id,
                     thread_id=thread_id,
+                )
+                await activity_tracker.store.update_workflow_run(
+                    thread_id=thread_id,
+                    status="cancelled",
+                    execution_log="\n".join(execution_log_lines),
+                    progress_timeline=progress_timeline,
+                    completed_at=datetime.now(timezone.utc),
                 )
                 return
 

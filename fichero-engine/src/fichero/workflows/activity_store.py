@@ -811,6 +811,31 @@ class ActivityStore:
 
         return await asyncio.to_thread(_get)
 
+    async def delete_workflow_run(self, thread_id: str) -> int:
+        """Delete a persisted workflow run and its activity events."""
+
+        def _delete():
+            conn = duckdb.connect(self.db_path)
+            try:
+                conn.execute("BEGIN TRANSACTION")
+                activity_count = conn.execute(
+                    "DELETE FROM activities WHERE thread_id = ? RETURNING id",
+                    [thread_id],
+                ).fetchall()
+                run_count = conn.execute(
+                    "DELETE FROM workflow_runs WHERE thread_id = ? RETURNING thread_id",
+                    [thread_id],
+                ).fetchall()
+                conn.execute("COMMIT")
+                return len(activity_count) + len(run_count)
+            except Exception:
+                conn.execute("ROLLBACK")
+                raise
+            finally:
+                conn.close()
+
+        return await asyncio.to_thread(_delete)
+
     async def list_workflow_runs(
         self,
         workflow_id: Optional[str] = None,

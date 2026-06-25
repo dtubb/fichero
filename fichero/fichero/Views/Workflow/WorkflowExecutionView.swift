@@ -167,8 +167,10 @@ struct ThreadRow: View {
             return "pause.circle.fill"
         case .completed:
             return "checkmark.circle.fill"
-        case .failed:
+        case .error, .failed:
             return "exclamationmark.circle.fill"
+        case .cancelled, .stopped:
+            return "stop.circle.fill"
         }
     }
 
@@ -180,8 +182,10 @@ struct ThreadRow: View {
             return .orange
         case .completed:
             return .green
-        case .failed:
+        case .error, .failed:
             return .red
+        case .cancelled, .stopped:
+            return .orange
         }
     }
 }
@@ -299,8 +303,10 @@ struct ThreadDetailContent: View {
             return (.orange, "pause.circle.fill")
         case .completed:
             return (.green, "checkmark.circle.fill")
-        case .failed:
+        case .error, .failed:
             return (.red, "exclamationmark.circle.fill")
+        case .cancelled, .stopped:
+            return (.orange, "stop.circle.fill")
         }
     }
 }

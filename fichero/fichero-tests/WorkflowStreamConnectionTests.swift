@@ -103,8 +103,18 @@ final class WorkflowStreamConnectionTests: XCTestCase {
         ))
         let stopBody = String(source[stopRange.lowerBound..<resumeRange.lowerBound])
 
-        XCTAssertTrue(stopBody.contains("cancelWorkflowApiWorkflowExecutionThreadsThreadIdCancelPost"))
+        XCTAssertTrue(stopBody.contains("executionService.stopWorkflow"))
         XCTAssertFalse(stopBody.contains("deleteThreadApiWorkflowExecutionThreadsThreadIdDelete"))
+        XCTAssertFalse(stopBody.contains("cancelWorkflowApiWorkflowExecutionThreadsThreadIdCancelPost"))
+    }
+
+    func testWorkflowStreamRESTActionsDelegateToExecutionService() throws {
+        let source = try Self.appSource("Services/WorkflowStreamService.swift")
+
+        XCTAssertTrue(source.contains("WorkflowExecutionService(ficheroClient: ficheroClient)"))
+        XCTAssertTrue(source.contains("executionService.executeAccepted"))
+        XCTAssertTrue(source.contains("executionService.stopWorkflow"))
+        XCTAssertTrue(source.contains("executionService.resumeWorkflow"))
     }
 
     func testLibraryChangeStreamKeepsPinnedSessionAndSharedRequestBuilder() throws {
@@ -113,5 +123,13 @@ final class WorkflowStreamConnectionTests: XCTestCase {
         XCTAssertTrue(source.contains("RemoteCertificatePinning.configuredSession()"))
         XCTAssertTrue(source.contains("engineEventStreamRequest("))
         XCTAssertTrue(source.contains("pathComponents: [\"changes\", \"stream\"]"))
+    }
+
+    func testExecutionStatusMapsStableTerminalStatuses() {
+        XCTAssertEqual(WorkflowExecutionService.mapStatus("completed"), .completed)
+        XCTAssertEqual(WorkflowExecutionService.mapStatus("error"), .error)
+        XCTAssertEqual(WorkflowExecutionService.mapStatus("failed"), .failed)
+        XCTAssertEqual(WorkflowExecutionService.mapStatus("cancelled"), .cancelled)
+        XCTAssertEqual(WorkflowExecutionService.mapStatus("stopped"), .stopped)
     }
 }

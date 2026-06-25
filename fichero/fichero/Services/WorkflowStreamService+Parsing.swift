@@ -49,6 +49,9 @@ extension WorkflowStreamService {
                 let checkpointId = eventData.data["checkpoint_id"]?.stringValue
                 return .pause(threadId: eventData.threadId, checkpointId: checkpointId, currentState: nil)
 
+            case "cancelled":
+                return .cancelled(threadId: eventData.threadId)
+
             case "error":
                 let errorMsg = (eventData.data["error"]?.stringValue) ?? "Unknown error"
                 return .error(threadId: eventData.threadId, error: errorMsg)

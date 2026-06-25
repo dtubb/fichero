@@ -5,6 +5,8 @@ These tests verify route contract (status codes, request schema) and use
 mocking for LangGraph-dependent paths.
 """
 
+import asyncio
+
 import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -14,6 +16,7 @@ from langgraph.types import Send
 from fichero.api.routes.workflow_execution.core import get_thread_status
 from fichero.api.routes.workflow_execution.runner import _missing_exit_nodes
 from fichero.models import Artifact, Document, DocType, FileType, Status, Workflow
+from fichero.workflows.activity import get_activity_tracker
 from fichero.workflows.activity_types import WorkflowRun
 
 
@@ -213,6 +216,48 @@ class TestDeleteThread:
             r = client.delete("/api/workflow-execution/threads/nonexistent")
         assert r.status_code == 404
 
+    def test_delete_thread_removes_persisted_run_without_checkpoint(self, client):
+        mock_cp = _make_mock_checkpointer()
+        mock_cp.aget_tuple = AsyncMock(return_value=None)
+        mock_store = MagicMock()
+        mock_store.get_workflow_run = AsyncMock(
+            return_value=WorkflowRun(
+                thread_id="thread-accepted",
+                workflow_id="wf-1",
+                workflow_name="Accepted",
+                python_code=None,
+                execution_log=None,
+                status="running",
+                started_at=datetime.now(),
+                completed_at=None,
+                duration_ms=None,
+                error=None,
+                workflow_snapshot=None,
+                node_name_map=None,
+                progress_timeline=None,
+                diagram_mermaid=None,
+            )
+        )
+        mock_store.delete_workflow_run = AsyncMock(return_value=2)
+        tracker = MagicMock()
+        tracker.store = mock_store
+
+        with (
+            patch(
+                "fichero.api.routes.workflow_execution.threads.AsyncDuckDBCheckpointer.from_db_path",
+                return_value=mock_cp,
+            ),
+            patch(
+                "fichero.api.routes.workflow_execution.threads.get_activity_tracker",
+                return_value=tracker,
+            ),
+        ):
+            r = client.delete("/api/workflow-execution/threads/thread-accepted")
+
+        assert r.status_code == 200
+        mock_cp.adelete_thread.assert_not_called()
+        mock_store.delete_workflow_run.assert_awaited_once_with("thread-accepted")
+
 
 # ---------------------------------------------------------------------------
 # GET /api/workflow-execution/workflows/{workflow_id}/cache/stats
@@ -349,6 +394,14 @@ class TestExecuteWorkflow:
         assert data["stream_url"].endswith(
             f"/api/workflow-execution/stream/{data['thread_id']}"
         )
+        run = asyncio.run(
+            get_activity_tracker(str(db.path)).store.get_workflow_run(data["thread_id"])
+        )
+        assert run is not None
+        assert run.workflow_id == wf.id
+        assert run.workflow_name == "Gate Workflow"
+        assert run.status == "running"
+        assert run.workflow_snapshot["inputs"]["selected_doc_ids"] == ["doc-1"]
         fake_thread.start.assert_called_once()
 
     def test_missing_workflow_returns_404(self, client):

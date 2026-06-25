@@ -1,7 +1,6 @@
 import Combine
 import FicheroAPIClient
 import Foundation
-import OpenAPIRuntime
 import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "WorkflowStreamService")
@@ -32,6 +31,7 @@ class WorkflowStreamService: ObservableObject {
     /// stream used to read from (via `APIClient`), so the streaming transport can
     /// no longer drift from the generated transport (the #2376 regression).
     private let client: FicheroClient
+    private let executionService: WorkflowExecutionService
 
     /// Certificate-pinned URLSession reused across stream subscriptions.
     /// URLSession.bytes(for:) only invokes the delegate challenge handler
@@ -54,17 +54,11 @@ class WorkflowStreamService: ObservableObject {
 
     init(ficheroClient: FicheroClient) {
         self.client = ficheroClient
+        self.executionService = WorkflowExecutionService(ficheroClient: ficheroClient)
     }
 
     deinit {
         streamTask?.cancel()
-    }
-
-    /// Build the OpenAPI free-form object container from a JSON-compatible dict,
-    /// round-tripping through JSONSerialization to match the previous encoding.
-    private func objectContainer(fromJSON dict: [String: Any]) throws -> OpenAPIRuntime.OpenAPIObjectContainer {
-        let data = try JSONSerialization.data(withJSONObject: dict)
-        return try JSONDecoder().decode(OpenAPIRuntime.OpenAPIObjectContainer.self, from: data)
     }
 
     // MARK: - Public Methods
@@ -94,41 +88,13 @@ class WorkflowStreamService: ObservableObject {
         hadError = false
         isStreaming = true
 
-        // Step 1: POST to /execute to start the workflow (generated client, #1714).
-        let request = Components.Schemas.ExecuteWorkflowRequest(
-            workflowId: workflowId,
-            inputs: .init(additionalProperties: try objectContainer(fromJSON: inputs)),
-            checkpointNs: "",
-            interruptBefore: [],
-            interruptAfter: [],
-            providerOverride: (providerOverride?.isEmpty == false) ? providerOverride : nil,
-            modelOverride: (modelOverride?.isEmpty == false) ? modelOverride : nil
-        )
-
         logger.info("Starting workflow execution: \(workflowId)")
-
-        let executeResponse = try await client.api.executeWorkflowApiWorkflowExecutionExecutePost(.init(
-            body: .json(request)
-        ))
-
-        // The backend contract is 202 Accepted; map the handshake payload onto the
-        // app model (carries thread_id + stream_url). Other statuses surface as errors.
-        let acceptedResponse: ExecuteAcceptedResponse
-        switch executeResponse {
-        case .accepted(let accepted):
-            let payload = try accepted.body.json
-            acceptedResponse = ExecuteAcceptedResponse(
-                threadId: payload.threadId,
-                workflowId: payload.workflowId,
-                workflowName: payload.workflowName,
-                status: payload.status ?? "accepted",
-                streamUrl: payload.streamUrl
-            )
-        case .unprocessableContent:
-            throw WorkflowStreamError.httpError(statusCode: 422)
-        case .undocumented(let statusCode, _):
-            throw WorkflowStreamError.httpError(statusCode: statusCode)
-        }
+        let acceptedResponse = try await executionService.executeAccepted(
+            workflowId: workflowId,
+            inputs: inputs,
+            providerOverride: providerOverride,
+            modelOverride: modelOverride
+        )
 
         currentThreadId = acceptedResponse.threadId
         logger.info("Workflow execution started, thread: \(acceptedResponse.threadId)")
@@ -267,19 +233,8 @@ class WorkflowStreamService: ObservableObject {
         cancelStream()
 
         logger.info("Stopping workflow thread: \(threadId)")
-
-        let response = try await client.api.cancelWorkflowApiWorkflowExecutionThreadsThreadIdCancelPost(
-            path: .init(threadId: threadId),
-        )
-
-        switch response {
-        case .ok:
-            logger.info("Workflow thread stopped: \(threadId)")
-        case .undocumented(let statusCode, _):
-            throw WorkflowStreamError.httpError(statusCode: statusCode)
-        case .unprocessableContent:
-            throw WorkflowStreamError.httpError(statusCode: 422)
-        }
+        try await executionService.stopWorkflow(threadId: threadId)
+        logger.info("Workflow thread stopped: \(threadId)")
     }
 
     /// Resume a paused workflow
@@ -287,20 +242,7 @@ class WorkflowStreamService: ObservableObject {
     func resumeWorkflow(threadId: String, onEvent: ((WorkflowStreamEvent) -> Void)? = nil) async throws {
         logger.info("Resuming workflow thread: \(threadId)")
 
-        // Resume the thread (generated client, #1714). No inputs → no body, matching
-        // the previous empty-body POST. The SSE resubscribe below stays raw URLSession.
-        let response = try await client.api.resumeWorkflowApiWorkflowExecutionThreadsThreadIdResumePost(.init(
-            path: .init(threadId: threadId),
-        ))
-
-        switch response {
-        case .ok:
-            break
-        case .unprocessableContent:
-            throw WorkflowStreamError.httpError(statusCode: 422)
-        case .undocumented(let statusCode, _):
-            throw WorkflowStreamError.httpError(statusCode: statusCode)
-        }
+        try await executionService.resumeWorkflow(threadId: threadId)
 
         // Resubscribe to the stream
         isStreaming = true

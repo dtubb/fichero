@@ -254,6 +254,17 @@ async def execute_workflow(
             },
         )
 
+        await get_activity_tracker(str(db.path)).store.save_workflow_run(
+            thread_id=thread_id,
+            workflow_id=request.workflow_id,
+            workflow_name=workflow.name,
+            workflow_snapshot={
+                "nodes": workflow.nodes,
+                "edges": workflow.edges,
+                "inputs": request.inputs,
+            },
+        )
+
         # Start background execution on a DEDICATED WORKER THREAD with
         # its own event loop (#1000). Previously this was
         # asyncio.create_task on the FastAPI main loop — any tool node
