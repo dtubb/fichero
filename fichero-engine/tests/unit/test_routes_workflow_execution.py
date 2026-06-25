@@ -454,6 +454,47 @@ class TestClassifyProviderError:
         out = _classify_provider_error("upstream returned 500 Internal Server Error")
         assert out["category"] == "server"
 
+    def test_402_out_of_credits_is_quota(self):
+        """#2612: 402 Payment Required must be classified as a quota error."""
+        from fichero.api.routes.workflow_execution.runner import _classify_provider_error
+        out = _classify_provider_error("Provider returned 402: out of credits")
+        assert out["category"] == "quota"
+        assert "credits" in out["action"].lower() or "account" in out["action"].lower()
+
+
+class TestSystemicFailureMessage:
+    """#2612: systemic failures must surface provider/auth/quota details."""
+
+    def test_402_message_includes_provider_detail(self):
+        from fichero.api.routes.workflow_execution.runner import (
+            SystemicErrorDetected,
+            _systemic_failure_message,
+        )
+
+        raw = "Step 'Transcribe' failed: Provider returned 402: out of credits"
+        e = SystemicErrorDetected(
+            message=raw,
+            error_count=1,
+            total_count=1,
+            errors=[{"node": "transcribe", "error": raw}],
+        )
+        message, cls = _systemic_failure_message(e)
+        assert cls["category"] == "quota"
+        assert "out of credits" in message
+        assert "Top up account" in message
+
+    def test_unknown_error_passes_through_raw_message(self):
+        from fichero.api.routes.workflow_execution.runner import (
+            SystemicErrorDetected,
+            _systemic_failure_message,
+        )
+
+        raw = "Step 'X' failed: something obscure"
+        e = SystemicErrorDetected(message=raw)
+        message, cls = _systemic_failure_message(e)
+        assert cls["category"] == "unknown"
+        assert message == raw
+
 
 class TestDetectEmptyTextOutput:
     """#2244/#2245: _detect_empty_text_output flags runs that processed files but

@@ -165,7 +165,7 @@ def _classify_provider_error(error_text: str) -> dict[str, str]:
     """Classify provider-facing failures into stable UI categories (#732)."""
     text = (error_text or "").lower()
 
-    if any(token in text for token in ("429", "insufficient_quota", "quota", "rate limit", "rate_limit")):
+    if any(token in text for token in ("402", "429", "insufficient_quota", "quota", "rate limit", "rate_limit")):
         return {
             "category": "quota",
             "message": "Provider quota or rate limit reached.",
@@ -200,6 +200,23 @@ def _classify_provider_error(error_text: str) -> dict[str, str]:
         "message": "Provider call failed.",
         "action": "Inspect detailed error and retry.",
     }
+
+
+def _systemic_failure_message(e: SystemicErrorDetected) -> tuple[str, dict[str, str]]:
+    """Build a user-facing workflow failure message from a systemic error.
+
+    #2612: provider/auth/quota failures (e.g. 402 out of credits) must
+    surface a clear, actionable message in the Activity / workflow_failed
+    payload, not just the generic systemic summary.
+    """
+    raw = str(e)
+    cls = _classify_provider_error(raw)
+    if cls["category"] == "unknown":
+        return raw, cls
+    return (
+        f"{cls['message']} {cls['action']} Details: {raw}",
+        cls,
+    )
 
 
 def _missing_exit_nodes(
@@ -1001,11 +1018,30 @@ async def _run_workflow_in_background(
                         if "error" in output and output["error"]:
                             activity_metadata["error"] = str(output["error"])[:200]
 
-                    await log_execution(
-                        f"Node '{original_id}' completed in {node_duration_ms:.0f}ms"
-                    )
+                        # #2613: a node that intentionally skipped (e.g. empty-query
+                        # reference search) should surface a clear skipped status.
+                        node_status = "success"
+                        node_end_data = {
+                            "node": original_id,
+                            "duration_ms": node_duration_ms,
+                        }
+                        if isinstance(output, dict) and output.get("skipped"):
+                            node_status = "skipped"
+                            skip_reason = str(output.get("skip_reason", "skipped"))
+                            activity_metadata["skipped"] = True
+                            activity_metadata["skip_reason"] = skip_reason
+                            node_end_data["status"] = "skipped"
+                            node_end_data["skip_reason"] = skip_reason
+                            await log_execution(
+                                f"Node '{original_id}' skipped — {skip_reason} "
+                                f"({node_duration_ms:.0f}ms)"
+                            )
+                        else:
+                            await log_execution(
+                                f"Node '{original_id}' completed in {node_duration_ms:.0f}ms"
+                            )
 
-                    # Log activity: node completed
+                    # Log activity: node completed/skipped
                     activity_tracker.node_completed(
                         workflow_id=workflow_id,
                         thread_id=thread_id,
@@ -1025,7 +1061,7 @@ async def _run_workflow_in_background(
                             entry["completed_at"] = datetime.now(
                                 timezone.utc
                             ).isoformat()
-                            entry["status"] = "success"
+                            entry["status"] = node_status
                             entry["duration_ms"] = node_duration_ms
                             # Add metadata
                             if "files_processed" in activity_metadata:
@@ -1036,6 +1072,10 @@ async def _run_workflow_in_background(
                                 entry["artifacts_created"] = activity_metadata[
                                     "artifacts_created"
                                 ]
+                            if node_status == "skipped":
+                                entry["skip_reason"] = activity_metadata.get(
+                                    "skip_reason", ""
+                                )
                             break
 
                     event_queue.put(
@@ -1044,7 +1084,7 @@ async def _run_workflow_in_background(
                             thread_id=thread_id,
                             workflow_id=workflow_id,
                             node_id=original_id,
-                            data={"node": original_id, "duration_ms": node_duration_ms},
+                            data=node_end_data,
                         )
                     )
 
@@ -1227,12 +1267,15 @@ async def _run_workflow_in_background(
         )
         await log_execution(f"Sample errors: {e.errors[:3] if e.errors else []}")
 
+        # #2612: surface the underlying provider/auth/quota message in Activity.
+        failure_message, failure_cls = _systemic_failure_message(e)
+
         # Log activity: workflow failed (systemic error)
         activity_tracker.workflow_failed(
             workflow_id=workflow_id,
             thread_id=thread_id,
             workflow_name=workflow.name,
-            error=f"Systemic error: {e.error_count}/{e.total_count} consecutive failures",
+            error=failure_message,
             duration_ms=total_duration_ms,
         )
 
@@ -1244,7 +1287,7 @@ async def _run_workflow_in_background(
             execution_log=execution_log,
             progress_timeline=progress_timeline,
             duration_ms=total_duration_ms,
-            error=f"Systemic error: {e.error_count}/{e.total_count} consecutive failures",
+            error=failure_message,
             completed_at=datetime.now(timezone.utc),
         )
 
@@ -1258,10 +1301,9 @@ async def _run_workflow_in_background(
                     "error_count": e.error_count,
                     "total_count": e.total_count,
                     "sample_errors": e.errors[:5] if e.errors else [],
-                    "error_category": (
-                        _classify_provider_error(str(e.errors[0]))["category"]
-                        if e.errors else "unknown"
-                    ),
+                    "error_category": failure_cls["category"],
+                    "error_message": failure_cls["message"],
+                    "error_action": failure_cls["action"],
                 },
             )
         )

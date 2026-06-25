@@ -941,11 +941,15 @@ async def search_tool(
     """
     query = inputs.get("query")
     if not query:
+        # #2613: a missing query is a graceful skip, not a systemic failure.
+        # Downstream nodes receive empty arrays and the UI sees a clear
+        # "skipped — no query" status instead of an aborted run.
         return {
             "files": [],
             "documents": [],
             "count": 0,
-            "error": "No search query provided",
+            "skipped": True,
+            "skip_reason": "No search query provided",
         }
 
     search_type = inputs.get("search_type", "hybrid")

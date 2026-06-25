@@ -197,13 +197,17 @@ class TestSearchTool:
 
     @pytest.mark.asyncio
     async def test_search_no_query(self, mock_llm_config, mock_state):
-        """Test search tool with no query."""
+        """#2613: empty query is a graceful skip, not a systemic error."""
         from fichero.workflows.tools.sources import search_tool
 
         result = await search_tool({}, mock_state, mock_llm_config)
 
-        assert result["error"] == "No search query provided"
+        assert result.get("error") is None
+        assert result["skipped"] is True
+        assert result["skip_reason"] == "No search query provided"
         assert result["files"] == []
+        assert result["documents"] == []
+        assert result["count"] == 0
 
     @pytest.mark.asyncio
     async def test_search_includes_kg_context_in_documents(self, mock_llm_config, mock_state):

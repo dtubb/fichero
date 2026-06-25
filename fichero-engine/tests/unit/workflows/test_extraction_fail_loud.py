@@ -495,6 +495,59 @@ class TestMakeNodeFunctionErrorHandling:
 
 
 # ---------------------------------------------------------------------------
+# #2613 — a skipped node (empty query) must NOT abort the workflow
+# ---------------------------------------------------------------------------
+
+
+class TestSkippedNodeDoesNotAbortPipeline:
+    """A tool that reports skipped (e.g. empty-query reference search) is a
+    no-op, not a failure. The graph must complete and downstream nodes run.
+    """
+
+    def test_skipped_search_node_continues_pipeline(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """#2613: empty-query search skips; downstream catalogue still runs."""
+        downstream_ran = []
+
+        async def files_tool(inputs, state, llm_config):
+            return {"files": ["/tmp/test.txt"], "documents": [], "count": 1}
+
+        async def skipped_search(inputs, state, llm_config):
+            return {
+                "files": [],
+                "documents": [],
+                "count": 0,
+                "skipped": True,
+                "skip_reason": "No search query provided",
+            }
+
+        async def catalogue_after_skip(inputs, state, llm_config):
+            downstream_ran.append("catalogue-ran")
+            return {"text": "downstream ran", "artifacts": []}
+
+        monkeypatch.setattr(
+            "fichero.workflows.builder.get_tool",
+            lambda tool_name: {
+                "files": files_tool,
+                "search": skipped_search,
+                "catalogue": catalogue_after_skip,
+            }.get(tool_name),
+        )
+
+        workflow = _make_3node_workflow("files", "search", "catalogue")
+        state = _base_state()
+
+        # A skipped node must NOT raise SystemicErrorDetected.
+        result = asyncio.run(build_graph(workflow, skip_cache=True).ainvoke(state))
+
+        assert "catalogue-ran" in downstream_ran, (
+            "#2613: downstream catalogue must run after a skipped search node"
+        )
+        assert isinstance(result, dict)
+
+
+# ---------------------------------------------------------------------------
 # (e) #1362 — zombie rows must NOT crash DB open (index maintenance guard)
 # ---------------------------------------------------------------------------
 

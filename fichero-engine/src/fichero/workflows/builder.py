@@ -855,6 +855,15 @@ def _make_node_function(
                     errors=[{"node": node_id, "error": error_msg}],
                 )
 
+            # #2613: a node that intentionally has nothing to do (e.g. an
+            # empty-query Reference Corpus Search) reports a clear skip and
+            # lets the pipeline continue with empty outputs. It must NOT be
+            # treated as a failure or run through the quality gate.
+            if isinstance(result, dict) and result.get("skipped"):
+                skip_reason = result.get("skip_reason", "skipped")
+                print(f"[STEP] ⊘ SKIPPED: {node_label} — {skip_reason}")
+                logger.info("Node %s skipped: %s", node_id, skip_reason)
+
             # Quality gate (#1029): a node can return without raising yet
             # produce garbage — a page that OCR'd to box glyphs, a
             # transcription that is mostly [ilegible]. Advancing the
