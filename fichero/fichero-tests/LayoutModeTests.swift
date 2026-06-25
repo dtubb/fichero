@@ -1,4 +1,5 @@
 @testable import Fichero
+import SwiftUI
 import XCTest
 
 /// Tests for the `LayoutMode` enum that drives the main-content area's
@@ -75,6 +76,34 @@ final class LayoutModeTests: XCTestCase {
         )
         XCTAssertTrue(listWithCanvas.showsLibraryDivider)
         XCTAssertFalse(listWithCanvas.showsCanvasReadingDivider)
+    }
+
+    func testCompactShellRootsAtDetailAndHidesSidebarColumn() {
+        XCTAssertEqual(ContentView.defaultPreferredCompactColumn, .detail)
+
+        XCTAssertFalse(
+            ContentView.shouldRenderSidebarColumn(
+                horizontalSizeClass: .compact,
+                showSidebar: true,
+                columnVisibility: .all
+            )
+        )
+
+        let policy = ContentView.shellCollapsePolicy(
+            windowWidth: 900,
+            horizontalSizeClass: .compact,
+            sidebarVisible: true,
+            inspectorVisible: true,
+            detailMinWidth: 600
+        )
+
+        XCTAssertTrue(policy.collapseSidebar)
+        XCTAssertFalse(policy.collapseInspector)
+    }
+
+    func testInspectorPlacementAdaptsToCompactWidth() {
+        XCTAssertEqual(InspectorPlacement.adaptiveDefault(horizontalSizeClass: .compact), .sheet)
+        XCTAssertEqual(InspectorPlacement.adaptiveDefault(horizontalSizeClass: .regular), .docked)
     }
 
     func testReadingWorkspacePaneToggleShowsPaneByEnteringWidescreen() {

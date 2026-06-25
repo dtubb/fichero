@@ -29,11 +29,10 @@ struct ContentView: View {
     static let defaultColumnVisibilityRaw: Int = 1 // .detailOnly
     #endif
     /// Column the split view roots at when collapsed on compact width
-    /// (#2329/#2334). `.sidebar` = a phone launches ON the library/folder
-    /// list (Daniel: "we don't see the sidebar, have to move around to get
-    /// to it") — then drill in: pick a library/folder → document list →
-    /// reader → swipe to inspector. SwiftUI advances this as the user pushes.
-    static let defaultPreferredCompactColumn: NavigationSplitViewColumn = .sidebar
+    /// (#2329/#2334). `.detail` lands compact width on the library/search
+    /// workspace so iPhone starts in the one-view-at-a-time flow instead of
+    /// the folder tree.
+    static let defaultPreferredCompactColumn: NavigationSplitViewColumn = .detail
     static let sidebarMinWidth: Double = 160
     static let inspectorMinWidth: Double = 220
     static let inspectorMaxWidth: Double = 420
