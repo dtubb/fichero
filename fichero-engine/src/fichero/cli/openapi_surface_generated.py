@@ -9031,6 +9031,18 @@ def register_generated_openapi_commands(
             return client.request("GET", path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("get-thread-diagram-svg")
+    def workflow_execution_get_thread_diagram_svg_get(
+        ctx: typer.Context,
+        thread_id: str = typer.Argument(..., help="Path parameter: thread_id."),
+    ) -> None:
+        """Get Thread Diagram Svg (GET /api/workflow-execution/threads/{thread_id}/diagram.svg)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/workflow-execution/threads/{thread_id}/diagram.svg"
+            params = None
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("get-thread-history")
     def workflow_execution_get_thread_history_get(
         ctx: typer.Context,

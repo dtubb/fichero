@@ -13,7 +13,7 @@ from langgraph.types import Send
 
 from fichero.api.routes.workflow_execution.core import get_thread_status
 from fichero.api.routes.workflow_execution.runner import _missing_exit_nodes
-from fichero.models import Workflow
+from fichero.models import Artifact, Document, DocType, FileType, Status, Workflow
 from fichero.workflows.activity_types import WorkflowRun
 
 
@@ -31,6 +31,18 @@ def _make_workflow(db, name: str = "Test Workflow") -> Workflow:
     )
     db.save(wf)
     return wf
+
+
+def _make_doc(db, name: str, *, doc_type: DocType = DocType.file) -> Document:
+    doc = Document(
+        name=name,
+        doc_type=doc_type,
+        file_type=FileType.pdf if name.endswith(".pdf") else FileType.image,
+        path=f"/tmp/{name}",
+        status=Status.completed,
+    )
+    db.save(doc)
+    return doc
 
 
 def _make_mock_checkpointer(thread_ids: list[str] | None = None):
@@ -353,7 +365,19 @@ class TestExecuteWorkflow:
 
 
 class TestGetWorkflowRun:
-    def test_get_workflow_run_returns_saved_execution_data(self, client):
+    def test_get_workflow_run_returns_saved_execution_data(self, client, db):
+        source_doc = _make_doc(db, "source.pdf")
+        output_doc = _make_doc(db, "page-1.png")
+        db.save(
+            Artifact(
+                document_id=output_doc.id,
+                source_document_id=source_doc.id,
+                artifact_type="transcription",
+                content="hola",
+                run_id="thread-123",
+                step_name="n1",
+            )
+        )
         run = MagicMock()
         run.thread_id = "thread-123"
         run.workflow_id = "wf-123"
@@ -365,7 +389,13 @@ class TestGetWorkflowRun:
         run.completed_at = None
         run.duration_ms = 42.0
         run.error = None
-        run.workflow_snapshot = {"nodes": []}
+        run.workflow_snapshot = {
+            "nodes": [
+                {"id": "n1", "tool": "files", "label": "Files"},
+                {"id": "n2", "tool": "transcribe", "label": "Transcribe"},
+            ],
+            "edges": [{"source": "n1", "target": "n2"}],
+        }
         run.node_name_map = {"n1": "Files"}
         run.progress_timeline = {"steps": []}
         run.diagram_mermaid = "graph TD;"
@@ -385,6 +415,71 @@ class TestGetWorkflowRun:
         assert data["workflow_id"] == "wf-123"
         assert data["status"] == "completed"
         assert data["execution_log"] == "completed"
+        assert data["diagram_svg_url"].endswith("/api/workflow-execution/threads/thread-123/diagram.svg")
+        assert data["planned_steps"] == [
+            {
+                "node_id": "n1",
+                "node_name": "Files",
+                "tool": "files",
+                "upstream_ids": [],
+                "downstream_ids": ["n2"],
+            },
+            {
+                "node_id": "n2",
+                "node_name": "Transcribe",
+                "tool": "transcribe",
+                "upstream_ids": ["n1"],
+                "downstream_ids": [],
+            },
+        ]
+        assert data["run_artifacts"][0]["artifact_type"] == "transcription"
+        assert data["run_artifacts"][0]["document_id"] == output_doc.id
+        assert data["run_artifacts"][0]["document_name"] == "page-1.png"
+        assert data["run_artifacts"][0]["source_document_id"] == source_doc.id
+        assert data["run_artifacts"][0]["source_document_name"] == "source.pdf"
+        assert data["run_artifacts"][0]["step_name"] == "n1"
+        assert data["run_artifacts"][0]["node_name"] == "Files"
+
+
+class TestThreadDiagramSvg:
+    def test_returns_svg_wrapper_for_run_diagram(self, client):
+        run = WorkflowRun(
+            thread_id="thread-svg",
+            workflow_id="wf-svg",
+            workflow_name="Transcribe",
+            python_code="",
+            execution_log="",
+            status="completed",
+            started_at=datetime.now(),
+            completed_at=datetime.now(),
+            duration_ms=1,
+            error=None,
+            workflow_snapshot={
+                "nodes": [{"id": "n1", "tool": "files", "label": "Files"}],
+                "edges": [],
+            },
+            node_name_map={"n1": "Files"},
+            progress_timeline=None,
+            diagram_mermaid="graph TD;",
+        )
+        tracker = MagicMock()
+        tracker.store.get_workflow_run = AsyncMock(return_value=run)
+
+        with (
+            patch(
+                "fichero.api.routes.workflow_execution.threads.get_activity_tracker",
+                return_value=tracker,
+            ),
+            patch(
+                "fichero.api.routes.workflow_execution.threads._render_run_diagram_png",
+                AsyncMock(return_value=b"png-bytes"),
+            ),
+        ):
+            r = client.get("/api/workflow-execution/threads/thread-svg/diagram.svg")
+
+        assert r.status_code == 200
+        assert r.headers["content-type"].startswith("image/svg+xml")
+        assert "data:image/png;base64," in r.text
 
 
 # ---------------------------------------------------------------------------

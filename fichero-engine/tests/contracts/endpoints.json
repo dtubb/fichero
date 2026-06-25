@@ -8997,6 +8997,18 @@
       },
       {
         "method": "GET",
+        "path": "/workflow-execution/threads/{thread_id}/diagram.svg",
+        "operation_id": "get_thread_diagram_svg_api_workflow_execution_threads__thread_id__diagram_svg_get",
+        "summary": "Get Thread Diagram Svg",
+        "path_params": [
+          "thread_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
         "path": "/workflow-execution/threads/{thread_id}/history",
         "operation_id": "get_thread_history_api_workflow_execution_threads__thread_id__history_get",
         "summary": "Get Thread History",

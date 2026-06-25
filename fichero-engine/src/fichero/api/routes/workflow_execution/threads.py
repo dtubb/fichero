@@ -1,5 +1,6 @@
 """Workflow thread management routes — history, list, delete, and run data."""
 
+import base64
 import json
 import logging
 from typing import Any
@@ -7,11 +8,14 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
 from fichero.db import Database
 from fichero.api.main import get_library_database, get_library_database_for_write
+from fichero.models import Artifact, Document
 from fichero.workflows.workflow_store import WorkflowStore
 from fichero.workflows.activity import get_activity_tracker
+from fichero.workflows.activity_types import WorkflowRun
 from fichero.workflows.types import EdgeDef, NodeDef, WorkflowDef
 
 # Module-level (no circular dep — checkpointer.py imports nothing from this
@@ -76,6 +80,34 @@ class WorkflowRunResponse(BaseModel):
     node_name_map: dict[str, str] | None = None
     progress_timeline: dict | None = None
     diagram_mermaid: str | None = None
+    planned_steps: list["WorkflowPlannedStepResponse"] = Field(default_factory=list)
+    run_artifacts: list["WorkflowRunArtifactResponse"] = Field(default_factory=list)
+    diagram_svg_url: str | None = None
+
+
+class WorkflowPlannedStepResponse(BaseModel):
+    """One node from the persisted workflow snapshot."""
+
+    node_id: str
+    node_name: str
+    tool: str
+    upstream_ids: list[str] = Field(default_factory=list)
+    downstream_ids: list[str] = Field(default_factory=list)
+
+
+class WorkflowRunArtifactResponse(BaseModel):
+    """Artifact produced by a workflow run, with navigation targets."""
+
+    artifact_id: str
+    artifact_type: str
+    document_id: str
+    document_name: str | None = None
+    source_document_id: str | None = None
+    source_document_name: str | None = None
+    run_id: str | None = None
+    step_name: str | None = None
+    node_name: str | None = None
+    created_at: str | None = None
 
 
 # =============================================================================
@@ -107,6 +139,143 @@ def _sanitize_state_for_json(state: Any) -> dict[str, Any]:
             else:
                 result[key] = str(value)
     return result
+
+
+def _iso(v: Any) -> str | None:
+    return v.isoformat() if hasattr(v, "isoformat") else v
+
+
+def _run_node_names(run: WorkflowRun | None) -> dict[str, str]:
+    return dict(run.node_name_map or {}) if run else {}
+
+
+def _workflow_def_from_run(run: WorkflowRun) -> WorkflowDef:
+    workflow_snapshot = run.workflow_snapshot
+    if not workflow_snapshot:
+        raise HTTPException(
+            status_code=404, detail="No workflow snapshot available for this run"
+        )
+    return WorkflowDef(
+        id=run.workflow_id,
+        name=run.workflow_name,
+        description="",
+        provider="",
+        model="",
+        nodes=[
+            NodeDef(
+                id=node["id"],
+                tool=node["tool"],
+                label=node.get("label", ""),
+                inputs={},
+                config={},
+            )
+            for node in workflow_snapshot.get("nodes", [])
+        ],
+        edges=[
+            EdgeDef(
+                source=edge["source"],
+                target=edge["target"],
+                source_port=edge.get("source_port", "output"),
+                target_port=edge.get("target_port", "input"),
+            )
+            for edge in workflow_snapshot.get("edges", [])
+        ],
+    )
+
+
+def _planned_steps_from_run(run: WorkflowRun) -> list[WorkflowPlannedStepResponse]:
+    workflow_snapshot = run.workflow_snapshot or {}
+    node_name_map = _run_node_names(run)
+    nodes = workflow_snapshot.get("nodes", [])
+    edges = workflow_snapshot.get("edges", [])
+    upstreams: dict[str, list[str]] = {}
+    downstreams: dict[str, list[str]] = {}
+    for edge in edges:
+        source = edge.get("source")
+        target = edge.get("target")
+        if not source or not target:
+            continue
+        downstreams.setdefault(source, []).append(target)
+        upstreams.setdefault(target, []).append(source)
+
+    planned_steps: list[WorkflowPlannedStepResponse] = []
+    for node in nodes:
+        node_id = node.get("id")
+        if not node_id:
+            continue
+        planned_steps.append(
+            WorkflowPlannedStepResponse(
+                node_id=node_id,
+                node_name=node_name_map.get(node_id) or node.get("label") or node.get("tool", node_id),
+                tool=node.get("tool", "unknown"),
+                upstream_ids=upstreams.get(node_id, []),
+                downstream_ids=downstreams.get(node_id, []),
+            )
+        )
+    return planned_steps
+
+
+def _run_artifacts_for_thread(
+    db: Database,
+    thread_id: str,
+    *,
+    node_name_map: dict[str, str],
+) -> list[WorkflowRunArtifactResponse]:
+    artifacts = list(db.query(Artifact, run_id=thread_id))
+    if not artifacts:
+        return []
+    doc_ids = {
+        doc_id
+        for artifact in artifacts
+        for doc_id in (artifact.document_id, artifact.source_document_id)
+        if doc_id
+    }
+    documents = {doc.id: doc for doc in db.query(Document) if doc.id in doc_ids}
+    artifact_rows: list[WorkflowRunArtifactResponse] = []
+    for artifact in sorted(artifacts, key=lambda item: item.created_at or "", reverse=True):
+        step_name = artifact.step_name
+        artifact_rows.append(
+            WorkflowRunArtifactResponse(
+                artifact_id=artifact.id,
+                artifact_type=artifact.artifact_type,
+                document_id=artifact.document_id,
+                document_name=documents.get(artifact.document_id).name if documents.get(artifact.document_id) else None,
+                source_document_id=artifact.source_document_id,
+                source_document_name=documents.get(artifact.source_document_id).name
+                if artifact.source_document_id and documents.get(artifact.source_document_id)
+                else None,
+                run_id=artifact.run_id,
+                step_name=step_name,
+                node_name=node_name_map.get(step_name) if step_name else None,
+                created_at=_iso(artifact.created_at),
+            )
+        )
+    return artifact_rows
+
+
+async def _get_workflow_run_or_404(db: Database, thread_id: str) -> WorkflowRun:
+    activity_tracker = get_activity_tracker(str(db.path))
+    run = await activity_tracker.store.get_workflow_run(thread_id)
+    if not run:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Workflow run not found for thread: {thread_id}",
+        )
+    return run
+
+
+async def _render_run_diagram_png(run: WorkflowRun) -> bytes:
+    workflow_def = _workflow_def_from_run(run)
+
+    from fichero.workflows.builder import build_graph  # noqa: PLC0415
+    from langchain_core.runnables.graph import MermaidDrawMethod  # noqa: PLC0415
+
+    app = build_graph(workflow_def, enable_parallel=True, checkpointer=None)
+    graph_obj = app.get_graph()
+    return await run_in_threadpool(
+        graph_obj.draw_mermaid_png,
+        draw_method=MermaidDrawMethod.PYPPETEER,
+    )
 
 
 # =============================================================================
@@ -170,9 +339,9 @@ async def get_thread_history(
         run = await activity_tracker.store.get_workflow_run(thread_id)
         node_names: dict[str, str] = {}
 
-        if run and run.get("node_name_map"):
+        if run and run.node_name_map:
             # Use saved mapping (works even if workflow was deleted)
-            node_names = run["node_name_map"]
+            node_names = run.node_name_map
             logger.info(f"Using saved node name mapping for thread {thread_id}")
         elif workflow:
             # Fallback: build from workflow definition
@@ -569,21 +738,8 @@ async def get_workflow_run(
         404: Run not found
     """
     try:
-        activity_tracker = get_activity_tracker(str(db.path))
-        run = await activity_tracker.store.get_workflow_run(thread_id)
-
-        if not run:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Workflow run not found for thread: {thread_id}",
-            )
-
-        # get_workflow_run now returns a typed WorkflowRun dataclass (not a
-        # dict), so use attribute access. started_at/completed_at are datetime
-        # on the dataclass but the response wants ISO strings — _iso handles
-        # both datetime and already-stringified values defensively.
-        def _iso(v: Any) -> str | None:
-            return v.isoformat() if hasattr(v, "isoformat") else v
+        run = await _get_workflow_run_or_404(db, thread_id)
+        node_name_map = _run_node_names(run)
 
         return WorkflowRunResponse(
             thread_id=run.thread_id,
@@ -597,9 +753,16 @@ async def get_workflow_run(
             duration_ms=run.duration_ms,
             error=run.error,
             workflow_snapshot=run.workflow_snapshot,
-            node_name_map=run.node_name_map,
+            node_name_map=node_name_map,
             progress_timeline=run.progress_timeline,
             diagram_mermaid=run.diagram_mermaid,
+            planned_steps=_planned_steps_from_run(run),
+            run_artifacts=_run_artifacts_for_thread(
+                db,
+                thread_id,
+                node_name_map=node_name_map,
+            ),
+            diagram_svg_url=f"/api/workflow-execution/threads/{thread_id}/diagram.svg",
         )
 
     except HTTPException:
@@ -631,57 +794,10 @@ async def get_thread_diagram_png(
         500: Failed to generate diagram
     """
     try:
-        activity_tracker = get_activity_tracker(str(db.path))
-        run = await activity_tracker.store.get_workflow_run(thread_id)
+        run = await _get_workflow_run_or_404(db, thread_id)
 
-        if not run:
-            raise HTTPException(
-                status_code=404, detail=f"Workflow run not found: {thread_id}"
-            )
-
-        workflow_snapshot = run.get("workflow_snapshot")
-        if not workflow_snapshot:
-            raise HTTPException(
-                status_code=404, detail="No workflow snapshot available for this run"
-            )
-
-        # Rebuild workflow definition from snapshot
-        workflow_def = WorkflowDef(
-            id=run["workflow_id"],
-            name=run["workflow_name"],
-            description="",
-            provider="",
-            model="",
-            nodes=[
-                NodeDef(
-                    id=n["id"],
-                    tool=n["tool"],
-                    label=n.get("label", ""),
-                    inputs={},
-                    config={},
-                )
-                for n in workflow_snapshot["nodes"]
-            ],
-            edges=[
-                EdgeDef(
-                    source=e["source"],
-                    target=e["target"],
-                    source_port="output",
-                    target_port="input",
-                )
-                for e in workflow_snapshot["edges"]
-            ],
-        )
-
-        # Build graph and generate PNG using local PYPPETEER rendering.
-        # This eliminates the remote mermaid.ink dependency which 400s on
-        # complex graphs whose URL-encoded mermaid source exceeds the upstream
-        # limit (#952, #1025).
         try:
-            from fichero.workflows.builder import build_graph  # noqa: PLC0415
-            from langchain_core.runnables.graph import MermaidDrawMethod  # noqa: PLC0415
-            app = build_graph(workflow_def, enable_parallel=True, checkpointer=None)
-            png_bytes = app.get_graph().draw_mermaid_png(draw_method=MermaidDrawMethod.PYPPETEER)
+            png_bytes = await _render_run_diagram_png(run)
         except Exception as render_exc:
             logger.warning(
                 "Mermaid PNG render failed for thread %s (likely upstream "
@@ -697,7 +813,7 @@ async def get_thread_diagram_png(
             content=png_bytes,
             media_type="image/png",
             headers={
-                "Content-Disposition": f'inline; filename="{run["workflow_name"]}.png"'
+                "Content-Disposition": f'inline; filename="{run.workflow_name}.png"'
             },
         )
 
@@ -705,4 +821,36 @@ async def get_thread_diagram_png(
         raise
     except Exception as e:
         logger.exception(f"Failed to generate diagram for thread {thread_id}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/threads/{thread_id}/diagram.svg")
+async def get_thread_diagram_svg(
+    thread_id: str,
+    db: Database = Depends(get_library_database),
+) -> Response:
+    """Get workflow diagram as an SVG wrapper around the rendered run graph."""
+    try:
+        run = await _get_workflow_run_or_404(db, thread_id)
+        png_bytes = await _render_run_diagram_png(run)
+        png_b64 = base64.b64encode(png_bytes).decode("ascii")
+        # ponytail: reuse the known-good PNG render path and wrap it in SVG;
+        # switch to direct Mermaid→SVG only when a stable local renderer exists.
+        svg = (
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" "
+            "viewBox=\"0 0 100 100\" preserveAspectRatio=\"xMidYMid meet\">"
+            f"<image href=\"data:image/png;base64,{png_b64}\" width=\"100\" height=\"100\" "
+            "preserveAspectRatio=\"xMidYMid meet\"/></svg>"
+        )
+        return Response(
+            content=svg,
+            media_type="image/svg+xml",
+            headers={
+                "Content-Disposition": f'inline; filename="{run.workflow_name}.svg"'
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to generate SVG diagram for thread {thread_id}")
         raise HTTPException(status_code=500, detail=str(e))

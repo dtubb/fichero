@@ -17053,6 +17053,47 @@
         }
       }
     },
+    "/api/workflow-execution/threads/{thread_id}/diagram.svg": {
+      "get": {
+        "tags": [
+          "workflow-execution"
+        ],
+        "summary": "Get Thread Diagram Svg",
+        "description": "Get workflow diagram as an SVG wrapper around the rendered run graph.",
+        "operationId": "get_thread_diagram_svg_api_workflow_execution_threads__thread_id__diagram_svg_get",
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workflow-execution/workflows/{workflow_id}/visualization": {
       "get": {
         "tags": [
@@ -58235,6 +58276,44 @@
         "title": "WorkflowPatchRequest",
         "description": "Request for partial workflow update.\n\nAll fields are optional strings - send only the fields you want to update."
       },
+      "WorkflowPlannedStepResponse": {
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "title": "Node Id"
+          },
+          "node_name": {
+            "type": "string",
+            "title": "Node Name"
+          },
+          "tool": {
+            "type": "string",
+            "title": "Tool"
+          },
+          "upstream_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Upstream Ids"
+          },
+          "downstream_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Downstream Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "node_id",
+          "node_name",
+          "tool"
+        ],
+        "title": "WorkflowPlannedStepResponse",
+        "description": "One node from the persisted workflow snapshot."
+      },
       "WorkflowReorderResponse": {
         "properties": {
           "status": {
@@ -58322,6 +58401,65 @@
         ],
         "title": "WorkflowResponse",
         "description": "Workflow definition response."
+      },
+      "WorkflowRunArtifactResponse": {
+        "properties": {
+          "artifact_id": {
+            "type": "string",
+            "title": "Artifact Id"
+          },
+          "artifact_type": {
+            "type": "string",
+            "title": "Artifact Type"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "document_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Document Name"
+          },
+          "source_document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Document Id"
+          },
+          "source_document_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Document Name"
+          },
+          "run_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Run Id"
+          },
+          "step_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Step Name"
+          },
+          "node_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Node Name"
+          },
+          "created_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "artifact_id",
+          "artifact_type",
+          "document_id"
+        ],
+        "title": "WorkflowRunArtifactResponse",
+        "description": "Artifact produced by a workflow run, with navigation targets."
       },
       "WorkflowRunProvenanceListResponse": {
         "properties": {
@@ -58489,6 +58627,25 @@
             "type": "string",
             "nullable": true,
             "title": "Diagram Mermaid"
+          },
+          "planned_steps": {
+            "items": {
+              "$ref": "#/components/schemas/WorkflowPlannedStepResponse"
+            },
+            "type": "array",
+            "title": "Planned Steps"
+          },
+          "run_artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/WorkflowRunArtifactResponse"
+            },
+            "type": "array",
+            "title": "Run Artifacts"
+          },
+          "diagram_svg_url": {
+            "type": "string",
+            "nullable": true,
+            "title": "Diagram Svg Url"
           }
         },
         "type": "object",
