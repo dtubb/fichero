@@ -134,10 +134,25 @@ class WorkflowEventHub:
             except ValueError:
                 pass
 
+    def snapshot(self) -> list[Any]:
+        """Return the currently buffered replay events."""
+        with self._lock:
+            return list(self._buffer)
+
 
 def _get_workflow_state(thread_id: str) -> dict[str, Any] | None:
     """Get the current state of a running workflow."""
     return _running_workflows.get(thread_id)
+
+
+def _workflow_event_timeline(events: WorkflowEventHub) -> list[dict[str, Any]]:
+    """Serialize the buffered SSE events for run replay."""
+    timeline: list[dict[str, Any]] = []
+    for event in events.snapshot():
+        if event is None:
+            continue
+        timeline.append(event.model_dump(mode="json"))
+    return timeline
 
 
 def _set_workflow_state(thread_id: str, state: dict[str, Any]) -> None:
@@ -1249,16 +1264,6 @@ async def _run_workflow_in_background(
 
         # Save execution log and progress timeline to workflow run
         execution_log = "\n".join(execution_log_lines)
-        await activity_tracker.store.update_workflow_run(
-            thread_id=thread_id,
-            status="completed",
-            execution_log=execution_log,
-            progress_timeline=progress_timeline,
-            duration_ms=total_duration_ms,
-            completed_at=datetime.now(timezone.utc),
-        )
-
-        # Send complete event
         complete_data: dict = {
             "checkpoint_id": checkpoint_tuple.checkpoint["id"]
             if checkpoint_tuple
@@ -1278,6 +1283,15 @@ async def _run_workflow_in_background(
                 workflow_id=workflow_id,
                 data=complete_data,
             )
+        )
+        progress_timeline["events"] = _workflow_event_timeline(event_queue)
+        await activity_tracker.store.update_workflow_run(
+            thread_id=thread_id,
+            status="completed",
+            execution_log=execution_log,
+            progress_timeline=progress_timeline,
+            duration_ms=total_duration_ms,
+            completed_at=datetime.now(timezone.utc),
         )
 
     except SystemicErrorDetected as e:
@@ -1309,16 +1323,6 @@ async def _run_workflow_in_background(
 
         # Save execution log and progress timeline to workflow run
         execution_log = "\n".join(execution_log_lines)
-        await activity_tracker.store.update_workflow_run(
-            thread_id=thread_id,
-            status="failed",
-            execution_log=execution_log,
-            progress_timeline=progress_timeline,
-            duration_ms=total_duration_ms,
-            error=failure_message,
-            completed_at=datetime.now(timezone.utc),
-        )
-
         event_queue.put(
             SSEEvent(
                 event="systemic_error",
@@ -1334,6 +1338,16 @@ async def _run_workflow_in_background(
                     "error_action": failure_cls["action"],
                 },
             )
+        )
+        progress_timeline["events"] = _workflow_event_timeline(event_queue)
+        await activity_tracker.store.update_workflow_run(
+            thread_id=thread_id,
+            status="failed",
+            execution_log=execution_log,
+            progress_timeline=progress_timeline,
+            duration_ms=total_duration_ms,
+            error=failure_message,
+            completed_at=datetime.now(timezone.utc),
         )
 
     except Exception as e:
@@ -1359,16 +1373,6 @@ async def _run_workflow_in_background(
 
         # Save execution log and progress timeline to workflow run
         execution_log = "\n".join(execution_log_lines)
-        await activity_tracker.store.update_workflow_run(
-            thread_id=thread_id,
-            status="failed",
-            execution_log=execution_log,
-            progress_timeline=progress_timeline,
-            duration_ms=total_duration_ms,
-            error=str(e),
-            completed_at=datetime.now(timezone.utc),
-        )
-
         event_queue.put(
             SSEEvent(
                 event="error",
@@ -1379,6 +1383,16 @@ async def _run_workflow_in_background(
                     "error_category": _classify_provider_error(str(e))["category"],
                 },
             )
+        )
+        progress_timeline["events"] = _workflow_event_timeline(event_queue)
+        await activity_tracker.store.update_workflow_run(
+            thread_id=thread_id,
+            status="failed",
+            execution_log=execution_log,
+            progress_timeline=progress_timeline,
+            duration_ms=total_duration_ms,
+            error=str(e),
+            completed_at=datetime.now(timezone.utc),
         )
 
     finally:

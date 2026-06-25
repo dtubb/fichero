@@ -10,15 +10,20 @@ from fichero.models import Workflow
 
 
 class _FakeActivityStore:
+    def __init__(self):
+        self.last_update_kwargs = None
+
     async def save_workflow_run(self, **_kwargs):
         return None
 
     async def update_workflow_run(self, **_kwargs):
+        self.last_update_kwargs = _kwargs
         return None
 
 
 class _FakeActivityTracker:
-    store = _FakeActivityStore()
+    def __init__(self):
+        self.store = _FakeActivityStore()
 
     def workflow_started(self, **_kwargs):
         return None
@@ -65,7 +70,8 @@ async def test_background_runner_handles_non_dict_node_output(monkeypatch, tmp_p
     events = runner.WorkflowEventHub()
     runner._set_workflow_state(thread_id, {"events": events})
 
-    monkeypatch.setattr(runner, "get_activity_tracker", lambda _path: _FakeActivityTracker())
+    tracker = _FakeActivityTracker()
+    monkeypatch.setattr(runner, "get_activity_tracker", lambda _path: tracker)
     monkeypatch.setattr(runner, "build_graph", lambda *_args, **_kwargs: _FakePreviewApp())
     monkeypatch.setattr(
         runner,
@@ -100,6 +106,15 @@ async def test_background_runner_handles_non_dict_node_output(monkeypatch, tmp_p
     state = runner._get_workflow_state(thread_id)
     assert state is not None
     assert state["status"] == "completed"
+
+    update_kwargs = tracker.store.last_update_kwargs
+    assert update_kwargs is not None
+    timeline = update_kwargs["progress_timeline"]
+    event_names = [event["event"] for event in timeline["events"]]
+    assert "start" in event_names
+    assert "node_begin" in event_names
+    assert "node_end" in event_names
+    assert event_names[-1] == "complete"
 
     sub = events.subscribe()
     event_names = []
