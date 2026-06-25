@@ -223,6 +223,13 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(menuSource.contains("icon: \"books.vertical\""))
     }
 
+    func testIpadViewMenuUsesSharedViewCommands() throws {
+        let contentSource = try Self.appSource("Views/ContentView.swift")
+
+        XCTAssertTrue(contentSource.contains("ViewMenuCommands()"))
+        XCTAssertTrue(contentSource.contains("Label(\"View\", systemImage: \"rectangle.split.3x1\")"))
+    }
+
     func testMacLaunchResyncsBackendStateAfterEngineStartup() throws {
         let appSource = try Self.appSource("FicheroApp.swift")
         let appStateSource = try Self.appSource("App/AppState.swift")

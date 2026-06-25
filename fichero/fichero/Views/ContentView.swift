@@ -708,86 +708,12 @@ extension ContentView {
     @ViewBuilder
     private var platformViewMenuButton: some View {
         Menu {
-            if showViewModePicker {
-                Picker("Library View", selection: viewDisplayModeBinding) {
-                    ForEach(availableViewDisplayModes) { mode in
-                        Label(mode.label, systemImage: mode.icon)
-                            .tag(mode)
-                    }
-                }
-            }
-
-            if showLayoutPicker {
-                Picker("Document Layout", selection: layoutModeBinding) {
-                    ForEach(availableLayoutModes) { mode in
-                        Label(mode.rawValue, systemImage: mode.icon)
-                            .tag(mode)
-                    }
-                }
-            }
-
-            // Reader representation (Transcript/Digest/Graph/Claims/Timeline/
-            // Map) and the global Knowledge Graph view mode switch from the
-            // SAME main-toolbar control here as the macOS menu bar does — one
-            // consistent path across Mac/iPad/iOS (#2431). Each section reads a
-            // focused value and self-disables when its surface isn't focused.
-            RepresentationSection()
-
-            KnowledgeGraphViewModeSection()
-
-            if supportsReadingWorkspace {
-                Section("Panes") {
-                    Toggle("Library", isOn: $showDocumentGrid)
-                    Toggle("Preview", isOn: canvasPaneBinding)
-                    Toggle("Reading", isOn: readingPaneBinding)
-                }
-            }
-
-            if showInspectorToggle {
-                Toggle("Inspector", isOn: $showInspectorSidebar)
-            }
+            ViewMenuCommands()
+                .environmentObject(viewSettings)
         } label: {
             Label("View", systemImage: "rectangle.split.3x1")
         }
         .help("Choose visible panes and document views")
-    }
-
-    private var viewDisplayModeBinding: Binding<ViewDisplayMode> {
-        Binding(
-            get: { viewDisplayMode },
-            set: { updateViewDisplayMode($0) }
-        )
-    }
-
-    private var layoutModeBinding: Binding<LayoutMode> {
-        Binding(
-            get: { currentLayoutMode },
-            set: { updateLayoutMode($0) }
-        )
-    }
-
-    private var canvasPaneBinding: Binding<Bool> {
-        Binding(
-            get: {
-                ReadingWorkspacePaneTogglePolicy.isPaneVisible(
-                    layoutMode: currentLayoutMode,
-                    paneFlag: showDocumentCanvas
-                )
-            },
-            set: { isVisible in setCanvasPaneVisible(isVisible) }
-        )
-    }
-
-    private var readingPaneBinding: Binding<Bool> {
-        Binding(
-            get: {
-                ReadingWorkspacePaneTogglePolicy.isPaneVisible(
-                    layoutMode: currentLayoutMode,
-                    paneFlag: showReadingPane
-                )
-            },
-            set: { isVisible in setReadingPaneVisible(isVisible) }
-        )
     }
     #endif
 
