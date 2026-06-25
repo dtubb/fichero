@@ -758,22 +758,45 @@ extension ContentView {
                     detailDocument: detailDocument,
                     inspectorDocument: inspectorDocument
                 )
-                EditorView(
-                    document: previewDocument,
-                    onPDFPageIndexChange: { index in
-                        syncGridSelectionToPDFPage(index: index)
-                    }
-                )
-                .id("editor.library")
-                .background(
-                    // Two/three-finger trackpad swipe → previous/next sibling
-                    // (#593). Lives behind the editor so it sees the swipe
-                    // without intercepting clicks/scrolls.
-                    SwipeSiblingNavigator(
-                        onNavigatePrevious: navigateSiblingPrevious,
-                        onNavigateNext: navigateSiblingNext
+                if let pdfDocumentId = detailPDFDocumentId {
+                    PDFReadingView(
+                        document: pageFocusDocument ?? detailDocument,
+                        pdfDocumentId: pdfDocumentId,
+                        pageIndex: selectedPageIndex,
+                        contentWidth: $pageContentPaneWidth,
+                        onPageIndexChange: { index in
+                            guard documentScrollSync.beginDriving(.pdf) else { return }
+                            syncGridSelectionToPDFPage(index: index)
+                        }
                     )
-                )
+                    .id("reader.pdf")
+                    .background(
+                        // Two/three-finger trackpad swipe → previous/next sibling
+                        // (#593). Lives behind the reader so it sees the swipe
+                        // without intercepting clicks/scrolls.
+                        SwipeSiblingNavigator(
+                            onNavigatePrevious: navigateSiblingPrevious,
+                            onNavigateNext: navigateSiblingNext
+                        )
+                    )
+                } else {
+                    EditorView(
+                        document: previewDocument,
+                        onPDFPageIndexChange: { index in
+                            syncGridSelectionToPDFPage(index: index)
+                        }
+                    )
+                    .id("editor.library")
+                    .background(
+                        // Two/three-finger trackpad swipe → previous/next sibling
+                        // (#593). Lives behind the editor so it sees the swipe
+                        // without intercepting clicks/scrolls.
+                        SwipeSiblingNavigator(
+                            onNavigatePrevious: navigateSiblingPrevious,
+                            onNavigateNext: navigateSiblingNext
+                        )
+                    )
+                }
             }
 
         case .chat, .comparison:

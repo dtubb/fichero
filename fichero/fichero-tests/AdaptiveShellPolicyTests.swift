@@ -325,6 +325,14 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         XCTAssertFalse(buildersSource.contains("viewSettings.previewMode = .none"))
     }
 
+    func testPdfReaderUsesTheExistingReadingLayout() throws {
+        let buildersSource = try Self.appSource("Views/ContentView+ViewBuilders.swift")
+
+        XCTAssertTrue(buildersSource.contains("PDFReadingView("))
+        XCTAssertTrue(buildersSource.contains("contentWidth: $pageContentPaneWidth"))
+        XCTAssertTrue(buildersSource.contains("SwipeSiblingNavigator("))
+    }
+
     func testSidebarsUseSystemGlassMaterials() throws {
         let sidebarSource = try Self.appSource("Views/Sidebar/SidebarView+ViewComponents.swift")
         let buildersSource = try Self.appSource("Views/ContentView+ViewBuilders.swift")
