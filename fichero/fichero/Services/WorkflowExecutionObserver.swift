@@ -18,7 +18,8 @@ class WorkflowExecutionObserver {
 
     // MARK: - Observable State
 
-    /// Active executions by workflow ID (supports multiple concurrent)
+    /// Active executions keyed by thread ID (or a provisional key before the
+    /// execute POST returns the real thread ID).
     var activeExecutions: [String: WorkflowExecution] = [:]
 
     /// Incremented each time any file completes — lets inspectors re-fetch
@@ -31,10 +32,10 @@ class WorkflowExecutionObserver {
     var workflowCompletedCount: Int = 0
 
     /// Completed/failed executions archived for the session so Activity tabs
-    /// remain populated after a run finishes. Keyed by workflowId.
+    /// remain populated after a run finishes. Keyed by threadId.
     var completedExecutions: [String: WorkflowExecution] = [:]
 
-    /// Cancel handlers for each workflow (not observable - internal use)
+    /// Cancel handlers for each execution key (not observable - internal use)
     private var cancelHandlers: [String: () -> Void] = [:]
 
     // MARK: - Computed Properties
@@ -46,7 +47,7 @@ class WorkflowExecutionObserver {
 
     /// Get IDs of all running workflows
     var runningWorkflowIds: Set<String> {
-        Set(activeExecutions.keys)
+        Set(activeExecutions.values.map(\.id))
     }
 
     // MARK: - Initialization
@@ -61,9 +62,9 @@ class WorkflowExecutionObserver {
 
     /// Start tracking a workflow execution
     /// - Parameters:
-    ///   - workflowId: Unique workflow ID
+    ///   - workflowId: Workflow definition ID
     ///   - name: Display name of the workflow
-    ///   - threadId: Backend thread ID
+    ///   - threadId: Backend thread ID, or a provisional execution key
     ///   - onCancel: Optional closure to call when user cancels
     func startExecution(workflowId: String, name: String, threadId: String, onCancel: (() -> Void)? = nil) {
         workflowExecutionLogger.info(
@@ -87,58 +88,70 @@ class WorkflowExecutionObserver {
             processedFiles: 0
         )
 
-        activeExecutions[workflowId] = execution
+        activeExecutions[threadId] = execution
 
-        if let onCancel = onCancel {
-            cancelHandlers[workflowId] = onCancel
+        if let onCancel {
+            cancelHandlers[threadId] = onCancel
         }
     }
 
-    /// Update the threadId and cancel handler on an already-registered execution.
-    /// Call this after the backend POST returns with the real thread ID.
-    func updateThreadId(_ threadId: String, onCancel: (() -> Void)? = nil, for workflowId: String) {
-        if var execution = activeExecutions[workflowId] {
-            execution.threadId = threadId
-            activeExecutions[workflowId] = execution
+    /// Promote a provisional execution key to the real backend thread ID.
+    /// This must happen before the stream task starts so early SSE events have
+    /// a row to land in.
+    func promoteExecution(from provisionalThreadId: String, to threadId: String, onCancel: (() -> Void)? = nil) {
+        guard provisionalThreadId != threadId else {
+            if let onCancel {
+                cancelHandlers[threadId] = onCancel
+            }
+            return
         }
-        if let onCancel = onCancel {
-            cancelHandlers[workflowId] = onCancel
+
+        if var execution = activeExecutions.removeValue(forKey: provisionalThreadId) {
+            execution.threadId = threadId
+            activeExecutions[threadId] = execution
+        }
+
+        if let cancelHandler = cancelHandlers.removeValue(forKey: provisionalThreadId) {
+            cancelHandlers[threadId] = cancelHandler
+        }
+        if let onCancel {
+            cancelHandlers[threadId] = onCancel
         }
     }
 
     /// Cancel a running workflow
-    func cancelExecution(workflowId: String) {
-        workflowExecutionLogger.info("Cancelling workflow: \(workflowId)")
+    func cancelExecution(threadId: String) {
+        workflowExecutionLogger.info("Cancelling workflow thread: \(threadId)")
 
         // Call the cancel handler
-        if let cancelHandler = cancelHandlers[workflowId] {
+        if let cancelHandler = cancelHandlers[threadId] {
             cancelHandler()
-            cancelHandlers.removeValue(forKey: workflowId)
+            cancelHandlers.removeValue(forKey: threadId)
         }
 
         // Update status
-        if var execution = activeExecutions[workflowId] {
+        if var execution = activeExecutions[threadId] {
             execution.status = .failed
             execution.isRunning = false
             execution.workflowError = "Cancelled by user"
-            activeExecutions[workflowId] = execution
+            activeExecutions[threadId] = execution
 
             // Archive after delay so Activity tabs remain readable post-cancel
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(30))
-                if let finished = self.activeExecutions.removeValue(forKey: workflowId) {
-                    self.completedExecutions[workflowId] = finished
+                if let finished = self.activeExecutions.removeValue(forKey: threadId) {
+                    self.completedExecutions[threadId] = finished
                 }
             }
         }
     }
 
     /// End tracking for a workflow (call when complete or failed)
-    func endExecution(workflowId: String, status: WorkflowStatus = .completed) {
+    func endExecution(threadId: String, status: WorkflowStatus = .completed) {
         let statusDesc = String(describing: status)
-        workflowExecutionLogger.info("Ending execution tracking: \(workflowId) with status \(statusDesc)")
+        workflowExecutionLogger.info("Ending execution tracking: \(threadId) with status \(statusDesc)")
 
-        if var execution = activeExecutions[workflowId] {
+        if var execution = activeExecutions[threadId] {
             execution.status = status
             execution.isRunning = false
 
@@ -156,9 +169,9 @@ class WorkflowExecutionObserver {
                     execution.nodeStates[nodeId] = fixed
                 }
             }
-            activeExecutions[workflowId] = execution
+            activeExecutions[threadId] = execution
 
-            cancelHandlers.removeValue(forKey: workflowId)
+            cancelHandlers.removeValue(forKey: threadId)
 
             // Signal inspectors that the workflow is done — important for
             // reduce-phase nodes (Catalogue) that save artifacts after all
@@ -168,12 +181,12 @@ class WorkflowExecutionObserver {
             // Archive to completedExecutions so Activity tabs remain readable
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(1))
-                if let finished = self.activeExecutions.removeValue(forKey: workflowId) {
-                    self.completedExecutions[workflowId] = finished
-                    workflowExecutionLogger.info("Archived completed execution: \(workflowId)")
+                if let finished = self.activeExecutions.removeValue(forKey: threadId) {
+                    self.completedExecutions[threadId] = finished
+                    workflowExecutionLogger.info("Archived completed execution: \(threadId)")
                 } else {
                     workflowExecutionLogger.warning(
-                        "endExecution archive: \(workflowId) already removed — possible double-completion"
+                        "endExecution archive: \(threadId) already removed — possible double-completion"
                     )
                 }
             }
@@ -184,17 +197,17 @@ class WorkflowExecutionObserver {
 
     /// Get the execution for a specific workflow
     func getExecution(for workflowId: String) -> WorkflowExecution? {
-        activeExecutions[workflowId]
+        latestExecution(for: workflowId, includeCompleted: true)
     }
 
     /// Get the node states for a specific workflow
     func getNodeStates(for workflowId: String) -> [String: NodeExecutionState]? {
-        activeExecutions[workflowId]?.nodeStates
+        latestExecution(for: workflowId, includeCompleted: false)?.nodeStates
     }
 
     /// Get execution state for WorkflowOutputLog
     func getExecutionState(for workflowId: String) -> WorkflowExecutionState? {
-        guard let execution = activeExecutions[workflowId] else { return nil }
+        guard let execution = latestExecution(for: workflowId, includeCompleted: true) else { return nil }
         return WorkflowExecutionState(
             status: execution.status,
             documentProgress: execution.orderedDocumentProgress,
@@ -204,11 +217,24 @@ class WorkflowExecutionObserver {
 
     /// Check if a specific workflow is running
     func isRunning(workflowId: String) -> Bool {
-        activeExecutions[workflowId] != nil
+        activeExecutions.values.contains { $0.id == workflowId && $0.isRunning }
     }
 
     /// Get progress for a specific workflow (for sidebar)
     func getProgress(for workflowId: String) -> Double? {
-        activeExecutions[workflowId]?.overallProgress
+        latestExecution(for: workflowId, includeCompleted: false)?.overallProgress
+    }
+
+    /// Get the execution for a specific thread, active first then archived.
+    func getExecution(threadId: String) -> WorkflowExecution? {
+        activeExecutions[threadId] ?? completedExecutions[threadId]
+    }
+
+    private func latestExecution(for workflowId: String, includeCompleted: Bool) -> WorkflowExecution? {
+        let executions = Array(activeExecutions.values)
+            + (includeCompleted ? Array(completedExecutions.values) : [])
+        return executions
+            .filter { $0.id == workflowId }
+            .max { $0.startTime < $1.startTime }
     }
 }

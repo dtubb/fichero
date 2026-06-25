@@ -649,6 +649,12 @@ extension LibraryView {
 
         logger.info("Starting SSE workflow \(workflowId) on \(docIds.count) documents via context menu")
 
+        var executionThreadId = "pending:\(UUID().uuidString)"
+        executionObserver.startExecution(
+            workflowId: workflowId,
+            name: workflowName,
+            threadId: executionThreadId
+        )
         var streamCompleted = false
         do {
                 let response = try await workflowStreamService.execute(
@@ -656,10 +662,23 @@ extension LibraryView {
                     inputs: ["selected_doc_ids": docIds],
                     providerOverride: providerOverride,
                     modelOverride: modelOverride,
+                    onAccepted: { acceptedResponse in
+                        let threadId = acceptedResponse.threadId
+                        executionObserver.promoteExecution(
+                            from: executionThreadId,
+                            to: threadId,
+                            onCancel: { [weak workflowStreamService] in
+                                Task { @MainActor in
+                                    try? await workflowStreamService?.stopWorkflow(threadId: threadId)
+                                }
+                            }
+                        )
+                        executionThreadId = threadId
+                    },
                     onEvent: { [weak documentStore = library?.documentStore] event in
                     if handleBatchWorkflowEvent(
                         event,
-                        workflowId: workflowId,
+                        threadId: executionThreadId,
                         documentStore: documentStore
                     ) {
                         streamCompleted = true
@@ -668,43 +687,33 @@ extension LibraryView {
             )
 
             let threadId = response.threadId
-            executionObserver.startExecution(
-                workflowId: workflowId,
-                name: workflowName,
-                threadId: threadId,
-                onCancel: { [weak workflowStreamService] in
-                    Task { @MainActor in
-                        try? await workflowStreamService?.stopWorkflow(threadId: threadId)
-                    }
-                }
-            )
             logger.info("Started SSE workflow \(workflowId) thread \(threadId) for \(docIds.count) docs")
 
             while !streamCompleted {
                 try await Task.sleep(for: .milliseconds(200))
                 if Task.isCancelled { break }
-                if let exec = executionObserver.activeExecutions[workflowId], !exec.isRunning {
+                if let exec = executionObserver.activeExecutions[executionThreadId], !exec.isRunning {
                     streamCompleted = true
                 }
             }
 
-            let finalStatus = batchWorkflowFinalStatus(for: workflowId)
-            executionObserver.endExecution(workflowId: workflowId, status: finalStatus)
+            let finalStatus = batchWorkflowFinalStatus(forThreadId: executionThreadId)
+            executionObserver.endExecution(threadId: executionThreadId, status: finalStatus)
             logger.info("Workflow \(workflowId) finished with status: \(String(describing: finalStatus))")
 
         } catch {
             logger.error("executeWorkflowViaSSE failed: \(error.localizedDescription)")
             ErrorService.shared.reportError(error)
-            executionObserver.endExecution(workflowId: workflowId, status: .failed)
+            executionObserver.endExecution(threadId: executionThreadId, status: .failed)
         }
     }
 
     private func handleBatchWorkflowEvent(
         _ event: WorkflowStreamEvent,
-        workflowId: String,
+        threadId: String,
         documentStore: DocumentStore?
     ) -> Bool {
-        executionObserver.handleEvent(event, for: workflowId)
+        executionObserver.handleEvent(event, forThreadId: threadId)
         if let store = documentStore {
             switch event {
             case .fileStart:
@@ -735,8 +744,8 @@ extension LibraryView {
         }
     }
 
-    private func batchWorkflowFinalStatus(for workflowId: String) -> WorkflowStatus {
-        guard let exec = executionObserver.activeExecutions[workflowId] else {
+    private func batchWorkflowFinalStatus(forThreadId threadId: String) -> WorkflowStatus {
+        guard let exec = executionObserver.activeExecutions[threadId] else {
             return .completed
         }
         return exec.workflowError != nil || exec.status == .failed ? .failed : .completed

@@ -24,18 +24,37 @@ extension SidebarItemRow {
         let stream = library.workflowStreamService
         let observer = executionObserver
         Task { @MainActor in
+            var executionThreadId = "pending:\(UUID().uuidString)"
+            observer.startExecution(
+                workflowId: workflowId,
+                name: workflowName,
+                threadId: executionThreadId
+            )
             var streamCompleted = false
             do {
                 let store = library.documentStore
-                let response = try await stream.execute(
+                _ = try await stream.execute(
                     workflowId: workflowId,
                     inputs: ["selected_doc_ids": [docId]],
                     providerOverride: providerOverride,
                     modelOverride: modelOverride,
+                    onAccepted: { acceptedResponse in
+                        let threadId = acceptedResponse.threadId
+                        observer.promoteExecution(
+                            from: executionThreadId,
+                            to: threadId,
+                            onCancel: { [weak stream] in
+                                Task { @MainActor in
+                                    try? await stream?.stopWorkflow(threadId: threadId)
+                                }
+                            }
+                        )
+                        executionThreadId = threadId
+                    },
                     onEvent: { event in
                         if handleSidebarWorkflowEvent(
                             event,
-                            workflowId: workflowId,
+                            threadId: executionThreadId,
                             store: store,
                             observer: observer
                         ) {
@@ -43,29 +62,18 @@ extension SidebarItemRow {
                         }
                     }
                 )
-                let threadId = response.threadId
-                observer.startExecution(
-                    workflowId: workflowId,
-                    name: workflowName,
-                    threadId: threadId,
-                    onCancel: { [weak stream] in
-                        Task { @MainActor in
-                            try? await stream?.stopWorkflow(threadId: threadId)
-                        }
-                    }
-                )
                 while !streamCompleted {
                     try await Task.sleep(for: .milliseconds(200))
                     if Task.isCancelled { break }
-                    if let exec = observer.activeExecutions[workflowId], !exec.isRunning {
+                    if let exec = observer.activeExecutions[executionThreadId], !exec.isRunning {
                         streamCompleted = true
                     }
                 }
-                let status = sidebarWorkflowFinalStatus(for: workflowId, observer: observer)
-                observer.endExecution(workflowId: workflowId, status: status)
+                let status = sidebarWorkflowFinalStatus(forThreadId: executionThreadId, observer: observer)
+                observer.endExecution(threadId: executionThreadId, status: status)
             } catch {
                 sidebarRowLogger.error("Sidebar Run Workflow failed: \(error)")
-                observer.endExecution(workflowId: workflowId, status: .failed)
+                observer.endExecution(threadId: executionThreadId, status: .failed)
             }
         }
     }
@@ -73,11 +81,11 @@ extension SidebarItemRow {
 
     private func handleSidebarWorkflowEvent(
         _ event: WorkflowStreamEvent,
-        workflowId: String,
+        threadId: String,
         store: DocumentStore,
         observer: WorkflowExecutionObserver
     ) -> Bool {
-        observer.handleEvent(event, for: workflowId)
+        observer.handleEvent(event, forThreadId: threadId)
         // Per-doc spinner: mirror SSE file events to Document.status so
         // grid icons + sidebar folders show processing state.
         switch event {
@@ -111,10 +119,10 @@ extension SidebarItemRow {
     }
 
     private func sidebarWorkflowFinalStatus(
-        for workflowId: String,
+        forThreadId threadId: String,
         observer: WorkflowExecutionObserver
     ) -> WorkflowStatus {
-        guard let exec = observer.activeExecutions[workflowId] else { return .completed }
+        guard let exec = observer.activeExecutions[threadId] else { return .completed }
         return exec.workflowError != nil || exec.status == .failed ? .failed : .completed
     }
 }

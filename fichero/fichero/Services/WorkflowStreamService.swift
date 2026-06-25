@@ -10,7 +10,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Workflo
 /// Service for streaming workflow execution events via SSE
 ///
 /// This service is callback-only - it does NOT store events.
-/// All event state is managed by WorkflowExecutionObserver (single source of truth).
+/// Live event state is reduced by the caller into the thread-keyed execution state.
 @MainActor
 class WorkflowStreamService: ObservableObject {
     /// Single source for BOTH the generated REST calls (execute / stop / resume)
@@ -80,6 +80,7 @@ class WorkflowStreamService: ObservableObject {
         inputs: [String: Any] = [:],
         providerOverride: String? = nil,
         modelOverride: String? = nil,
+        onAccepted: ((ExecuteAcceptedResponse) -> Void)? = nil,
         onEvent: ((WorkflowStreamEvent) -> Void)? = nil
     ) async throws -> ExecuteAcceptedResponse {
         // Cancel any existing stream
@@ -98,6 +99,8 @@ class WorkflowStreamService: ObservableObject {
 
         currentThreadId = acceptedResponse.threadId
         logger.info("Workflow execution started, thread: \(acceptedResponse.threadId)")
+
+        onAccepted?(acceptedResponse)
 
         // Step 2: Connect to the stream URL in a separate task
         streamTask = Task { [weak self] in

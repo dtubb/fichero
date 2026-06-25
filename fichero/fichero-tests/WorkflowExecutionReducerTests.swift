@@ -66,6 +66,7 @@ struct WorkflowExecutionReducerTests {
     private func fileComplete(
         _ index: Int,
         total: Int,
+        threadId: String = "thread-1",
         filePath: String? = nil,
         documentId: String? = nil,
         pageId: String? = nil,
@@ -73,7 +74,7 @@ struct WorkflowExecutionReducerTests {
         sequence: Int? = nil
     ) -> WorkflowStreamEvent {
         .fileComplete(
-            threadId: "thread-1",
+            threadId: threadId,
             nodeId: "node-1",
             filePath: filePath ?? "/docs/page-\(index).pdf",
             fileIndex: index,
@@ -224,6 +225,88 @@ struct WorkflowExecutionReducerTests {
             // expected
         } else {
             Issue.record("Expected page-2 to remain running")
+        }
+    }
+
+    @Test("observer keeps same-workflow concurrent runs distinct by threadId")
+    func observerSeparatesConcurrentRunsByThreadId() {
+        let observer = WorkflowExecutionObserver()
+
+        observer.startExecution(
+            workflowId: "wf-1",
+            name: "Transcribe",
+            threadId: "thread-1"
+        )
+        observer.startExecution(
+            workflowId: "wf-1",
+            name: "Transcribe",
+            threadId: "thread-2"
+        )
+
+        observer.handleEvent(fileComplete(0, total: 1, threadId: "thread-1"), forThreadId: "thread-1")
+        observer.handleEvent(
+            fileComplete(
+                0,
+                total: 1,
+                threadId: "thread-2",
+                filePath: "/docs/other.pdf",
+                displayName: "Other"
+            ),
+            forThreadId: "thread-2"
+        )
+
+        #expect(observer.activeExecutions.count == 2)
+        #expect(observer.activeExecutions["thread-1"]?.threadId == "thread-1")
+        #expect(observer.activeExecutions["thread-2"]?.threadId == "thread-2")
+        #expect(observer.activeExecutions["thread-1"]?.documentProgress.count == 1)
+        #expect(observer.activeExecutions["thread-2"]?.documentProgress.count == 1)
+    }
+
+    @Test("promoting a provisional execution preserves early events")
+    func provisionalExecutionPromotionKeepsEarlyEvents() {
+        let observer = WorkflowExecutionObserver()
+        let provisionalThreadId = "pending:test"
+
+        observer.startExecution(
+            workflowId: "wf-1",
+            name: "Transcribe",
+            threadId: provisionalThreadId
+        )
+        observer.handleEvent(
+            fileStart(
+                0,
+                total: 1,
+                filePath: "/docs/scan.pdf",
+                documentId: "pdf-1",
+                pageId: "page-1",
+                displayName: "Page 1",
+                sequence: 1
+            ),
+            forThreadId: provisionalThreadId
+        )
+
+        observer.promoteExecution(from: provisionalThreadId, to: "thread-1")
+        observer.handleEvent(
+            fileComplete(
+                0,
+                total: 1,
+                threadId: "thread-1",
+                filePath: "/docs/scan.pdf",
+                documentId: "pdf-1",
+                pageId: "page-1",
+                displayName: "Page 1",
+                sequence: 1
+            ),
+            forThreadId: "thread-1"
+        )
+
+        #expect(observer.activeExecutions[provisionalThreadId] == nil)
+        #expect(observer.activeExecutions["thread-1"]?.threadId == "thread-1")
+        #expect(observer.activeExecutions["thread-1"]?.documentProgress["page-1"]?.documentName == "Page 1")
+        if case .completed? = observer.activeExecutions["thread-1"]?.documentProgress["page-1"]?.stepStatuses["node-1"] {
+            // expected
+        } else {
+            Issue.record("Expected promoted execution to keep early file state")
         }
     }
 }

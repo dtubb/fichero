@@ -36,8 +36,7 @@ struct ActivityDetailView: View {
             return stored
         }
         guard let workflowId = selectedRun.workflowId else { return nil }
-        return executionObserver.activeExecutions[workflowId]
-            ?? executionObserver.completedExecutions[workflowId]
+        return executionObserver.getExecution(for: workflowId)
     }
 
     /// Error count from live execution or activity items

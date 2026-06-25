@@ -23,10 +23,11 @@ extension WorkflowEditor {
         )
 
         // Register immediately so Activity tab shows "Starting…" before first SSE event
+        var executionThreadId = "starting:\(UUID().uuidString)"
         executionObserver.startExecution(
             workflowId: editingWorkflow.id,
             name: editingWorkflow.name,
-            threadId: "starting"
+            threadId: executionThreadId
         )
 
         actionsLogger.info("Run workflow: \(editingWorkflow.name)")
@@ -90,16 +91,29 @@ extension WorkflowEditor {
                 let response = try await workflowStreamService.execute(
                     workflowId: workflowId,
                     inputs: ["selected_doc_ids": selectedIds],
+                    onAccepted: { acceptedResponse in
+                        let threadId = acceptedResponse.threadId
+                        executionObserver.promoteExecution(
+                            from: executionThreadId,
+                            to: threadId,
+                            onCancel: { [weak workflowStreamService] in
+                                Task { @MainActor in
+                                    try? await workflowStreamService?.stopWorkflow(threadId: threadId)
+                                }
+                            }
+                        )
+                        executionThreadId = threadId
+                    },
                     onEvent: { [weak documentStore] event in
                         // Debug: Log every event (using info level for visibility)
                         let eventDesc = String(String(describing: event).prefix(100))
                         actionsLogger.info("[SSE] Event: \(eventDesc)")
 
                         // Update global observer (single source of truth for all UI)
-                        executionObserver.handleEvent(event, for: workflowId)
+                        executionObserver.handleEvent(event, forThreadId: executionThreadId)
 
                         // Debug: Log document progress count
-                        if let exec = executionObserver.activeExecutions[workflowId] {
+                        if let exec = executionObserver.activeExecutions[executionThreadId] {
                             let docCount = exec.documentProgress.count
                             let nodeStateCount = exec.nodeStates.count
                             actionsLogger.info(
@@ -125,25 +139,13 @@ extension WorkflowEditor {
 
                 actionsLogger.info("[SSE] Workflow started with thread: \(response.threadId)")
 
-                // Update the execution record with real threadId + cancel handler
-                let threadId = response.threadId
-                executionObserver.updateThreadId(
-                    threadId,
-                    onCancel: { [weak workflowStreamService] in
-                        Task { @MainActor in
-                            try? await workflowStreamService?.stopWorkflow(threadId: threadId)
-                        }
-                    },
-                    for: workflowId
-                )
-
                 // Wait for stream to complete (poll observer state)
                 while !streamCompleted {
                     try await Task.sleep(for: .milliseconds(100))
                     // Check if we're cancelled
                     if Task.isCancelled { break }
                     // Also check observer for completion
-                    if let exec = executionObserver.activeExecutions[workflowId],
+                    if let exec = executionObserver.activeExecutions[executionThreadId],
                        !exec.isRunning {
                         streamCompleted = true
                     }
@@ -151,7 +153,7 @@ extension WorkflowEditor {
 
                 // Determine final status from observer
                 actionsLogger.info("[SSE] Stream ended, checking final state for workflowId: \(workflowId)")
-                if let exec = executionObserver.activeExecutions[workflowId] {
+                if let exec = executionObserver.activeExecutions[executionThreadId] {
                     let docCount = exec.documentProgress.count
                     let workflowError = exec.workflowError ?? "none"
                     actionsLogger.info(
@@ -168,7 +170,7 @@ extension WorkflowEditor {
                 }
 
                 let finalStatus: WorkflowStatus
-                if let execution = executionObserver.activeExecutions[workflowId] {
+                if let execution = executionObserver.activeExecutions[executionThreadId] {
                     if execution.workflowError != nil {
                         finalStatus = .failed
                         actionsLogger.error("Workflow failed: \(execution.workflowError ?? "Unknown error")")
@@ -198,7 +200,7 @@ extension WorkflowEditor {
                 }
 
                 // End tracking in global observer
-                executionObserver.endExecution(workflowId: workflowId, status: finalStatus)
+                executionObserver.endExecution(threadId: executionThreadId, status: finalStatus)
 
             } catch {
                 actionsLogger.error("Failed to execute workflow: \(error.localizedDescription)")
@@ -206,7 +208,7 @@ extension WorkflowEditor {
                 executionState?.error = error.localizedDescription
 
                 // End tracking with failed status
-                executionObserver.endExecution(workflowId: editingWorkflow.id, status: .failed)
+                executionObserver.endExecution(threadId: executionThreadId, status: .failed)
             }
 
             isRunning = false

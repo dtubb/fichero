@@ -64,7 +64,7 @@ struct WorkflowExecutionRow: View {
             // Control buttons
             if execution.isRunning {
                 Button {
-                    executionObserver.cancelExecution(workflowId: execution.id)
+                    executionObserver.cancelExecution(threadId: execution.threadId)
                 } label: {
                     Image(systemName: "stop.fill")
                         .foregroundColor(.red)

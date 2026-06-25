@@ -32,8 +32,7 @@ struct ActivityLogView: View {
             return stored
         }
         guard let workflowId = selectedRun.workflowId else { return nil }
-        return executionObserver.activeExecutions[workflowId]
-            ?? executionObserver.completedExecutions[workflowId]
+        return executionObserver.getExecution(for: workflowId)
     }
 
     var body: some View {

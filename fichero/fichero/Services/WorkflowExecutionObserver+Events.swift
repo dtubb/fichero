@@ -5,23 +5,23 @@ extension WorkflowExecutionObserver {
 
     // MARK: - Event Handling
 
-    /// Apply one parsed SSE event to the execution tracked under `workflowId`.
+    /// Apply one parsed SSE event to the execution tracked under `threadId`.
     ///
     /// The per-event state reduction now lives on `WorkflowExecution.apply(_:)`
     /// (below) so it can be shared with the threadId-keyed `WorkflowExecutionStore`
     /// (#2546) — the Activity monitor reduces the SAME events into the SAME model
     /// without duplicating this logic. This method keeps the observer-specific
-    /// concerns: the workflowId lookup, the missing-execution warning, the
+    /// concerns: the threadId lookup, the missing-execution warning, the
     /// `fileCompletedCount` inspector signal, and the write-back.
-    func handleEvent(_ event: WorkflowStreamEvent, for workflowId: String) {
+    func handleEvent(_ event: WorkflowStreamEvent, forThreadId threadId: String) {
         // Log every event for debugging
         let eventDesc = String(describing: event).prefix(80)
-        workflowExecutionLogger.info("[EVENT] Received: \(eventDesc) for workflow: \(workflowId)")
+        workflowExecutionLogger.info("[EVENT] Received: \(eventDesc) for thread: \(threadId)")
 
-        guard var execution = activeExecutions[workflowId] else {
+        guard var execution = activeExecutions[threadId] else {
             let activeKeys = self.activeExecutions.keys.joined(separator: ", ")
             workflowExecutionLogger.warning(
-                "[EVENT] No execution found for workflow: \(workflowId). Active: \(activeKeys)"
+                "[EVENT] No execution found for thread: \(threadId). Active: \(activeKeys)"
             )
             return
         }
@@ -36,7 +36,7 @@ extension WorkflowExecutionObserver {
         }
 
         // Save updated execution
-        activeExecutions[workflowId] = execution
+        activeExecutions[threadId] = execution
     }
 }
 
@@ -48,7 +48,7 @@ extension WorkflowExecution {
     /// Reduce one parsed SSE event into this execution's state.
     ///
     /// Pure, value-typed, side-effect-free: mutates only `self`. Shared by
-    /// `WorkflowExecutionObserver` (keyed by workflowId, fed by the editor) and
+    /// `WorkflowExecutionObserver` (keyed by threadId, fed by the launchers) and
     /// `WorkflowExecutionStore` (keyed by threadId, fed by Activity's
     /// subscribe-on-select) — one reducer, two homes (#2546).
     mutating func apply(_ event: WorkflowStreamEvent) {
