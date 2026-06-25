@@ -480,6 +480,63 @@ extension ContentView {
         }
     }
 
+    @ViewBuilder
+    var detailShellColumn: some View {
+        VStack(spacing: 0) {
+            detailTabStrip
+            Divider()
+            centerContent
+            detailStatusPathBar
+        }
+        .background(Color(platformColor: .textBackgroundColor))
+    }
+
+    private var detailTabStrip: some View {
+        HStack(spacing: 8) {
+            Label {
+                Text(toolbarTitle)
+                    .font(.subheadline)
+                    .lineLimit(1)
+            } icon: {
+                Image(systemName: toolbarIcon)
+            }
+            .labelStyle(.titleAndIcon)
+
+            Spacer(minLength: 8)
+
+            Button {
+                WindowOpener.open(libraryId: windowState.libraryId, asTab: true, using: openWindow)
+            } label: {
+                Image(systemName: "plus")
+            }
+            .buttonStyle(.borderless)
+            .controlSize(.small)
+            .help("Open current library in new tab")
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 32)
+        .background(.bar)
+    }
+
+    private var detailStatusPathBar: some View {
+        VStack(spacing: 0) {
+            Divider()
+            HStack(spacing: 8) {
+                Text(selectionStatusText)
+                    .font(.caption)
+                    .lineLimit(1)
+                Text(selectionPathText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 24)
+            .background(.bar)
+        }
+    }
+
     // MARK: - Compact (iPhone) forward navigation (#2551)
 
     /// True only on COMPACT width for the library/search modes that own the
@@ -769,6 +826,8 @@ extension ContentView {
         inspectorView
             // Focus tracking without .focusable() — avoids swallowing first click
             .overlay { paneFocusIndicator(for: .inspector) }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(platformColor: .windowBackgroundColor))
     }
 
     // MARK: - Breadcrumb

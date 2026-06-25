@@ -149,6 +149,19 @@ extension ContentView {
         }
     }
 
+    var selectionStatusText: String {
+        if browserSelection.count > 1 {
+            return "\(browserSelection.count) items selected"
+        }
+        return inspectorDocument?.name ?? toolbarTitle
+    }
+
+    var selectionPathText: String {
+        let leaf = inspectorDocument?.name ?? toolbarTitle
+        guard !breadcrumbSubtitle.isEmpty else { return leaf }
+        return "\(breadcrumbSubtitle) › \(leaf)"
+    }
+
     /// Documents for the browser based on current library selection
     var selectedDocuments: [Document] {
         return documentStore.currentDocuments

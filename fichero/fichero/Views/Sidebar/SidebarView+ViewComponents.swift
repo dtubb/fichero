@@ -11,13 +11,6 @@ extension SidebarView {
     @ViewBuilder
     var standardSidebarContent: some View {
         VStack(spacing: 0) {
-            // Breathing room between the window's title bar and the sidebar's
-            // first row. Without this the 'Library' header sits flush against
-            // the toolbar — feels cramped on macOS Tahoe / Sequoia. 12pt
-            // matches Mail.app / Finder.app's sidebar-to-toolbar gap. (#883)
-            Spacer()
-                .frame(height: 12)
-
             // The persistent shell sidebar (the library/folder tree) stays
             // visible in EVERY mode — Research included. Research no longer
             // swaps the sidebar out for its project list; that list now renders

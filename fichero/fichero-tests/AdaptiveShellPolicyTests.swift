@@ -2,6 +2,15 @@
 import XCTest
 
 final class AdaptiveShellPolicyTests: XCTestCase {
+    private static func appSource(_ relativePath: String) throws -> String {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero")
+            .appendingPathComponent(relativePath)
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
     func testAdaptiveShellDefaultsAndLegacyRestoreStayPlatformSpecific() {
         #if os(macOS)
         XCTAssertEqual(ContentView.defaultColumnVisibility, .all)
@@ -229,5 +238,27 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         XCTAssertFalse(plan.showsCanvasPane)
         XCTAssertFalse(plan.showsReadingPane)
         XCTAssertEqual(plan.minimumWidth, ContentView.contentListMinWidth)
+    }
+
+    func testPersistentShellChromeStaysInSplitColumns() throws {
+        let contentSource = try Self.appSource("Views/ContentView.swift")
+        let buildersSource = try Self.appSource("Views/ContentView+ViewBuilders.swift")
+
+        XCTAssertTrue(contentSource.contains("NavigationSplitView("))
+        XCTAssertTrue(contentSource.contains("detailShellColumn"))
+        XCTAssertTrue(buildersSource.contains("var detailShellColumn: some View"))
+        XCTAssertTrue(buildersSource.contains("detailTabStrip"))
+        XCTAssertTrue(buildersSource.contains("detailStatusPathBar"))
+        XCTAssertTrue(buildersSource.contains("WindowOpener.open(libraryId: windowState.libraryId, asTab: true"))
+        XCTAssertTrue(buildersSource.contains("background(Color(platformColor: .windowBackgroundColor))"))
+    }
+
+    func testSelectionStatusTextKeepsCountAndPathVisible() throws {
+        let stateSource = try Self.appSource("Views/ContentView+State.swift")
+
+        XCTAssertTrue(stateSource.contains("var selectionStatusText: String"))
+        XCTAssertTrue(stateSource.contains("\"\\(browserSelection.count) items selected\""))
+        XCTAssertTrue(stateSource.contains("var selectionPathText: String"))
+        XCTAssertTrue(stateSource.contains("return \"\\(breadcrumbSubtitle) › \\(leaf)\""))
     }
 }

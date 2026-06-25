@@ -360,7 +360,7 @@ struct ContentView: View {
     /// this expression in reasonable time").
     @ViewBuilder
     private var detailColumn: some View {
-        centerContent
+        detailShellColumn
             .toolbar { detailToolbarContent }
             // The detail column carries only a MODEST hard floor — the
             // always-present library-list spine width — NOT the full
