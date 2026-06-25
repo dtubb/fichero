@@ -723,22 +723,6 @@ extension ContentView {
             // causing the LazyVGrid sibling to re-layout / first-click
             // flash (#788).
             VStack(spacing: 0) {
-                // Top-left × button to hide the preview pane — matches
-                // the inspector's close-on-the-corner convention. Daniel:
-                // 'we also want a close x in the preview toolbar so that
-                // we can hide the preview … in the top left.'
-                MiniToolbar {
-                    Button {
-                        viewSettings.previewMode = .none
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Hide preview")
-                    Spacer(minLength: 0)
-                }
-
                 let previewDocument = CanvasDocumentPolicy.documentForCanvas(
                     selectedDocumentIds: browserSelection,
                     documents: documentStore.currentDocuments,

@@ -290,5 +290,16 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         XCTAssertTrue(annotationsSource.contains("annotationFilterBar"))
         XCTAssertTrue(annotationsSource.contains("TextField(\"Search notes, tags, claim id…\", text: $searchText)"))
     }
+
+    func testContentPaneControlsLiveInTopToolbar() throws {
+        let contentSource = try Self.appSource("Views/ContentView.swift")
+        let buildersSource = try Self.appSource("Views/ContentView+ViewBuilders.swift")
+
+        XCTAssertTrue(contentSource.contains("contentPaneToolbarContent"))
+        XCTAssertTrue(contentSource.contains("showDocumentGrid.toggle()"))
+        XCTAssertTrue(contentSource.contains("setCanvasPaneVisible(!showDocumentCanvas)"))
+        XCTAssertTrue(contentSource.contains("setReadingPaneVisible(!showReadingPane)"))
+        XCTAssertFalse(buildersSource.contains("viewSettings.previewMode = .none"))
+    }
 }
 // swiftlint:enable type_body_length

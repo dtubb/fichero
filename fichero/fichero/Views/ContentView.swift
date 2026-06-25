@@ -508,6 +508,7 @@ struct ContentView: View {
     /// detail closure small enough for the Swift type-checker.
     @ToolbarContentBuilder
     private var detailToolbarContent: some ToolbarContent {
+        contentPaneToolbarContent
         // Inspector toggle in the content section. .automatic on the detail
         // column view lands in the content-column toolbar section (#2309).
         trailingToolbarContent
@@ -671,6 +672,34 @@ extension ContentView {
             platformViewMenuButton
         }
         #endif
+    }
+
+    @ToolbarContentBuilder
+    private var contentPaneToolbarContent: some ToolbarContent {
+        if supportsReadingWorkspace {
+            ToolbarItemGroup(placement: .automatic) {
+                Button {
+                    showDocumentGrid.toggle()
+                } label: {
+                    Label("Library Pane", systemImage: showDocumentGrid ? "sidebar.left" : "sidebar.left")
+                }
+                .help(showDocumentGrid ? "Hide library pane" : "Show library pane")
+
+                Button {
+                    setCanvasPaneVisible(!showDocumentCanvas)
+                } label: {
+                    Label("Preview Pane", systemImage: showDocumentCanvas ? "rectangle.center.inset.filled" : "rectangle")
+                }
+                .help(showDocumentCanvas ? "Hide preview pane" : "Show preview pane")
+
+                Button {
+                    setReadingPaneVisible(!showReadingPane)
+                } label: {
+                    Label("Reading Pane", systemImage: showReadingPane ? "text.book.closed.fill" : "text.book.closed")
+                }
+                .help(showReadingPane ? "Hide reading pane" : "Show reading pane")
+            }
+        }
     }
 
     #if !os(macOS)
