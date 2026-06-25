@@ -1,5 +1,6 @@
 @testable import Fichero
 import XCTest
+// swiftlint:disable type_body_length
 
 final class AdaptiveShellPolicyTests: XCTestCase {
     private static func appSource(_ relativePath: String) throws -> String {
@@ -274,4 +275,19 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         XCTAssertTrue(principalSource.contains("TextField(\"Search \\(toolbarTitle)\", text: $toolbarSearchText)"))
         XCTAssertTrue(principalSource.contains("runToolbarSearch(toolbarSearchText)"))
     }
+
+    func testBottomEdgeFiltersStayPaneScoped() throws {
+        let sidebarSource = try Self.appSource("Views/Sidebar/SidebarView+ViewComponents.swift")
+        let sidebarHelpersSource = try Self.appSource("Views/Sidebar/SidebarView+Helpers.swift")
+        let annotationsSource = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorAnnotationsTab.swift"
+        )
+
+        XCTAssertTrue(sidebarSource.contains("sidebarFilterBar"))
+        XCTAssertTrue(sidebarSource.contains("TextField(\"Filter\", text: $sidebarFilterText)"))
+        XCTAssertTrue(sidebarHelpersSource.contains("var filteredLibraryHeaders: [SidebarItem]"))
+        XCTAssertTrue(annotationsSource.contains("annotationFilterBar"))
+        XCTAssertTrue(annotationsSource.contains("TextField(\"Search notes, tags, claim id…\", text: $searchText)"))
+    }
 }
+// swiftlint:enable type_body_length

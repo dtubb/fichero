@@ -19,9 +19,10 @@ extension SidebarView {
             // Activity, etc. (sidebar-persistence fix).
             unifiedContent
 
+            sidebarFilterBar
+
             // Bottom toolbar.
             if shouldShowBottomToolbar {
-                Divider()
                 SidebarBottomToolbar(
                     createSearch: createNewSearch,
                     createChat: createNewChat,
@@ -43,11 +44,31 @@ extension SidebarView {
         true
     }
 
+    private var sidebarFilterBar: some View {
+        PaneFilterBar {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField("Filter", text: $sidebarFilterText)
+                .textFieldStyle(.plain)
+                .accessibilityIdentifier("sidebarFilterField")
+            if !sidebarFilterText.isEmpty {
+                Button {
+                    sidebarFilterText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Clear filter")
+            }
+        }
+    }
+
     /// Unified sidebar content with feature-gated sections per library.
     @ViewBuilder
     var unifiedContent: some View {
         List(selection: $selectedItemId) {
-            ForEach(cachedLibraryHeaders) { libraryHeader in
+            ForEach(filteredLibraryHeaders) { libraryHeader in
                 unifiedLibrarySection(libraryHeader)
             }
             // App-level destinations pinned once at the bottom, not repeated

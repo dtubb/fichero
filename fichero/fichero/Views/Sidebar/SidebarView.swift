@@ -38,6 +38,7 @@ struct SidebarView: View {
 
     // Cached sidebar items - rebuilt when service data changes (via Combine observers)
     @State var cachedLibraryHeaders: [SidebarItem] = []
+    @State var sidebarFilterText = ""
 
     // Chain service for workflows sidebar (global - not per-library yet)
     @StateObject var chainService: ChainService

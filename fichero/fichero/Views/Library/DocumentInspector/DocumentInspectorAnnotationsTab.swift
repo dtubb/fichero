@@ -26,6 +26,7 @@ struct DocumentInspectorAnnotationsTab: View {
                 annotations: filteredAnnotations,
                 focused: focused
             )
+            annotationFilterBar
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: document.id) {
@@ -60,28 +61,27 @@ struct DocumentInspectorAnnotationsTab: View {
                 .disabled(newNoteText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isAdding)
                 .accessibilityIdentifier("annotationAddButton")
             }
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-                TextField("Search notes, tags, claim id…", text: $searchText)
-                    .textFieldStyle(.plain)
-                    .accessibilityIdentifier("annotationSearchField")
-                if let claimId = activeClaimId {
-                    Text("Linked claim: \(claimId)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                } else {
-                    Text("No active claim selected")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .onChange(of: searchText) { _, _ in
             focused.clear()
+        }
+    }
+
+    private var annotationFilterBar: some View {
+        PaneFilterBar {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField("Search notes, tags, claim id…", text: $searchText)
+                .textFieldStyle(.plain)
+                .accessibilityIdentifier("annotationSearchField")
+            if let claimId = activeClaimId {
+                Text("Linked claim: \(claimId)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
         }
     }
 

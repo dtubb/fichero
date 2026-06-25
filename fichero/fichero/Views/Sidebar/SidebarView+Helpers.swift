@@ -18,6 +18,12 @@ extension SidebarView {
         cachedLibraryHeaders
     }
 
+    var filteredLibraryHeaders: [SidebarItem] {
+        let query = sidebarFilterText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return cachedLibraryHeaders }
+        return cachedLibraryHeaders.compactMap { filteredSidebarItem($0, query: query) }
+    }
+
     /// Derive the selected SidebarItem from the ID
     var selectedItem: SidebarItem? {
         guard let id = selectedItemId else { return nil }
@@ -55,5 +61,16 @@ extension SidebarView {
             }
         }
         return nil
+    }
+
+    func filteredSidebarItem(_ item: SidebarItem, query: String) -> SidebarItem? {
+        if item.name.localizedCaseInsensitiveContains(query) {
+            return item
+        }
+        let children = item.children?.compactMap { filteredSidebarItem($0, query: query) }
+        guard let children, !children.isEmpty else { return nil }
+        var copy = item
+        copy.children = children
+        return copy
     }
 }
