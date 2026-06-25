@@ -171,6 +171,11 @@ public enum RemoteCertificatePinning {
         guard let expectedSPKIPin = persistedSPKIPin(hostString: hostString) else {
             let host = challenge.protectionSpace.host.lowercased()
             if isLoopbackChallengeHost(host) {
+                #if DEBUG
+                if bootstrapLoopbackSPKIPin(from: trust, hostString: hostString) {
+                    return (.useCredential, URLCredential(trust: trust))
+                }
+                #endif
                 return (.cancelAuthenticationChallenge, nil)
             }
             guard shouldEnforcePinning(forHost: host) else {
@@ -187,6 +192,13 @@ public enum RemoteCertificatePinning {
             )
             return (.useCredential, URLCredential(trust: trust))
         } catch {
+            #if DEBUG
+            let host = challenge.protectionSpace.host.lowercased()
+            if isLoopbackChallengeHost(host),
+               bootstrapLoopbackSPKIPin(from: trust, hostString: hostString) {
+                return (.useCredential, URLCredential(trust: trust))
+            }
+            #endif
             return (.cancelAuthenticationChallenge, nil)
         }
     }
@@ -252,6 +264,22 @@ public enum RemoteCertificatePinning {
         let spkiData = try subjectPublicKeyInfo(for: key)
         return "sha256/\(Data(SHA256.hash(data: spkiData)).base64EncodedString())"
     }
+
+    #if DEBUG
+    private static func bootstrapLoopbackSPKIPin(from trust: SecTrust, hostString: String) -> Bool {
+        guard let certificate = SecTrustGetCertificateAtIndex(trust, 0),
+              let publicKey = SecCertificateCopyKey(certificate),
+              let pin = try? spkiPin(for: publicKey) else {
+            return false
+        }
+        do {
+            try persistHostedBackendSPKIPin(pin, hostString: hostString)
+            return true
+        } catch {
+            return false
+        }
+    }
+    #endif
 
     private static func normalizedExpectedPin(_ normalizedPin: String) throws -> ExpectedPin {
         if normalizedPin.hasPrefix("sha256/") {
@@ -516,40 +544,8 @@ internal final class DynamicPinnedSessionDelegate: NSObject, URLSessionDelegate 
         didReceive challenge: URLAuthenticationChallenge,
         completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
     ) {
-        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust else {
-            completionHandler(.performDefaultHandling, nil)
-            return
-        }
-
-        guard let trust = challenge.protectionSpace.serverTrust else {
-            completionHandler(.cancelAuthenticationChallenge, nil)
-            return
-        }
-        let hostString = RemoteCertificatePinning.challengeHostString(challenge.protectionSpace)
-        guard let expectedSPKIPin = RemoteCertificatePinning.persistedSPKIPin(hostString: hostString) else {
-            let host = challenge.protectionSpace.host.lowercased()
-            if RemoteCertificatePinning.isLoopbackChallengeHost(host) {
-                completionHandler(.cancelAuthenticationChallenge, nil)
-                return
-            }
-            guard RemoteCertificatePinning.shouldEnforcePinning(forHost: host) else {
-                completionHandler(.performDefaultHandling, nil)
-                return
-            }
-            completionHandler(.cancelAuthenticationChallenge, nil)
-            return
-        }
-
-        do {
-            try RemoteCertificatePinning.validateServerTrust(
-                trust,
-                host: challenge.protectionSpace.host.lowercased(),
-                expectedSPKIPin: expectedSPKIPin
-            )
-            completionHandler(.useCredential, URLCredential(trust: trust))
-        } catch {
-            completionHandler(.cancelAuthenticationChallenge, nil)
-        }
+        let (disposition, credential) = RemoteCertificatePinning.resolveServerTrustChallenge(challenge)
+        completionHandler(disposition, credential)
     }
 }
 #endif

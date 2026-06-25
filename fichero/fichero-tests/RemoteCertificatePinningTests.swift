@@ -181,10 +181,75 @@ final class RemoteCertificatePinningTests: XCTestCase {
         XCTAssertEqual(capture.disposition, .useCredential)
         XCTAssertNotNil(capture.credential)
     }
+
+    #if DEBUG
+    func testConfiguredSessionDelegateBootstrapsLoopbackPinInDebug() throws {
+        let trustContext = try SelfSignedTrustFixture.makeTrust()
+        let hostString = "https://127.0.0.1:8765"
+        RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostString)
+
+        let capture = try captureChallenge(
+            host: "127.0.0.1",
+            port: 8765,
+            trust: trustContext.trust
+        )
+
+        XCTAssertEqual(capture.disposition, .useCredential)
+        XCTAssertNotNil(capture.credential)
+        XCTAssertEqual(RemoteCertificatePinning.persistedSPKIPin(hostString: hostString), trustContext.spkiPin)
+    }
+
+    func testConfiguredSessionDelegateRefreshesStaleLoopbackPinInDebug() throws {
+        let trustContext = try SelfSignedTrustFixture.makeTrust()
+        let hostString = "https://127.0.0.1:8765"
+        let stalePin = Data("stale-loopback-pin".utf8).base64EncodedString()
+        try RemoteCertificatePinning.persistSPKIPin(stalePin, hostString: hostString)
+
+        let capture = try captureChallenge(
+            host: "127.0.0.1",
+            port: 8765,
+            trust: trustContext.trust
+        )
+
+        XCTAssertEqual(capture.disposition, .useCredential)
+        XCTAssertNotNil(capture.credential)
+        XCTAssertEqual(RemoteCertificatePinning.persistedSPKIPin(hostString: hostString), trustContext.spkiPin)
+    }
+    #endif
     #endif
 }
 
 #if canImport(Security)
+private func captureChallenge(host: String, port: Int, trust: SecTrust) throws -> ChallengeCapture {
+    let delegate = DynamicPinnedSessionDelegate()
+    let protectionSpace = MockServerTrustProtectionSpace(
+        host: host,
+        port: port,
+        protocol: "https",
+        realm: nil,
+        authenticationMethod: NSURLAuthenticationMethodServerTrust,
+        serverTrust: trust
+    )
+    let sender = MockChallengeSender()
+    let challenge = MockServerTrustChallenge(
+        protectionSpace: protectionSpace,
+        proposedCredential: nil,
+        previousFailureCount: 0,
+        failureResponse: nil,
+        error: nil,
+        sender: sender
+    )
+
+    let expectation = XCTestExpectation(description: "challenge completion")
+    let capture = ChallengeCapture()
+    delegate.urlSession(URLSession.shared, didReceive: challenge) { disposition, credential in
+        capture.set(disposition: disposition, credential: credential)
+        expectation.fulfill()
+    }
+    _ = XCTWaiter.wait(for: [expectation], timeout: 1.0)
+    return capture
+}
+
 private final class MockServerTrustProtectionSpace: URLProtectionSpace, @unchecked Sendable {
     private let testServerTrust: SecTrust?
 
