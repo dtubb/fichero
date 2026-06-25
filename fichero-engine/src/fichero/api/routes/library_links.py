@@ -150,6 +150,8 @@ async def list_library_links(
     target_id: str | None = Query(default=None),
     relation_type: ClaimRelationType | None = Query(default=None),
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Depends(require_library_path),
+    actor: str = Depends(request_actor),
 ) -> LibraryItemLinkListResponse:
     """List generic library links, filtered by endpoint and/or relation."""
     items = _list_links(
@@ -162,6 +164,8 @@ async def list_library_links(
 async def get_library_link(
     link_id: str,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Depends(require_library_path),
+    actor: str = Depends(request_actor),
 ) -> LibraryItemLink:
     """Get a single generic library link by id."""
     link = db.get(LibraryItemLink, link_id)
@@ -210,6 +214,8 @@ async def delete_library_link(
 async def list_links_for_item(
     item_id: str,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Depends(require_library_path),
+    actor: str = Depends(request_actor),
 ) -> LibraryItemLinkListResponse:
     """All links touching a given library item id (outgoing + incoming)."""
     outgoing = db.query(LibraryItemLink, source_id=item_id)

@@ -274,3 +274,30 @@ class TestListLinksForItem:
         assert l1.id in ids
         assert l2.id in ids
         assert r.json()["count"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Read authz — library-path header enforcement (#2590)
+# ---------------------------------------------------------------------------
+
+
+class TestReadLibraryLinksRequireLibraryPath:
+    """The three read endpoints must require the X-Fichero-Library-Path header."""
+
+    def test_list_links_requires_library_path(self, client):
+        r = client.get("/api/links", headers={"X-Fichero-Library-Path": ""})
+        assert r.status_code == 400
+        assert "library" in r.json()["detail"].lower()
+
+    def test_get_link_requires_library_path(self, client):
+        r = client.get("/api/links/some-link-id", headers={"X-Fichero-Library-Path": ""})
+        assert r.status_code == 400
+        assert "library" in r.json()["detail"].lower()
+
+    def test_list_links_for_item_requires_library_path(self, client):
+        r = client.get(
+            "/api/library-items/some-item-id/links",
+            headers={"X-Fichero-Library-Path": ""},
+        )
+        assert r.status_code == 400
+        assert "library" in r.json()["detail"].lower()
