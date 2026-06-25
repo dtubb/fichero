@@ -29,6 +29,20 @@ final class WorkflowStreamConnectionTests: XCTestCase {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
+    private static func generatedOpenAPIPaths() throws -> Set<String> {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero-api-client")
+            .appendingPathComponent("Sources")
+            .appendingPathComponent("FicheroAPIClient")
+            .appendingPathComponent("openapi.json")
+        let data = try Data(contentsOf: url)
+        let root = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let paths = try XCTUnwrap(root["paths"] as? [String: Any])
+        return Set(paths.keys)
+    }
+
     func testWorkflowEventStreamRequestUsesAPIBaseURLAndEngineAuth() throws {
         try AuthTokenMiddleware.persistRemoteToken(remoteToken, hostString: remoteHost)
 
@@ -63,6 +77,13 @@ final class WorkflowStreamConnectionTests: XCTestCase {
         XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "text/event-stream")
         XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer \(remoteToken)")
         XCTAssertEqual(request.value(forHTTPHeaderField: "X-Fichero-Library-Path"), "/tmp/Test.fichero")
+    }
+
+    func testSSEStreamPathsExistInGeneratedOpenAPI() throws {
+        let paths = try Self.generatedOpenAPIPaths()
+
+        XCTAssertTrue(paths.contains("/api/changes/stream"))
+        XCTAssertTrue(paths.contains("/api/workflow-execution/stream/{thread_id}"))
     }
 
     func testWorkflowStreamServiceKeepsPinnedSessionAndSharedAPIBaseURL() throws {
