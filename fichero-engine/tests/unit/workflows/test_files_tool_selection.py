@@ -335,3 +335,5 @@ class TestFilesToolEndToEnd:
         assert output["count"] == 1
         assert output["files"] == ["/library/book.pdf"]
         assert [doc["id"] for doc in output["documents"]] == ["page-7"]
+        assert output["documents"][0]["parent_id"] == "pdf"
+        assert output["documents"][0]["sequence"] == 7

@@ -49,16 +49,13 @@ def _resolve_page_to_parent(doc: "Document", db) -> "Document | None":
     """Resolve a page document to its parent file, preserving page context.
 
     Page documents have path=None; their parent (typically a PDF) holds the
-    file. Today no downstream tool supports per-page OCR — process_vision
-    OCRs the whole PDF regardless — so the user selecting "page 3" of a
-    100-page book ends up processing all 100 pages. Per-page fan-out is
-    tracked in the 0.0.3 #670 follow-up.
+    file. The files tool emits the selected page document and only borrows the
+    parent path; downstream vision tools use the page sequence to process that
+    page.
 
-    Until then, this helper at least makes the promotion observable:
-    - loud warning in the log so the behaviour isn't silent
-    - `requested_page` and `page_promotion_warning` on the returned
-      document's metadata so downstream tools that opt into the hint can
-      branch on it without a schema change
+    This helper keeps the path lookup observable:
+    - `requested_page` on the returned document's metadata so downstream tools
+      that opt into the hint can branch on it without a schema change
     - returned doc is a deep copy so the cached parent Document in the DB
       layer isn't mutated
     """
@@ -76,13 +73,9 @@ def _resolve_page_to_parent(doc: "Document", db) -> "Document | None":
         requested = parent.model_copy(deep=True)
         requested.metadata = dict(parent.metadata or {})
         requested.metadata["requested_page"] = doc.sequence
-        requested.metadata["page_promotion_warning"] = (
-            f"User selected page {doc.sequence + 1} but per-page OCR isn't "
-            f"wired in; processing whole parent file instead."
-        )
-    logger.warning(
-        "files_tool: page %s (seq=%s) promoted to parent %s — "
-        "tool will process the whole file. See #670 for per-page fan-out.",
+    logger.info(
+        "files_tool: page %s (seq=%s) resolved through parent %s path; "
+        "downstream receives the selected page document.",
         doc.id, doc.sequence, parent.id,
     )
     return requested

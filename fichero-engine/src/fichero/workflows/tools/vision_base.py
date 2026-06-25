@@ -1040,6 +1040,19 @@ def _build_page_records_for_file(
     return [{"doc_id": parent_doc_id, "text": file_text or ""}] if file_text else []
 
 
+def _page_index_from_document(doc: dict, metadata: dict) -> int | None:
+    raw_page = doc.get("sequence")
+    if raw_page is None:
+        raw_page = metadata.get("page_number")
+    try:
+        page_number = int(raw_page)
+    except (TypeError, ValueError):
+        return None
+    if page_number < 0:
+        return None
+    return page_number - 1 if page_number > 0 else 0
+
+
 async def _propagate_to_page_children(
     parent_id: str,
     page_texts: list[str],
@@ -1462,12 +1475,8 @@ async def process_vision(
                 )
                 if raw_is_truncated and index < len(files):
                     file_path = str(files[index])
-                    sequence = doc.get("sequence") or metadata.get("page_number")
-                    try:
-                        page_index = int(sequence) - 1
-                    except (TypeError, ValueError):
-                        page_index = -1
-                    if file_path.lower().endswith(".pdf") and page_index >= 0:
+                    page_index = _page_index_from_document(doc, metadata)
+                    if file_path.lower().endswith(".pdf") and page_index is not None:
                         page_texts = _try_pdf_text_layer(file_path)
                         if page_texts and page_index < len(page_texts):
                             layer_text = page_texts[page_index]
@@ -1495,15 +1504,11 @@ async def process_vision(
                 existing_text_by_index.append(existing)
                 page_doc_id_by_index.append(doc_id)
                 page_doc_dict_by_index.append(doc if doc_id else None)
-                page_index: int | None = None
-                sequence = doc.get("sequence") or metadata.get("page_number")
-                if doc.get("parent_id") and sequence is not None:
-                    try:
-                        parsed_sequence = int(sequence)
-                    except (TypeError, ValueError):
-                        parsed_sequence = 0
-                    if parsed_sequence > 0:
-                        page_index = parsed_sequence - 1
+                page_index = (
+                    _page_index_from_document(doc, metadata)
+                    if doc.get("parent_id")
+                    else None
+                )
                 page_index_by_index.append(page_index)
             else:
                 existing_text_by_index.append("")

@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import logging
 
-import pytest
-
 from fichero.models import DocType, Document
 from fichero.workflows.tools.sources import _resolve_page_to_parent
 
@@ -54,7 +52,6 @@ class TestResolvePageToParent:
         assert resolved.metadata["existing"] == "keep"
         # Page hint attached
         assert resolved.metadata["requested_page"] == 2
-        assert "page 3" in resolved.metadata["page_promotion_warning"]
 
     def test_parent_not_mutated_by_resolve(self):
         # Critical: the DB-cached parent must not be mutated in place —
@@ -71,7 +68,6 @@ class TestResolvePageToParent:
         db = _StubDB([parent, page])
         _ = _resolve_page_to_parent(page, db)
         assert "requested_page" not in parent.metadata
-        assert "page_promotion_warning" not in parent.metadata
 
     def test_page_without_sequence_still_returns_parent_no_metadata(self):
         parent = Document(
@@ -87,15 +83,15 @@ class TestResolvePageToParent:
         assert resolved is parent  # Same instance — no copy needed
         assert "requested_page" not in (resolved.metadata or {})
 
-    def test_warning_logged_with_page_context(self, caplog):
+    def test_resolution_logged_with_page_context(self, caplog):
         parent = Document(id="pdf", name="doc.pdf", doc_type=DocType.file, path="/lib/doc.pdf")
         page = Document(
             id="pg", name="page 1", doc_type=DocType.page, path=None,
             parent_id="pdf", sequence=0,
         )
         db = _StubDB([parent, page])
-        with caplog.at_level(logging.WARNING):
+        with caplog.at_level(logging.INFO):
             _resolve_page_to_parent(page, db)
-        messages = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
-        assert any("promoted to parent" in m for m in messages)
-        assert any("#670" in m for m in messages)
+        messages = [r.getMessage() for r in caplog.records if r.levelno == logging.INFO]
+        assert any("resolved through parent" in m for m in messages)
+        assert any("selected page document" in m for m in messages)

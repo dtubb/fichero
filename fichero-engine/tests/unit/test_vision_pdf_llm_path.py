@@ -25,7 +25,7 @@ These tests cover:
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -216,6 +216,67 @@ async def test_llm_vision_pdf_page_selection_renders_correct_page(
     assert result["text"] == "page 1 result"
 
 
+@pytest.mark.asyncio
+async def test_llm_vision_pdf_zero_sequence_selection_does_not_process_whole_pdf(
+    tmp_path: Path,
+) -> None:
+    """Legacy sequence=0 page docs still mean page 0, not whole-PDF mode."""
+    pdf = tmp_path / "multipage.pdf"
+    pdf.write_bytes(b"%PDF-1.4 stub multipage")
+
+    fake_doc = MagicMock()
+    fake_doc.__len__.return_value = 3
+    fitz_mock = MagicMock()
+    fitz_mock.open.return_value = fake_doc
+    vision_mock = AsyncMock(return_value="first page only")
+
+    with (
+        patch.dict("sys.modules", {"fitz": fitz_mock}),
+        patch(
+            "fichero.workflows.tools.vision_base.save_artifact",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "fichero.workflows.tools.vision_base._try_pdf_text_layer",
+            return_value=None,
+        ),
+        patch(
+            "fichero.workflows.tools.vision_base.file_to_data_uri",
+            side_effect=AssertionError(
+                "file_to_data_uri must not be called for PDFs"
+            ),
+        ),
+        patch(
+            "fichero.workflows.tools.vision_base._pdf_page_to_data_uri",
+            return_value=_FAKE_PAGE0_URI,
+        ) as pdf_page_mock,
+        patch("fichero.llm.vision", new=vision_mock),
+    ):
+        result = await process_vision(
+            files=[str(pdf)],
+            documents=[{
+                "id": "legacy-page-0",
+                "path": None,
+                "parent_id": "pdf-root",
+                "sequence": 0,
+                "page_content": None,
+            }],
+            prompt="Describe.",
+            llm_config=_llm_config(),
+            library_path="",
+            task_id=None,
+            tool_config=_tool_config(),
+            vision_mode="llm",
+        )
+
+    pdf_page_mock.assert_called_once_with(
+        str(pdf),
+        page_index=0,
+        max_dimension=2048,
+    )
+    assert result["text"] == "first page only"
+
+
 # ---------------------------------------------------------------------------
 # Test 3: plain image file still goes through file_to_data_uri (regression)
 # ---------------------------------------------------------------------------
@@ -229,7 +290,9 @@ async def test_llm_vision_image_still_uses_file_to_data_uri(
     PDF renderer.
     """
     # Minimal 1x1 white PNG
-    import struct, zlib
+    import struct
+    import zlib
+
     def _minimal_png() -> bytes:
         def chunk(name: bytes, data: bytes) -> bytes:
             c = struct.pack(">I", len(data)) + name + data
