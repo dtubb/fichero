@@ -81,6 +81,6 @@ swiftlint lint fichero/fichero/
   invisible to the compiler until registered). Never hand-edit `project.pbxproj`.
 - After backend API/schema changes, run `fichero-engine/scripts/sync_openapi_schema.sh`
   to refresh the OpenAPI schema the Swift package consumes.
-- Sparkle updater release setup: `fichero/docs/sparkle-release.md`.
+- Sparkle updater release setup: `../docs/release/sparkle-release.md`.
 - Swift conventions: `docs/architecture/swiftui/development_standards.md`;
   OpenAPI round-trip contract: `docs/architecture/swiftui/api_client.md`.

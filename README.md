@@ -166,6 +166,12 @@ docs = ingest_folder(
 - `fichero/` — SwiftUI app, Xcode project, and `fichero` CLI under `fichero-engine/src/fichero/cli/`
 - `docs/agent-workflow/` — Agent workflow docs, task list, and templates
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the worktree workflow and issue-claim
+rules. Folder-specific notes live in [fichero/AGENTS.md](fichero/AGENTS.md) and
+[fichero-engine/AGENTS.md](fichero-engine/AGENTS.md).
+
 ### Top-level folder ownership
 
 - `runtime`: `fichero-engine/`, `fichero/`

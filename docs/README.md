@@ -41,6 +41,12 @@ Full developer index: [docs/developer/README.md](./developer/README.md)
 
 ---
 
+## Releases
+
+- [Sparkle Release Setup](./release/sparkle-release.md) — app update metadata, feed URL, and release flow.
+
+---
+
 ## Architecture deep-dives
 
 Internal architecture docs for contributors working on specific subsystems:

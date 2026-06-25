@@ -66,6 +66,12 @@ Lint:
 ruff check fichero-engine/src/
 ```
 
+## Contributing
+
+Backend-specific working notes live in [AGENTS.md](AGENTS.md). For the repo-wide
+workflow, see [CONTRIBUTING.md](../CONTRIBUTING.md) and
+[docs/developer/setup-and-contributing.md](../docs/developer/setup-and-contributing.md).
+
 ## How it works — workflows + knowledge graph
 
 - **Workflows (LangGraph).** A workflow is a graph of tool nodes built and run by
