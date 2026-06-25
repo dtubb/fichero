@@ -2037,6 +2037,7 @@ def register_generated_openapi_commands(
         file_type: Optional[str] = typer.Option(None, "--file-type", help="Query parameter: file_type."),
         include_deleted: Optional[bool] = typer.Option(None, "--include-deleted/--no-include-deleted", help="Query parameter: include_deleted."),
         limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        node_kind: Optional[str] = typer.Option(None, "--node-kind", help="Query parameter: node_kind."),
         offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
         parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Query parameter: parent_id."),
         status: Optional[str] = typer.Option(None, "--status", help="Query parameter: status."),
@@ -2049,6 +2050,7 @@ def register_generated_openapi_commands(
                 "file_type": file_type,
                 "include_deleted": include_deleted,
                 "limit": limit,
+                "node_kind": node_kind,
                 "offset": offset,
                 "parent_id": parent_id,
                 "status": status,
@@ -5005,6 +5007,99 @@ def register_generated_openapi_commands(
             params = None
             payload = _load_json_payload(body, body_file, required=True)
             return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    target_app = existing_apps.get('library-items')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for library-items endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='library-items')
+
+    @target_app.command("list-links-for")
+    def library_items_list_links_for_get(
+        ctx: typer.Context,
+        item_id: str = typer.Argument(..., help="Path parameter: item_id."),
+    ) -> None:
+        """List Links For Item (GET /api/library-items/{item_id}/links)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/library-items/{item_id}/links"
+            params = None
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    target_app = existing_apps.get('links')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for links endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='links')
+
+    @target_app.command("list-library")
+    def links_list_library_get(
+        ctx: typer.Context,
+        relation_type: Optional[str] = typer.Option(None, "--relation-type", help="Query parameter: relation_type."),
+        source_id: Optional[str] = typer.Option(None, "--source-id", help="Query parameter: source_id."),
+        target_id: Optional[str] = typer.Option(None, "--target-id", help="Query parameter: target_id."),
+    ) -> None:
+        """List Library Links (GET /api/links)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/links"
+            params = {
+                "relation_type": relation_type,
+                "source_id": source_id,
+                "target_id": target_id,
+            }
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("create-library")
+    def links_create_library_post(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Create Library Link (POST /api/links)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/links"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("delete-library")
+    def links_delete_library_delete(
+        ctx: typer.Context,
+        link_id: str = typer.Argument(..., help="Path parameter: link_id."),
+    ) -> None:
+        """Delete Library Link (DELETE /api/links/{link_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/links/{link_id}"
+            params = None
+            return client.request("DELETE", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-library")
+    def links_get_library_get(
+        ctx: typer.Context,
+        link_id: str = typer.Argument(..., help="Path parameter: link_id."),
+    ) -> None:
+        """Get Library Link (GET /api/links/{link_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/links/{link_id}"
+            params = None
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("update-library")
+    def links_update_library_patch(
+        ctx: typer.Context,
+        link_id: str = typer.Argument(..., help="Path parameter: link_id."),
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Update Library Link (PATCH /api/links/{link_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/links/{link_id}"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('local-inference')

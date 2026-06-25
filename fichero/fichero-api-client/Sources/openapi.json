@@ -5287,6 +5287,294 @@
         }
       }
     },
+    "/api/links": {
+      "post": {
+        "tags": [
+          "library-links",
+          "library-links"
+        ],
+        "summary": "Create Library Link",
+        "description": "Create a typed link between any two library items.",
+        "operationId": "create_library_link_api_links_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryLinkCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryItemLink"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "library-links",
+          "library-links"
+        ],
+        "summary": "List Library Links",
+        "description": "List generic library links, filtered by endpoint and/or relation.",
+        "operationId": "list_library_links_api_links_get",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Source Id"
+            }
+          },
+          {
+            "name": "target_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Target Id"
+            }
+          },
+          {
+            "name": "relation_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ClaimRelationType",
+              "nullable": true,
+              "title": "Relation Type"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryItemLinkListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/links/{link_id}": {
+      "get": {
+        "tags": [
+          "library-links",
+          "library-links"
+        ],
+        "summary": "Get Library Link",
+        "description": "Get a single generic library link by id.",
+        "operationId": "get_library_link_api_links__link_id__get",
+        "parameters": [
+          {
+            "name": "link_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Link Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryItemLink"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "library-links",
+          "library-links"
+        ],
+        "summary": "Update Library Link",
+        "description": "Update an existing generic library link.",
+        "operationId": "update_library_link_api_links__link_id__patch",
+        "parameters": [
+          {
+            "name": "link_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Link Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryLinkUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryItemLink"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "library-links",
+          "library-links"
+        ],
+        "summary": "Delete Library Link",
+        "description": "Delete a generic library link (hard delete).",
+        "operationId": "delete_library_link_api_links__link_id__delete",
+        "parameters": [
+          {
+            "name": "link_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Link Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryLinkDeletedResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/library-items/{item_id}/links": {
+      "get": {
+        "tags": [
+          "library-links",
+          "library-links"
+        ],
+        "summary": "List Links For Item",
+        "description": "All links touching a given library item id (outgoing + incoming).",
+        "operationId": "list_links_for_item_api_library_items__item_id__links_get",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Item Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryItemLinkListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/claims": {
       "post": {
         "tags": [
@@ -5846,6 +6134,18 @@
               "title": "Doc Type"
             },
             "description": "Filter by document type"
+          },
+          {
+            "name": "node_kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Filter by node kind",
+              "title": "Node Kind"
+            },
+            "description": "Filter by node kind"
           },
           {
             "name": "file_type",
@@ -38590,6 +38890,12 @@
             "nullable": true,
             "title": "Parent Id"
           },
+          "node_kind": {
+            "type": "string",
+            "nullable": true,
+            "title": "Node Kind",
+            "default": "document"
+          },
           "doc_type": {
             "$ref": "#/components/schemas/DocType",
             "default": "file"
@@ -38769,6 +39075,21 @@
             "nullable": true,
             "title": "Case Id"
           },
+          "position_x": {
+            "type": "number",
+            "nullable": true,
+            "title": "Position X"
+          },
+          "position_y": {
+            "type": "number",
+            "nullable": true,
+            "title": "Position Y"
+          },
+          "position_z": {
+            "type": "number",
+            "nullable": true,
+            "title": "Position Z"
+          },
           "expected_thumbnail_path": {
             "type": "string",
             "title": "Expected Thumbnail Path",
@@ -38947,6 +39268,11 @@
             "type": "string",
             "nullable": true,
             "title": "Parent Id"
+          },
+          "node_kind": {
+            "type": "string",
+            "nullable": true,
+            "title": "Node Kind"
           },
           "doc_type": {
             "$ref": "#/components/schemas/DocType",
@@ -39463,6 +39789,11 @@
             "nullable": true,
             "title": "Parent Id"
           },
+          "node_kind": {
+            "type": "string",
+            "nullable": true,
+            "title": "Node Kind"
+          },
           "doc_type": {
             "$ref": "#/components/schemas/DocType",
             "nullable": true
@@ -39515,6 +39846,21 @@
             "type": "string",
             "nullable": true,
             "title": "Prototype Key"
+          },
+          "position_x": {
+            "type": "number",
+            "nullable": true,
+            "title": "Position X"
+          },
+          "position_y": {
+            "type": "number",
+            "nullable": true,
+            "title": "Position Y"
+          },
+          "position_z": {
+            "type": "number",
+            "nullable": true,
+            "title": "Position Z"
           }
         },
         "additionalProperties": true,
@@ -44700,6 +45046,201 @@
         ],
         "title": "LibraryEntityTypeListResponse",
         "description": "Standardized envelope for GET /api/libraries/{lib}/entity-types list endpoints."
+      },
+      "LibraryItemLink": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "source_type": {
+            "$ref": "#/components/schemas/LibraryItemType"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "target_type": {
+            "$ref": "#/components/schemas/LibraryItemType"
+          },
+          "relation_type": {
+            "$ref": "#/components/schemas/ClaimRelationType"
+          },
+          "link_quality": {
+            "type": "number",
+            "title": "Link Quality",
+            "default": 0.5
+          },
+          "evidence": {
+            "type": "string",
+            "nullable": true,
+            "title": "Evidence"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "source_id",
+          "source_type",
+          "target_id",
+          "target_type",
+          "relation_type"
+        ],
+        "title": "LibraryItemLink",
+        "description": "General node-to-node link between any two library items.\n\nReuses the typed :class:`ClaimRelationType` vocabulary from\n:class:`KnowledgeClaimLink` so KG relations and library links share one\nrelation ontology. This is the backend slice of #2590; the canvas-specific\n:class:`SpatialConnection` is intentionally not used here."
+      },
+      "LibraryItemLinkListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryItemLink"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "LibraryItemLinkListResponse",
+        "description": "Standardized envelope for generic library-item link list endpoints."
+      },
+      "LibraryItemType": {
+        "type": "string",
+        "enum": [
+          "document",
+          "note",
+          "entity",
+          "claim"
+        ],
+        "title": "LibraryItemType",
+        "description": "Node kinds that can participate in a general library link."
+      },
+      "LibraryLinkCreateRequest": {
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "source_type": {
+            "$ref": "#/components/schemas/LibraryItemType"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "target_type": {
+            "$ref": "#/components/schemas/LibraryItemType"
+          },
+          "relation_type": {
+            "$ref": "#/components/schemas/ClaimRelationType"
+          },
+          "link_quality": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Link Quality",
+            "default": 0.5
+          },
+          "evidence": {
+            "type": "string",
+            "nullable": true,
+            "title": "Evidence"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_id",
+          "source_type",
+          "target_id",
+          "target_type",
+          "relation_type"
+        ],
+        "title": "LibraryLinkCreateRequest",
+        "description": "Request to create a generic link between two library items."
+      },
+      "LibraryLinkDeletedResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success"
+          },
+          "link_id": {
+            "type": "string",
+            "title": "Link Id"
+          },
+          "operation": {
+            "type": "string",
+            "title": "Operation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success",
+          "link_id",
+          "operation"
+        ],
+        "title": "LibraryLinkDeletedResponse"
+      },
+      "LibraryLinkUpdateRequest": {
+        "properties": {
+          "relation_type": {
+            "$ref": "#/components/schemas/ClaimRelationType",
+            "nullable": true
+          },
+          "link_quality": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Link Quality"
+          },
+          "evidence": {
+            "type": "string",
+            "nullable": true,
+            "title": "Evidence"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "title": "LibraryLinkUpdateRequest",
+        "description": "Request to update a generic library link."
       },
       "LibraryListResponse": {
         "properties": {

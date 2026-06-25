@@ -2121,6 +2121,11 @@
             "type": "integer"
           },
           {
+            "name": "node_kind",
+            "required": false,
+            "type": "string"
+          },
+          {
             "name": "offset",
             "required": false,
             "type": "integer"
@@ -5101,6 +5106,94 @@
         "query_params": [],
         "request_model": "LibraryCreateRequest",
         "response_model": "LibraryCreateResponse"
+      }
+    ],
+    "library-items": [
+      {
+        "method": "GET",
+        "path": "/library-items/{item_id}/links",
+        "operation_id": "list_links_for_item_api_library_items__item_id__links_get",
+        "summary": "List Links For Item",
+        "path_params": [
+          "item_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "LibraryItemLinkListResponse"
+      }
+    ],
+    "links": [
+      {
+        "method": "GET",
+        "path": "/links",
+        "operation_id": "list_library_links_api_links_get",
+        "summary": "List Library Links",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "relation_type",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "source_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "target_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "LibraryItemLinkListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/links",
+        "operation_id": "create_library_link_api_links_post",
+        "summary": "Create Library Link",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "LibraryLinkCreateRequest",
+        "response_model": "LibraryItemLink"
+      },
+      {
+        "method": "DELETE",
+        "path": "/links/{link_id}",
+        "operation_id": "delete_library_link_api_links__link_id__delete",
+        "summary": "Delete Library Link",
+        "path_params": [
+          "link_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "LibraryLinkDeletedResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/links/{link_id}",
+        "operation_id": "get_library_link_api_links__link_id__get",
+        "summary": "Get Library Link",
+        "path_params": [
+          "link_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "LibraryItemLink"
+      },
+      {
+        "method": "PATCH",
+        "path": "/links/{link_id}",
+        "operation_id": "update_library_link_api_links__link_id__patch",
+        "summary": "Update Library Link",
+        "path_params": [
+          "link_id"
+        ],
+        "query_params": [],
+        "request_model": "LibraryLinkUpdateRequest",
+        "response_model": "LibraryItemLink"
       }
     ],
     "local-inference": [
