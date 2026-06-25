@@ -1,7 +1,8 @@
 """Self-test for release pipeline scripts (#1358).
 
 Verifies:
-- scripts/build-release.sh, scripts/notarize.sh, scripts/create-github-release.sh
+- scripts/build-release.sh, scripts/build-and-validate.sh, scripts/notarize.sh,
+  scripts/create-github-release.sh
   all pass `bash -n` (syntax check)
 - Each script contains the expected step markers in order
 - --help exits 0 on scripts that support it
@@ -22,10 +23,11 @@ REPO_ROOT = Path(__file__).parent.parent.parent.parent
 SCRIPTS_DIR = REPO_ROOT / "scripts"
 
 BUILD_RELEASE = SCRIPTS_DIR / "build-release.sh"
+BUILD_AND_VALIDATE = SCRIPTS_DIR / "build-and-validate.sh"
 NOTARIZE = SCRIPTS_DIR / "notarize.sh"
 CREATE_RELEASE = SCRIPTS_DIR / "create-github-release.sh"
 
-ALL_SCRIPTS = [BUILD_RELEASE, NOTARIZE, CREATE_RELEASE]
+ALL_SCRIPTS = [BUILD_RELEASE, BUILD_AND_VALIDATE, NOTARIZE, CREATE_RELEASE]
 
 
 # ---------------------------------------------------------------------------
@@ -71,6 +73,12 @@ def test_build_release_steps() -> None:
         assert marker in text, f"build-release.sh missing step {marker!r}"
 
 
+def test_build_and_validate_steps() -> None:
+    text = _script_text(BUILD_AND_VALIDATE)
+    for marker in ("[1/8]", "[2/8]", "[3/8]", "[4/8]", "[5/8]", "[6/8]", "[7/8]", "[8/8]"):
+        assert marker in text, f"build-and-validate.sh missing step {marker!r}"
+
+
 def test_notarize_steps() -> None:
     text = _script_text(NOTARIZE)
     for marker in ("[1/3]", "[2/3]", "[3/3]"):
@@ -92,6 +100,15 @@ def test_build_release_has_dry_run_flag() -> None:
     text = _script_text(BUILD_RELEASE)
     assert "--dry-run" in text
     assert "run_or_dry" in text
+
+
+def test_build_and_validate_uses_current_paths() -> None:
+    text = _script_text(BUILD_AND_VALIDATE)
+    assert "fichero/fichero.xcodeproj" in text
+    assert "fichero/build/xcode" in text
+    assert "build/engine" in text
+    assert "briefcase build macOS --app engine" in text
+    assert "fichero-swiftui" not in text
 
 
 def test_notarize_has_dry_run_flag() -> None:
