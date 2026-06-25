@@ -260,7 +260,7 @@ class WorkflowStreamService: ObservableObject {
         logger.info("SSE stream cancelled")
     }
 
-    /// Stop a running workflow by deleting its thread
+    /// Stop a running workflow by requesting cancellation
     /// - Parameter threadId: The thread ID to stop
     func stopWorkflow(threadId: String) async throws {
         // First cancel the local stream
@@ -268,22 +268,15 @@ class WorkflowStreamService: ObservableObject {
 
         logger.info("Stopping workflow thread: \(threadId)")
 
-        // Then delete the thread on the backend (generated client, #1714).
-        let response = try await client.api.deleteThreadApiWorkflowExecutionThreadsThreadIdDelete(.init(
+        let response = try await client.api.cancelWorkflowApiWorkflowExecutionThreadsThreadIdCancelPost(
             path: .init(threadId: threadId),
-        ))
+        )
 
-        // 200 = deleted, 404 = already gone (both OK). 404 arrives as `.undocumented`
-        // since the generated contract only documents 200/422.
         switch response {
         case .ok:
             logger.info("Workflow thread stopped: \(threadId)")
         case .undocumented(let statusCode, _):
-            if statusCode == 404 {
-                logger.info("Workflow thread already gone: \(threadId)")
-            } else {
-                throw WorkflowStreamError.httpError(statusCode: statusCode)
-            }
+            throw WorkflowStreamError.httpError(statusCode: statusCode)
         case .unprocessableContent:
             throw WorkflowStreamError.httpError(statusCode: 422)
         }

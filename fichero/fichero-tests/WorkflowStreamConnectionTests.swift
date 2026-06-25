@@ -94,6 +94,19 @@ final class WorkflowStreamConnectionTests: XCTestCase {
         XCTAssertTrue(source.contains("baseURL: client.apiBaseURL"))
     }
 
+    func testWorkflowStreamStopRequestsCancelNotCheckpointDelete() throws {
+        let source = try Self.appSource("Services/WorkflowStreamService.swift")
+        let stopRange = try XCTUnwrap(source.range(of: "func stopWorkflow(threadId: String) async throws"))
+        let resumeRange = try XCTUnwrap(source.range(
+            of: "func resumeWorkflow(threadId: String",
+            range: stopRange.upperBound..<source.endIndex
+        ))
+        let stopBody = String(source[stopRange.lowerBound..<resumeRange.lowerBound])
+
+        XCTAssertTrue(stopBody.contains("cancelWorkflowApiWorkflowExecutionThreadsThreadIdCancelPost"))
+        XCTAssertFalse(stopBody.contains("deleteThreadApiWorkflowExecutionThreadsThreadIdDelete"))
+    }
+
     func testLibraryChangeStreamKeepsPinnedSessionAndSharedRequestBuilder() throws {
         let source = try Self.appSource("Services/LibraryChangeStream.swift")
 
