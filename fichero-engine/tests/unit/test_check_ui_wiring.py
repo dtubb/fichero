@@ -43,6 +43,21 @@ def test_typo_method_name_does_not_count_as_wired():
     )
 
 
+def test_path_token_wires_endpoint_after_route_module_move():
+    openapi = {
+        "paths": {
+            "/api/workflow-execution/execute": {
+                "post": {"operationId": "execute_workflow_api_execution_execute_post"}
+            }
+        }
+    }
+    specs = check_ui_wiring.endpoint_specs(openapi)
+    src = "try await client.api.executeWorkflowApiWorkflowExecutionExecutePost(.init(...))"
+    assert check_ui_wiring._is_path_wired(
+        specs[0]["path"], specs[0]["operations"], src
+    )
+
+
 def test_unwired_uses_operation_tokens_and_path_regex(monkeypatch, tmp_path):
     openapi = {
         "paths": {
