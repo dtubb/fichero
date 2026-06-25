@@ -3,6 +3,15 @@ import SwiftUI
 import XCTest
 
 final class MiniToolbarMetricPolicyTests: XCTestCase {
+    private static func appSource(_ relativePath: String) throws -> String {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero")
+            .appendingPathComponent(relativePath)
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
     func testMacMetricsPreserveCompactPaneToolbar() {
         XCTAssertEqual(
             MiniToolbarMetricPolicy.metrics(isMac: true, isTV: false),
@@ -72,5 +81,21 @@ final class MiniToolbarMetricPolicyTests: XCTestCase {
             touchMetrics.touchTargetSide,
             "Mac cursor targets are intentionally smaller than touch targets"
         )
+    }
+
+    func testMiniToolbarCollapsesSplitButtonsToMenu() throws {
+        let source = try Self.appSource("Views/Toolbars/MiniToolbar.swift")
+
+        XCTAssertTrue(source.contains("ViewThatFits(in: .horizontal)"))
+        XCTAssertTrue(source.contains("splitButtonsMenu(for: actions)"))
+        XCTAssertTrue(source.contains("Menu {"))
+    }
+
+    func testReadingPaneZoomControlsCollapseToMenu() throws {
+        let source = try Self.appSource("Views/ContentView+ViewBuilders.swift")
+
+        XCTAssertTrue(source.contains("ViewThatFits(in: .horizontal)"))
+        XCTAssertTrue(source.contains("zoomMenu"))
+        XCTAssertTrue(source.contains("Reset Zoom"))
     }
 }

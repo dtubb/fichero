@@ -135,6 +135,14 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
 
     @ViewBuilder
     private func splitButtonsView(for actions: SplitAxisActions) -> some View {
+        ViewThatFits(in: .horizontal) {
+            splitButtonsRow(for: actions)
+            splitButtonsMenu(for: actions)
+        }
+    }
+
+    @ViewBuilder
+    private func splitButtonsRow(for actions: SplitAxisActions) -> some View {
         HStack(spacing: 4) {
             Divider().frame(height: 16)
 
@@ -164,6 +172,40 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
             .foregroundStyle(actions.hasHorizontal ? Color.accentColor : Color.secondary)
             .help(actions.hasHorizontal ? "Remove top/bottom split" : "Split top / bottom")
         }
+    }
+
+    @ViewBuilder
+    private func splitButtonsMenu(for actions: SplitAxisActions) -> some View {
+        Menu {
+            Button {
+                actions.onToggleVertical()
+            } label: {
+                Label(
+                    actions.hasVertical ? "Remove Left / Right Split" : "Split Left / Right",
+                    systemImage: "rectangle.split.2x1"
+                )
+            }
+
+            Button {
+                actions.onToggleHorizontal()
+            } label: {
+                Label(
+                    actions.hasHorizontal ? "Remove Top / Bottom Split" : "Split Top / Bottom",
+                    systemImage: "rectangle.split.1x2"
+                )
+            }
+        } label: {
+            Label("Split", systemImage: "rectangle.split.2x1")
+                .font(splitIconFont)
+                .frame(
+                    minWidth: Self.touchTargetSide,
+                    minHeight: Self.touchTargetSide
+                )
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
     }
 }
 

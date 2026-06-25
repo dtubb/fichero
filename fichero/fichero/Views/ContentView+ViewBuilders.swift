@@ -81,29 +81,10 @@ private struct ReadingPaneView: View {
 
                 Spacer(minLength: 0)
 
-                // WebKit zoom controls (#2316)
-                Button { webZoom = max(0.5, webZoom - 0.1) } label: {
-                    Image(systemName: "minus.magnifyingglass")
+                ViewThatFits(in: .horizontal) {
+                    zoomControls
+                    zoomMenu
                 }
-                .buttonStyle(.plain)
-                .help("Zoom Out")
-
-                Text("\(Int(webZoom * 100))%")
-                    .font(.caption)
-                    .monospacedDigit()
-                    .frame(width: 44)
-
-                Button { webZoom = min(3.0, webZoom + 0.1) } label: {
-                    Image(systemName: "plus.magnifyingglass")
-                }
-                .buttonStyle(.plain)
-                .help("Zoom In")
-
-                Button { webZoom = 1.0 } label: {
-                    Image(systemName: "1.square")
-                }
-                .buttonStyle(.plain)
-                .help("Reset Zoom")
 
                 Spacer(minLength: 0)
             }, trailing: {
@@ -132,6 +113,54 @@ private struct ReadingPaneView: View {
 
             PaneFilterBar { Spacer(minLength: 0) }
         }
+    }
+
+    @ViewBuilder
+    private var zoomControls: some View {
+        Button { webZoom = max(0.5, webZoom - 0.1) } label: {
+            Image(systemName: "minus.magnifyingglass")
+        }
+        .buttonStyle(.plain)
+        .help("Zoom Out")
+
+        Text("\(Int(webZoom * 100))%")
+            .font(.caption)
+            .monospacedDigit()
+            .frame(width: 44)
+
+        Button { webZoom = min(3.0, webZoom + 0.1) } label: {
+            Image(systemName: "plus.magnifyingglass")
+        }
+        .buttonStyle(.plain)
+        .help("Zoom In")
+
+        Button { webZoom = 1.0 } label: {
+            Image(systemName: "1.square")
+        }
+        .buttonStyle(.plain)
+        .help("Reset Zoom")
+    }
+
+    @ViewBuilder
+    private var zoomMenu: some View {
+        Menu {
+            Button("Zoom Out") {
+                webZoom = max(0.5, webZoom - 0.1)
+            }
+            Button("Zoom In") {
+                webZoom = min(3.0, webZoom + 0.1)
+            }
+            Button("Reset Zoom") {
+                webZoom = 1.0
+            }
+        } label: {
+            Label("Zoom", systemImage: "magnifyingglass")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
     }
 
     @ViewBuilder
