@@ -1,17 +1,27 @@
-# STATE — 2026-06-24 (codex-loop overnight: node-model lanes landed; reorgs held for Daniel)
+# STATE — 2026-06-25 (manager takeover from Claude; 0.0.2 cleaned, pushed, workers shut down)
 
-Branch `0.0.2` @ **a321609f** (= origin, green). Codex/ollama (tmux `f_codex`, kimi-k2.7-code) did the coding; manager (Claude) gated each. **Overnight loop STOPPED** (safe queue exhausted) — remaining lanes need Daniel's judgment.
+Branch `0.0.2` @ **c8775216** (= `origin/0.0.2`, clean). I took over the manager lane from Claude's rate-limited session, recovered its session history, reconciled the live worktrees/branches, pushed the two held-local `#2594` commits, cleaned the dirty tree, filed the new PDF fan-out efficiency bug, and shut down the stale worker tmux sessions (`f_knowledge`, `f_mindpalace`, `f_runner`).
 
-## OVERNIGHT RESULT — 5 codex lanes gated + LANDED
-- **#2597** iPhone connect — `DynamicPinnedSessionDelegate` now validates the SPKI pin for the URLSession path (was `-9807` on changes-stream). **Daniel: rebuild to confirm the iPhone connects.**
-- **#2589** position_x/y/z on Document · **#2590** generic LibraryItemLink CRUD (reuse KG relations) · **#2591** node_kind attribute (gate caught + fixed a codex `str`-vs-`None` 500 regression) · **#2595** importers/ package (move+shim, additive, baseline-diffed zero new failures).
+## LANDED / CONFIRMED
+- **#2594 option (a) is fully landed and pushed**: leaf-only `execution/` move, with `runner.py` intentionally left under `api/routes/workflow_execution/` so the SwiftUI wiring contract stays green. Remote `0.0.2` now includes:
+  - `df7b41ea` `refactor: move workflow runner into execution (#2594)`
+  - `c8775216` `test: update runner source guard for execution move (#2594)`
+- **#2593 is resolved as "do not delete those routers"**. The useful part that remains is the additive SSRF coverage migration already on branch (`304abc62` / `test_research_tools_ssrf.py`). No dead-router deletion should be merged.
+- **#2621** already tracks the Activity 0%-progress / empty-log live bug. Claude's final finding says the current root cause was a stale Mac app build that still used `URLSession.shared.bytes(...)` instead of the pinned session; fix path is rebuild + relaunch from current `0.0.2`, not a new code change.
+- **#2622** newly filed: PDF per-page fan-out currently re-renders the same source PDF once per page instead of rendering once up front, wasting CPU/memory without increasing model tokens.
 
-## NEEDS DANIEL — held, NOT auto-landed
-1. **#2593 (dead routers) — HELD, reverted, branch `codex-dead-routers` kept.** Codex correctly found 8 uncalled routers BUT also deleted shipped security tests (`test_research_ssrf_security.py` #2140, `test_knowledge_graph_security.py`) + did an 11k-line OpenAPI regen. Re-scope: delete routers WITHOUT dropping the SSRF test (move its live-endpoint asserts into `research_crud`'s test).
-2. **#2594 execution/ + #2596 knowledge/** — god-node package reorgs (high blast-radius: `knowledge_models`, runner). Too risky for unattended codex; supervise these.
-3. **#104** SwiftUI file org · the #2589/#2590/#2591 **Swift+OpenAPI follow-ups** (consume the new backend fields in the app) · pre-existing **~22 auth-401 unit failures** need `FICHERO_AUTH_TOKEN` in the pytest env (test-infra debt).
+## HELD / NEEDS REVIEW
+1. **#2596** — `knowledge/` package consolidation is still OPEN and unmerged. Big mostly-move diff (~5.5k insertions / ~5.4k deletions) with no manager sign-off yet. Treat it as a supervised repo-hygiene lane, not a drive-by merge.
+2. **Swift/OpenAPI follow-ups for #2589/#2590/#2591** — backend fields/routes landed, but the app-side adoption and generated-surface consumption still need a deliberate lane.
+3. **Workflow hardening after today's live reports** — `#2622` should probably run under the same milestone as `#2545` (`Workflows & Catalogue Hardening`), because it's the same scale/reliability class.
 
-GOTCHAS: never RunAllTests/verify_all on Daniel's desktop; library data reimportable (no migration); each fresh codex launch hits a ponytail hook-trust gauntlet (its version keeps bumping); codex's tmux input buffer mashes on re-send (edit files directly for small fixes). Gate discipline that paid off: run the FULL changed test FILE + baseline-diff, never just the worker's new tests.
+## NEXT SESSION — START HERE
+1. Rebuild and relaunch the Mac app from current `0.0.2` to verify the `#2621` stale-build explanation and confirm Activity progress/log recover on the fresh app binary.
+2. Dispatch a backend worker on **#2622**: instrument the PDF fan-out path, switch it to batch-render once via `_batch_render_pdf_pages_to_cgimages()`, add a regression check.
+3. Dispatch a review lane on **#2596** before any merge. Require a narrow answer: does the `knowledge/` reorg preserve import compatibility and pass targeted backend gates, or should it stay parked?
+4. After the workflow/backend lane returns, decide whether the next manager batch should be **repo hygiene/reorg** (`#2596`, #104, README/docs cleanup) or **workflow reliability** (`#2545` + `#2622`).
+
+GOTCHAS: the dirty worktree at takeover was just leftover schema/client regen plus `EOF` and `scripts/f_director-check.sh`; those are cleaned out and not part of the branch. `codex-execpkg`/`codex-execrunner` are superseded by pushed `0.0.2`; `codex-knowledge` still exists as the parked `#2596` worktree.
 
 ---
 ## (recent context — earlier 2026-06-22 overnight; see HISTORY.md)

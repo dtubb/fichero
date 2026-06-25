@@ -1,3 +1,12 @@
+## 2026-06-25 — Session Summary
+
+- Took over the manager lane from Claude's rate-limited session by recovering its local session history (`b4082431-4cce-4a3b-8636-e58c95615ca5`) and reconciling the active worktrees, tmux lanes, and GitHub issue state.
+- Cleaned the dirty `0.0.2` worktree (discarded leftover OpenAPI/client regen plus untracked `EOF` and `scripts/f_director-check.sh`) so handoff state matched the actual branch head.
+- Pushed the two local `#2594` follow-up commits to `origin/0.0.2`, moving the branch from `53fa0f6b` to `c8775216`.
+- Confirmed `#2593` should not delete the questioned routers; the additive SSRF coverage migration remains the only keeper from that line of work.
+- Filed **#2622** for the newly confirmed PDF fan-out inefficiency: per-page fan-out sends only the page image to the model, but still re-renders the whole source PDF once per page.
+- Shut down stale worker tmux sessions (`f_knowledge`, `f_mindpalace`, `f_runner`) and left only `f_manager`, `f_director`, and `f_backend` running.
+
 ## 2026-06-18 — Session Summary
 
 - Continued the 0.0.2 iOS Simulator compile gate while Daniel drove builds from Xcode because Xcode MCP was discoverable in this thread but never callable as a build tool.
