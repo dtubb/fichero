@@ -1,4 +1,4 @@
-"""Unit tests for scripts/check_swift_transport.py (#2606)."""
+"""Unit tests for scripts/check_swift_transport.py (#2606, #2608)."""
 from __future__ import annotations
 
 import importlib.util
@@ -50,6 +50,47 @@ def test_allows_pinned_configured_session_with_config(tmp_path: Path) -> None:
         tmp_path,
         "Services/S.swift",
         "let session = RemoteCertificatePinning.configuredSession(configuration: config)\n",
+    )
+    assert not scan(tmp_path)
+
+
+def test_flags_local_pinned_session_with_bytes(tmp_path: Path) -> None:
+    """A per-call local pinned session used with .bytes( must FAIL (#2605 / #2608)."""
+    _write(
+        tmp_path,
+        "Services/S.swift",
+        """@MainActor
+final class S {
+    func stream() async throws {
+        var request = URLRequest(url: URL(string: "https://127.0.0.1:8765/api/stream")!)
+        let session = RemoteCertificatePinning.configuredSession()
+        let (bytes, response) = try await session.bytes(for: request)
+        _ = response
+        for try await _ in bytes.lines {}
+    }
+}
+""",
+    )
+    assert scan(tmp_path)
+
+
+def test_allows_stored_pinned_session_with_bytes(tmp_path: Path) -> None:
+    """A class-level stored pinned session used with .bytes( must PASS (#2608)."""
+    _write(
+        tmp_path,
+        "Services/S.swift",
+        """@MainActor
+final class S {
+    private let urlSession: URLSession = RemoteCertificatePinning.configuredSession()
+
+    func stream() async throws {
+        var request = URLRequest(url: URL(string: "https://127.0.0.1:8765/api/stream")!)
+        let (bytes, response) = try await urlSession.bytes(for: request)
+        _ = response
+        for try await _ in bytes.lines {}
+    }
+}
+""",
     )
     assert not scan(tmp_path)
 
@@ -111,7 +152,8 @@ def test_allows_wkwebview_challenge_handler_with_pinned_signature(tmp_path: Path
     assert not scan(tmp_path)
 
 
-def test_allows_wkwebview_typealias_signature(tmp_path: Path) -> None:
+def test_flags_wkwebview_bare_typealias_signature(tmp_path: Path) -> None:
+    """The bare typealias does not carry @MainActor @Sendable (#2608)."""
     _write(
         tmp_path,
         "Views/V.swift",
@@ -124,7 +166,7 @@ def test_allows_wkwebview_typealias_signature(tmp_path: Path) -> None:
 }
 """,
     )
-    assert not scan(tmp_path)
+    assert scan(tmp_path)
 
 
 def test_comment_not_flagged(tmp_path: Path) -> None:
@@ -150,7 +192,7 @@ def test_repo_has_no_new_transport_violations() -> None:
     known = set(_mod.KNOWN_VIOLATIONS)
     new = set(found) - known
     assert not new, (
-        "New Swift transport/TLS violation(s) (#2606):\n"
+        "New Swift transport/TLS violation(s) (#2606 / #2608):\n"
         + "\n".join(f"  {k}: {found[k]}" for k in sorted(new))
     )
 

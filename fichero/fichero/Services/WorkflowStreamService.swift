@@ -33,6 +33,11 @@ class WorkflowStreamService: ObservableObject {
     /// no longer drift from the generated transport (the #2376 regression).
     private let client: FicheroClient
 
+    /// Certificate-pinned URLSession reused across stream subscriptions.
+    /// URLSession.bytes(for:) only invokes the delegate challenge handler
+    /// when the session is retained at the class level, not as a per-call local.
+    private let urlSession: URLSession = RemoteCertificatePinning.configuredSession()
+
     /// Current streaming status
     @Published var isStreaming = false
 
@@ -182,8 +187,7 @@ class WorkflowStreamService: ObservableObject {
         logger.info("Subscribing to event stream: \(streamUrl)")
 
         do {
-            let session = RemoteCertificatePinning.configuredSession()
-            let (bytes, response) = try await session.bytes(for: request)
+            let (bytes, response) = try await urlSession.bytes(for: request)
 
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw WorkflowStreamError.invalidResponse
