@@ -90,7 +90,10 @@ struct SidebarView: View {
 
     var selectedItemId: String? {
         get { selectionState.selectedItemId }
-        set { selectionState.selectedItemId = newValue }
+        // nonmutating: mutates the @Bindable selectionState (class), not self.
+        // Preserves the old @Binding semantics so non-mutating extension
+        // methods (SidebarCreationHandlers) can still assign selectedItemId (#2548).
+        nonmutating set { selectionState.selectedItemId = newValue }
     }
 
     var body: some View {
