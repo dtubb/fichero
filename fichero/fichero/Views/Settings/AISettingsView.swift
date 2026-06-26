@@ -45,9 +45,7 @@ struct AISettingsView: View {
                     Text("Defaults").tag(AISettingsTab.defaults)
                     Text("Models & Providers").tag(AISettingsTab.providers)
                     Text("Downloads").tag(AISettingsTab.downloads)
-                    if featureManager.isSettingsAIAdvancedTabEnabled {
-                        Text("Advanced").tag(AISettingsTab.advanced)
-                    }
+                    Text("Advanced").tag(AISettingsTab.advanced)
                 }
                 .pickerStyle(.segmented)
                 .padding(.horizontal)
@@ -61,11 +59,7 @@ struct AISettingsView: View {
                 case .downloads:
                     downloadsTab
                 case .advanced:
-                    if featureManager.isSettingsAIAdvancedTabEnabled {
-                        advancedTab
-                    } else {
-                        defaultsTab
-                    }
+                    advancedTab
                 }
             }
 

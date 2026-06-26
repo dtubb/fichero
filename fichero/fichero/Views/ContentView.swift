@@ -121,17 +121,12 @@ struct ContentView: View {
 
     // Column visibility persistence
     @AppStorage("sidebarWidth") var sidebarWidth: Double = 280
-    @AppStorage("sidebarChatWidth") var sidebarChatWidth: Double = 360
     @AppStorage("contentWidth") var contentWidth: Double = 600
     @AppStorage("inspectorWidth") var inspectorWidth: Double = 300
     @AppStorage("widescreenContentPaneWidth") var widescreenContentPaneWidth: Double = 320
     @AppStorage("pageListWidth") var pageListWidth: Double = 120
     @AppStorage("pageContentPaneWidth") var pageContentPaneWidth: Double = 200
     @SceneStorage("showSidebar") var showSidebar: Bool = true
-    /// #2034 Xcode-style chat: the LEFT column swaps between the sidebar and a
-    /// full-height chat (reversible — a back button returns to the sidebar).
-    /// Persisted per-window.
-    @SceneStorage("sidebarShowsChat") var sidebarShowsChat: Bool = false
     @SceneStorage("showInspectorSidebar") var showInspectorSidebar: Bool = true
     @SceneStorage("showDocumentGrid") var showDocumentGrid: Bool = true
     // Per-window visibility of the three middle panes (#1448). Each window
@@ -604,9 +599,6 @@ extension ContentView {
     @ToolbarContentBuilder
     var mainToolbarContent: some ToolbarContent {
         // LEADING zone — back/forward history (content-column toolbar).
-        // Navigator / Research Assistant buttons moved to sidebarContent.toolbar
-        // so macOS places them in the LEFT sidebar section of the unified toolbar
-        // and hides them automatically when the sidebar collapses (#2309).
         leadingToolbarContent
     }
 

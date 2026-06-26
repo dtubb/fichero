@@ -221,38 +221,28 @@ extension ContentView {
 
     @ViewBuilder
     var sidebarContent: some View {
-        // #2034 Xcode-style chat: the LEFT column swaps between the file/folder
-        // sidebar and a full-height chat, like Xcode swapping navigators in
-        // the same column. Chat reuses the existing ChatView -> same
-        // ChatServiceGenerated path, no second networking surface.
-        Group {
-            if sidebarShowsChat {
-                sidebarChatColumn
-            } else {
-                SidebarView(
-                    sidebarMode: $sidebarMode,
-                    viewMode: $viewMode,
-                    selectionState: sidebarSelectionState,
-                    libraryManager: LibraryManager.shared,
-                    itemRegistry: itemRegistry,
-                    apiClient: apiClient,
-                    windowPersistenceId: sidebarWindowPersistenceId,
-                    onOpenChatWithCurrentScope: {
-                        openChatWithCurrentScope()
-                    }
-                )
-                .environmentObject(savedSearchService)
-                .environmentObject(conversationService)
-                .environmentObject(ErrorService.shared)
-                .environmentObject(performanceService)
-                .overlay { paneFocusIndicator(for: .sidebar) }
-                // Make the sidebar focusable so arrow keys navigate the List.
-                // (Removing this broke arrow-key navigation — see #560.)
-                .focusable()
-                .focused($focusedPane, equals: .sidebar)
-                .focusEffectDisabled()
+        SidebarView(
+            sidebarMode: $sidebarMode,
+            viewMode: $viewMode,
+            selectionState: sidebarSelectionState,
+            libraryManager: LibraryManager.shared,
+            itemRegistry: itemRegistry,
+            apiClient: apiClient,
+            windowPersistenceId: sidebarWindowPersistenceId,
+            onOpenChatWithCurrentScope: {
+                openChatWithCurrentScope()
             }
-        }
+        )
+        .environmentObject(savedSearchService)
+        .environmentObject(conversationService)
+        .environmentObject(ErrorService.shared)
+        .environmentObject(performanceService)
+        .overlay { paneFocusIndicator(for: .sidebar) }
+        // Make the sidebar focusable so arrow keys navigate the List.
+        // (Removing this broke arrow-key navigation — see #560.)
+        .focusable()
+        .focused($focusedPane, equals: .sidebar)
+        .focusEffectDisabled()
         // Track the column's live rendered width so each mode's @AppStorage
         // ideal is updated when the user drags the divider. The GeometryReader
         // fires on every layout pass — guard with a min-delta to avoid writing
@@ -261,14 +251,8 @@ extension ContentView {
             GeometryReader { geo in
                 Color.clear
                     .onChange(of: geo.size.width) { _, newWidth in
-                        guard newWidth > 0,
-                              abs(newWidth - (sidebarShowsChat ? sidebarChatWidth : sidebarWidth)) > 2
-                        else { return }
-                        if sidebarShowsChat {
-                            sidebarChatWidth = newWidth
-                        } else {
-                            sidebarWidth = newWidth
-                        }
+                        guard newWidth > 0, abs(newWidth - sidebarWidth) > 2 else { return }
+                        sidebarWidth = newWidth
                     }
             }
         )
@@ -276,14 +260,9 @@ extension ContentView {
         // icons dominate the column with minimal wasted space (#615).
         // Was 250 — felt bloated on small screens.
         //
-        // Chat wants a roomier column than the file/folder sidebar, so the
-        // IDEAL width depends on the active navigator (#2309). max widens so
-        // chat isn't clamped at 360. Each mode's ideal is persisted separately
-        // in @AppStorage (sidebarWidth / sidebarChatWidth) — updated via the
-        // SidebarWidthReader overlay when the user drags the divider.
         .navigationSplitViewColumnWidth(
             min: ContentView.sidebarMinWidth,
-            ideal: sidebarShowsChat ? sidebarChatWidth : sidebarWidth,
+            ideal: sidebarWidth,
             max: 600
         )
         .focusedSceneValue(\.sidebarMode, $sidebarMode)
@@ -292,83 +271,6 @@ extension ContentView {
         // sidebar leaves the hierarchy when collapsed, which disabled ⌘⌥I
         // and the View-menu toggle while the sidebar was hidden (#1513).
         .focusedSceneValue(\.navigateToParentAction, FocusedLibraryAction(isEnabled: true, run: navigateToParent))
-        // SIDEBAR SECTION toolbar — Navigator / Research Assistant selector.
-        // Attaching to the sidebar column places these buttons in the LEFT
-        // section of the unified toolbar, after the system sidebar-toggle.
-        // Two separate ToolbarItems with .automatic placement keep both buttons
-        // in the sidebar section (a ToolbarItemGroup(.primaryAction) splits the
-        // second item to the far-right trailing section — #2309).
-        // Guard with `showSidebar` on regular widths because NavigationSplitView
-        // does NOT auto-remove a column's toolbar contributions when the column
-        // collapses — without the guard the Navigator icon remains visible even
-        // when the sidebar is hidden (#2309).
-        .toolbar {
-            if Self.shouldRenderSidebarColumn(
-                horizontalSizeClass: horizontalSizeClass,
-                showSidebar: showSidebar,
-                columnVisibility: columnVisibility
-            ) {
-                ToolbarItem(placement: .automatic) {
-                    Button {
-                        sidebarShowsChat = false
-                    } label: {
-                        Label {
-                            Text("Navigator")
-                        } icon: {
-                            toolbarToggleIcon("list.bullet", isActive: !sidebarShowsChat)
-                        }
-                    }
-                    .help(sidebarShowsChat ? "Show Navigator" : "Navigator")
-                }
-
-                ToolbarItem(placement: .automatic) {
-                    Button {
-                        sidebarShowsChat = true
-                    } label: {
-                        Label {
-                            Text("Research Assistant")
-                        } icon: {
-                            toolbarToggleIcon("bubbles.and.sparkles", isActive: sidebarShowsChat)
-                        }
-                    }
-                    .help(sidebarShowsChat ? "Research Assistant" : "Show Research Assistant")
-                }
-            }
-        }
-    }
-
-    // MARK: - Sidebar Chat Column (#2034)
-
-    /// Full-height chat that REPLACES the sidebar in the left column (Xcode
-    /// navigator-swap style). Mode is switched by the toolbar's list|chat
-    /// SELECTOR (#2309) — there is no in-column back button. Reuses the existing
-    /// `ChatView` (same `ChatServiceGenerated` path) — a placement change, not a
-    /// new chat surface.
-    @ViewBuilder
-    var sidebarChatColumn: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                Image(systemName: "bubble.left.and.bubble.right")
-                    .foregroundStyle(.secondary)
-                Text("Chat")
-                    .font(.headline)
-
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-
-            Divider()
-
-            ChatView(
-                conversation: nil,
-                selectedDocuments: $chatSelectedDocuments,
-                onConversationUpdated: {},
-                displayMode: .list
-            )
-        }
-        .background(.bar)
-        .accessibilityIdentifier("sidebarChatColumn")
     }
 
     // MARK: - Center Content (with Layout Modes)

@@ -64,8 +64,6 @@ class FeatureManager: ObservableObject {
     private var settingsBackendTabEnabledInternal: Bool = false
     @AppStorage("fichero.features.settings_models_tab")
     private var settingsModelsTabEnabledInternal: Bool = false
-    @AppStorage("fichero.features.settings_ai_advanced_tab")
-    private var settingsAIAdvancedTabEnabledInternal: Bool = false
     @AppStorage("fichero.features.settings_engine_tab")
     private var settingsEngineTabEnabledInternal: Bool = true
     @AppStorage("fichero.features.settings_share_tab")
@@ -147,7 +145,6 @@ class FeatureManager: ObservableObject {
     var isSettingsGeneralTabEnabled: Bool { allFeaturesEnabled || settingsGeneralTabEnabledInternal }
     var isSettingsBackendTabEnabled: Bool { allFeaturesEnabled || settingsBackendTabEnabledInternal }
     var isSettingsModelsTabEnabled: Bool { allFeaturesEnabled || settingsModelsTabEnabledInternal }
-    var isSettingsAIAdvancedTabEnabled: Bool { allFeaturesEnabled || settingsAIAdvancedTabEnabledInternal }
     var isSettingsEngineTabEnabled: Bool { allFeaturesEnabled || settingsEngineTabEnabledInternal }
     var isSettingsShareTabEnabled: Bool { allFeaturesEnabled || settingsShareTabEnabledInternal }
     var isSettingsUsersTabEnabled: Bool { allFeaturesEnabled || settingsUsersTabEnabledInternal }
@@ -223,7 +220,6 @@ class FeatureManager: ObservableObject {
         settingsGeneralTabEnabledInternal = true
         settingsBackendTabEnabledInternal = false
         settingsModelsTabEnabledInternal = false
-        settingsAIAdvancedTabEnabledInternal = false
         settingsEngineTabEnabledInternal = true
         settingsShareTabEnabledInternal = true
         settingsUsersTabEnabledInternal = true

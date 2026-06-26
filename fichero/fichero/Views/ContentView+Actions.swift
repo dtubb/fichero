@@ -43,7 +43,6 @@ struct ChatWithDocsRoute: Equatable {
     let selectedDocumentIds: Set<String>
     let sidebarMode: SidebarMode
     let viewMode: AppViewMode
-    let sidebarShowsChat: Bool
 }
 
 enum ChatWithDocsRouter {
@@ -51,8 +50,7 @@ enum ChatWithDocsRouter {
         ChatWithDocsRoute(
             selectedDocumentIds: Set(documentIds),
             sidebarMode: .chat,
-            viewMode: .chat(nil),
-            sidebarShowsChat: false
+            viewMode: .chat(nil)
         )
     }
 }
@@ -392,7 +390,6 @@ extension ContentView {
         chatSelectedDocuments = route.selectedDocumentIds
         sidebarMode = route.sidebarMode
         viewMode = route.viewMode
-        sidebarShowsChat = route.sidebarShowsChat
     }
 
     // MARK: - File Import
