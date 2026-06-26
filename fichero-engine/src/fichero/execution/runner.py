@@ -50,6 +50,8 @@ __all__ = [
 # Key: thread_id, Value: dict with workflow state and a WorkflowEventHub
 # for events (the workflow runs on a worker thread — #1000)
 _running_workflows: dict[str, dict[str, Any]] = {}
+_RUNNING_WORKFLOWS_LIMIT = 100
+_EXITED_WORKFLOW_STATUSES = {"completed", "failed", "cancelled"}
 
 
 class WorkflowEventHub:
@@ -158,6 +160,21 @@ def _workflow_event_timeline(events: WorkflowEventHub) -> list[dict[str, Any]]:
 def _set_workflow_state(thread_id: str, state: dict[str, Any]) -> None:
     """Update the state of a running workflow."""
     _running_workflows[thread_id] = state
+    _cap_workflow_state_registry()
+
+
+def _cap_workflow_state_registry() -> None:
+    """Bound the in-memory workflow state registry."""
+    while len(_running_workflows) > _RUNNING_WORKFLOWS_LIMIT:
+        evict_id = next(
+            (
+                tid
+                for tid, state in _running_workflows.items()
+                if state.get("status") in _EXITED_WORKFLOW_STATUSES
+            ),
+            next(iter(_running_workflows)),
+        )
+        _running_workflows.pop(evict_id, None)
 
 
 def _remove_workflow_state(thread_id: str) -> None:

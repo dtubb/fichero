@@ -1,12 +1,10 @@
 """
-Tests for builder edge robustness — legacy/broken workflow state must not
-crash graph construction.
+Tests for builder edge robustness — broken workflow state must fail loudly.
 
 Scenario: a workflow persisted with an older edge schema (e.g., preset JSON
 that used ``source_node_id`` before the UI decoder converged on ``source``)
-deserializes with empty endpoints. Before this fix, build_graph crashed at
-``node_names[edge.source]`` with KeyError(""). After: empty/invalid edges
-are dropped with a warning and the remaining graph builds.
+deserializes with empty endpoints. Invalid edges should raise a clear
+validation/build error, not get silently dropped.
 """
 
 from __future__ import annotations
@@ -27,21 +25,20 @@ def _files_only_workflow_with_bad_edges() -> WorkflowDef:
             NodeDef(id="transcribe", tool="transcribe", config={}),
         ],
         edges=[
-            EdgeDef(source="", target="", source_port="output", target_port="input"),
+            {"source": "", "target": "", "source_port": "output", "target_port": "input"},
             EdgeDef(source="files", target="transcribe", source_port="files", target_port="files"),
         ],
     )
 
 
-def test_build_graph_drops_edges_with_empty_endpoints():
-    """Empty-string endpoint edges are filtered out; the remaining graph builds."""
-    workflow = _files_only_workflow_with_bad_edges()
-    app = build_graph(workflow, enable_parallel=False)
-    assert app is not None
+def test_workflow_rejects_edges_with_empty_endpoints():
+    """Empty-string endpoint edges are validation errors."""
+    with pytest.raises(ValueError, match="EdgeDef.source is required"):
+        _files_only_workflow_with_bad_edges()
 
 
-def test_build_graph_drops_edges_referencing_unknown_nodes():
-    """An edge pointing at a node ID that doesn't exist is dropped, not crashed on."""
+def test_build_graph_rejects_edges_referencing_unknown_nodes():
+    """An edge pointing at a missing node raises a clear error."""
     workflow = WorkflowDef(
         name="Dangling",
         nodes=[NodeDef(id="files", tool="files", config={})],
@@ -50,8 +47,8 @@ def test_build_graph_drops_edges_referencing_unknown_nodes():
                     source_port="files", target_port="files"),
         ],
     )
-    app = build_graph(workflow, enable_parallel=False)
-    assert app is not None
+    with pytest.raises(ValueError, match="Edge references unknown node"):
+        build_graph(workflow, enable_parallel=False)
 
 
 @pytest.mark.asyncio
@@ -187,8 +184,8 @@ def test_route_map_entry_nodes_excludes_branch_targets():
     assert "transcribe-ms" not in entry_nodes
 
 
-def test_route_map_invalid_target_skipped():
-    """A route_map edge whose targets are not in the node list is filtered out."""
+def test_route_map_invalid_target_raises():
+    """A route_map edge whose targets are not in the node list fails loudly."""
     workflow = WorkflowDef(
         name="RouteBadTarget",
         nodes=[
@@ -205,9 +202,8 @@ def test_route_map_invalid_target_skipped():
             ),
         ],
     )
-    # Should build without crashing; the bad route_map edge is dropped.
-    app = build_graph(workflow, enable_parallel=False)
-    assert app is not None
+    with pytest.raises(ValueError, match="Route-map edge targets"):
+        build_graph(workflow, enable_parallel=False)
 
 
 @pytest.mark.asyncio

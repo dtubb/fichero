@@ -523,6 +523,20 @@ class EdgeDef(BaseModel):
                     data[canonical] = legacy_value
         return data
 
+    @model_validator(mode="after")
+    def _validate_endpoints(self) -> "EdgeDef":
+        if not self.source:
+            raise ValueError("EdgeDef.source is required")
+        if self.route_map is not None:
+            if not self.route_key:
+                raise ValueError("EdgeDef.route_key is required for route_map edges")
+            if not self.route_map:
+                raise ValueError("EdgeDef.route_map cannot be empty")
+            return self
+        if not self.target:
+            raise ValueError("EdgeDef.target is required for non-route_map edges")
+        return self
+
 
 class WorkflowDef(BaseModel):
     """Complete workflow definition.

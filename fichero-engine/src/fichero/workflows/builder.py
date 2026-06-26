@@ -373,52 +373,26 @@ def build_graph(
         "skip_cache": skip_cache,
     }
 
-    # Drop edges with empty endpoints before any downstream use. These appear
-    # when an older workflow was persisted with a different edge schema and
-    # the decoder couldn't read source/target — e.g. pre-fix preset JSONs
-    # that used source_node_id instead of source. Without this guard, the
-    # build crashes at `node_names[edge.source]` with KeyError("").
+    # Validate edge references before any downstream node_names lookup.
     valid_node_ids = {node.id for node in workflow.nodes}
-    filtered_edges = []
     for edge in workflow.edges:
         if edge.route_map:
-            # Route-map edges have no single target — validate route_map values instead
-            if not edge.source or not edge.route_key or not edge.route_map:
-                logger.warning(
-                    "Skipping route_map edge with missing source/route_key/route_map (source=%r)",
-                    edge.source,
-                )
-                continue
             if edge.source not in valid_node_ids:
-                logger.warning(
-                    "Skipping route_map edge: source=%r not in known nodes", edge.source
+                raise ValueError(
+                    f"Route-map edge source {edge.source!r} is not in workflow nodes"
                 )
-                continue
             unknown_targets = [v for v in edge.route_map.values() if v not in valid_node_ids]
             if unknown_targets:
-                logger.warning(
-                    "Skipping route_map edge: targets %s not in known nodes", unknown_targets
+                raise ValueError(
+                    f"Route-map edge targets are not in workflow nodes: {unknown_targets}"
                 )
-                continue
-            filtered_edges.append(edge)
-            continue
-        if not edge.source or not edge.target:
-            logger.warning(
-                "Skipping edge with empty endpoint (source=%r, target=%r) — "
-                "workflow likely persisted with an older schema; reinstall "
-                "the workflow from its preset or delete and re-create it.",
-                edge.source, edge.target,
-            )
             continue
         if edge.source not in valid_node_ids or edge.target not in valid_node_ids:
-            logger.warning(
-                "Skipping edge referencing unknown node (source=%r, target=%r); "
-                "known nodes: %s",
-                edge.source, edge.target, sorted(valid_node_ids),
+            raise ValueError(
+                "Edge references unknown node "
+                f"(source={edge.source!r}, target={edge.target!r}); "
+                f"known nodes: {sorted(valid_node_ids)}"
             )
-            continue
-        filtered_edges.append(edge)
-    workflow.edges = filtered_edges
 
     # Build edge lookup for auto-wiring (route_map edges have no single target)
     edges_by_target = {}

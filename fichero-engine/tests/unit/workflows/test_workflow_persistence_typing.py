@@ -158,7 +158,14 @@ def test_legacy_edge_id_spelling_loads_and_normalizes():
 
 def test_canonical_wins_over_legacy_when_both_present():
     edge = EdgeDef.model_validate(
-        {"source": "real", "source_node_id": "stale", "source_port": "p", "source_port_id": "stale_p"}
+        {
+            "source": "real",
+            "source_node_id": "stale",
+            "source_port": "p",
+            "source_port_id": "stale_p",
+            "target": "t",
+            "target_port": "tp",
+        }
     )
     assert edge.source == "real"
     assert edge.source_port == "p"
@@ -174,14 +181,20 @@ def test_edgedef_model_validate_preserves_route_map():
     assert edge.route_map == {"ts": "t1"}
 
 
-def test_empty_endpoint_edges_still_allowed():
-    """Legacy empty-endpoint edges must remain loadable (the builder drops them
-    at graph-construction time — they are not a validation error)."""
-    wf = Workflow(
-        name="legacy",
-        edges=[{"source": "", "target": "", "source_port": "output", "target_port": "input"}],
-    )
-    assert wf.edges[0]["source"] == ""
+def test_empty_endpoint_edges_raise_validation_error():
+    """Legacy empty-endpoint edges fail loudly instead of disappearing later."""
+    with pytest.raises(ValidationError):
+        Workflow(
+            name="legacy",
+            edges=[
+                {
+                    "source": "",
+                    "target": "",
+                    "source_port": "output",
+                    "target_port": "input",
+                }
+            ],
+        )
 
 
 # ---------------------------------------------------------------------------
