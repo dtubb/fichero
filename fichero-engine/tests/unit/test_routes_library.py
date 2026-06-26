@@ -14,14 +14,26 @@ from urllib.parse import quote
 
 from fastapi.testclient import TestClient
 
+from fichero.api.auth import attach_auth_middleware, initialize_token
 from fichero.api.main import app
 from fichero.db import db_manager
 from fichero.models import DocType, Document
 
+_CLIENT_AUTH_TOKEN: str | None = None
+_CLIENT_AUTH_ATTACHED = False
+
 
 def _client() -> TestClient:
-    """Bare TestClient — POST /api/library does NOT need a library header."""
-    return TestClient(app)
+    """TestClient with auth attached; POST /api/library does not need a library header."""
+    global _CLIENT_AUTH_TOKEN, _CLIENT_AUTH_ATTACHED
+    if _CLIENT_AUTH_TOKEN is None:
+        _CLIENT_AUTH_TOKEN = initialize_token()
+    if not _CLIENT_AUTH_ATTACHED:
+        attach_auth_middleware(app, _CLIENT_AUTH_TOKEN)
+        _CLIENT_AUTH_ATTACHED = True
+    client = TestClient(app)
+    client.headers["Authorization"] = f"Bearer {_CLIENT_AUTH_TOKEN}"
+    return client
 
 
 def _root_inboxes(db) -> list[Document]:
