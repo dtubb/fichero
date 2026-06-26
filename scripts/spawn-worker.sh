@@ -34,7 +34,10 @@ slug() { echo "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-
 MSLUG="$(slug "$MILESTONE")"
 SESSION="${3:-f_${MODEL}_${MSLUG}}"
 BRANCH="ms/${MSLUG}"
-WORKTREE="${HOME}/code/fichero-${MSLUG}"
+# Worktrees live ONLY under ~/code/fichero-worktrees/<name> — NEVER a bare
+# ~/code/fichero-<name> sibling (constitution rule #11: a glob-rm of bare
+# siblings destroyed the fichero-search project on 2026-06-09).
+WORKTREE="${HOME}/code/fichero-worktrees/${MSLUG}"
 
 # --- pick the agent launch command + skill-invocation prefix -----------------
 # Claude invokes skills with a leading '/', Codex with a leading '$'.
