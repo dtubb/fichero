@@ -173,6 +173,19 @@ class ActionLibraryService: ObservableObject {
         }
     }
 
+    /// Load the current library's ACL snapshot for the active user.
+    func loadLibraryAuthzSnapshot(targetId: String? = nil) async throws -> Components.Schemas.LibraryAuthzSnapshot {
+        let response = try await client.api.getLibraryAuthzSnapshotApiAuthzLibraryGet(
+            query: .init(targetId: targetId)
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent, .undocumented:
+            throw ActionLibraryError.serverError
+        }
+    }
+
     /// Load popular actions. Sets `popularActions` and also returns the list so
     /// the `ActionsService` subclass can vend it directly to its call sites.
     @discardableResult

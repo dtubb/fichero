@@ -5,11 +5,14 @@ import SwiftUI
 struct DocumentInspectorInfoTab: View {
     let document: Document
 
-    @EnvironmentObject private var libraryManager: LibraryManager
-    @EnvironmentObject private var windowState: WindowState
+    @EnvironmentObject var libraryManager: LibraryManager
+    @EnvironmentObject var windowState: WindowState
     @Environment(DocumentStore.self) private var documentStore: DocumentStore
     @State var isUpdatingExclude = false
     @State var excludeFromProcessingOverride: Bool?
+    @State var libraryAuthzSnapshot: Components.Schemas.LibraryAuthzSnapshot?
+    @State var libraryAuthzError: String?
+    @State var isLoadingLibraryAuthz = false
     @State private var selectedAttribute: InfoAttribute?
 
     var isExcludedFromProcessing: Bool {
@@ -32,6 +35,7 @@ struct DocumentInspectorInfoTab: View {
             VStack(alignment: .leading, spacing: 16) {
                 statusSection
                 classSection
+                sharingSection
 
                 // Workspace curated items + per-item node class (#1570 Phase 1).
                 if document.isWorkspace {
@@ -61,6 +65,9 @@ struct DocumentInspectorInfoTab: View {
         .onChange(of: document.id) { _, _ in
             excludeFromProcessingOverride = nil
             selectedAttribute = nil
+        }
+        .task(id: authzLoadKey) {
+            await loadLibraryAuthzSnapshot()
         }
     }
 
@@ -206,7 +213,7 @@ struct DocumentInspectorInfoTab: View {
     /// already uses. Replaces `List`'s `Section` so the body renders inside the
     /// enclosing `ScrollView`.
     @ViewBuilder
-    private func infoSection<Content: View>(
+    func infoSection<Content: View>(
         _ title: String,
         @ViewBuilder content: () -> Content
     ) -> some View {
@@ -282,7 +289,7 @@ struct DocumentInspectorInfoTab: View {
         }
     }
 
-    private var currentLibrary: LibraryManager.LibraryReference? {
+    var currentLibrary: LibraryManager.LibraryReference? {
         if let library = libraryManager.getLibrary(id: windowState.libraryId) {
             return library
         }

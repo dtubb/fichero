@@ -1154,6 +1154,7 @@ from fichero.api.routes import (  # noqa: E402
     actions_registry,
     activity,
     agent_memory,
+    authz,
     auth_accounts,
     annotations,
     artifacts,
@@ -1235,6 +1236,7 @@ RouteSpec = tuple[object, str, list[str]]
 _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (activity.router, "/api", ["activity"]),
     (agent_memory.router, "/api", ["agent-memory"]),
+    (authz.router, "/api", ["authz"]),
     (auth_accounts.auth_router, "/api", ["auth"]),
     (auth_accounts.users_router, "/api", ["users"]),
     (pairing.router, "/api", ["pairing"]),

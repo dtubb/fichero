@@ -118,6 +118,16 @@ extension ActionLibraryService {
         invokeLogger.info("undoAction(\(auditId)) ok — inverse audit \(result.auditId)")
         return result
     }
+
+    /// Update a user's library role through the audited ACL action.
+    @discardableResult
+    func setLibraryRole(userId: String, role: String, originWindow: String? = nil) async throws -> ActionInvokeResult {
+        try await invokeAction(
+            name: "acl.set",
+            params: AclSetParams(user: userId, role: role),
+            originWindow: originWindow
+        )
+    }
 }
 
 // MARK: - Wire models
@@ -157,6 +167,36 @@ struct ActionInvokeResult: Decodable {
         case succeeded = "ok"
         case auditId = "audit_id"
         case changedDomains = "changed_domains"
+    }
+}
+
+/// Typed params for the ACL role mutation action.
+struct AclSetParams: Encodable {
+    let user: String
+    let role: String?
+    let targetId: String?
+    let effect: String?
+
+    init(user: String, role: String? = nil, targetId: String? = nil, effect: String? = nil) {
+        self.user = user
+        self.role = role
+        self.targetId = targetId
+        self.effect = effect
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case user
+        case role
+        case targetId = "target_id"
+        case effect
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(user, forKey: .user)
+        try container.encodeIfPresent(role, forKey: .role)
+        try container.encodeIfPresent(targetId, forKey: .targetId)
+        try container.encodeIfPresent(effect, forKey: .effect)
     }
 }
 

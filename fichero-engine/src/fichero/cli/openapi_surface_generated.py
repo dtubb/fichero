@@ -951,6 +951,25 @@ def register_generated_openapi_commands(
             return client.request("GET", path, params=params)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('authz')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for authz endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='authz')
+
+    @target_app.command("get-library-snapshot")
+    def authz_get_library_snapshot_get(
+        ctx: typer.Context,
+        target_id: Optional[str] = typer.Option(None, "--target-id", help="Query parameter: target_id."),
+    ) -> None:
+        """Get Library Authz Snapshot (GET /api/authz/library)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/authz/library"
+            params = {
+                "target_id": target_id,
+            }
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('batches')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for batches endpoints.', no_args_is_help=True)

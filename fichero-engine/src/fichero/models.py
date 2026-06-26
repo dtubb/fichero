@@ -1373,6 +1373,20 @@ class LibraryStatsResponse(BaseModel):
     embedding_stats: EmbeddingStatsResponse
 
 
+class LibraryAuthzSnapshot(BaseModel):
+    """Response from ``GET /api/authz/library`` for the active library."""
+
+    library_path: str
+    multiuser_enabled: bool
+    can_manage_roles: bool
+    current_user_id: str | None = None
+    current_user_role: str | None = None
+    target_id: str | None = None
+    target_can_read: bool
+    target_can_write: bool
+    roles: list[LibraryRole] = Field(default_factory=list)
+
+
 class ReinstallDefaultWorkflowsResponse(BaseModel):
     """Response from ``POST /api/workflows/reinstall-defaults``."""
 
@@ -1945,6 +1959,7 @@ __all__ = [
     "HealthResponse",
     "EmbeddingStatsResponse",
     "LibraryStatsResponse",
+    "LibraryAuthzSnapshot",
     "ReinstallDefaultWorkflowsResponse",
     "AppleIntelligenceProbeResponse",
     "EntityContextResponse",

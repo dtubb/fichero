@@ -1171,6 +1171,51 @@
         }
       }
     },
+    "/api/authz/library": {
+      "get": {
+        "tags": [
+          "authz",
+          "authz"
+        ],
+        "summary": "Get Library Authz Snapshot",
+        "description": "Return the current library's ACL state for the logged-in user.",
+        "operationId": "get_library_authz_snapshot_api_authz_library_get",
+        "parameters": [
+          {
+            "name": "target_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Target Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryAuthzSnapshot"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/login": {
       "post": {
         "tags": [
@@ -45243,6 +45288,62 @@
         "title": "LanguageTierCounts",
         "description": "LOOVE tier counts for exemplar characters."
       },
+      "LibraryAuthzSnapshot": {
+        "properties": {
+          "library_path": {
+            "type": "string",
+            "title": "Library Path"
+          },
+          "multiuser_enabled": {
+            "type": "boolean",
+            "title": "Multiuser Enabled"
+          },
+          "can_manage_roles": {
+            "type": "boolean",
+            "title": "Can Manage Roles"
+          },
+          "current_user_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Current User Id"
+          },
+          "current_user_role": {
+            "type": "string",
+            "nullable": true,
+            "title": "Current User Role"
+          },
+          "target_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target Id"
+          },
+          "target_can_read": {
+            "type": "boolean",
+            "title": "Target Can Read"
+          },
+          "target_can_write": {
+            "type": "boolean",
+            "title": "Target Can Write"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryRole"
+            },
+            "type": "array",
+            "title": "Roles"
+          }
+        },
+        "type": "object",
+        "required": [
+          "library_path",
+          "multiuser_enabled",
+          "can_manage_roles",
+          "target_can_read",
+          "target_can_write"
+        ],
+        "title": "LibraryAuthzSnapshot",
+        "description": "Response from ``GET /api/authz/library`` for the active library."
+      },
       "LibraryCreateRequest": {
         "properties": {
           "path": {
@@ -45573,6 +45674,44 @@
         ],
         "title": "LibraryRegistryResponse",
         "description": "Response from GET /api/registry \u2014 list all known libraries."
+      },
+      "LibraryRole": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "library_path": {
+            "type": "string",
+            "title": "Library Path"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "library_path",
+          "role"
+        ],
+        "title": "LibraryRole",
+        "description": "Per-user role for one library, stored in the global app database."
       },
       "LibrarySnapshot": {
         "properties": {

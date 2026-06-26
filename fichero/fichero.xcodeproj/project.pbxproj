@@ -490,6 +490,7 @@
 		D9D582D305FA54570A7F6093 /* UITestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 397DBEE7CB99C18C680AB85E /* UITestSupport.swift */; };
 		DA49843739ACA26F5AD0759C /* AISettingsView+Tabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4189C51250E0B39E05CD87B /* AISettingsView+Tabs.swift */; };
 		DA731A1441637DFFBE146AD4 /* EntityDetailView+Claims.swift in Sources */ = {isa = PBXBuildFile; fileRef = A99ACF7102EB736967DDAE57 /* EntityDetailView+Claims.swift */; };
+		DA736D4429C7945E0C30216E /* DocumentInspectorInfoTab+Sharing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37003B253D97CBE012D3A811 /* DocumentInspectorInfoTab+Sharing.swift */; };
 		DAF7008910EF661F7ED718CC /* SearchStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE609F48196839FAA6981CFF /* SearchStore.swift */; };
 		DCFC0B2C370966F9B57072A2 /* EntityMergeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EB5DE35F2956544D2771C85 /* EntityMergeSheet.swift */; };
 		DDE8A1E95DE61B0723A40BC9 /* DynamicConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04DA25B2C1FBB75B0B1CC643 /* DynamicConfigView.swift */; };
@@ -731,6 +732,7 @@
 		36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorContentTab.swift; path = fichero/Views/Library/DocumentInspector/DocumentInspectorContentTab.swift; sourceTree = SOURCE_ROOT; };
 		36839A1C65A10F63B92E4121 /* ActivityMonitorModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ActivityMonitorModel.swift; sourceTree = "<group>"; };
 		36F6CF6F489DE8CEE80661D3 /* ArtifactsInspectorPane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ArtifactsInspectorPane.swift; sourceTree = "<group>"; };
+		37003B253D97CBE012D3A811 /* DocumentInspectorInfoTab+Sharing.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "DocumentInspectorInfoTab+Sharing.swift"; sourceTree = "<group>"; };
 		371A4629B0A6A51DE6D6D872 /* BackendSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BackendSettingsView.swift; path = fichero/Views/Settings/BackendSettingsView.swift; sourceTree = SOURCE_ROOT; };
 		375F58443D6F498C1FEDD3E3 /* ResearchStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ResearchStore.swift; sourceTree = "<group>"; };
 		376E2EE5F22D7B7127D9CB2A /* OntologyBrowser+List.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "OntologyBrowser+List.swift"; sourceTree = "<group>"; };
@@ -1982,6 +1984,7 @@
 				F01276A4ABA0F672CF1D8067 /* DocumentInspectorInfoTab+Bibliography.swift */,
 				9037096857E2AE5F3339A8DC /* DocumentInspectorInfoTab+Workflow.swift */,
 				715408B079BD7610A53FA99C /* DocumentInspectorInfoTab+Prototype.swift */,
+				37003B253D97CBE012D3A811 /* DocumentInspectorInfoTab+Sharing.swift */,
 			);
 			path = DocumentInspector;
 			sourceTree = "<group>";
@@ -2761,6 +2764,7 @@
 				9F50071471DB4B1EA1618E6E /* ActivityMonitorView.swift in Sources */,
 				F023AC196079761CD2CF8E7A /* ActivityMonitorWindow.swift in Sources */,
 				ABE49CBC95B3AE4F6A25D878 /* AdaptiveAppleShellHost.swift in Sources */,
+				DA736D4429C7945E0C30216E /* DocumentInspectorInfoTab+Sharing.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
