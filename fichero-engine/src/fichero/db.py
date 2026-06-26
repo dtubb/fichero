@@ -432,6 +432,7 @@ class Database(DatabaseEmbeddingMixin):
         migrate_spatial_node_layout_fields(self.conn)
         migrate_references_table(self.conn)
         migrate_reference_provenance_table(self.conn)
+        self._backfill_saved_search_documents()
 
     def _connect(self) -> duckdb.DuckDBPyConnection:
         """Open a DuckDB connection for this library path."""
@@ -677,6 +678,9 @@ class Database(DatabaseEmbeddingMixin):
         sql = self._upsert_sql(sql_table, cols, placeholders)
 
         self._execute(sql, data)
+
+        if type(obj).__name__ == "SavedSearch":
+            self._save_saved_search_document(obj)
 
         # Auto-embed if requested and has content
         # ponytail: bulk callers (importers / reindex loops) that save many
@@ -1125,6 +1129,71 @@ class Database(DatabaseEmbeddingMixin):
         self._ensure_table(type(obj))
 
         self._execute(f"DELETE FROM {sql_table} WHERE id = $id", {"id": obj.id})
+        if type(obj).__name__ == "SavedSearch":
+            self._delete_saved_search_document(obj.id)
+
+    def _save_saved_search_document(self, saved: BaseModel) -> None:
+        """Mirror a SavedSearch row into the document tree as a smart folder."""
+        from fichero.models import DocType, Document
+
+        existing = self.get(Document, saved.id)
+        metadata = (
+            dict(existing.metadata)
+            if existing is not None and isinstance(existing.metadata, dict)
+            else {}
+        )
+        metadata.update({
+            "node_class": "smart_folder",
+            "saved_search_id": saved.id,
+            "saved_search_query": saved.query,
+            "saved_search_filters": saved.filters,
+            "saved_search_is_smart_search": saved.is_smart_search,
+            "saved_search_type": saved.search_type,
+            "saved_search_sort_by": saved.sort_by,
+            "saved_search_sort_direction": saved.sort_direction,
+            "saved_search_folder_path": saved.folder_path,
+        })
+
+        doc = existing or Document(id=saved.id, name=saved.query)
+        doc.name = saved.query
+        doc.node_kind = "saved_search"
+        doc.doc_type = DocType.folder
+        doc.sort_order = saved.sort_order
+        doc.metadata = metadata
+        doc.created_at = saved.created_at
+        doc.updated_at = saved.updated_at
+        self.save(doc)
+
+    def _delete_saved_search_document(self, saved_search_id: str) -> None:
+        """Remove the mirrored document row for a saved search, if present."""
+        from fichero.models import Document
+
+        doc = self.get(Document, saved_search_id)
+        if doc is None:
+            return
+        self._execute("DELETE FROM documents WHERE id = $id", {"id": saved_search_id})
+
+    def _backfill_saved_search_documents(self) -> None:
+        """Backfill existing saved_searches rows into same-id document nodes."""
+        # ponytail: mocked connections in unit tests may only support close().
+        if not hasattr(self.conn, "execute"):
+            return
+
+        from fichero.models import SavedSearch
+
+        table_name = self._table_name(SavedSearch)
+        table_exists = self.execute_fetchone(
+            """
+            SELECT COUNT(*) FROM information_schema.tables
+            WHERE table_name = $table_name
+            """,
+            {"table_name": table_name},
+        )
+        if not table_exists or int(table_exists[0] or 0) == 0:
+            return
+
+        for saved in self.all(SavedSearch):
+            self._save_saved_search_document(saved)
 
     def count(self, model: Type[T], **filters) -> int:
         """Count objects matching filters."""

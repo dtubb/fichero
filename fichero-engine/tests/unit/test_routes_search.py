@@ -759,6 +759,18 @@ class TestSaveSearch:
         assert data["query"] == "my search"
         assert "id" in data
 
+    def test_save_search_creates_smart_folder_document(self, client, db):
+        r = client.post("/api/search/saved", json={"query": "my search"})
+
+        assert r.status_code == 200
+        saved_id = r.json()["id"]
+        mirrored = db.get(Document, saved_id)
+        assert mirrored is not None
+        assert mirrored.node_kind == "saved_search"
+        assert mirrored.doc_type == DocType.folder
+        assert mirrored.metadata["node_class"] == "smart_folder"
+        assert mirrored.metadata["saved_search_query"] == "my search"
+
     def test_saved_search_appears_in_list(self, client):
         client.post("/api/search/saved", json={"query": "find this"})
         r = client.get("/api/search/saved")
@@ -861,6 +873,7 @@ class TestDeleteSavedSearch:
         assert r.status_code == 200
         r2 = client.get("/api/search/saved")
         assert all(item["id"] != s.id for item in r2.json()["items"])
+        assert db.get(Document, s.id) is None
 
     def test_delete_missing_returns_404(self, client):
         r = client.delete("/api/search/saved/no-such-id")

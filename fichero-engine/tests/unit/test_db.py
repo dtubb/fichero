@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 from fichero import db as db_module
 from fichero.models import (
     Document, Artifact, Workflow, Run, Trace, Note, Event,
-    DocType, FileType, Status, RunStatus
+    DocType, FileType, Status, RunStatus, SavedSearch
 )
 from fichero.db import Database
 from fichero.knowledge_models import EntityType, KnowledgeEntity
@@ -1149,15 +1149,43 @@ class TestSavedSearchCRUD:
         assert retrieved.query == "unprocessed images"
         assert retrieved.filters["status"] == "pending"
 
+        mirrored = temp_db.get(Document, search.id)
+        assert mirrored is not None
+        assert mirrored.node_kind == "saved_search"
+        assert mirrored.doc_type == DocType.folder
+        assert mirrored.metadata["node_class"] == "smart_folder"
+        assert mirrored.metadata["saved_search_query"] == "unprocessed images"
+
     def test_query_saved_searches(self, temp_db):
         """Test getting all saved searches."""
-        from fichero.models import SavedSearch
-
         temp_db.save(SavedSearch(query="recent documents"))
         temp_db.save(SavedSearch(query="flagged items"))
 
         all_searches = temp_db.all(SavedSearch)
         assert len(all_searches) == 2
+
+    def test_reopen_backfills_saved_search_document(self):
+        """Existing saved-search rows are backfilled into document nodes on open."""
+        tmpdir = tempfile.mkdtemp()
+        db_path = Path(tmpdir) / "test.duckdb"
+        db = Database(db_path)
+        try:
+            saved = SavedSearch(query="reopen me")
+            db.save(saved)
+            db._execute("DELETE FROM documents WHERE id = $id", {"id": saved.id})
+            assert db.get(Document, saved.id) is None
+            db.close()
+
+            reopened = Database(db_path)
+            try:
+                mirrored = reopened.get(Document, saved.id)
+                assert mirrored is not None
+                assert mirrored.node_kind == "saved_search"
+                assert mirrored.metadata["saved_search_query"] == "reopen me"
+            finally:
+                reopened.close()
+        finally:
+            shutil.rmtree(tmpdir)
 
 
 class TestTraceJSONL:
