@@ -4,18 +4,23 @@ import CoreImage.CIFilterBuiltins
 import FicheroAPIClient
 import SwiftUI
 
+// swiftlint:disable file_length
 // swiftlint:disable:next type_body_length
 struct ShareSettingsView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var backendService: EmbeddedBackendService
     @EnvironmentObject var libraryManager: LibraryManager
     @AppStorage(EngineConfig.userDefaultsKey) private var engineHost = EngineConfig.defaultHostString
+    @AppStorage(EngineConfig.multiuserEnabledKey) private var multiuserEnabled = true
     @AppStorage(RemoteAccessConfig.hostingEnabledKey) private var hostingEnabled = false
     @AppStorage(RemoteAccessConfig.bonjourEnabledKey) private var bonjourEnabled = false
     @AppStorage(RemoteAccessConfig.publicBaseURLKey) private var publicBaseURL = ""
 
     @State private var pairingCode: PairingCodeRecord?
     @State private var pairedDevices: [PairedDeviceRecord] = []
+    @State private var authzSnapshot: Components.Schemas.LibraryAuthzSnapshot?
+    @State private var authzError: String?
+    @State private var isLoadingAuthz = false
     @State private var spkiPin = ""
     @State private var shareError: String?
     @State private var isApplyingChange = false
@@ -38,6 +43,8 @@ struct ShareSettingsView: View {
 
     var body: some View {
         Form {
+            securitySection
+
             Section {
                 Toggle(isOn: sharingBinding) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -86,7 +93,12 @@ struct ShareSettingsView: View {
             } else if hostingEnabled, appState.isBackendRunning {
                 await refreshDevices()
             }
+            await loadAuthzSnapshot()
             didBootstrap = true
+        }
+        .task(id: securityRefreshKey) {
+            guard didBootstrap else { return }
+            await loadAuthzSnapshot()
         }
         .task(id: refreshKey) {
             guard didBootstrap else { return }
@@ -179,6 +191,67 @@ struct ShareSettingsView: View {
         return "Custom"
     }
 
+    @ViewBuilder
+    private var securitySection: some View {
+        Section("Security") {
+            LabeledContent("Multi-user mode") {
+                Text(multiuserEnabled ? "Enabled" : "Disabled")
+                    .foregroundStyle(multiuserEnabled ? .primary : .secondary)
+            }
+
+            LabeledContent("Backend authz") {
+                Text(backendAuthzStatus)
+                    .foregroundStyle(backendAuthzStatus == "Enabled" ? .primary : .secondary)
+            }
+
+            if isLoadingAuthz {
+                LabeledContent("Library ACL") {
+                    ProgressView().controlSize(.small)
+                }
+            } else if let authzSnapshot {
+                LabeledContent("Library ACL") {
+                    Text(authzSnapshot.currentUserRole?.capitalized ?? "No role")
+                        .foregroundStyle(.secondary)
+                }
+                LabeledContent("Access") {
+                    Text(authzAccessSummary(authzSnapshot))
+                        .foregroundStyle(.secondary)
+                }
+            } else if let authzError {
+                LabeledContent("Library ACL") {
+                    Text(authzError)
+                        .foregroundStyle(.red)
+                }
+            } else {
+                LabeledContent("Library ACL") {
+                    Text("Not loaded")
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            LabeledContent("Pairing") {
+                Text(hostingEnabled ? "\(activePairedDevices(from: pairedDevices).count) devices" : "Off")
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var backendAuthzStatus: String {
+        if !appState.isBackendRunning {
+            return "Unavailable"
+        }
+        return multiuserEnabled ? "Enabled" : "Disabled"
+    }
+
+    private var securityRefreshKey: String {
+        [
+            appState.isBackendRunning.description,
+            multiuserEnabled.description,
+            hostingEnabled.description,
+            libraryManager.globalLibrary?.id.uuidString ?? "none"
+        ].joined(separator: "|")
+    }
+
     private func formatCode(_ code: String) -> String {
         let chars = code.filter { $0.isNumber || $0.isLetter }
         guard chars.count >= 4 else { return code }
@@ -206,6 +279,33 @@ struct ShareSettingsView: View {
         guard let output = filter.outputImage?.transformed(by: CGAffineTransform(scaleX: 12, y: 12)),
               let cgImage = qrContext.createCGImage(output, from: output.extent) else { return nil }
         return PlatformImage(cgImage: cgImage, size: .zero)
+    }
+
+    @MainActor
+    private func loadAuthzSnapshot() async {
+        guard let library = libraryManager.globalLibrary else {
+            authzSnapshot = nil
+            authzError = nil
+            return
+        }
+
+        isLoadingAuthz = true
+        authzError = nil
+        defer { isLoadingAuthz = false }
+
+        do {
+            authzSnapshot = try await library.actionsService.loadLibraryAuthzSnapshot()
+        } catch {
+            authzSnapshot = nil
+            authzError = error.localizedDescription
+        }
+    }
+
+    private func authzAccessSummary(_ snapshot: Components.Schemas.LibraryAuthzSnapshot) -> String {
+        if snapshot.canManageRoles { return "Owner" }
+        if snapshot.targetCanWrite { return "Read / Write" }
+        if snapshot.targetCanRead { return "Read only" }
+        return "Blocked"
     }
 
     // MARK: - State management
