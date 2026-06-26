@@ -1556,6 +1556,22 @@ class TestFuzzyMatchAccentAware:
         assert match is not None
         assert match.canonical_name == "San Pablo"
 
+    def test_ocr_drift_variant_matches(self):
+        from fichero.workflows.tools._entity_writer import _fuzzy_match_existing
+
+        existing = [self._ent("Negra")]
+        match = _fuzzy_match_existing(existing, "Negria")
+        assert match is not None
+        assert match.canonical_name == "Negra"
+
+    def test_single_token_suffix_noise_matches(self):
+        from fichero.workflows.tools._entity_writer import _fuzzy_match_existing
+
+        existing = [self._ent("Cedro")]
+        match = _fuzzy_match_existing(existing, "Cedroito")
+        assert match is not None
+        assert match.canonical_name == "Cedro"
+
     def test_article_variant_matches(self):
         from fichero.workflows.tools._entity_writer import _fuzzy_match_existing
 
@@ -1613,6 +1629,30 @@ class TestAccentDedupIntegration:
         )
         second = upsert_entity(
             db, canonical_name="San Pabloo", entity_type=EntityType.location
+        )
+        assert first == second
+
+    def test_ocr_drift_collapses_to_one_entity(self, db, monkeypatch):
+        self._disable_embeddings(monkeypatch)
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        first = upsert_entity(
+            db, canonical_name="Negra", entity_type=EntityType.location
+        )
+        second = upsert_entity(
+            db, canonical_name="Negria", entity_type=EntityType.location
+        )
+        assert first == second
+
+    def test_single_token_suffix_noise_collapses_to_one_entity(self, db, monkeypatch):
+        self._disable_embeddings(monkeypatch)
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        first = upsert_entity(
+            db, canonical_name="Cedro", entity_type=EntityType.location
+        )
+        second = upsert_entity(
+            db, canonical_name="Cedroito", entity_type=EntityType.location
         )
         assert first == second
 

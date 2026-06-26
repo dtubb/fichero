@@ -464,6 +464,18 @@ def _fuzzy_match_existing(
         cleaned = "".join(c if c.isalnum() or c.isspace() else " " for c in folded)
         return {tok for tok in cleaned.split() if len(tok) > 2}
 
+    def _single_token_suffix_noise_match(a: str, b: str) -> bool:
+        tokens_a = _tokenise_lower(_fold_accents(a))
+        tokens_b = _tokenise_lower(_fold_accents(b))
+        if len(tokens_a) != 1 or len(tokens_b) != 1:
+            return False
+        left, right = tokens_a[0], tokens_b[0]
+        shorter, longer = sorted((left, right), key=len)
+        if len(shorter) < 5 or not longer.startswith(shorter):
+            return False
+        suffix = longer[len(shorter):]
+        return 0 < len(suffix) <= 3 and longer.endswith(shorter[-1])
+
     # High-precision short-circuit: identical normalized identity key
     # (accent/case/punctuation/article/admin-qualifier folded) is a
     # guaranteed-safe merge — no fuzzy tolerance, so distinct names
@@ -472,6 +484,10 @@ def _fuzzy_match_existing(
     if needle_key:
         for ent in existing:
             if _normalized_match_key(ent.canonical_name) == needle_key:
+                return ent
+            if _single_token_suffix_noise_match(
+                canonical_name, ent.canonical_name
+            ):
                 return ent
 
     needle_tokens = _tokens(canonical_name)
