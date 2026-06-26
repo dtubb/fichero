@@ -297,6 +297,41 @@ class TestExtractAllOutputLanguageOverride:
         assert result["output_language"] == "Spanish"
 
 
+class TestExtractAllProviderDefaults:
+    @pytest.mark.asyncio
+    async def test_direct_cloud_providers_default_to_twostage(self, monkeypatch):
+        module = importlib.import_module("fichero.workflows.tools.extract_all")
+
+        async def fake_run_two_stage(
+            _text,
+            _records,
+            _state,
+            _llm_config,
+            _output_language,
+            _inputs,
+            _progress_callback,
+        ):
+            return {"mode": "twostage", "provider": _llm_config.provider}
+
+        async def fail_oneshot(*_args, **_kwargs):
+            raise AssertionError("oneshot path should not be the default here")
+
+        monkeypatch.setattr(module, "_run_two_stage", fake_run_two_stage)
+        monkeypatch.setattr(module, "chat_structured_with_fallback", fail_oneshot)
+
+        for provider, model in (
+            ("openai", "gpt-4o-mini"),
+            ("openrouter", "openai/gpt-4o-mini"),
+        ):
+            result = await module.extract_all(
+                {"text": "Marshall met Peña in San Pablo."},
+                {},
+                LLMConfig(provider=provider, model=model),
+            )
+
+            assert result == {"mode": "twostage", "provider": provider}
+
+
 class TestExtractAllGuardrailFallback:
     """#1284 — guardrail/unsupported_language chunks must engage $large fallback.
 

@@ -1,13 +1,13 @@
 """
 Combined entity extractor — ONE-SHOT AND TWO-STAGE MODES
 
-ONE-SHOT MODE (default): One LLM call per page returns all six entity types (people,
+ONE-SHOT MODE: One LLM call per page returns all six entity types (people,
 places, organizations, dates, events, keywords) as a single JSON payload. This is the
 speed-optimised default for Catalogue preset.
 
-TWO-STAGE MODE (experimental): First pass extracts entity names only (no SVO pressure);
-second pass runs per-entity claim extraction for grounded SVO + quotes. Better for Apple
-Intelligence where the one-shot prompt often produces weak/chatty SVO output.
+TWO-STAGE MODE: First pass extracts entity names only (no SVO pressure); second pass
+runs per-entity claim extraction for grounded SVO + quotes. Better for provider paths
+where one-shot tends to return weak/chatty SVO output.
 
 Both modes produce the same output shape (people/places/organizations/dates/events/quotes
 as lists of items with verb/object/source_text) so downstream tools (folder_cleanup,
@@ -1565,9 +1565,15 @@ async def extract_all(
         primary_language=primary_language,
     )
 
-    # Determine extraction mode. Default to two-stage for Apple Intelligence
-    # so the NER→SVO split runs automatically without requiring explicit config.
-    default_mode = "twostage" if llm_config.provider == "apple" else "oneshot"
+    # Keep the higher-quality twostage path on the three provider families
+    # called out in #1807. Direct OpenAI/OpenRouter runs were still defaulting
+    # to oneshot, so the same document extracted worse there than on Apple.
+    provider_name = (llm_config.provider or "").lower()
+    default_mode = (
+        "twostage"
+        if provider_name in {"apple", "openai", "openrouter"}
+        else "oneshot"
+    )
     extraction_mode = inputs.get("extraction_mode") or default_mode
 
     # Start banner (#1251) — visible in the activity log so long/stalled runs
