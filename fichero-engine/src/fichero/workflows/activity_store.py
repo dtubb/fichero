@@ -648,6 +648,7 @@ class ActivityStore:
         node_name_map: Optional[dict[str, str]] = None,
         diagram_mermaid: Optional[str] = None,
         started_at: Optional[datetime] = None,
+        status: str = "running",
     ) -> None:
         """Save a new workflow run record."""
 
@@ -667,12 +668,13 @@ class ActivityStore:
                     INSERT INTO workflow_runs
                     (thread_id, workflow_id, workflow_name, python_code, workflow_snapshot,
                      node_name_map, diagram_mermaid, status, started_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 'running', ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT (thread_id) DO UPDATE SET
                         python_code = COALESCE(EXCLUDED.python_code, workflow_runs.python_code),
                         workflow_snapshot = COALESCE(EXCLUDED.workflow_snapshot, workflow_runs.workflow_snapshot),
                         node_name_map = COALESCE(EXCLUDED.node_name_map, workflow_runs.node_name_map),
                         diagram_mermaid = COALESCE(EXCLUDED.diagram_mermaid, workflow_runs.diagram_mermaid),
+                        status = EXCLUDED.status,
                         workflow_name = EXCLUDED.workflow_name
                 """,
                     [
@@ -683,6 +685,7 @@ class ActivityStore:
                         workflow_snapshot_json,
                         node_name_map_json,
                         diagram_mermaid,
+                        status,
                         started_at or datetime.now(timezone.utc),
                     ],
                 )
@@ -812,25 +815,23 @@ class ActivityStore:
         return await asyncio.to_thread(_get)
 
     async def delete_workflow_run(self, thread_id: str) -> int:
-        """Delete a persisted workflow run and its activity events."""
+        """Mark a persisted workflow run as deleted."""
 
         def _delete():
             conn = duckdb.connect(self.db_path)
             try:
-                conn.execute("BEGIN TRANSACTION")
-                activity_count = conn.execute(
-                    "DELETE FROM activities WHERE thread_id = ? RETURNING id",
+                rows = conn.execute(
+                    """
+                    UPDATE workflow_runs
+                    SET status = 'deleted',
+                        completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP),
+                        execution_log = COALESCE(execution_log, '') || 'Run history deleted\n'
+                    WHERE thread_id = ?
+                    RETURNING thread_id
+                    """,
                     [thread_id],
                 ).fetchall()
-                run_count = conn.execute(
-                    "DELETE FROM workflow_runs WHERE thread_id = ? RETURNING thread_id",
-                    [thread_id],
-                ).fetchall()
-                conn.execute("COMMIT")
-                return len(activity_count) + len(run_count)
-            except Exception:
-                conn.execute("ROLLBACK")
-                raise
+                return len(rows)
             finally:
                 conn.close()
 

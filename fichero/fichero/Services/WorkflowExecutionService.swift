@@ -69,6 +69,8 @@ class WorkflowExecutionService: ObservableObject {
             return .cancelled
         case "stopped", "stop_requested":
             return .stopped
+        case "deleted":
+            return .deleted
         default:
             return .running
         }
@@ -342,6 +344,7 @@ enum ExecutionStatus: String, Codable {
     case failed
     case cancelled
     case stopped
+    case deleted
 }
 
 // The thread-list response is now the generated `Components.Schemas.ThreadListResponse`

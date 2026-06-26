@@ -9,6 +9,7 @@ import json
 import logging
 import queue
 import threading
+from datetime import datetime, timezone
 from typing import Any, AsyncGenerator
 from uuid import uuid4
 
@@ -258,6 +259,7 @@ async def execute_workflow(
             thread_id=thread_id,
             workflow_id=request.workflow_id,
             workflow_name=workflow.name,
+            status="accepted",
             workflow_snapshot={
                 "nodes": workflow.nodes,
                 "edges": workflow.edges,
@@ -374,12 +376,58 @@ async def resume_workflow(
         # Rebuild graph with checkpointer
         app = _build_workflow_with_checkpointer(workflow, checkpointer)
 
+        activity_tracker = get_activity_tracker(str(db.path))
+        activity_tracker.workflow_resumed(
+            workflow_id=workflow_id,
+            thread_id=thread_id,
+            workflow_name=workflow.name if workflow else "Unknown",
+        )
+        await activity_tracker.store.update_workflow_run(
+            thread_id=thread_id,
+            status="running",
+            completed_at=None,
+        )
+
         # Resume from checkpoint (pass None to continue, or new inputs)
         inputs = request.inputs if request else None
-        final_state = await app.ainvoke(inputs, config=config)
+        resume_started_at = datetime.now(timezone.utc)
+        try:
+            final_state = await app.ainvoke(inputs, config=config)
+        except Exception as resume_exc:
+            duration_ms = (
+                datetime.now(timezone.utc) - resume_started_at
+            ).total_seconds() * 1000
+            activity_tracker.workflow_failed(
+                workflow_id=workflow_id,
+                thread_id=thread_id,
+                workflow_name=workflow.name,
+                error=str(resume_exc),
+                duration_ms=duration_ms,
+            )
+            await activity_tracker.store.update_workflow_run(
+                thread_id=thread_id,
+                status="failed",
+                error=str(resume_exc),
+                duration_ms=duration_ms,
+                completed_at=datetime.now(timezone.utc),
+            )
+            raise
 
         # Get latest checkpoint
         checkpoint_tuple = await checkpointer.aget_tuple(config)
+        duration_ms = (datetime.now(timezone.utc) - resume_started_at).total_seconds() * 1000
+        activity_tracker.workflow_completed(
+            workflow_id=workflow_id,
+            thread_id=thread_id,
+            workflow_name=workflow.name,
+            duration_ms=duration_ms,
+        )
+        await activity_tracker.store.update_workflow_run(
+            thread_id=thread_id,
+            status="completed",
+            duration_ms=duration_ms,
+            completed_at=datetime.now(timezone.utc),
+        )
 
         return ExecutionStatusResponse(
             thread_id=thread_id,

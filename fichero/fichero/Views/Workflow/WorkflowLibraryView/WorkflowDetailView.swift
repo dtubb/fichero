@@ -196,7 +196,7 @@ struct WorkflowDetailView: View {
                     isExecuting = false
                     executionError = status.error ?? "Workflow failed"
                     executionStatus = nil
-                case .cancelled, .stopped:
+                case .cancelled, .stopped, .deleted:
                     isExecuting = false
                     executionError = status.error ?? "Workflow \(status.status.rawValue)"
                     executionStatus = nil

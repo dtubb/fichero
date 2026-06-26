@@ -131,5 +131,6 @@ final class WorkflowStreamConnectionTests: XCTestCase {
         XCTAssertEqual(WorkflowExecutionService.mapStatus("failed"), .failed)
         XCTAssertEqual(WorkflowExecutionService.mapStatus("cancelled"), .cancelled)
         XCTAssertEqual(WorkflowExecutionService.mapStatus("stopped"), .stopped)
+        XCTAssertEqual(WorkflowExecutionService.mapStatus("deleted"), .deleted)
     }
 }

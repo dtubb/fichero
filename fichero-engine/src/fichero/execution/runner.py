@@ -561,6 +561,10 @@ async def _run_workflow_in_background(
             workflow_name=workflow.name,
             input_count=len(request.inputs),
         )
+        await activity_tracker.store.update_workflow_run(
+            thread_id=thread_id,
+            status="running",
+        )
 
         # Send start event
         event_queue.put(
@@ -877,6 +881,7 @@ async def _run_workflow_in_background(
                     thread_id=thread_id,
                     workflow_name=workflow.name,
                 )
+                progress_timeline["events"] = _workflow_event_timeline(event_queue)
                 await activity_tracker.store.update_workflow_run(
                     thread_id=thread_id,
                     status="paused",
@@ -910,12 +915,23 @@ async def _run_workflow_in_background(
                 activity_tracker.workflow_cancelled(
                     workflow_id=workflow_id,
                     thread_id=thread_id,
+                    workflow_name=workflow.name,
+                    duration_ms=(
+                        datetime.now(timezone.utc) - start_time
+                    ).total_seconds()
+                    * 1000,
+                    partial_results_preserved=True,
                 )
+                progress_timeline["events"] = _workflow_event_timeline(event_queue)
                 await activity_tracker.store.update_workflow_run(
                     thread_id=thread_id,
                     status="cancelled",
                     execution_log="\n".join(execution_log_lines),
                     progress_timeline=progress_timeline,
+                    duration_ms=(
+                        datetime.now(timezone.utc) - start_time
+                    ).total_seconds()
+                    * 1000,
                     completed_at=datetime.now(timezone.utc),
                 )
                 return

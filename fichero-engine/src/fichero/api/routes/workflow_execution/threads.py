@@ -574,7 +574,31 @@ async def delete_thread(
                 status_code=404, detail=f"No checkpoint found for thread: {thread_id}"
             )
 
+        terminal_statuses = {
+            "completed",
+            "error",
+            "failed",
+            "cancelled",
+            "stopped",
+            "deleted",
+        }
+        if run and run.status not in terminal_statuses:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Cannot delete non-terminal workflow run '{thread_id}' "
+                    f"with status '{run.status}'"
+                ),
+            )
+
         deleted = await checkpointer.adelete_thread(thread_id) if checkpoint_tuple else 0
+        if run:
+            get_activity_tracker(str(db.path)).workflow_deleted(
+                workflow_id=run.workflow_id,
+                thread_id=thread_id,
+                workflow_name=run.workflow_name,
+                previous_status=run.status,
+            )
         activity_deleted = await activity_store.delete_workflow_run(thread_id)
 
         logger.info(

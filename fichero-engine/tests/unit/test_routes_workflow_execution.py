@@ -216,7 +216,7 @@ class TestDeleteThread:
             r = client.delete("/api/workflow-execution/threads/nonexistent")
         assert r.status_code == 404
 
-    def test_delete_thread_removes_persisted_run_without_checkpoint(self, client):
+    def test_delete_running_thread_returns_409(self, client):
         mock_cp = _make_mock_checkpointer()
         mock_cp.aget_tuple = AsyncMock(return_value=None)
         mock_store = MagicMock()
@@ -238,7 +238,6 @@ class TestDeleteThread:
                 diagram_mermaid=None,
             )
         )
-        mock_store.delete_workflow_run = AsyncMock(return_value=2)
         tracker = MagicMock()
         tracker.store = mock_store
 
@@ -254,9 +253,51 @@ class TestDeleteThread:
         ):
             r = client.delete("/api/workflow-execution/threads/thread-accepted")
 
+        assert r.status_code == 409
+        mock_cp.adelete_thread.assert_not_called()
+
+    def test_delete_terminal_thread_marks_deleted_without_checkpoint(self, client):
+        mock_cp = _make_mock_checkpointer()
+        mock_cp.aget_tuple = AsyncMock(return_value=None)
+        mock_store = MagicMock()
+        mock_store.get_workflow_run = AsyncMock(
+            return_value=WorkflowRun(
+                thread_id="thread-done",
+                workflow_id="wf-1",
+                workflow_name="Done",
+                python_code=None,
+                execution_log=None,
+                status="completed",
+                started_at=datetime.now(),
+                completed_at=datetime.now(),
+                duration_ms=1,
+                error=None,
+                workflow_snapshot=None,
+                node_name_map=None,
+                progress_timeline=None,
+                diagram_mermaid=None,
+            )
+        )
+        mock_store.delete_workflow_run = AsyncMock(return_value=1)
+        tracker = MagicMock()
+        tracker.store = mock_store
+
+        with (
+            patch(
+                "fichero.api.routes.workflow_execution.threads.AsyncDuckDBCheckpointer.from_db_path",
+                return_value=mock_cp,
+            ),
+            patch(
+                "fichero.api.routes.workflow_execution.threads.get_activity_tracker",
+                return_value=tracker,
+            ),
+        ):
+            r = client.delete("/api/workflow-execution/threads/thread-done")
+
         assert r.status_code == 200
         mock_cp.adelete_thread.assert_not_called()
-        mock_store.delete_workflow_run.assert_awaited_once_with("thread-accepted")
+        mock_store.delete_workflow_run.assert_awaited_once_with("thread-done")
+        tracker.workflow_deleted.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -400,7 +441,7 @@ class TestExecuteWorkflow:
         assert run is not None
         assert run.workflow_id == wf.id
         assert run.workflow_name == "Gate Workflow"
-        assert run.status == "running"
+        assert run.status == "accepted"
         assert run.workflow_snapshot["inputs"]["selected_doc_ids"] == ["doc-1"]
         fake_thread.start.assert_called_once()
 

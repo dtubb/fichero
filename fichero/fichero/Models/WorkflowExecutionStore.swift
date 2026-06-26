@@ -186,7 +186,7 @@ extension WorkflowExecution {
             return .failed
         case "paused":
             return .paused
-        case "cancelled", "canceled", "stopped", "stop_requested":
+        case "cancelled", "canceled", "stopped", "stop_requested", "deleted":
             return .failed
         default:
             return .idle
