@@ -12,6 +12,7 @@ import pytest
 
 # Importing the route module registers the ``canvas.arrange`` action.
 import fichero.api.routes.mind_palace  # noqa: F401
+from fichero import accounts, authz
 from fichero.actions.registry import ActionContext, registry
 from fichero.spatial_arrange import (
     DEFAULT_SPACING,
@@ -27,6 +28,21 @@ IDS = ["a", "b", "c", "d", "e"]
 def _seed_folder_docs(db, folder_id: str, ids: list[str]) -> None:
     for item_id in ids:
         db.save(Document(id=item_id, name=item_id, parent_id=folder_id, doc_type=DocType.file))
+
+
+def _ctx(db, app_db) -> ActionContext:
+    library_path = str(db.path.parent)
+    user = app_db.create_user(
+        username="canvas-editor",
+        display_name="Canvas Editor",
+        password_hash=accounts.hash_password("password"),
+    )
+    app_db.set_library_role(
+        user_id=user.id,
+        library_path=authz.normalize_library_path(library_path),
+        role="editor",
+    )
+    return ActionContext(actor=user.username, library_path=library_path)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -212,8 +228,8 @@ def test_canvas_arrange_action_is_registered():
     assert "canvas.arrange" in registry.names()
 
 
-def test_canvas_arrange_action_persists_and_audits(db):
-    ctx = ActionContext(actor="agent", library_path="/tmp/lib")
+def test_canvas_arrange_action_persists_and_audits(db, app_db):
+    ctx = _ctx(db, app_db)
     _seed_folder_docs(db, "f-act", ["x", "y", "z"])
     result = registry.invoke(
         db,
@@ -231,11 +247,11 @@ def test_canvas_arrange_action_persists_and_audits(db):
     assert all(row.position_x == 0.0 and row.position_y == 0.0 for row in rows if row is not None)
 
 
-def test_canvas_arrange_action_rejects_empty(db):
+def test_canvas_arrange_action_rejects_empty(db, app_db):
     with pytest.raises(ValueError):
         registry.invoke(
             db,
             "canvas.arrange",
             {"folder_id": "f-empty", "node_ids": [], "strategy": "grid"},
-            ActionContext(actor="agent", library_path="/tmp/lib"),
+            _ctx(db, app_db),
         )

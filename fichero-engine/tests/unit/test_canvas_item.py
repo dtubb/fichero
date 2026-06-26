@@ -13,11 +13,27 @@ import pytest
 
 # Importing the route module registers the ``canvas.item.*`` actions.
 import fichero.api.routes.mind_palace  # noqa: F401
+from fichero import accounts, authz
 from fichero.actions.registry import ActionContext, registry
 from fichero.spatial_models import CanvasItem, CanvasItemKind
 
 BASE = "/api/mind-palace/folders"
 KINDS = ["note", "quote", "work_note", "link", "text"]
+
+
+def _ctx(db, app_db) -> ActionContext:
+    library_path = str(db.path.parent)
+    user = app_db.create_user(
+        username="canvas-editor",
+        display_name="Canvas Editor",
+        password_hash=accounts.hash_password("password"),
+    )
+    app_db.set_library_role(
+        user_id=user.id,
+        library_path=authz.normalize_library_path(library_path),
+        role="editor",
+    )
+    return ActionContext(actor=user.username, library_path=library_path)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -228,8 +244,8 @@ def test_canvas_item_actions_are_registered():
     assert "canvas.item.delete" in names
 
 
-def test_create_action_persists_and_audits(db):
-    ctx = ActionContext(actor="agent", library_path="/tmp/lib")
+def test_create_action_persists_and_audits(db, app_db):
+    ctx = _ctx(db, app_db)
     result = registry.invoke(
         db,
         "canvas.item.create",
@@ -246,8 +262,8 @@ def test_create_action_persists_and_audits(db):
     assert rows[0].text == "from the agent"
 
 
-def test_create_link_action_round_trips(db):
-    ctx = ActionContext(actor="agent", library_path="/tmp/lib")
+def test_create_link_action_round_trips(db, app_db):
+    ctx = _ctx(db, app_db)
     result = registry.invoke(
         db,
         "canvas.item.create",
@@ -265,8 +281,8 @@ def test_create_link_action_round_trips(db):
     assert row.source_item_id == "a" and row.target_item_id == "b"
 
 
-def test_update_action_changes_text_and_records_before(db):
-    ctx = ActionContext(actor="agent", library_path="/tmp/lib")
+def test_update_action_changes_text_and_records_before(db, app_db):
+    ctx = _ctx(db, app_db)
     created = registry.invoke(
         db,
         "canvas.item.create",
@@ -287,18 +303,18 @@ def test_update_action_changes_text_and_records_before(db):
     assert len(rows) == 1 and rows[0].text == "v2"
 
 
-def test_update_action_missing_item_raises(db):
+def test_update_action_missing_item_raises(db, app_db):
     with pytest.raises(KeyError):
         registry.invoke(
             db,
             "canvas.item.update",
             {"folder_id": "f-u", "item_id": "nope", "text": "x"},
-            ActionContext(actor="agent", library_path="/tmp/lib"),
+            _ctx(db, app_db),
         )
 
 
-def test_delete_action_removes_and_records_before(db):
-    ctx = ActionContext(actor="agent", library_path="/tmp/lib")
+def test_delete_action_removes_and_records_before(db, app_db):
+    ctx = _ctx(db, app_db)
     created = registry.invoke(
         db,
         "canvas.item.create",
@@ -318,11 +334,11 @@ def test_delete_action_removes_and_records_before(db):
     assert db.query(CanvasItem, folder_id="f-d") == []
 
 
-def test_delete_action_missing_item_raises(db):
+def test_delete_action_missing_item_raises(db, app_db):
     with pytest.raises(KeyError):
         registry.invoke(
             db,
             "canvas.item.delete",
             {"folder_id": "f-d", "item_id": "ghost"},
-            ActionContext(actor="agent", library_path="/tmp/lib"),
+            _ctx(db, app_db),
         )
