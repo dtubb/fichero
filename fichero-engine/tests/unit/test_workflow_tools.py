@@ -525,6 +525,79 @@ class TestDescribeTool:
             assert result["text"] == "A test image description"
             assert len(result["texts"]) == 1
 
+    @pytest.mark.asyncio
+    async def test_describe_saves_per_page_artifact_to_page_child(
+        self, mock_llm_config, tmp_path
+    ):
+        """Per-page describe fan-out saves description artifacts on page docs."""
+        from tests.integration._seedlib import seed
+
+        from fichero.db import db_manager
+        from fichero.workflows.tools.describe import describe
+
+        library_path = tmp_path / "describe-visual.fichero"
+        seed(library_path)
+        pdf = tmp_path / "book.pdf"
+        pdf.write_bytes(b"%PDF-1.4\n%%EOF")
+        db = db_manager.get_database(library_path)
+        parent = Document(
+            id="parent-pdf-id",
+            name="book.pdf",
+            path=str(pdf),
+            doc_type=DocType.file,
+            file_type=FileType.pdf,
+        )
+        db.save(parent)
+        db.save(
+            Document(
+                id="page-2-id",
+                name="book.pdf — p2",
+                doc_type=DocType.page,
+                parent_id=parent.id,
+                sequence=2,
+            )
+        )
+        page2 = {
+            "id": "page-2-id",
+            "path": None,
+            "parent_id": "parent-pdf-id",
+            "sequence": 2,
+            "metadata": {},
+        }
+        saved_document_ids: list[str | None] = []
+
+        async def fake_save_artifact(file_path, content, document_id, **_):
+            saved_document_ids.append(document_id)
+            return "artifact-" + (document_id or "none")
+
+        with (
+            patch(
+                "fichero.workflows.tools.vision_base._pdf_page_to_data_uri",
+                return_value="data:image/png;base64,FAKE",
+            ),
+            patch(
+                "fichero.llm.vision",
+                new=AsyncMock(return_value="Visual description for page 2."),
+            ),
+            patch(
+                "fichero.workflows.tools.vision_base.save_artifact",
+                new=AsyncMock(side_effect=fake_save_artifact),
+            ),
+        ):
+            result = await describe(
+                {
+                    "files": [str(pdf)],
+                    "documents": [page2],
+                    "vision_mode": "llm",
+                    "save_to_db": True,
+                },
+                {"library_path": str(library_path), "task_id": None},
+                mock_llm_config,
+            )
+
+        assert result["text"] == "Visual description for page 2."
+        assert saved_document_ids == ["page-2-id"]
+
 
 # =============================================================================
 # LLM Tools Tests
