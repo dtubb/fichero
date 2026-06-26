@@ -43,7 +43,10 @@ struct WorkflowEditor: View {
 
     // Uses @Observable pattern - injected via .environment() from LibraryWindow
     @Environment(WorkflowExecutionObserver.self) var executionObserver
-    @Environment(\.openWindow) private var openWindow
+    // Not `private`: WorkflowEditor+Actions.runWorkflow() opens the Activity
+    // window via this action, and Swift `private` blocks cross-file extension
+    // access. Matches ContentView/LibraryView convention (#2328).
+    @Environment(\.openWindow) var openWindow
 
     /// Node execution states for the editor's list/table/icon node views.
     ///

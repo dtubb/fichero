@@ -172,7 +172,10 @@ struct ActivityMonitorView: View {
                         Label("Stop", systemImage: "stop")
                     }
                     .disabled(isActing)
-                case .completed, .failed:
+                // Terminal / non-live states surface Delete. `.idle` is the
+                // non-running case on WorkflowStatus (the switch was
+                // non-exhaustive without it — #2631).
+                case .completed, .failed, .idle:
                     Button {
                         Task { await act(.delete) }
                     } label: {

@@ -152,7 +152,9 @@ extension SidebarView {
 
     private func activityType(for status: ActivityRunStatus) -> String {
         switch status {
-        case .running:
+        case .running, .paused:
+            // `.paused` is a live (in-flight) run, not a terminal state —
+            // surface it as the live-run activity type (#2631).
             return "workflow_started"
         case .completed:
             return "workflow_completed"
