@@ -25,9 +25,14 @@ Usage:
 from __future__ import annotations
 
 import logging
+import os
+import sys
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+_TRUTHY = {"1", "true", "yes", "on"}
+_FALSY = {"0", "false", "no", "off"}
 
 # Try to import Rubicon ObjC for macOS APIs
 try:
@@ -79,7 +84,7 @@ def create_bookmark(path: Path, read_only: bool = False) -> bytes | None:
     Note:
         On non-macOS systems, returns None.
     """
-    if not _HAS_RUBICON:
+    if not is_available():
         logger.debug("Rubicon not available - bookmarks disabled")
         return None
 
@@ -142,7 +147,7 @@ def resolve_bookmark(bookmark_data: bytes) -> Path | None:
     Returns:
         Path if bookmark is valid and file exists, None otherwise
     """
-    if not _HAS_RUBICON:
+    if not is_available():
         return None
 
     if not bookmark_data:
@@ -203,7 +208,7 @@ def stop_accessing(path: Path) -> None:
     Args:
         path: Path to stop accessing
     """
-    if not _HAS_RUBICON:
+    if not is_available():
         return
 
     try:
@@ -228,7 +233,7 @@ def is_bookmark_stale(bookmark_data: bytes) -> bool:
     if not bookmark_data:
         return True
 
-    if not _HAS_RUBICON:
+    if not is_available():
         # Without bookmark resolution support, treat unknown bookmark payloads
         # conservatively as stale.
         return True
@@ -300,12 +305,25 @@ class BookmarkAccess:
 
 
 def is_available() -> bool:
-    """Check if bookmark functionality is available.
+    """Check if security-scoped bookmarks should be used by this engine.
 
     Returns:
-        True if running on macOS with Rubicon available
+        True if running on macOS with Rubicon available, unless disabled with
+        FICHERO_ENABLE_MAC_BOOKMARKS=0/false/no/off. Remote engines can set
+        the env var false to fail closed on Mac bookmark metadata.
     """
-    return _HAS_RUBICON
+    configured = os.environ.get("FICHERO_ENABLE_MAC_BOOKMARKS")
+    if configured is not None:
+        value = configured.strip().lower()
+        if value in _FALSY:
+            return False
+        if value in _TRUTHY:
+            return sys.platform == "darwin" and _HAS_RUBICON
+        logger.warning(
+            "Ignoring invalid FICHERO_ENABLE_MAC_BOOKMARKS=%r; using auto mode",
+            configured,
+        )
+    return sys.platform == "darwin" and _HAS_RUBICON
 
 
 __all__ = [

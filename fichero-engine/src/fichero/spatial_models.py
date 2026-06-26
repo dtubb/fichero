@@ -90,7 +90,7 @@ class SpatialNode(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="allow")
 
     id: str = Field(default_factory=_new_id)
-    room_id: str
+    room_id: str  # doubles as folder_id when rooms are retired (#2293)
     node_type: NodeType
     source_id: str | None = None  # ID of the underlying item
     label: str = ""
@@ -101,10 +101,60 @@ class SpatialNode(BaseModel):
     rotation_y: float = 0.0
     rotation_z: float = 0.0
     scale: float = 1.0
+    # 2D canvas layout (#2293)
+    pos_w: float = 0.0
+    pos_h: float = 0.0
+    z_index: int = 0
+    # 3D extra (#2293)
+    depth: float = 0.0
+    angle: float = 0.0
+    # style blob: {"fontSize": int, "color": str, "style": str} (#2293)
+    style_data: dict = Field(default_factory=dict)
     created_by: str = "user"
     metadata: dict = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
+
+
+class CanvasNodeSeedItem(BaseModel):
+    """One node to create during first-open seed (#2293)."""
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    source_id: str
+    node_type: NodeType
+    label: str = ""
+    position_x: float = 0.0
+    position_y: float = 0.0
+    position_z: float = 0.0
+    scale: float = 1.0
+
+
+class CanvasNodePositionPatch(BaseModel):
+    """Partial position/style update for a canvas node (#2293)."""
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    position_x: float | None = None
+    position_y: float | None = None
+    position_z: float | None = None
+    rotation_y: float | None = None
+    scale: float | None = None
+    pos_w: float | None = None
+    pos_h: float | None = None
+    z_index: int | None = None
+    depth: float | None = None
+    angle: float | None = None
+    style_data: dict | None = None
+
+
+class CanvasNodesResponse(BaseModel):
+    """Folder-keyed canvas node list (#2293)."""
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    items: list[SpatialNode]
+    count: int
 
 
 class SpatialConnection(BaseModel):
@@ -187,3 +237,77 @@ class RoomSceneSummary(BaseModel):
     stack_count: int = 0
     note_count: int = 0
     node_types: dict[str, int] = Field(default_factory=dict)  # node_type → count
+
+
+class CanvasLayout(BaseModel):
+    """Persisted per-item position on the spatial 2D/3D library canvas.
+
+    FOLDER-scoped (not room-scoped): keyed by (folder_id, item_id) so that
+    switching Library view modes preserves where each item was placed. The
+    stored ``id`` is the deterministic ``"{folder_id}::{item_id}"`` composite,
+    which makes ``Database.save`` an idempotent upsert on that pair — saving a
+    drag of the same item overwrites its previous row rather than duplicating.
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    folder_id: str
+    item_id: str
+    x: float = 0.0
+    y: float = 0.0
+    z: float = 0.0
+    w: float | None = None
+    h: float | None = None
+    d: float | None = None
+    angle: float = 0.0
+    z_index: int = 0
+    style: str | None = None  # opaque JSON text (color, shape, …)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+    @staticmethod
+    def make_id(folder_id: str, item_id: str) -> str:
+        """Deterministic primary key for the (folder_id, item_id) pair."""
+        return f"{folder_id}::{item_id}"
+
+
+class CanvasItemKind(str, Enum):
+    """What a standalone (non-document) canvas item IS."""
+
+    note = "note"
+    quote = "quote"
+    work_note = "work_note"
+    link = "link"  # a connector between two other item_ids
+    text = "text"
+
+
+class CanvasItem(BaseModel):
+    """Standalone, placeable CONTENT on a folder's spatial canvas (#2294).
+
+    The non-document placeables — notes, quotes, work-notes, links/connectors,
+    free text. Documents/pages/entities/claims already exist elsewhere and get
+    their POSITION via :class:`CanvasLayout` (#2293); this model adds the payload
+    for items that have no other home.
+
+    Placement is NOT duplicated here: a CanvasItem's x/y/z still live in a
+    ``canvas_layout`` row keyed by this item's ``id`` (CanvasItem = *what*,
+    CanvasLayout = *where*). FOLDER-scoped, like the layout.
+
+    A ``link`` connects two other items via ``source_item_id`` /
+    ``target_item_id`` (which may reference documents, entities, claims, or other
+    CanvasItems — any id the layout can place). ``payload`` carries small
+    kind-specific bits so we keep ONE model with a ``kind`` field, not a model
+    per kind.
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    folder_id: str
+    kind: CanvasItemKind = CanvasItemKind.note
+    text: str = ""
+    source_item_id: str | None = None  # kind=link: the connection's start
+    target_item_id: str | None = None  # kind=link: the connection's end
+    payload: dict = Field(default_factory=dict)  # opaque kind-specific bits
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)

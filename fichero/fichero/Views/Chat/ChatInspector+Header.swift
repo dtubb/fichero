@@ -39,7 +39,7 @@ extension ChatInspector {
             }
         }
         .padding(.horizontal, 12)
-        .frame(height: MiniToolbar<EmptyView>.standardHeight)
+        .frame(height: MiniToolbar<EmptyView, EmptyView>.standardHeight)
         .background(.bar)
     }
 }

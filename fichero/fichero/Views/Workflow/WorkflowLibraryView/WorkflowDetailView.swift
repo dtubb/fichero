@@ -9,7 +9,7 @@ struct WorkflowDetailView: View {
     let onExecute: () -> Void
     let onExport: () -> Void
 
-    @EnvironmentObject var workflowStore: WorkflowStore
+    @Environment(WorkflowStore.self) var workflowStore
     @ObservedObject var featureManager = FeatureManager.shared
     @State private var isExecuting = false
     @State private var executionStatus: String?
@@ -192,9 +192,13 @@ struct WorkflowDetailView: View {
                 case .completed:
                     isExecuting = false
                     executionStatus = "Completed successfully"
-                case .failed:
+                case .error, .failed:
                     isExecuting = false
                     executionError = status.error ?? "Workflow failed"
+                    executionStatus = nil
+                case .cancelled, .stopped, .deleted:
+                    isExecuting = false
+                    executionError = status.error ?? "Workflow \(status.status.rawValue)"
                     executionStatus = nil
                 case .paused:
                     executionStatus = "Paused - waiting for input"

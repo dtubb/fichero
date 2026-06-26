@@ -1,6 +1,5 @@
 import OSLog
 import SwiftUI
-// swiftlint:disable file_length
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "FilesNodeConfig")
 
@@ -8,7 +7,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "FilesNo
 struct FilesNodeConfig: View {
     @Binding var node: WorkflowNode
 
-    @EnvironmentObject var documentStore: DocumentStore
+    @Environment(DocumentStore.self) var documentStore: DocumentStore
 
     @State private var selectedFileIds: [String] = []
     @State private var showFilePicker = false
@@ -116,28 +115,35 @@ private extension FilesNodeConfig {
                     description: Text("Import files in Library first.")
                 )
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 2) {
-                        ForEach(rootFolders, id: \.id) { folder in
-                            folderSection(folder, depth: 0, ancestry: [])
-                        }
+                List {
+                    ForEach(rootFolders, id: \.id) { folder in
+                        FolderSectionView(
+                            folder: folder,
+                            depth: 0,
+                            ancestry: [],
+                            filesByParentMap: filesByParentMap,
+                            folderChildrenMap: folderChildrenMap,
+                            expandedFolderIds: $expandedFolderIds,
+                            stagedPickerSelection: stagedPickerSelection,
+                            onToggle: togglePickerSelection
+                        )
+                    }
 
-                        if let rootFiles = filesByParentMap[nil], !rootFiles.isEmpty {
-                            Text("Root")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                                .padding(.top, 6)
-                                .padding(.horizontal, 6)
-
+                    if let rootFiles = filesByParentMap[nil], !rootFiles.isEmpty {
+                        Section("Root") {
                             ForEach(rootFiles, id: \.id) { doc in
-                                filePickerRow(doc: doc, depth: 1)
+                                FilePickerRowView(
+                                    doc: doc,
+                                    depth: 1,
+                                    isSelected: stagedPickerSelection.contains(doc.id),
+                                    onToggle: togglePickerSelection
+                                )
                             }
                         }
                     }
-                    .padding(2)
                 }
+                .listStyle(.sidebar)
                 .frame(minHeight: 160, maxHeight: 240)
-                .background(Color(.textBackgroundColor))
                 .cornerRadius(6)
             }
 
@@ -158,7 +164,7 @@ private extension FilesNodeConfig {
             }
         }
         .padding(8)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(Color(platformColor: .controlBackgroundColor))
         .cornerRadius(6)
     }
 
@@ -189,50 +195,28 @@ private extension FilesNodeConfig {
         .cornerRadius(4)
     }
 
-    @ViewBuilder
-    func filePickerRow(doc: Document, depth: Int) -> some View {
-        Button {
-            togglePickerSelection(doc.id)
-        } label: {
-            HStack(spacing: 6) {
-                Image(
-                    systemName: stagedPickerSelection.contains(doc.id)
-                        ? "checkmark.circle.fill"
-                        : "circle"
-                )
-                .foregroundStyle(
-                    stagedPickerSelection.contains(doc.id)
-                        ? Color.accentColor
-                        : Color.secondary
-                )
-                Image(systemName: doc.fileType?.icon ?? "doc")
-                    .foregroundStyle(.secondary)
-                Text(doc.name)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                Spacer()
-            }
-            .padding(.vertical, 4)
-            .padding(.leading, CGFloat(depth) * 14 + 6)
-            .padding(.trailing, 6)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .background(
-            RoundedRectangle(cornerRadius: 4)
-                .fill(stagedPickerSelection.contains(doc.id)
-                        ? Color.accentColor.opacity(0.12)
-                        : Color.clear)
-        )
-    }
+}
 
-    func folderSection(_ folder: Document, depth: Int, ancestry: Set<String>) -> AnyView {
-        guard !ancestry.contains(folder.id) else {
-            return AnyView(EmptyView())
-        }
+// MARK: - FolderSectionView
 
-        let nextAncestry = ancestry.union([folder.id])
-        return AnyView(
+/// Recursive folder-tree row for the file picker.
+/// Extracted as a dedicated View struct so SwiftUI can structurally diff each
+/// level without AnyView type-erasure defeating the diffing engine.
+private struct FolderSectionView: View {
+    let folder: Document
+    let depth: Int
+    let ancestry: Set<String>
+    let filesByParentMap: [String?: [Document]]
+    let folderChildrenMap: [String: [Document]]
+    @Binding var expandedFolderIds: Set<String>
+    let stagedPickerSelection: Set<String>
+    let onToggle: (String) -> Void
+
+    var body: some View {
+        if ancestry.contains(folder.id) {
+            EmptyView()
+        } else {
+            let nextAncestry = ancestry.union([folder.id])
             DisclosureGroup(
                 isExpanded: Binding(
                     get: { expandedFolderIds.contains(folder.id) },
@@ -247,13 +231,27 @@ private extension FilesNodeConfig {
             ) {
                 if let directFiles = filesByParentMap[folder.id], !directFiles.isEmpty {
                     ForEach(directFiles, id: \.id) { doc in
-                        filePickerRow(doc: doc, depth: depth + 1)
+                        FilePickerRowView(
+                            doc: doc,
+                            depth: depth + 1,
+                            isSelected: stagedPickerSelection.contains(doc.id),
+                            onToggle: onToggle
+                        )
                     }
                 }
 
                 if let children = folderChildrenMap[folder.id] {
                     ForEach(children, id: \.id) { child in
-                        folderSection(child, depth: depth + 1, ancestry: nextAncestry)
+                        FolderSectionView(
+                            folder: child,
+                            depth: depth + 1,
+                            ancestry: nextAncestry,
+                            filesByParentMap: filesByParentMap,
+                            folderChildrenMap: folderChildrenMap,
+                            expandedFolderIds: $expandedFolderIds,
+                            stagedPickerSelection: stagedPickerSelection,
+                            onToggle: onToggle
+                        )
                     }
                 }
             } label: {
@@ -266,10 +264,57 @@ private extension FilesNodeConfig {
                     Spacer()
                 }
                 .padding(.vertical, 4)
-                .padding(.leading, CGFloat(depth) * 14 + 4)
+                .padding(.leading, 4)
                 .padding(.trailing, 6)
             }
             .disclosureGroupStyle(.automatic)
+        }
+    }
+}
+
+// MARK: - FilePickerRowView
+
+/// Single selectable file row for the file picker.
+/// Extracted to give FolderSectionView a concrete (non-AnyView) child type.
+private struct FilePickerRowView: View {
+    let doc: Document
+    let depth: Int
+    let isSelected: Bool
+    let onToggle: (String) -> Void
+
+    var body: some View {
+        Button {
+            onToggle(doc.id)
+        } label: {
+            HStack(spacing: 6) {
+                Image(
+                    systemName: isSelected
+                        ? "checkmark.circle.fill"
+                        : "circle"
+                )
+                .foregroundStyle(
+                    isSelected
+                        ? Color.accentColor
+                        : Color.secondary
+                )
+                Image(systemName: doc.fileType?.icon ?? "doc")
+                    .foregroundStyle(.secondary)
+                Text(doc.name)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                Spacer()
+            }
+            .padding(.vertical, 4)
+            .padding(.leading, 6)
+            .padding(.trailing, 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(
+            RoundedRectangle(cornerRadius: 4)
+                .fill(isSelected
+                        ? Color.accentColor.opacity(0.12)
+                        : Color.clear)
         )
     }
 }

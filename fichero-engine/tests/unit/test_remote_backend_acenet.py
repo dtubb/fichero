@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
+
 import pytest
 from fastapi.testclient import TestClient
 
-from fichero.api.main import app
+import fichero.api.main as api_main
 from fichero.remote_backend import build_remote_backend_status
 
 
@@ -57,13 +60,23 @@ def test_remote_backend_status_rejects_public_bind_host() -> None:
         )
 
 
+def test_remote_backend_status_rejects_tailnet_bind_host() -> None:
+    with pytest.raises(ValueError, match="tailscale serve or SSH -L"):
+        build_remote_backend_status(
+            {
+                "FICHERO_REMOTE_BACKEND": "1",
+                "FICHERO_REMOTE_BACKEND_BIND_HOST": "100.64.12.34",
+            }
+        )
+
+
 def test_health_reports_remote_backend_status(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("FICHERO_REMOTE_BACKEND", "1")
     monkeypatch.setenv("FICHERO_API_URL", "http://127.0.0.1:18765")
     monkeypatch.setenv("FICHERO_API_KEY", "remote-token")
     monkeypatch.setenv("FICHERO_LIBRARY_PATH", "/remote/project/Library.fichero")
 
-    response = TestClient(app).get("/api/health")
+    response = TestClient(api_main.app).get("/api/health")
 
     assert response.status_code == 200
     remote_backend = response.json()["remote_backend"]
@@ -72,3 +85,19 @@ def test_health_reports_remote_backend_status(monkeypatch: pytest.MonkeyPatch) -
     assert remote_backend["api_url"] == "http://127.0.0.1:18765"
     assert remote_backend["token_configured"] is True
     assert remote_backend["library_path_configured"] is True
+
+
+def test_health_nonce_returns_bootstrap_secret_hmac(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(api_main, "_api_token", "server-secret", raising=False)
+
+    response = TestClient(api_main.app).get("/api/health?nonce=client-nonce")
+
+    assert response.status_code == 200
+    expected = hmac.new(
+        b"server-secret",
+        b"client-nonce",
+        hashlib.sha256,
+    ).hexdigest()
+    assert response.json()["server_proof"] == expected

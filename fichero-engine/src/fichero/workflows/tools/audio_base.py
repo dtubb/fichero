@@ -37,7 +37,7 @@ from fichero.workflows.tools.llm_base import (
     merge_ports,
     LLMToolConfig,
     parse_output,
-    save_artifact as llm_save_artifact,
+    save_file_artifact as save_artifact,
     save_to_file as llm_save_to_file,
 )
 
@@ -48,6 +48,15 @@ logger = logging.getLogger(__name__)
 MODELS_BASE = (
     Path.home() / "Library" / "Application Support" / "com.fichero.fichero" / "models"
 )
+
+# Process-global Whisper cache, keyed by the model identity and runtime target.
+#
+# Whisper models are large and expensive to load. The audio tools create a new
+# transcription task per file, so constructing the model inside the sync helper
+# reloaded it on every call. Cache the loaded object here so all callers in the
+# process share one copy per (model_size, download_root, device).
+_WHISPER_MODEL_CACHE: dict[tuple[str, str, str | None], Any] = {}
+_WHISPER_MODEL_CACHE_LOCK = threading.Lock()
 
 
 # =============================================================================
@@ -136,18 +145,10 @@ def transcribe_with_whisper_sync(
     Returns:
         Transcribed text
     """
-    try:
-        import whisper
-    except ImportError:
-        raise ImportError(
-            "openai-whisper is not installed. Install with: pip install openai-whisper"
-        )
-
     download_root = str(MODELS_BASE / "whisper")
     Path(download_root).mkdir(parents=True, exist_ok=True)
 
-    logger.info(f"Loading Whisper model '{model_size}' from {download_root}")
-    model = whisper.load_model(model_size, download_root=download_root)
+    model = _get_shared_whisper_model(model_size, download_root, device=None)
 
     logger.info(f"Transcribing: {Path(file_path).name}")
     result = model.transcribe(
@@ -156,6 +157,48 @@ def transcribe_with_whisper_sync(
     )
 
     return result["text"].strip()
+
+
+def _get_shared_whisper_model(
+    model_size: str,
+    download_root: str,
+    device: str | None,
+) -> Any:
+    """Return the process-global Whisper model for one identity, loading once."""
+    cache_key = (model_size, download_root, device)
+    model = _WHISPER_MODEL_CACHE.get(cache_key)
+    if model is not None:
+        return model
+
+    with _WHISPER_MODEL_CACHE_LOCK:
+        model = _WHISPER_MODEL_CACHE.get(cache_key)
+        if model is None:
+            try:
+                import whisper
+            except ImportError as exc:
+                raise ImportError(
+                    "openai-whisper is not installed. Install with: pip install openai-whisper"
+                ) from exc
+
+            if device is None:
+                model = whisper.load_model(
+                    model_size,
+                    download_root=download_root,
+                )
+            else:
+                model = whisper.load_model(
+                    model_size,
+                    download_root=download_root,
+                    device=device,
+                )
+            _WHISPER_MODEL_CACHE[cache_key] = model
+            logger.info(
+                "Loaded Whisper model (process-global): %s @ %s device=%s",
+                model_size,
+                download_root,
+                device,
+            )
+        return model
 
 
 async def transcribe_with_whisper(
@@ -310,36 +353,12 @@ async def transcribe_with_llm(
 # =============================================================================
 # Database Operations
 # =============================================================================
-
-
-async def save_artifact(
-    file_path: str,
-    content: str,
-    document_id: str | None,
-    library_path: str,
-    llm_config: LLMConfig,
-    task_id: str | None,
-    tool_config: AudioToolConfig,
-    *,
-    metadata_field: str | None = None,
-    custom_metadata: dict | None = None,
-) -> str | None:
-    """Save audio result to database.
-
-    Wraps llm_base.save_artifact with file_path-based document lookup.
-    """
-    return await llm_save_artifact(
-        document_id=document_id,
-        file_path=file_path,
-        content=content,
-        data=None,
-        library_path=library_path,
-        llm_config=llm_config,
-        task_id=task_id,
-        tool_config=tool_config,
-        metadata_field=metadata_field,
-        custom_metadata=custom_metadata,
-    )
+#
+# `save_artifact` here is `llm_base.save_file_artifact` (imported as that name
+# above) — the single shared file-oriented wrapper around the canonical
+# `llm_base.save_artifact`. Audio no longer re-declares its own wrapper, so the
+# per-page document-resolution contract (incl. the `document=` pass-through) is
+# enforced in exactly one place and can never drift here.
 
 
 # =============================================================================
@@ -414,6 +433,7 @@ async def process_audio(
         files = [files]
 
     if not files:
+        logger.warning("process_audio: no input files — all selected IDs may be stale/invalid")
         return {
             "text": "",
             "value": None,
@@ -422,7 +442,6 @@ async def process_audio(
             "results": [],
             "artifacts": [],
             "output_files": [],
-            "error": "No input files provided",
         }
 
     # Build path -> document_id mapping

@@ -1,7 +1,14 @@
+#if canImport(AppKit)
 import AppKit
+#elseif canImport(UIKit)
+import UIKit
+#endif
+import FicheroAPIClient
 import Foundation
 import ImageIO
 import OSLog
+
+// swiftlint:disable nesting
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "ImageEditingServiceGenerated")
 
@@ -21,7 +28,7 @@ struct ImageEditOperation: Identifiable, Hashable {
 
     private var dict: [String: Any] { raw.value as? [String: Any] ?? [:] }
 
-    /// Backend op name, e.g. `crop`, `rotate`, `enhance`, `remove_background`, `segment`.
+    /// Backend op name, e.g. `crop`, `rotate`, `straighten`, `enhance`, `remove_background`, `segment`.
     var opKind: String { (dict["op"] as? String)?.lowercased() ?? "unknown" }
 
     /// 1-indexed page the op applies to (always 1 for single-image documents).
@@ -33,6 +40,7 @@ struct ImageEditOperation: Identifiable, Hashable {
         switch opKind {
         case "crop": return "crop"
         case "rotate": return "rotate.right"
+        case "straighten": return "crop.rotate"
         case "enhance": return "wand.and.stars"
         case "fuzzy_clean": return "sparkles"
         case "remove_background": return "person.crop.rectangle.badge.xmark"
@@ -62,6 +70,9 @@ struct ImageEditOperation: Identifiable, Hashable {
         case "rotate":
             let angle = (params["angle"] as? Double) ?? Double(params["angle"] as? Int ?? 0)
             return String(format: "%.0f°", angle)
+        case "straighten":
+            let angle = (params["angle"] as? Double) ?? Double(params["angle"] as? Int ?? 0)
+            return angle == 0 ? "auto" : String(format: "%.0f°", angle)
         case "enhance":
             var parts: [String] = []
             if let value = params["brightness"] as? Double, value != 1.0 { parts.append(String(format: "bright %.1f", value)) }
@@ -106,7 +117,7 @@ struct ImageEditChain {
 /// so `scripts/check_ui_wiring.py` can confirm every endpoint is called from
 /// hand-written Swift (the scanner does a regex search over source text).
 ///
-/// The five operation POSTs (crop/rotate/enhance/remove-background/segment)
+    /// The six operation POSTs (crop/rotate/straighten/enhance/remove-background/segment)
 /// use raw `URLSession` so the path strings are visible. Chain CRUD and preview
 /// also use raw `URLSession` — no dependency on the generated typed client.
 @MainActor
@@ -116,7 +127,7 @@ final class ImageEditingServiceGenerated: ObservableObject {
 
     private let libraryPath: String
     private let engineURL: URL
-    private let session = URLSession.shared
+    private let session = RemoteCertificatePinning.configuredSession()
 
     /// - Parameter engineURL: Engine root without `/api` (e.g. `http://127.0.0.1:8765`).
     init(libraryPath: String, engineURL: URL = EngineConfig.host) {
@@ -176,7 +187,11 @@ final class ImageEditingServiceGenerated: ObservableObject {
                 throw ImageEditingError.invalidImageData
             }
             let pixelSize = CGSize(width: cgImage.width, height: cgImage.height)
+            #if canImport(AppKit)
             return PreviewImage(image: NSImage(cgImage: cgImage, size: pixelSize), pixelSize: pixelSize)
+            #elseif canImport(UIKit)
+            return PreviewImage(image: UIImage(cgImage: cgImage), pixelSize: pixelSize)
+            #endif
         }.value
     }
 
@@ -236,6 +251,15 @@ final class ImageEditingServiceGenerated: ObservableObject {
         struct Body: Encodable { let angle: Double; let expand: Bool; let page: Int }
         return try await postOp(path: "/api/images/\(documentId)/operations/rotate",
                                 body: Body(angle: angle, expand: expand, page: page),
+                                documentId: documentId)
+    }
+
+    @discardableResult
+    func straighten(documentId: String, page: Int = 1) async throws -> ImageEditChain {
+        isLoading = true; defer { isLoading = false }
+        struct Body: Encodable { let page: Int }
+        return try await postOp(path: "/api/images/\(documentId)/operations/straighten",
+                                body: Body(page: page),
                                 documentId: documentId)
     }
 
@@ -323,7 +347,7 @@ final class ImageEditingServiceGenerated: ObservableObject {
 // MARK: - Supporting types
 
 struct PreviewImage {
-    let image: NSImage
+    let image: PlatformImage
     let pixelSize: CGSize
 }
 
@@ -358,3 +382,5 @@ enum ImageEditingError: Error, LocalizedError {
         }
     }
 }
+
+// swiftlint:enable nesting

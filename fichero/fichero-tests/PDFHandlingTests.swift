@@ -16,8 +16,8 @@ import AppKit
 @testable import Fichero
 import Foundation
 import PDFKit
-import Testing
 import SwiftUI
+import Testing
 
 // MARK: - Document.isNavigableContainer
 
@@ -119,8 +119,9 @@ struct PDFThumbnailRenderingTests {
         let url = try Self.makeMultiPagePDF(pageColors: [.red])
         defer { try? FileManager.default.removeItem(at: url) }
 
+        let data = try Data(contentsOf: url)
         let image = await PDFThumbnailView.renderThumbnail(
-            at: url.path,
+            from: data,
             pageIndex: 0,
             size: CGSize(width: 200, height: 280)
         )
@@ -133,11 +134,12 @@ struct PDFThumbnailRenderingTests {
         let url = try Self.makeMultiPagePDF(pageColors: [.red, .green, .blue])
         defer { try? FileManager.default.removeItem(at: url) }
 
+        let data = try Data(contentsOf: url)
         let page0 = await PDFThumbnailView.renderThumbnail(
-            at: url.path, pageIndex: 0, size: CGSize(width: 60, height: 80)
+            from: data, pageIndex: 0, size: CGSize(width: 60, height: 80)
         )
         let page1 = await PDFThumbnailView.renderThumbnail(
-            at: url.path, pageIndex: 1, size: CGSize(width: 60, height: 80)
+            from: data, pageIndex: 1, size: CGSize(width: 60, height: 80)
         )
 
         try #require(page0 != nil)
@@ -163,8 +165,9 @@ struct PDFThumbnailRenderingTests {
         let url = try Self.makeMultiPagePDF(pageColors: [.red])
         defer { try? FileManager.default.removeItem(at: url) }
 
+        let data = try Data(contentsOf: url)
         let image = await PDFThumbnailView.renderThumbnail(
-            at: url.path,
+            from: data,
             pageIndex: 99,
             size: CGSize(width: 200, height: 280)
         )
@@ -176,18 +179,19 @@ struct PDFThumbnailRenderingTests {
         let url = try Self.makeMultiPagePDF(pageColors: [.red])
         defer { try? FileManager.default.removeItem(at: url) }
 
+        let data = try Data(contentsOf: url)
         let image = await PDFThumbnailView.renderThumbnail(
-            at: url.path,
+            from: data,
             pageIndex: -1,
             size: CGSize(width: 200, height: 280)
         )
         #expect(image == nil)
     }
 
-    @Test("Missing file returns nil rather than throwing")
-    func missingFileReturnsNil() async {
+    @Test("Invalid/empty data returns nil rather than throwing")
+    func invalidDataReturnsNil() async {
         let image = await PDFThumbnailView.renderThumbnail(
-            at: "/tmp/definitely-does-not-exist-\(UUID().uuidString).pdf",
+            from: Data(),
             pageIndex: 0,
             size: CGSize(width: 200, height: 280)
         )
@@ -233,7 +237,7 @@ struct PDFPageViewZoomTests {
         view.go(to: secondPage)
 
         var receivedIndex: Int?
-        let owner = PDFPageView(path: url.path, pageIndex: 0) { index in
+        let owner = PDFPageView(documentId: url.path, pageIndex: 0) { index in
             receivedIndex = index
         }
         let coordinator = makeCoordinator(owner: owner)
@@ -254,7 +258,7 @@ struct PDFPageViewZoomTests {
         view.document = PDFDocument(url: url)
         view.autoScales = true
 
-        let owner = PDFPageView(path: url.path, pageIndex: 0)
+        let owner = PDFPageView(documentId: url.path, pageIndex: 0)
         let coordinator = makeCoordinator(owner: owner)
 
         let notification = Notification(name: .PDFViewScaleChanged, object: view)
@@ -276,7 +280,7 @@ struct PDFPageViewZoomTests {
         view.autoScales = false
         view.scaleFactor = 2.5
 
-        let owner = PDFPageView(path: url.path, pageIndex: 0)
+        let owner = PDFPageView(documentId: url.path, pageIndex: 0)
         let coordinator = makeCoordinator(owner: owner)
 
         let notification = Notification(name: .PDFViewScaleChanged, object: view)
@@ -288,7 +292,7 @@ struct PDFPageViewZoomTests {
 
     @Test("#588 scaleDidChange ignores notifications whose object is not a PDFView")
     func scaleDidChangeIgnoresNonPDFViewNotifications() {
-        let owner = PDFPageView(path: "/tmp/unused.pdf", pageIndex: 0)
+        let owner = PDFPageView(documentId: "/tmp/unused.pdf", pageIndex: 0)
         let coordinator = makeCoordinator(owner: owner)
         let notification = Notification(name: .PDFViewScaleChanged, object: "not a PDFView")
         coordinator.scaleDidChange(notification)

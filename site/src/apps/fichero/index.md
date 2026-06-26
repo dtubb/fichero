@@ -23,11 +23,11 @@ Fichero turns scanned archives, PDFs, field notes, and historical documents into
 
 Fichero is a work in progress. It gives you a visual way to use AI on your documents.
 
-It's an app that lets you use machine-learning techniques and prompts in a repeatable, programmatic way. I've built it to do transcription of handwritten documents using vision language models, and to extract named entities — but the approach could be used for other tasks.
+It's an app that lets you use machine-learning techniques and prompts in a repeatable, programmatic way. I've built it to do transcription of handwritten documents using vision language models, to extract named entities, and to produce catalogues — but the approach could be used for other tasks.
 
 The basic idea: rather than have an AI do things — where it controls how things are done, in ways that are harder to understand — Fichero lets you, the user, visually build these steps yourself, and connect them together. Fichero is built on a Python backend, with a powerful database, a vector database, a knowledge graph, and an ontological layer, so it can be extended in new directions.
 
-Under the hood, Fichero is a FastAPI server connecting to a DuckDB database. It uses LLMs to check presses, and LangGraph to run models.
+Under the hood, Fichero is a FastAPI server connecting to a DuckDB database. It uses LiteLLM to talk to model providers, and LangGraph to run workflows.
 
 ## Who It's For
 

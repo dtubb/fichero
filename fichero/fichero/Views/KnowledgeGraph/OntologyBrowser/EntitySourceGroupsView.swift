@@ -178,7 +178,7 @@ struct EntitySourceGroupsView: View {
 
         for claim in data.claims {
             let key = SourceGroupKey(
-                docId: claim.sourceDocumentId,
+                docId: claim.sourceDocumentId ?? "",
                 page: claim.sourcePageLabel ?? ""
             )
             if map[key] == nil {

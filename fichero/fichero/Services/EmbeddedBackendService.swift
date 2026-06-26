@@ -1,7 +1,8 @@
-import AppKit
 import FicheroAPIClient
 import Foundation
 import OSLog
+
+// swiftlint:disable file_length type_body_length
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "EmbeddedBackend")
 
@@ -30,7 +31,11 @@ final class EmbeddedBackendService: ObservableObject {
 
     private var backendPID: pid_t?
     private var isExternalBackend = false  // Track if using external vs embedded backend
-    private let backendURL = URL(string: "http://127.0.0.1:8765")!
+    var isUsingExternalBackend: Bool { isExternalBackend }
+    private var backendURL: URL {
+        // Own-engine traffic stays on loopback, never the advertised public URL (#2604).
+        EngineConfig.host
+    }
 
     enum BackendStatus {
         case stopped
@@ -43,6 +48,32 @@ final class EmbeddedBackendService: ObservableObject {
 
     /// Start the embedded backend
     func start() async throws {
+        if await useExistingBackendIfAvailable() {
+            return
+        }
+
+        logger.info("Starting embedded backend...")
+        status = .starting
+
+        // Launch embedded backend (macOS only; DEBUG fallback or RELEASE always).
+        // Briefcase-bundled engine cold-starts in ~25s on Apple Silicon
+        // (heavy ML imports + DB init); 90s gives margin on slower I/O,
+        // first-launch caches, and contended startup.
+        // iOS cannot spawn a local engine — a configured remote host is required.
+        #if os(macOS)
+        try launchEmbeddedBackend()
+        try await waitForBackend(timeout: 90)
+        _ = await AuthTokenMiddleware.waitForToken(timeout: 10)
+        status = .running
+        logger.info("Embedded backend started successfully")
+        #else
+        status = .failed
+        errorMessage = "No remote engine host configured. Set a custom host in Settings."
+        throw BackendError.notRunning
+        #endif
+    }
+
+    private func useExistingBackendIfAvailable() async -> Bool {
         // SwiftUI Previews / Xcode canvas: never spawn the embedded engine.
         // Previews launch the full app to render a view — orphan-cleanup
         // would SIGTERM the developer's external engine, and the briefcase
@@ -67,17 +98,30 @@ final class EmbeddedBackendService: ObservableObject {
                 try await waitForBackend(timeout: 1.5)
                 status = .running
                 isExternalBackend = true
-                logger.info("✅ Connected to external backend")
+                logger.info("Connected to external backend")
             } catch {
                 logger.info("No external backend; host runs without managing one")
                 status = .running
                 isExternalBackend = true
             }
-            return
+            return true
         }
 
-        logger.info("Starting embedded backend...")
-        status = .starting
+        if EngineConfig.usesCustomHost {
+            logger.info("Custom engine host configured: \(EngineConfig.host.absoluteString, privacy: .public)")
+            do {
+                try await waitForBackend(timeout: 5)
+                status = .running
+                isExternalBackend = true
+                logger.info("Connected to configured external backend")
+                return true
+            } catch {
+                status = .failed
+                errorMessage = error.localizedDescription
+                logger.error("Configured external backend did not respond: \(error.localizedDescription, privacy: .public)")
+                return false
+            }
+        }
 
         #if DEBUG
         // Development mode: connect to external backend if running, skip
@@ -92,30 +136,21 @@ final class EmbeddedBackendService: ObservableObject {
             try await waitForBackend(timeout: 5)
             status = .running
             isExternalBackend = true
-            logger.info("✅ Connected to external backend (will not manage lifecycle)")
-            return
+            logger.info("Connected to external backend (will not manage lifecycle)")
+            return true
         } catch {
             logger.info("No external backend found, launching embedded backend...")
             isExternalBackend = false
         }
         #endif
-
-        // Launch embedded backend (DEBUG fallback or RELEASE always).
-        // Briefcase-bundled engine cold-starts in ~25s on Apple Silicon
-        // (heavy ML imports + DB init); 90s gives margin on slower I/O,
-        // first-launch caches, and contended startup.
-        try launchEmbeddedBackend()
-        try await waitForBackend(timeout: 90)
-        _ = await AuthTokenMiddleware.waitForToken(timeout: 10)
-        status = .running
-        logger.info("Embedded backend started successfully")
+        return false
     }
 
     /// Stop the embedded backend
     func stop() {
         // Don't stop external backends (user-managed)
         if isExternalBackend {
-            logger.info("🔌 Using external backend - leaving it running (user-managed)")
+            logger.info("Using external backend - leaving it running (user-managed)")
             status = .stopped
             return
         }
@@ -126,7 +161,7 @@ final class EmbeddedBackendService: ObservableObject {
             return
         }
 
-        logger.info("🛑 Stopping embedded backend (PID: \(pid))...")
+        logger.info("Stopping embedded backend (PID: \(pid))...")
 
         // Clear state immediately
         backendPID = nil
@@ -141,7 +176,7 @@ final class EmbeddedBackendService: ObservableObject {
             // Check if process is still running
             if kill(pid, 0) != 0 {
                 // Process no longer exists
-                logger.info("✅ Backend stopped gracefully after \(attempt * 100)ms")
+                logger.info("Backend stopped gracefully after \(attempt * 100)ms")
                 return
             }
             // Sleep for 100ms
@@ -150,16 +185,16 @@ final class EmbeddedBackendService: ObservableObject {
 
         // Force kill if still running after 5 seconds
         if kill(pid, 0) == 0 {
-            logger.warning("⚠️ Backend didn't shut down gracefully after 5s, force killing...")
+            logger.warning("Backend didn't shut down gracefully after 5s, force killing...")
             kill(pid, SIGKILL)
 
             // Give it one more second to die
             Thread.sleep(forTimeInterval: 1.0)
 
             if kill(pid, 0) == 0 {
-                logger.error("❌ Failed to kill backend process (PID: \(pid))")
+                logger.error("Failed to kill backend process (PID: \(pid))")
             } else {
-                logger.info("✅ Backend force-killed successfully")
+                logger.info("Backend force-killed successfully")
             }
         }
     }
@@ -167,14 +202,16 @@ final class EmbeddedBackendService: ObservableObject {
     deinit {
         // Clean up backend on service deallocation (shouldn't happen in normal app lifecycle)
         if let pid = backendPID, !isExternalBackend {
-            logger.warning("⚠️  EmbeddedBackendService deinit - terminating backend (PID: \(pid))")
-            logger.warning("⚠️  This shouldn't happen in normal app lifecycle - backend should be stopped via stop()")
+            logger.warning("EmbeddedBackendService deinit - terminating backend (PID: \(pid))")
+            logger.warning("This shouldn't happen in normal app lifecycle - backend should be stopped via stop()")
             kill(pid, SIGTERM)
         }
     }
 
     // MARK: - Private Helpers
 
+    #if os(macOS)
+    // swiftlint:disable:next function_body_length
     private func launchEmbeddedBackend() throws {
         guard let resourcePath = Bundle.main.resourcePath else {
             throw BackendError.bundleNotFound
@@ -209,17 +246,72 @@ final class EmbeddedBackendService: ObservableObject {
         Self.waitForPortToClear(8765, timeout: 3.0)
         #endif
 
+        let accessMaterial: RemoteAccessTLSMaterial
+        let publicBaseURL: URL?
+        if RemoteAccessConfig.hostingEnabled {
+            guard let url = RemoteAccessConfig.publicBaseURL else {
+                throw BackendError.launchFailed(
+                    NSError(
+                        domain: "EmbeddedBackendService",
+                        code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: "Remote access needs a reachable HTTPS URL."]
+                    )
+                )
+            }
+            publicBaseURL = url
+            accessMaterial = try prepareRemoteAccessTLSMaterial(
+                executablePath: executablePath,
+                publicBaseURL: url
+            )
+        } else {
+            publicBaseURL = nil
+            accessMaterial = try prepareLocalAccessTLSMaterial(executablePath: executablePath)
+        }
+
+        // Persist the SPKI pin for every host the engine binds to. The
+        // remote-access cert is also served on loopback, so pins match (#2611).
+        try RemoteCertificatePinning.persistHostedBackendSPKIPin(
+            accessMaterial.spkiPin,
+            hostString: EngineConfig.defaultHostString
+        )
+        if let publicBaseURL {
+            try RemoteCertificatePinning.persistHostedBackendSPKIPin(
+                accessMaterial.spkiPin,
+                hostString: publicBaseURL.absoluteString
+            )
+        }
+
         logger.info("Launching backend process: \(executablePath)")
 
         // Use Process for direct process control - much simpler than NSWorkspace
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executablePath)
-        process.arguments = []
+        // Mirror start_backend.sh HTTPS args (#2603/#2604/#2611).
+        process.arguments = [
+            "--ssl-certfile", accessMaterial.certificatePath,
+            "--ssl-keyfile", accessMaterial.keyPath
+        ]
         var environment = ProcessInfo.processInfo.environment
         // Engine watches this PID and self-terminates if we die without a
         // chance to call .stop() (e.g., SIGKILL). Belt-and-braces with the
         // applicationWillTerminate path.
         environment["FICHERO_PARENT_PID"] = String(ProcessInfo.processInfo.processIdentifier)
+        environment["FICHERO_TLS_CERTFILE"] = accessMaterial.certificatePath
+        environment["FICHERO_TLS_KEYFILE"] = accessMaterial.keyPath
+        environment["FICHERO_TLS_SPKI_HASH"] = accessMaterial.spkiPin
+        environment["FICHERO_BIND_HOST"] = accessMaterial.bindHost
+        if let publicBaseURL {
+            // Reuse the same env contract as RemoteAccessConfig so the
+            // remote-access launch path cannot drift from the helper (#2611).
+            environment.merge(
+                RemoteAccessConfig.launchEnvironment(
+                    for: publicBaseURL,
+                    material: accessMaterial,
+                    bonjourEnabled: RemoteAccessConfig.bonjourEnabled
+                ),
+                uniquingKeysWith: { $1 }
+            )
+        }
         #if DEBUG
         // Ensure workflow/provider routes are available for debug UI surfaces.
         environment["FICHERO_FEATURE_TIER"] = environment["FICHERO_FEATURE_TIER"] ?? "dev"
@@ -241,7 +333,7 @@ final class EmbeddedBackendService: ObservableObject {
         process.standardOutput = logHandle
         process.standardError = logHandle
 
-        if let tokenURL = AuthTokenMiddleware.tokenFileURL() {
+        if let tokenURL = AuthTokenMiddleware.bootstrapTokenFileURL() {
             try? FileManager.default.removeItem(at: tokenURL)
         }
 
@@ -249,17 +341,86 @@ final class EmbeddedBackendService: ObservableObject {
         try process.run()
 
         let pid = process.processIdentifier
-        logger.info("✅ Backend process launched successfully (PID: \(pid))")
+        logger.info("Backend process launched successfully (PID: \(pid))")
 
         // Store PID and process reference
         backendPID = pid
         isExternalBackend = false
-        logger.info("📍 Tracking embedded backend PID: \(pid)")
+        logger.info("Tracking embedded backend PID: \(pid)")
     }
+
+    private func prepareLocalAccessTLSMaterial(executablePath: String) throws -> RemoteAccessTLSMaterial {
+        try prepareTLSMaterial(
+            executablePath: executablePath,
+            arguments: ["--prepare-local-access"],
+            failureMessage: "Local engine TLS preparation failed."
+        )
+    }
+
+    private func prepareRemoteAccessTLSMaterial(
+        executablePath: String,
+        publicBaseURL: URL
+    ) throws -> RemoteAccessTLSMaterial {
+        try prepareTLSMaterial(
+            executablePath: executablePath,
+            arguments: [
+                "--prepare-remote-access",
+                "--public-base-url",
+                publicBaseURL.absoluteString
+            ],
+            failureMessage: "Remote access TLS preparation failed."
+        )
+    }
+
+    private func prepareTLSMaterial(
+        executablePath: String,
+        arguments: [String],
+        failureMessage: String
+    ) throws -> RemoteAccessTLSMaterial {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executablePath)
+        process.arguments = arguments
+
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.standardOutput = stdout
+        process.standardError = stderr
+
+        try process.run()
+        process.waitUntilExit()
+
+        let outputData = stdout.fileHandleForReading.readDataToEndOfFile()
+        let errorData = stderr.fileHandleForReading.readDataToEndOfFile()
+        guard process.terminationStatus == 0 else {
+            let message = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                ?? failureMessage
+            throw BackendError.launchFailed(
+                NSError(
+                    domain: "EmbeddedBackendService",
+                    code: Int(process.terminationStatus),
+                    userInfo: [NSLocalizedDescriptionKey: message]
+                )
+            )
+        }
+
+        do {
+            return try JSONDecoder().decode(RemoteAccessTLSMaterial.self, from: outputData)
+        } catch {
+            throw BackendError.launchFailed(
+                NSError(
+                    domain: "EmbeddedBackendService",
+                    code: 2,
+                    userInfo: [NSLocalizedDescriptionKey: "Could not decode remote access TLS material."]
+                )
+            )
+        }
+    }
+    #endif
 
     private func waitForBackend(timeout: TimeInterval) async throws {
         let startTime = Date()
         let healthURL = backendURL.appendingPathComponent("api/health")
+        let session = RemoteCertificatePinning.configuredSession()
 
         // Poll aggressively at first (100ms) so we catch the backend
         // as soon as it's ready — local FastAPI typically answers
@@ -274,7 +435,7 @@ final class EmbeddedBackendService: ObservableObject {
             }
 
             do {
-                let (_, response) = try await URLSession.shared.data(from: healthURL)
+                let (_, response) = try await session.data(from: healthURL)
                 if let httpResponse = response as? HTTPURLResponse,
                    httpResponse.statusCode == 200 {
                     logger.info("Backend health check passed")
@@ -298,9 +459,10 @@ final class EmbeddedBackendService: ObservableObject {
         var request = URLRequest(url: workflowsURL)
         request.httpMethod = "GET"
         request.addEngineAuth()
+        let session = RemoteCertificatePinning.configuredSession()
 
         do {
-            let (_, response) = try await URLSession.shared.data(for: request)
+            let (_, response) = try await session.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse else {
                 return false
             }
@@ -317,9 +479,10 @@ final class EmbeddedBackendService: ObservableObject {
 
     func checkHealth() async -> Bool {
         let healthURL = backendURL.appendingPathComponent("health")
+        let session = RemoteCertificatePinning.configuredSession()
 
         do {
-            let (_, response) = try await URLSession.shared.data(from: healthURL)
+            let (_, response) = try await session.data(from: healthURL)
             return (response as? HTTPURLResponse)?.statusCode == 200
         } catch {
             return false
@@ -328,11 +491,37 @@ final class EmbeddedBackendService: ObservableObject {
 
     // MARK: - Orphan-engine cleanup
 
-    /// SIGTERM any "Fichero Engine" subprocess left over from a previous
-    /// Fichero run that didn't get a chance to call .stop() (e.g. SIGKILL,
-    /// crash, or force-quit). Called before spawning a new engine so the
-    /// new spawn can bind port 8765 cleanly.
+    #if os(macOS)
+    /// SIGTERM a "Fichero Engine" subprocess left over from a previous run of
+    /// **this** app that didn't get a chance to call .stop() (e.g. SIGKILL,
+    /// crash, or force-quit). Called before spawning a new engine so the new
+    /// spawn can bind port 8765 cleanly.
+    ///
+    /// SAFETY (#2079): a host can BOTH serve a shared engine (for remote users)
+    /// AND run the app. Killing local engines by name pattern would SIGTERM that
+    /// shared engine out from under its users. We therefore never kill by name
+    /// alone — only engines that provably belong to this app's lineage. The rule,
+    /// in priority order, per candidate engine PID:
+    ///   • configured to use a custom/remote host  → we own NO local engine;
+    ///     skip the whole sweep (early return below).
+    ///   • engine has no recorded `FICHERO_PARENT_PID`  → started independently
+    ///     of any app (a shared/manually-run engine) — SPARE it.
+    ///   • recorded parent is still alive and isn't us  → a DIFFERENT live owner
+    ///     is using it — SPARE it.
+    ///   • recorded parent is us, or is dead  → a genuine orphan of a Fichero
+    ///     app run that no longer exists — KILL it.
+    ///
+    /// Correctness over aggressiveness: it is better to leave a real orphan
+    /// running (the user can kill it) than to SIGTERM a shared engine others
+    /// depend on. When in doubt we spare.
     static func terminateOrphanEngines() {
+        if EngineConfig.usesCustomHost {
+            logger.info("Custom/remote engine host configured — skipping orphan sweep (no local engine is ours to kill)")
+            return
+        }
+
+        let thisAppPID = ProcessInfo.processInfo.processIdentifier
+
         let pgrep = Process()
         pgrep.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
         pgrep.arguments = ["-f", "Fichero Engine.app/Contents/MacOS"]
@@ -344,10 +533,49 @@ final class EmbeddedBackendService: ObservableObject {
         let data = (try? pipe.fileHandleForReading.readToEnd()) ?? Data()
         guard let output = String(data: data, encoding: .utf8) else { return }
         for line in output.split(separator: "\n") {
-            if let pid = pid_t(line.trimmingCharacters(in: .whitespaces)) {
-                kill(pid, SIGTERM)
+            guard let pid = pid_t(line.trimmingCharacters(in: .whitespaces)) else { continue }
+
+            guard let parent = engineParentPID(pid) else {
+                logger.info("Engine PID \(pid) has no FICHERO_PARENT_PID — not app-spawned, sparing")
+                continue
             }
+            if parent != thisAppPID, isProcessAlive(parent) {
+                logger.info("Engine PID \(pid) owned by live app PID \(parent) — sparing")
+                continue
+            }
+            logger.info("Terminating orphan engine PID \(pid) (parent \(parent) is this app or dead)")
+            kill(pid, SIGTERM)
         }
+    }
+
+    /// Read the `FICHERO_PARENT_PID` recorded in a candidate engine's
+    /// environment (set by `launchEmbeddedBackend` on spawn). `ps -E` appends a
+    /// process's environment to its command-line output, so we can recover the
+    /// owner without a pidfile. Returns nil when the var is absent (engine
+    /// started independently of any app) or the environment can't be read.
+    private static func engineParentPID(_ pid: pid_t) -> pid_t? {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/ps")
+        task.arguments = ["-E", "-ww", "-o", "command=", "-p", String(pid)]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = FileHandle.nullDevice
+        guard (try? task.run()) != nil else { return nil }
+        task.waitUntilExit()
+        let data = (try? pipe.fileHandleForReading.readToEnd()) ?? Data()
+        guard let output = String(data: data, encoding: .utf8),
+              let range = output.range(of: "FICHERO_PARENT_PID=") else { return nil }
+        let digits = output[range.upperBound...].prefix { $0.isNumber }
+        return pid_t(digits)
+    }
+
+    /// True if `pid` names a live process — exists, even if owned by another
+    /// user we lack permission to signal. `kill(_, 0)` returns 0 when the
+    /// process exists and is signalable, or fails with EPERM when it exists but
+    /// belongs to a different owner. Both mean "alive" for orphan-kill purposes.
+    private static func isProcessAlive(_ pid: pid_t) -> Bool {
+        if pid <= 0 { return false }
+        return kill(pid, 0) == 0 || errno == EPERM
     }
 
     static func waitForPortToClear(_ port: UInt16, timeout: TimeInterval) {
@@ -370,6 +598,7 @@ final class EmbeddedBackendService: ObservableObject {
         let data = (try? pipe.fileHandleForReading.readToEnd()) ?? Data()
         return !data.isEmpty
     }
+    #endif
 }
 
 // MARK: - Errors
@@ -397,3 +626,5 @@ enum BackendError: LocalizedError {
         }
     }
 }
+
+// swiftlint:enable type_body_length

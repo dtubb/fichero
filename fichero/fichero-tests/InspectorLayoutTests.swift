@@ -1,4 +1,5 @@
 // swiftlint:disable file_length
+#if os(macOS)
 import AppKit
 @testable import Fichero
 import Foundation
@@ -8,9 +9,9 @@ import Testing
 
 struct InspectorTabTests {
 
-    @Test("InspectorTab includes content/annotations/notes/entities/kg/artifacts/edits/info")
+    @Test("InspectorTab includes content/annotations/notes/entities/kg/artifacts/citations/edits/info")
     func allCases() {
-        #expect(InspectorTab.allCases.count == 9)
+        #expect(InspectorTab.allCases.count == 10)
         #expect(InspectorTab.allCases.contains(.content))
         #expect(InspectorTab.allCases.contains(.outline))
         #expect(InspectorTab.allCases.contains(.annotations))
@@ -18,15 +19,15 @@ struct InspectorTabTests {
         #expect(InspectorTab.allCases.contains(.entities))
         #expect(InspectorTab.allCases.contains(.knowledgeGraph))
         #expect(InspectorTab.allCases.contains(.artifacts))
+        #expect(InspectorTab.allCases.contains(.citations))
         #expect(InspectorTab.allCases.contains(.edits))
         #expect(InspectorTab.allCases.contains(.info))
     }
-
-    @Test("InspectorTab order: content, outline, annotations, notes, entities, kg, artifacts, edits, info")
+    @Test("InspectorTab order: content, outline, annotations, notes, entities, kg, artifacts, citations, edits, info")
     func ordering() {
         let expected: [InspectorTab] = [
             .content, .outline, .annotations, .notes, .entities, .knowledgeGraph,
-            .artifacts, .edits, .info
+            .artifacts, .citations, .edits, .info
         ]
         #expect(InspectorTab.allCases == expected)
     }
@@ -99,6 +100,76 @@ struct FileTypeAdditionsTests {
         #expect(FileType.csv.rawValue == "csv")
         #expect(FileType.rtf.rawValue == "rtf")
         #expect(FileType.mobi.rawValue == "mobi")
+    }
+}
+
+// MARK: - Widescreen Pane Plan Tests
+
+struct WidescreenPanePlanTests {
+
+    @Test("Wide windows keep all widescreen panes visible")
+    func keepsAllPanesWhenWideEnough() {
+        let plan = WidescreenPanePlan.make(
+            showDocumentGrid: true,
+            showDocumentCanvas: true,
+            showReadingPane: true,
+            availableWidth: 900
+        )
+
+        #expect(plan.showsLibraryPane)
+        #expect(plan.showsCanvasPane)
+        #expect(plan.showsReadingPane)
+        #expect(plan.minimumWidth == 800)
+    }
+
+    @Test("Narrow windows collapse reading and canvas before the library pane")
+    func collapsesSecondaryPanesFirst() {
+        let readingCollapsed = WidescreenPanePlan.make(
+            showDocumentGrid: true,
+            showDocumentCanvas: true,
+            showReadingPane: true,
+            availableWidth: 760
+        )
+        #expect(readingCollapsed.showsLibraryPane)
+        #expect(readingCollapsed.showsCanvasPane)
+        #expect(!readingCollapsed.showsReadingPane)
+        #expect(readingCollapsed.minimumWidth == 580)
+
+        let canvasCollapsed = WidescreenPanePlan.make(
+            showDocumentGrid: true,
+            showDocumentCanvas: true,
+            showReadingPane: true,
+            availableWidth: 560
+        )
+        #expect(canvasCollapsed.showsLibraryPane)
+        #expect(!canvasCollapsed.showsCanvasPane)
+        #expect(!canvasCollapsed.showsReadingPane)
+        #expect(canvasCollapsed.minimumWidth == 220)
+    }
+
+    @Test("Library-hidden narrow windows keep canvas or reading visible")
+    func keepsUsefulPaneWhenLibraryHidden() {
+        let canvasPreferred = WidescreenPanePlan.make(
+            showDocumentGrid: false,
+            showDocumentCanvas: true,
+            showReadingPane: true,
+            availableWidth: 100
+        )
+        #expect(!canvasPreferred.showsLibraryPane)
+        #expect(canvasPreferred.showsCanvasPane)
+        #expect(!canvasPreferred.showsReadingPane)
+        #expect(canvasPreferred.minimumWidth == 360)
+
+        let readingOnly = WidescreenPanePlan.make(
+            showDocumentGrid: false,
+            showDocumentCanvas: false,
+            showReadingPane: true,
+            availableWidth: 100
+        )
+        #expect(!readingOnly.showsLibraryPane)
+        #expect(!readingOnly.showsCanvasPane)
+        #expect(readingOnly.showsReadingPane)
+        #expect(readingOnly.minimumWidth == 220)
     }
 }
 
@@ -387,46 +458,14 @@ struct PageContentPaneEditStateTests {
     }
 }
 
-// MARK: - Document KG Pane Route Tests (#1228)
-
-struct DocumentKGPaneRouteTests {
-
-    @Test("Knowledge pane route builds localhost document URL")
-    func documentURL() throws {
-        let url = try #require(DocumentKGPaneRoute.documentURL(documentId: "doc-123"))
-        #expect(url.absoluteString == "http://localhost:8765/view/document/doc-123")
-    }
-
-    @Test("Knowledge pane request includes library header")
-    func requestIncludesLibraryHeader() throws {
-        let request = try #require(
-            DocumentKGPaneRoute.request(
-                documentId: "doc-123",
-                libraryPath: "/tmp/Test Library.fichero"
-            )
-        )
-        #expect(request.value(forHTTPHeaderField: "X-Fichero-Library-Path") == "/tmp/Test Library.fichero")
-    }
-
-    @Test("Knowledge pane bootstrap script escapes quotes and newlines")
-    func bootstrapScriptEscaping() {
-        let script = DocumentKGPaneRoute.bootstrapScript(
-            token: "tok'en",
-            libraryPath: "/tmp/Line\nBreak.fichero"
-        )
-        #expect(script.contains("tok\\'en"))
-        #expect(script.contains("/tmp/Line\\nBreak.fichero"))
-    }
-}
-
 // MARK: - Knowledge Surface Tab Tests (#1228)
 
 struct KGSurfaceTabTests {
 
-    @Test("KGSurfaceTab has transcript, digest, graph in order")
+    @Test("KGSurfaceTab has transcript, digest, graph, claims, timeline, map in order")
     func orderingAndCount() {
         // Order drives the native toolbar's left-to-right button layout.
-        #expect(KGSurfaceTab.allCases == [.transcript, .digest, .graph])
+        #expect(KGSurfaceTab.allCases == [.transcript, .digest, .graph, .claims, .timeline, .map])
     }
 
     @Test("KGSurfaceTab rawValues match the JS tab ids in document_view.html")
@@ -436,6 +475,8 @@ struct KGSurfaceTabTests {
         #expect(KGSurfaceTab.transcript.rawValue == "transcript")
         #expect(KGSurfaceTab.digest.rawValue == "digest")
         #expect(KGSurfaceTab.graph.rawValue == "graph")
+        #expect(KGSurfaceTab.timeline.rawValue == "timeline")
+        #expect(KGSurfaceTab.map.rawValue == "map")
     }
 
     @Test("KGSurfaceTab id equals rawValue")
@@ -450,6 +491,19 @@ struct KGSurfaceTabTests {
         #expect(KGSurfaceTab.transcript.title == "Transcript")
         #expect(KGSurfaceTab.digest.title == "Digest")
         #expect(KGSurfaceTab.graph.title == "Graph")
+        #expect(KGSurfaceTab.claims.title == "Claims")
+        #expect(KGSurfaceTab.timeline.title == "Timeline")
+        #expect(KGSurfaceTab.map.title == "Map")
+    }
+
+    @Test("Timeline and Map tabs stay inside the shared WebKit pane")
+    func webKitTabs() {
+        #expect(KGSurfaceTab.transcript.usesWebKit)
+        #expect(KGSurfaceTab.digest.usesWebKit)
+        #expect(KGSurfaceTab.graph.usesWebKit)
+        #expect(KGSurfaceTab.timeline.usesWebKit)
+        #expect(KGSurfaceTab.map.usesWebKit)
+        #expect(!KGSurfaceTab.claims.usesWebKit)
     }
 
     @Test("Every KGSurfaceTab has a non-empty SF Symbol")
@@ -550,64 +604,7 @@ struct ClaimFocusStateInjectionContractTests {
     }
 }
 
-// MARK: - V2 Inspector — RichTextController + Format/Find menu wiring
-
-@MainActor
-struct RichTextControllerTests {
-    @Test("toggleTrait is a no-op when no textView is attached")
-    func toggleTraitWithoutTextView() {
-        let controller = RichTextController()
-        controller.toggleTrait(Selector(("toggleBold:")))
-        controller.toggleTrait(Selector(("alignLeft:")))
-        #expect(controller.textView == nil)
-    }
-
-    @Test("textView property accepts assignment and reflects current value")
-    func textViewIsWeak() {
-        // The `weak` storage attribute on RichTextController.textView is
-        // a compile-time contract; runtime deallocation tests are flaky
-        // with NSTextView because AppKit's text-storage chain
-        // (NSTextStorage → NSLayoutManager → NSTextContainer → NSTextView)
-        // pins the view alive beyond the local strong ref. Earlier
-        // versions of this test tried to force dealloc via
-        // autoreleasepool + runloop pumping; both proved fragile.
-        //
-        // We narrow the assertion to what we can reliably test: the
-        // property accepts assignment, returns the same identity back,
-        // and a nil assignment clears it. That covers the rebinding +
-        // overwrite contract the RichText editor relies on.
-        let controller = RichTextController()
-        let textViewA = AppKit.NSTextView()
-        controller.textView = textViewA
-        #expect(controller.textView === textViewA)
-
-        let textViewB = AppKit.NSTextView()
-        controller.textView = textViewB
-        #expect(controller.textView === textViewB)
-        // Old reference should NOT come back; controller holds only
-        // the latest binding (which is what `weak` plus assignment do).
-        #expect(controller.textView !== textViewA)
-
-        controller.textView = nil
-        #expect(controller.textView == nil)
-    }
-
-    @Test("toggleTrait dispatches alignment change to attached textView")
-    func toggleTraitDispatch() {
-        let controller = RichTextController()
-        let textView = AppKit.NSTextView()
-        textView.string = "hello world"
-        textView.setSelectedRange(NSRange(location: 0, length: 5))
-        controller.textView = textView
-
-        controller.toggleTrait(Selector(("alignCenter:")))
-
-        let attrs = textView.textStorage?.attributes(at: 0, effectiveRange: nil) ?? [:]
-        if let paragraph = attrs[.paragraphStyle] as? NSParagraphStyle {
-            #expect(paragraph.alignment == .center)
-        }
-    }
-}
+// MARK: - V2 Inspector — Find menu wiring
 
 struct FindBarSelectorTests {
     @Test("performFindPanelAction selector exists on NSTextView")
@@ -627,77 +624,4 @@ struct FindBarSelectorTests {
     }
 }
 
-// MARK: - ArtifactRichTextCodec Tests (#710)
-
-struct ArtifactRichTextCodecTests {
-
-    private func bold(_ string: String) -> NSAttributedString {
-        let font = NSFont.boldSystemFont(ofSize: 13)
-        return NSAttributedString(string: string, attributes: [.font: font])
-    }
-
-    @Test("Plain text encodes to a plain string (no RTF wrapper)")
-    func plainTextEncodesPlain() {
-        let attr = NSAttributedString(string: "Hello world")
-        let encoded = ArtifactRichTextCodec.encode(attr)
-        #expect(encoded == "Hello world")
-        #expect(!encoded.hasPrefix("{\\rtf"))
-    }
-
-    @Test("Bold attribute encodes to RTF source containing \\b")
-    func boldEncodesToRTF() {
-        let encoded = ArtifactRichTextCodec.encode(bold("Bold text"))
-        #expect(encoded.hasPrefix("{\\rtf"))
-        #expect(encoded.contains("\\b"))
-    }
-
-    @Test("Custom paragraph style encodes to RTF preserving the style")
-    func paragraphStyleEncodesToRTF() {
-        let para = NSMutableParagraphStyle()
-        para.lineSpacing = 8
-        para.firstLineHeadIndent = 24
-        let attr = NSAttributedString(
-            string: "Indented spaced paragraph",
-            attributes: [.paragraphStyle: para]
-        )
-        let encoded = ArtifactRichTextCodec.encode(attr)
-        // A non-default paragraph style must NOT be dropped on save (ruler
-        // edits silently lost before #710's predecessor fix).
-        #expect(encoded.hasPrefix("{\\rtf"))
-
-        let decoded = ArtifactRichTextCodec.decode(encoded)
-        var decodedRange = NSRange(location: 0, length: 0)
-        let decodedPara = decoded.attribute(
-            .paragraphStyle, at: 0, effectiveRange: &decodedRange
-        ) as? NSParagraphStyle
-        #expect(decodedPara?.lineSpacing == 8)
-        #expect(decodedPara?.firstLineHeadIndent == 24)
-    }
-
-    @Test("Decode of plain (non-RTF) content yields a plain attributed string")
-    func decodePlain() {
-        let decoded = ArtifactRichTextCodec.decode("just text")
-        #expect(decoded.string == "just text")
-    }
-
-    @Test("Bold round-trips: encode then decode preserves the bold trait")
-    func boldRoundTrips() {
-        let original = bold("Round trip")
-        let decoded = ArtifactRichTextCodec.decode(ArtifactRichTextCodec.encode(original))
-        #expect(decoded.string == "Round trip")
-
-        var range = NSRange(location: 0, length: 0)
-        let font = decoded.attribute(.font, at: 0, effectiveRange: &range) as? NSFont
-        let traits = font.map {
-            NSFontManager.shared.traits(of: $0)
-        } ?? []
-        #expect(traits.contains(.boldFontMask))
-    }
-
-    @Test("Plain text round-trips unchanged")
-    func plainRoundTrips() {
-        let encoded = ArtifactRichTextCodec.encode(NSAttributedString(string: "abc 123"))
-        let decoded = ArtifactRichTextCodec.decode(encoded)
-        #expect(decoded.string == "abc 123")
-    }
-}
+#endif

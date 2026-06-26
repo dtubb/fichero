@@ -180,6 +180,15 @@ class TestResolver:
         assert evaluate_condition("$.nodes.check.count < 10", state) is False
         assert evaluate_condition("$.nodes.check.is_valid == true", state) is True
         assert evaluate_condition("$.inputs.skip == true", state) is True
+        assert evaluate_condition("$.nodes.check.count >= 10 and $.inputs.skip == true", state) is True
+
+    def test_evaluate_condition_rejects_rce_expression(self):
+        """Attribute/call based sandbox escapes are rejected and evaluate false."""
+        from fichero.workflows.resolver import evaluate_condition
+
+        state = {"inputs": {}, "outputs": {}}
+
+        assert evaluate_condition("().__class__.__bases__[0].__subclasses__()", state) is False
 
     def test_json_parse(self):
         """Test JSON parsing transform."""
@@ -499,7 +508,8 @@ class TestTranscribeTool:
         result = await transcribe(inputs, state, llm_config)
 
         assert result["text"] == ""
-        assert "error" in result
+        # No "error" key — empty-files is a warning, not a workflow-aborting error (#2220)
+        assert "error" not in result
 
     @pytest.mark.asyncio
     async def test_transcribe_builds_prompt(self):
@@ -590,3 +600,81 @@ class TestTranscribeTool:
             assert uri.startswith("data:image/png;base64,")
         finally:
             Path(temp_path).unlink()
+
+
+# =============================================================================
+# Vision Fan-Out Concurrency Cap Tests (#2221)
+# =============================================================================
+
+class TestVisionFanOutConcurrencyCap:
+    """Verify that parallel_node_function never exceeds the vision semaphore cap."""
+
+    async def test_concurrency_never_exceeds_cap(self, monkeypatch):
+        """concurrent tool calls must not exceed VISION_FAN_OUT_CONCURRENCY."""
+        import asyncio
+        from fichero.workflows import builder as builder_mod
+        from fichero.workflows.builder import _make_parallel_node_function
+        from fichero.workflows.types import NodeDef
+        from fichero.llm import LLMConfig
+
+        # Replace the module-level semaphore with a tight cap of 2 for the test.
+        test_cap = 2
+        test_sem = asyncio.Semaphore(test_cap)
+        monkeypatch.setattr(builder_mod, "_vision_fan_out_sem", test_sem)
+        monkeypatch.setattr(builder_mod, "VISION_FAN_OUT_CONCURRENCY", test_cap)
+
+        # Track the high-water mark of concurrent executions.
+        inflight = 0
+        peak = 0
+        lock = asyncio.Lock()
+
+        async def slow_tool(inputs, state, llm_config):
+            nonlocal inflight, peak
+            async with lock:
+                inflight += 1
+                if inflight > peak:
+                    peak = inflight
+            await asyncio.sleep(0.05)
+            async with lock:
+                inflight -= 1
+            return {"results": [{"text": "ok"}]}
+
+        node_def = NodeDef(
+            id="node-1",
+            tool="vision",
+            config={},
+            name="Vision",
+            node_type="vision",
+        )
+        llm_config = LLMConfig(provider="openai", model="gpt-4o")
+        parallel_fn = _make_parallel_node_function(
+            node_def=node_def,
+            tool_fn=slow_tool,
+            llm_config=llm_config,
+            workflow_config=None,
+        )
+
+        # Dispatch 6 concurrent calls (3× the cap).
+        states = [
+            {
+                "parallel_file": f"/tmp/file{i}.pdf",
+                "parallel_document": None,
+                "parallel_index": i,
+                "parallel_total": 6,
+                "library_path": "",
+                "task_id": "",
+                "workflow_id": "",
+            }
+            for i in range(6)
+        ]
+        await asyncio.gather(*[parallel_fn(s) for s in states])
+
+        assert peak <= test_cap, (
+            f"Peak concurrent calls ({peak}) exceeded the cap ({test_cap})"
+        )
+
+    async def test_default_cap_exported(self):
+        """VISION_FAN_OUT_CONCURRENCY is exported at a reasonable default."""
+        from fichero.workflows.builder import VISION_FAN_OUT_CONCURRENCY
+
+        assert 1 <= VISION_FAN_OUT_CONCURRENCY <= 16

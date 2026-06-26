@@ -6,6 +6,7 @@ The HTTP layer is mocked with httpx.MockTransport — no live backend required.
 from __future__ import annotations
 
 import json
+from urllib.parse import quote
 
 import httpx
 import pytest
@@ -53,7 +54,9 @@ def test_auth_header_is_set():
 def test_library_path_header_is_set():
     handler, seen = _capture(response=[])
     _client(handler, library_path="/tmp/My.fichero").list_documents()
-    assert seen[0].headers["x-fichero-library-path"] == "/tmp/My.fichero"
+    assert seen[0].headers["x-fichero-library-path"] == quote(
+        "/tmp/My.fichero", safe="/"
+    )
 
 
 def test_empty_token_omits_auth_header():
@@ -107,6 +110,75 @@ def test_run_workflow_builds_execute_body():
         "inputs": {"files": ["doc-9"]},
         "force_new": False,
         "skip_cache": True,
+    }
+
+
+def test_compare_workflow_builds_request_body():
+    seen: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={
+                "prompt": "[Workflow: wf-1]",
+                "models_compared": ["openai/gpt-4o"],
+                "results": [],
+                "fastest_model": None,
+                "cheapest_model": None,
+                "total_cost_usd": 0.0,
+                "total_latency_ms": 0.0,
+                "comparison_id": "cmp-1",
+                "timestamp": "2026-05-15T00:00:00",
+            },
+        )
+
+    _client(handler).compare_workflow(
+        workflow_id="wf-1",
+        doc_id="doc-9",
+        models=[{"provider": "openai", "model": "gpt-4o"}],
+    )
+    assert seen[0] == {
+        "workflow_id": "wf-1",
+        "doc_id": "doc-9",
+        "models": [{"provider": "openai", "model": "gpt-4o"}],
+        "inputs": {},
+        "timeout_seconds": 300,
+    }
+
+
+def test_compare_vision_builds_request_body():
+    seen: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={
+                "prompt": "Describe",
+                "models_compared": ["openai/gpt-4o"],
+                "results": [],
+                "fastest_model": None,
+                "cheapest_model": None,
+                "total_cost_usd": 0.0,
+                "total_latency_ms": 0.0,
+                "comparison_id": "cmp-2",
+                "timestamp": "2026-05-15T00:00:00",
+            },
+        )
+
+    _client(handler).compare_vision(
+        images=["data:image/png;base64,AAAA"],
+        models=[{"provider": "openai", "model": "gpt-4o"}],
+        prompt="Describe",
+        detail="high",
+    )
+    assert seen[0] == {
+        "images": ["data:image/png;base64,AAAA"],
+        "prompt": "Describe",
+        "models": [{"provider": "openai", "model": "gpt-4o"}],
+        "detail": "high",
+        "timeout_seconds": 120,
     }
 
 
@@ -519,7 +591,7 @@ def test_request_picks_up_library_path_after_startup_gap(monkeypatch):
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append(request)
         library_path = request.headers.get("x-fichero-library-path")
-        if library_path != "/tmp/Lib.fichero":
+        if library_path != quote("/tmp/Lib.fichero", safe="/"):
             return httpx.Response(403, text="missing or invalid X-Fichero-Library-Path")
         return httpx.Response(200, json=[])
 
@@ -535,7 +607,9 @@ def test_request_picks_up_library_path_after_startup_gap(monkeypatch):
 
     assert docs == []
     assert len(seen) == 1
-    assert seen[0].headers["x-fichero-library-path"] == "/tmp/Lib.fichero"
+    assert seen[0].headers["x-fichero-library-path"] == quote(
+        "/tmp/Lib.fichero", safe="/"
+    )
 
 
 def test_base_url_falls_back_to_default(monkeypatch):

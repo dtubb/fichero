@@ -13,6 +13,7 @@ The builder:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from pathlib import Path
@@ -21,7 +22,13 @@ from typing import Any
 from fichero.workflows.types import State, WorkflowDef, NodeDef
 from fichero.workflows.registry import get_tool, get_tool_def
 from fichero.workflows.resolver import resolve_inputs, evaluate_condition
-from fichero.workflows.cache import get_node_cache, compute_cache_key, CACHEABLE_TOOLS
+from fichero.workflows.cache import (
+    get_node_cache,
+    compute_cache_key,
+    compute_batch_cache_key,
+    is_sequentially_cacheable,
+    CACHEABLE_TOOLS,
+)
 from fichero.workflows.tools.output_quality import (
     assess_result_quality,
     detect_page_contamination_warnings,
@@ -29,6 +36,46 @@ from fichero.workflows.tools.output_quality import (
 from fichero.llm import LLMConfig
 
 logger = logging.getLogger(__name__)
+
+# Concurrency cap for parallel vision fan-out (#2221).
+# Bounds the number of simultaneously in-flight LLM/image calls so a batch
+# of multi-page PDFs processes steadily instead of exhausting RAM all at once.
+VISION_FAN_OUT_CONCURRENCY: int = 4
+_vision_fan_out_sem: asyncio.Semaphore | None = None
+_vision_fan_out_sem_loop: asyncio.AbstractEventLoop | None = None
+
+
+def _get_vision_semaphore() -> asyncio.Semaphore:
+    """Return the shared vision/LLM fan-out concurrency semaphore.
+
+    The semaphore is a module global so a single cap (VISION_FAN_OUT_CONCURRENCY)
+    governs every concurrently in-flight vision/LLM call within a run — whether
+    they arrive via the graph-level Send fan-out (_make_parallel_node_function)
+    or the in-tool bounded path (vision_base). asyncio.Semaphore binds its
+    internal waiter Futures to whatever loop is running on first contention, so
+    a semaphore created on run A's event loop and reused (uncontended-or-not) on
+    run B's fresh loop can surface "got Future attached to a different loop".
+    The run path builds a fresh per-run event loop, so guard against it: rebind
+    the semaphore whenever the running loop differs from the one it was created
+    on. Within a single run (one loop) it is created once and shared, so the
+    cap-4 throttle is preserved; across runs/loops it is recreated cleanly.
+    """
+    global _vision_fan_out_sem, _vision_fan_out_sem_loop
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    if _vision_fan_out_sem is None or _vision_fan_out_sem_loop is not loop:
+        _vision_fan_out_sem = asyncio.Semaphore(VISION_FAN_OUT_CONCURRENCY)
+        _vision_fan_out_sem_loop = loop
+    return _vision_fan_out_sem
+
+
+def _required_llm_capability_for_category(category: str | None) -> str:
+    category_key = str(category or "").strip().lower()
+    if category_key in {"vision", "audio", "video"}:
+        return category_key
+    return "text"
 
 
 def _resolve_node_llm_config(
@@ -50,25 +97,64 @@ def _resolve_node_llm_config(
     """
     node_provider = node_def.provider_name or node_def.config.get("provider_name", "")
     node_model = node_def.model_name or node_def.config.get("model_name", "")
+    tool_def = get_tool_def(node_def.tool)
+    required_capability = None
+    if tool_def and tool_def.uses_llm:
+        required_capability = _required_llm_capability_for_category(tool_def.category)
+
+    profile_ref = (
+        node_def.config.get("model_profile_id")
+        or node_def.config.get("profile_id")
+        or node_def.config.get("model_profile")
+    )
+    if not profile_ref:
+        from fichero.llm import extract_model_profile_reference
+
+        profile_ref = extract_model_profile_reference(node_provider)
+    if profile_ref:
+        from fichero.llm import resolve_model_profile_for_capability
+
+        return resolve_model_profile_for_capability(
+            str(profile_ref),
+            base_config=workflow_llm_config,
+            required_capability=required_capability,
+        )
 
     if node_provider or node_model:
         provider = node_provider or workflow_llm_config.provider
         model = node_model or workflow_llm_config.model
-        # $small / $large alias resolution against app-level defaults (#810).
+        # Alias resolution against app-level defaults (#810/#2200).
         # Lets shipped presets stay portable across users with different
         # configured providers — the node declares a tier, the user picks
         # the concrete model in Settings.
-        from fichero.llm import resolve_model_alias
-        provider, model = resolve_model_alias(provider, model)
+        from fichero.llm import resolve_model_alias_for_capability
+        provider, model = resolve_model_alias_for_capability(
+            provider,
+            model,
+            required_capability=required_capability,
+        )
         return LLMConfig(provider=provider, model=model)
 
-    tool_def = get_tool_def(node_def.tool)
     if not (tool_def and tool_def.uses_llm):
         return workflow_llm_config
 
     try:
         from fichero.app_db import get_app_db
         app_db = get_app_db()
+
+        from fichero.llm import extract_model_profile_reference
+
+        workflow_profile_ref = extract_model_profile_reference(
+            workflow_llm_config.provider
+        )
+        if workflow_profile_ref:
+            from fichero.llm import resolve_model_profile_for_capability
+
+            return resolve_model_profile_for_capability(
+                workflow_profile_ref,
+                base_config=workflow_llm_config,
+                required_capability=required_capability,
+            )
 
         if workflow_llm_config.provider and workflow_llm_config.model:
             return workflow_llm_config
@@ -86,9 +172,10 @@ def _resolve_node_llm_config(
             return LLMConfig(provider=generic_default[0], model=generic_default[1])
 
         # Apple is registered as a provider for Vision/Speech but llm.chat()
-        # doesn't support it yet (no Foundation Models adapter). Skip it when
-        # picking an LLM fallback so the resulting config actually works.
-        llm_unsupported = {"apple"}
+        # doesn't support it yet (no Foundation Models adapter). Skip Apple
+        # for LLM (text) fallback, but keep it for vision nodes (#2243) where
+        # Apple Intelligence IS the intended out-of-the-box provider.
+        llm_unsupported = {"apple"} if required_capability != "vision" else set()
         for provider in app_db.list_providers():
             if not provider.enabled:
                 continue
@@ -286,52 +373,26 @@ def build_graph(
         "skip_cache": skip_cache,
     }
 
-    # Drop edges with empty endpoints before any downstream use. These appear
-    # when an older workflow was persisted with a different edge schema and
-    # the decoder couldn't read source/target — e.g. pre-fix preset JSONs
-    # that used source_node_id instead of source. Without this guard, the
-    # build crashes at `node_names[edge.source]` with KeyError("").
+    # Validate edge references before any downstream node_names lookup.
     valid_node_ids = {node.id for node in workflow.nodes}
-    filtered_edges = []
     for edge in workflow.edges:
         if edge.route_map:
-            # Route-map edges have no single target — validate route_map values instead
-            if not edge.source or not edge.route_key or not edge.route_map:
-                logger.warning(
-                    "Skipping route_map edge with missing source/route_key/route_map (source=%r)",
-                    edge.source,
-                )
-                continue
             if edge.source not in valid_node_ids:
-                logger.warning(
-                    "Skipping route_map edge: source=%r not in known nodes", edge.source
+                raise ValueError(
+                    f"Route-map edge source {edge.source!r} is not in workflow nodes"
                 )
-                continue
             unknown_targets = [v for v in edge.route_map.values() if v not in valid_node_ids]
             if unknown_targets:
-                logger.warning(
-                    "Skipping route_map edge: targets %s not in known nodes", unknown_targets
+                raise ValueError(
+                    f"Route-map edge targets are not in workflow nodes: {unknown_targets}"
                 )
-                continue
-            filtered_edges.append(edge)
-            continue
-        if not edge.source or not edge.target:
-            logger.warning(
-                "Skipping edge with empty endpoint (source=%r, target=%r) — "
-                "workflow likely persisted with an older schema; reinstall "
-                "the workflow from its preset or delete and re-create it.",
-                edge.source, edge.target,
-            )
             continue
         if edge.source not in valid_node_ids or edge.target not in valid_node_ids:
-            logger.warning(
-                "Skipping edge referencing unknown node (source=%r, target=%r); "
-                "known nodes: %s",
-                edge.source, edge.target, sorted(valid_node_ids),
+            raise ValueError(
+                "Edge references unknown node "
+                f"(source={edge.source!r}, target={edge.target!r}); "
+                f"known nodes: {sorted(valid_node_ids)}"
             )
-            continue
-        filtered_edges.append(edge)
-    workflow.edges = filtered_edges
 
     # Build edge lookup for auto-wiring (route_map edges have no single target)
     edges_by_target = {}
@@ -362,6 +423,32 @@ def build_graph(
                         f"Parallel edge detected: {edge.source} -> {edge.target}"
                     )
 
+    # Identify route_map edges whose targets are PARALLEL_TOOLS (#2236).
+    # Example: classify → route_map → {typescript: transcribe-ts, ...}
+    # These need the same per-file Send fan-out as direct SOURCE→PARALLEL edges.
+    # Maps routed_target_id → files_source_id (the SOURCE_TOOL one hop upstream).
+    route_map_parallel: dict[str, str] = {}
+    if enable_parallel:
+        for edge in workflow.edges:
+            if not edge.route_map:
+                continue
+            for target_id in edge.route_map.values():
+                target_node = workflow.get_node(target_id)
+                if not (target_node and target_node.tool in PARALLEL_TOOLS):
+                    continue
+                # Walk one hop upstream to find the SOURCE_TOOL providing files
+                for upstream in workflow.edges:
+                    if upstream.target != edge.source:
+                        continue
+                    up_node = workflow.get_node(upstream.source)
+                    if up_node and up_node.tool in SOURCE_TOOLS:
+                        route_map_parallel[target_id] = upstream.source
+                        logger.info(
+                            "Route-map fan-out detected: %s → %s (files from %s)",
+                            edge.source, target_id, upstream.source,
+                        )
+                        break
+
     # Add nodes using human-readable names
     for node_def in workflow.nodes:
         tool_fn = get_tool(node_def.tool)
@@ -371,9 +458,10 @@ def build_graph(
         incoming_edges = edges_by_target.get(node_def.id, [])
         node_name = node_names[node_def.id]  # Human-readable name
 
-        # Check if this node receives parallel fan-out
-        is_parallel_target = any(
-            (e["source"], node_def.id) in parallel_edges for e in incoming_edges
+        # Check if this node receives parallel fan-out (direct edge OR route_map)
+        is_parallel_target = (
+            any((e["source"], node_def.id) in parallel_edges for e in incoming_edges)
+            or node_def.id in route_map_parallel
         )
 
         if is_parallel_target:
@@ -398,13 +486,18 @@ def build_graph(
             graph.add_node(node_name, node_fn)
 
     # Add edges
-    # Group parallel edges by source node (one conditional edge per source)
+    # Group parallel edges by source node (one conditional edge per source).
+    # A source may connect to the SAME parallel target through more than one
+    # port (e.g. files-source → transcribe carries both `files` and the
+    # per-page `documents` port, #2523). The fan-out is per (source, target),
+    # not per port, so the target must appear ONCE — otherwise the per-file
+    # Send list is duplicated and every page is transcribed twice.
     parallel_by_source: dict[str, list[str]] = {}
     for edge in workflow.edges:
         if (edge.source, edge.target) in parallel_edges:
-            if edge.source not in parallel_by_source:
-                parallel_by_source[edge.source] = []
-            parallel_by_source[edge.source].append(edge.target)
+            targets = parallel_by_source.setdefault(edge.source, [])
+            if edge.target not in targets:
+                targets.append(edge.target)
 
     # Add fan-out conditional edges (one per source node)
     for source_id, target_ids in parallel_by_source.items():
@@ -419,9 +512,12 @@ def build_graph(
 
     def _source_graph_name(source_id: str) -> str:
         source_name = node_names[source_id]
-        source_is_parallel = any(
-            (e.source, e.target) in parallel_edges and e.target == source_id
-            for e in workflow.edges
+        source_is_parallel = (
+            any(
+                (e.source, e.target) in parallel_edges and e.target == source_id
+                for e in workflow.edges
+            )
+            or source_id in route_map_parallel
         )
         if source_is_parallel:
             return f"{source_name}_aggregate"
@@ -433,12 +529,24 @@ def build_graph(
             continue
         unconditional_by_target.setdefault(edge.target, []).append(edge)
 
+    # Node ids that were registered as _process + _aggregate (not bare name).
+    # Any edge whose TARGET is in this set must route to "{name}_process".
+    parallel_target_node_ids: set[str] = (
+        {target for (_, target) in parallel_edges} | set(route_map_parallel.keys())
+    )
+
+    def _target_graph_name(target_id: str) -> str:
+        name = node_names[target_id]
+        if target_id in parallel_target_node_ids:
+            return f"{name}_process"
+        return name
+
     waiting_edge_targets: set[str] = set()
     for target_id, incoming in unconditional_by_target.items():
         source_names = list(dict.fromkeys(_source_graph_name(edge.source) for edge in incoming))
         if len(source_names) <= 1:
             continue
-        graph.add_edge(source_names, node_names[target_id])
+        graph.add_edge(source_names, _target_graph_name(target_id))
         waiting_edge_targets.add(target_id)
 
     # Add non-parallel edges
@@ -447,13 +555,28 @@ def build_graph(
         source_name = node_names[edge.source]
 
         if edge.route_map:
-            # Multi-way routing: one conditional edge maps string values to node names
-            route_fn = _make_route_function(edge.route_key, edge.route_map, node_names)
-            path_map = {node_names[tid]: node_names[tid] for tid in edge.route_map.values()}
-            graph.add_conditional_edges(source_name, route_fn, path_map)
+            # Route_map targets that are PARALLEL_TOOLS need combined route+fan-out.
+            has_parallel_targets = any(
+                tid in route_map_parallel for tid in edge.route_map.values()
+            )
+            if has_parallel_targets and enable_parallel:
+                fan_out_fn = _make_route_map_fan_out_function(
+                    edge.route_key, edge.route_map, node_names, route_map_parallel,
+                )
+                path_map = {}
+                for tid in edge.route_map.values():
+                    if tid in route_map_parallel:
+                        path_map[f"{node_names[tid]}_process"] = f"{node_names[tid]}_process"
+                    else:
+                        path_map[node_names[tid]] = node_names[tid]
+                graph.add_conditional_edges(source_name, fan_out_fn, path_map)
+            else:
+                route_fn = _make_route_function(edge.route_key, edge.route_map, node_names)
+                path_map = {node_names[tid]: node_names[tid] for tid in edge.route_map.values()}
+                graph.add_conditional_edges(source_name, route_fn, path_map)
             continue
 
-        target_name = node_names[edge.target]
+        target_name = _target_graph_name(edge.target)
 
         if (edge.source, edge.target) in parallel_edges:
             continue  # Already handled above
@@ -486,10 +609,13 @@ def build_graph(
     exit_nodes = workflow.get_exit_nodes()
     for exit_id in exit_nodes:
         exit_name = node_names[exit_id]
-        # Check if this exit node was parallelized
-        is_parallel = any(
-            (e.source, e.target) in parallel_edges and e.target == exit_id
-            for e in workflow.edges
+        # Check if this exit node was parallelized (direct edge OR route_map fan-out)
+        is_parallel = (
+            any(
+                (e.source, e.target) in parallel_edges and e.target == exit_id
+                for e in workflow.edges
+            )
+            or exit_id in route_map_parallel
         )
         if is_parallel:
             graph.add_edge(f"{exit_name}_aggregate", END)
@@ -526,6 +652,11 @@ def _make_node_function(
         incoming_edges: List of edges where this node is the target (for auto-wiring)
     """
     node_llm_config = _resolve_node_llm_config(node_def, llm_config)
+
+    # Pre-compute caching eligibility once (closure over node_def + workflow_config).
+    workflow_id = workflow_config.get("workflow_id", "") if workflow_config else ""
+    skip_cache = workflow_config.get("skip_cache", False) if workflow_config else False
+    _is_seq_cacheable = is_sequentially_cacheable(node_def.tool)
 
     async def node_function(state: State) -> dict:
         """Execute the tool and update state."""
@@ -599,6 +730,8 @@ def _make_node_function(
 
             # Merge with static config (config takes precedence)
             tool_kwargs = {**resolved_inputs, **node_def.config}
+            if node_def.tool == "sub_workflow":
+                tool_kwargs.setdefault("__node_id", node_id)
             if event_callback:
                 async def emit_tool_progress(
                     event_type: str,
@@ -609,6 +742,60 @@ def _make_node_function(
                     await event_callback(event_type, payload)
 
                 tool_kwargs["__progress_callback"] = emit_tool_progress
+
+            # --- Sequential-node batch cache check (#2246) ---
+            # Mirrors the per-file parallel cache but keys on the whole
+            # input-files batch so catalogue/extract_all/cleanup re-runs
+            # against unchanged files skip the LLM call entirely.
+            seq_cache = None
+            seq_cache_key = None
+            if _is_seq_cacheable and not skip_cache:
+                library_path = state.get("library_path", "")
+                if library_path:
+                    try:
+                        db_path = Path(library_path) / "fichero.duckdb"
+                        if db_path.exists():
+                            seq_cache = get_node_cache(db_path)
+                            file_paths = list(state.get("files") or [])
+                            seq_cache_key = compute_batch_cache_key(
+                                workflow_id=workflow_id,
+                                node_id=node_id,
+                                tool=node_def.tool,
+                                config=node_def.config,
+                                provider=node_llm_config.provider,
+                                model=node_llm_config.model,
+                                file_paths=file_paths,
+                            )
+                            cached_result = seq_cache.get(seq_cache_key)
+                            if cached_result is not None and not _result_worth_caching(
+                                cached_result
+                            ):
+                                logger.info(
+                                    "Stale empty sequential cache entry for %s; ignoring",
+                                    node_label,
+                                )
+                                cached_result = None
+                            if cached_result is not None:
+                                logger.info(
+                                    "Sequential cache HIT: %s (%d files)",
+                                    node_label,
+                                    len(file_paths),
+                                )
+                                outputs = dict(state.get("outputs", {}))
+                                outputs[node_id] = cached_result.result
+                                completed = list(state.get("completed_nodes", []))
+                                completed.append(node_id)
+                                return {
+                                    "outputs": outputs,
+                                    "completed_nodes": completed,
+                                    "current_node": node_id,
+                                }
+                    except Exception as cache_err:
+                        logger.warning(
+                            "Sequential cache check failed for %s: %s",
+                            node_label,
+                            cache_err,
+                        )
 
             # Call the tool with resolved inputs
             result = await tool_fn(
@@ -641,6 +828,15 @@ def _make_node_function(
                     total_count=1,
                     errors=[{"node": node_id, "error": error_msg}],
                 )
+
+            # #2613: a node that intentionally has nothing to do (e.g. an
+            # empty-query Reference Corpus Search) reports a clear skip and
+            # lets the pipeline continue with empty outputs. It must NOT be
+            # treated as a failure or run through the quality gate.
+            if isinstance(result, dict) and result.get("skipped"):
+                skip_reason = result.get("skip_reason", "skipped")
+                print(f"[STEP] ⊘ SKIPPED: {node_label} — {skip_reason}")
+                logger.info("Node %s skipped: %s", node_id, skip_reason)
 
             # Quality gate (#1029): a node can return without raising yet
             # produce garbage — a page that OCR'd to box glyphs, a
@@ -693,6 +889,30 @@ def _make_node_function(
                         ]
                     else:
                         result["quality_warnings"] = contamination
+
+            # --- Sequential-node batch cache write (#2246) ---
+            if (
+                seq_cache is not None
+                and seq_cache_key is not None
+                and isinstance(result, dict)
+                and _result_worth_caching(result)
+            ):
+                try:
+                    seq_cache.set(
+                        cache_key=seq_cache_key,
+                        result=result,
+                        workflow_id=workflow_id,
+                        node_id=node_id,
+                        tool=node_def.tool,
+                        file_path=None,
+                    )
+                    logger.debug(
+                        "Sequential cache SET: %s (%s)", node_label, seq_cache_key[:16]
+                    )
+                except Exception as cache_err:
+                    logger.warning(
+                        "Sequential cache write failed for %s: %s", node_label, cache_err
+                    )
 
             # Update outputs
             outputs = dict(state.get("outputs", {}))
@@ -820,18 +1040,146 @@ def _make_fan_out_function(
                             "parallel_document": doc,
                             "parallel_index": i,
                             "parallel_total": total,
-                            # Preserve essential state
+                            # Preserve essential state. Intentionally NOT
+                            # copying the whole "outputs" dict here (#2532):
+                            # _make_parallel_node_function reads only
+                            # parallel_file/document/index/total + library_path,
+                            # and its tool reads library_path/task_id from
+                            # state — none read "outputs". At thousands of files
+                            # this Send list materialises one payload per file
+                            # BEFORE the vision semaphore throttles anything, so
+                            # duplicating the full outputs-blob per Send was a
+                            # multiplicative RAM cost for data nobody consumed.
+                            # The aggregator runs in the main graph and still
+                            # sees the full outputs channel.
                             "task_id": state.get("task_id", ""),
                             "workflow_id": state.get("workflow_id", ""),
                             "library_path": state.get("library_path", ""),
-                            "outputs": state.get("outputs", {}),
                         },
                     )
                 )
 
+        # Memory bound at large fan-out widths (#2532/#2541 C3). Three costs,
+        # only one of which is dangerous and it is already capped:
+        #
+        #  1. HEAVY in-flight work (image bytes, LLM request/response buffers).
+        #     This is the OOM risk. It is bounded NOT here but at execution
+        #     time: _make_parallel_node_function wraps each tool call in the
+        #     module-global vision semaphore (_get_vision_semaphore, cap
+        #     VISION_FAN_OUT_CONCURRENCY=4). LangGraph creates a coroutine per
+        #     Send, but all but ~4 block on the semaphore before allocating any
+        #     heavy buffer, so peak heavy memory is O(4), independent of file
+        #     count. test_parallel_fan_out_bounds_concurrency locks this.
+        #
+        #  2. This Send list: O(files) lightweight descriptors. Each payload was
+        #     trimmed (above) to a handful of small fields — NO "outputs" blob —
+        #     so 5,000 files is a few MB of dict descriptors, not the
+        #     multiplicative outputs-per-Send cost that motivated the trim.
+        #
+        #  3. parallel_results retention until the aggregator barrier — see the
+        #     ponytail note in _make_aggregation_function. That is the genuine
+        #     remaining O(files) ceiling; bounding it means streaming the
+        #     barrier, which is the invasive "needs its own design" change.
+        #
+        # ponytail: chunking files into multi-file Sends would shrink (2) but is
+        # deliberately NOT done — the per-file Send is a hard contract
+        # (exactly-once per-page resume + distinct per-page cache keys, #896,
+        # locked by test_parallel_checkpointer_resume), and a multi-file Send
+        # loses per-file checkpoint/resume granularity. (2) is cheap; the real
+        # throttle is the semaphore in (1).
         return sends
 
     return fan_out
+
+
+def _make_route_map_fan_out_function(
+    route_key: str,
+    route_map: dict[str, str],
+    node_names: dict[str, str],
+    route_map_parallel: dict[str, str],
+):
+    """Create a combined route + fan-out conditional edge function (#2236).
+
+    When the route_key resolves to a PARALLEL_TOOL target, returns Send() objects
+    (one per file from the upstream SOURCE_TOOL) instead of a string node name.
+    For non-parallel targets, returns the target node name (standard routing).
+
+    NOTE: no return type annotation — add_conditional_edges calls get_type_hints()
+    in the module namespace where local Send import is not defined.
+    """
+    from langgraph.types import Send  # noqa: PLC0415
+
+    first_target_id = next(iter(route_map.values()), "")
+    first_is_parallel = first_target_id in route_map_parallel
+    first_fallback = (
+        f"{node_names[first_target_id]}_process"
+        if first_is_parallel and first_target_id in node_names
+        else node_names.get(first_target_id, "")
+    )
+
+    def route_and_fan_out(state: State):
+        from fichero.workflows.resolver import resolve_value  # noqa: PLC0415
+
+        val = resolve_value(route_key, state, None)
+        val_str = str(val) if val is not None else ""
+        target_id = route_map.get(val_str)
+
+        if not target_id or target_id not in node_names:
+            logger.warning(
+                "route_map_fan_out: key %r resolved to unknown value %r; "
+                "falling back to %s", route_key, val_str, first_fallback,
+            )
+            return first_fallback
+
+        target_name = node_names[target_id]
+
+        if target_id not in route_map_parallel:
+            return target_name
+
+        # Fan out: one Send per file from the upstream SOURCE_TOOL
+        files_source_id = route_map_parallel[target_id]
+        source_output = state.get("outputs", {}).get(files_source_id, {})
+        files = source_output.get("files", [])
+        documents = source_output.get("documents", [])
+
+        if not files:
+            logger.warning(
+                "route_map_fan_out: no files from %s to fan out to %s",
+                files_source_id, target_id,
+            )
+            return f"{target_name}_process"
+
+        total = len(files)
+        sends = []
+        for i, file_path in enumerate(files):
+            doc = None
+            if i < len(documents):
+                doc = documents[i]
+            elif documents:
+                for d in documents:
+                    if isinstance(d, dict) and d.get("path") == file_path:
+                        doc = d
+                        break
+            sends.append(
+                Send(
+                    f"{target_name}_process",
+                    {
+                        "parallel_file": file_path,
+                        "parallel_document": doc,
+                        "parallel_index": i,
+                        "parallel_total": total,
+                        # No "outputs" blob per Send — see _make_fan_out_function
+                        # (#2532): the parallel worker + its tool read only the
+                        # parallel_* keys + library_path/task_id, never outputs.
+                        "task_id": state.get("task_id", ""),
+                        "workflow_id": state.get("workflow_id", ""),
+                        "library_path": state.get("library_path", ""),
+                    },
+                )
+            )
+        return sends
+
+    return route_and_fan_out
 
 
 def _make_parallel_node_function(
@@ -865,6 +1213,22 @@ def _make_parallel_node_function(
         document = state.get("parallel_document")
         index = state.get("parallel_index", 0)
         total = state.get("parallel_total", 1)
+
+        event_document_meta: dict[str, Any] = {}
+        if isinstance(document, dict):
+            leaf_id = document.get("id")
+            parent_id = document.get("parent_id")
+            display_name = document.get("name")
+            sequence = document.get("sequence")
+            if isinstance(parent_id, str) and parent_id and isinstance(leaf_id, str) and leaf_id:
+                event_document_meta["document_id"] = parent_id
+                event_document_meta["page_id"] = leaf_id
+            elif isinstance(leaf_id, str) and leaf_id:
+                event_document_meta["document_id"] = leaf_id
+            if isinstance(display_name, str) and display_name:
+                event_document_meta["display_name"] = display_name
+            if isinstance(sequence, int):
+                event_document_meta["sequence"] = sequence
 
         # Get library path for cache access
         library_path = state.get("library_path", "")
@@ -923,12 +1287,13 @@ def _make_parallel_node_function(
                                     {
                                         "node_id": node_id,
                                         "file_path": file_path,
-                                        "file_index": index,
-                                        "file_total": total,
-                                        "progress": float(index + 1) / max(total, 1),
-                                        "cached": True,
-                                    },
-                                )
+                                    "file_index": index,
+                                    "file_total": total,
+                                    "progress": float(index + 1) / max(total, 1),
+                                    "cached": True,
+                                    **event_document_meta,
+                                },
+                            )
                             except Exception as cb_err:
                                 logger.warning(
                                     f"Failed to emit cached file_complete event: {cb_err}"
@@ -963,6 +1328,7 @@ def _make_parallel_node_function(
                         "file_index": index,
                         "file_total": total,
                         "progress": float(index) / max(total, 1),
+                        **event_document_meta,
                     },
                 )
             except Exception as e:
@@ -988,16 +1354,20 @@ def _make_parallel_node_function(
                     payload.setdefault("file_path", file_path)
                     payload.setdefault("file_index", index)
                     payload.setdefault("file_total", total)
+                    for meta_key, meta_value in event_document_meta.items():
+                        payload.setdefault(meta_key, meta_value)
                     await event_callback(event_type, payload)
 
                 tool_inputs["__progress_callback"] = emit_tool_progress
 
-            # Call the tool
-            result = await tool_fn(
-                inputs=tool_inputs,
-                state=state,
-                llm_config=node_llm_config,
-            )
+            # Cap concurrent in-flight vision/LLM calls to avoid OOM when a
+            # large batch dispatches dozens of Sends simultaneously (#2221).
+            async with _get_vision_semaphore():
+                result = await tool_fn(
+                    inputs=tool_inputs,
+                    state=state,
+                    llm_config=node_llm_config,
+                )
 
             # Check for errors - both top-level and in results array
             error_msg = None
@@ -1026,6 +1396,7 @@ def _make_parallel_node_function(
                                 "file_total": total,
                                 "error": error_msg,
                                 "progress": float(index + 1) / max(total, 1),
+                                **event_document_meta,
                             },
                         )
                     except Exception as cb_err:
@@ -1080,6 +1451,7 @@ def _make_parallel_node_function(
                             "file_index": index,
                             "file_total": total,
                             "progress": float(index + 1) / max(total, 1),
+                            **event_document_meta,
                         },
                     )
                 except Exception as cb_err:
@@ -1126,6 +1498,7 @@ def _make_parallel_node_function(
                             "file_total": total,
                             "error": error_msg,
                             "progress": float(index + 1) / max(total, 1),
+                            **event_document_meta,
                         },
                     )
                 except Exception as cb_err:
@@ -1173,6 +1546,23 @@ def _make_aggregation_function(node_id: str):
         issue). The deferred-emission pattern lets LangGraph's Send fan-
         out work as a true barrier.
         """
+        # ponytail (#2541 C3 aggregator ceiling): this barrier holds ALL branch
+        # results in State until the last Send lands — parallel_results[node_id]
+        # is a list of `total` entries, each carrying the branch's full `result`
+        # dict (transcription text, page_records, artifacts). At thousands of
+        # files this is the dominant retained memory: O(files × result_size),
+        # e.g. ~5,000 pages × a few KB of text/records ≈ tens of MB, plus the
+        # per-Send checkpoint write-amplification the checkpointer must persist.
+        # Bounding it requires STREAMING aggregation (persist + drop each branch
+        # result as it lands, emit downstream incrementally) instead of the
+        # all-at-once barrier — but the barrier is a correctness contract:
+        # downstream nodes (catalogue, kg_writer) consume the COMPLETE aggregate,
+        # and the deferred-emission barrier is exactly what fixed #837. Streaming
+        # it is a separate design (incremental reducers + a downstream that can
+        # consume partial input) and is intentionally NOT half-done here. Ceiling
+        # for now: a run fans out at most one PARALLEL node's worth of pages at a
+        # time, so peak retention is bounded by the largest single fan-out's
+        # total page count, not the whole library.
         parallel_results = state.get("parallel_results", {}).get(node_id, [])
 
         if not parallel_results:
@@ -1339,9 +1729,15 @@ def _make_route_function(
     """Create a routing function for multi-way conditional edges.
 
     Resolves route_key from state, looks up the result in route_map (value →
-    node ID), and returns the corresponding graph node name.  Falls back to the
-    first route_map entry when the resolved value is unknown so the workflow
-    never silently stalls.
+    node ID), and returns the corresponding graph node name.
+
+    Behaviour when the value is unknown or needs_human_selection=True:
+    - If the route_map has a "needs_human_selection" branch AND the source node
+      set needs_human_selection=True (or the value is not in the route_map),
+      the workflow is routed there so the condition is surfaced explicitly
+      rather than silently continuing down an arbitrary branch.
+    - If no such branch exists, falls back to the first route_map entry and
+      logs at ERROR level so the missing branch is discoverable. (#2238)
 
     NOTE: no return type annotation — add_conditional_edges calls
     get_type_hints() in the module namespace where local imports are not
@@ -1350,16 +1746,44 @@ def _make_route_function(
     from fichero.workflows.resolver import resolve_value  # noqa: PLC0415
 
     first_node_name = node_names.get(next(iter(route_map.values()), ""), "")
+    # Derive the needs_human_selection key from the same JSONPath namespace
+    # as route_key so we don't need to hard-code the source node name.
+    # e.g. "$.nodes.classify.script_type" → "$.nodes.classify.needs_human_selection"
+    parts = route_key.rsplit(".", 1)
+    needs_human_key = parts[0] + ".needs_human_selection" if len(parts) == 2 else ""
 
     def route(state: State):
         val = resolve_value(route_key, state, None)
         val_str = str(val) if val is not None else ""
+
+        # Honour the needs_human_selection signal from the source node (#2238).
+        # Prefer a dedicated "needs_human_selection" branch when available.
+        needs_human = bool(
+            needs_human_key and resolve_value(needs_human_key, state, False)
+        )
+        if needs_human and "needs_human_selection" in route_map:
+            human_target = route_map["needs_human_selection"]
+            if human_target in node_names:
+                logger.info(
+                    "route_map: %r → needs_human_selection=True; routing to %s",
+                    route_key,
+                    node_names[human_target],
+                )
+                return node_names[human_target]
+
         target_id = route_map.get(val_str)
         if target_id and target_id in node_names:
             return node_names[target_id]
-        logger.warning(
-            "route_map: key %r resolved to unknown value %r; falling back to %s",
-            route_key, val_str, first_node_name,
+
+        logger.error(
+            "route_map: key %r resolved to unknown value %r "
+            "(needs_human_selection=%r); falling back to %s. "
+            "Add a '%s' or 'needs_human_selection' branch to the workflow route_map.",
+            route_key,
+            val_str,
+            needs_human,
+            first_node_name,
+            val_str,
         )
         return first_node_name
 

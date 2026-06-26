@@ -9,12 +9,15 @@ import logging
 from typing import Any, Optional
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel, ConfigDict
+from fastapi import APIRouter, Depends, Header, HTTPException
+from pydantic import BaseModel, ConfigDict, Field
 
 from fichero.app_db import get_app_db
 from fichero.db import Database
-from fichero.api.main import get_library_database
+from fichero.api.library_header import require_library_path
+from fichero.api.auth import request_actor
+from fichero.api.change_stream import emit_change
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.llm import get_model_cost
 from fichero.workflows.types import (
     ToolDef,
@@ -32,6 +35,7 @@ from fichero.workflows.registry import (
     create_node_from_tool,
     enrich_node_with_ports,
 )
+from fichero.models import ReinstallDefaultWorkflowsResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -76,6 +80,7 @@ class ToolResponse(BaseModel):
     supports_streaming: bool
     supports_structured_output: bool
     sort_order: int
+    tested: bool = False  # False = UNTESTED; only the HTR chain is tested today
 
 
 class CategoryToolsResponse(BaseModel):
@@ -120,6 +125,22 @@ class WorkflowResponse(BaseModel):
     edges: list[EdgeDef]
     folder_path: str
     sort_order: int
+    # True = shipped preset that has NOT been validated end-to-end. The UI
+    # appends "(Untested)" to the name. A preset is trusted only when its JSON
+    # config carries `"tested": true` (today: only "Transcribe HTR"). User
+    # workflows (is_system=False) are never flagged.
+    untested: bool = False
+
+
+def _workflow_untested(wf) -> bool:
+    """A shipped preset is untested unless its config opts in with tested=true.
+
+    Tied to the preset definition, not the node tools: several presets reuse
+    the same validated HTR tools yet are not themselves validated workflows.
+    """
+    return bool(getattr(wf, "is_system", False)) and not bool(
+        (getattr(wf, "config", None) or {}).get("tested", False)
+    )
 
 
 class WorkflowListResponse(BaseModel):
@@ -227,17 +248,15 @@ def _dict_to_node_def(node_dict: dict, enrich_ports: bool = True) -> NodeDef:
 
 
 def _dict_to_edge_def(edge_dict: dict) -> EdgeDef:
-    """Convert an edge dict from database to EdgeDef."""
-    return EdgeDef(
-        id=edge_dict.get("id", ""),
-        source=edge_dict.get("source", ""),
-        target=edge_dict.get("target", ""),
-        source_port=edge_dict.get("source_port", "output"),
-        target_port=edge_dict.get("target_port", "input"),
-        condition=edge_dict.get("condition"),
-        label=edge_dict.get("label"),
-        animated=edge_dict.get("animated", False),
-    )
+    """Convert a persisted edge dict to a typed EdgeDef.
+
+    Delegates to ``EdgeDef.model_validate`` so the single typed boundary owns
+    deserialization: it normalizes the ``source_port``/``source_port_id`` (and
+    ``source``/``source_node_id``) drift and preserves conditional-routing
+    fields (``condition``/``route_key``/``route_map``) that an explicit
+    field-by-field copy previously dropped (#2537).
+    """
+    return EdgeDef.model_validate(edge_dict)
 
 
 def _port_to_response(port: PortDef) -> PortResponse:
@@ -275,6 +294,7 @@ def _tool_to_response(tool: ToolDef) -> ToolResponse:
         supports_streaming=tool.supports_streaming,
         supports_structured_output=tool.supports_structured_output,
         sort_order=tool.sort_order,
+        tested=tool.tested,
     )
 
 
@@ -440,6 +460,11 @@ async def create_node(
     tool_name: str,
     position_x: float = 0,
     position_y: float = 0,
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> NodeResponse:
     """Create a new node instance from a tool.
 
@@ -448,6 +473,15 @@ async def create_node(
     node = create_node_from_tool(tool_name, position_x, position_y)
     if not node:
         raise HTTPException(status_code=404, detail=f"Tool not found: {tool_name}")
+
+    emit_change(
+        x_fichero_library_path,
+        type="workflow.updated",
+        actor=actor,
+        run_id=None,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
 
     return NodeResponse(
         id=node.id,
@@ -466,29 +500,51 @@ async def create_node(
 # =============================================================================
 
 
+def create_workflow_impl(db: Database, workflow: WorkflowDef) -> "Workflow":  # noqa: F821
+    """Build + persist a node-based workflow from a WorkflowDef (the proven
+    create logic, extracted verbatim from the ``POST /api/workflows`` route).
+
+    Both the route and the ``workflow.create`` action (EPIC #1848) drive this
+    same code — iterate-not-replace: the algorithm is wrapped, never re-derived.
+    Uses ``model_dump_for_storage()`` so ports (registry-owned) are not persisted.
+    """
+    from fichero.models import Workflow
+
+    db_workflow = Workflow(
+        name=workflow.name,
+        description=workflow.description or "",
+        format="nodes",
+        provider=workflow.provider or "",
+        model=workflow.model or "",
+        nodes=[node.model_dump_for_storage() for node in workflow.nodes],
+        edges=[edge.model_dump() for edge in workflow.edges],
+    )
+    db.save(db_workflow)
+    return db_workflow
+
+
 @router.post("")
 async def create_workflow(
     workflow: WorkflowDef,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> WorkflowResponse:
     """Create and save a workflow definition."""
     try:
-        from fichero.models import Workflow
+        db_workflow = create_workflow_impl(db, workflow)
 
-        # Convert LangGraph workflow to database model
-        # Use model_dump_for_storage() to exclude ports (they come from registry)
-        db_workflow = Workflow(
-            name=workflow.name,
-            description=workflow.description or "",
-            format="nodes",
-            provider=workflow.provider or "",
-            model=workflow.model or "",
-            nodes=[node.model_dump_for_storage() for node in workflow.nodes],
-            edges=[edge.model_dump() for edge in workflow.edges],
+        emit_change(
+            x_fichero_library_path,
+            type="workflow.created",
+            actor=actor,
+            run_id=None,
+            origin_window=x_fichero_origin_window,
+            origin_user=actor,
         )
-
-        # Save to database
-        db.save(db_workflow)
 
         return WorkflowResponse(
             id=db_workflow.id,
@@ -501,10 +557,43 @@ async def create_workflow(
             edges=[_dict_to_edge_def(e) for e in db_workflow.edges],
             folder_path=db_workflow.folder_path,
             sort_order=db_workflow.sort_order,
+            untested=_workflow_untested(db_workflow),
         )
     except Exception as e:
         logger.exception("Failed to create workflow")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+def import_workflow_impl(
+    db: Database, name: str, description: str, workflow_data: dict
+) -> "Workflow":  # noqa: F821
+    """Validate + persist a workflow from imported JSON (extracted from the
+    ``POST /api/workflows/import`` route so the route and the
+    ``workflow.import`` action share one implementation). Raises
+    ``HTTPException(400)`` when the payload lacks ``nodes``/``edges``."""
+    from fichero.models import Workflow
+
+    if "nodes" not in workflow_data or "edges" not in workflow_data:
+        raise HTTPException(
+            status_code=400, detail="Invalid workflow data: missing nodes or edges"
+        )
+
+    workflow_name = name or workflow_data.get("name", "Imported Workflow")
+    workflow_description = description or workflow_data.get("description", "")
+    workflow_provider = workflow_data.get("provider", "")
+    workflow_model = workflow_data.get("model", "")
+
+    db_workflow = Workflow(
+        name=workflow_name,
+        description=workflow_description,
+        format="nodes",
+        provider=workflow_provider,
+        model=workflow_model,
+        nodes=workflow_data.get("nodes", []),
+        edges=workflow_data.get("edges", []),
+    )
+    db.save(db_workflow)
+    return db_workflow
 
 
 @router.post("/import")
@@ -512,36 +601,25 @@ async def import_workflow(
     name: str = "",
     description: str = "",
     workflow_data: dict = {},
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> WorkflowResponse:
     """Import a workflow from JSON data."""
     try:
-        from fichero.models import Workflow
+        db_workflow = import_workflow_impl(db, name, description, workflow_data)
 
-        # Validate that workflow_data contains required structure
-        if "nodes" not in workflow_data or "edges" not in workflow_data:
-            raise HTTPException(
-                status_code=400, detail="Invalid workflow data: missing nodes or edges"
-            )
-
-        # Create a new workflow with provided data
-        workflow_name = name or workflow_data.get("name", "Imported Workflow")
-        workflow_description = description or workflow_data.get("description", "")
-        workflow_provider = workflow_data.get("provider", "")
-        workflow_model = workflow_data.get("model", "")
-
-        db_workflow = Workflow(
-            name=workflow_name,
-            description=workflow_description,
-            format="nodes",
-            provider=workflow_provider,
-            model=workflow_model,
-            nodes=workflow_data.get("nodes", []),
-            edges=workflow_data.get("edges", []),
+        emit_change(
+            x_fichero_library_path,
+            type="workflow.created",
+            actor=actor,
+            run_id=None,
+            origin_window=x_fichero_origin_window,
+            origin_user=actor,
         )
-
-        # Save to database
-        db.save(db_workflow)
 
         return WorkflowResponse(
             id=db_workflow.id,
@@ -554,6 +632,7 @@ async def import_workflow(
             edges=[_dict_to_edge_def(e) for e in db_workflow.edges],
             folder_path=db_workflow.folder_path,
             sort_order=db_workflow.sort_order,
+            untested=_workflow_untested(db_workflow),
         )
     except HTTPException:
         raise
@@ -596,10 +675,18 @@ async def export_workflow(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/reinstall-defaults")
+@router.post(
+    "/reinstall-defaults",
+    response_model=ReinstallDefaultWorkflowsResponse,
+)
 async def reinstall_default_workflows(
-    db: Database = Depends(get_library_database),
-) -> dict:
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
+) -> ReinstallDefaultWorkflowsResponse:
     """Delete and re-seed the bundled default workflows (Transcribe, Catalogue).
 
     Used when we ship a new preset version (new nodes, fixed edge schema, etc.)
@@ -611,7 +698,16 @@ async def reinstall_default_workflows(
 
     try:
         seeded = seed_default_workflows(db, force=True)
-        return {"seeded": seeded, "status": "ok"}
+
+        emit_change(
+            x_fichero_library_path,
+            type="workflow.created",
+            actor=actor,
+            run_id=None,
+            origin_window=x_fichero_origin_window,
+            origin_user=actor,
+        )
+        return ReinstallDefaultWorkflowsResponse(seeded=seeded, status="ok")
     except Exception as exc:
         logger.exception("Failed to reinstall default workflows")
         raise HTTPException(status_code=500, detail=str(exc))
@@ -647,6 +743,7 @@ async def list_workflows(
                 edges=[_dict_to_edge_def(e) for e in workflow.edges],
                 folder_path=workflow.folder_path,
                 sort_order=workflow.sort_order,
+                untested=_workflow_untested(workflow),
             )
             for workflow in sorted(workflows, key=lambda w: w.sort_order)
         ]
@@ -682,6 +779,7 @@ async def get_workflow(
             edges=[_dict_to_edge_def(e) for e in workflow.edges],
             folder_path=workflow.folder_path,
             sort_order=workflow.sort_order,
+            untested=_workflow_untested(workflow),
         )
     except HTTPException:
         raise
@@ -690,7 +788,9 @@ async def get_workflow(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/{workflow_id}/estimate-cost", response_model=WorkflowCostEstimateResponse)
+@router.post(
+    "/{workflow_id}/estimate-cost", response_model=WorkflowCostEstimateResponse
+)
 async def estimate_workflow_cost(
     workflow_id: str,
     request: WorkflowCostEstimateRequest,
@@ -701,7 +801,9 @@ async def estimate_workflow_cost(
 
     workflow = db.get(Workflow, workflow_id)
     if not workflow:
-        raise HTTPException(status_code=404, detail=f"Workflow not found: {workflow_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Workflow not found: {workflow_id}"
+        )
 
     file_count = max(1, int(request.file_count))
     input_tokens_per_file = max(1, int(request.estimated_input_tokens_per_file))
@@ -715,10 +817,9 @@ async def estimate_workflow_cost(
 
     estimated_input_tokens = file_count * input_tokens_per_file
     estimated_output_tokens = file_count * output_tokens_per_file
-    estimated_cost_usd = (
-        estimated_input_tokens * (input_cost_per_million / 1_000_000)
-        + estimated_output_tokens * (output_cost_per_million / 1_000_000)
-    )
+    estimated_cost_usd = estimated_input_tokens * (
+        input_cost_per_million / 1_000_000
+    ) + estimated_output_tokens * (output_cost_per_million / 1_000_000)
 
     return WorkflowCostEstimateResponse(
         workflow_id=workflow_id,
@@ -735,16 +836,53 @@ async def estimate_workflow_cost(
     )
 
 
+def update_workflow_impl(
+    db: Database, workflow_id: str, workflow: WorkflowDef
+) -> "Workflow":  # noqa: F821
+    """Replace a node-based workflow's editable fields (extracted from the
+    ``PUT /api/workflows/{id}`` route so the route and the ``workflow.update``
+    action share one implementation). Raises ``HTTPException(404)`` for an
+    unknown id. Demotes ``is_template`` once a user edits a preset (#780)."""
+    from fichero.models import Workflow
+
+    existing = db.get(Workflow, workflow_id)
+    if not existing:
+        raise HTTPException(
+            status_code=404, detail=f"Workflow not found: {workflow_id}"
+        )
+
+    # Use model_dump_for_storage() to exclude ports (they come from registry)
+    existing.name = workflow.name
+    existing.description = workflow.description or ""
+    existing.format = "nodes"
+    existing.provider = workflow.provider or ""
+    existing.model = workflow.model or ""
+    existing.nodes = [node.model_dump_for_storage() for node in workflow.nodes]
+    existing.edges = [edge.model_dump() for edge in workflow.edges]
+    existing.updated_at = datetime.now()
+    # Once a user edits a preset workflow, it stops being a template —
+    # reinstall-defaults must NOT wipe it on next app launch (#780).
+    # Same intent as macOS Finder's "user has customized this" flag —
+    # auto-restore is for files the user hasn't touched.
+    if getattr(existing, "is_template", False):
+        existing.is_template = False
+    db.save(existing)
+    return existing
+
+
 @router.put("/{workflow_id}")
 async def update_workflow(
     workflow_id: str,
     workflow: WorkflowDef,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> WorkflowResponse:
     """Update an existing workflow."""
     try:
-        from fichero.models import Workflow
-
         # Debug: log what's being received and saved
         print(f"[UPDATE] workflow: id={workflow_id}")
         print(
@@ -753,33 +891,16 @@ async def update_workflow(
         for node in workflow.nodes[:3]:  # Log first 3 nodes
             print(f"[UPDATE]   node: tool={node.tool}, id={node.id[:8]}...")
 
-        # Get existing workflow
-        existing = db.get(Workflow, workflow_id)
-        if not existing:
-            raise HTTPException(
-                status_code=404, detail=f"Workflow not found: {workflow_id}"
-            )
+        existing = update_workflow_impl(db, workflow_id, workflow)
 
-        # Update fields
-        # Use model_dump_for_storage() to exclude ports (they come from registry)
-        existing.name = workflow.name
-        existing.description = workflow.description or ""
-        existing.format = "nodes"
-        existing.provider = workflow.provider or ""
-        existing.model = workflow.model or ""
-        existing.nodes = [node.model_dump_for_storage() for node in workflow.nodes]
-        existing.edges = [edge.model_dump() for edge in workflow.edges]
-        existing.updated_at = datetime.now()
-        # Once a user edits a preset workflow, it stops being a template —
-        # reinstall-defaults must NOT wipe it on next app launch (#780).
-        # Same intent as macOS Finder's "user has customized this" flag —
-        # auto-restore is for files the user hasn't touched.
-        if getattr(existing, "is_template", False):
-            existing.is_template = False
-            print("[UPDATE]   demoted is_template -> False (user edit)")
-
-        # Save changes
-        db.save(existing)
+        emit_change(
+            x_fichero_library_path,
+            type="workflow.updated",
+            actor=actor,
+            run_id=None,
+            origin_window=x_fichero_origin_window,
+            origin_user=actor,
+        )
 
         # Debug: verify what was saved
         print(
@@ -797,6 +918,7 @@ async def update_workflow(
             edges=[_dict_to_edge_def(e) for e in existing.edges],
             folder_path=existing.folder_path,
             sort_order=existing.sort_order,
+            untested=_workflow_untested(existing),
         )
     except HTTPException:
         raise
@@ -820,36 +942,60 @@ class WorkflowPatchRequest(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+def patch_workflow_impl(
+    db: Database, workflow_id: str, patch: "WorkflowPatchRequest"
+) -> "Workflow":  # noqa: F821
+    """Apply a partial workflow update — rename, move folder, reorder (extracted
+    from the ``PATCH /api/workflows/{id}`` route so the route and the
+    ``workflow.patch`` action share one implementation). Only the explicitly
+    provided fields are written. Raises ``HTTPException(404)`` for an unknown id."""
+    from fichero.models import Workflow
+
+    workflow = db.get(Workflow, workflow_id)
+    if not workflow:
+        raise HTTPException(
+            status_code=404, detail=f"Workflow not found: {workflow_id}"
+        )
+
+    if patch.name is not None:
+        workflow.name = patch.name
+    if patch.description is not None:
+        workflow.description = patch.description
+    if patch.format is not None:
+        workflow.format = patch.format
+    if patch.folder_path is not None:
+        workflow.folder_path = patch.folder_path
+    if patch.sort_order is not None:
+        workflow.sort_order = patch.sort_order
+
+    workflow.updated_at = datetime.now()
+    db.save(workflow)
+    return workflow
+
+
 @router.patch("/{workflow_id}")
 async def patch_workflow(
     workflow_id: str,
     patch: WorkflowPatchRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> WorkflowResponse:
     """Partially update a workflow (rename, move to folder, etc.)."""
     try:
-        from fichero.models import Workflow
+        workflow = patch_workflow_impl(db, workflow_id, patch)
 
-        workflow = db.get(Workflow, workflow_id)
-        if not workflow:
-            raise HTTPException(
-                status_code=404, detail=f"Workflow not found: {workflow_id}"
-            )
-
-        # Apply only the fields that were provided
-        if patch.name is not None:
-            workflow.name = patch.name
-        if patch.description is not None:
-            workflow.description = patch.description
-        if patch.format is not None:
-            workflow.format = patch.format
-        if patch.folder_path is not None:
-            workflow.folder_path = patch.folder_path
-        if patch.sort_order is not None:
-            workflow.sort_order = patch.sort_order
-
-        workflow.updated_at = datetime.now()
-        db.save(workflow)
+        emit_change(
+            x_fichero_library_path,
+            type="workflow.updated",
+            actor=actor,
+            run_id=None,
+            origin_window=x_fichero_origin_window,
+            origin_user=actor,
+        )
 
         return WorkflowResponse(
             id=workflow.id,
@@ -862,6 +1008,7 @@ async def patch_workflow(
             edges=[_dict_to_edge_def(e) for e in workflow.edges],
             folder_path=workflow.folder_path,
             sort_order=workflow.sort_order,
+            untested=_workflow_untested(workflow),
         )
     except HTTPException:
         raise
@@ -870,25 +1017,48 @@ async def patch_workflow(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def delete_workflow_impl(db: Database, workflow_id: str) -> "Workflow":  # noqa: F821
+    """Delete a saved workflow and return the deleted row (extracted from the
+    ``DELETE /api/workflows/{id}`` route so the route and the ``workflow.delete``
+    action share one implementation). Returning the row lets the action snapshot
+    it as the undo payload. Raises ``HTTPException(404)`` for an unknown id."""
+    from fichero.models import Workflow
+
+    workflow = db.get(Workflow, workflow_id)
+    if not workflow:
+        raise HTTPException(
+            status_code=404, detail=f"Workflow not found: {workflow_id}"
+        )
+    db.delete(workflow)
+    return workflow
+
+
 @router.delete("/{workflow_id}")
 async def delete_workflow(
     workflow_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> WorkflowDeletedResponse:
     """Delete a saved workflow."""
     try:
-        from fichero.models import Workflow
+        delete_workflow_impl(db, workflow_id)
 
-        workflow = db.get(Workflow, workflow_id)
-        if not workflow:
-            raise HTTPException(
-                status_code=404, detail=f"Workflow not found: {workflow_id}"
-            )
+        emit_change(
+            x_fichero_library_path,
+            type="workflow.deleted",
+            actor=actor,
+            run_id=None,
+            origin_window=x_fichero_origin_window,
+            origin_user=actor,
+        )
 
-        # Delete from database
-        db.delete(workflow)
-
-        return WorkflowDeletedResponse(message=f"Workflow {workflow_id} deleted successfully")
+        return WorkflowDeletedResponse(
+            message=f"Workflow {workflow_id} deleted successfully"
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -896,37 +1066,57 @@ async def delete_workflow(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def duplicate_workflow_impl(db: Database, workflow_id: str) -> "Workflow":  # noqa: F821
+    """Duplicate a workflow with a new id and "(Copy)" name (extracted from the
+    ``POST /api/workflows/{id}/duplicate`` route so the route and the
+    ``workflow.duplicate`` action share one implementation). Raises
+    ``HTTPException(404)`` for an unknown id."""
+    from fichero.models import Workflow
+
+    original = db.get(Workflow, workflow_id)
+    if not original:
+        raise HTTPException(
+            status_code=404, detail=f"Workflow not found: {workflow_id}"
+        )
+
+    new_workflow = Workflow(
+        name=f"{original.name} (Copy)",
+        description=original.description,
+        format=original.format,
+        provider=original.provider,
+        model=original.model,
+        nodes=original.nodes,
+        edges=original.edges,
+        folder_path=original.folder_path,  # Keep in same folder
+        sort_order=original.sort_order,  # Preserve order preference
+        untested=_workflow_untested(original),
+    )
+    db.save(new_workflow)  # generates a new id
+    return new_workflow
+
+
 @router.post("/{workflow_id}/duplicate")
 async def duplicate_workflow(
     workflow_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> WorkflowResponse:
     """Duplicate a workflow with a new ID and modified name."""
     try:
-        from fichero.models import Workflow
+        new_workflow = duplicate_workflow_impl(db, workflow_id)
 
-        # Get the original workflow
-        original = db.get(Workflow, workflow_id)
-        if not original:
-            raise HTTPException(
-                status_code=404, detail=f"Workflow not found: {workflow_id}"
-            )
-
-        # Create a new workflow with same properties but new ID and modified name
-        new_workflow = Workflow(
-            name=f"{original.name} (Copy)",
-            description=original.description,
-            format=original.format,
-            provider=original.provider,
-            model=original.model,
-            nodes=original.nodes,
-            edges=original.edges,
-            folder_path=original.folder_path,  # Keep in same folder
-            sort_order=original.sort_order,  # Preserve order preference
+        emit_change(
+            x_fichero_library_path,
+            type="workflow.created",
+            actor=actor,
+            run_id=None,
+            origin_window=x_fichero_origin_window,
+            origin_user=actor,
         )
-
-        # Save to database (this will generate a new ID)
-        db.save(new_workflow)
 
         return WorkflowResponse(
             id=new_workflow.id,
@@ -939,6 +1129,7 @@ async def duplicate_workflow(
             edges=[_dict_to_edge_def(e) for e in new_workflow.edges],
             folder_path=new_workflow.folder_path,
             sort_order=new_workflow.sort_order,
+            untested=_workflow_untested(new_workflow),
         )
     except HTTPException:
         raise
@@ -947,27 +1138,51 @@ async def duplicate_workflow(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def reorder_workflows_impl(
+    db: Database, workflow_ids: list[str], folder_path: str = "/"
+) -> "list[Workflow]":  # noqa: F821
+    """Assign ``sort_order = position`` for each workflow in ``workflow_ids``
+    (extracted from the ``POST /api/workflows/reorder`` route so the route and
+    the ``workflow.reorder`` action share one implementation). Returns the
+    updated rows. Raises ``HTTPException(404)`` for an unknown id."""
+    from fichero.models import Workflow
+
+    updated: list[Workflow] = []
+    for i, workflow_id in enumerate(workflow_ids):
+        workflow = db.get(Workflow, workflow_id)
+        if not workflow:
+            raise HTTPException(
+                status_code=404, detail=f"Workflow not found: {workflow_id}"
+            )
+        workflow.sort_order = i
+        db.save(workflow)
+        updated.append(workflow)
+    return updated
+
+
 @router.post("/reorder")
 async def reorder_workflows(
     workflow_ids: list[str],
     folder_path: str = "/",
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> WorkflowReorderResponse:
     """Reorder workflows within a folder."""
     try:
-        from fichero.models import Workflow
+        reorder_workflows_impl(db, workflow_ids, folder_path)
 
-        # Update sort_order for each workflow
-        for i, workflow_id in enumerate(workflow_ids):
-            workflow = db.get(Workflow, workflow_id)
-            if not workflow:
-                raise HTTPException(
-                    status_code=404, detail=f"Workflow not found: {workflow_id}"
-                )
-
-            # Update sort order
-            workflow.sort_order = i
-            db.save(workflow)
+        emit_change(
+            x_fichero_library_path,
+            type="workflow.updated",
+            actor=actor,
+            run_id=None,
+            origin_window=x_fichero_origin_window,
+            origin_user=actor,
+        )
 
         return WorkflowReorderResponse(status="reordered", count=len(workflow_ids))
     except HTTPException:
@@ -975,3 +1190,417 @@ async def reorder_workflows(
     except Exception as e:
         logger.exception("Failed to reorder workflows")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# Action layer registration (EPIC #1848 / sweep #2014) — workflow domain
+# ---------------------------------------------------------------------------
+#
+# Every workflow mutation (create / import / update / patch / delete /
+# duplicate / reorder / create_node) becomes a registered, audited action that
+# WRAPS the proven ``*_impl`` above — the typed routes stay green and untouched;
+# the action is the additional uniform path that chat tools / App Intents /
+# tests drive via POST /api/actions/invoke. ``before``/``after`` snapshots ARE
+# the undo payload.
+#
+# Undo design: ``db.save`` is an upsert by id, so a single ``workflow.restore``
+# (full-snapshot upsert) inverts BOTH a delete (re-inserts the row, same id) and
+# an edit (overwrites with the prior snapshot). ``restore`` records whether the
+# row pre-existed, so its OWN inverse is ``delete`` (after a recreate) or
+# ``restore`` (after an overwrite) — keeping every undo/redo chain sane.
+# ``reorder``/``set_sort_orders`` are inverted by re-applying the captured prior
+# (id -> sort_order) map. ``create_node`` is a pure factory (no persisted DB
+# state) so it is NOT undoable.
+
+from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
+
+
+def _snap_workflow(wf) -> dict:
+    """JSON-able snapshot of a Workflow row (the undo payload)."""
+    return wf.model_dump(mode="json")
+
+
+class WorkflowUpdateParams(BaseModel):
+    """``workflow.update`` params — the full WorkflowDef plus its target id."""
+
+    workflow_id: str
+    workflow: WorkflowDef
+
+
+class WorkflowPatchParams(WorkflowPatchRequest):
+    """``workflow.patch`` params — the patch fields plus the target id."""
+
+    workflow_id: str
+
+
+class WorkflowImportParams(BaseModel):
+    name: str = ""
+    description: str = ""
+    workflow_data: dict = Field(default_factory=dict)
+
+
+class WorkflowIdParams(BaseModel):
+    """Shared params for id-only actions (delete / duplicate)."""
+
+    workflow_id: str
+
+
+class WorkflowRestoreParams(BaseModel):
+    """``workflow.restore`` — re-materialize / overwrite a workflow by snapshot."""
+
+    snapshot: dict
+
+
+class WorkflowReorderParams(BaseModel):
+    workflow_ids: list[str]
+    folder_path: str = "/"
+
+
+class _SortOrderEntry(BaseModel):
+    id: str
+    sort_order: int
+
+
+class WorkflowSetSortOrdersParams(BaseModel):
+    """Inverse-of-reorder: set explicit (id -> sort_order) for each entry."""
+
+    orders: list[_SortOrderEntry]
+
+
+class WorkflowCreateNodeParams(BaseModel):
+    tool_name: str
+    position_x: float = 0
+    position_y: float = 0
+
+
+def _invert_to_delete(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Undo a create/import/duplicate by hard-deleting the row it produced."""
+    if not after:
+        return None
+    wid = after.get("id")
+    if not wid:
+        return None
+    return ("workflow.delete", {"workflow_id": wid})
+
+
+def _invert_to_restore_before(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Undo an edit/delete by restoring the captured pre-change snapshot."""
+    if not before:
+        return None
+    return ("workflow.restore", {"snapshot": before})
+
+
+def _invert_restore(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Inverse of restore — depends on whether the row pre-existed.
+
+    If ``before`` is None the restore RE-CREATED a missing row (it was undoing a
+    delete) -> redo by deleting again. If ``before`` is a snapshot the restore
+    OVERWROTE an existing row (undoing an edit) -> redo by restoring that prior
+    snapshot, which re-applies the edit. This keeps delete<->restore and
+    edit<->restore redo chains correct."""
+    if not after:
+        return None
+    wid = after.get("id")
+    if before is None:
+        if not wid:
+            return None
+        return ("workflow.delete", {"workflow_id": wid})
+    return ("workflow.restore", {"snapshot": before})
+
+
+def _invert_set_sort_orders(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Undo a reorder / set-sort-orders by re-applying the prior order map."""
+    if not before or not before.get("orders"):
+        return None
+    return ("workflow.set_sort_orders", {"orders": before["orders"]})
+
+
+@action(
+    "workflow.create",
+    WorkflowDef,
+    domains=["workflow"],
+    undoable=True,
+    invert=_invert_to_delete,
+)
+def _action_create_workflow(
+    db: Database, params: WorkflowDef, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    wf = create_workflow_impl(db, params)
+    after = _snap_workflow(wf)
+    spec = ChangeSpec(
+        domains=["workflow"],
+        target_ids=[wf.id],
+        before=None,
+        after=after,
+        emit_type="workflow.created",
+    )
+    return after, spec
+
+
+@action(
+    "workflow.import",
+    WorkflowImportParams,
+    domains=["workflow"],
+    undoable=True,
+    invert=_invert_to_delete,
+)
+def _action_import_workflow(
+    db: Database, params: WorkflowImportParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    wf = import_workflow_impl(db, params.name, params.description, params.workflow_data)
+    after = _snap_workflow(wf)
+    spec = ChangeSpec(
+        domains=["workflow"],
+        target_ids=[wf.id],
+        before=None,
+        after=after,
+        emit_type="workflow.created",
+    )
+    return after, spec
+
+
+@action(
+    "workflow.update",
+    WorkflowUpdateParams,
+    domains=["workflow"],
+    undoable=True,
+    invert=_invert_to_restore_before,
+)
+def _action_update_workflow(
+    db: Database, params: WorkflowUpdateParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    from fichero.models import Workflow
+
+    existing = db.get(Workflow, params.workflow_id)
+    if existing is None:
+        raise HTTPException(
+            status_code=404, detail=f"Workflow not found: {params.workflow_id}"
+        )
+    before = _snap_workflow(existing)
+    wf = update_workflow_impl(db, params.workflow_id, params.workflow)
+    after = _snap_workflow(wf)
+    spec = ChangeSpec(
+        domains=["workflow"],
+        target_ids=[wf.id],
+        before=before,
+        after=after,
+        emit_type="workflow.updated",
+    )
+    return after, spec
+
+
+@action(
+    "workflow.patch",
+    WorkflowPatchParams,
+    domains=["workflow"],
+    undoable=True,
+    invert=_invert_to_restore_before,
+)
+def _action_patch_workflow(
+    db: Database, params: WorkflowPatchParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    from fichero.models import Workflow
+
+    existing = db.get(Workflow, params.workflow_id)
+    if existing is None:
+        raise HTTPException(
+            status_code=404, detail=f"Workflow not found: {params.workflow_id}"
+        )
+    before = _snap_workflow(existing)
+    patch = WorkflowPatchRequest(
+        **params.model_dump(exclude={"workflow_id"}, exclude_unset=True)
+    )
+    wf = patch_workflow_impl(db, params.workflow_id, patch)
+    after = _snap_workflow(wf)
+    spec = ChangeSpec(
+        domains=["workflow"],
+        target_ids=[wf.id],
+        before=before,
+        after=after,
+        emit_type="workflow.updated",
+    )
+    return after, spec
+
+
+@action(
+    "workflow.delete",
+    WorkflowIdParams,
+    domains=["workflow"],
+    undoable=True,
+    invert=_invert_to_restore_before,
+)
+def _action_delete_workflow(
+    db: Database, params: WorkflowIdParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    deleted = delete_workflow_impl(db, params.workflow_id)
+    before = _snap_workflow(deleted)
+    spec = ChangeSpec(
+        domains=["workflow"],
+        target_ids=[params.workflow_id],
+        before=before,
+        after=None,
+        emit_type="workflow.deleted",
+    )
+    return before, spec
+
+
+@action(
+    "workflow.restore",
+    WorkflowRestoreParams,
+    domains=["workflow"],
+    undoable=True,
+    invert=_invert_restore,
+)
+def _action_restore_workflow(
+    db: Database, params: WorkflowRestoreParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Upsert a workflow from its snapshot (preserving id). Records whether the
+    row pre-existed so its inverse picks delete (recreate) vs restore (edit)."""
+    from fichero.models import Workflow
+
+    wid = params.snapshot.get("id")
+    existing = db.get(Workflow, wid) if wid else None
+    before = _snap_workflow(existing) if existing else None
+    wf = Workflow(**params.snapshot)
+    db.save(wf)
+    after = _snap_workflow(wf)
+    spec = ChangeSpec(
+        domains=["workflow"],
+        target_ids=[wf.id],
+        before=before,
+        after=after,
+        emit_type="workflow.updated" if before else "workflow.created",
+    )
+    return after, spec
+
+
+@action(
+    "workflow.duplicate",
+    WorkflowIdParams,
+    domains=["workflow"],
+    undoable=True,
+    invert=_invert_to_delete,
+)
+def _action_duplicate_workflow(
+    db: Database, params: WorkflowIdParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    wf = duplicate_workflow_impl(db, params.workflow_id)
+    after = _snap_workflow(wf)
+    spec = ChangeSpec(
+        domains=["workflow"],
+        target_ids=[wf.id],
+        before=None,
+        after=after,
+        emit_type="workflow.created",
+    )
+    return after, spec
+
+
+@action(
+    "workflow.reorder",
+    WorkflowReorderParams,
+    domains=["workflow"],
+    undoable=True,
+    invert=_invert_set_sort_orders,
+)
+def _action_reorder_workflows(
+    db: Database, params: WorkflowReorderParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    from fichero.models import Workflow
+
+    # Capture prior sort_order for each id BEFORE the impl reassigns them, so the
+    # inverse can restore the exact prior ordering (reorder is NOT a contiguous
+    # 0..n permutation of the same set — undo must use explicit per-id orders).
+    before_orders = []
+    for wid in params.workflow_ids:
+        wf = db.get(Workflow, wid)
+        if wf is not None:
+            before_orders.append({"id": wid, "sort_order": wf.sort_order})
+    updated = reorder_workflows_impl(db, params.workflow_ids, params.folder_path)
+    after_orders = [{"id": w.id, "sort_order": w.sort_order} for w in updated]
+    spec = ChangeSpec(
+        domains=["workflow"],
+        target_ids=list(params.workflow_ids),
+        before={"orders": before_orders},
+        after={"orders": after_orders},
+        emit_type="workflow.updated",
+    )
+    return {"count": len(updated)}, spec
+
+
+@action(
+    "workflow.set_sort_orders",
+    WorkflowSetSortOrdersParams,
+    domains=["workflow"],
+    undoable=True,
+    invert=_invert_set_sort_orders,
+)
+def _action_set_sort_orders(
+    db: Database, params: WorkflowSetSortOrdersParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Inverse-of-reorder: set explicit per-id sort_order values. Itself
+    undoable + redoable via the captured before/after order maps."""
+    from fichero.models import Workflow
+
+    before_orders = []
+    after_orders = []
+    for entry in params.orders:
+        wf = db.get(Workflow, entry.id)
+        if wf is None:
+            raise HTTPException(
+                status_code=404, detail=f"Workflow not found: {entry.id}"
+            )
+        before_orders.append({"id": wf.id, "sort_order": wf.sort_order})
+        wf.sort_order = entry.sort_order
+        db.save(wf)
+        after_orders.append({"id": wf.id, "sort_order": entry.sort_order})
+    spec = ChangeSpec(
+        domains=["workflow"],
+        target_ids=[e.id for e in params.orders],
+        before={"orders": before_orders},
+        after={"orders": after_orders},
+        emit_type="workflow.updated",
+    )
+    return {"count": len(params.orders)}, spec
+
+
+@action(
+    "workflow.create_node",
+    WorkflowCreateNodeParams,
+    domains=["workflow"],
+    undoable=False,
+)
+def _action_create_node(
+    db: Database, params: WorkflowCreateNodeParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Build a node instance from a tool (pure factory — no persisted DB state,
+    so NOT undoable). Mirrors the ``POST /tools/{tool}/create-node`` route."""
+    node = create_node_from_tool(params.tool_name, params.position_x, params.position_y)
+    if not node:
+        raise HTTPException(
+            status_code=404, detail=f"Tool not found: {params.tool_name}"
+        )
+    node_dict = {
+        "id": node.id,
+        "tool": node.tool,
+        "label": node.label,
+        "description": node.description,
+        "position_x": node.position_x,
+        "position_y": node.position_y,
+    }
+    spec = ChangeSpec(
+        domains=["workflow"],
+        target_ids=[node.id],
+        before=None,
+        after=node_dict,
+        emit_type="workflow.updated",
+    )
+    return node_dict, spec

@@ -4,6 +4,34 @@
 <dict>
 	<key>CFBundleDisplayName</key>
 	<string>Fichero</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_fichero._tcp</string>
+	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Fichero uses the camera to scan pairing QR codes and capture new photos into your queue.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Fichero uses your photo library when you choose existing images to add to the capture queue.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Fichero uses local network discovery to find a nearby Mac host for QR pairing.</string>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
 	<key>NSAppleScriptEnabled</key>
 	<true/>
 	<key>OSAScriptingDefinition</key>

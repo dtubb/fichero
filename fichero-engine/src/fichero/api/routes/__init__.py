@@ -1,7 +1,9 @@
 """API route modules."""
 
 __all__ = [
+    "actions_registry",
     "activity",
+    "auth_accounts",
     "artifacts",
     "batch",
     "chat",
@@ -14,6 +16,8 @@ __all__ = [
     "folders",
     "hermeneutics",
     "ingest",
+    "kg_curation_rules",
+    "library_links",
     "local_models",
     "mcp_servers",
     "mcp_tools",

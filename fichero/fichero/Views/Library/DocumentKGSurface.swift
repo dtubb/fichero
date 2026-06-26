@@ -1,4 +1,3 @@
-import FicheroAPIClient
 import SwiftUI
 
 enum KGGraphRendererFramework: String {
@@ -15,7 +14,8 @@ enum KGGraphRendererFramework: String {
 }
 
 @MainActor
-final class DocumentScrollSyncState: ObservableObject {
+@Observable
+final class DocumentScrollSyncState {
     enum Pane {
         case pdf
         case web
@@ -90,56 +90,98 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Number key for the View-menu "Add View" shortcut (⌃⌥⌘N). Mirrors the
+    /// menu order; chosen to avoid the ⌘N library-layout and ⌃⌘N sidebar-mode
+    /// shortcuts. (#2032)
+    var representationShortcut: Character {
+        switch self {
+        case .transcript: return "1"
+        case .digest: return "2"
+        case .graph: return "3"
+        case .claims: return "4"
+        case .timeline: return "5"
+        case .map: return "6"
+        }
+    }
+
     /// True for tabs rendered inside the shared WKWebView (#1346).
     var usesWebKit: Bool {
         switch self {
-        case .transcript, .digest, .graph: return true
-        case .claims, .timeline, .map: return false
+        case .transcript, .digest, .graph, .timeline, .map: return true
+        case .claims: return false
         }
     }
 }
 
-/// Hosts the WebKit document KG plus native document-scoped claims, timeline,
-/// and map visualizations under one fixed toolbar.
+/// Equatable focused-value wrapper for the active document representation.
+///
+/// Publishing a raw `Binding<KGSurfaceTab>` via `focusedSceneValue` is a perf
+/// footgun: a `Binding` is non-Equatable, so SwiftUI cannot dedupe it and every
+/// `body` pass republishes a "new" focused value, causing per-frame
+/// invalidation churn ("FocusedValue update tried to update multiple times per
+/// frame"). This wrapper keys equality on the *value* (`current`) so the
+/// focused value only changes when the active representation actually changes;
+/// the `select` closure is excluded from equality (closures are non-Equatable).
+/// (#2032)
+struct DocumentRepresentationFocus: Equatable {
+    let current: KGSurfaceTab
+    let select: (KGSurfaceTab) -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.current == rhs.current
+    }
+}
+
+/// Hosts the WebKit document KG plus the native document-scoped claims view.
+/// The representation switcher (Transcript/Digest/Graph/Claims/Timeline/Map)
+/// lives in the View menu ("Add View"), driven via FocusedValues — not a
+/// floating icon bar over the content (#2032 / reform §G).
 struct DocumentKGSurface: View {
     let documentId: String
+    let documentScope: InspectorClaimDocumentScope
     let libraryPath: String
     var selectedEntityId: String?
     var selectedClaimId: String?
     var activePageNumber: Int?
     var pageCount: Int?
     var onPageSelected: (Int) -> Void = { _ in }
-    @ObservedObject var scrollSync: DocumentScrollSyncState
+    var scrollSync: DocumentScrollSyncState
+    /// Zoom level forwarded to the WebKit pane. 1.0 = 100%. (#2316)
+    var zoom: Double = 1.0
+    /// Active tab driven by the parent pane. When omitted the surface manages
+    /// tab state internally (backward-compat for non-split usages).
+    var externalActiveTab: KGSurfaceTab? = nil
+    var onTabSelected: ((KGSurfaceTab) -> Void)? = nil
 
-    @State private var activeTab: KGSurfaceTab = .transcript
-    // Local state for tabs that bind to it (Map). Initialised from the
-    // parameter on appear; thereafter the view owns it. Distinct from the
-    // `selectedEntityId` parameter above (which is read-only from the parent).
-    @State private var internalSelectedEntityId: String?
-    /// Entities for this document, loaded lazily when Timeline or Map tab activates.
-    @State private var documentEntities: [Components.Schemas.KnowledgeEntity] = []
+    @State private var internalActiveTab: KGSurfaceTab = .transcript
+    private var activeTab: KGSurfaceTab { externalActiveTab ?? internalActiveTab }
     @Environment(KGFocusState.self) private var kgFocusState
     @EnvironmentObject private var entityService: EntityServiceGenerated
     @EnvironmentObject private var artifactService: ArtifactServiceGenerated
+    @EnvironmentObject private var kgCurationService: KGCurationServiceGenerated
 
     var body: some View {
-        VStack(spacing: 0) {
-            MiniToolbar {
-                Spacer(minLength: 0)
-                ForEach(KGSurfaceTab.allCases) { tab in
-                    tabButton(tab)
-                }
-                Spacer(minLength: 0)
-            }
-            .accessibilityIdentifier("knowledgeSurfaceTabs")
+        // The representation switcher (Transcript/Digest/Graph/Claims/Timeline/
+        // Map) lives in the View menu as "Add View" items, not as a floating
+        // icon bar over the content (#2032 / reform §G). Publishing `activeTab`
+        // as a focused scene value lets the menu drive the selection for the
+        // focused document surface.
+        content
+            .accessibilityIdentifier("knowledgeSurfaceContent")
+            .focusedSceneValue(
+                \.documentRepresentation,
+                DocumentRepresentationFocus(
+                    current: activeTab,
+                    select: { selectTab($0) }
+                )
+            )
+    }
 
-            Divider()
-
-            content
-        }
-        .task(id: documentId) {
-            documentEntities = (try? await entityService.listEntitiesForDocument(
-                documentId: documentId)) ?? []
+    private func selectTab(_ tab: KGSurfaceTab) {
+        if onTabSelected != nil {
+            onTabSelected?(tab)
+        } else {
+            internalActiveTab = tab
         }
     }
 
@@ -147,7 +189,7 @@ struct DocumentKGSurface: View {
     private var content: some View {
         // Keep the WKWebView alive across tab switches via ZStack + opacity
         // so scroll position survives when the user moves between transcript/
-        // digest/graph and the native tabs (claims, timeline, map). (#1346)
+        // digest/graph/timeline/map and the native claims tab. (#1346)
         ZStack {
             DocumentKGWebPane(
                 documentId: documentId,
@@ -158,7 +200,8 @@ struct DocumentKGSurface: View {
                 activePageNumber: activePageNumber,
                 pageCount: pageCount,
                 onPageSelected: onPageSelected,
-                scrollSync: scrollSync
+                scrollSync: scrollSync,
+                zoom: zoom
             )
             .opacity(activeTab.usesWebKit ? 1 : 0)
             .allowsHitTesting(activeTab.usesWebKit)
@@ -172,14 +215,16 @@ struct DocumentKGSurface: View {
     @ViewBuilder
     private var nativeTabContent: some View {
         switch activeTab {
-        case .transcript, .digest, .graph:
+        case .transcript, .digest, .graph, .timeline, .map:
             EmptyView()
         case .claims:
             ScrollView {
                 KnowledgeGraphInspectorSection(
                     documentId: documentId,
+                    documentScope: documentScope,
                     entityService: entityService,
                     artifactService: artifactService,
+                    kgCurationService: kgCurationService,
                     onClaimSelect: { claimId, _, sourceDocId, pageLabel, _, _ in
                         kgFocusState.focusClaim(
                             claimId: claimId,
@@ -190,53 +235,20 @@ struct DocumentKGSurface: View {
                 )
                 .padding()
             }
-        case .timeline:
-            KGTimelineView(
-                entities: documentEntities,
-                selectedEntityId: $internalSelectedEntityId,
-                sourceDocumentId: documentId
-            )
-        case .map:
-            KGMapView(
-                entities: documentEntities,
-                selectedEntityId: $internalSelectedEntityId,
-                sourceDocumentId: documentId
-            )
         }
     }
 
-    @ViewBuilder
-    private func tabButton(_ tab: KGSurfaceTab) -> some View {
-        let isSelected = activeTab == tab
-        Button {
-            activeTab = tab
-        } label: {
-            Image(systemName: tab.icon)
-                .font(.system(size: 16, weight: .regular))
-                .frame(width: 40)
-                .frame(maxHeight: .infinity)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
-        )
-        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-        .help(tab.helpText)
-        .accessibilityIdentifier("kgSurfaceTab-\(tab.rawValue)")
-    }
 }
 
 struct FolderRealityKitSurface: View {
     let documentId: String
     @Binding var selectedNodeId: String?
 
-    @EnvironmentObject private var documentStore: DocumentStore
+    @Environment(DocumentStore.self) private var documentStore: DocumentStore
     @State private var scopedDocuments: [Document] = []
     @State private var isLoading = false
 
-    private var nodes: [MindPalaceNode] {
+    private var nodes: [SpatialNode] {
         scopedDocuments
             .sorted { lhs, rhs in
                 (lhs.sequence ?? lhs.sortOrder, lhs.name) < (rhs.sequence ?? rhs.sortOrder, rhs.name)
@@ -312,10 +324,10 @@ struct FolderRealityKitSurface: View {
         return [document]
     }
 
-    private func node(for document: Document, at index: Int, count: Int) -> MindPalaceNode {
+    private func node(for document: Document, at index: Int, count: Int) -> SpatialNode {
         let point = position(for: index, count: count)
         let scale = document.docType == .page ? 1.15 : 1.35
-        return MindPalaceNode(
+        return SpatialNode(
             id: "doc-\(document.id)",
             roomId: documentId,
             nodeType: .source,

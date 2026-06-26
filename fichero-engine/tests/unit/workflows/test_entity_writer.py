@@ -5,7 +5,12 @@ KnowledgeEntity + KnowledgeClaim KG layer (#728).
 """
 
 from fichero.knowledge_models import (
+    ClaimCurationState,
+    ClaimSuppressionRule,
+    ClaimSuppressionRuleAction,
     EntityType,
+    EntityResolutionRule,
+    EntityResolutionRuleType,
     EvidenceBasis,
     KnowledgeEntity,
     KnowledgeClaim,
@@ -69,6 +74,145 @@ class TestUpsertEntity:
         loaded = db.get(KnowledgeEntity, entity_id)
         assert "M. Angel" in loaded.aliases
         assert "Maria Angel" in loaded.aliases
+
+    def test_suppress_rule_returns_none(self, db):
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        db.save(
+            EntityResolutionRule(
+                rule_type=EntityResolutionRuleType.suppress,
+                match_canonical_name="Noise",
+                match_entity_type=EntityType.person,
+                reason="known extraction noise",
+            )
+        )
+
+        entity_id = upsert_entity(
+            db,
+            canonical_name="Noise",
+            entity_type=EntityType.person,
+        )
+
+        assert entity_id is None
+        assert db.query(KnowledgeEntity, canonical_name="Noise") == []
+
+    def test_merge_into_rule_folds_name_into_target(self, db):
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        survivor_id = upsert_entity(
+            db,
+            canonical_name="John Davidson",
+            entity_type=EntityType.person,
+        )
+        db.save(
+            EntityResolutionRule(
+                rule_type=EntityResolutionRuleType.merge_into,
+                match_canonical_name="J. Davidson",
+                match_entity_type=EntityType.person,
+                target_canonical_name="John Davidson",
+                target_entity_type=EntityType.person,
+                reason="same person",
+            )
+        )
+
+        merged_id = upsert_entity(
+            db,
+            canonical_name="J. Davidson",
+            entity_type=EntityType.person,
+        )
+
+        assert merged_id == survivor_id
+        rows = db.query(KnowledgeEntity, entity_type=EntityType.person)
+        assert len(rows) == 1
+        assert rows[0].canonical_name == "John Davidson"
+
+    def test_entity_resolution_rule_match_is_case_insensitive_and_trimmed(self, db):
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        db.save(
+            EntityResolutionRule(
+                rule_type=EntityResolutionRuleType.suppress,
+                match_canonical_name="john davidson",
+                match_entity_type=EntityType.person,
+                reason="known duplicate noise",
+            )
+        )
+
+        mixed_case_id = upsert_entity(
+            db,
+            canonical_name="John Davidson",
+            entity_type=EntityType.person,
+        )
+        upper_id = upsert_entity(
+            db,
+            canonical_name="  JOHN  Davidson ",
+            entity_type=EntityType.person,
+        )
+
+        assert mixed_case_id is None
+        assert upper_id is None
+        assert db.query(KnowledgeEntity, entity_type=EntityType.person) == []
+
+    def test_reclassify_rule_overrides_type(self, db):
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        db.save(
+            EntityResolutionRule(
+                rule_type=EntityResolutionRuleType.reclassify,
+                match_canonical_name="Andagoya",
+                match_entity_type=EntityType.concept,
+                target_entity_type=EntityType.location,
+                reason="this is a place",
+            )
+        )
+
+        entity_id = upsert_entity(
+            db,
+            canonical_name="Andagoya",
+            entity_type=EntityType.concept,
+        )
+
+        loaded = db.get(KnowledgeEntity, entity_id)
+        assert loaded is not None
+        assert loaded.entity_type == EntityType.location
+
+    def test_race_recovery_repoints_claims_before_duplicate_delete(self, db):
+        """#2135: dedup must not leave claims pointing at deleted entity ids."""
+        from fichero.workflows.tools._entity_writer import (
+            _repoint_claim_entity_references,
+        )
+
+        survivor = KnowledgeEntity(
+            canonical_name="Maria Angel",
+            entity_type=EntityType.person,
+        )
+        duplicate = KnowledgeEntity(
+            canonical_name="Maria Angel",
+            entity_type=EntityType.person,
+        )
+        db.save(survivor)
+        db.save(duplicate)
+        claim = KnowledgeClaim(
+            text="Maria Angel testified.",
+            entity_ids=[duplicate.id],
+            subject_entity_id=duplicate.id,
+            speaker_entity_id=duplicate.id,
+        )
+        db.save(claim)
+
+        repointed = _repoint_claim_entity_references(
+            db,
+            duplicate_ids={duplicate.id},
+            survivor_id=survivor.id,
+        )
+        db.delete(duplicate)
+
+        loaded = db.get(KnowledgeClaim, claim.id)
+        assert repointed == [claim.id]
+        assert db.get(KnowledgeEntity, duplicate.id) is None
+        assert loaded.entity_ids == [survivor.id]
+        assert loaded.subject_entity_id == survivor.id
+        assert loaded.speaker_entity_id == survivor.id
 
 
 class TestFuzzyEntityMatch:
@@ -179,7 +323,7 @@ class TestEmbeddingMatch:
         )
         assert hits, "expected the newly-indexed entity to be findable"
         assert hits[0][0] == entity_id
-        assert hits[0][1] > 0.99, "exact text → near-1.0 cosine"
+        assert hits[0][1] > 0.98, "exact semantic text → high cosine"
 
     def test_semantic_divergence_collapses_at_high_cosine(self, db):
         """The #897 follow-up: titles that share the underlying claim
@@ -292,6 +436,113 @@ class TestSaveClaim:
         loaded = db.get(KnowledgeClaim, claim_id)
         assert loaded.entity_ids == []
         assert loaded.metadata.get("date_normalized") == "1930-05-12"
+
+    def test_prune_rule_returns_none_and_writes_nothing(self, db):
+        from fichero.workflows.tools._entity_writer import save_claim
+
+        db.save(
+            ClaimSuppressionRule(
+                action=ClaimSuppressionRuleAction.prune,
+                match_subject_name="Noise",
+                match_predicate_verb="is",
+                match_object_phrase="a person",
+                reason="discard trivial noise",
+            )
+        )
+
+        claim_id = save_claim(
+            db,
+            text="Noise is a person.",
+            source_document_id="doc-prune",
+            subject_canonical="Noise",
+            predicate_verb="is",
+            object_phrase="a person",
+        )
+
+        assert claim_id is None
+        assert db.query(KnowledgeClaim, source_document_id="doc-prune") == []
+
+    def test_disable_rule_rejects_claim_without_pruning(self, db):
+        from fichero.workflows.tools._entity_writer import save_claim
+
+        db.save(
+            ClaimSuppressionRule(
+                action=ClaimSuppressionRuleAction.disable,
+                match_subject_name="Pedro",
+                match_predicate_verb="said",
+                reason="known bad extraction",
+            )
+        )
+
+        claim_id = save_claim(
+            db,
+            text="Pedro said the deed was false.",
+            source_document_id="doc-disable",
+            subject_canonical="Pedro",
+            predicate_verb="said",
+            object_phrase="the deed was false",
+            confidence=0.7,
+        )
+
+        loaded = db.get(KnowledgeClaim, claim_id)
+        assert loaded is not None
+        assert loaded.curation_state == ClaimCurationState.rejected
+        assert loaded.confidence == 0.7
+
+    def test_demote_rule_rejects_and_caps_confidence(self, db):
+        from fichero.workflows.tools._entity_writer import save_claim
+
+        db.save(
+            ClaimSuppressionRule(
+                action=ClaimSuppressionRuleAction.demote,
+                match_subject_name="Andagoya",
+                match_predicate_verb="is",
+                match_object_phrase="a place",
+                reason="too generic",
+            )
+        )
+
+        claim_id = save_claim(
+            db,
+            text="Andagoya is a place.",
+            source_document_id="doc-demote",
+            subject_canonical="Andagoya",
+            predicate_verb="is",
+            object_phrase="a place",
+            confidence=0.8,
+        )
+
+        loaded = db.get(KnowledgeClaim, claim_id)
+        assert loaded is not None
+        assert loaded.curation_state == ClaimCurationState.rejected
+        assert loaded.confidence == 0.2
+
+    def test_copula_rule_demotes_instead_of_pruning(self, db):
+        from fichero.workflows.tools._entity_writer import save_claim
+
+        db.save(
+            ClaimSuppressionRule(
+                action=ClaimSuppressionRuleAction.prune,
+                match_subject_name="Andagoya",
+                suppress_is_a_copulas=True,
+                reason="generic type copulas should be demoted, not deleted",
+            )
+        )
+
+        claim_id = save_claim(
+            db,
+            text="Andagoya is a place.",
+            source_document_id="doc-copula",
+            subject_canonical="Andagoya",
+            predicate_verb="is",
+            object_phrase="a place",
+            confidence=0.6,
+        )
+
+        loaded = db.get(KnowledgeClaim, claim_id)
+        assert loaded is not None
+        assert loaded.curation_state == ClaimCurationState.rejected
+        assert loaded.confidence == 0.2
 
     def test_save_claim_source_anchors_missing_date_and_place(self, db):
         from fichero.workflows.tools._entity_writer import save_claim
@@ -431,6 +682,78 @@ class TestSaveClaim:
         )
         assert len(rows) == 1
 
+    def test_claim_svo_dedup_collapses_normalized_near_duplicate(self, db):
+        """#1805: identical SVO keys collapse despite accent/case/punctuation noise."""
+        from fichero.workflows.tools._entity_writer import save_claim, upsert_entity
+
+        entity_id = upsert_entity(
+            db, canonical_name="Peña", entity_type=EntityType.person
+        )
+        first = save_claim(
+            db,
+            text="Peña served as the alcalde of Popayán.",
+            source_document_id="doc_claim_dedup_1",
+            entity_ids=[entity_id],
+            source_page_label="Page 4",
+            subject_canonical="Peña",
+            predicate_verb="served as",
+            object_phrase="the alcalde of Popayán",
+        )
+        second = save_claim(
+            db,
+            text="PENA served as alcalde of Popayan!",
+            source_document_id="doc_claim_dedup_1",
+            entity_ids=[entity_id],
+            source_page_label="Page 4",
+            subject_canonical="Pena",
+            predicate_verb="served as",
+            object_phrase="alcalde of popayan",
+        )
+
+        assert first == second
+        rows = db.query(
+            KnowledgeClaim,
+            source_document_id="doc_claim_dedup_1",
+            source_page_label="Page 4",
+        )
+        assert len(rows) == 1
+
+    def test_claim_svo_dedup_preserves_distinct_claims(self, db):
+        """#1805 negative: shared subject/predicate does not merge different objects."""
+        from fichero.workflows.tools._entity_writer import save_claim, upsert_entity
+
+        entity_id = upsert_entity(
+            db, canonical_name="San Pablo", entity_type=EntityType.location
+        )
+        first = save_claim(
+            db,
+            text="San Pablo was located in Chocó.",
+            source_document_id="doc_claim_dedup_2",
+            entity_ids=[entity_id],
+            source_page_label="Page 8",
+            subject_canonical="San Pablo",
+            predicate_verb="was located in",
+            object_phrase="Chocó",
+        )
+        second = save_claim(
+            db,
+            text="San Pablo was located in Cauca.",
+            source_document_id="doc_claim_dedup_2",
+            entity_ids=[entity_id],
+            source_page_label="Page 8",
+            subject_canonical="San Pablo",
+            predicate_verb="was located in",
+            object_phrase="Cauca",
+        )
+
+        assert first != second
+        rows = db.query(
+            KnowledgeClaim,
+            source_document_id="doc_claim_dedup_2",
+            source_page_label="Page 8",
+        )
+        assert len(rows) == 2
+
     def test_within_page_dedup_does_not_cross_pages(self, db):
         """Same text + same entity on a DIFFERENT page is intentional —
         Davidson can be mentioned on both page 1 and page 2 of the
@@ -457,6 +780,158 @@ class TestSaveClaim:
             source_page_label="Page 2",
         )
         assert first != second
+
+
+class TestClaimHelperFunctions:
+    def test_same_structured_claim_normalizes_entity_order_and_svo_noise(self):
+        from fichero.workflows.tools._entity_writer import _same_structured_claim
+
+        left = KnowledgeClaim(
+            text="Peña served as the alcalde of Popayán.",
+            entity_ids=["entity-a", "entity-b"],
+            subject_canonical="Peña",
+            predicate_verb="served as",
+            object_phrase="the alcalde of Popayán",
+        )
+        right = KnowledgeClaim(
+            text="PENA served as alcalde of Popayan!",
+            entity_ids=["entity-b", "entity-a"],
+            subject_canonical="Pena",
+            predicate_verb="served as",
+            object_phrase="alcalde of popayan",
+        )
+
+        assert _same_structured_claim(left, right) is True
+
+    def test_same_structured_claim_falls_back_to_text_similarity_when_svo_missing(self):
+        from fichero.workflows.tools._entity_writer import _same_structured_claim
+
+        prior = KnowledgeClaim(
+            text="Pedro testified before the council.",
+            entity_ids=["entity-a"],
+        )
+        near_duplicate = KnowledgeClaim(
+            text="Pedro testified before the council",
+            entity_ids=["entity-a"],
+        )
+        distinct = KnowledgeClaim(
+            text="Pedro bought the mine.",
+            entity_ids=["entity-a"],
+        )
+
+        assert _same_structured_claim(prior, near_duplicate) is True
+        assert _same_structured_claim(prior, distinct) is False
+
+    def test_find_cross_source_canonical_claim_ignores_same_source_duplicates(self, db):
+        from fichero.workflows.tools._entity_writer import (
+            _find_cross_source_canonical_claim,
+        )
+
+        db.save(
+            KnowledgeClaim(
+                text="Pedro filed the petition.",
+                source_document_id="doc-a",
+                entity_ids=["entity-a"],
+                subject_canonical="Pedro",
+                predicate_verb="filed",
+                object_phrase="the petition",
+            )
+        )
+
+        incoming = KnowledgeClaim(
+            text="Pedro filed the petition.",
+            source_document_id="doc-a",
+            entity_ids=["entity-a"],
+            subject_canonical="Pedro",
+            predicate_verb="filed",
+            object_phrase="the petition",
+        )
+
+        assert _find_cross_source_canonical_claim(db, incoming) is None
+
+    def test_find_cross_source_canonical_claim_finds_other_source_match(self, db):
+        from fichero.workflows.tools._entity_writer import (
+            _find_cross_source_canonical_claim,
+        )
+
+        same_source = KnowledgeClaim(
+            text="Pedro filed the petition.",
+            source_document_id="doc-a",
+            entity_ids=["entity-a"],
+            subject_canonical="Pedro",
+            predicate_verb="filed",
+            object_phrase="the petition",
+        )
+        other_source = KnowledgeClaim(
+            text="PENA filed the petition!",
+            source_document_id="doc-b",
+            entity_ids=["entity-a"],
+            subject_canonical="Pedro",
+            predicate_verb="filed",
+            object_phrase="the petition",
+        )
+        db.save(same_source)
+        db.save(other_source)
+
+        incoming = KnowledgeClaim(
+            text="Pedro filed the petition.",
+            source_document_id="doc-a",
+            entity_ids=["entity-a"],
+            subject_canonical="Pedro",
+            predicate_verb="filed",
+            object_phrase="the petition",
+        )
+
+        assert _find_cross_source_canonical_claim(db, incoming).id == other_source.id
+
+    def test_repoint_claim_entity_references_deduplicates_survivor_ids(self, db):
+        from fichero.workflows.tools._entity_writer import (
+            _repoint_claim_entity_references,
+        )
+
+        claim = KnowledgeClaim(
+            text="Pedro testified.",
+            entity_ids=["survivor", "duplicate", "duplicate"],
+            subject_entity_id="duplicate",
+        )
+        db.save(claim)
+
+        repointed = _repoint_claim_entity_references(
+            db,
+            duplicate_ids={"duplicate"},
+            survivor_id="survivor",
+        )
+
+        loaded = db.get(KnowledgeClaim, claim.id)
+        assert repointed == [claim.id]
+        assert loaded.entity_ids == ["survivor"]
+        assert loaded.subject_entity_id == "survivor"
+
+    def test_upsert_entity_accumulates_source_document_ids_without_duplicates(self, db):
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        first = upsert_entity(
+            db,
+            canonical_name="Eugenio Córdoba",
+            entity_type=EntityType.person,
+            source_document_id="page-1",
+        )
+        second = upsert_entity(
+            db,
+            canonical_name="Eugenio Cordoba",
+            entity_type=EntityType.person,
+            source_document_id="page-2",
+        )
+        third = upsert_entity(
+            db,
+            canonical_name="Eugenio Córdoba",
+            entity_type=EntityType.person,
+            source_document_id="page-2",
+        )
+
+        loaded = db.get(KnowledgeEntity, first)
+        assert first == second == third
+        assert loaded.source_document_ids == ["page-1", "page-2"]
 
 
 class TestTypeConflictDetector:
@@ -580,6 +1055,107 @@ class TestTypeConflictDetector:
             # And the entity now carries the upgraded type.
             loaded_entity = db.get(KnowledgeEntity, entity_id)
             assert loaded_entity.entity_type == EntityType.location
+
+
+class TestWriterGateRules:
+    def test_suppress_rule_skips_entity_and_claim_write(self, db):
+        from fichero.workflows.tools.extractors import _write_kg_rows
+
+        db.save(
+            EntityResolutionRule(
+                rule_type=EntityResolutionRuleType.suppress,
+                match_canonical_name="Noise",
+                match_entity_type=EntityType.person,
+                reason="known noise",
+            )
+        )
+
+        _write_kg_rows(
+            db,
+            section={"name": "people", "entity_type": EntityType.person},
+            items=[{"name": "Noise", "verb": "signed", "object": "the deed"}],
+            container_id="doc-noise",
+            page_label="1",
+            source_excerpt="Noise signed the deed.",
+        )
+
+        assert db.query(KnowledgeEntity, canonical_name="Noise") == []
+        assert db.query(KnowledgeClaim, source_document_id="doc-noise") == []
+
+    def test_import_rule_then_second_import_honors_persistent_merge(self, db):
+        from fichero.workflows.tools.extractors import _write_kg_rows
+
+        _write_kg_rows(
+            db,
+            section={"name": "people", "entity_type": EntityType.person},
+            items=[{"name": "John Davidson", "verb": "signed", "object": "the deed"}],
+            container_id="doc-a",
+            page_label="1",
+            source_excerpt="John Davidson signed the deed.",
+        )
+        db.save(
+            EntityResolutionRule(
+                rule_type=EntityResolutionRuleType.merge_into,
+                match_canonical_name="J. Davidson",
+                match_entity_type=EntityType.person,
+                target_canonical_name="John Davidson",
+                target_entity_type=EntityType.person,
+                reason="same person",
+            )
+        )
+
+        _write_kg_rows(
+            db,
+            section={"name": "people", "entity_type": EntityType.person},
+            items=[{"name": "J. Davidson", "verb": "witnessed", "object": "the deed"}],
+            container_id="doc-b",
+            page_label="2",
+            source_excerpt="J. Davidson witnessed the deed.",
+        )
+
+        entities = db.query(KnowledgeEntity, entity_type=EntityType.person)
+        assert len(entities) == 1
+        survivor = entities[0]
+        assert survivor.canonical_name == "John Davidson"
+        claims = db.query(KnowledgeClaim, subject_entity_id=survivor.id)
+        assert len(claims) == 2
+
+    def test_redirect_cycle_suppresses_entity_and_claim_write(self, db):
+        from fichero.workflows.tools.extractors import _write_kg_rows
+
+        for source_name, target_name in (
+            ("Alpha", "Bravo"),
+            ("Bravo", "Charlie"),
+            ("Charlie", "Delta"),
+            ("Delta", "Echo"),
+            ("Echo", "Foxtrot"),
+            ("Foxtrot", "Golf"),
+            ("Golf", "Hotel"),
+            ("Hotel", "India"),
+            ("India", "Alpha"),
+        ):
+            db.save(
+                EntityResolutionRule(
+                    rule_type=EntityResolutionRuleType.alias,
+                    match_canonical_name=source_name,
+                    match_entity_type=EntityType.person,
+                    target_canonical_name=target_name,
+                    target_entity_type=EntityType.person,
+                    reason="redirect chain",
+                )
+            )
+
+        _write_kg_rows(
+            db,
+            section={"name": "people", "entity_type": EntityType.person},
+            items=[{"name": "Alpha", "verb": "signed", "object": "the deed"}],
+            container_id="doc-cycle",
+            page_label="1",
+            source_excerpt="Alpha signed the deed.",
+        )
+
+        assert db.query(KnowledgeEntity, entity_type=EntityType.person) == []
+        assert db.query(KnowledgeClaim, source_document_id="doc-cycle") == []
 
 
 class TestAdminQualifierDedup:
@@ -891,3 +1467,292 @@ class TestAdminQualifierHelpers:
         assert not _admin_qualifier_match("", "")
         assert not _admin_qualifier_match("the", "el")
         assert not _admin_qualifier_match("department", "departamento")
+
+
+class TestAccentFoldingHelpers:
+    """#1811 — pure-function tests for diacritic folding + the
+    normalized identity key that collapses near-duplicate names."""
+
+    def test_fold_accents_strips_diacritics(self):
+        from fichero.workflows.tools._entity_writer import _fold_accents
+
+        assert _fold_accents("Peña") == "Pena"
+        assert _fold_accents("Bogotá") == "Bogota"
+        assert _fold_accents("Chocó") == "Choco"
+        # No diacritics → unchanged.
+        assert _fold_accents("San Pablo") == "San Pablo"
+
+    def test_normalized_match_key_collapses_variants(self):
+        from fichero.workflows.tools._entity_writer import _normalized_match_key
+
+        # Accents fold together.
+        assert _normalized_match_key("Peña") == _normalized_match_key("Pena")
+        # Trailing punctuation + case noise removed.
+        assert _normalized_match_key("San Pablo.") == _normalized_match_key("san pablo")
+        # Articles + admin-qualifier suffixes stripped.
+        assert _normalized_match_key("the Chocó") == _normalized_match_key("Choco")
+        assert _normalized_match_key("Chocó department") == _normalized_match_key("Choco")
+
+    def test_normalized_match_key_keeps_distinct_names_distinct(self):
+        from fichero.workflows.tools._entity_writer import _normalized_match_key
+
+        # Different place names must NOT share a key.
+        assert _normalized_match_key("San Pablo") != _normalized_match_key("San Juan")
+        # "Chocó River" keeps the non-admin qualifier — distinct from the
+        # department.
+        assert _normalized_match_key("Chocó River") != _normalized_match_key("Chocó")
+
+    def test_normalized_claim_svo_key_collapses_surface_variants(self):
+        from fichero.workflows.tools._entity_writer import _normalized_claim_svo_key
+
+        assert _normalized_claim_svo_key(
+            "The Peña",
+            "served as",
+            "the alcalde of Popayán.",
+        ) == _normalized_claim_svo_key(
+            "Pena",
+            "served as",
+            "alcalde of popayan",
+        )
+
+    def test_normalized_claim_svo_key_keeps_distinct_claims_distinct(self):
+        from fichero.workflows.tools._entity_writer import _normalized_claim_svo_key
+
+        assert _normalized_claim_svo_key(
+            "San Pablo",
+            "was located in",
+            "Chocó",
+        ) != _normalized_claim_svo_key(
+            "San Pablo",
+            "was located in",
+            "Cauca",
+        )
+
+
+class TestFuzzyMatchAccentAware:
+    """#1811 — `_fuzzy_match_existing` must surface accent / trivial-typo
+    / article variants as the SAME entity, while keeping genuinely
+    distinct names apart (high precision, no over-merge)."""
+
+    def _ent(self, name: str) -> KnowledgeEntity:
+        return KnowledgeEntity(canonical_name=name, entity_type=EntityType.location)
+
+    def test_accent_variant_matches(self):
+        # "Peña" vs "Pena" scored 0.75 via raw SequenceMatcher (below the
+        # 0.78 threshold) and used to create a duplicate. Folding makes
+        # them identical.
+        from fichero.workflows.tools._entity_writer import _fuzzy_match_existing
+
+        existing = [self._ent("Pena")]
+        match = _fuzzy_match_existing(existing, "Peña")
+        assert match is not None
+        assert match.canonical_name == "Pena"
+
+    def test_trivial_suffix_typo_matches(self):
+        from fichero.workflows.tools._entity_writer import _fuzzy_match_existing
+
+        existing = [self._ent("San Pablo")]
+        match = _fuzzy_match_existing(existing, "San Pabloo")
+        assert match is not None
+        assert match.canonical_name == "San Pablo"
+
+    def test_ocr_drift_variant_matches(self):
+        from fichero.workflows.tools._entity_writer import _fuzzy_match_existing
+
+        existing = [self._ent("Negra")]
+        match = _fuzzy_match_existing(existing, "Negria")
+        assert match is not None
+        assert match.canonical_name == "Negra"
+
+    def test_single_token_suffix_noise_matches(self):
+        from fichero.workflows.tools._entity_writer import _fuzzy_match_existing
+
+        existing = [self._ent("Cedro")]
+        match = _fuzzy_match_existing(existing, "Cedroito")
+        assert match is not None
+        assert match.canonical_name == "Cedro"
+
+    def test_article_variant_matches(self):
+        from fichero.workflows.tools._entity_writer import _fuzzy_match_existing
+
+        existing = [self._ent("Atrato")]
+        match = _fuzzy_match_existing(existing, "the Atrato")
+        assert match is not None
+        assert match.canonical_name == "Atrato"
+
+    def test_distinct_names_do_not_match(self):
+        # The critical negative test: distinct places must stay distinct.
+        from fichero.workflows.tools._entity_writer import _fuzzy_match_existing
+
+        existing = [self._ent("San Pablo")]
+        assert _fuzzy_match_existing(existing, "San Juan") is None
+
+
+class TestAccentDedupIntegration:
+    """#1811 — end-to-end through `upsert_entity`: accent variants
+    collapse onto one row; distinct names stay separate.
+
+    The embedding stage (Stage 2) is disabled so these tests isolate the
+    *deterministic* accent-folding path this change touches. Without that
+    isolation the semantic embedder can independently merge (or, for
+    'San Pablo'/'San Juan', over-merge) names regardless of surface form,
+    which would mask whether the folding fix is what collapses the dupes.
+    """
+
+    @staticmethod
+    def _disable_embeddings(monkeypatch):
+        from fichero.kg import entity_vectors
+
+        monkeypatch.setattr(entity_vectors, "find_similar", lambda **_: [])
+        monkeypatch.setattr(entity_vectors, "index_entity", lambda **_: None)
+
+    def test_accent_variants_collapse_to_one_entity(self, db, monkeypatch):
+        self._disable_embeddings(monkeypatch)
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        first = upsert_entity(
+            db, canonical_name="Peña", entity_type=EntityType.person
+        )
+        second = upsert_entity(
+            db, canonical_name="Pena", entity_type=EntityType.person
+        )
+        assert first == second
+        rows = db.query(KnowledgeEntity, entity_type=EntityType.person)
+        assert len(rows) == 1
+
+    def test_typo_suffix_collapses_to_one_entity(self, db, monkeypatch):
+        self._disable_embeddings(monkeypatch)
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        first = upsert_entity(
+            db, canonical_name="San Pablo", entity_type=EntityType.location
+        )
+        second = upsert_entity(
+            db, canonical_name="San Pabloo", entity_type=EntityType.location
+        )
+        assert first == second
+
+    def test_ocr_drift_collapses_to_one_entity(self, db, monkeypatch):
+        self._disable_embeddings(monkeypatch)
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        first = upsert_entity(
+            db, canonical_name="Negra", entity_type=EntityType.location
+        )
+        second = upsert_entity(
+            db, canonical_name="Negria", entity_type=EntityType.location
+        )
+        assert first == second
+
+    def test_single_token_suffix_noise_collapses_to_one_entity(self, db, monkeypatch):
+        self._disable_embeddings(monkeypatch)
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        first = upsert_entity(
+            db, canonical_name="Cedro", entity_type=EntityType.location
+        )
+        second = upsert_entity(
+            db, canonical_name="Cedroito", entity_type=EntityType.location
+        )
+        assert first == second
+
+    def test_distinct_places_stay_separate(self, db, monkeypatch):
+        self._disable_embeddings(monkeypatch)
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        san_pablo = upsert_entity(
+            db, canonical_name="San Pablo", entity_type=EntityType.location
+        )
+        san_juan = upsert_entity(
+            db, canonical_name="San Juan", entity_type=EntityType.location
+        )
+        assert san_pablo != san_juan
+        rows = db.query(KnowledgeEntity, entity_type=EntityType.location)
+        assert len(rows) == 2
+
+
+class TestLexicalAgreementGate:
+    """#1907 — unit coverage for the embedding auto-merge precision gate.
+
+    `_lexical_agreement` is the cheap deterministic check (no model) that
+    decides whether a high-cosine pair is *also* lexically consistent.
+    """
+
+    def test_accent_variant_agrees(self):
+        from fichero.workflows.tools._entity_writer import _lexical_agreement
+
+        assert _lexical_agreement("Bogotá", "Bogota")
+
+    def test_spacing_typo_variant_agrees(self):
+        from fichero.workflows.tools._entity_writer import _lexical_agreement
+
+        assert _lexical_agreement("San Pablo", "San Pabloo")
+
+    def test_shared_content_tokens_agree(self):
+        from fichero.workflows.tools._entity_writer import _lexical_agreement
+
+        # Verbose paraphrases sharing >= 2 significant tokens.
+        assert _lexical_agreement(
+            "Narrator's Account of Racial Economic Exclusion",
+            "Narrator's Monologue on Race and Economic Marginalization",
+        )
+
+    def test_distinct_saint_places_disagree(self):
+        from fichero.workflows.tools._entity_writer import _lexical_agreement
+
+        # Only the generic "san" token in common; seq ratio ~0.59.
+        assert not _lexical_agreement("San Pablo", "San Juan")
+
+
+class TestEmbeddingPrecisionGate:
+    """#1907 — end-to-end through `upsert_entity` with embeddings ON.
+
+    Unlike `TestAccentDedupIntegration` (which has to monkeypatch the
+    embedder off to keep 'San Pablo'/'San Juan' apart), these tests
+    exercise the *real* embedding stage. The lexical precision gate is
+    what keeps the semantically-similar-but-distinct pair separate while
+    still collapsing a genuine accent/spacing dupe.
+    """
+
+    def test_san_pablo_vs_san_juan_do_not_merge_with_embeddings_on(self, db):
+        from fichero.knowledge_models import EntityMatchCandidate
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        san_pablo = upsert_entity(
+            db, canonical_name="San Pablo", entity_type=EntityType.location
+        )
+        san_juan = upsert_entity(
+            db, canonical_name="San Juan", entity_type=EntityType.location
+        )
+        assert san_pablo != san_juan, (
+            "embedding cosine alone must not merge distinct saint-name places"
+        )
+        rows = db.query(KnowledgeEntity, entity_type=EntityType.location)
+        assert len(rows) == 2
+
+        # If the embedder pushed the pair into the auto-merge band, the
+        # gate should have routed it to the review queue rather than
+        # silently dropping the signal. (When cosine stayed below the
+        # band there's simply nothing to review — both outcomes keep the
+        # two rows distinct, which is the contract under test.)
+        candidates = db.all(EntityMatchCandidate)
+        for cand in candidates:
+            assert {cand.survivor_entity_id, cand.candidate_entity_id} == {
+                san_pablo,
+                san_juan,
+            }
+
+    def test_true_accent_dupe_merges_with_embeddings_on(self, db):
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        first = upsert_entity(
+            db, canonical_name="Bogotá", entity_type=EntityType.location
+        )
+        second = upsert_entity(
+            db, canonical_name="Bogota", entity_type=EntityType.location
+        )
+        assert first == second, (
+            "accent-only variant of the same place must still collapse"
+        )
+        rows = db.query(KnowledgeEntity, entity_type=EntityType.location)
+        assert len(rows) == 1

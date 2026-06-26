@@ -1,9 +1,39 @@
 """Unit tests for storage module."""
+import base64
 import pytest
 from pathlib import Path
 from unittest.mock import Mock
 import tempfile
 import os
+import subprocess
+
+
+class TestUploadStreaming:
+    @pytest.mark.asyncio
+    async def test_save_uploaded_file_stops_streaming_after_cap_is_hit(self):
+        from fichero.storage import UploadTooLargeError, save_uploaded_file
+
+        class ChunkedUpload:
+            filename = "oversized.txt"
+
+            def __init__(self) -> None:
+                self._chunks = [b"a" * 4, b"b" * 4, b"c" * 4, b"d" * 4]
+                self.read_calls = 0
+
+            async def read(self, size: int) -> bytes:
+                assert size == 4
+                self.read_calls += 1
+                if not self._chunks:
+                    return b""
+                return self._chunks.pop(0)
+
+        upload = ChunkedUpload()
+
+        with pytest.raises(UploadTooLargeError):
+            await save_uploaded_file(upload, max_bytes=10, chunk_size=4)
+
+        assert upload.read_calls < 4
+        assert upload._chunks
 
 
 class TestStorageSettings:
@@ -35,10 +65,10 @@ class TestStorageSettings:
 
     def test_size_tuples(self):
         """Size properties should return tuples."""
-        from fichero.storage import StorageSettings
+        from fichero.storage import StorageSettings, THUMBNAIL_MAX_DIMENSION
 
         s = StorageSettings()
-        assert s.thumb_size == (200, 200)
+        assert s.thumb_size == (THUMBNAIL_MAX_DIMENSION, THUMBNAIL_MAX_DIMENSION)
         assert s.display_size == (1000, 1000)
 
     def test_custom_sizes(self):
@@ -94,6 +124,22 @@ class TestPathHelpers:
 
         assert has_display("nonexistent-id-12345") is False
 
+    def test_sips_conversion_timeout_is_logged(self, tmp_path, monkeypatch, caplog):
+        """#2137: thumbnail conversion failures should be debug-visible."""
+        from fichero.storage import _sips_convert
+
+        source = tmp_path / "bad.jpg"
+        source.write_bytes(b"not really a jpeg")
+
+        def timeout(*args, **kwargs):
+            raise subprocess.TimeoutExpired(cmd=args[0], timeout=30)
+
+        monkeypatch.setattr("subprocess.run", timeout)
+
+        caplog.set_level("DEBUG", logger="fichero.storage")
+        assert _sips_convert(source) is None
+        assert "sips thumbnail conversion timed out" in caplog.text
+
 
 class TestResolveSource:
     """Tests for resolve_source function."""
@@ -109,7 +155,7 @@ class TestResolveSource:
         doc.path = str(file)
         doc.metadata = {}
 
-        result = resolve_source(doc)
+        result = resolve_source(doc, library_root=tmp_path)
         assert result == file
 
     def test_path_missing_uses_metadata_fallback(self, tmp_path):
@@ -123,7 +169,7 @@ class TestResolveSource:
         doc.path = "/nonexistent/path.jpg"
         doc.metadata = {"source_path": str(file)}
 
-        result = resolve_source(doc)
+        result = resolve_source(doc, library_root=tmp_path)
         assert result == file
 
     def test_metadata_tilde_path_is_expanded(self, tmp_path, monkeypatch):
@@ -138,7 +184,7 @@ class TestResolveSource:
         doc.path = "/nonexistent/path.jpg"
         doc.metadata = {"source_path": "~/from-home.jpg"}
 
-        result = resolve_source(doc)
+        result = resolve_source(doc, library_root=tmp_path)
         assert result == file
 
     def test_returns_none_if_nothing_exists(self):
@@ -184,7 +230,7 @@ class TestResolveSource:
             "full_path": str(file),
         }
 
-        result = resolve_source(doc)
+        result = resolve_source(doc, library_root=tmp_path)
         assert result == file
 
     def test_library_relative_doc_path_resolves_under_current_library(self, tmp_path):
@@ -235,8 +281,34 @@ class TestResolveSource:
         doc.metadata = {"bookmark": "invalid_base64"}  # Invalid bookmark
 
         # Without valid bookmark, should fall back to path
-        result = resolve_source(doc)
+        result = resolve_source(doc, library_root=tmp_path)
         assert result == path_file
+
+    def test_remote_bookmark_disabled_prefers_package_path(self, tmp_path, monkeypatch):
+        """Remote engines must not resolve Mac bookmarks from by-reference docs."""
+        from fichero import bookmarks
+        from fichero.storage import resolve_source
+
+        library_root = tmp_path / "Remote.fichero"
+        source = library_root / "files" / "aa" / "page.jpg"
+        source.parent.mkdir(parents=True)
+        source.touch()
+
+        doc = Mock()
+        doc.path = "files/aa/page.jpg"
+        doc.metadata = {
+            "bookmark": base64.b64encode(b"mac-client-bookmark").decode("ascii"),
+            "source_path": "/Users/daniel/Desktop/original.jpg",
+        }
+
+        def fail_if_called(bookmark_data):
+            raise AssertionError("remote engine attempted to resolve a Mac bookmark")
+
+        monkeypatch.setenv("FICHERO_ENABLE_MAC_BOOKMARKS", "0")
+        monkeypatch.setattr(bookmarks, "resolve_bookmark", fail_if_called)
+
+        result = resolve_source(doc, library_root=library_root)
+        assert result == source
 
 
 class TestThumbnailGeneration:
@@ -276,7 +348,11 @@ class TestThumbnailGeneration:
     def test_ensure_thumbnail_creates_file(self, tmp_path):
         """Should create thumbnail file."""
         from fichero import storage
-        from fichero.storage import ensure_thumbnail, StorageSettings
+        from fichero.storage import (
+            THUMBNAIL_MAX_DIMENSION,
+            ensure_thumbnail,
+            StorageSettings,
+        )
 
         try:
             from PIL import Image
@@ -284,7 +360,8 @@ class TestThumbnailGeneration:
             pytest.skip("Pillow not installed")
 
         # Create source image
-        source = tmp_path / "source.jpg"
+        source = tmp_path / "files" / "source.jpg"
+        source.parent.mkdir(parents=True, exist_ok=True)
         img = Image.new("RGB", (500, 500), color="red")
         img.save(source)
 
@@ -304,6 +381,89 @@ class TestThumbnailGeneration:
             assert result is not None
             assert result.exists()
             assert "ab" in str(result)  # Sharded path
+            with Image.open(result) as thumb:
+                assert max(thumb.size) == 500
+                assert max(thumb.size) <= THUMBNAIL_MAX_DIMENSION
+        finally:
+            storage.settings = original_settings
+
+    @pytest.mark.skipif(
+        not Path("/System").exists(),
+        reason="Requires Pillow"
+    )
+    def test_ensure_thumbnail_caps_long_edge_at_max_dimension(self, tmp_path):
+        """Large source images should be capped at the configured thumbnail size."""
+        from fichero import storage
+        from fichero.storage import (
+            THUMBNAIL_MAX_DIMENSION,
+            ensure_thumbnail,
+            StorageSettings,
+        )
+
+        try:
+            from PIL import Image
+        except ImportError:
+            pytest.skip("Pillow not installed")
+
+        source = tmp_path / "files" / "source-large.jpg"
+        source.parent.mkdir(parents=True, exist_ok=True)
+        img = Image.new("RGB", (2400, 1600), color="blue")
+        img.save(source)
+
+        test_settings = StorageSettings(base_path=tmp_path)
+        original_settings = storage.settings
+        storage.settings = test_settings
+
+        try:
+            doc = Mock()
+            doc.id = "wide123"
+            doc.path = str(source)
+            doc.metadata = {}
+
+            result = ensure_thumbnail(doc)
+
+            assert result is not None
+            with Image.open(result) as thumb:
+                assert max(thumb.size) == THUMBNAIL_MAX_DIMENSION
+                assert thumb.size == (THUMBNAIL_MAX_DIMENSION, 683)
+        finally:
+            storage.settings = original_settings
+
+    @pytest.mark.skipif(
+        not Path("/System").exists(),
+        reason="Requires Pillow"
+    )
+    def test_ensure_thumbnail_writes_versioned_cache_and_alias(self, tmp_path):
+        """Thumbnail cache files should be keyed by doc id, size, and source mtime."""
+        from fichero import storage
+        from fichero.storage import ensure_thumbnail, get_thumbnail, StorageSettings
+
+        try:
+            from PIL import Image
+        except ImportError:
+            pytest.skip("Pillow not installed")
+
+        source = tmp_path / "files" / "source-cache.jpg"
+        source.parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGB", (800, 600), color="green").save(source)
+
+        test_settings = StorageSettings(base_path=tmp_path)
+        original_settings = storage.settings
+        storage.settings = test_settings
+
+        try:
+            doc = Mock()
+            doc.id = "cache123"
+            doc.path = str(source)
+            doc.metadata = {}
+
+            result = ensure_thumbnail(doc)
+
+            assert result is not None
+            assert "__1024x1024__" in result.name
+            alias_path = tmp_path / "thumbnails" / "ca" / "cache123.jpg"
+            assert alias_path.exists()
+            assert get_thumbnail(doc) == result
         finally:
             storage.settings = original_settings
 
@@ -342,7 +502,8 @@ class TestStorageRouteHeaders:
             pytest.skip("Pillow not installed")
 
         # Create source and existing thumbnail
-        source = tmp_path / "source.jpg"
+        source = tmp_path / "files" / "source.jpg"
+        source.parent.mkdir(parents=True, exist_ok=True)
         img = Image.new("RGB", (500, 500), color="red")
         img.save(source)
 
@@ -371,8 +532,11 @@ class TestStorageRouteHeaders:
 
             result = ensure_thumbnail(doc)
 
-            # Should return existing file without regenerating
-            assert result == existing_thumb
+            # Should promote the legacy file into the versioned cache without
+            # re-rendering, while preserving the legacy alias path.
+            assert result is not None
+            assert result.name.startswith("abc123__1024x1024__")
+            assert existing_thumb.exists()
             assert existing_thumb.stat().st_mtime == mtime_before
         finally:
             storage.settings = original_settings
@@ -408,6 +572,29 @@ class TestCleanup:
             assert (shard / "abc123.jpg").exists()
             assert not (shard / "orphan1.jpg").exists()
             assert not (shard / "orphan1_display.jpg").exists()
+        finally:
+            storage.settings = original_settings
+
+    def test_cleanup_orphans_keeps_versioned_cache_for_live_doc(self, tmp_path):
+        """Versioned cache files should map back to the owning document id."""
+        from fichero import storage
+        from fichero.storage import cleanup_orphans, StorageSettings
+
+        test_settings = StorageSettings(base_path=tmp_path)
+        original_settings = storage.settings
+        storage.settings = test_settings
+
+        try:
+            shard = tmp_path / "thumbnails" / "ab"
+            shard.mkdir(parents=True)
+            (shard / "abc123__1024x1024__123456.jpg").touch()
+            (shard / "dead999__1024x1024__123456.jpg").touch()
+
+            removed = cleanup_orphans({"abc123"})
+
+            assert removed == 1
+            assert (shard / "abc123__1024x1024__123456.jpg").exists()
+            assert not (shard / "dead999__1024x1024__123456.jpg").exists()
         finally:
             storage.settings = original_settings
 

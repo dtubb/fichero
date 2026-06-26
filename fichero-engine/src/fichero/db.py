@@ -5,6 +5,10 @@ Simple Pythonic wrapper for DuckDB + LanceDB.
 - DuckDB: Documents, artifacts, workflows, runs
 - LanceDB: Vector search (embeddings)
 
+One process owns a library read-write. DuckDB's file lock is the enforcement
+boundary; opening the same library read-write from another Fichero engine
+process must fail clearly instead of surfacing a raw DuckDB lock stack.
+
 Usage:
     from fichero.db import db
     from fichero.models import Document, Artifact, Workflow, Run
@@ -35,25 +39,30 @@ Usage:
 
 from pathlib import Path
 from types import UnionType
-from typing import TypeVar, Type, get_origin, get_args, Union, Any
+from typing import TypeVar, Type, get_origin, get_args, Union, Any, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 import math
 import json
 import logging
+import os
 import re
+import threading
 import time
 import unicodedata
 import duckdb
 from pydantic import BaseModel
 from pydantic_core import PydanticUndefinedType
 from fichero.db_embeddings import (
+    EMBEDDINGS_TABLE,
     DatabaseEmbeddingMixin,
+    EmbeddingSpaceMismatchError,
     _dequantize_int8,
     _quantize_int8,
 )
 from fichero.db_manager import DatabaseManager, db_manager  # noqa: F401
 from fichero.errors import ErrorCategory, handle_error
+from fichero.path_security import resolve_under_allowed_roots
 
 logger = logging.getLogger(__name__)
 
@@ -62,15 +71,35 @@ T = TypeVar("T", bound=BaseModel)
 # Minimum content length to create embedding
 MIN_CONTENT_LENGTH = 10
 
-# Default embedding model (FastEmbed). MUST be a model that fastembed's
-# TextEmbedding actually supports — keep in sync with
-# db_embeddings.DEFAULT_MODEL (the single source of truth for the real
-# embedder). "BAAI/bge-m3" is NOT supported by fastembed and made the
-# embeddings pre-warm fail on every startup (#1524).
+# Default embedding model (FastEmbed). Keep in sync with
+# db_embeddings.DEFAULT_MODEL, the source of truth for the real embedder.
+# (multilingual-e5-large until fastembed ships bge-m3 — see db_embeddings note + #2117.)
 DEFAULT_MODEL = "intfloat/multilingual-e5-large"
 
 # Valid identifier pattern for SQL column/table names
 _VALID_IDENTIFIER = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+
+_DUCKDB_WRITE_CONFLICT_RETRIES = 3
+_DUCKDB_WRITE_CONFLICT_BACKOFF_SECONDS = 0.01
+
+
+def _vector_compaction_interval() -> int:
+    """How many LanceDB appends to a table before an automatic compaction.
+
+    At 100k images the save path does one tiny LanceDB append per document,
+    leaving 100k micro-fragments that rot read performance and pile up
+    compaction debt (#2542). We bound that by running ``table.optimize()``
+    (compaction + prune) every N appends, NOT on every write — compacting on
+    every append would be strictly worse than the problem it solves.
+
+    0 (or a negative value) disables the automatic trigger; callers can still
+    invoke ``Database.compact_vectors()`` explicitly.
+    """
+    raw = os.getenv("FICHERO_VECTOR_COMPACTION_INTERVAL", "200").strip()
+    try:
+        return int(raw)
+    except ValueError:
+        return 200
 
 
 def _collect_folder_descendants_helper(conn: duckdb.DuckDBPyConnection, folder_id: str) -> set[str]:
@@ -104,6 +133,12 @@ def _collect_folder_descendants_helper(conn: duckdb.DuckDBPyConnection, folder_i
                     seen.add(child_id)
                     frontier.append(child_id)
     return seen
+
+
+def _validated_identifier(identifier: str, *, kind: str) -> str:
+    if not _VALID_IDENTIFIER.fullmatch(identifier):
+        raise ValueError(f"Invalid {kind}: {identifier!r}")
+    return identifier
 
 
 # Markers transcribe writes when a page is blank or unreadable. When
@@ -369,7 +404,12 @@ class Database(DatabaseEmbeddingMixin):
         self._lance_path = path.parent / "vectors"
         self._lance_db = None  # Lazy init
         self._embedder = None  # Lazy init
+        self._embedding_model_name = None
         self._tables_created: set[str] = set()
+        self._lock = threading.RLock()
+        # Per-table count of LanceDB appends since the last compaction. Drives
+        # the bounded auto-compaction trigger in save_vectors (#2542).
+        self._vector_append_counts: dict[str, int] = {}
 
         # Migrate tables if needed
         from fichero.db_migrations import (
@@ -379,6 +419,7 @@ class Database(DatabaseEmbeddingMixin):
             migrate_provider_refs_table,
             migrate_known_libraries_table,
             migrate_library_entity_types_table,
+            migrate_spatial_node_layout_fields,
             migrate_references_table,
             migrate_reference_provenance_table,
         )
@@ -388,17 +429,48 @@ class Database(DatabaseEmbeddingMixin):
         migrate_provider_refs_table(self.conn)
         migrate_known_libraries_table(self.conn)
         migrate_library_entity_types_table(self.conn)
+        migrate_spatial_node_layout_fields(self.conn)
         migrate_references_table(self.conn)
         migrate_reference_provenance_table(self.conn)
+        self._backfill_claim_links_to_library_links()
+        self._backfill_saved_search_documents()
 
     def _connect(self) -> duckdb.DuckDBPyConnection:
         """Open a DuckDB connection for this library path."""
-        return duckdb.connect(str(self.path))
+        try:
+            return duckdb.connect(str(self.path))
+        except duckdb.Error as exc:
+            if self._is_lock_error(exc):
+                raise RuntimeError(
+                    "Library already open by another Fichero engine process. "
+                    "Only one engine may hold a library read-write. "
+                    f"Close the other process before opening {self.path}."
+                ) from exc
+            raise
 
     @staticmethod
     def _is_invalidated_error(exc: Exception) -> bool:
         message = str(exc).lower()
         return "database has been invalidated" in message
+
+    @staticmethod
+    def _is_write_conflict_error(exc: Exception) -> bool:
+        message = str(exc).lower()
+        return (
+            "transactioncontext error: conflict" in message
+            or "conflict on update" in message
+            or "transaction conflict" in message
+            or "could not serialize" in message
+        )
+
+    @staticmethod
+    def _is_lock_error(exc: Exception) -> bool:
+        message = str(exc).lower()
+        return (
+            "could not set lock on file" in message
+            or "database is locked" in message
+            or ("lock" in message and "duckdb" in message)
+        )
 
     def _reconnect_after_invalidated(self) -> None:
         """Replace a DuckDB connection poisoned by a prior FatalException."""
@@ -422,27 +494,143 @@ class Database(DatabaseEmbeddingMixin):
                 exc,
             )
 
-    def _execute(self, sql: str, params: Any | None = None):
-        """Execute SQL, reopening once if DuckDB invalidated this connection."""
-        try:
-            if params is None:
-                return self.conn.execute(sql)
-            return self.conn.execute(sql, params)
-        except duckdb.Error as exc:
-            if not self._is_invalidated_error(exc):
-                raise
-            logger.warning(
-                "DuckDB connection for %s was invalidated; reopening and retrying",
-                self.path,
-            )
-            self._reconnect_after_invalidated()
-            if params is None:
-                return self.conn.execute(sql)
-            return self.conn.execute(sql, params)
+    def _execute(self, sql: str, params: Any | None = None, fetch: str | None = None):
+        """Execute SQL, retrying bounded DuckDB transient write conflicts.
+
+        When ``fetch`` is ``"all"`` or ``"one"`` the fetch happens INSIDE the
+        lock, so a SELECT's rows are materialized before another thread can use
+        the one shared connection (#2508). ``fetch=None`` returns the raw cursor
+        (legacy in-method callers that fetch immediately under their own lock).
+        """
+        with self._lock:
+            for attempt in range(_DUCKDB_WRITE_CONFLICT_RETRIES + 1):
+                try:
+                    cur = (
+                        self.conn.execute(sql)
+                        if params is None
+                        else self.conn.execute(sql, params)
+                    )
+                    if fetch == "all":
+                        return cur.fetchall()
+                    if fetch == "one":
+                        return cur.fetchone()
+                    return cur
+                except duckdb.Error as exc:
+                    if self._is_invalidated_error(exc):
+                        logger.warning(
+                            "DuckDB connection for %s was invalidated; reopening and retrying",
+                            self.path,
+                        )
+                        self._reconnect_after_invalidated()
+                        continue
+                    if not self._is_write_conflict_error(exc):
+                        raise
+                    if attempt >= _DUCKDB_WRITE_CONFLICT_RETRIES:
+                        raise RuntimeError(
+                            "DuckDB write conflict did not resolve after "
+                            f"{_DUCKDB_WRITE_CONFLICT_RETRIES} retries for {self.path}. "
+                            "The library is receiving concurrent writes; retry the operation."
+                        ) from exc
+                    delay = _DUCKDB_WRITE_CONFLICT_BACKOFF_SECONDS * (attempt + 1)
+                    logger.warning(
+                        "DuckDB write conflict for %s; retrying in %.3fs (%s/%s)",
+                        self.path,
+                        delay,
+                        attempt + 1,
+                        _DUCKDB_WRITE_CONFLICT_RETRIES,
+                    )
+                    time.sleep(delay)
+            raise RuntimeError("DuckDB execution retry loop exited unexpectedly")
+
+    # =========================================================================
+    # Direct-SQL seam for the store modules (#2508)
+    # -------------------------------------------------------------------------
+    # The action/cache/checkpoint/activity/scheduler/task stores run raw SQL.
+    # Under the single shared connection (#2508) every such statement MUST be
+    # serialized on this Database's lock. These helpers are the only sanctioned
+    # way for those stores to touch SQL — they replace ``db.duck.execute(...)``
+    # (which ran outside the lock). The fetch happens INSIDE the lock so a
+    # SELECT's rows are materialized before another thread can use the
+    # connection. No new SQL — same statements, now serialized.
+    # =========================================================================
+
+    def execute(self, sql: str, params: Any | None = None):
+        """Run a statement for its side effect (DDL/DML), serialized on the
+        shared lock. Returns the cursor; do NOT fetch off it lazily — use
+        ``execute_fetchall`` / ``execute_fetchone`` when you need rows."""
+        return self._execute(sql, params)
+
+    def execute_fetchall(self, sql: str, params: Any | None = None) -> list:
+        """Execute + ``fetchall`` atomically under the lock (#2508)."""
+        return self._execute(sql, params, fetch="all")
+
+    def execute_fetchone(self, sql: str, params: Any | None = None):
+        """Execute + ``fetchone`` atomically under the lock (#2508)."""
+        return self._execute(sql, params, fetch="one")
 
     # =========================================================================
     # Core CRUD Operations
     # =========================================================================
+
+    @staticmethod
+    def _dump_row(obj: BaseModel) -> dict[str, Any]:
+        """Serialise a Pydantic instance into a DuckDB-ready column dict.
+
+        Excludes computed fields and JSON-encodes nested structures, exactly as
+        the single-row ``save`` path does. Shared with ``save_many`` so the
+        batched path produces byte-identical column values (#2542).
+        """
+        model_cls = type(obj)
+        computed_keys = (
+            set(model_cls.model_computed_fields.keys())
+            if hasattr(model_cls, "model_computed_fields")
+            else set()
+        )
+        data = obj.model_dump(exclude=computed_keys)
+
+        # Convert dict/list/tuple/Path fields for DuckDB (recursively handle
+        # nested Pydantic models with datetimes).
+        def _json_safe(value):
+            if isinstance(value, BaseModel):
+                return _json_safe(value.model_dump())
+            elif isinstance(value, dict):
+                return {k: _json_safe(v) for k, v in value.items()}
+            elif isinstance(value, (list, tuple)):
+                return [_json_safe(item) for item in value]
+            elif isinstance(value, datetime):
+                return value.isoformat()
+            return value
+
+        for key, value in data.items():
+            if isinstance(value, (dict, list, tuple)):
+                data[key] = json.dumps(_json_safe(value))
+            elif isinstance(value, Path):
+                data[key] = str(value)
+            elif isinstance(value, datetime):
+                data[key] = value.isoformat()
+        return data
+
+    @staticmethod
+    def _upsert_sql(sql_table: str, cols: list[str], placeholders: str) -> str:
+        """Build the DuckDB ON CONFLICT upsert statement for ``cols``.
+
+        ``placeholders`` is the pre-rendered VALUES clause body (named ``$col``
+        for single-row execute, positional ``?`` for executemany batches).
+        """
+        col_names = ", ".join(cols)
+        update_cols = [c for c in cols if c != "id"]
+        if update_cols:
+            set_clause = ", ".join(f"{c} = EXCLUDED.{c}" for c in update_cols)
+            return (
+                f"INSERT INTO {sql_table} ({col_names}) VALUES ({placeholders}) "
+                f"ON CONFLICT (id) DO UPDATE SET {set_clause}"
+            )
+        # Edge case: a table whose only column is `id` — ON CONFLICT has
+        # nothing to update, so DO NOTHING is the right semantics.
+        return (
+            f"INSERT INTO {sql_table} ({col_names}) VALUES ({placeholders}) "
+            f"ON CONFLICT (id) DO NOTHING"
+        )
 
     def save(self, obj: BaseModel, auto_embed: bool = False) -> None:
         """Save a Pydantic object (insert or update by ID).
@@ -454,35 +642,7 @@ class Database(DatabaseEmbeddingMixin):
         sql_table = self._sql_table_name(obj)
         self._ensure_table(type(obj))
 
-        # Exclude computed fields (they're derived, not stored)
-        model_cls = type(obj)
-        computed_keys = (
-            set(model_cls.model_computed_fields.keys())
-            if hasattr(model_cls, "model_computed_fields")
-            else set()
-        )
-        data = obj.model_dump(exclude=computed_keys)
-
-        # Convert dict/list/tuple/Path fields for DuckDB (recursively handle nested Pydantic models with datetimes)
-        def _json_safe(obj):
-            """Recursively convert Pydantic models and datetime for JSON serialization."""
-            if isinstance(obj, BaseModel):
-                return _json_safe(obj.model_dump())
-            elif isinstance(obj, dict):
-                return {k: _json_safe(v) for k, v in obj.items()}
-            elif isinstance(obj, (list, tuple)):
-                return [_json_safe(item) for item in obj]
-            elif isinstance(obj, datetime):
-                return obj.isoformat()
-            return obj
-
-        for key, value in data.items():
-            if isinstance(value, (dict, list, tuple)):
-                data[key] = json.dumps(_json_safe(value))
-            elif isinstance(value, Path):
-                data[key] = str(value)
-            elif isinstance(value, datetime):
-                data[key] = value.isoformat()
+        data = self._dump_row(obj)
 
         # Build a native DuckDB UPSERT (#1120).
         #
@@ -508,66 +668,142 @@ class Database(DatabaseEmbeddingMixin):
         # typed save contract ("give me a Pydantic instance and I'll
         # persist it; idempotent on id") is unchanged; callers see no
         # SQL state.
-        cols = list(data.keys())
-        col_names = ", ".join(cols)
-        placeholders = ", ".join(f"${c}" for c in cols)
         # ON CONFLICT requires that the target table actually has `id` as
         # the conflict key, which is true for every model in this layer
         # (PRIMARY KEY (id) is set in `_ensure_table`). The
         # SET <c> = EXCLUDED.<c> clause covers every non-key column;
         # without it, ON CONFLICT degenerates to DO NOTHING and we'd
         # silently drop updates.
-        update_cols = [c for c in cols if c != "id"]
-        if update_cols:
-            set_clause = ", ".join(f"{c} = EXCLUDED.{c}" for c in update_cols)
-            sql = (
-                f"INSERT INTO {sql_table} ({col_names}) VALUES ({placeholders}) "
-                f"ON CONFLICT (id) DO UPDATE SET {set_clause}"
-            )
-        else:
-            # Edge case: a table whose only column is `id` — ON CONFLICT
-            # has nothing to update, so DO NOTHING is the right semantics.
-            sql = (
-                f"INSERT INTO {sql_table} ({col_names}) VALUES ({placeholders}) "
-                f"ON CONFLICT (id) DO NOTHING"
-            )
+        cols = list(data.keys())
+        placeholders = ", ".join(f"${c}" for c in cols)
+        sql = self._upsert_sql(sql_table, cols, placeholders)
 
         self._execute(sql, data)
 
+        if type(obj).__name__ == "SavedSearch":
+            self._save_saved_search_document(obj)
+
         # Auto-embed if requested and has content
+        # ponytail: bulk callers (importers / reindex loops) that save many
+        # rows + embed should adopt save_many()/embed_many() instead of a
+        # per-row save(auto_embed=True) loop — one transaction + one Lance
+        # append amortises the single-connection lock at 100k images (#2542).
         if auto_embed and hasattr(obj, "page_content") and obj.page_content:
             self.embed(obj)
+
+    def save_many(self, objs: Sequence[BaseModel]) -> int:
+        """Batch-upsert many same-typed Pydantic objects in ONE transaction.
+
+        Additive bulk path for the 100k-image save problem (#2542): instead of
+        N separate ``save`` calls (N lock acquisitions + N autocommitted
+        statements), this performs a single ``executemany`` inside one
+        DuckDB transaction under the shared lock.
+
+        Semantics:
+        - All objects must be the same model type (one table, one column set).
+        - All-or-nothing: a bad row aborts the whole batch (ROLLBACK) and the
+          error is raised — never a silent partial write (Daniel's rule).
+        - Empty input is a no-op returning 0.
+        - Does NOT auto-embed; callers that also need vectors should pair this
+          with ``embed_many`` so the embedding append batches too.
+
+        Returns the number of rows written.
+        """
+        objs = list(objs)
+        if not objs:
+            return 0
+
+        first_type = type(objs[0])
+        for obj in objs:
+            if type(obj) is not first_type:
+                raise TypeError(
+                    "save_many requires all objects to be the same model type; "
+                    f"got {first_type.__name__} and {type(obj).__name__}"
+                )
+
+        sql_table = self._sql_table_name(objs[0])
+        self._ensure_table(first_type)
+
+        rows = [self._dump_row(obj) for obj in objs]
+        cols = list(rows[0].keys())
+        placeholders = ", ".join("?" for _ in cols)
+        sql = self._upsert_sql(sql_table, cols, placeholders)
+        # Positional params in stable column order for every row. Missing keys
+        # would silently shift columns, so demand a uniform shape up front.
+        param_rows: list[list[Any]] = []
+        for row in rows:
+            if row.keys() != rows[0].keys():
+                raise ValueError(
+                    "save_many rows have inconsistent columns; refusing to "
+                    "write a misaligned batch"
+                )
+            param_rows.append([row[c] for c in cols])
+
+        with self._lock:
+            for attempt in range(_DUCKDB_WRITE_CONFLICT_RETRIES + 1):
+                try:
+                    self.conn.execute("BEGIN TRANSACTION")
+                    try:
+                        self.conn.executemany(sql, param_rows)
+                    except Exception:
+                        # Abort the partial batch — no half-written rows.
+                        self.conn.execute("ROLLBACK")
+                        raise
+                    self.conn.execute("COMMIT")
+                    return len(param_rows)
+                except duckdb.Error as exc:
+                    if self._is_invalidated_error(exc):
+                        logger.warning(
+                            "DuckDB connection for %s was invalidated during "
+                            "save_many; reopening and retrying",
+                            self.path,
+                        )
+                        self._reconnect_after_invalidated()
+                        continue
+                    if not self._is_write_conflict_error(exc):
+                        raise
+                    if attempt >= _DUCKDB_WRITE_CONFLICT_RETRIES:
+                        raise RuntimeError(
+                            "DuckDB write conflict did not resolve after "
+                            f"{_DUCKDB_WRITE_CONFLICT_RETRIES} retries for "
+                            f"{self.path} (save_many)."
+                        ) from exc
+                    delay = _DUCKDB_WRITE_CONFLICT_BACKOFF_SECONDS * (attempt + 1)
+                    time.sleep(delay)
+            raise RuntimeError("save_many retry loop exited unexpectedly")
 
     def get(self, model: Type[T], id: str) -> T | None:
         """Get a single object by ID."""
         sql_table = self._sql_table_name(model)
         self._ensure_table(model)
 
-        result = self._execute(
-            f"SELECT * FROM {sql_table} WHERE id = $id", {"id": id}
-        ).fetchone()
+        with self._lock:
+            result = self._execute(
+                f"SELECT * FROM {sql_table} WHERE id = $id", {"id": id}
+            ).fetchone()
+            columns = [desc[0] for desc in self.conn.description]
 
         if result is None:
             return None
 
-        columns = [desc[0] for desc in self.conn.description]
-        row_dict = self._parse_json_fields(model, dict(zip(columns, result)))
-        return model(**row_dict)
+        return self._hydrate_row(model, columns, result)
 
     def all(self, model: Type[T]) -> list[T]:
         """Get all objects of a type."""
         sql_table = self._sql_table_name(model)
         self._ensure_table(model)
 
-        rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
+        with self._lock:
+            rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
+            columns = [desc[0] for desc in self.conn.description]
 
         if not rows:
             return []
 
-        columns = [desc[0] for desc in self.conn.description]
         return [
-            model(**self._parse_json_fields(model, dict(zip(columns, row))))
+            hydrated
             for row in rows
+            if (hydrated := self._hydrate_row(model, columns, row)) is not None
         ]
 
     def query(self, model: Type[T], **filters) -> list[T]:
@@ -600,18 +836,293 @@ class Database(DatabaseEmbeddingMixin):
                 where_clauses.append(f"{k} = ${k}")
 
         where = " AND ".join(where_clauses)
-        rows = self._execute(
-            f"SELECT * FROM {sql_table} WHERE {where}", query_filters
-        ).fetchall()
+        with self._lock:
+            rows = self._execute(
+                f"SELECT * FROM {sql_table} WHERE {where}", query_filters
+            ).fetchall()
+            columns = [desc[0] for desc in self.conn.description]
 
         if not rows:
             return []
 
-        columns = [desc[0] for desc in self.conn.description]
         return [
-            model(**self._parse_json_fields(model, dict(zip(columns, row))))
+            hydrated
             for row in rows
+            if (hydrated := self._hydrate_row(model, columns, row)) is not None
         ]
+
+    def query_in(self, model: Type[T], column: str, values) -> list[T]:
+        """Query rows where `column` matches any of `values` (SQL ``IN``).
+
+        ``query`` only supports single-equality filters; this pushes a
+        set-membership filter down to SQL with a parameterized ``IN (...)``
+        so callers stop pulling a whole table into Python just to filter it
+        (the ``list_entities`` document-scope hot path, #1815).
+
+        ``values`` is de-duplicated and chunked (DuckDB caps bound
+        parameters), and enum members are unwrapped to their ``.value`` to
+        match how they are stored. Returns ``[]`` for an empty ``values``.
+        """
+        sql_table = self._sql_table_name(model)
+        self._ensure_table(model)
+
+        # Validate column name to prevent SQL injection (same guard as query()).
+        if not _VALID_IDENTIFIER.match(column):
+            raise ValueError(f"Invalid column name: {column}")
+
+        # Normalize enums and de-dup while preserving determinism.
+        normalized: list[Any] = []
+        seen: set[Any] = set()
+        for v in values:
+            nv = v.value if hasattr(v, "value") else v
+            if nv in seen:
+                continue
+            seen.add(nv)
+            normalized.append(nv)
+
+        if not normalized:
+            return []
+
+        out: list[T] = []
+        # Chunk to stay well under DuckDB's bound-parameter ceiling on huge
+        # folder scopes (mirrors _collect_folder_descendants_helper).
+        for start in range(0, len(normalized), 500):
+            chunk = normalized[start : start + 500]
+            placeholders = ",".join(f"$v{i}" for i in range(len(chunk)))
+            params = {f"v{i}": val for i, val in enumerate(chunk)}
+            with self._lock:
+                rows = self._execute(
+                    f"SELECT * FROM {sql_table} WHERE {column} IN ({placeholders})",
+                    params,
+                ).fetchall()
+                columns = [desc[0] for desc in self.conn.description]
+            if not rows:
+                continue
+            out.extend(
+                hydrated
+                for row in rows
+                if (hydrated := self._hydrate_row(model, columns, row)) is not None
+            )
+        return out
+
+    def commit(self) -> None:
+        """Commit pending DuckDB work through the typed DB wrapper."""
+        self.conn.commit()
+
+    def knowledge_claim_entity_id_values(
+        self,
+        *,
+        source_document_id: str | None = None,
+        entity_id: str | None = None,
+    ) -> list[Any]:
+        """Return raw ``entity_ids`` column values from knowledge claims.
+
+        The column stores JSON/list payloads depending on migration vintage;
+        callers keep the existing defensive parsing behavior.
+        """
+        if source_document_id is not None and entity_id is not None:
+            rows = self._execute(
+                """
+                SELECT entity_ids FROM knowledgeclaims
+                WHERE source_document_id = $source_document_id
+                  AND entity_ids LIKE $needle
+                """,
+                {
+                    "source_document_id": source_document_id,
+                    "needle": f'%"{entity_id}"%',
+                },
+            ).fetchall()
+        elif source_document_id is not None:
+            rows = self._execute(
+                "SELECT entity_ids FROM knowledgeclaims WHERE source_document_id = $id",
+                {"id": source_document_id},
+            ).fetchall()
+        elif entity_id is not None:
+            rows = self._execute(
+                "SELECT entity_ids FROM knowledgeclaims WHERE entity_ids LIKE $needle",
+                {"needle": f'%"{entity_id}"%'},
+            ).fetchall()
+        else:
+            rows = self._execute("SELECT entity_ids FROM knowledgeclaims").fetchall()
+        return [row[0] for row in rows]
+
+    def knowledge_claim_source_document_ids_for_entity(
+        self, entity_id: str
+    ) -> list[str | None]:
+        """Return source document ids for claims whose entity list mentions an id."""
+        rows = self._execute(
+            "SELECT source_document_id FROM knowledgeclaims WHERE entity_ids LIKE $needle",
+            {"needle": f'%"{entity_id}"%'},
+        ).fetchall()
+        return [row[0] for row in rows]
+
+    def knowledge_entity_canonical_name(self, entity_id: str) -> str | None:
+        """Return a single entity's canonical name, if present."""
+        row = self._execute(
+            "SELECT canonical_name FROM knowledgeentitys WHERE id = $id",
+            {"id": entity_id},
+        ).fetchone()
+        return row[0] if row and row[0] else None
+
+    def knowledge_entity_ids_scoped_to_documents(self, doc_ids: set[str]) -> set[str]:
+        """Entity ids whose ``source_document_ids`` JSON list intersects doc ids."""
+        if not doc_ids:
+            return set()
+
+        found: set[str] = set()
+        doc_id_list = list(doc_ids)
+        for start in range(0, len(doc_id_list), 200):
+            chunk = doc_id_list[start : start + 200]
+            clauses = " OR ".join(
+                f"source_document_ids LIKE $d{i}" for i in range(len(chunk))
+            )
+            params = {f"d{i}": f'%"{doc_id}"%' for i, doc_id in enumerate(chunk)}
+            rows = self._execute(
+                f"SELECT id FROM knowledgeentitys WHERE {clauses}",
+                params,
+            ).fetchall()
+            for (entity_id,) in rows:
+                if entity_id:
+                    found.add(entity_id)
+        return found
+
+    def entity_document_link_rows(self, entity_id: str, limit: int) -> list[tuple]:
+        """Documents that mention an entity, with claim count and first excerpt."""
+        return self._execute(
+            """
+            SELECT c.source_document_id,
+                   d.name,
+                   d.doc_type,
+                   d.file_type,
+                   COUNT(*) AS claim_count,
+                   MIN(c.source_excerpt) AS first_excerpt
+            FROM knowledgeclaims c
+            LEFT JOIN documents d ON d.id = c.source_document_id
+            WHERE c.entity_ids LIKE $needle
+            GROUP BY c.source_document_id, d.name, d.doc_type, d.file_type
+            ORDER BY claim_count DESC, d.name
+            LIMIT $limit
+            """,
+            {"needle": f'%"{entity_id}"%', "limit": limit},
+        ).fetchall()
+
+    def knowledge_claim_excerpts_for_entity(
+        self, entity_id: str, limit: int
+    ) -> list[str]:
+        """Representative non-empty claim excerpts for an entity."""
+        rows = self._execute(
+            """
+            SELECT source_excerpt FROM knowledgeclaims
+            WHERE entity_ids LIKE $needle
+              AND source_excerpt IS NOT NULL
+              AND length(source_excerpt) > 0
+            ORDER BY length(source_excerpt) ASC
+            LIMIT $limit
+            """,
+            {"needle": f'%"{entity_id}"%', "limit": limit},
+        ).fetchall()
+        return [excerpt for (excerpt,) in rows if excerpt]
+
+    def entity_document_claim_counts(
+        self, entity_id: str, limit: int
+    ) -> list[tuple[str, int]]:
+        """Source document ids and claim counts for biography assembly."""
+        rows = self._execute(
+            """
+            SELECT source_document_id, COUNT(*) AS claim_count
+            FROM knowledgeclaims
+            WHERE entity_ids LIKE $needle
+            GROUP BY source_document_id
+            ORDER BY claim_count DESC
+            LIMIT $limit
+            """,
+            {"needle": f'%"{entity_id}"%', "limit": limit},
+        ).fetchall()
+        return [(doc_id, int(claim_count or 0)) for doc_id, claim_count in rows]
+
+    def artifact_data_for_types(self, artifact_types: Sequence[str]) -> list[Any]:
+        """Return artifact data blobs for a fixed set of artifact types."""
+        if not artifact_types:
+            return []
+        placeholders = ",".join(f"$t{i}" for i in range(len(artifact_types)))
+        params = {f"t{i}": artifact_type for i, artifact_type in enumerate(artifact_types)}
+        rows = self._execute(
+            f"SELECT data FROM artifacts WHERE artifact_type IN ({placeholders})",
+            params,
+        ).fetchall()
+        return [row[0] for row in rows]
+
+    def document_page_content(self, document_id: str) -> str | None:
+        """Return a document's full page content by id."""
+        row = self._execute(
+            "SELECT page_content FROM documents WHERE id = $id",
+            {"id": document_id},
+        ).fetchone()
+        return row[0] if row else None
+
+    def artifact_entity_document_matches(
+        self,
+        *,
+        query: str,
+        limit: int,
+        artifact_types: Sequence[str],
+    ) -> list[tuple]:
+        """Documents whose extracted artifact JSON contains a query substring."""
+        if not query.strip() or not artifact_types:
+            return []
+        placeholders = ",".join(f"$t{i}" for i in range(len(artifact_types)))
+        params: dict[str, object] = {
+            "needle": f"%{query.strip().lower()}%",
+            "limit": limit,
+        }
+        for i, artifact_type in enumerate(artifact_types):
+            params[f"t{i}"] = artifact_type
+        return self._execute(
+            f"""
+            SELECT DISTINCT a.document_id, d.name, d.doc_type, d.file_type
+            FROM artifacts a
+            JOIN documents d ON d.id = a.document_id
+            WHERE a.artifact_type IN ({placeholders})
+              AND d.deleted_at IS NULL
+              AND lower(CAST(a.data AS VARCHAR)) LIKE $needle
+            LIMIT $limit
+            """,
+            params,
+        ).fetchall()
+
+    def recent_content_document_rows(self, limit: int) -> list[tuple]:
+        """Most recently updated documents with non-empty page content."""
+        return self._execute(
+            """
+            SELECT d.id, d.name, d.doc_type, d.file_type, d.updated_at, d.page_content
+            FROM documents d
+            WHERE d.deleted_at IS NULL
+              AND d.page_content IS NOT NULL
+              AND length(d.page_content) > 0
+            ORDER BY d.updated_at DESC
+            LIMIT $limit
+            """,
+            {"limit": limit},
+        ).fetchall()
+
+    def keyword_artifact_rows(self) -> list[tuple[Any, str]]:
+        """Keyword artifact data plus document id for keyword cloud counts."""
+        return self._execute(
+            "SELECT data, document_id FROM artifacts WHERE artifact_type = 'keywords'"
+        ).fetchall()
+
+    def knowledge_table_signature(self, table_name: str) -> tuple[int, str]:
+        """Return ``(count, max_updated_at)`` for cacheable KG tables."""
+        if not _VALID_IDENTIFIER.match(table_name):
+            raise ValueError(f"Invalid table name: {table_name}")
+        if table_name not in {"knowledgeclaims", "knowledgeentitys"}:
+            raise ValueError(f"Unsupported knowledge table: {table_name}")
+        row = self._execute(
+            f"SELECT COUNT(*), MAX(updated_at) FROM {table_name}"
+        ).fetchone()
+        if not row:
+            return (0, "")
+        return (int(row[0] or 0), str(row[1]) if row[1] is not None else "")
 
     def delete(self, obj: BaseModel) -> None:
         """Delete an object by ID."""
@@ -619,6 +1130,109 @@ class Database(DatabaseEmbeddingMixin):
         self._ensure_table(type(obj))
 
         self._execute(f"DELETE FROM {sql_table} WHERE id = $id", {"id": obj.id})
+        if type(obj).__name__ == "SavedSearch":
+            self._delete_saved_search_document(obj.id)
+
+    def _save_saved_search_document(self, saved: BaseModel) -> None:
+        """Mirror a SavedSearch row into the document tree as a smart folder."""
+        from fichero.models import DocType, Document
+
+        existing = self.get(Document, saved.id)
+        metadata = (
+            dict(existing.metadata)
+            if existing is not None and isinstance(existing.metadata, dict)
+            else {}
+        )
+        metadata.update({
+            "node_class": "smart_folder",
+            "saved_search_id": saved.id,
+            "saved_search_query": saved.query,
+            "saved_search_filters": saved.filters,
+            "saved_search_is_smart_search": saved.is_smart_search,
+            "saved_search_type": saved.search_type,
+            "saved_search_sort_by": saved.sort_by,
+            "saved_search_sort_direction": saved.sort_direction,
+            "saved_search_folder_path": saved.folder_path,
+        })
+
+        doc = existing or Document(id=saved.id, name=saved.query)
+        doc.name = saved.query
+        doc.node_kind = "saved_search"
+        doc.doc_type = DocType.folder
+        doc.sort_order = saved.sort_order
+        doc.metadata = metadata
+        doc.created_at = saved.created_at
+        doc.updated_at = saved.updated_at
+        self.save(doc)
+
+    def _delete_saved_search_document(self, saved_search_id: str) -> None:
+        """Remove the mirrored document row for a saved search, if present."""
+        from fichero.models import Document
+
+        doc = self.get(Document, saved_search_id)
+        if doc is None:
+            return
+        self._execute("DELETE FROM documents WHERE id = $id", {"id": saved_search_id})
+
+    def _backfill_saved_search_documents(self) -> None:
+        """Backfill existing saved_searches rows into same-id document nodes."""
+        # ponytail: mocked connections in unit tests may only support close().
+        if not hasattr(self.conn, "execute"):
+            return
+
+        from fichero.models import SavedSearch
+
+        table_name = self._table_name(SavedSearch)
+        table_exists = self.execute_fetchone(
+            """
+            SELECT COUNT(*) FROM information_schema.tables
+            WHERE table_name = $table_name
+            """,
+            {"table_name": table_name},
+        )
+        if not table_exists or int(table_exists[0] or 0) == 0:
+            return
+
+        for saved in self.all(SavedSearch):
+            self._save_saved_search_document(saved)
+
+    def _backfill_claim_links_to_library_links(self) -> None:
+        """Mirror legacy claim-link rows into generic library-link rows."""
+        if not hasattr(self.conn, "execute"):
+            return
+
+        from fichero.knowledge_models import (
+            KnowledgeClaimLink,
+            LibraryItemLink,
+            LibraryItemType,
+        )
+
+        self._ensure_table(LibraryItemLink)
+
+        table_name = self._table_name(KnowledgeClaimLink)
+        table_exists = self.execute_fetchone(
+            """
+            SELECT COUNT(*) FROM information_schema.tables
+            WHERE table_name = $table_name
+            """,
+            {"table_name": table_name},
+        )
+        if not table_exists or int(table_exists[0] or 0) == 0:
+            return
+
+        for link in self.all(KnowledgeClaimLink):
+            self.save(LibraryItemLink(
+                id=link.id,
+                source_id=link.claim_id,
+                source_type=LibraryItemType.claim,
+                target_id=link.related_claim_id,
+                target_type=LibraryItemType.claim,
+                relation_type=link.relation_type,
+                link_quality=link.link_quality,
+                evidence=link.evidence,
+                metadata=link.metadata,
+                created_at=link.created_at,
+            ))
 
     def count(self, model: Type[T], **filters) -> int:
         """Count objects matching filters."""
@@ -675,13 +1289,148 @@ class Database(DatabaseEmbeddingMixin):
                 table_names.append(str(table))
         return table_names
 
-    def save_vectors(self, table_name: str, data: list[dict]) -> None:
-        """Save data to LanceDB table (creates or appends)."""
-        if table_name in self._lance_tables():
-            table = self.lance.open_table(table_name)
-            table.add(data)
+    def _lance_table_field_names(self, table) -> set[str]:
+        """Return the field names for a LanceDB table across API versions."""
+        schema = getattr(table, "schema", None)
+        if callable(schema):
+            schema = schema()
+        names = getattr(schema, "names", None)
+        if names is not None:
+            return {str(name) for name in names}
+        fields = getattr(schema, "fields", None)
+        if fields is not None:
+            return {str(getattr(field, "name", field)) for field in fields}
+        return set()
+
+    def _coerce_vectors_to_existing_schema(
+        self, table_name: str, table, data: list[dict]
+    ) -> list[dict]:
+        """Evolve a legacy LanceDB table schema before append, then coerce.
+
+        For each field present in the data but absent from the table:
+        1. Attempt ``table.add_columns()`` to add the column in-place (#2225).
+           ``embedding_model_id`` is the common case — legacy tables lack it so
+           every append silently discards the model stamp.
+        2. If the column add fails (e.g. older LanceDB or concurrent writer),
+           fall through to stripping the field from the rows so the append
+           succeeds rather than crashing.
+        """
+        fields = self._lance_table_field_names(table)
+        if not fields:
+            return data
+
+        extra_fields = set().union(*(row.keys() - fields for row in data))
+        if not extra_fields:
+            return data
+
+        still_extra: set[str] = set()
+        for field_name in extra_fields:
+            # Infer SQL expression: nullable varchar for string fields, else cast null.
+            sample = next(
+                (row[field_name] for row in data if row.get(field_name) is not None),
+                None,
+            )
+            sql = "cast(null as string)" if sample is None or isinstance(sample, str) else "cast(null as double)"
+            try:
+                table.add_columns({field_name: sql})
+                logger.info(
+                    "LanceDB table %s: migrated legacy schema — added column %r",
+                    table_name, field_name,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "LanceDB table %s: could not add column %r (%s); "
+                    "omitting field from append",
+                    table_name, field_name, exc,
+                )
+                still_extra.add(field_name)
+
+        if not still_extra:
+            return data
+
+        return [{key: value for key, value in row.items() if key not in still_extra} for row in data]
+
+    def save_vectors(
+        self,
+        table_name: str,
+        data: list[dict],
+        *,
+        replace: bool = False,
+        key_field: str = "id",
+    ) -> None:
+        """Save data to LanceDB table (creates or appends).
+
+        When ``replace`` is True, existing rows with the same key are deleted
+        first so reindex/backfill passes stay idempotent.
+        """
+        if not data:
+            return
+
+        with self._lock:
+            if table_name in self._lance_tables():
+                table = self.lance.open_table(table_name)
+                data = self._coerce_vectors_to_existing_schema(table_name, table, data)
+                if replace:
+                    for row in data:
+                        key = row.get(key_field)
+                        if key is None:
+                            continue
+                        safe_key = str(key).replace("'", "''")
+                        table.delete(f"{key_field} = '{safe_key}'")
+                table.add(data)
+            else:
+                self.lance.create_table(table_name, data)
+            # One append == one LanceDB fragment. Count appends per table and
+            # run a bounded compaction every N of them so 100k micro-appends
+            # don't rot read performance (#2542). Compacting on every write
+            # would be strictly worse, so it's gated on the interval.
+            self._note_vector_append(table_name)
+
+    def _note_vector_append(self, table_name: str) -> None:
+        """Increment the per-table append counter and compact at the interval."""
+        interval = _vector_compaction_interval()
+        if interval <= 0:
+            return
+        count = self._vector_append_counts.get(table_name, 0) + 1
+        if count >= interval:
+            self._vector_append_counts[table_name] = 0
+            self.compact_vectors(table_name)
         else:
-            self.lance.create_table(table_name, data)
+            self._vector_append_counts[table_name] = count
+
+    def compact_vectors(self, table_name: str | None = None) -> dict[str, bool]:
+        """Compact (optimize) one or all LanceDB vector tables.
+
+        Merges accumulated micro-fragments into larger files and prunes old
+        versions via ``table.optimize()`` (#2542). Safe to call explicitly at
+        the end of a bulk import; also fired automatically by the append-count
+        trigger. Data is never lost — optimize only rewrites storage layout.
+
+        Returns a map of ``table_name -> compacted?`` so callers/tests can see
+        which tables were touched. A per-table failure is logged loudly and
+        recorded as ``False`` rather than aborting the others; the data is
+        intact either way (optimize is atomic per table).
+        """
+        results: dict[str, bool] = {}
+        with self._lock:
+            available = set(self._lance_tables())
+            targets = (
+                [table_name] if table_name is not None else sorted(available)
+            )
+            for name in targets:
+                if name not in available:
+                    results[name] = False
+                    continue
+                try:
+                    self.lance.open_table(name).optimize()
+                    self._vector_append_counts[name] = 0
+                    results[name] = True
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "LanceDB compaction failed for table %s: %s", name, exc
+                    )
+                    results[name] = False
+        return results
 
     def search_vectors(
         self, table_name: str, query_vector: list[float], limit: int = 10
@@ -691,6 +1440,7 @@ class Database(DatabaseEmbeddingMixin):
             return []
 
         table = self.lance.open_table(table_name)
+        self.assert_vector_table_model_compatible(table_name)
         results = table.search(query_vector).limit(limit).to_list()
         return results
 
@@ -698,10 +1448,23 @@ class Database(DatabaseEmbeddingMixin):
     # Embedding Convenience Methods
     # =========================================================================
 
+    def _delete_embedding_rows(self, field: str, value: str) -> None:
+        """Delete embedding rows by a trusted field/value pair."""
+        with self._lock:
+            if EMBEDDINGS_TABLE not in self._lance_tables():
+                return
+            safe_value = value.replace("'", "''") if value else ""
+            table = self.lance.open_table(EMBEDDINGS_TABLE)
+            table.delete(f"{field} = '{safe_value}'")
+
     def save_embedding(
         self, doc: BaseModel, vector: list[float], text: str | None = None
     ) -> None:
-        """Save document embedding to LanceDB.
+        """Save one page/document-level embedding to LanceDB.
+
+        Passage-level indexing is the default path through ``embed()``. This
+        method remains the explicit fallback for legacy page/document vectors
+        and tests that need to seed one vector by hand.
 
         Args:
             doc: Document model with id attribute
@@ -726,6 +1489,11 @@ class Database(DatabaseEmbeddingMixin):
             "document_id": doc.id,
             "text": content,
             "vector": stored_vector,
+            "embedding_scope": "page",
+            "passage_id": "",
+            "page_id": doc.id,
+            "char_start": 0,
+            "char_end": len(content) if content else None,
             # Store document metadata for search results display
             "name": getattr(doc, "name", None),
             "doc_type": getattr(doc, "doc_type", None).value
@@ -736,9 +1504,22 @@ class Database(DatabaseEmbeddingMixin):
             else None,
             "vector_int8": quantized_vector,
             "vector_scale": quantized_scale,
+            **self._vector_model_metadata(),
         }
 
-        self.save_vectors("embeddings", [record])
+        with self._lock:
+            self._delete_embedding_rows("document_id", doc.id)
+            self.save_vectors(EMBEDDINGS_TABLE, [record], replace=True)
+
+    def save_passage_embeddings(self, doc: BaseModel, *, text: str | None = None) -> int:
+        """Save passage/chunk-level embeddings for a document."""
+        records = self.passage_embedding_records(doc, text=text)
+        if not records:
+            return 0
+        with self._lock:
+            self._delete_embedding_rows("document_id", doc.id)
+            self.save_vectors(EMBEDDINGS_TABLE, records)
+        return len(records)
 
     def search_similar(
         self, query_vector: list[float], limit: int = 10, model: Type[T] | None = None
@@ -753,7 +1534,7 @@ class Database(DatabaseEmbeddingMixin):
         Returns:
             List of dicts (or model instances if model provided)
         """
-        results = self.search_vectors("embeddings", query_vector, limit)
+        results = self.search_vectors(EMBEDDINGS_TABLE, query_vector, limit)
 
         if model is None:
             return results
@@ -772,7 +1553,7 @@ class Database(DatabaseEmbeddingMixin):
             True if deleted
         """
         try:
-            if "embeddings" not in self._lance_tables():
+            if EMBEDDINGS_TABLE not in self._lance_tables():
                 return False
 
             # Validate doc_id to prevent injection
@@ -782,8 +1563,8 @@ class Database(DatabaseEmbeddingMixin):
             else:
                 safe_id = doc_id
 
-            table = self.lance.open_table("embeddings")
-            table.delete(f"id = '{safe_id}'")
+            table = self.lance.open_table(EMBEDDINGS_TABLE)
+            table.delete(f"id = '{safe_id}' OR document_id = '{safe_id}'")
             return True
         except Exception as e:
             error = handle_error(
@@ -805,14 +1586,19 @@ class Database(DatabaseEmbeddingMixin):
             True if embedding exists
         """
         try:
-            if "embeddings" not in self._lance_tables():
+            if EMBEDDINGS_TABLE not in self._lance_tables():
                 return False
 
             # Sanitize doc_id to prevent injection
             safe_id = doc_id.replace("'", "''") if doc_id else ""
 
-            table = self.lance.open_table("embeddings")
-            results = table.search().where(f"id = '{safe_id}'").limit(1).to_list()
+            table = self.lance.open_table(EMBEDDINGS_TABLE)
+            results = (
+                table.search()
+                .where(f"id = '{safe_id}' OR document_id = '{safe_id}'")
+                .limit(1)
+                .to_list()
+            )
             return len(results) > 0
         except Exception:
             return False
@@ -821,29 +1607,8 @@ class Database(DatabaseEmbeddingMixin):
     # Semantic Search
     # =========================================================================
 
-    def embed(self, doc: BaseModel) -> bool:
-        """Create embedding for a document.
-
-        Uses document's page_content if available, otherwise name.
-        Embedding is stored in LanceDB for vector search.
-
-        Args:
-            doc: Document model with id and optionally page_content
-
-        Returns:
-            True if embedding was created
-        """
-        # Get text to embed.
-        #
-        # Marker-only content guard: when transcribe runs against a blank
-        # or unreadable page it sets page_content to '[sin texto]' (or
-        # '[ilegible]'). Embedding that literal string makes every
-        # marker-only doc share an identical vector, and they cluster at
-        # the top of every semantic query (the 95%-on-blank-doc bug
-        # Daniel hit on the social-license search). Treat marker-only
-        # content as 'no content' and fall back to the doc's name —
-        # which at least varies per-doc and reflects the legal-case
-        # / archive structure the user is browsing.
+    def _embedding_text_for_document(self, doc: BaseModel) -> str:
+        """Return the text payload that should be embedded for a document."""
         text = ""
         if hasattr(doc, "page_content") and doc.page_content:
             stripped = doc.page_content.strip()
@@ -856,12 +1621,44 @@ class Database(DatabaseEmbeddingMixin):
 
         if not text or len(text.strip()) < MIN_CONTENT_LENGTH:
             logger.debug("Skipping embedding for %s: content too short", doc.id)
+            return ""
+        return text
+
+    def embed(self, doc: BaseModel, *, mode: str = "passage") -> bool:
+        """Create embedding for a document.
+
+        Uses document's page_content if available, otherwise name. Passage
+        embeddings are the default; page-level embedding remains available via
+        ``mode="page"`` for legacy fallback/reindexing.
+
+        Args:
+            doc: Document model with id and optionally page_content
+
+        Returns:
+            True if embedding was created
+        """
+        # Marker-only content guard: when transcribe runs against a blank
+        # or unreadable page it sets page_content to '[sin texto]' (or
+        # '[ilegible]'). Embedding that literal string makes every
+        # marker-only doc share an identical vector, and they cluster at
+        # the top of every semantic query (the 95%-on-blank-doc bug
+        # Daniel hit on the social-license search). Treat marker-only
+        # content as 'no content' and fall back to the doc's name —
+        # which at least varies per-doc and reflects the legal-case
+        # / archive structure the user is browsing.
+        text = self._embedding_text_for_document(doc)
+        if not text:
             return False
 
         try:
-            vector = self._embed_text(text)
-            self.save_embedding(doc, vector, text[:500])
-            logger.debug("Created embedding for %s", doc.id)
+            if mode == "page":
+                vector = self._embed_text(text, role="passage")
+                self.save_embedding(doc, vector, text[:500])
+            else:
+                count = self.save_passage_embeddings(doc, text=text)
+                if count == 0:
+                    return False
+            logger.debug("Created %s embedding for %s", mode, doc.id)
             return True
         except Exception as e:
             logger.warning("Failed to create embedding for %s: %s", doc.id, e)
@@ -894,6 +1691,21 @@ class Database(DatabaseEmbeddingMixin):
             return False
 
         return any(self.has_embedding(page.id) for page in pages)
+
+    def _is_active_document_id(self, document_id: str | None) -> bool:
+        """True when the document exists and is not soft-deleted."""
+        if not document_id:
+            return False
+        try:
+            from fichero.models import Document
+
+            doc = self.get(Document, document_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(
+                "Active-document lookup failed for %s: %s", document_id, exc
+            )
+            return False
+        return bool(doc and getattr(doc, "deleted_at", None) is None)
 
     def enrich_search_results_with_kg(
         self, results: list[SearchResult], query: str
@@ -1107,7 +1919,7 @@ class Database(DatabaseEmbeddingMixin):
             fulltext_results = []
 
             # Check if embeddings table exists
-            has_embeddings = "embeddings" in self._lance_tables()
+            has_embeddings = EMBEDDINGS_TABLE in self._lance_tables()
 
             # Perform semantic search if requested and available
             if search_type in ["semantic", "hybrid"] and has_embeddings:
@@ -1116,14 +1928,15 @@ class Database(DatabaseEmbeddingMixin):
                     query_vector = self._embed_text(semantic_query)
 
                     # Search vectors
-                    table = self.lance.open_table("embeddings")
-                    raw_results = (
-                        table.search(query_vector).limit(limit * 2).to_list()
-                    )  # Get more for hybrid
+                    raw_results = self.search_vectors(
+                        EMBEDDINGS_TABLE, query_vector, limit * 2
+                    )
 
                     # Convert to SearchResult, filter by score
                     for r in raw_results:
                         document_id = r.get("document_id") or r.get("id")
+                        if not self._is_active_document_id(document_id):
+                            continue
                         if self._has_indexed_page_children(document_id):
                             continue
 
@@ -1152,9 +1965,16 @@ class Database(DatabaseEmbeddingMixin):
                                     "file_type": r.get("file_type"),
                                     "created_at": r.get("created_at"),
                                     "updated_at": r.get("updated_at"),
+                                    "embedding_scope": r.get("embedding_scope"),
+                                    "passage_id": r.get("passage_id"),
+                                    "page_id": r.get("page_id"),
+                                    "char_start": r.get("char_start"),
+                                    "char_end": r.get("char_end"),
                                 },
                             }
                         )
+                except EmbeddingSpaceMismatchError:
+                    raise
                 except Exception as e:
                     logger.warning("Semantic search failed: %s", e)
 
@@ -1164,7 +1984,7 @@ class Database(DatabaseEmbeddingMixin):
                     # Use DuckDB for full-text search
                     if has_embeddings:
                         # Get all documents from embeddings table for full-text search
-                        table = self.lance.open_table("embeddings")
+                        table = self.lance.open_table(EMBEDDINGS_TABLE)
                         all_docs = table.to_pandas()
 
                         # Accent-insensitive match: NFD-decompose both
@@ -1191,6 +2011,8 @@ class Database(DatabaseEmbeddingMixin):
                         # Convert to results format
                         for _, row in fulltext_docs.sort_values("bm25", ascending=False).iterrows():
                             document_id = row.get("document_id") or row.get("id")
+                            if not self._is_active_document_id(document_id):
+                                continue
                             if self._has_indexed_page_children(document_id):
                                 continue
 
@@ -1210,6 +2032,11 @@ class Database(DatabaseEmbeddingMixin):
                                         "created_at": row.get("created_at"),
                                         "updated_at": row.get("updated_at"),
                                         "bm25_score": lexical_score,
+                                        "embedding_scope": row.get("embedding_scope"),
+                                        "passage_id": row.get("passage_id"),
+                                        "page_id": row.get("page_id"),
+                                        "char_start": row.get("char_start"),
+                                        "char_end": row.get("char_end"),
                                     },
                                 }
                             )
@@ -1427,6 +2254,8 @@ class Database(DatabaseEmbeddingMixin):
 
             return results, total_count, search_stats
 
+        except EmbeddingSpaceMismatchError:
+            raise
         except Exception as e:
             logger.warning("Search failed: %s", e)
             return [], 0, {"search_type": search_type, "error": str(e)}
@@ -1508,6 +2337,17 @@ class Database(DatabaseEmbeddingMixin):
         """Import from Parquet file, returns count of imported rows."""
         sql_table = self._sql_table_name(model)
         self._ensure_table(model)
+        library_root = self.path.parent
+        candidate = Path(path)
+        if not candidate.is_absolute():
+            candidate = library_root / candidate
+        confined_path = resolve_under_allowed_roots(candidate, [library_root])
+        if confined_path is None:
+            raise ValueError(f"Parquet path must stay inside the library package: {path}")
+
+        parquet_columns = self.conn.from_parquet(str(confined_path)).columns
+        for column in parquet_columns:
+            _validated_identifier(column, kind="Parquet column name")
 
         # Count before
         before = self.count(model)
@@ -1515,8 +2355,8 @@ class Database(DatabaseEmbeddingMixin):
         # Import
         self.conn.execute(f"""
             INSERT INTO {sql_table}
-            SELECT * FROM read_parquet('{path}')
-        """)
+            SELECT * FROM read_parquet(?)
+        """, [str(confined_path)])
 
         # Return new rows
         after = self.count(model)
@@ -1622,6 +2462,28 @@ class Database(DatabaseEmbeddingMixin):
                 result[name] = value
 
         return result
+
+    def _hydrate_row(
+        self,
+        model: Type[T],
+        columns: Sequence[str],
+        row: Sequence[Any],
+    ) -> T | None:
+        """Convert a raw DuckDB row to a typed model, skipping null-PK ghosts.
+
+        DuckDB can surface legacy/corrupt rows with every field NULL even when
+        the table declares ``PRIMARY KEY (id)``. Those rows are not addressable
+        by the typed API and should not make ordinary table scans fail.
+        """
+        raw = dict(zip(columns, row))
+        if "id" in model.model_fields and raw.get("id") is None:
+            logger.warning(
+                "Skipping invalid %s row with NULL id in %s",
+                model.__name__,
+                self.path,
+            )
+            return None
+        return model(**self._parse_json_fields(model, raw))
 
     def _table_name(self, obj_or_model) -> str:
         """Get table name from model class (lowercase + 's')."""

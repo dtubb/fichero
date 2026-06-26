@@ -7,22 +7,26 @@ Fichero is a macOS document management system with LangChain-powered AI toolchai
 ## Session Configuration
 
 ```
-UPCOMING_BRANCH: 0.0.2
+WORKING_BRANCH: 0.0.2          # current working branch; NOT a release gate
 AUTONOMOUS_COMMITS: true
 AUTONOMOUS_PRS: true
 TASK_TRACKING: github
+RELEASE_MODEL: dated           # releases are cut by date, not semantic version
 ```
 
-**Branch discipline**: Each milestone gets its own branch and worktree at `~/code/fichero-<version>/`. Do NOT create per-task branches within a milestone — commit all milestone work directly to the milestone branch. When finishing a branch, push, create a PR, then merge it yourself.
+**Releases are dated, not versioned.** There is no 0.0.3 / N+2 milestone, no
+per-version branch, and **no per-version worktree** (`~/code/fichero-<version>` is retired).
+Commit work to the current working branch; cut a dated release when a slice is ready.
 
-**Worktree pattern**: `git worktree add ~/code/fichero-0.0.3 -b 0.0.3`
-Convention: `~/code/fichero-<version>` (e.g. `~/code/fichero-0.0.3`, `~/code/fichero-0.0.4`)
+**The organizing unit is the GitHub feature milestone** (Chat, KG & Hermeneutics,
+Window Chrome & Toolbars, Importers, …) — NOT a version number. Work **one milestone at a
+time**: groom it first (make sure the milestone's issues are all there and complete), work it
+to done, then pick the next. Features are **not gated behind a release** — the active lane is
+whatever milestone is in focus.
 
-**Two-ahead rule**: Never work more than one milestone ahead of what Daniel is testing.
-- Released: N (e.g. 0.0.1)
-- Daniel testing: N+1 (e.g. 0.0.2) — bug fixes happen here
-- Claude building: N+2 (e.g. 0.0.3) — one worktree, one agent loop
-- Do NOT start N+3 until Daniel approves N+1.
+**Branch discipline**: commit milestone work directly to the working branch; do NOT create
+per-task branches. For a risky/large slice, an isolated agent worktree under
+`.claude/worktrees/` is fine, but it is keyed to the work, not to a version.
 
 ## Iterate, never replace (HARD RULE)
 
@@ -61,8 +65,16 @@ This rule is embedded in every worker dispatch prompt.
 ## Build + Test + Lint
 
 ```bash
-# Backend server
-PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
+# Backend server — MUST serve HTTPS. The SwiftUI app pins https://127.0.0.1:8765
+# fail-closed (RemoteCertificatePinning, #2376/#2370), so a plain-HTTP engine is
+# unreachable — the SSE Activity stream and every loopback call die silently
+# (#2538). start_backend.sh is the supported launcher: it prepares loopback TLS
+# material, persists the SPKI pin, and runs uvicorn with --ssl-* (and already
+# scopes --reload to fichero-engine/src, so no reload-storm from worktrees).
+bash fichero-engine/scripts/start_backend.sh
+
+# Do NOT run a bare `uvicorn fichero.api.main:app --port 8765` for the app — it
+# serves HTTP and the pinned app cannot connect to it.
 
 # Python tests
 PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived
@@ -178,6 +190,7 @@ Full architecture: `docs/CLAUDE.md`, `docs/architecture/`
 8. Never start a milestone more than one ahead of what Daniel is currently testing.
 9. **0.0.x is no-migration**: schema changes go directly into `db.py` `_ensure_table` (via the Pydantic model field). Never add an `ALTER TABLE ADD COLUMN` migration function for a column that's already in the model — fresh databases pick it up automatically. Only historical structural migrations (table renames, data backfills) belong in `db_migrations.py`. Once 0.1.0 ships to real users, this rule changes.
 10. **New .swift files must be registered with `scripts/add-swift-file.rb`**: The `Fichero` main target uses traditional PBX file references — a file written to disk is invisible to the compiler until registered. Always run `ruby scripts/add-swift-file.rb <path>` after creating any new `.swift` file. The `xcodeproj` gem is installed at `~/.gem/ruby/2.6.0/gems/xcodeproj-1.27.0/`. Test-target files are the exception (sync'd groups). Never edit `project.pbxproj` by hand. The build gate (`bash scripts/verify_all.sh`) will catch unregistered files as "Cannot find type" errors.
+11. **Worktrees live ONLY under `~/code/fichero-worktrees/<name>`; never `rm` a `~/code/` sibling.** Create worktrees with `git worktree add ~/code/fichero-worktrees/<name> -b <branch> 0.0.2` — never as bare siblings `~/code/fichero-<name>`. Remove them ONLY with `git worktree remove --force <path>` (operates only on registered worktrees). **NEVER `rm -rf` a `~/code/` path and NEVER glob-delete `~/code/fichero-*`** — bare siblings such as `fichero-search`, `fichero-search-issue-*` are SEPARATE projects with their own remotes and uncommitted work (a glob `rm` of these destroyed the `fichero-search` project on 2026-06-09). Before any destructive fs op, confirm the path is under `~/code/fichero-worktrees/` AND in `git worktree list`; otherwise stop and surface it. To clear a stale bare-sibling, `mv` it aside and let Daniel delete it.
 
 ## Before editing backend or API-client code
 

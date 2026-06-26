@@ -1,3 +1,18 @@
+## 2026-06-25 — Session Summary
+
+- Took over the manager lane from Claude's rate-limited session by recovering its local session history (`b4082431-4cce-4a3b-8636-e58c95615ca5`) and reconciling the active worktrees, tmux lanes, and GitHub issue state.
+- Cleaned the dirty `0.0.2` worktree (discarded leftover OpenAPI/client regen plus untracked `EOF` and `scripts/f_director-check.sh`) so handoff state matched the actual branch head.
+- Pushed the two local `#2594` follow-up commits to `origin/0.0.2`, moving the branch from `53fa0f6b` to `c8775216`.
+- Confirmed `#2593` should not delete the questioned routers; the additive SSRF coverage migration remains the only keeper from that line of work.
+- Filed **#2622** for the newly confirmed PDF fan-out inefficiency: per-page fan-out sends only the page image to the model, but still re-renders the whole source PDF once per page.
+- Shut down stale worker tmux sessions (`f_knowledge`, `f_mindpalace`, `f_runner`) and left only `f_manager`, `f_director`, and `f_backend` running.
+
+## 2026-06-18 — Session Summary
+
+- Continued the 0.0.2 iOS Simulator compile gate while Daniel drove builds from Xcode because Xcode MCP was discoverable in this thread but never callable as a build tool.
+- Cleared another batch of cross-platform blockers: macOS-only command modifiers in library/sidebar/workflow views, AppleScript iOS stub sendability, AppKit save/find actions, `NSApplication` usage in `ContentView`, `onModifierKeysChanged` in `SpatialScene3D`, imported-type `Identifiable` warnings via `@retroactive`, and iOS 26 `Text + Text` deprecations in the document inspector entity row.
+- Confirmed a recurring workflow gotcha: Xcode indexing can keep showing stale pre-edit diagnostics after the file is already fixed on disk, so the next session should verify current source before chasing repeated warnings.
+
 ## 2026-05-31 — Session Summary
 
 - Implemented shared graph-aware retrieval for chat (`#1156`): new `fichero/retrieval/graph_rag.py`, chat route integration, and dedicated retriever tests.
@@ -2508,3 +2523,83 @@ Multi-lane orchestration across f_gpt, f_codex53, f_gpt_mini, f_opus, f_planner,
 - Stabilized Library/Search reading layout: Canvas/Reading toolbar buttons remain visible, enter Widescreen when pressed from None/Standard, and folders/groups render container placeholders instead of hiding the canvas pane.
 - Verified Marshall storage endpoints return real JPEG thumbnails/display images from the live backend, and updated #1680/#1681/#1666 with findings.
 - Added focused Swift tests for image-load identity, canvas document policy, and pane toggle policy; focused Xcode tests passed, and touched-file SwiftLint exited cleanly.
+
+## 2026-06-08 — Demo + multi-provider extraction session
+
+- Demo to Andy LANDED (20-page English Marshall20Entities library).
+- Fixed KG extraction across all 3 providers + merged to 0.0.2 (c29fa52f): OpenAI function_calling (default), OpenRouter httpx strip-hook (both OpenAI + Bedrock-Claude), Apple include_schema_in_prompt. Full suite green (3921 passed). Closed #1802/#1821/#1822/#1823.
+- Earlier: f607c7d6 extraction schema fixes (verb/object optional, strict=False for OpenAI, thin-output kept); #1799 folder-scope fail-fast; demo UI fixes (inspector tab order, hide Mind Palace/Batches, Delete action, blank-image fix, WebKit timeline+map, entity-detail mentions).
+- Diagnosed search/embedding quality gaps (e5 prefixes missing, whole-page embedding, no KG-fusion) + entity dedup.
+- Filed the full product roadmap as issues #1774–#1834: providers/consolidation, search/index/chat, dedup/NLP, provenance+undo EPIC, cost, fallback chain, LOOVE, profiling, corpus, pyarrow, bounding-boxes, paleography, omlx.
+- Policy established: workers write tests, manager runs them; one lean lane at a time (RAM).
+
+## 2026-06-09 — Session Summary (autonomous manager, codex-only late)
+- **Observable data-layer COMPLETE**: 7 @Observable stores (Entity/Claim/Note/Annotation/Action/Research/Search) + per-library change-stream (entities/claims/documents) + NotificationCenter mutation bus retired (#1851/#1862/#1882-1905).
+- **Tier-0 gates built out**: verify_all --fast/standard/full; ~12 guardrails (view→store, db-access, native-controls, emoji/SF-Symbols, comments, feature-flags, endpoint-usage, ui-wiring, folder-org, dead-files, sidebar-items, service-consistency, xcode-registration, tooltips) + ruff + OpenAPI-sync + version-date + token-safe auto-filer (rollup, deduped) + dispatch-advisor.
+- **Backend**: DB+embedding snapshot/rollback (#1934); entity+claim accent-fold dedup + embedding over-merge precision gate; db.conn→typed db.py sweep (#1909, KNOWN_VIOLATIONS=0); claim/document change-emit; #1943 service-consistency (artifact-list+batch via generated client — Daniel to runtime-test).
+- **Mac polish**: native-List conversions + sanctions (#1912), emoji→SF Symbols (partial), Reveal-in-Finder remote-safe, bigger thumbnails (#1953 — Daniel to test, may need cache clear).
+- **Process**: docs/ROADMAP.md (tier order) + docs/VERIFY.md; /choose-next + /dispatch-worker skills; worker model = external-worktree codex/claude via tmux+send-keys, NEVER broad-pkill, < /dev/null, verify-then-integrate. ~50 issues filed (#1838-1959), ~30 closed.
+
+## 2026-06-09 (afternoon) — observable/infra grind + runtime-bug triage
+
+- Landed: thumbnail cache+perf (#1917/#1958), doc-404 fix (#1957), guardrail re-keying (#1948), WorkflowStore→@Observable (#1911), 4 completeness-matrix guardrails + observer-pattern audit guardrail (#1925/#1851), transcription-fidelity prompts (#289/#1398), Source Annotations→List (#1960), granular EntityStore updates (#1961). Pruned 50 stale orphan branches.
+- New hard rules: no-wholesale-list-rerender, semantic-system-fonts. Worker file-set partition rule.
+- Filed runtime bugs/EPICs #1960-#1971 (selection-everywhere, Info-tab, crash, fonts, std-controls, tabs).
+- Deferred DocumentStore @Observable keystone (codex stalled on update prompt; brief saved). Session ended clean for incoming codex manager.
+
+## 2026-06-09 (evening) — wrap-up + cleanup + INCIDENT
+
+- Merged docs #1796/#1797 + wfcleanup #1794 (1088 backend tests green). Pruned all stale orphan branches + 9 old sibling worktrees. #1475 confirmed already-landed.
+- INCIDENT: glob `rm -rf ~/code/fichero-search*` destroyed the SEPARATE fichero-search project (recovered committed history via reclone; uncommitted lost). New HARD RULE: worktrees only under ~/code/fichero-worktrees/; never rm ~/code siblings (constitution rule 11 + memory).
+
+## 2026-06-10 — Session Summary (manager loop, observable/DX closeout)
+
+- Integrated and pushed #1924 choose-next selector skill (`701b990e`) and #1921 OpenAPI client parity guardrail (`742da854`). Both focused checks passed and issues closed.
+- Integrated and pushed #1851 DocumentStore `ObservableObject`→`@Observable` + typed `@Environment` migration across 16 consumers (`f121533b`). Daniel reported BuildProject passed; changed-file SwiftLint, static grep, observer guardrail, and diff checks passed. Issue closed.
+- Integrated and pushed #1967 crash fix (`015ce6d6`): propagated `WorkflowExecutionObserver` into presented sheets/popovers in ContentView, WorkflowExecutionRow, LibraryView, WorkflowEditor, WorkflowCanvasView, and WorkflowLibraryView. Focused SwiftLint passed. Issue closed.
+- Integrated and pushed #1919 gardener helper (`5e2f2064`): added `scripts/gardener.py` and `.agents/skills/gardener-agent/SKILL.md`. Verified with ruff, py_compile, self-test, and final standard gardener run. Issue closed.
+- Filed future feature #1972 for image keywords, ratings, and thumbs up/down curation.
+- Final standard gardener gate passed: `verify_all (standard): ALL PASS`; backend unit suite `3979 passed, 21 skipped, 21 xfailed` in 10:31. Guardrails surfaced stale baseline cleanup opportunities (no-emoji, observer, UI-wiring, endpoint-usage).
+- Cleaned temporary external worktrees using `git worktree remove --force`. No active worker lanes left.
+
+## 2026-06-14 — Session Summary
+
+- Shipped #2061 image-editing backend strategy (`1cfd93b3`): local-first Pillow/PyMuPDF baseline, optional Quartz/Core Image acceleration, narrow OpenCV helper role, and typed/no-cloud future contracts.
+- Shipped #2205 Pydantic persistence guardrail (`3e42b9e1`): `scripts/check_pydantic_persistence_writes.py` catches undeclared/dynamic writes that vanish on `model_dump()`; full `verify_all --standard` passed with `4992 passed, 22 skipped, 21 xfailed`.
+- Shipped #1644 Apple Vision OCR geometry (`15ba7d58`): typed `VisionOCRBox`/`VisionOCRResult`, line/word boxes, confidence, page indexes, and compatibility with existing text-only API; focused tests passed.
+- Filed #2206 for provider-agnostic OCR/transcription geometry across Apple Vision, VLM JSON, Google, AWS, optional Azure, and local OCR/layout APIs with privacy gates.
+- Shipped #2001 observable-save guardrail (`67498731`): `check_emit_change_coverage.py` now derives route domains from a central map and flags API-adjacent non-route observable saves without nearby `emit_change()` or explicit allow; focused tests passed.
+- GitHub issue review: removed stale `status:in-progress` from #2008; confirmed held lanes #2157/#2020 remain untouched.
+
+## 2026-06-14 — Session Summary (ICANH transcription + overnight setup)
+
+- Shipped 8 backend fixes to origin/0.0.2: #2215 (per-page transcribe, Apple/LLM whole-PDF path), #1657 (SVO date+page), #2219 (parent marked completed), #2216/#2217/#2218 (thumbnail+display artifacts for parents+page children), #2220 (graceful empty-file-list / stale-ID, reconciled with #1060 fail-fast), #2221 (semaphore-bounded vision fan-out = the OOM crash / 2GB fix). Each full-suite gated (5021–5031 passed).
+- Filed #2222 (Transcribe cloud path saves combined transcript to PARENT, not page children — per-page propagation gap in the Gemini single-call path). Confirmed live by Daniel in-app. Distinct code path from #2215.
+- Built fresh ICANH-Clean.fichero; staged 15 ICANH PDFs by date at agent-work/icanh-clean/source/. Daniel running his own backend on :8765 to test.
+
+## 2026-06-17 — Mac shell: chat-swap, toolbar chrome, perf sweep, spatial-persist
+
+- **Perf root-cause + sweep (#2307):** filed the 12-suspect epic; shipped library-list filter/sort memoization (the big lever on "UI feels slow"), inspector/ontology memoization, focused-value churn fixes ×2 (FocusedLibraryAction/FocusedSortField + window actions), streaming-view sort hoist, AnyView→struct folderSection, debounced workflow reload, poll-timer doc. HELD: #3/#4 AppState/LibraryManager @Observable migration (god-node blast radius).
+- **#2034 chat-over-sidebar:** left column SWAPS sidebar⟷chat (reversible), retiring #2274's stacked SidebarChatSurface.
+- **#2309 toolbar chrome:** Xcode list|chat selector (left), Mail-style sidebar hide, per-mode column width; sidebar title removed; bottom action bar extended (−/export/workflow).
+- **#2308:** Spatial/3D view modes grouped with Icons/List/Table in the View menu.
+- **#2310:** sidebar dividers non-interactive.
+- **#2312:** spatial 2D/3D node positions persist on click-out; 3D no longer resets to a circle.
+- ~30 green commits to origin/0.0.2 (e4966ae3). All gated via Xcode MCP (windowtab2); the gate caught cross-file `private`, type-check timeouts, stale-list risk.
+- **Policy change:** ollama/codex workers ONLY going forward (token economy) — no Claude Agent subagents.
+
+## 2026-06-18 — iOS compile gate: split-view sweep + platform shims
+
+- **Round 1 (4 commits on 0.0.2, ahead of origin/0.0.2 by 4):** HSplitView/VSplitView → PlatformHSplitView/PlatformVSplitView across 14 files; BackendConnectionView Image(nsImage:) → Image(platformImage:); FicheroApp_iOS.swift re-registered in Xcode target via `scripts/add-swift-file.rb` (xcodeproj gem normalised a few cosmetic pbxproj fields at the same time, no behavior change).
+- **Round 2 (commit c92d06af):** wrapped `.onMoveCommand`, `.toggleStyle(.checkbox)`, `NSCursor.X.set()`, `.alternatingRowBackgrounds()`, `NSOpenPanel`, `PDFLoupeOverlay`, `handleMoveCommand` + `applySelection` / `NSEvent.modifierFlags` reads, and `InspectorEntitySelectionModifiers(nsEventFlags:)` behind `#if os(macOS)`. FicheroWebView split into `NSViewRepresentable` (mac) / `UIViewRepresentable` (iOS) with shared top-level `FicheroWebViewCoordinator`.
+- **PlatformAliases.swift expanded:** added `NSColor.platformQuaternaryLabel`, `UIColor.platformQuaternaryLabel`, `NSColor.platformSelectedControl`, `UIColor.platformSelectedControl` so cross-platform color call sites go through `Color(platformColor:)`. Pattern established for visionOS follow-up — uses `canImport(AppKit)` / `canImport(UIKit)`, easy to add `canImport(Vision)` later.
+- **iOS Simulator build:** down from ~25 errors at start of session to **8 errors** at session pause. Last log `/tmp/iosrun13.log`. Mac build unchanged.
+- **Paused mid-iteration.** Daniel took over the build via Xcode MCP (`mcp__xcode__BuildProject`), which I don't have access to in this session. Handoff doc at `handoff-2026-06-18-ios-gate-r2.md` lists the 4 quick fixes needed (NSCursor regex damage, DocumentKGWebPane UIKit setFrameSize, alternatingRowBackgrounds, PDFLoupeOverlay placeholder signature) plus the long tail I haven't hit yet.
+- **Backend spatial port:** uncommitted on `0.0.2` working tree — `db.py` registers `migrate_spatial_node_layout_fields`, `db_migrations.py` defines it (idempotent ALTER TABLE on spatialnode for pos_w/pos_h/z_index/depth/angle/style_data), `spatial_models.py` extended. From `ms/macos-gating`, marked unknown at session start.
+
+## 2026-06-22 — Session Summary (integration + workflow review + GH hygiene)
+- Shipped to 0.0.2 (each full-suite baseline-diff 0-new, pushed): #2513 (save_artifact ValidationError no longer swallowed — fail loud), #2514 (removed redundant DBWriter; single connection+lock is the sole write path) → **#90 AI Backend Hardening milestone DONE**; #2523 (HTR two-pass saves PER-PAGE — wired the unwired `documents` port across all 5 transcribe presets + DB-resolve backstop in process_vision; folder-of-images + multi-page PDF parity).
+- Opus read-only architecture review of the workflow/LangGraph/tools/node-editor system → docs/reviews/workflow-nodes-backend-review.md. Verdict: sound to build on, but two structural debts: P0 the parallel fan-out is built-but-disabled in the only real run path (preview graph ≠ run graph = "the diagram doesn't match what runs"), P1 running State + persisted Workflow.nodes/edges are dict[str,Any] (typed NodeDef/EdgeDef cosmetic at runtime).
+- Closed out ~8 worker lanes Daniel shut down — verified each: merged (#2453 editor-unify 4119e123, #2508 store-seal c703c06e, #2448 Activity live-refresh) or stale-and-discarded (pdf-page-save = already-fixed-redundant; ios-reader-polish = 110 commits behind, do-not-merge; workflow-polish = #2439/#2438 already fixed, #2445 reopened as actually-unfixed). NOTHING lost — all work merged or on a branch.
+- GH hygiene: milestoned 18 unmilestoned session issues (#2519-#2537); built #2524 into a sequenced EPIC index; filed the review decomposition (#2532 P0 parallel, #2537 P1 typed boundary, #2533 P1 save-wrappers, #2534 P2 bundle); filed features #2526/#2528/#2529/#2530/#2535 + bugs #2525/#2536.
+- Parked: worker/untested-flag @ 6d1d7406 (2 commits) — "Untested" tool badge + "(Untested)" preset titles + the existing-library in-place-rename fix (old preset names → _DEPRECATED_PRESET_NAMES). NOT landed. TODO before merge: catalogue.json dup-config dedupe, fold #2445 font, gate + merge.

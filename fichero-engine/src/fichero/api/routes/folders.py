@@ -12,7 +12,7 @@ from enum import Enum
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.models import Conversation, DocType, Document, SavedSearch, Workflow
 
@@ -274,7 +274,7 @@ async def list_folders(
 async def create_folder(
     entity_type: EntityType,
     folder_path: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> FolderInfo:
     """Create a folder (validates path format).
 
@@ -311,7 +311,7 @@ async def create_folder(
 async def rename_folder(
     entity_type: EntityType,
     request: RenameFolderRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> FolderRenameResponse:
     """Rename a folder and all items within it.
 
@@ -356,7 +356,7 @@ async def rename_folder(
 async def move_items(
     entity_type: EntityType,
     request: MoveItemsRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> FolderMoveResponse:
     """Move items to a different folder.
 
@@ -390,7 +390,7 @@ async def delete_folder(
     entity_type: EntityType,
     folder_path: str,
     delete_contents: bool = False,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> FolderDeleteResponse:
     """Delete a folder (optionally with contents).
 

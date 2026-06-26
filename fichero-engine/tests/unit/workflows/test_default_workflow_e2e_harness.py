@@ -133,7 +133,7 @@ def test_catalogue_live_graph_waits_for_all_merge_inputs_before_catalogue(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """#1665: live/checkpointed execution must not catalogue before KG writes."""
+    """#1665: live/checkpointed execution must not catalogue before extraction ends."""
 
     _install_deterministic_workflow_stubs(monkeypatch)
     library_path, parent_doc_id, _page_doc_ids = _seed_imported_pdf_page_library(tmp_path)
@@ -181,7 +181,7 @@ def test_catalogue_live_graph_waits_for_all_merge_inputs_before_catalogue(
 
     catalogue_start = event_index("on_chain_start", "Catalogue")
     assert event_index("on_chain_end", "Extract All Entities") < catalogue_start
-    assert event_index("on_chain_end", "Write KG") < catalogue_start
+    assert ("on_chain_end", "Write KG") not in events
 
 
 @pytest.mark.parametrize(
@@ -213,7 +213,7 @@ def test_all_default_workflows_complete_with_deterministic_tool_stubs(
     final_state = asyncio.run(build_graph(workflow, skip_cache=True).ainvoke(state))
     assert not final_state.get("error"), (preset_name, final_state.get("error"))
     completed = set(final_state.get("completed_nodes") or [])
-    expected = {n.id for n in workflow.nodes}
+    expected = _expected_completed_nodes_for_smoke(workflow)
     assert expected <= completed, (
         f"{preset_name}: expected all nodes completed; missing={sorted(expected - completed)}"
     )
@@ -465,6 +465,7 @@ def _install_generic_tool_smoke_stubs(
                 "value": text,
                 "text": text,
                 "summary": text,
+                "script_type": "typescript",
                 "records": [{"doc_id": "stub-doc-1", "text": text}],
                 "documents": [{"id": "stub-doc-1", "name": "stub.txt"}],
                 "files": ["/tmp/stub.txt"],
@@ -492,6 +493,25 @@ def _install_generic_tool_smoke_stubs(
         monkeypatch.setitem(workflow_registry.TOOLS, node.tool, _stub_for(node.tool))
 
 
+def _expected_completed_nodes_for_smoke(workflow) -> set[str]:
+    route_targets = {
+        target
+        for edge in workflow.edges
+        for target in ((edge.route_map or {}).values())
+    }
+    branch_only = set(route_targets)
+    changed = True
+    while changed:
+        changed = False
+        for edge in workflow.edges:
+            if edge.route_map:
+                continue
+            if edge.source in branch_only and edge.target not in branch_only:
+                branch_only.add(edge.target)
+                changed = True
+    return {node.id for node in workflow.nodes if node.id not in branch_only}
+
+
 def _assert_workflow_completed(final_state: dict) -> None:
     serialized = repr(final_state)
     assert final_state.get("error") in (None, ""), final_state.get("error")
@@ -502,14 +522,12 @@ def _assert_workflow_completed(final_state: dict) -> None:
         "files-source",
         "transcribe",
         "extract_all",
-        "kg_writer",
         "catalogue",
     } <= completed
 
     extract_output = (final_state.get("outputs") or {}).get("extract_all") or {}
     assert extract_output.get("kg_payload"), "extract_all emitted no kg_payload"
-    kg_output = (final_state.get("outputs") or {}).get("kg_writer") or {}
-    assert kg_output.get("value"), "kg_writer received no payload"
+    assert "kg_writer" not in completed
 
 
 def _assert_artifacts_landed(
@@ -599,17 +617,7 @@ def test_catalogue_twostage_workflow_lands_kg_rows(
     monkeypatch: pytest.MonkeyPatch,
     selection_shape: Literal["folder", "file"],
 ):
-    """Twostage extraction path (Apple Intelligence default) must land KG rows.
-
-    Reproduces #1285 re-open: _run_two_stage had kg_payload.append() guarded
-    by `and db`. When the inline DB open fails inside extract_all.py the
-    payload stays empty → kg_writer no-op → 0 rows, despite claims being
-    extracted. The fix changes the guard to `and container` so the payload is
-    always built when a write target exists, and kg_writer persists it via its
-    own connection.
-
-    This test goes RED on the unfixed code and GREEN after the fix.
-    """
+    """Twostage extraction path (Apple Intelligence default) must land KG rows."""
     _install_twostage_stubs(monkeypatch)
     library_path, selected_doc_id, source_doc_id, catalogue_target_id = _seed_fixture_library(
         tmp_path,
@@ -643,25 +651,10 @@ def _install_twostage_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
     """Stubs for the twostage extraction path that expose the #1285 bug.
 
     Key design:
-    - `fichero.workflows.tools.extract_all.db_manager` is replaced with a
-      failing stub so db=None inside _run_two_stage, reproducing the
-      production failure mode (workflow worker thread DB open error).
-    - `catalogue.py` and `kg_writer.py` each import their own `db_manager`
-      reference from `fichero.db`, which is NOT patched here, so
-      _resolve_write_target can still find the container document and
-      kg_writer can still persist the payload.
     - Stage 1 (chat_structured_with_fallback with _EntitiesOnly) and
       Stage 2 (chat_structured with _EntityClaims) are stubbed with
       deterministic fixture entities.
     """
-
-    class _FailingDbManager:
-        """Simulates a DB connection failure inside extract_all._run_two_stage."""
-        def get_database(self, *args, **kwargs):
-            raise RuntimeError("simulated DB failure — twostage harness")
-
-        def get_db_writer(self, *args, **kwargs):
-            raise RuntimeError("simulated DB failure — twostage harness")
 
     async def fake_twostage_structured(**kwargs):
         """Handles both Stage 1 (_EntitiesOnly) and Stage 2 (_EntityClaims).
@@ -753,12 +746,6 @@ def _install_twostage_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
             return ("fake", "fake-model")
         return (provider, model)
 
-    # Fail the db_manager inside extract_all.py only — catalogue.py and
-    # kg_writer.py retain their own unpatched references.
-    monkeypatch.setattr(
-        "fichero.workflows.tools.extract_all.db_manager",
-        _FailingDbManager(),
-    )
     monkeypatch.setattr("fichero.llm.resolve_model_alias", resolve_alias)
     monkeypatch.setattr(
         "fichero.workflows.tools.extract_all.chat_structured_with_fallback",
@@ -829,7 +816,7 @@ def _assert_twostage_kg_rows_landed(
     before_entities: int,
     before_claims: int,
 ) -> None:
-    """Assert KG rows were written via the kg_writer node in twostage mode.
+    """Assert KG rows were written from the twostage extract_all path.
 
     Twostage writes claims to page docs when per-page records are present;
     otherwise it falls back to the resolved container document.
@@ -841,7 +828,7 @@ def _assert_twostage_kg_rows_landed(
         f"expected >{before_entities})"
     )
     assert len(claims) > before_claims, (
-        f"no new claims written — kg_writer did not persist the payload "
+        f"no new claims written — extract_all did not persist the payload "
         f"(got {len(claims)}, expected >{before_claims})"
     )
 
@@ -1012,7 +999,7 @@ def test_catalogue_twostage_folder_uses_page_records_for_page_scoped_kg(
         for claim in new_claims
         if claim.text == "Regression Person signed the fixture ledger."
     ]
-    assert stage2_claims, "expected stage-2 fixture claims from extract_all/kg_writer path"
+    assert stage2_claims, "expected stage-2 fixture claims from extract_all inline-KG path"
     assert all(claim.source_document_id in page_ids for claim in stage2_claims), (
         "stage-2 claims must persist on page/file doc_ids from page_records, "
         "not on the folder container"

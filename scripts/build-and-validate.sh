@@ -32,7 +32,7 @@ if [ -z "$SWIFTLINT_BIN" ]; then
 fi
 
 if [ -x "$SWIFTLINT_BIN" ]; then
-  LINT_OUTPUT=$("$SWIFTLINT_BIN" lint fichero-swiftui/fichero-swiftui/ 2>&1 || true)
+  LINT_OUTPUT=$("$SWIFTLINT_BIN" lint fichero/fichero/ 2>&1 || true)
   if echo "$LINT_OUTPUT" | grep -qE "error:"; then
     fail "SwiftLint errors found"
     echo "$LINT_OUTPUT" | grep -E "error:" | head -10
@@ -87,13 +87,13 @@ cd "$ROOT_DIR/fichero-engine"
 if ! command -v briefcase >/dev/null 2>&1; then
   fail "Briefcase not installed (pip install briefcase)"
 else
-  if [ -d "build/fichero-backend" ]; then
-    chmod -R u+w build/fichero-backend 2>/dev/null || true
-    rm -rf build/fichero-backend
+  if [ -d "build/engine" ]; then
+    chmod -R u+w build/engine 2>/dev/null || true
+    rm -rf build/engine
   fi
 
-  if briefcase create macOS --app fichero-backend 2>/dev/null; then true; fi
-  if briefcase build macOS --app fichero-backend 2>&1; then
+  if briefcase create macOS --app engine >/dev/null 2>&1; then true; fi
+  if briefcase update macOS --app engine 2>&1 && briefcase build macOS --app engine 2>&1; then
     ok "Briefcase backend built"
   else
     fail "Briefcase backend build failed"
@@ -102,21 +102,13 @@ fi
 
 cd "$ROOT_DIR"
 
-# ── 5. Copy backend + Xcode Release build ───────────────────────────────────
+# ── 5. Xcode Release build ──────────────────────────────────────────────────
 echo "[5/8] Xcode Release build"
-BACKEND_APP="$ROOT_DIR/fichero-engine/build/fichero-backend/macos/app/FicheroBackend.app"
-RESOURCES_DEST="$ROOT_DIR/fichero-swiftui/fichero-swiftui/Resources/FicheroBackend.app"
-
-if [ -d "$BACKEND_APP" ]; then
-  rm -rf "$RESOURCES_DEST"
-  cp -R "$BACKEND_APP" "$RESOURCES_DEST"
-fi
-
 XCODE_OUTPUT=$(xcodebuild \
-  -project fichero-swiftui/fichero-swiftui.xcodeproj \
+  -project fichero/fichero.xcodeproj \
   -scheme Fichero \
   -configuration Release \
-  -derivedDataPath fichero-swiftui/build/xcode \
+  -derivedDataPath fichero/build/xcode \
   -skipPackagePluginValidation \
   build 2>&1)
 
@@ -129,7 +121,7 @@ fi
 
 # ── 6. Codesign verification ────────────────────────────────────────────────
 echo "[6/8] Codesign"
-APP_PATH="$ROOT_DIR/fichero-swiftui/build/xcode/Products/Release/Fichero.app"
+APP_PATH="$ROOT_DIR/fichero/build/xcode/Products/Release/Fichero.app"
 
 DEVELOPER_ID=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}' || true)
 if [ -n "$DEVELOPER_ID" ]; then

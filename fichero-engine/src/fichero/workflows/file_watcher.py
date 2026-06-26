@@ -539,7 +539,7 @@ class FileWatcherManager:
         from fichero.workflows.builder import execute_workflow
 
         try:
-            workflow = await self.workflow_store.get(trigger.workflow_id)
+            workflow = self.workflow_store.get(trigger.workflow_id)
             if not workflow:
                 raise ValueError(f"Workflow {trigger.workflow_id} not found")
 
@@ -581,7 +581,7 @@ class FileWatcherManager:
             Created FileTrigger object
         """
         # Validate workflow exists
-        workflow = await self.workflow_store.get(workflow_id)
+        workflow = self.workflow_store.get(workflow_id)
         if not workflow:
             raise ValueError(f"Workflow {workflow_id} not found")
 
@@ -806,7 +806,7 @@ class FileWatcherManager:
 
         # If workflow_id changed, validate new workflow exists
         if trigger.workflow_id != existing.workflow_id:
-            workflow = await self.workflow_store.get(trigger.workflow_id)
+            workflow = self.workflow_store.get(trigger.workflow_id)
             if not workflow:
                 raise ValueError(f"Workflow {trigger.workflow_id} not found")
 

@@ -6,16 +6,20 @@ API endpoints for managing MCP (Model Context Protocol) servers.
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from fichero.api.routes.auth_accounts import (
+    _require_authenticated_or_bootstrap,
+    _require_owner_or_bootstrap,
+)
 from fichero.app_db import get_app_db
 from fichero.models import MCPServer
 from fichero.mcp_manager import get_mcp_manager, MCPServerConfig
 from fichero.models import MCPServerListResponse
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(_require_authenticated_or_bootstrap)])
 
 
 # =============================================================================
@@ -215,7 +219,9 @@ async def get_all_mcp_tools() -> MCPToolListResponse:
 
 
 @router.post("/mcp-servers/tools/load-into-workflow-registry")
-async def load_mcp_tools_into_workflow_registry() -> MCPToolRegistryResponse:
+async def load_mcp_tools_into_workflow_registry(
+    _owner: None = Depends(_require_owner_or_bootstrap),
+) -> MCPToolRegistryResponse:
     """Load all MCP tools into the workflow registry.
 
     This makes MCP tools available in the workflow node editor.
@@ -247,7 +253,9 @@ async def load_mcp_tools_into_workflow_registry() -> MCPToolRegistryResponse:
 
 
 @router.post("/mcp-servers/tools/reload-workflow-registry")
-async def reload_mcp_tools_in_workflow_registry() -> MCPToolRegistryResponse:
+async def reload_mcp_tools_in_workflow_registry(
+    _owner: None = Depends(_require_owner_or_bootstrap),
+) -> MCPToolRegistryResponse:
     """Reload MCP tools in the workflow registry.
 
     This clears existing MCP tools and reloads them from all enabled servers.
@@ -298,7 +306,10 @@ async def get_mcp_server(server_id: str):
 
 
 @router.post("/mcp-servers", response_model=MCPServerResponse)
-async def create_mcp_server(request: CreateMCPServerRequest):
+async def create_mcp_server(
+    request: CreateMCPServerRequest,
+    _owner: None = Depends(_require_owner_or_bootstrap),
+):
     """Create a new MCP server."""
     try:
         app_db = get_app_db()
@@ -344,7 +355,11 @@ async def create_mcp_server(request: CreateMCPServerRequest):
 
 
 @router.put("/mcp-servers/{server_id}", response_model=MCPServerResponse)
-async def update_mcp_server(server_id: str, request: UpdateMCPServerRequest):
+async def update_mcp_server(
+    server_id: str,
+    request: UpdateMCPServerRequest,
+    _owner: None = Depends(_require_owner_or_bootstrap),
+):
     """Update an existing MCP server."""
     try:
         app_db = get_app_db()
@@ -397,7 +412,10 @@ async def update_mcp_server(server_id: str, request: UpdateMCPServerRequest):
 
 
 @router.delete("/mcp-servers/{server_id}")
-async def delete_mcp_server(server_id: str) -> MCPServerDeletedResponse:
+async def delete_mcp_server(
+    server_id: str,
+    _owner: None = Depends(_require_owner_or_bootstrap),
+) -> MCPServerDeletedResponse:
     """Delete an MCP server."""
     try:
         app_db = get_app_db()
@@ -429,7 +447,11 @@ async def delete_mcp_server(server_id: str) -> MCPServerDeletedResponse:
 
 
 @router.post("/mcp-servers/{server_id}/load-tools")
-async def load_server_tools(server_id: str, force_reload: bool = False) -> MCPServerToolsResponse:
+async def load_server_tools(
+    server_id: str,
+    force_reload: bool = False,
+    _owner: None = Depends(_require_owner_or_bootstrap),
+) -> MCPServerToolsResponse:
     """Load tools from a specific MCP server.
 
     Args:

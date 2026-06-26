@@ -22,6 +22,7 @@ class ActivityType(str, Enum):
     WORKFLOW_PAUSED = "workflow_paused"
     WORKFLOW_RESUMED = "workflow_resumed"
     WORKFLOW_CANCELLED = "workflow_cancelled"
+    WORKFLOW_DELETED = "workflow_deleted"
 
     # Node events
     NODE_STARTED = "node_started"

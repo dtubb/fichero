@@ -6,7 +6,7 @@ import SwiftUI
 /// Replaces the three parallel zoom wrappers (ZoomableImageView, and the
 /// since-removed ZoomableNSImageView) with a single entry point that reuses
 /// the existing viewer stack:
-///   • image local file   → ZoomableImagePreview(url:)  — full loupe/zoom/magnifier
+///   • image storage      → StorageDisplayImageCanvas — full loupe/zoom/magnifier via HTTP
 ///   • image rendered     → ZoomableImagePreview(renderedImage:) — same stack, NSImage override
 ///   • PDF                → PDFPageWithToolbar
 ///
@@ -15,32 +15,41 @@ struct DocumentCanvas: View {
     let content: Content
     /// Fired when the user navigates to a different PDF page within the canvas.
     var onPageIndexChange: ((Int) -> Void)?
+    /// Fired when the user steps to a sibling image in the folder image viewer.
+    var onNavigateToDocument: ((String) -> Void)?
+    /// Drives the image reader toolbar's edit button. `nil` greys the tool out
+    /// (e.g. PDFs, which have no in-app editor). Threaded down to the image
+    /// viewer so the edit control lives in the bottom reader toolbar instead of
+    /// floating over the split control (#2421).
+    var isEditing: Binding<Bool>?
 
     enum Content {
-        /// A local file image (ZoomableImagePreview URL path).
-        case imageFile(url: URL, documentId: String?)
         /// A backend storage display image, resolved by document id.
         case imageStorageDisplay(documentId: String)
-        /// A backend-rendered NSImage (editor mode — may be nil while loading).
-        case imageRendered(image: NSImage?, documentId: String)
+        /// A backend-rendered PlatformImage (editor mode — may be nil while loading).
+        case imageRendered(image: PlatformImage?, documentId: String)
         /// A PDF document at a given page index.
-        case pdf(path: String, pageIndex: Int)
+        case pdf(documentId: String, pageIndex: Int)
     }
 
     var body: some View {
         switch content {
-        case .imageFile(let url, let docId):
-            ZoomableImagePreview(url: url, documentId: docId)
         case .imageStorageDisplay(let docId):
-            StorageDisplayImageCanvas(documentId: docId)
+            StorageDisplayImageCanvas(
+                documentId: docId,
+                onNavigateToDocument: onNavigateToDocument,
+                isEditing: isEditing
+            )
         case .imageRendered(let nsImage, let docId):
             ZoomableImagePreview(
                 documentId: docId,
-                renderedImage: nsImage
+                renderedImage: nsImage,
+                onNavigateToDocument: onNavigateToDocument,
+                isEditing: isEditing
             )
-        case .pdf(let path, let pageIndex):
+        case .pdf(let documentId, let pageIndex):
             PDFPageWithToolbar(
-                path: path,
+                documentId: documentId,
                 pageIndex: pageIndex,
                 onPageIndexChange: onPageIndexChange
             )
@@ -50,16 +59,20 @@ struct DocumentCanvas: View {
 
 private struct StorageDisplayImageCanvas: View {
     let documentId: String
+    var onNavigateToDocument: ((String) -> Void)?
+    var isEditing: Binding<Bool>?
 
     @EnvironmentObject private var storageService: StorageServiceGenerated
-    @State private var image: NSImage?
+    @State private var image: PlatformImage?
     @State private var loadError: Error?
 
     var body: some View {
         ZStack {
             if image != nil {
                 DocumentCanvas(
-                    content: .imageRendered(image: image, documentId: documentId)
+                    content: .imageRendered(image: image, documentId: documentId),
+                    onNavigateToDocument: onNavigateToDocument,
+                    isEditing: isEditing
                 )
             } else if loadError != nil {
                 Image(systemName: "photo")
@@ -75,7 +88,7 @@ private struct StorageDisplayImageCanvas: View {
             image = nil
             loadError = nil
             do {
-                image = try await storageService.getDisplayNSImage(documentId)
+                image = try await storageService.getDisplayPlatformImage(documentId)
             } catch {
                 loadError = error
             }

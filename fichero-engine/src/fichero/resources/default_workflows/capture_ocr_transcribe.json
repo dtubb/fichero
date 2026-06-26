@@ -1,0 +1,118 @@
+{
+  "name": "Capture OCR + Transcribe",
+  "description": "Use this when: you want a capture-oriented OCR preset for newly photographed pages or uploaded PDFs. It prepares pages into OCR-ready images, enhances those derived images, then transcribes back onto the original selected documents so page text, artifacts, and provenance stay attached to the source record instead of the temporary derivatives.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Transcribe",
+  "tags": [
+    "preset",
+    "transcribe",
+    "ocr",
+    "capture",
+    "images",
+    "pdf"
+  ],
+  "config": {
+    "preset_version": 1
+  },
+  "nodes": [
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Files",
+      "position_x": 80,
+      "position_y": 200,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "prepare_images",
+      "tool": "prepare_images",
+      "label": "Prepare Images for OCR",
+      "position_x": 300,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "output_format": "jpg",
+        "compression_quality": 85,
+        "grayscale": true,
+        "autocontrast": true,
+        "pdf_dpi": 300
+      }
+    },
+    {
+      "id": "enhance_images",
+      "tool": "enhance_images",
+      "label": "Enhance Images",
+      "position_x": 520,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "contrast": 1.25,
+        "sharpness": 1.1,
+        "denoise": true,
+        "output_format": "jpg",
+        "compression_quality": 90
+      }
+    },
+    {
+      "id": "transcribe",
+      "tool": "transcribe",
+      "label": "Transcribe Capture",
+      "position_x": 740,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "vision_mode": "auto",
+        "language": "auto",
+        "update_page_content": true,
+        "save_to_db": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-documents-prepare-images",
+      "source": "files-source",
+      "target": "prepare_images",
+      "source_port": "documents",
+      "target_port": "documents"
+    },
+    {
+      "id": "edge-files-prepare-images",
+      "source": "files-source",
+      "target": "prepare_images",
+      "source_port": "files",
+      "target_port": "files"
+    },
+    {
+      "id": "edge-documents-enhance-images",
+      "source": "files-source",
+      "target": "enhance_images",
+      "source_port": "documents",
+      "target_port": "documents"
+    },
+    {
+      "id": "edge-prepared-files-enhance-images",
+      "source": "prepare_images",
+      "target": "enhance_images",
+      "source_port": "output_files",
+      "target_port": "files"
+    },
+    {
+      "id": "edge-documents-transcribe",
+      "source": "files-source",
+      "target": "transcribe",
+      "source_port": "documents",
+      "target_port": "documents"
+    },
+    {
+      "id": "edge-enhanced-files-transcribe",
+      "source": "enhance_images",
+      "target": "transcribe",
+      "source_port": "output_files",
+      "target_port": "files"
+    }
+  ]
+}

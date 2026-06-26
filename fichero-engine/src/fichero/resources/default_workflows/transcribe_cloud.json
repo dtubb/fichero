@@ -1,6 +1,6 @@
 {
   "name": "Transcribe",
-  "description": "Transcribe every file using a cloud vision LLM (e.g. GPT-4o, Claude Sonnet). Better at handwriting and historical scripts than Apple Vision; uses the provider/model set on the workflow.",
+  "description": "Use this when: you want to transcribe any file using the vision model in your provider settings, without a script-specific prompt. For better accuracy on specific document types use Transcribe HTR (historical handwriting), Transcribe Manuscript (modern handwriting), Transcribe Typescript (printed/typed), or Transcribe Paleography (archaic scripts).",
   "format": "nodes",
   "is_template": true,
   "is_system": true,
@@ -28,8 +28,8 @@
       "position_y": 160,
       "inputs": {},
       "config": {
-        "vision_mode": "llm",
-        "language": "en",
+        "vision_mode": "auto",
+        "language": "auto",
         "update_page_content": true
       }
     }
@@ -41,7 +41,16 @@
       "target": "transcribe",
       "source_port": "files",
       "target_port": "files"
+    },
+    {
+      "id": "edge-files-transcribe-documents",
+      "source": "files-source",
+      "target": "transcribe",
+      "source_port": "documents",
+      "target_port": "documents"
     }
   ],
-  "config": {}
+  "config": {
+    "preset_version": 4
+  }
 }

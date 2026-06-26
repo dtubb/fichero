@@ -6,9 +6,18 @@ The enhanced_search endpoint falls back gracefully when no embeddings exist
 so tests can exercise it without a seeded vector store.
 """
 
-from fichero.db import SearchAnchor, SearchExcerpt
+from __future__ import annotations
+
+import asyncio
+from unittest.mock import AsyncMock
+
+from fastapi import HTTPException
+
+from fichero.api.routes import search as search_routes
+from fichero.knowledge_models import ClaimType, EntityType
+from fichero.db import SearchAnchor, SearchExcerpt, SearchResult
 from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
-from fichero.models import DocType, Document, FileType, SavedSearch
+from fichero.models import DocType, Document, FileType, KGGraphListResponse, SavedSearch
 
 
 # ---------------------------------------------------------------------------
@@ -30,6 +39,71 @@ def _make_saved_search(db, query: str = "test query") -> SavedSearch:
     return s
 
 
+def _seed_semantic_search_scope_library(db):
+    doc = Document(
+        id="doc-search-scope",
+        name="search-scope.txt",
+        page_content="Asprilla worked the mine and wrote about it.",
+        doc_type=DocType.file,
+        file_type=FileType.text,
+    )
+    entity = KnowledgeEntity(
+        id="entity-asprilla",
+        canonical_name="Asprilla",
+        entity_type=EntityType.person,
+        aliases=[],
+    )
+    claim = KnowledgeClaim(
+        id="claim-asprilla",
+        text="Asprilla worked the mine.",
+        claim_type=ClaimType.fact,
+        source_document_id=doc.id,
+        source_excerpt="Asprilla worked the mine.",
+        subject_canonical="Asprilla",
+        predicate_verb="worked",
+        object_phrase="the mine",
+        entity_ids=[entity.id],
+    )
+    db.save(doc)
+    db.save(entity)
+    db.save(claim)
+    return doc, entity, claim
+
+
+def _mock_content_search(doc: Document) -> tuple[list[SearchResult], int, dict]:
+    return (
+        [
+            SearchResult(
+                document_id=doc.id,
+                score=0.91,
+                content_preview=doc.page_content or "",
+                metadata={
+                    "name": doc.name,
+                    "doc_type": doc.doc_type.value if hasattr(doc.doc_type, "value") else doc.doc_type,
+                    "file_type": doc.file_type.value if hasattr(doc.file_type, "value") else doc.file_type,
+                },
+                highlights=[],
+            )
+        ],
+        1,
+        {"search_type": "fulltext", "execution_time_ms": 1.0, "has_more": False},
+    )
+
+
+def _mock_entity_hits(entity: KnowledgeEntity) -> KGGraphListResponse:
+    return KGGraphListResponse(
+        items=[{**entity.model_dump(), "similarity_score": 0.9}],
+        count=1,
+    )
+
+
+def _mock_claim_hits(claim: KnowledgeClaim) -> KGGraphListResponse:
+    return KGGraphListResponse(
+        items=[{**claim.model_dump(), "similarity_score": 0.9}],
+        count=1,
+    )
+
+
 # ---------------------------------------------------------------------------
 # POST /api/search — enhanced search
 # ---------------------------------------------------------------------------
@@ -46,6 +120,82 @@ class TestEnhancedSearch:
     def test_whitespace_query_returns_recent(self, client):
         r = client.post("/api/search", json={"query": "   "})
         assert r.status_code == 200
+
+    def test_content_search_offloads_sync_retriever_work_to_thread(self, monkeypatch):
+        class FakeDB:
+            def search(self, **_kwargs):
+                raise AssertionError("db.search must run inside asyncio.to_thread")
+
+        hit = SearchResult(
+            document_id="doc-1",
+            score=1.0,
+            content_preview="Camilo appears in the ledger.",
+            metadata={"name": "ledger.txt", "doc_type": "file"},
+            highlights=[],
+        )
+        to_thread = AsyncMock(
+            return_value=(
+                [hit],
+                1,
+                {
+                    "search_type": "hybrid",
+                    "execution_time_ms": 1.0,
+                    "has_more": False,
+                },
+            )
+        )
+        monkeypatch.setattr(search_routes.asyncio, "to_thread", to_thread)
+
+        response = asyncio.run(
+            search_routes.enhanced_search(
+                search_routes.SearchRequest(
+                    query="Camilo",
+                    include=[search_routes.SearchInclude.content],
+                ),
+                db=FakeDB(),
+            )
+        )
+
+        to_thread.assert_awaited_once()
+        assert to_thread.await_args.args[:1] == (search_routes._run_content_search_sync,)
+        assert response.results == [hit]
+        assert response.total_results == 1
+
+    def test_recent_search_excludes_soft_deleted_documents(self, client, db):
+        doc = Document(
+            name="Recently Deleted",
+            page_content="recent deleted body",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+        )
+        db.save(doc)
+        doc.deleted_at = doc.updated_at
+        doc.deleted_by = "tester"
+        db.save(doc)
+
+        r = client.post("/api/search", json={"query": ""})
+        assert r.status_code == 200
+        assert all(item["document_id"] != doc.id for item in r.json()["results"])
+
+    def test_fulltext_search_excludes_soft_deleted_documents(self, client, db):
+        doc = Document(
+            name="Deleted Search Hit",
+            page_content="trash-search-needle",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+        )
+        db.save(doc)
+        db.embed(doc)
+        doc.deleted_at = doc.updated_at
+        doc.deleted_by = "tester"
+        db.save(doc)
+
+        r = client.post(
+            "/api/search",
+            json={"query": "trash-search-needle", "search_type": "fulltext", "min_score": 0.0},
+        )
+        assert r.status_code == 200
+        assert all(item["document_id"] != doc.id for item in r.json()["results"])
 
     def test_invalid_search_type_returns_400(self, client):
         r = client.post("/api/search", json={"query": "hello", "search_type": "magic"})
@@ -275,6 +425,231 @@ class TestEnhancedSearch:
         assert anchor["document_id"] == page2.id
         assert result["transcript_excerpts"][0]["match_start"] is not None
 
+    def test_pdf_file_projection_batches_page_lookups(self, client, db, monkeypatch):
+        from fichero.db import Database, SearchResult
+
+        parent_a = Document(
+            id="pdf-a",
+            name="a.pdf",
+            doc_type=DocType.file,
+            file_type=FileType.pdf,
+            page_content="Full PDF A",
+        )
+        parent_b = Document(
+            id="pdf-b",
+            name="b.pdf",
+            doc_type=DocType.file,
+            file_type=FileType.pdf,
+            page_content="Full PDF B",
+        )
+        page_a1 = Document(
+            id="pdf-a-page-1",
+            parent_id=parent_a.id,
+            name="a.pdf - Page 1",
+            doc_type=DocType.page,
+            sequence=1,
+            page_content="No matching name on this page.",
+        )
+        page_a2 = Document(
+            id="pdf-a-page-2",
+            parent_id=parent_a.id,
+            name="a.pdf - Page 2",
+            doc_type=DocType.page,
+            sequence=2,
+            page_content="Camilo appears with strong context.",
+        )
+        page_b1 = Document(
+            id="pdf-b-page-1",
+            parent_id=parent_b.id,
+            name="b.pdf - Page 1",
+            doc_type=DocType.page,
+            sequence=1,
+            page_content="Camilo appears in the second PDF.",
+        )
+        for doc in (parent_a, parent_b, page_a1, page_a2, page_b1):
+            db.save(doc)
+
+        hits = [
+            SearchResult(
+                document_id=parent_a.id,
+                score=0.91,
+                content_preview="Camilo appears with strong context.",
+                metadata={"name": parent_a.name, "doc_type": "file", "file_type": "pdf"},
+                highlights=[],
+            ),
+            SearchResult(
+                document_id=parent_b.id,
+                score=0.81,
+                content_preview="Camilo appears in the second PDF.",
+                metadata={"name": parent_b.name, "doc_type": "file", "file_type": "pdf"},
+                highlights=[],
+            ),
+        ]
+
+        real_query = Database.query
+        real_query_in = Database.query_in
+        per_parent_queries: list[str] = []
+        query_in_calls: list[tuple[str, tuple[str, ...]]] = []
+
+        def counting_query(self, model, **filters):
+            if model is Document and filters.get("parent_id") in {parent_a.id, parent_b.id}:
+                per_parent_queries.append(filters["parent_id"])
+            return real_query(self, model, **filters)
+
+        def counting_query_in(self, model, column, values):
+            if model is Document and column == "parent_id":
+                query_in_calls.append((column, tuple(values)))
+            return real_query_in(self, model, column, values)
+
+        monkeypatch.setattr(Database, "query", counting_query)
+        monkeypatch.setattr(Database, "query_in", counting_query_in)
+        monkeypatch.setattr(
+            Database,
+            "search",
+            lambda self, **kwargs: (
+                hits,
+                2,
+                {"search_type": "hybrid", "execution_time_ms": 1.0, "has_more": False},
+            ),
+        )
+
+        r = client.post("/api/search", json={"query": "camilo", "search_type": "hybrid"})
+
+        assert r.status_code == 200
+        body = r.json()
+        assert [item["document_id"] for item in body["results"]] == [
+            page_a2.id,
+            page_b1.id,
+        ]
+        assert [item["metadata"]["pdf_parent_id"] for item in body["results"]] == [
+            parent_a.id,
+            parent_b.id,
+        ]
+        assert per_parent_queries == []
+        assert len(query_in_calls) == 1
+        assert query_in_calls[0][0] == "parent_id"
+        assert set(query_in_calls[0][1]) == {parent_a.id, parent_b.id}
+
+    def test_default_search_includes_content_entities_and_claims(self, client, db, monkeypatch):
+        doc, entity, claim = _seed_semantic_search_scope_library(db)
+        monkeypatch.setattr(type(db), "search", lambda self, **kwargs: _mock_content_search(doc))
+        monkeypatch.setattr(
+            search_routes,
+            "search_entities_semantic_impl",
+            lambda **kwargs: _mock_entity_hits(entity),
+        )
+        monkeypatch.setattr(
+            search_routes,
+            "search_claims_semantic_impl",
+            lambda **kwargs: _mock_claim_hits(claim),
+        )
+
+        r = client.post(
+            "/api/search",
+            json={"query": "Asprilla", "search_type": "fulltext", "min_score": 0.0},
+        )
+
+        assert r.status_code == 200
+        body = r.json()
+        assert [result["document_id"] for result in body["results"]] == [doc.id]
+        assert [item["id"] for item in body["entity_hits"]] == [entity.id]
+        assert [item["id"] for item in body["claim_hits"]] == [claim.id]
+
+    def test_entities_scope_query_returns_only_entity_hits(self, client, db, monkeypatch):
+        _, entity, _ = _seed_semantic_search_scope_library(db)
+        monkeypatch.setattr(
+            search_routes,
+            "search_entities_semantic_impl",
+            lambda **kwargs: _mock_entity_hits(entity),
+        )
+
+        r = client.post(
+            "/api/search",
+            json={"query": "entities:Asprilla", "search_type": "fulltext", "min_score": 0.0},
+        )
+
+        assert r.status_code == 200
+        body = r.json()
+        assert body["results"] == []
+        assert [item["id"] for item in body["entity_hits"]] == [entity.id]
+        assert body["claim_hits"] == []
+
+    def test_include_subsets_gate_each_search_surface(self, client, db, monkeypatch):
+        doc, entity, claim = _seed_semantic_search_scope_library(db)
+        monkeypatch.setattr(type(db), "search", lambda self, **kwargs: _mock_content_search(doc))
+        monkeypatch.setattr(
+            search_routes,
+            "search_entities_semantic_impl",
+            lambda **kwargs: _mock_entity_hits(entity),
+        )
+        monkeypatch.setattr(
+            search_routes,
+            "search_claims_semantic_impl",
+            lambda **kwargs: _mock_claim_hits(claim),
+        )
+
+        cases = [
+            (["content"], 1, 0, 0),
+            (["entities"], 0, 1, 0),
+            (["claims"], 0, 0, 1),
+            (["content", "entities"], 1, 1, 0),
+            (["content", "claims"], 1, 0, 1),
+            (["entities", "claims"], 0, 1, 1),
+        ]
+
+        for include, result_count, entity_count, claim_count in cases:
+            r = client.post(
+                "/api/search",
+                json={
+                    "query": "Asprilla",
+                    "search_type": "fulltext",
+                    "min_score": 0.0,
+                    "include": include,
+                },
+            )
+            assert r.status_code == 200
+            body = r.json()
+            assert len(body["results"]) == result_count
+            assert len(body["entity_hits"]) == entity_count
+            assert len(body["claim_hits"]) == claim_count
+            if result_count:
+                assert body["results"][0]["document_id"] == doc.id
+            if entity_count:
+                assert body["entity_hits"][0]["id"] == entity.id
+            if claim_count:
+                assert body["claim_hits"][0]["id"] == claim.id
+
+    def test_missing_vector_tables_skip_kg_scopes_without_503(self, client, db, monkeypatch):
+        doc = Document(
+            id="doc-no-vectors",
+            name="doc-no-vectors.txt",
+            page_content="Asprilla worked the mine and wrote about it.",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+        )
+        db.save(doc)
+        monkeypatch.setattr(type(db), "search", lambda self, **kwargs: _mock_content_search(doc))
+
+        def _missing_entities(**kwargs):
+            raise HTTPException(status_code=503, detail="Entity embeddings not yet indexed.")
+
+        def _missing_claims(**kwargs):
+            raise HTTPException(status_code=503, detail="Claim embeddings not yet indexed.")
+
+        monkeypatch.setattr(search_routes, "search_entities_semantic_impl", _missing_entities)
+        monkeypatch.setattr(search_routes, "search_claims_semantic_impl", _missing_claims)
+
+        r = client.post(
+            "/api/search",
+            json={"query": "Asprilla", "search_type": "fulltext", "min_score": 0.0},
+        )
+
+        assert r.status_code == 200
+        body = r.json()
+        assert [result["document_id"] for result in body["results"]] == [doc.id]
+        assert body["entity_hits"] == []
+        assert body["claim_hits"] == []
+
 
 # ---------------------------------------------------------------------------
 # GET /api/search/stats
@@ -282,9 +657,62 @@ class TestEnhancedSearch:
 
 
 class TestSearchStats:
-    def test_returns_stats(self, client):
+    def test_returns_stats(self, client, mock_db):
+        mock_db.embedding_stats.return_value = {
+            "indexed_count": 7,
+            "table_exists": True,
+            "entity_indexed_count": 2,
+            "entity_table_exists": True,
+            "claim_indexed_count": 3,
+            "claim_table_exists": False,
+        }
+
         r = client.get("/api/search/stats")
+
         assert r.status_code == 200
+        assert r.json() == {
+            "indexed_count": 7,
+            "table_exists": True,
+            "entity_indexed_count": 2,
+            "entity_table_exists": True,
+            "claim_indexed_count": 3,
+            "claim_table_exists": False,
+        }
+
+
+class TestSearchViews:
+    def test_table_view_filters_sorts_and_paginates(self, client, db):
+        alpha = Document(name="Alpha field note", doc_type=DocType.file, file_type=FileType.text)
+        beta = Document(name="Beta field note", doc_type=DocType.file, file_type=FileType.text)
+        gamma = Document(name="Gamma memo", doc_type=DocType.file, file_type=FileType.text)
+        db.save(alpha)
+        db.save(beta)
+        db.save(gamma)
+
+        r = client.get(
+            "/api/search/views/table",
+            params={
+                "query": "field",
+                "sort_by": "name",
+                "sort_direction": "asc",
+                "page": 1,
+                "page_size": 1,
+            },
+        )
+
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["total"] == 2
+        assert payload["page"] == 1
+        assert payload["page_size"] == 1
+        assert [row["name"] for row in payload["rows"]] == ["Alpha field note"]
+        assert [column["key"] for column in payload["columns"]] == [
+            "id",
+            "name",
+            "doc_type",
+            "created_at",
+            "relevance_score",
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -331,6 +759,18 @@ class TestSaveSearch:
         assert data["query"] == "my search"
         assert "id" in data
 
+    def test_save_search_creates_smart_folder_document(self, client, db):
+        r = client.post("/api/search/saved", json={"query": "my search"})
+
+        assert r.status_code == 200
+        saved_id = r.json()["id"]
+        mirrored = db.get(Document, saved_id)
+        assert mirrored is not None
+        assert mirrored.node_kind == "saved_search"
+        assert mirrored.doc_type == DocType.folder
+        assert mirrored.metadata["node_class"] == "smart_folder"
+        assert mirrored.metadata["saved_search_query"] == "my search"
+
     def test_saved_search_appears_in_list(self, client):
         client.post("/api/search/saved", json={"query": "find this"})
         r = client.get("/api/search/saved")
@@ -349,6 +789,30 @@ class TestUpdateSavedSearch:
         r = client.put(f"/api/search/saved/{s.id}", json={"query": "updated"})
         assert r.status_code == 200
         assert r.json()["query"] == "updated"
+
+    def test_update_preserves_fields_when_json_null_is_sent(self, client, db):
+        s = _make_saved_search(db, "original")
+        s.folder_path = "/research"
+        s.sort_direction = "asc"
+        s.filters = {"tag": "mining"}
+        db.save(s)
+
+        r = client.put(
+            f"/api/search/saved/{s.id}",
+            json={
+                "query": "updated",
+                "folder_path": None,
+                "sort_direction": None,
+                "filters": None,
+            },
+        )
+
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["query"] == "updated"
+        assert payload["folder_path"] == "/research"
+        assert payload["sort_direction"] == "asc"
+        assert payload["filters"] == {"tag": "mining"}
 
     def test_update_missing_returns_404(self, client):
         r = client.put("/api/search/saved/no-such-id", json={"query": "x"})
@@ -374,6 +838,29 @@ class TestDuplicateSavedSearch:
         assert r.status_code == 404
 
 
+class TestReorderSavedSearches:
+    def test_reorder_persists_requested_sort_order(self, client, db):
+        first = _make_saved_search(db, "first")
+        second = _make_saved_search(db, "second")
+        third = _make_saved_search(db, "third")
+
+        r = client.post("/api/search/saved/reorder", json=[third.id, first.id, second.id])
+
+        assert r.status_code == 200
+        assert r.json() == {"status": "reordered", "count": 3}
+        assert db.get(SavedSearch, third.id).sort_order == 0
+        assert db.get(SavedSearch, first.id).sort_order == 1
+        assert db.get(SavedSearch, second.id).sort_order == 2
+
+    def test_reorder_missing_saved_search_returns_404(self, client, db):
+        saved = _make_saved_search(db, "first")
+
+        r = client.post("/api/search/saved/reorder", json=[saved.id, "missing-search"])
+
+        assert r.status_code == 404
+        assert r.json()["detail"] == "Saved search not found: missing-search"
+
+
 # ---------------------------------------------------------------------------
 # DELETE /api/search/saved/{search_id}
 # ---------------------------------------------------------------------------
@@ -386,6 +873,7 @@ class TestDeleteSavedSearch:
         assert r.status_code == 200
         r2 = client.get("/api/search/saved")
         assert all(item["id"] != s.id for item in r2.json()["items"])
+        assert db.get(Document, s.id) is None
 
     def test_delete_missing_returns_404(self, client):
         r = client.delete("/api/search/saved/no-such-id")

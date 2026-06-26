@@ -23,6 +23,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -44,6 +45,7 @@ from fichero.api.routes.entity_inspector import EntityInspectorResponse
 from fichero.api.routes.kg_graph import NeighborhoodResponse
 from fichero.api.routes.kg_rebuild import KGResetResponse, RebuildResponse
 from fichero.api.routes.kg_search import KGSearchResponse
+from fichero.api.routes.model_comparison import ComparisonResultResponse
 from fichero.api.routes.provider_models import ProviderResponse
 from fichero.api.routes.mind_palace import MindPalaceDeletedResponse
 from fichero.hermeneutics_models import Interpretation
@@ -67,6 +69,7 @@ from fichero.models import (
     KnownLibrary,
     LibraryCreateResponse,
     LibraryRegistryResponse,
+    LibrarySnapshot,
     Workflow,
 )
 
@@ -205,7 +208,7 @@ class FicheroClient:
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
         if self.library_path:
-            headers["X-Fichero-Library-Path"] = self.library_path
+            headers["X-Fichero-Library-Path"] = quote(self.library_path, safe="/")
         return headers
 
     def request(
@@ -279,6 +282,13 @@ class FicheroClient:
     def health(self) -> Any:
         return self.request("GET", "/api/health")
 
+    # -- devices -----------------------------------------------------------
+    def list_devices(self) -> Any:
+        return self.request("GET", "/api/pair/devices")
+
+    def revoke_device(self, device_id: str) -> Any:
+        return self.request("POST", f"/api/pair/devices/{device_id}/revoke")
+
     # -- notes -------------------------------------------------------------
     def create_note(
         self,
@@ -291,25 +301,32 @@ class FicheroClient:
         linked_entity_ids: list[str] | None = None,
         linked_claim_ids: list[str] | None = None,
         linked_document_ids: list[str] | None = None,
+        page_id: str | None = None,
+        folder_id: str | None = None,
         address: str | None = None,
         parent_address: str | None = None,
     ) -> Note:
         """Create a Zettelkasten note."""
+        payload = {
+            "title": title,
+            "body": body,
+            "kind": kind.value if isinstance(kind, NoteKind) else kind,
+            "tags": tags or [],
+            "linked_note_ids": linked_note_ids or [],
+            "linked_entity_ids": linked_entity_ids or [],
+            "linked_claim_ids": linked_claim_ids or [],
+            "linked_document_ids": linked_document_ids or [],
+            "address": address,
+            "parent_address": parent_address,
+        }
+        if page_id is not None:
+            payload["page_id"] = page_id
+        if folder_id is not None:
+            payload["folder_id"] = folder_id
         raw = self.request(
             "POST",
             "/api/notes",
-            json={
-                "title": title,
-                "body": body,
-                "kind": kind.value if isinstance(kind, NoteKind) else kind,
-                "tags": tags or [],
-                "linked_note_ids": linked_note_ids or [],
-                "linked_entity_ids": linked_entity_ids or [],
-                "linked_claim_ids": linked_claim_ids or [],
-                "linked_document_ids": linked_document_ids or [],
-                "address": address,
-                "parent_address": parent_address,
-            },
+            json=payload,
         )
         return Note.model_validate(raw)
 
@@ -321,20 +338,27 @@ class FicheroClient:
         linked_entity_id: str | None = None,
         linked_claim_id: str | None = None,
         linked_document_id: str | None = None,
+        page_id: str | None = None,
+        folder_id: str | None = None,
         query: str | None = None,
     ) -> list[Note]:
         """List Zettelkasten notes, optionally filtered."""
+        params = {
+            "kind": kind.value if isinstance(kind, NoteKind) else kind,
+            "tag": tag,
+            "linked_entity_id": linked_entity_id,
+            "linked_claim_id": linked_claim_id,
+            "linked_document_id": linked_document_id,
+            "q": query,
+        }
+        if page_id is not None:
+            params["page_id"] = page_id
+        if folder_id is not None:
+            params["folder_id"] = folder_id
         raw = self.request(
             "GET",
             "/api/notes",
-            params={
-                "kind": kind.value if isinstance(kind, NoteKind) else kind,
-                "tag": tag,
-                "linked_entity_id": linked_entity_id,
-                "linked_claim_id": linked_claim_id,
-                "linked_document_id": linked_document_id,
-                "q": query,
-            },
+            params=params,
         )
         return [Note.model_validate(item) for item in _expect_list(raw, "/api/notes")]
 
@@ -353,6 +377,45 @@ class FicheroClient:
         """
         raw = self.request("POST", "/api/library", json={"path": path})
         return LibraryCreateResponse.model_validate(raw)
+
+    def create_library_snapshot(
+        self,
+        path: str,
+        *,
+        reason: str = "",
+        initiator: str = "user",
+    ) -> LibrarySnapshot:
+        """Create a database/vector snapshot for a library package."""
+        raw = self.request(
+            "POST",
+            "/api/storage/snapshots",
+            params={
+                "library_path": path,
+                "reason": reason,
+                "initiator": initiator,
+            },
+        )
+        return LibrarySnapshot.model_validate(raw)
+
+    def list_library_snapshots(
+        self,
+        *,
+        library_name: str | None = None,
+        include_expired: bool = False,
+    ) -> dict[str, Any]:
+        """List library snapshots from the backend."""
+        return self.request(
+            "GET",
+            "/api/storage/snapshots",
+            params={
+                "library_name": library_name,
+                "include_expired": include_expired,
+            },
+        )
+
+    def restore_library_snapshot(self, snapshot_id: str) -> dict[str, Any]:
+        """Restore a database/vector snapshot into its library package."""
+        return self.request("POST", f"/api/storage/snapshots/{snapshot_id}/restore")
 
     # -- documents ---------------------------------------------------------
     def list_documents(
@@ -494,6 +557,96 @@ class FicheroClient:
         return ExecutionStatusResponse.model_validate(
             self.request(
                 "GET", f"/api/workflow-execution/threads/{thread_id}/status"
+            )
+        )
+
+    def compare_models(
+        self,
+        *,
+        prompt: str,
+        models: list[dict[str, Any]],
+        system_prompt: str | None = None,
+        timeout_seconds: int = 120,
+    ) -> ComparisonResultResponse:
+        return ComparisonResultResponse.model_validate(
+            self.request(
+                "POST",
+                "/api/model-comparison/compare",
+                json={
+                    "prompt": prompt,
+                    "models": models,
+                    "system_prompt": system_prompt,
+                    "timeout_seconds": timeout_seconds,
+                },
+            )
+        )
+
+    def compare_vision(
+        self,
+        *,
+        images: list[str],
+        models: list[dict[str, Any]],
+        prompt: str = "Describe this image in detail",
+        detail: str = "auto",
+        timeout_seconds: int = 120,
+    ) -> ComparisonResultResponse:
+        return ComparisonResultResponse.model_validate(
+            self.request(
+                "POST",
+                "/api/model-comparison/compare-vision",
+                json={
+                    "images": images,
+                    "prompt": prompt,
+                    "models": models,
+                    "detail": detail,
+                    "timeout_seconds": timeout_seconds,
+                },
+            )
+        )
+
+    def compare_tool(
+        self,
+        *,
+        tool_name: str,
+        inputs: dict[str, Any],
+        models: list[dict[str, Any]],
+        tool_config: dict[str, Any] | None = None,
+        timeout_seconds: int = 120,
+    ) -> ComparisonResultResponse:
+        return ComparisonResultResponse.model_validate(
+            self.request(
+                "POST",
+                "/api/model-comparison/compare-tool",
+                json={
+                    "tool_name": tool_name,
+                    "inputs": inputs,
+                    "models": models,
+                    "tool_config": tool_config,
+                    "timeout_seconds": timeout_seconds,
+                },
+            )
+        )
+
+    def compare_workflow(
+        self,
+        *,
+        workflow_id: str,
+        doc_id: str,
+        models: list[dict[str, Any]],
+        inputs: dict[str, Any] | None = None,
+        timeout_seconds: int = 300,
+    ) -> ComparisonResultResponse:
+        return ComparisonResultResponse.model_validate(
+            self.request(
+                "POST",
+                "/api/model-comparison/compare-workflow",
+                json={
+                    "workflow_id": workflow_id,
+                    "doc_id": doc_id,
+                    "models": models,
+                    "inputs": inputs or {},
+                    "timeout_seconds": timeout_seconds,
+                },
             )
         )
 
@@ -892,6 +1045,7 @@ class FicheroClient:
         limit: int = 10,
         search_type: str = "hybrid",
         min_score: float = 0.3,
+        include: list[str] | None = None,
         doc_id: str | None = None,
         folder_id: str | None = None,
     ) -> SearchResponse:
@@ -901,6 +1055,8 @@ class FicheroClient:
             "search_type": search_type,
             "min_score": min_score,
         }
+        if include is not None:
+            body["include"] = include
         filters: dict = {}
         if doc_id:
             filters["document_id"] = doc_id

@@ -1,5 +1,25 @@
 import SwiftUI
 
+@MainActor
+enum WorkflowPaletteGate {
+    static func isBuiltinCategoryEnabled(_ category: String, featureManager: FeatureManager) -> Bool {
+        let normalized = category.lowercased()
+
+        if normalized == "agent" {
+            return featureManager.isWorkflowToolsAgentsEnabled
+        }
+        if normalized == "mcp" || normalized.hasPrefix("mcp_") {
+            return featureManager.isWorkflowToolsMCPEnabled
+        }
+
+        return true
+    }
+
+    static func isBuiltinToolEnabled(_ tool: ToolInfo, featureManager: FeatureManager) -> Bool {
+        isBuiltinCategoryEnabled(tool.category, featureManager: featureManager)
+    }
+}
+
 extension WorkflowInspector {
 
     // MARK: - Data Loading
@@ -54,52 +74,11 @@ extension WorkflowInspector {
     }
 
     private func isWorkflowCategoryEnabled(_ category: String) -> Bool {
-        let normalized = category.lowercased()
-
-        if normalized == "audio" && !featureManager.isWorkflowToolsAudioEnabled {
-            return false
-        }
-        if normalized == "video" && !featureManager.isWorkflowToolsVideoEnabled {
-            return false
-        }
-        if normalized == "transform" && !featureManager.isWorkflowToolsTransformEnabled {
-            return false
-        }
-        if normalized == "convert" && !featureManager.isWorkflowToolsConvertEnabled {
-            return false
-        }
-        if normalized == "logic" && !featureManager.isWorkflowToolsLogicEnabled {
-            return false
-        }
-        if normalized == "sink" && !featureManager.isWorkflowToolsOutputsEnabled {
-            return false
-        }
-        if normalized == "agent" && !featureManager.isWorkflowToolsAgentsEnabled {
-            return false
-        }
-        if normalized == "mcp" || normalized.hasPrefix("mcp_") {
-            return featureManager.isWorkflowToolsMCPEnabled
-        }
-
-        return true
+        WorkflowPaletteGate.isBuiltinCategoryEnabled(category, featureManager: featureManager)
     }
 
     private func isWorkflowToolEnabled(_ tool: ToolInfo) -> Bool {
-        let toolName = tool.name.lowercased()
-
-        // 0.0.1 release profile: explicit allowlist only (all tools gated by default).
-        if !featureManager.allFeaturesEnabled {
-            return featureManager.isWorkflowToolExplicitlyEnabled(toolName)
-        }
-
-        switch toolName {
-        case "files":
-            return featureManager.isWorkflowToolsFilesEnabled
-        case "search":
-            return featureManager.isWorkflowToolsSearchEnabled
-        default:
-            return true
-        }
+        WorkflowPaletteGate.isBuiltinToolEnabled(tool, featureManager: featureManager)
     }
 
     func loadMCPTools() async {

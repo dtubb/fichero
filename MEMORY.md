@@ -1,5 +1,25 @@
 # Durable Lessons Learned / Decisions
 
+## Cross-platform SwiftUI gating: prefer `canImport(AppKit)` over `os(macOS)` when AppKit symbols are involved — 2026-06-18
+
+During the iOS compile gate, several files still triggered `Unable to resolve module dependency: 'AppKit'` or unresolved AppKit symbol errors even after broad macOS gating work. The most robust pattern for files or modifiers that reference concrete AppKit APIs (`AppKit`, `NSApplication`, `NSSavePanel`, `NSMenuItem`, `NSFindPanelAction`, `NSTextView`, `.onModifierKeysChanged`) is to gate those imports/blocks with `#if canImport(AppKit)` rather than only `#if os(macOS)`. This matches the existing `PlatformAliases` strategy and avoids mixed-platform type-checking surprises while iOS/visionOS targets are being brought up.
+
+## Xcode indexing can surface stale pre-edit diagnostics during platform-gate work — 2026-06-18
+
+When Xcode is still indexing or typechecking, the errors list may continue to show line/column diagnostics for code that has already been fixed on disk (for example `Text + Text` deprecations or imported-type `Identifiable` warnings after adding `@retroactive`). Before chasing a repeated iOS/macOS gate error, verify the current file contents on disk. If the source is already updated, treat the diagnostic as stale until a fresh build/clean pass reruns that file.
+
+## OCR geometry must be provider-normalized, not Apple-specific — 2026-06-14
+
+Apple Vision now has deterministic OCR line/word geometry, but VLMs and cloud/local OCR APIs should feed the same typed contract rather than each inventing bbox shapes. Future OCR/transcription geometry work should define one Pydantic result model for page/line/word boxes, then write adapters for Apple Vision, prompted VLM JSON (Qwen/Gemini/GPT/Claude), Google Vision/Document AI, AWS Textract, optional Azure, and local Python OCR/layout tools. Cloud OCR adapters must be blocked by local-only/no-cloud policy unless explicit consent allows upload; tests should use fixtures only.
+
+## Guardrails should scan synthetic architecture failure modes directly — 2026-06-14
+
+For recurring backend data-loss or reactivity bugs, prefer small AST guardrails plus synthetic unit fixtures over one-time manual review. Recent examples: Pydantic persistence writes that vanish on `model_dump()`, Swift `additionalProperties` misuse for OpenAPI-typed fields, and non-route observable `save()` calls without nearby `emit_change()`. Keep scanners high-signal with explicit allow comments/baselines and run them through `verify_all` via `scripts/check_*.py`.
+
+## Codex worker model ladder for manager lanes — 2026-06-10
+
+For Fichero manager dispatch, use tmux-based Codex workers in external worktrees under `~/code/fichero-worktrees/<name>` and prefer `gpt-5.3-codex-spark` for most issue-scoped workers. Escalate only when needed: `gpt-5.4-mini` if Spark struggles, `gpt-5.4` for complex keystones, and `gpt-5.5` only for truly hard/high-blast work. Prompts should tell workers to use jcodemunch first, claim issues before coding, continue within the same milestone until context fills only when file sets remain disjoint, and report verification/commit SHA before manager integration.
+
 ## SwiftUI storage image display must be keyed by document identity — 2026-06-06
 
 Imported image pages should render through storage endpoints (`/api/storage/thumbnail/{id}` and `/api/storage/display/{id}`), not image-edit preview endpoints. SwiftUI lazy grids/lists must key async image loads by `(document_id, image_type)`; a plain `.task` can leave stale placeholders or images when cells are reused even though the backend returned real JPEG bytes. Keep Library/List, Document Canvas, Reading/WebKit, and Inspector as independently toggled panes. Folder/group selection should render a canvas container placeholder, while selected image/PDF page children still win.
@@ -1000,3 +1020,33 @@ Full-UI crashes (logs/restart.txt: `bug_type 409`, `WATCHDOG`, "monitoring timed
 ## Salvage a session-limited subagent's worktree — don't re-dispatch — 2026-06-02
 
 When an `Agent(isolation:"worktree")` subagent hits a session limit mid-task, its **file changes remain intact and uncommitted in its worktree** (`.claude/worktrees/agent-<id>`). Recover by: `git -C <wt> diff` to review, run the gate yourself (ruff/pytest or swiftlint/xcodebuild) in that worktree, then `git checkout -b ms/<branch>` + commit + push + PR from inside it. Far cheaper than re-running the whole implementation. (The #1562 backend was fully written by a frozen subagent and just needed the manager to gate + merge.) SourceKit "Cannot find type" diagnostics from an un-indexed agent worktree are false positives — trust the actual `xcodebuild` result.
+
+## Live transcription gotchas (2026-06-14, ICANH)
+- **Transcribe is SLOW**: the `Transcribe (cloud)` node runs a real Gemini vision call **per page** ≈ 100–420s for a multi-page doc. CLI `workflow run ... --wait --timeout` must be ≥ 480s or it falsely "times out" while the legit call is still running. A timeout is NOT a stall.
+- **uvicorn --reload does NOT reliably reload deep modules** (e.g. `vision_base.py`). After merging backend fixes, RESTART the backend process; a long-lived backend can serve stale pre-fix code and reproduce already-fixed bugs (this caused the false "#2215 regressed" / empty-page-children result).
+- **Per-page propagation**: transcribe writing the combined transcript to the PARENT doc with empty page children = the #2215 signature. Confirm the backend is on post-#2215 code (restart) before concluding a per-page bug exists.
+- **is_blank=True on scanned PDF pages is EXPECTED** (no embedded text layer) and is deterministic on fresh import — it is NOT stale data and a fresh library reproduces it identically. It must NOT cause transcription to skip image-only pages.
+- **Multi-line tmux send-keys to claude workers often does NOT auto-submit** — it queues as `[Pasted text]`. Always send a second `Enter` and confirm the pane shows `esc to interrupt` (not an idle `❯` with a grayed paste).
+- **Agents over-report completion**: the CLI lane repeatedly reported "done" that the manager poll disproved (unsubmitted paste, fire-and-forget deadlock, re-export of stale rows, exit-0 on empty data). Verify the DB/artifacts yourself; never trust a worker's "completed".
+
+## Cross-platform SwiftUI gating: prefer typealias + shim over per-site #if — 2026-06-18
+
+For Fichero's single-codebase Mac / iOS / visionOS drive, the right granularity is **one canonical shim per API** in `Models/Platform/PlatformAliases.swift`, not per-call-site `#if os(macOS)` blocks. The split-view sweep across 14 files was clean because `PlatformHSplitView` and `PlatformVSplitView` are `typealias HSplitView` on macOS and an `HStack` shim on iOS — Mac behavior is byte-identical through the typealias, iOS compiles clean, and visionOS gets a new branch in one place. Same pattern for `PlatformImage`/`PlatformColor`/`PlatformFont`/`PlatformViewRepresentable` and the new `NSColor.platform*` / `UIColor.platform*` color aliases (`platformQuaternaryLabel`, `platformSelectedControl`) — iOS renamed `quaternaryLabelColor` to `quaternaryLabel` so the shim is the only sane way to keep call sites readable.
+
+Use `#if canImport(AppKit)` / `#elseif canImport(UIKit)` rather than `#if os(macOS)` for the **typealias definitions themselves** so Catalyst and future Apple platforms slot in without extra branches. Reserve `#if os(macOS)` for call sites that genuinely need platform-conditional logic (e.g. `.onMoveCommand`, `NSOpenPanel`, `.alternatingRowBackgrounds`) — those are real behavioral gates, not type shims.
+
+For representable types with shared coordinator logic (FicheroWebView / WKWebView pattern): declare the struct under both `#if os(macOS)` / `#elseif os(iOS)` and lift the coordinator to a top-level type (e.g. `FicheroWebViewCoordinator`) so both branches share one `WKNavigationDelegate` implementation. Trying to nest the coordinator inside both struct branches breaks parsing (Swift sees the inner class as nested in whichever branch is active).
+
+## Xcode MCP BuildProject required for the iOS gate — xcodebuild CLI doesn't share Xcode.app's cache — 2026-06-18
+
+`xcodebuild` CLI under this repo's setup stalls on package resolution + build.db lock contention when run outside Xcode.app. `SWBBuildService` (Xcode's build service, PID 5395 in the test session) held `fichero/build/xcode/Intermediates/XCBuildData/build.db` for 30 minutes of CPU and a cold `xcodebuild -destination 'generic/platform=iOS Simulator'` call ran 8 minutes before producing errors. **Manager gate for iOS must use `mcp__xcode__BuildProject`** (tab `windowtab3` per STATE.md) so the build shares Xcode.app's cache and avoids the lock. `xcodebuild` CLI is fine for occasional verification — fast enough at ~5 min per cold build — but not for iteration. If CLI does block on `build.db` lock, `rm -f fichero/build/xcode/Intermediates/XCBuildData/build.db` unblocks it (SWBBuildService reopens).
+
+## Chat owns first-party sidebar/chat work — 2026-06-18
+
+Sidebar/chat/drag-drop review filed focused issues #2336-#2346 and updated roadmap ownership. `Chat` is the owning milestone for `Chat with Docs` routing, chat document-scope drag/drop payloads, stale `SidebarChatSurface`, command-vs-selection semantics, `onCreateChatWithDocuments`, and model-comparison sidebar visibility. `Library & Reading Surface` owns sidebar/library drag-drop correctness (transactional cross-folder moves, Finder temp cleanup, mixed-provider classification). `Multiplatform — iOS / iPadOS / Mac` owns compact/touch alternatives for sidebar/chat drag-drop.
+
+## Stale worker worktrees: never merge wholesale; "closed" ≠ fixed — 2026-06-22
+
+Workers spawned before a big push sit on a base 50-110 commits behind `0.0.2`. On a worker hand-off, check `git rev-list --count worker/X..0.0.2` (how far BEHIND) FIRST. A large behind-count + a `git diff 0.0.2..worker/X` full of DELETIONS = stale base, NOT new work — merging it reverts the interim work. Examples this session: `ios-reader-polish` (110 behind) would have re-added `db_writer.py`, deleted `change_stream.py` + the HTR tests, −5007 lines; `pdf-page-save` re-solved an already-fixed bug (`save_artifact` + `find_existing_artifact` already had the `and not document_id` guard on 0.0.2). For a stale branch with a real net delta: re-implement the delta fresh on current 0.0.2 or capture it as an issue — do NOT cherry-pick.
+
+Corollary: a CLOSED GitHub issue is NOT proof the fix is in the code. #2445 (help-text font) was closed but `DynamicConfigView+FieldRendering.swift` still had `.caption2`. Always grep the actual code before trusting "closed"; reopen if the code disagrees.

@@ -80,8 +80,10 @@ Common error patterns to look for:
 Rules:
 - Output ONLY the corrected transcription. No commentary, no diff, no
   notes about what you changed, no preamble.
-- Preserve original orthography of the manuscript. Do NOT modernise.
-- Keep [ilegible], [tachado: ...], [rúbrica], [sin texto] conventions.
+- Preserve original orthography of the manuscript, including accents and
+  diacritics, verbatim. Do NOT modernise.
+- Keep [ilegible], [uncertain], [tachado: ...], [rúbrica], [sin texto]
+  conventions.
 - If the prior transcription is already correct, return it unchanged
   verbatim. Do not paraphrase or reformat.
 - Do not invent text that is not visibly present.
@@ -110,6 +112,7 @@ def build_transcribe_review_prompt(config: dict) -> str:
     uses_llm=True,
     supports_batch=True,
     supports_structured_output=False,
+    tested=True,  # part of the validated HTR transcription chain
     input_ports=VISION_INPUT_PORTS,
     output_ports=BASE_OUTPUT_PORTS,
     config_schema=merge_config_schema(VISION_CONFIG_SCHEMA, REVIEW_CONFIG),

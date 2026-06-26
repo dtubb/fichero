@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Right-panel preview and help for TriggerEditorView
 struct TriggerEditorPreviewPanel: View {
-    @EnvironmentObject var workflowStore: WorkflowStore
+    @Environment(WorkflowStore.self) var workflowStore
 
     let name: String
     let selectedWorkflowId: String
@@ -27,7 +27,7 @@ struct TriggerEditorPreviewPanel: View {
             }
             .padding()
         }
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(Color(platformColor: .controlBackgroundColor))
     }
 
     // MARK: - Trigger Preview

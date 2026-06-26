@@ -34,7 +34,7 @@ _cache: dict[str, dict[str, Any]] = {}
 
 # Polite User-Agent — Crossref + OpenAlex publish guidelines asking
 # for one so they can contact you if your queries misbehave.
-_USER_AGENT = "Fichero/0.1 (mailto:dtubb@me.com)"
+_USER_AGENT = "Fichero/0.1 (mailto:dtubb@users.noreply.github.com)"
 
 
 def _normalize_doi(doi: str) -> str:

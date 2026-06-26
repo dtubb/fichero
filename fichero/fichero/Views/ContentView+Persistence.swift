@@ -9,6 +9,51 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Content
 
 extension ContentView {
 
+    static func restoredColumnVisibility(from rawValue: Int) -> NavigationSplitViewVisibility {
+        switch rawValue {
+        case 0:
+            return .automatic
+        case 1:
+            return .detailOnly
+        case 2:
+            #if os(macOS)
+            return .all
+            #else
+            return .detailOnly
+            #endif
+        case 3:
+            return .doubleColumn
+        default:
+            #if os(macOS)
+            return .all
+            #else
+            return .detailOnly
+            #endif
+        }
+    }
+
+    static func persistedColumnVisibilityRaw(for visibility: NavigationSplitViewVisibility) -> Int {
+        if visibility == .automatic {
+            return 0
+        } else if visibility == .detailOnly {
+            return 1
+        } else if visibility == .all {
+            #if os(macOS)
+            return 2
+            #else
+            return 3
+            #endif
+        } else if visibility == .doubleColumn {
+            return 3
+        } else {
+            #if os(macOS)
+            return 2
+            #else
+            return 1
+            #endif
+        }
+    }
+
     // MARK: - State Restoration
 
     // swiftlint:disable:next cyclomatic_complexity
@@ -65,9 +110,6 @@ extension ContentView {
             // For now, return nil and let the view populate it
             return .activity(nil)
 
-        case "mindPalace":
-            return .mindPalace
-
         default:
             return .library(nil)
         }
@@ -98,22 +140,11 @@ extension ContentView {
             return ("trigger", trigger.map { $0.triggerId })
         case .activity(let run):
             return ("activity", run?.id)
-        case .mindPalace:
-            return ("mindPalace", nil)
         }
     }
 
     func restorePersistedState() {
-        columnVisibility = {
-            switch columnVisibilityRaw {
-            case 0: return .automatic
-            case 1: return .detailOnly
-            case 2: return .all
-            case 3: return .doubleColumn
-            default: return .all
-            }
-        }()
-
+        columnVisibility = Self.restoredColumnVisibility(from: columnVisibilityRaw)
         // Derive explicit left-sidebar state from persisted split-view visibility.
         // In this app's layout, `.doubleColumn` means sidebar + content.
         showSidebar = columnVisibility != .detailOnly
@@ -130,6 +161,7 @@ extension ContentView {
             )
             selectedSidebarItemId = restoredId ?? (storedViewModeType == "activity" ? "activity-browser" : nil)
         }
+        sidebarSelectionState.selectedItemId = selectedSidebarItemId
 
         logger.info("""
             Restored persisted state: viewMode=\(storedViewModeType), \
@@ -159,17 +191,9 @@ extension ContentView {
     }
 
     func savePersistedState() {
-        // Map NavigationSplitViewVisibility to raw integer for @SceneStorage
-        if columnVisibility == .automatic {
-            columnVisibilityRaw = 0
-        } else if columnVisibility == .detailOnly {
-            columnVisibilityRaw = 1
-        } else if columnVisibility == .all {
-            columnVisibilityRaw = 2
-        } else if columnVisibility == .doubleColumn {
-            columnVisibilityRaw = 3
-        } else {
-            columnVisibilityRaw = 0
+        if horizontalSizeClass != .compact && !shouldUseRuntimeSidebarCollapse {
+            // Map NavigationSplitViewVisibility to raw integer for @SceneStorage
+            columnVisibilityRaw = Self.persistedColumnVisibilityRaw(for: columnVisibility)
         }
 
         if let encoded = try? JSONEncoder().encode(browserSelection) {
@@ -179,7 +203,7 @@ extension ContentView {
         let (type, id) = serializeViewMode(viewMode)
         storedViewModeType = type
         storedViewModeItemId = id
-        selectedSidebarItemId = sidebarSelectionId(for: type, itemId: id)
+        selectedSidebarItemId = sidebarSelectionState.selectedItemId ?? sidebarSelectionId(for: type, itemId: id)
     }
 
     // MARK: - Sidebar Selection ID Mapping

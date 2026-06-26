@@ -94,17 +94,10 @@ struct EntityDigestView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "book.closed")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
-            Text("Select an entity to view its digest")
-                .font(.headline)
+        ContentUnavailableView {
+            Label("No Entity Selected", systemImage: "book.closed")
+        } description: {
             Text("Browse the index to see reconstructed biographies and source annotations.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -145,6 +138,7 @@ struct EntityDigestContent: View {
     let entityService: EntityServiceGenerated
 
     @State private var claims: [Components.Schemas.KnowledgeClaim] = []
+    @State private var selectedClaimIds: Set<String> = []
     @State private var isLoading = false
 
     var body: some View {
@@ -227,38 +221,85 @@ struct EntityDigestContent: View {
                 Text("No source citations available.")
                     .foregroundStyle(.secondary)
             } else {
-                // Group claims by document
-                let grouped = Dictionary(grouping: claims, by: \.sourceDocumentId)
+                let grouped = Dictionary(grouping: claims, by: { $0.sourceDocumentId ?? "" })
+                let sortedDocIds = grouped.keys.sorted()
 
-                ForEach(Array(grouped.keys).sorted(), id: \.self) { docId in
-                    provenanceItem(docId: docId, claims: grouped[docId] ?? [])
+                List(selection: $selectedClaimIds) {
+                    ForEach(sortedDocIds, id: \.self) { docId in
+                        Section(header: Label(docName(for: docId), systemImage: "doc.text")) {
+                            ForEach(grouped[docId] ?? [], id: \.id) { claim in
+                                provenanceRow(claim)
+                                    .tag(claim.id)
+                                    .listRowSeparator(.hidden)
+                            }
+                        }
+                    }
                 }
+                .listStyle(.inset)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 160, maxHeight: 520)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func provenanceItem(docId: String, claims: [Components.Schemas.KnowledgeClaim]) -> some View {
-        let docName = LibraryManager.shared.globalLibrary?.documentStore
-            .currentDocuments.first(where: { $0.id == docId })?.name ?? docId
+    private func provenanceRow(_ claim: Components.Schemas.KnowledgeClaim) -> some View {
+        let summary = provenanceSummary(for: claim)
+        let badge = provenanceBadgeLabel(for: claim)
 
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "doc.text")
-                    .foregroundStyle(.secondary)
-                Text(docName)
-                    .fontWeight(.medium)
-            }
-            .font(.subheadline)
+        return HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text(summary)
+                .font(.body)
+                .textSelection(.enabled)
+                .lineLimit(2)
 
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(claims, id: \.id) { claim in
-                    ClaimSummaryCard(claim: claim)
-                }
-            }
-            .padding(.leading, 24)
+            Spacer(minLength: 8)
+
+            Text(badge)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 2)
+    }
+
+    private func docName(for docId: String) -> String {
+        LibraryManager.shared.globalLibrary?.documentStore
+            .currentDocuments.first(where: { $0.id == docId })?.name ?? docId
+    }
+
+    private func provenanceSummary(for claim: Components.Schemas.KnowledgeClaim) -> String {
+        if let svo = ClaimSummaryCard.svoTriple(for: claim) {
+            return [svo.subject, svo.verb, svo.object]
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: " · ")
+        }
+
+        let fallback = claim.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return fallback.isEmpty ? "Untitled claim" : fallback
+    }
+
+    private func provenanceBadgeLabel(for claim: Components.Schemas.KnowledgeClaim) -> String {
+        let metadata = claim.metadata?.additionalProperties.value ?? [:]
+        let raw = (
+            claim.confidenceSource
+            ?? metadata["confidence_source"] as? String
+            ?? metadata["confidenceSource"] as? String
+        )?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        switch raw {
+        case "human_review", "human", "manual", "user", "curator", "editor", "researcher":
+            return "Human"
+        case "llm_logprob", "llm", "ai", "agent":
+            return "Llm"
+        case "heuristic", "default", "corroboration":
+            return "Heuristic"
+        case let value? where !value.isEmpty:
+            return value.replacingOccurrences(of: "_", with: " ").capitalized
+        default:
+            return "Heuristic"
+        }
     }
 
     private var composedBiography: String {
@@ -291,12 +332,15 @@ struct EntityDigestContent: View {
         defer { isLoading = false }
         guard let entityId = entity.id else {
             claims = []
+            selectedClaimIds.removeAll()
             return
         }
         do {
             claims = try await entityService.listClaims(entityId: entityId, limit: 500)
+            selectedClaimIds.removeAll()
         } catch {
             claims = []
+            selectedClaimIds.removeAll()
         }
     }
 }

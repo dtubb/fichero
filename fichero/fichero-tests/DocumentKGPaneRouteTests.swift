@@ -1,0 +1,75 @@
+import FicheroAPIClient
+import Foundation
+import XCTest
+
+@testable import Fichero
+
+/// Regression coverage for #2538: after the engine moved to a self-signed
+/// pinned HTTPS loopback cert, the KG / document-reader WKWebView pane
+/// (`DocumentKGWebPane`) stopped rendering because
+/// `supportsAuthenticatedWebView()` gated itself off whenever pinning was
+/// enforced. The pane now validates the pinned cert in its navigation
+/// delegate, so it must load over the shared pinned HTTPS transport instead.
+final class DocumentKGPaneRouteTests: XCTestCase {
+    private var host: URL!
+    private var hostString: String!
+    private let pin = Data("kg-pane-loopback-spki".utf8).base64EncodedString()
+
+    override func setUp() {
+        super.setUp()
+        host = EngineConfig.host
+        hostString = host.absoluteString
+        RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostString)
+    }
+
+    override func tearDown() {
+        RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostString)
+        host = nil
+        hostString = nil
+        super.tearDown()
+    }
+
+    /// With a persisted SPKI pin, the pane must report itself available even
+    /// though pinning is enforced — the delegate validates the cert. Before the
+    /// fix this returned `false` (it was `!shouldEnforcePinning(...)`), which
+    /// is exactly why the KG + reader surfaces came up empty.
+    func testWebViewAvailableWhenLoopbackPinned() throws {
+        try RemoteCertificatePinning.persistSPKIPin(pin, hostString: hostString)
+        XCTAssertTrue(DocumentKGPaneRoute.supportsAuthenticatedWebView())
+    }
+
+    /// The global-KG request is built on the shared engine host: it MUST be an
+    /// `https://` URL (never hand-rolled `http://localhost`) and carry the
+    /// per-library engine-auth header.
+    func testGlobalKGRequestIsHTTPSWithEngineAuth() throws {
+        try RemoteCertificatePinning.persistSPKIPin(pin, hostString: hostString)
+
+        let request = try XCTUnwrap(
+            DocumentKGPaneRoute.request(
+                documentId: DocumentKGPaneRoute.globalKGDocumentID,
+                libraryPath: "/tmp/library"
+            )
+        )
+
+        let url = try XCTUnwrap(request.url)
+        XCTAssertEqual(url.scheme, "https")
+        XCTAssertNotEqual(url.scheme, "http")
+        XCTAssertTrue(url.absoluteString.hasSuffix("/view/kg/global"), url.absoluteString)
+        // addEngineAuth always stamps the per-library header on engine requests.
+        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Fichero-Library-Path"), "/tmp/library")
+    }
+
+    /// A per-document reader request is likewise served over the pinned HTTPS
+    /// transport, with the document id percent-encoded into the path.
+    func testDocumentReaderRequestIsHTTPS() throws {
+        try RemoteCertificatePinning.persistSPKIPin(pin, hostString: hostString)
+
+        let request = try XCTUnwrap(
+            DocumentKGPaneRoute.request(documentId: "doc-123", libraryPath: "/tmp/library")
+        )
+
+        let url = try XCTUnwrap(request.url)
+        XCTAssertEqual(url.scheme, "https")
+        XCTAssertTrue(url.absoluteString.hasSuffix("/view/document/doc-123"), url.absoluteString)
+    }
+}

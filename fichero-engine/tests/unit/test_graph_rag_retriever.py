@@ -1,6 +1,27 @@
 from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
 from fichero.models import Document
-from fichero.retrieval.graph_rag import GraphAwareRetriever
+from fichero.retrieval.graph_rag import GraphAwareRetriever, RetrievalPayload
+
+
+class TestRetrievalPayload:
+    def test_defaults_are_empty_and_instance_local(self):
+        first = RetrievalPayload()
+        second = RetrievalPayload()
+
+        assert first.context_docs == []
+        assert first.sources == []
+        assert first.kg_claims_used == 0
+        assert first.kg_entities_used == 0
+
+        first.context_docs.append({"id": "doc-1"})
+        first.sources.append({"document_id": "doc-1"})
+        first.kg_claims_used = 1
+        first.kg_entities_used = 2
+
+        assert second.context_docs == []
+        assert second.sources == []
+        assert second.kg_claims_used == 0
+        assert second.kg_entities_used == 0
 
 
 class TestGraphAwareRetriever:
@@ -143,3 +164,140 @@ class TestGraphAwareRetriever:
         kinds = [item["kind"] for item in payload.context_docs]
         assert kinds == ["document"]
         assert payload.kg_claims_used == 0
+
+    def test_retrieve_with_explicit_document_ids_skips_missing_and_contentless_docs(self, db):
+        kept = Document(
+            id="doc-kept",
+            name="Kept",
+            page_content="Ada Lovelace documented municipal work.",
+        )
+        empty = Document(id="doc-empty", name="Empty", page_content="")
+        db.save(kept)
+        db.save(empty)
+
+        payload = GraphAwareRetriever(db).retrieve(
+            query="ignored when document_ids supplied",
+            max_sources=5,
+            document_ids=["doc-missing", "doc-empty", "doc-kept"],
+        )
+
+        assert [item["id"] for item in payload.context_docs] == ["doc-kept"]
+        assert [item["document_id"] for item in payload.sources] == ["doc-kept"]
+        assert payload.kg_claims_used == 0
+        assert payload.kg_entities_used == 0
+
+    def test_retrieve_treats_source_ids_as_seed_claim_links(self, db):
+        seed = Document(
+            id="doc-seed",
+            name="Seed doc",
+            page_content="Leidy appears in the town record.",
+        )
+        witness = Document(
+            id="doc-witness",
+            name="Witness doc",
+            page_content="Another record connects Leidy to Quibdo.",
+        )
+        db.save(seed)
+        db.save(witness)
+        db.embed(seed)
+        db.embed(witness)
+
+        db.save(KnowledgeEntity(id="ent-leidy", canonical_name="Leidy"))
+        db.save(KnowledgeEntity(id="ent-quibdo", canonical_name="Quibdo"))
+        db.save(
+            KnowledgeClaim(
+                id="claim-seed-via-source-ids",
+                text="Leidy is mentioned in the source packet.",
+                source_document_id="doc-elsewhere",
+                source_ids=["doc-seed"],
+                entity_ids=["ent-leidy"],
+                source_excerpt="Seed excerpt",
+            )
+        )
+        db.save(
+            KnowledgeClaim(
+                id="claim-hop",
+                text="Leidy appears in Quibdo.",
+                source_document_id="doc-witness",
+                entity_ids=["ent-leidy", "ent-quibdo"],
+                source_excerpt="Witness excerpt",
+            )
+        )
+
+        payload = GraphAwareRetriever(db).retrieve(
+            query="Where does Leidy appear?",
+            max_sources=2,
+            graph_hops=1,
+            max_kg_claims=4,
+        )
+
+        claim_ids = [
+            item["id"] for item in payload.context_docs if item["kind"] == "kg_claim"
+        ]
+        assert "kg-claim:claim-seed-via-source-ids" in claim_ids
+        assert "kg-claim:claim-hop" in claim_ids
+        assert payload.kg_claims_used == 2
+        assert payload.kg_entities_used == 2
+
+    def test_retrieve_prefers_seed_claims_before_hop_claims_when_truncated(self, db):
+        doc_a = Document(
+            id="doc-a2",
+            name="Seed A",
+            page_content="Ada met Bruno in Popayan.",
+        )
+        doc_b = Document(
+            id="doc-b2",
+            name="Seed B",
+            page_content="Bruno worked with Carmen.",
+        )
+        doc_c = Document(
+            id="doc-c2",
+            name="Hop C",
+            page_content="Carmen traveled onward.",
+        )
+        for doc in (doc_a, doc_b, doc_c):
+            db.save(doc)
+            db.embed(doc)
+
+        db.save(KnowledgeEntity(id="ent-a2", canonical_name="Ada"))
+        db.save(KnowledgeEntity(id="ent-b2", canonical_name="Bruno"))
+        db.save(KnowledgeEntity(id="ent-c2", canonical_name="Carmen"))
+
+        db.save(
+            KnowledgeClaim(
+                id="claim-a2",
+                text="Ada met Bruno.",
+                source_document_id="doc-a2",
+                entity_ids=["ent-a2", "ent-b2"],
+            )
+        )
+        db.save(
+            KnowledgeClaim(
+                id="claim-b2",
+                text="Bruno worked with Carmen.",
+                source_document_id="doc-b2",
+                entity_ids=["ent-b2", "ent-c2"],
+            )
+        )
+        db.save(
+            KnowledgeClaim(
+                id="claim-c2",
+                text="Carmen traveled onward.",
+                source_document_id="doc-c2",
+                entity_ids=["ent-c2"],
+            )
+        )
+
+        payload = GraphAwareRetriever(db).retrieve(
+            query="What connects Ada and Bruno?",
+            max_sources=2,
+            graph_hops=2,
+            max_kg_claims=2,
+        )
+
+        claim_ids = [
+            item["id"] for item in payload.context_docs if item["kind"] == "kg_claim"
+        ]
+        assert claim_ids == ["kg-claim:claim-a2", "kg-claim:claim-b2"]
+        assert "kg-claim:claim-c2" not in claim_ids
+        assert payload.kg_claims_used == 2

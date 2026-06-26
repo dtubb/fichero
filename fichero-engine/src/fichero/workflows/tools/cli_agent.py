@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 from typing import Any
 
 from fichero.workflows.registry import register_tool
@@ -16,6 +17,50 @@ from fichero.workflows.types import DataType, PortDef, State
 from fichero.llm import LLMConfig
 
 logger = logging.getLogger(__name__)
+
+
+def _truthy_env(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _networked_deployment() -> bool:
+    host = os.getenv("FICHERO_BIND_HOST") or os.getenv("FICHERO_REMOTE_BACKEND_BIND_HOST") or ""
+    return host.strip() not in {"", "127.0.0.1", "localhost", "::1"}
+
+
+def _has_cli_agent_capability(inputs: dict[str, Any], state: State) -> bool:
+    config = inputs.get("_config") or {}
+
+    def capability_set(value: Any) -> set[str]:
+        if isinstance(value, str):
+            return {value}
+        return {str(item) for item in (value or [])}
+
+    capability_sources = [
+        config.get("capabilities"),
+        config.get("user_capabilities"),
+        state.get("capabilities"),
+        state.get("user_capabilities"),
+    ]
+    has_capability = any(
+        bool({"cli_agent", "workflow.cli_agent"} & capability_set(source))
+        for source in capability_sources
+    )
+    is_owner = bool(
+        config.get("is_owner")
+        or config.get("owner")
+        or state.get("is_owner")
+        or state.get("owner")
+        or (state.get("actor") or {}).get("is_owner")
+        or (state.get("user") or {}).get("is_owner")
+    )
+    return is_owner or has_capability
+
+
+def _cli_agent_denied(inputs: dict[str, Any], state: State) -> bool:
+    if not (_truthy_env("FICHERO_MULTIUSER") or _networked_deployment()):
+        return False
+    return not _has_cli_agent_capability(inputs, state)
 
 
 def _render_prompt(
@@ -115,7 +160,7 @@ async def cli_agent(
     state: State,
     llm_config: LLMConfig,
 ) -> dict[str, Any]:
-    del state, llm_config
+    del llm_config
     task = str(inputs.get("task", "")).strip()
     if not task:
         return {
@@ -124,6 +169,15 @@ async def cli_agent(
             "stdout": "",
             "stderr": "",
             "exit_code": 1,
+        }
+
+    if _cli_agent_denied(inputs, state):
+        return {
+            "error": "cli_agent requires owner or explicit cli_agent capability in multi-user/networked deployments",
+            "text": "",
+            "stdout": "",
+            "stderr": "",
+            "exit_code": 126,
         }
 
     config = inputs.get("_config") or {}
@@ -174,4 +228,3 @@ async def cli_agent(
     if exit_code != 0:
         result["error"] = f"CLI exited with code {exit_code}"
     return result
-

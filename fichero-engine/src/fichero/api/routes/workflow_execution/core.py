@@ -9,6 +9,7 @@ import json
 import logging
 import queue
 import threading
+from datetime import datetime, timezone
 from typing import Any, AsyncGenerator
 from uuid import uuid4
 
@@ -22,7 +23,7 @@ from fastapi import (
 from fastapi.responses import StreamingResponse
 
 from fichero.db import Database
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.models import Workflow
 from fichero.workflows.activity import get_activity_tracker
 from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer
@@ -40,6 +41,7 @@ from .schemas import (
     format_sse,
 )
 from .runner import (
+    WorkflowEventHub,
     _get_workflow_state,
     _run_workflow_in_background,
     _set_workflow_state,
@@ -129,32 +131,41 @@ async def stream_workflow_events(thread_id: str) -> StreamingResponse:
         )
 
     async def event_generator() -> AsyncGenerator[str, None]:
-        """Generate SSE events from the workflow's event queue.
+        """Generate SSE events from the workflow's event hub.
 
-        The queue is a thread-safe ``queue.Queue`` — the workflow runs
-        on a dedicated worker thread (#1000), so the blocking ``.get()``
-        is offloaded to a thread-pool worker via ``run_in_executor`` to
+        ``state["events"]`` is a :class:`WorkflowEventHub` (#2546). We take
+        a PRIVATE subscriber queue via ``.subscribe()`` so multiple watchers
+        (the Workflow editor AND the Activity panel, late or concurrent) each
+        receive EVERY event instead of competing for a single destructive
+        ``.get()``. The hub replays buffered events so a late subscriber
+        catches up. The workflow runs on a dedicated worker thread (#1000),
+        so the blocking ``.get()`` is offloaded via ``run_in_executor`` to
         keep the API event loop free.
         """
-        event_queue: queue.Queue = state["events"]
+        hub: WorkflowEventHub = state["events"]
+        subscriber = hub.subscribe()
         loop = asyncio.get_running_loop()
 
-        while True:
-            try:
-                # Wait for next event with timeout, off the event loop.
-                event = await loop.run_in_executor(
-                    None, event_queue.get, True, 60.0
-                )
+        try:
+            while True:
+                try:
+                    # Wait for next event with timeout, off the event loop.
+                    event = await loop.run_in_executor(
+                        None, subscriber.get, True, 60.0
+                    )
 
-                if event is None:
-                    # Sentinel value - stream is complete
-                    break
+                    if event is None:
+                        # Sentinel value - stream is complete
+                        break
 
-                yield format_sse(event)
+                    yield format_sse(event)
 
-            except queue.Empty:
-                # Send keepalive comment to prevent connection timeout
-                yield ": keepalive\n\n"
+                except queue.Empty:
+                    # Send keepalive comment to prevent connection timeout
+                    yield ": keepalive\n\n"
+        finally:
+            # Stop feeding this subscriber once the client disconnects.
+            hub.unsubscribe(subscriber)
 
     return StreamingResponse(
         event_generator(),
@@ -172,7 +183,7 @@ async def execute_workflow(
     request: ExecuteWorkflowRequest,
     http_request: Request,
     background_tasks: BackgroundTasks,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ExecuteAcceptedResponse:
     """
     Execute a workflow (non-blocking).
@@ -222,11 +233,14 @@ async def execute_workflow(
         else:
             thread_id = request.thread_id
 
-        # Create event queue for this workflow. A thread-safe queue.Queue
-        # (not asyncio.Queue) because the workflow runs on a dedicated
-        # worker thread (#1000) and pushes events across the thread
-        # boundary; the SSE endpoint drains it via run_in_executor.
-        event_queue: queue.Queue = queue.Queue()
+        # Create the event hub for this workflow. A WorkflowEventHub (#2546)
+        # fans events out to every SSE subscriber (editor + Activity, late or
+        # concurrent) instead of a single-consumer queue.Queue that only the
+        # first subscriber could drain. The producer side is thread-safe: the
+        # workflow runs on a dedicated worker thread (#1000) and calls
+        # ``hub.put(...)``; each subscriber drains its own queue via
+        # run_in_executor.
+        event_hub = WorkflowEventHub()
 
         # Register workflow state
         _set_workflow_state(
@@ -235,9 +249,21 @@ async def execute_workflow(
                 "workflow_id": request.workflow_id,
                 "workflow_name": workflow.name,
                 "status": "accepted",
-                "events": event_queue,
+                "events": event_hub,
                 "error": None,
                 "final_state": None,
+            },
+        )
+
+        await get_activity_tracker(str(db.path)).store.save_workflow_run(
+            thread_id=thread_id,
+            workflow_id=request.workflow_id,
+            workflow_name=workflow.name,
+            status="accepted",
+            workflow_snapshot={
+                "nodes": workflow.nodes,
+                "edges": workflow.edges,
+                "inputs": request.inputs,
             },
         )
 
@@ -266,9 +292,15 @@ async def execute_workflow(
             daemon=True,
         ).start()
 
-        # Build stream URL
+        # Build stream URL. The live SSE handler is `stream_workflow_events`,
+        # registered on THIS router (`@router.get("/stream/{thread_id}")`), which
+        # is mounted at `/api/workflow-execution` (see main.py). The previous
+        # `/api/workflows/stream/...` path had no handler — the `workflows`
+        # router exposes no `/stream` route — so the advertised URL 404'd. The
+        # SwiftUI client hardcoded the correct path; this makes the advertised
+        # `stream_url` honest so any consumer can use it directly (#2546).
         base_url = str(http_request.base_url).rstrip("/")
-        stream_url = f"{base_url}/api/workflows/stream/{thread_id}"
+        stream_url = f"{base_url}/api/workflow-execution/stream/{thread_id}"
 
         print(f"[EXECUTE] Started background execution, stream at: {stream_url}")
 
@@ -291,7 +323,7 @@ async def execute_workflow(
 async def resume_workflow(
     thread_id: str,
     request: ResumeWorkflowRequest | None = None,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ExecutionStatusResponse:
     """
     Resume a paused workflow from checkpoint.
@@ -344,12 +376,58 @@ async def resume_workflow(
         # Rebuild graph with checkpointer
         app = _build_workflow_with_checkpointer(workflow, checkpointer)
 
+        activity_tracker = get_activity_tracker(str(db.path))
+        activity_tracker.workflow_resumed(
+            workflow_id=workflow_id,
+            thread_id=thread_id,
+            workflow_name=workflow.name if workflow else "Unknown",
+        )
+        await activity_tracker.store.update_workflow_run(
+            thread_id=thread_id,
+            status="running",
+            completed_at=None,
+        )
+
         # Resume from checkpoint (pass None to continue, or new inputs)
         inputs = request.inputs if request else None
-        final_state = await app.ainvoke(inputs, config=config)
+        resume_started_at = datetime.now(timezone.utc)
+        try:
+            final_state = await app.ainvoke(inputs, config=config)
+        except Exception as resume_exc:
+            duration_ms = (
+                datetime.now(timezone.utc) - resume_started_at
+            ).total_seconds() * 1000
+            activity_tracker.workflow_failed(
+                workflow_id=workflow_id,
+                thread_id=thread_id,
+                workflow_name=workflow.name,
+                error=str(resume_exc),
+                duration_ms=duration_ms,
+            )
+            await activity_tracker.store.update_workflow_run(
+                thread_id=thread_id,
+                status="failed",
+                error=str(resume_exc),
+                duration_ms=duration_ms,
+                completed_at=datetime.now(timezone.utc),
+            )
+            raise
 
         # Get latest checkpoint
         checkpoint_tuple = await checkpointer.aget_tuple(config)
+        duration_ms = (datetime.now(timezone.utc) - resume_started_at).total_seconds() * 1000
+        activity_tracker.workflow_completed(
+            workflow_id=workflow_id,
+            thread_id=thread_id,
+            workflow_name=workflow.name,
+            duration_ms=duration_ms,
+        )
+        await activity_tracker.store.update_workflow_run(
+            thread_id=thread_id,
+            status="completed",
+            duration_ms=duration_ms,
+            completed_at=datetime.now(timezone.utc),
+        )
 
         return ExecutionStatusResponse(
             thread_id=thread_id,

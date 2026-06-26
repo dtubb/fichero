@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import OSLog
 import SwiftUI
 
@@ -7,6 +8,11 @@ import SwiftUI
 
 extension ContentView {
 
+    struct ShellCollapsePolicy: Equatable {
+        let collapseSidebar: Bool
+        let collapseInspector: Bool
+    }
+
     // MARK: - Computed Properties
 
     /// Toolbar/window title showing only the current view/item name
@@ -14,12 +20,26 @@ extension ContentView {
         let viewName: String
         switch viewMode {
         case .library(let document):
-            // Window/tab title shows only the document or library name. The
-            // current page ("4 / 31") is document-scoped, so it lives on the
-            // document toolbar over the canvas (PDFPageWithToolbar), not on the
-            // window chrome — keeping window back/forward (navigation history)
-            // and document page-flip on separate toolbars. (#1531, was #1482)
-            viewName = document?.name ?? "Library"
+            // When a PDF page (or multiple pages) is selected in the grid,
+            // reflect that in the window title so the user knows exactly what
+            // is in context. The parent PDF comes from `document` (the sidebar-
+            // selected item). Page count shows when the browser selection has
+            // more than one page document.
+            if let page = inspectorDocument, page.docType == .page {
+                let selectedPageCount = browserSelection.filter { id in
+                    documentStore.currentDocuments.first(where: { $0.id == id })?.docType == .page
+                }.count
+                if selectedPageCount > 1 {
+                    let parentName = document?.name
+                    viewName = parentName.map { "\(selectedPageCount) pages — \($0)" }
+                        ?? "\(selectedPageCount) pages"
+                } else {
+                    let pageLabel = page.sequence.map { "Page \($0)" } ?? page.name
+                    viewName = document.map { "\(pageLabel) — \($0.name)" } ?? pageLabel
+                }
+            } else {
+                viewName = document?.name ?? "Library"
+            }
         case .search(let savedSearch):
             viewName = savedSearch?.name ?? "Search"
         case .chat(let conversation):
@@ -51,11 +71,52 @@ extension ContentView {
             } else {
                 viewName = "Activity"
             }
-        case .mindPalace:
-            viewName = "Mind Palace"
         }
 
         return viewName
+    }
+
+    /// Breadcrumb trail showing full navigation path from library root to current selection.
+    /// Returns "Library › Folder › Subfolder › File" or empty string if not applicable.
+    /// Only for library mode; returns empty string for other modes.
+    var breadcrumbSubtitle: String {
+        guard case .library(let document) = viewMode, let doc = document else {
+            return ""
+        }
+
+        // Build a lookup function for parent documents from currentDocuments + cache
+        // ContentView is a struct (value type) — capture by value, no weak/retain-cycle concern.
+        let parentLookup: BreadcrumbBuilder.DocumentLookup = { parentId in
+            // Check currentDocuments first (most likely case)
+            if let found = documentStore.currentDocuments.first(where: { $0.id == parentId }) {
+                return found
+            }
+            // Fallback to collections if not found in current docs
+            if let found = documentStore.collections.first(where: { $0.id == parentId }) {
+                return found
+            }
+            return nil
+        }
+
+        let pageLabel: String? = if let page = inspectorDocument, page.docType == .page {
+            page.pageThumbnailLabel
+        } else {
+            nil
+        }
+
+        let breadcrumb = BreadcrumbBuilder.buildBreadcrumbForLibraryMode(
+            document: doc,
+            pageLabel: pageLabel,
+            parentLookup: parentLookup
+        )
+
+        // Return the breadcrumb minus the leaf name (which is already in navigationTitle)
+        // Split on " › " and drop the last component
+        let components = breadcrumb.split(separator: " › ")
+        if components.count > 1 {
+            return components.dropLast().joined(separator: " › ")
+        }
+        return ""
     }
 
     /// SF symbol name for the current view mode — shown alongside toolbarTitle in the navigation header
@@ -63,7 +124,10 @@ extension ContentView {
         switch viewMode {
         case .library(let document):
             guard let doc = document else { return "books.vertical" }
-            return doc.docType == .folder ? "folder" : "doc.text"
+            if let inspector = inspectorDocument, inspector.docType == .page {
+                return "doc.richtext"
+            }
+            return doc.docType == .folder ? "folder" : (doc.fileType == .pdf ? "doc.richtext" : "doc.text")
         case .search:
             return "magnifyingglass"
         case .chat:
@@ -82,9 +146,20 @@ extension ContentView {
             return "calendar"
         case .trigger:
             return "bolt.circle"
-        case .mindPalace:
-            return "cube.transparent"
         }
+    }
+
+    var selectionStatusText: String {
+        if browserSelection.count > 1 {
+            return "\(browserSelection.count) items selected"
+        }
+        return inspectorDocument?.name ?? toolbarTitle
+    }
+
+    var selectionPathText: String {
+        let leaf = inspectorDocument?.name ?? toolbarTitle
+        guard !breadcrumbSubtitle.isEmpty else { return leaf }
+        return "\(breadcrumbSubtitle) › \(leaf)"
     }
 
     /// Documents for the browser based on current library selection
@@ -147,7 +222,7 @@ extension ContentView {
         switch viewMode {
         case .library, .search, .chat, .comparison, .workflow, .chain:
             return true
-        case .batches, .batch, .automation, .schedule, .trigger, .activity, .mindPalace:
+        case .batches, .batch, .automation, .schedule, .trigger, .activity:
             return false
         }
     }
@@ -165,7 +240,7 @@ extension ContentView {
         switch sidebarMode {
         case .library, .search, .workflows:
             return true
-        case .chat, .automation, .activity, .mindPalace, .research, .knowledgeGraph:
+        case .chat, .automation, .activity, .research, .knowledgeGraph:
             return false
         }
     }
@@ -181,7 +256,7 @@ extension ContentView {
     /// This is independent of the current layout so toolbar pane buttons
     /// don't disappear when previews are temporarily hidden.
     var supportsReadingWorkspace: Bool {
-        sidebarMode == .library || sidebarMode == .search
+        (sidebarMode == .library && !isEntityLibrarySelection) || sidebarMode == .search
     }
 
     /// Available display modes for the current sidebar mode.
@@ -189,8 +264,20 @@ extension ContentView {
     var availableViewDisplayModes: [ViewDisplayMode] {
         switch sidebarMode {
         case .library:
-            if let doc = libraryViewDocument, doc.docType == .folder || doc.isWorkspace {
-                return [.icon, .list, .table, .map, .realitykit]
+            if isEntityLibrarySelection {
+                return [.list]
+            }
+            if let doc = libraryViewDocument,
+               doc.docType == .folder || doc.isWorkspace ||
+               (doc.docType == .file && doc.fileType.map { [.pdf, .word, .epub, .presentation].contains($0) } ?? false) {
+                var modes: [ViewDisplayMode] = [.icon, .list, .table, .map, .realitykit]
+                if featureManager.isWorkspaceModeEnabled {
+                    modes.append(.workspace)
+                }
+                if featureManager.isSpatialModeEnabled {
+                    modes.append(.spatial)
+                }
+                return modes
             }
             if !featureManager.isLibraryAdvancedViewsEnabled {
                 return [.icon]
@@ -208,7 +295,7 @@ extension ContentView {
                 return [.icon, .list]
             }
             return [.icon, .list, .table]
-        case .chat, .automation, .activity, .mindPalace, .research, .knowledgeGraph:
+        case .chat, .automation, .activity, .research, .knowledgeGraph:
             return [.icon]
         }
     }
@@ -216,6 +303,224 @@ extension ContentView {
     var libraryViewDocument: Document? {
         if case .library(let doc) = viewMode { return doc }
         return nil
+    }
+
+    var isEntityLibrarySelection: Bool {
+        sidebarSelectionState.selectedItemId == "entities-browser"
+    }
+
+    static func shouldUseCompactNavigationFlow(horizontalSizeClass: UserInterfaceSizeClass?) -> Bool {
+        #if os(macOS)
+        false
+        #else
+        horizontalSizeClass == .compact
+        #endif
+    }
+
+    static func shouldUseSplittablePane(
+        horizontalSizeClass: UserInterfaceSizeClass?,
+        windowWidth: Double? = nil,
+        minimumWidth: Double? = nil
+    ) -> Bool {
+        #if os(macOS)
+        if horizontalSizeClass == .compact {
+            return false
+        }
+        #else
+        if horizontalSizeClass == .compact {
+            return false
+        }
+        #endif
+
+        guard let windowWidth, let minimumWidth else {
+            return true
+        }
+
+        return windowWidth >= minimumWidth
+    }
+
+    static func shouldRenderSidebarColumn(
+        horizontalSizeClass: UserInterfaceSizeClass?,
+        showSidebar: Bool,
+        columnVisibility: NavigationSplitViewVisibility
+    ) -> Bool {
+        showSidebar && horizontalSizeClass != .compact && columnVisibility != .detailOnly
+    }
+
+    static func shellCollapsePolicy(
+        windowWidth: Double?,
+        horizontalSizeClass: UserInterfaceSizeClass?,
+        sidebarVisible: Bool,
+        inspectorVisible: Bool,
+        detailMinWidth: Double
+    ) -> ShellCollapsePolicy {
+        #if os(macOS)
+        if horizontalSizeClass == .compact {
+            return ShellCollapsePolicy(collapseSidebar: true, collapseInspector: false)
+        }
+        #else
+        if horizontalSizeClass == .compact {
+            return ShellCollapsePolicy(collapseSidebar: true, collapseInspector: false)
+        }
+        #endif
+
+        guard let windowWidth, windowWidth > 0 else {
+            return ShellCollapsePolicy(collapseSidebar: false, collapseInspector: false)
+        }
+
+        let sidebarMinWidth = sidebarVisible ? ContentView.sidebarMinWidth : 0
+        let inspectorMinWidth = inspectorVisible ? ContentView.inspectorMinWidth : 0
+        let collapseInspector =
+            inspectorVisible &&
+            windowWidth < detailMinWidth + sidebarMinWidth + inspectorMinWidth
+        let collapseSidebar =
+            sidebarVisible &&
+            windowWidth < detailMinWidth + sidebarMinWidth
+
+        return ShellCollapsePolicy(
+            collapseSidebar: collapseSidebar,
+            collapseInspector: collapseInspector
+        )
+    }
+
+    var shellCollapsePolicy: ShellCollapsePolicy {
+        Self.shellCollapsePolicy(
+            windowWidth: measuredWindowWidth,
+            horizontalSizeClass: horizontalSizeClass,
+            sidebarVisible: showSidebar,
+            inspectorVisible: showInspectorSidebar,
+            detailMinWidth: paneAwareDetailMinWidth
+        )
+    }
+
+    var shouldUseRuntimeSidebarCollapse: Bool {
+        shellCollapsePolicy.collapseSidebar
+    }
+
+    var effectiveShowInspectorSidebar: Bool {
+        showInspectorSidebar && !shellCollapsePolicy.collapseInspector
+    }
+
+    var shouldUseSplittablePane: Bool {
+        Self.shouldUseSplittablePane(
+            horizontalSizeClass: horizontalSizeClass,
+            windowWidth: measuredWindowWidth,
+            minimumWidth: paneAwareWindowMinWidth
+        )
+    }
+
+    var inspectorPlacement: InspectorPlacement {
+        InspectorPlacement.adaptiveDefault(horizontalSizeClass: horizontalSizeClass)
+    }
+
+    var usesDockedInspector: Bool {
+        inspectorPlacement != .sheet
+    }
+
+    var paneAwareDetailMinWidth: Double {
+        guard supportsReadingWorkspace else {
+            return ContentView.contentMinWidth
+        }
+
+        switch currentLayoutMode {
+        case .none:
+            return showDocumentGrid ? ContentView.contentListMinWidth : max(ContentView.pdfCanvasMinWidth, 300)
+        case .standard:
+            return showDocumentGrid
+                ? max(ContentView.contentListMinWidth, max(ContentView.pdfCanvasMinWidth, 300))
+                : max(ContentView.pdfCanvasMinWidth, 300)
+        case .widescreen:
+            return adaptiveWidescreenPanePlan.minimumWidth
+        }
+    }
+
+    static func adaptiveWidescreenAvailableWidth(
+        windowWidth: Double?,
+        inspectorVisible: Bool
+    ) -> Double? {
+        guard let windowWidth, windowWidth > 0 else { return nil }
+        return max(0, windowWidth - (inspectorVisible ? ContentView.inspectorMinWidth : 0))
+    }
+
+    var adaptiveWidescreenPanePlan: WidescreenPanePlan {
+        // Keep the reading workspace legible by dropping secondary panes as
+        // the shell narrows, before SwiftUI has to overlap columns.
+        let availableDetailWidth = Self.adaptiveWidescreenAvailableWidth(
+            windowWidth: measuredWindowWidth,
+            inspectorVisible: showInspectorSidebar
+        )
+
+        return WidescreenPanePlan.make(
+            showDocumentGrid: showDocumentGrid,
+            showDocumentCanvas: showDocumentCanvas,
+            showReadingPane: showReadingPane,
+            availableWidth: availableDetailWidth
+        )
+    }
+
+    var paneAwareWindowMinWidth: Double {
+        Self.windowMinWidth(
+            sidebarVisible: showSidebar,
+            inspectorVisible: showInspectorSidebar,
+            detailMinWidth: paneAwareDetailMinWidth
+        )
+    }
+
+    var shellWindowMinWidth: Double {
+        Self.shellWindowMinWidth(
+            windowWidth: measuredWindowWidth,
+            horizontalSizeClass: horizontalSizeClass,
+            sidebarVisible: showSidebar,
+            inspectorVisible: showInspectorSidebar,
+            detailMinWidth: paneAwareDetailMinWidth
+        )
+    }
+
+    static func windowMinWidth(
+        sidebarVisible: Bool,
+        inspectorVisible: Bool,
+        detailMinWidth: Double
+    ) -> Double {
+        #if os(macOS)
+        let sidebarMinWidth = sidebarVisible ? ContentView.sidebarMinWidth : 0
+        // The inspector's OWN .inspectorColumnWidth enforces its column width
+        // internally, but the inspector width must ALSO be included in the
+        // window-level minimum. Without it, a narrow window (e.g. 400 px) gives
+        // the NavigationSplitView only 150 px after the inspector takes 250 px —
+        // less than sidebar + content need — causing the split view to switch to
+        // overlay mode and float the sidebar OVER the library content (#2309).
+        let inspectorMinWidth = inspectorVisible ? ContentView.inspectorMinWidth : 0
+        return sidebarMinWidth + detailMinWidth + inspectorMinWidth
+        #else
+        return detailMinWidth
+        #endif
+    }
+
+    static func shellWindowMinWidth(
+        windowWidth: Double?,
+        horizontalSizeClass: UserInterfaceSizeClass?,
+        sidebarVisible: Bool,
+        inspectorVisible: Bool,
+        detailMinWidth: Double
+    ) -> Double {
+        let policy = shellCollapsePolicy(
+            windowWidth: windowWidth,
+            horizontalSizeClass: horizontalSizeClass,
+            sidebarVisible: sidebarVisible,
+            inspectorVisible: inspectorVisible,
+            detailMinWidth: detailMinWidth
+        )
+        let effectiveInspectorVisible = inspectorVisible && !policy.collapseInspector
+
+        if policy.collapseSidebar {
+            return detailMinWidth
+        }
+
+        return windowMinWidth(
+            sidebarVisible: sidebarVisible,
+            inspectorVisible: effectiveInspectorVisible,
+            detailMinWidth: detailMinWidth
+        )
     }
 
     /// Extracted from the view's `.onAppear` closure to keep `ContentView.body`
@@ -282,13 +587,19 @@ extension ContentView {
     var availablePreviewModes: [PreviewMode] {
         switch sidebarMode {
         case .library, .search:
+            if Self.shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) {
+                return [.none, .standard]
+            }
             if !featureManager.isLibrarySearchSplitLayoutsEnabled {
                 return [.widescreen]
             }
             return [.none, .standard, .widescreen]
         case .chat:
+            if Self.shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) {
+                return [.none, .standard]
+            }
             return [.none, .standard, .widescreen]
-        case .workflows, .automation, .activity, .mindPalace, .research, .knowledgeGraph:
+        case .workflows, .automation, .activity, .research, .knowledgeGraph:
             return []
         }
     }
@@ -338,7 +649,7 @@ extension ContentView {
         )
         // sidebarSelectionId returns nil for "activity" with no run ID; use the
         // fixed tag so the Activity row stays highlighted after relaunch (#648).
-        selectedSidebarItemId = restoredId ?? (storedViewModeType == "activity" ? "activity-browser" : nil)
+        sidebarSelectionState.selectedItemId = restoredId ?? (storedViewModeType == "activity" ? "activity-browser" : nil)
     }
 
     /// Handles `.onChange(of: documentStore.currentDocuments)`.
@@ -387,7 +698,7 @@ extension ContentView {
         case .icon: .icons
         case .list: .list
         case .table: .table
-        case .map, .realitykit: .map
+        case .map, .realitykit, .spatial, .workspace: .map
         }
         if viewSettings.libraryLayout != newLayout {
             viewSettings.libraryLayout = newLayout
@@ -411,7 +722,7 @@ extension ContentView {
             case .icon: .icons
             case .list: .list
             case .table: .table
-            case .map, .realitykit: .map
+            case .map, .realitykit, .spatial, .workspace: .map
             }
         }
 
@@ -462,16 +773,28 @@ extension ContentView {
     /// Restores per-folder view mode and drives the inspector from sidebar selection.
     func handleSidebarSelectionChange(_ newFolderId: String?) {
         if isRestoringNavigationHistory { return }
+        if newFolderId == "entities-browser" {
+            viewDisplayMode = .list
+            browserSelection.removeAll()
+            detailDocument = nil
+            kgFocusState.clear()
+            return
+        }
+        kgFocusState.clear()
         // Restore per-folder view mode when switching folders.
-        // Priority: per-folder save > global default > current
-        // SceneStorage value. The global default protects against
-        // the "revert to Icon when no per-folder save exists"
-        // complaint in #943.
+        // Priority: per-folder save > per-scene @SceneStorage value > global default.
+        // The @SceneStorage value holds the user's last choice for this window/tab
+        // and should win for new or unsaved folders so spatial is not forced (#2311).
         if let saved = displayMode(for: newFolderId) {
             viewDisplayMode = normalizedViewDisplayMode(saved)
         } else {
+            let normalizedSceneValue = normalizedViewDisplayMode(viewDisplayMode)
             let normalizedDefault = normalizedViewDisplayMode(defaultLibraryViewDisplayMode)
-            if viewDisplayMode != normalizedDefault {
+            // If the scene value is unset or unavailable for this context, fall
+            // back to the global default rather than forcing a spatial/canvas mode.
+            if normalizedSceneValue != normalizedDefault {
+                viewDisplayMode = normalizedSceneValue
+            } else if viewDisplayMode != normalizedDefault {
                 viewDisplayMode = normalizedDefault
             }
         }
@@ -515,7 +838,7 @@ extension ContentView {
                     let fetched: Document? = try? await documentStore.api.get(
                         "/documents/\(docId)"
                     )
-                    if let fetched, selectedSidebarItemId == prefixedId {
+                    if let fetched, sidebarSelectionState.selectedItemId == prefixedId {
                         applyDoc(fetched)
                     }
                 }
@@ -531,7 +854,7 @@ extension ContentView {
         case .icon: .icons
         case .list: .list
         case .table: .table
-        case .map, .realitykit: .map
+        case .map, .realitykit, .spatial, .workspace: .map
         }
 
         let effectivePreviewMode = normalizedPreviewMode(viewSettings.previewMode)
@@ -552,19 +875,13 @@ extension ContentView {
     /// Handles `.onChange(of: columnVisibility)`.
     /// Persists column visibility and keeps explicit sidebar state in sync.
     func handleColumnVisibilityChange(_ newVisibility: NavigationSplitViewVisibility) {
+        if horizontalSizeClass == .compact || shouldUseRuntimeSidebarCollapse {
+            return
+        }
+
         // Persist column visibility to @SceneStorage
         // Map NavigationSplitViewVisibility to raw int for @SceneStorage
-        if newVisibility == .automatic {
-            columnVisibilityRaw = 0
-        } else if newVisibility == .detailOnly {
-            columnVisibilityRaw = 1
-        } else if newVisibility == .all {
-            columnVisibilityRaw = 2
-        } else if newVisibility == .doubleColumn {
-            columnVisibilityRaw = 3
-        } else {
-            columnVisibilityRaw = 0
-        }
+        columnVisibilityRaw = Self.persistedColumnVisibilityRaw(for: newVisibility)
 
         // Keep explicit left-sidebar state in sync with split-view visibility.
         // In this app's layout, `.doubleColumn` is sidebar + content.
@@ -581,6 +898,19 @@ extension ContentView {
         // Persist browser selection to @SceneStorage
         if let encoded = try? JSONEncoder().encode(newSelection) {
             browserSelectionData = encoded
+        }
+        if isEntityLibrarySelection {
+            guard let firstId = newSelection.first else {
+                kgFocusState.clear()
+                detailDocument = nil
+                return
+            }
+            kgFocusState.focusEntity(entityId: firstId)
+            detailDocument = nil
+            return
+        }
+        if kgFocusState.focusedEntityId != nil {
+            kgFocusState.clear()
         }
         guard let firstId = newSelection.first,
               let doc = documentStore.currentDocuments.first(where: { $0.id == firstId }),

@@ -119,7 +119,7 @@ struct ActivityItemTests {
     @Test("Metadata maps AnyValueAsString to plain strings")
     func metadataMapping() throws {
         let item = try JSONDecoder().decode(ActivityItem.self, from: sampleJSON())
-        let meta = item.metadata
+        let meta = item.metadataStrings
         #expect(meta?["key1"] == "value1")
         #expect(meta?["key2"] == "42")
     }

@@ -40,7 +40,7 @@ from urllib.parse import urljoin, urlparse
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database_for_write
 from fichero.db import Database
 from fichero.models import DocType, Document
 from fichero.research_models import (
@@ -404,7 +404,7 @@ async def execute_browser_navigate(
 @router.post("/tools/document-fetch", response_model=DocumentFetchResponse)
 async def execute_document_fetch(
     request: DocumentFetchRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> DocumentFetchResponse:
     """Fetch a document URL and optionally save as Layer 1 Source (sandboxed)."""
     if await _is_sandbox_violation(request.url):
@@ -529,7 +529,7 @@ def _ext_from_content_type(content_type: str | None, url: str) -> str:
 @router.post("/tools/browser-save", response_model=BrowserSaveResponse)
 async def browser_save(
     request: BrowserSaveRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> BrowserSaveResponse:
     """Download a URL as raw bytes and import it into the library as a real Document."""
     import tempfile

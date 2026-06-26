@@ -1,0 +1,635 @@
+"""Unit tests for the DOCUMENT-domain audited actions (EPIC #1848 / #2014).
+
+The document sweep registers every mutating document endpoint as an action that
+WRAPS the route's proven ``*_impl`` (iterate-not-replace) and runs through
+``registry.invoke`` — the single audited write path. These tests drive each
+action via the registry (the same path chat tools / App Intents / the
+``/api/actions/invoke`` route use) and, per the project test bar
+([[would-more-tests-catch-more-issues]]), assert MORE than the happy path:
+
+  (a) the effect lands AND an ActionAudit row is written (actor/target_ids/
+      before/after correct);
+  (b) undo reverses it (for undoable actions) and undo-of-undo is sane;
+  (c) param validation rejects bad input (ValidationError);
+  (d) >=1 edge/failure case a naive impl would get wrong (unknown id, non-folder
+      workspace, dedup, non-contiguous reorder restore, parent-id guard, empty
+      list no-op);
+  (e) the emit fires with the right type + ids (emit_change monkeypatched at
+      the SOURCE module, mirroring test_action_registry).
+
+The MANAGER runs the full suite; this worker only writes the tests.
+
+Importing the documents route module registers the document.* actions at
+import time.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+from fastapi import HTTPException
+from pydantic import ValidationError
+
+# Importing the route module registers the document.* actions at import time.
+import fichero.api.routes.documents  # noqa: F401
+from fichero.actions.registry import ActionContext, registry
+from fichero.models import ActionAudit, Artifact, DocType, Document, Status
+
+
+LIB = "/lib/test.fichero"
+
+
+def _ctx() -> ActionContext:
+    return ActionContext(actor="ui", library_path=LIB)
+
+
+@pytest.fixture
+def spy_emit(monkeypatch):
+    """Capture emit_change calls at the SOURCE module the registry imports."""
+    calls: list[tuple] = []
+    monkeypatch.setattr(
+        "fichero.api.change_stream.emit_change",
+        lambda *a, **k: calls.append((a, k)),
+    )
+    return calls
+
+
+def _save_doc(db, name="Doc", **kwargs) -> Document:
+    doc = Document(name=name, **kwargs)
+    db.save(doc)
+    return doc
+
+
+def _invoke_inverse(db, audit_id, ctx):
+    """Drive undo the way the generic undo endpoint does: read the audit, ask
+    the action for its inverse, invoke the inverse. Returns the inverse name."""
+    audit = db.get(ActionAudit, audit_id)
+    reg = registry.get(audit.action_name)
+    assert reg.undoable and reg.invert is not None
+    inverse = reg.invert(audit.before, audit.after, ctx)
+    assert inverse is not None
+    inv_name, inv_params = inverse
+    registry.invoke(db, inv_name, inv_params, ctx)
+    return inv_name
+
+
+# ===========================================================================
+# document.create
+# ===========================================================================
+
+
+class TestDocumentCreateAction:
+    def test_create_effect_audit_and_emit(self, db, spy_emit):
+        result = registry.invoke(
+            db, "document.create", {"name": "Letter 1"}, _ctx()
+        )
+
+        # (a) effect: the document is persisted
+        new_id = result.result["id"]
+        persisted = db.get(Document, new_id)
+        assert persisted is not None
+        assert persisted.name == "Letter 1"
+
+        # (a) audit row written with the right shape
+        audit = db.get(ActionAudit, result.audit_id)
+        assert audit is not None
+        assert audit.action_name == "document.create"
+        assert audit.actor == "ui"
+        assert audit.target_ids == [new_id]
+        assert audit.after == {"document_id": new_id}
+
+        # (e) emit fired with document.created + the new id
+        assert len(spy_emit) == 1
+        _args, kwargs = spy_emit[0]
+        assert kwargs["type"] == "document.created"
+        assert kwargs["document_ids"] == [new_id]
+
+    def test_create_collection_doc_type_persists(self, db):
+        # (d) "create_collection" is create_document for a top-level container —
+        # a collection is a root folder. The action honours the requested
+        # doc_type rather than forcing the default `file`.
+        result = registry.invoke(
+            db,
+            "document.create",
+            {"name": "Archive", "doc_type": "folder"},
+            _ctx(),
+        )
+        persisted = db.get(Document, result.result["id"])
+        assert persisted.doc_type == DocType.folder
+        assert persisted.parent_id is None  # a collection sits at the root
+
+    def test_create_undo_deletes_then_undo_of_undo_restores(self, db):
+        """(b) create -> undo (soft-delete) hides it; undo-of-undo restores it."""
+        ctx = _ctx()
+        result = registry.invoke(db, "document.create", {"name": "ephemeral"}, ctx)
+        new_id = result.result["id"]
+        assert db.get(Document, new_id) is not None
+
+        # undo create -> document.delete
+        inv = _invoke_inverse(db, result.audit_id, ctx)
+        assert inv == "document.delete"
+        assert db.get(Document, new_id) is not None
+        assert db.get(Document, new_id).deleted_at is not None
+
+        # undo-of-undo: the delete audit inverts to document.restore -> doc back
+        del_audit = next(
+            a for a in db.all(ActionAudit)
+            if a.action_name == "document.delete" and new_id in a.target_ids
+        )
+        reg = registry.get("document.delete")
+        inverse = reg.invert(del_audit.before, del_audit.after, ctx)
+        registry.invoke(db, inverse[0], inverse[1], ctx)
+        assert db.get(Document, new_id) is not None
+
+    def test_create_validation_rejects_missing_name(self, db):
+        # (c) name is required
+        with pytest.raises(ValidationError):
+            registry.invoke(db, "document.create", {"doc_type": "file"}, _ctx())
+
+    def test_create_unknown_parent_400(self, db):
+        # (d) a naive impl would create a child pointing at a ghost parent
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(
+                db, "document.create", {"name": "x", "parent_id": "ghost"}, _ctx()
+            )
+        assert exc.value.status_code == 400
+
+    def test_create_rejects_path_outside_library(self, db):
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(
+                db,
+                "document.create",
+                {"name": "passwd", "path": "/etc/passwd"},
+                _ctx(),
+            )
+        assert exc.value.status_code == 400
+
+    def test_create_allows_absolute_path_under_library(self, db):
+        source = Path(db.path).parent / "files" / "safe.txt"
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text("safe")
+
+        result = registry.invoke(
+            db,
+            "document.create",
+            {"name": "safe", "path": str(source)},
+            _ctx(),
+        )
+
+        persisted = db.get(Document, result.result["id"])
+        assert persisted.path == str(source)
+
+
+# ===========================================================================
+# document.update
+# ===========================================================================
+
+
+class TestDocumentUpdateAction:
+    def test_update_effect_audit_and_undo(self, db, spy_emit):
+        doc = _save_doc(db, name="old name", is_starred=False)
+        ctx = _ctx()
+
+        result = registry.invoke(
+            db,
+            "document.update",
+            {"doc_id": doc.id, "update": {"name": "new name", "is_starred": True}},
+            ctx,
+        )
+        reloaded = db.get(Document, doc.id)
+        assert reloaded.name == "new name"
+        assert reloaded.is_starred is True
+
+        # (a) audit captured the before-snapshot (the undo payload)
+        audit = db.get(ActionAudit, result.audit_id)
+        assert audit.action_name == "document.update"
+        assert audit.before["name"] == "old name"
+        assert audit.before["is_starred"] is False
+        assert spy_emit[-1][1]["type"] == "document.updated"
+
+        # (b) undo (restore) reverts BOTH changed fields
+        inv = _invoke_inverse(db, result.audit_id, ctx)
+        assert inv == "document.restore"
+        restored = db.get(Document, doc.id)
+        assert restored.name == "old name"
+        assert restored.is_starred is False
+
+    def test_update_does_not_reparent(self, db):
+        """(d) parent_id must NEVER be mutated by update — reparenting goes
+        through move. A naive setattr-everything impl would silently move it."""
+        parent = _save_doc(db, name="parent", doc_type=DocType.folder)
+        doc = _save_doc(db, name="child", parent_id=parent.id)
+        registry.invoke(
+            db,
+            "document.update",
+            {"doc_id": doc.id, "update": {"name": "renamed", "parent_id": "ghost"}},
+            _ctx(),
+        )
+        reloaded = db.get(Document, doc.id)
+        assert reloaded.name == "renamed"
+        assert reloaded.parent_id == parent.id  # untouched
+
+    def test_update_unknown_doc_404(self, db):
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(
+                db, "document.update", {"doc_id": "ghost", "update": {"name": "x"}}, _ctx()
+            )
+        assert exc.value.status_code == 404
+
+    def test_update_validation_rejects_bad_doc_type(self, db):
+        doc = _save_doc(db, name="d")
+        # (c) doc_type must be a valid DocType
+        with pytest.raises(ValidationError):
+            registry.invoke(
+                db,
+                "document.update",
+                {"doc_id": doc.id, "update": {"doc_type": "banana"}},
+                _ctx(),
+            )
+
+    def test_update_rejects_path_outside_library(self, db):
+        doc = _save_doc(db, name="d")
+
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(
+                db,
+                "document.update",
+                {"doc_id": doc.id, "update": {"path": "/etc/passwd"}},
+                _ctx(),
+            )
+        assert exc.value.status_code == 400
+
+
+# ===========================================================================
+# document.move
+# ===========================================================================
+
+
+class TestDocumentMoveAction:
+    def test_move_effect_audit_and_undo(self, db, spy_emit):
+        old_parent = _save_doc(db, name="old", doc_type=DocType.folder)
+        new_parent = _save_doc(db, name="new", doc_type=DocType.folder)
+        doc = _save_doc(db, name="child", parent_id=old_parent.id)
+        ctx = _ctx()
+
+        result = registry.invoke(
+            db, "document.move", {"doc_id": doc.id, "parent_id": new_parent.id}, ctx
+        )
+        assert db.get(Document, doc.id).parent_id == new_parent.id
+
+        audit = db.get(ActionAudit, result.audit_id)
+        assert audit.action_name == "document.move"
+        assert audit.before["parent_id"] == old_parent.id
+        assert spy_emit[-1][1]["type"] == "document.updated"
+
+        # (b) undo -> restore reverts parent_id to the original
+        inv = _invoke_inverse(db, result.audit_id, ctx)
+        assert inv == "document.restore"
+        assert db.get(Document, doc.id).parent_id == old_parent.id
+
+    def test_move_to_root_clears_parent(self, db):
+        # (d) parent_id None moves the doc to the root — not a no-op
+        parent = _save_doc(db, name="p", doc_type=DocType.folder)
+        doc = _save_doc(db, name="c", parent_id=parent.id)
+        registry.invoke(db, "document.move", {"doc_id": doc.id, "parent_id": None}, _ctx())
+        assert db.get(Document, doc.id).parent_id is None
+
+    def test_move_unknown_doc_404(self, db):
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(db, "document.move", {"doc_id": "ghost"}, _ctx())
+        assert exc.value.status_code == 404
+
+    def test_move_unknown_parent_400(self, db):
+        doc = _save_doc(db, name="d")
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(
+                db, "document.move", {"doc_id": doc.id, "parent_id": "ghost"}, _ctx()
+            )
+        assert exc.value.status_code == 400
+
+    def test_move_validation_requires_doc_id(self, db):
+        # (c) doc_id is required
+        with pytest.raises(ValidationError):
+            registry.invoke(db, "document.move", {"parent_id": None}, _ctx())
+
+
+# ===========================================================================
+# document.reorder
+# ===========================================================================
+
+
+class TestDocumentReorderAction:
+    def test_reorder_effect_audit_and_emit(self, db, spy_emit):
+        a = _save_doc(db, name="a", sort_order=0)
+        b = _save_doc(db, name="b", sort_order=1)
+        c = _save_doc(db, name="c", sort_order=2)
+
+        result = registry.invoke(
+            db, "document.reorder", {"doc_ids": [c.id, a.id, b.id]}, _ctx()
+        )
+        assert result.result["count"] == 3
+        assert db.get(Document, c.id).sort_order == 0
+        assert db.get(Document, a.id).sort_order == 1
+        assert db.get(Document, b.id).sort_order == 2
+
+        audit = db.get(ActionAudit, result.audit_id)
+        assert audit.action_name == "document.reorder"
+        assert set(audit.target_ids) == {a.id, b.id, c.id}
+        assert spy_emit[-1][1]["type"] == "document.updated"
+
+    def test_reorder_undo_restores_noncontiguous_sort_order(self, db):
+        """(b/d) undo must restore the EXACT prior sort_order, not re-base to
+        0..n-1. A naive 'reorder with the old list' inverse would corrupt
+        previously non-contiguous values."""
+        a = _save_doc(db, name="a", sort_order=5)
+        b = _save_doc(db, name="b", sort_order=9)
+        ctx = _ctx()
+
+        result = registry.invoke(db, "document.reorder", {"doc_ids": [b.id, a.id]}, ctx)
+        assert db.get(Document, b.id).sort_order == 0
+        assert db.get(Document, a.id).sort_order == 1
+
+        inv = _invoke_inverse(db, result.audit_id, ctx)
+        assert inv == "document.restore"
+        assert db.get(Document, a.id).sort_order == 5
+        assert db.get(Document, b.id).sort_order == 9
+
+    def test_reorder_unknown_id_404(self, db):
+        a = _save_doc(db, name="a")
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(db, "document.reorder", {"doc_ids": [a.id, "ghost"]}, _ctx())
+        assert exc.value.status_code == 404
+
+    def test_reorder_empty_list_skips_emit(self, db, spy_emit):
+        # (d) empty list -> emit_type None, so emit_change is NOT called
+        registry.invoke(db, "document.reorder", {"doc_ids": []}, _ctx())
+        assert spy_emit == []
+
+    def test_reorder_validation_requires_doc_ids(self, db):
+        # (c) doc_ids is required
+        with pytest.raises(ValidationError):
+            registry.invoke(db, "document.reorder", {"folder_path": "/"}, _ctx())
+
+
+# ===========================================================================
+# document.patch_workspace
+# ===========================================================================
+
+
+class TestPatchWorkspaceAction:
+    def _workspace(self, db) -> Document:
+        return _save_doc(db, name="WS", doc_type=DocType.folder)
+
+    def _item(self, item_id="i1", target_id="t1") -> dict:
+        return {"id": item_id, "target_type": "document", "target_id": target_id}
+
+    def test_patch_add_effect_audit_and_undo(self, db, spy_emit):
+        ws = self._workspace(db)
+        ctx = _ctx()
+
+        result = registry.invoke(
+            db,
+            "document.patch_workspace",
+            {"doc_id": ws.id, "patch": {"add": [self._item()]}},
+            ctx,
+        )
+        assert result.result["count"] == 1
+        reloaded = db.get(Document, ws.id)
+        assert reloaded.is_workspace is True
+        assert reloaded.curated_items[0]["id"] == "i1"
+
+        audit = db.get(ActionAudit, result.audit_id)
+        assert audit.action_name == "document.patch_workspace"
+        assert audit.before["curated_items"] == []
+        assert spy_emit[-1][1]["type"] == "document.updated"
+
+        # (b) undo -> restore brings curated_items back to empty
+        inv = _invoke_inverse(db, result.audit_id, ctx)
+        assert inv == "document.restore"
+        assert db.get(Document, ws.id).curated_items == []
+
+    def test_patch_remove_restores_on_undo(self, db):
+        # (b/d) removing an item then undoing must bring that exact item back
+        ws = self._workspace(db)
+        ws.curated_items = [self._item("i1", "t1"), self._item("i2", "t2")]
+        db.save(ws)
+        ctx = _ctx()
+
+        result = registry.invoke(
+            db,
+            "document.patch_workspace",
+            {"doc_id": ws.id, "patch": {"remove_ids": ["i1"]}},
+            ctx,
+        )
+        remaining = {i["id"] for i in db.get(Document, ws.id).curated_items}
+        assert remaining == {"i2"}
+
+        _invoke_inverse(db, result.audit_id, ctx)
+        restored = {i["id"] for i in db.get(Document, ws.id).curated_items}
+        assert restored == {"i1", "i2"}
+
+    def test_patch_non_folder_400(self, db):
+        # (d) a workspace must be a folder; patching a file is a 400, not a
+        # silent promotion of a leaf to a workspace
+        leaf = _save_doc(db, name="file", doc_type=DocType.file)
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(
+                db,
+                "document.patch_workspace",
+                {"doc_id": leaf.id, "patch": {"add": []}},
+                _ctx(),
+            )
+        assert exc.value.status_code == 400
+
+    def test_patch_unknown_doc_404(self, db):
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(
+                db,
+                "document.patch_workspace",
+                {"doc_id": "ghost", "patch": {"add": []}},
+                _ctx(),
+            )
+        assert exc.value.status_code == 404
+
+    def test_patch_validation_requires_doc_id(self, db):
+        # (c) doc_id is required
+        with pytest.raises(ValidationError):
+            registry.invoke(db, "document.patch_workspace", {"patch": {}}, _ctx())
+
+
+# ===========================================================================
+# document.batch_exclude
+# ===========================================================================
+
+
+class TestBatchExcludeAction:
+    def test_batch_exclude_effect_audit_and_undo(self, db, spy_emit):
+        a = _save_doc(db, name="a", exclude_from_processing=False)
+        b = _save_doc(db, name="b", exclude_from_processing=False)
+        ctx = _ctx()
+
+        result = registry.invoke(
+            db,
+            "document.batch_exclude",
+            {"document_ids": [a.id, b.id], "excluded": True},
+            ctx,
+        )
+        assert result.result["updated"] == 2
+        assert db.get(Document, a.id).exclude_from_processing is True
+        assert db.get(Document, b.id).exclude_from_processing is True
+
+        audit = db.get(ActionAudit, result.audit_id)
+        assert audit.action_name == "document.batch_exclude"
+        assert set(audit.target_ids) == {a.id, b.id}
+        assert spy_emit[-1][1]["type"] == "document.updated"
+
+        # (b) undo -> restore reverts both exclude flags
+        inv = _invoke_inverse(db, result.audit_id, ctx)
+        assert inv == "document.restore"
+        assert db.get(Document, a.id).exclude_from_processing is False
+        assert db.get(Document, b.id).exclude_from_processing is False
+
+    def test_batch_exclude_dedupes_repeated_ids(self, db):
+        # (d) a doc id passed twice must be updated once, not double-counted
+        a = _save_doc(db, name="a")
+        result = registry.invoke(
+            db,
+            "document.batch_exclude",
+            {"document_ids": [a.id, a.id], "excluded": True},
+            _ctx(),
+        )
+        assert result.result["updated"] == 1
+        assert result.result["document_ids"] == [a.id]
+
+    def test_batch_exclude_unknown_id_404(self, db):
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(
+                db,
+                "document.batch_exclude",
+                {"document_ids": ["ghost"], "excluded": True},
+                _ctx(),
+            )
+        assert exc.value.status_code == 404
+
+    def test_batch_exclude_validation_requires_excluded(self, db):
+        # (c) excluded is a required bool
+        a = _save_doc(db, name="a")
+        with pytest.raises(ValidationError):
+            registry.invoke(
+                db, "document.batch_exclude", {"document_ids": [a.id]}, _ctx()
+            )
+
+
+# ===========================================================================
+# document.delete
+# ===========================================================================
+
+
+class TestDocumentDeleteAction:
+    def test_delete_subtree_effect_audit_and_emit(self, db, spy_emit):
+        parent = _save_doc(db, name="parent", doc_type=DocType.folder)
+        child = _save_doc(db, name="child", parent_id=parent.id)
+
+        result = registry.invoke(db, "document.delete", {"doc_id": parent.id}, _ctx())
+
+        # (a) effect: the whole subtree is soft-deleted, not removed
+        assert db.get(Document, parent.id) is not None
+        assert db.get(Document, parent.id).deleted_at is not None
+        assert db.get(Document, parent.id).deleted_by == "ui"
+        assert db.get(Document, child.id) is not None
+        assert db.get(Document, child.id).deleted_at is not None
+        assert set(result.result["deleted_document_ids"]) == {parent.id, child.id}
+
+        audit = db.get(ActionAudit, result.audit_id)
+        assert audit.action_name == "document.delete"
+        snap_ids = {d["id"] for d in audit.before["documents"]}
+        assert snap_ids == {parent.id, child.id}
+
+        # (e) emit document.deleted with the subtree ids
+        _args, kwargs = spy_emit[-1]
+        assert kwargs["type"] == "document.deleted"
+        assert set(kwargs["document_ids"]) == {parent.id, child.id}
+
+    def test_delete_undo_clears_deleted_flags(self, db):
+        doc = _save_doc(db, name="d", status=Status.completed)
+        art = Artifact(document_id=doc.id, artifact_type="transcript", content="hi")
+        db.save(art)
+        ctx = _ctx()
+
+        result = registry.invoke(db, "document.delete", {"doc_id": doc.id}, ctx)
+        assert db.get(Document, doc.id).deleted_at is not None
+        assert db.get(Artifact, art.id) is not None
+
+        # (b) undo -> document.restore clears the tombstone
+        inv = _invoke_inverse(db, result.audit_id, ctx)
+        assert inv == "document.restore"
+        restored = db.get(Document, doc.id)
+        assert restored is not None
+        assert restored.status == Status.completed
+        assert restored.deleted_at is None
+        assert restored.deleted_by is None
+        assert db.get(Artifact, art.id) is not None
+
+    def test_delete_unknown_doc_404(self, db):
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(db, "document.delete", {"doc_id": "ghost"}, _ctx())
+        assert exc.value.status_code == 404
+
+    def test_delete_validation_requires_doc_id(self, db):
+        # (c) doc_id is required
+        with pytest.raises(ValidationError):
+            registry.invoke(db, "document.delete", {}, _ctx())
+
+
+# ===========================================================================
+# document.restore (the generic inverse) — direct coverage
+# ===========================================================================
+
+
+class TestDocumentRestoreAction:
+    def test_restore_clears_deleted_flags_by_id(self, db, spy_emit):
+        doc = _save_doc(db, name="ghost-doc", deleted_by="ui")
+        doc.deleted_at = doc.updated_at
+        db.save(doc)
+        result = registry.invoke(db, "document.restore", {"doc_id": doc.id}, _ctx())
+        restored_id = result.result["restored_document_ids"][0]
+        assert db.get(Document, restored_id) is not None
+        assert db.get(Document, restored_id).deleted_at is None
+        assert db.get(Document, restored_id).deleted_by is None
+
+        audit = db.get(ActionAudit, result.audit_id)
+        assert audit.action_name == "document.restore"
+        assert spy_emit[-1][1]["type"] == "document.updated"
+
+    def test_restore_is_not_undoable(self, db):
+        # restore is the terminal inverse — it has no inverse of its own
+        assert registry.get("document.restore").undoable is False
+
+    def test_restore_empty_is_noop(self, db):
+        # (d) restoring nothing writes no rows and reports an empty list
+        result = registry.invoke(db, "document.restore", {"documents": []}, _ctx())
+        assert result.result["restored_document_ids"] == []
+
+
+class TestDocumentPurgeAndTrashActions:
+    def test_purge_hard_deletes_document(self, db, spy_emit):
+        doc = _save_doc(db, name="purge-me")
+        registry.invoke(db, "document.delete", {"doc_id": doc.id}, _ctx())
+
+        result = registry.invoke(db, "document.purge", {"doc_id": doc.id}, _ctx())
+
+        assert db.get(Document, doc.id) is None
+        assert result.result["deleted_document_ids"] == [doc.id]
+        assert spy_emit[-1][1]["type"] == "document.deleted"
+
+    def test_list_trash_returns_deleted_only(self, db):
+        active = _save_doc(db, name="active")
+        deleted = _save_doc(db, name="deleted")
+        registry.invoke(db, "document.delete", {"doc_id": deleted.id}, _ctx())
+
+        result = registry.invoke(db, "document.list_trash", {}, _ctx())
+
+        item_ids = [item["id"] for item in result.result["items"]]
+        assert deleted.id in item_ids
+        assert active.id not in item_ids

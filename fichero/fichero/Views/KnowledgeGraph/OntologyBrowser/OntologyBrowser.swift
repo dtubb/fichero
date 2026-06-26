@@ -1,6 +1,21 @@
 import FicheroAPIClient
 import SwiftUI
 
+/// Equatable focused-value wrapper for the global Knowledge Graph view mode.
+/// Mirrors `DocumentRepresentationFocus` (#2032): keys equality on the value so
+/// SwiftUI dedupes the focused value, letting the View-menu / main-toolbar
+/// switcher drive the focused `OntologyBrowser` without per-frame churn. Lets
+/// the KG mode switcher live in the menu/toolbar instead of a segmented icon
+/// row inside the KG pane toolbar (#2436).
+struct KnowledgeGraphViewModeFocus: Equatable {
+    let current: OntologyBrowser.ViewMode
+    let select: (OntologyBrowser.ViewMode) -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.current == rhs.current
+    }
+}
+
 /// Browser panel for exploring entities and their associated claims.
 /// Wires #498 — per-library Knowledge Graph view, peer to Workflows
 /// and Activity. Uses `EntityServiceGenerated` (\`/api/entities\` +
@@ -16,16 +31,19 @@ import SwiftUI
 struct OntologyBrowser: View {
     @Environment(WorkflowExecutionObserver.self) var executionObserver
     @Environment(KGFocusState.self) var kgFocusState
+    /// Observable claim store (#1862) — its `changeToken` drives detail-panel
+    /// resync, replacing the retired `.ficheroClaim*` NotificationCenter bus.
+    @Environment(ClaimStore.self) var claimStore
     /// Finder-style Open in New Tab / New Window for ontology rows (#1685).
     @Environment(\.openWindow) var openWindow
-    @StateObject var loadState = OntologyBrowserLoadState()
+    @State var loadState = OntologyBrowserLoadState()
     @SceneStorage("ontology.selectedEntityId") var selectedEntityId: String?
     @State var navHistory = NavigationHistoryManager()
     @State var isNavigatingHistory = false
     @State var searchText = ""
     @State var isSearching = false
     @State var isDateBucketExpanded = false
-    @StateObject var graphScrollSync = DocumentScrollSyncState()
+    @State var graphScrollSync = DocumentScrollSyncState()
 
     /// Swap the detail pane between entity-claims view (default) and a
     /// force-directed graph over the filtered entity set. (#902, partial #889)
@@ -165,18 +183,19 @@ struct OntologyBrowser: View {
         hiddenKindsCSV = set.sorted().joined(separator: ",")
     }
 
-    var filteredEntities: [Components.Schemas.KnowledgeEntity] {
+    // ponytail: recompute inputs — loadState.entities, hiddenKindsCSV, suppressOcrGarbage
+    @State var filteredEntities: [Components.Schemas.KnowledgeEntity] = []
+    @State var nonDateEntities: [Components.Schemas.KnowledgeEntity] = []
+    @State var dateEntities: [Components.Schemas.KnowledgeEntity] = []
+
+    func recomputeFilteredEntities() {
         var result = Self.filterEntities(entities, hidden: hiddenKinds)
         if suppressOcrGarbage {
             result = result.filter { !Self.isOcrGarbage($0.canonicalName) }
         }
-        return result
-    }
-    var nonDateEntities: [Components.Schemas.KnowledgeEntity] {
-        filteredEntities.filter { !Self.isDateEntity($0) }
-    }
-    var dateEntities: [Components.Schemas.KnowledgeEntity] {
-        filteredEntities.filter(Self.isDateEntity)
+        filteredEntities = result
+        nonDateEntities = result.filter { !Self.isDateEntity($0) }
+        dateEntities = result.filter(Self.isDateEntity)
     }
 
     // MARK: - Load-state accessors
@@ -223,6 +242,21 @@ struct OntologyBrowser: View {
         }
         .frame(minWidth: 300, minHeight: 200)
         .modifier(OntologySheetsModifier(browser: self))
+        // Publish the active KG view mode so the View menu / main-toolbar View
+        // menu drives the switch — the segmented icon row no longer lives in
+        // the KG pane toolbar (#2436). Per-window, dedup'd via the Equatable
+        // wrapper (same rationale as `documentRepresentation`).
+        .focusedSceneValue(
+            \.knowledgeGraphViewMode,
+            KnowledgeGraphViewModeFocus(
+                current: viewMode,
+                select: { viewModeRaw = $0.rawValue }
+            )
+        )
+        .onAppear { recomputeFilteredEntities() }
+        .onChange(of: loadState.entities) { _, _ in recomputeFilteredEntities() }
+        .onChange(of: hiddenKindsCSV) { _, _ in recomputeFilteredEntities() }
+        .onChange(of: suppressOcrGarbage) { _, _ in recomputeFilteredEntities() }
         .onChange(of: kgFocusState.focusedEntityId) { _, entityId in
             guard let entityId, selectedEntityId != entityId else { return }
             selectedEntityId = entityId
@@ -298,6 +332,8 @@ struct OntologyBrowser: View {
         .frame(width: 600, height: 500)
         .environment(WorkflowExecutionObserver())
         .environment(KGFocusState.shared)
+        .environment(LibraryManager.shared.globalLibrary!.claimStore)
+        .environment(LibraryManager.shared.globalLibrary!.entityStore)
 }
 
 #Preview("Entity Row") {

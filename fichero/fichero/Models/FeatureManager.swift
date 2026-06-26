@@ -8,7 +8,7 @@ class FeatureManager: ObservableObject {
     static let shared = FeatureManager()
     // Bumped to re-apply workflow execution release defaults on existing
     // installs (langgraph preview, run-on-selection, files toolbar, import/export).
-    private static let releaseProfileVersion = 30
+    private static let releaseProfileVersion = 31
     private static let workflowV001EnabledTools =
         "files,collection,folder,aggregate,transcribe,catalogue,"
         + "extract_all,kg_writer,extract_entities,key_people,timeline,keywords,summarize_file,"
@@ -58,15 +58,20 @@ class FeatureManager: ObservableObject {
     @AppStorage("fichero.features.mcp") private var mcpEnabledInternal: Bool = false
     @AppStorage("fichero.features.integrations") private var integrationsEnabledInternal: Bool = false
     @AppStorage("fichero.features.activity") private var activityEnabledInternal: Bool = false
-    @AppStorage("fichero.features.mind_palace") private var mindPalaceEnabledInternal: Bool = false
     @AppStorage("fichero.features.settings_general_tab")
     private var settingsGeneralTabEnabledInternal: Bool = true
     @AppStorage("fichero.features.settings_backend_tab")
     private var settingsBackendTabEnabledInternal: Bool = false
     @AppStorage("fichero.features.settings_models_tab")
     private var settingsModelsTabEnabledInternal: Bool = false
-    @AppStorage("fichero.features.settings_ai_advanced_tab")
-    private var settingsAIAdvancedTabEnabledInternal: Bool = false
+    @AppStorage("fichero.features.settings_engine_tab")
+    private var settingsEngineTabEnabledInternal: Bool = true
+    @AppStorage("fichero.features.settings_share_tab")
+    private var settingsShareTabEnabledInternal: Bool = true
+    @AppStorage("fichero.features.settings_users_tab")
+    private var settingsUsersTabEnabledInternal: Bool = true
+    @AppStorage("fichero.features.settings_capture_tab")
+    private var settingsCaptureTabEnabledInternal: Bool = true
     @AppStorage("fichero.features.workflow_tools_mcp")
     private var workflowToolsMCPEnabledInternal: Bool = false
     @AppStorage("fichero.features.workflow_tools_agents")
@@ -103,6 +108,10 @@ class FeatureManager: ObservableObject {
     private var pdfScrollGridSyncEnabledInternal: Bool = false
     @AppStorage("fichero.features.claim_highlight_sync")
     private var claimHighlightSyncEnabledInternal: Bool = false
+    @AppStorage("fichero.features.workspace_mode")
+    private var workspaceModeEnabledInternal: Bool = false
+    @AppStorage("fichero.features.spatial_mode")
+    private var spatialModeEnabledInternal: Bool = false
     @AppStorage("fichero.features.research") private var researchEnabledInternal: Bool = true
     @AppStorage("fichero.features.knowledge_graph") private var knowledgeGraphEnabledInternal: Bool = true
     @AppStorage("fichero.first_run.completed") var firstRunCompleted: Bool = false
@@ -122,9 +131,6 @@ class FeatureManager: ObservableObject {
     var isMCPEnabled: Bool { allFeaturesEnabled || mcpEnabledInternal }
     var isIntegrationsEnabled: Bool { allFeaturesEnabled || integrationsEnabledInternal }
     var isActivityEnabled: Bool { allFeaturesEnabled || activityEnabledInternal }
-    /// Mind Palace / spatial 3D-2D space. Defaulted OFF; backend (`/api/mind-palace`)
-    /// is complete but the SwiftUI surface is Phase 1 (read-only 2D projection).
-    var isMindPalaceEnabled: Bool { allFeaturesEnabled || mindPalaceEnabledInternal }
     var isLibraryAdvancedViewsEnabled: Bool {
         allFeaturesEnabled || libraryAdvancedViewsEnabledInternal
     }
@@ -139,7 +145,10 @@ class FeatureManager: ObservableObject {
     var isSettingsGeneralTabEnabled: Bool { allFeaturesEnabled || settingsGeneralTabEnabledInternal }
     var isSettingsBackendTabEnabled: Bool { allFeaturesEnabled || settingsBackendTabEnabledInternal }
     var isSettingsModelsTabEnabled: Bool { allFeaturesEnabled || settingsModelsTabEnabledInternal }
-    var isSettingsAIAdvancedTabEnabled: Bool { allFeaturesEnabled || settingsAIAdvancedTabEnabledInternal }
+    var isSettingsEngineTabEnabled: Bool { allFeaturesEnabled || settingsEngineTabEnabledInternal }
+    var isSettingsShareTabEnabled: Bool { allFeaturesEnabled || settingsShareTabEnabledInternal }
+    var isSettingsUsersTabEnabled: Bool { allFeaturesEnabled || settingsUsersTabEnabledInternal }
+    var isSettingsCaptureTabEnabled: Bool { allFeaturesEnabled || settingsCaptureTabEnabledInternal }
     var isWorkflowToolsMCPEnabled: Bool { allFeaturesEnabled || workflowToolsMCPEnabledInternal }
     var isWorkflowToolsAgentsEnabled: Bool { allFeaturesEnabled || workflowToolsAgentsEnabledInternal }
     var isWorkflowToolsAudioEnabled: Bool { allFeaturesEnabled || workflowToolsAudioEnabledInternal }
@@ -175,6 +184,8 @@ class FeatureManager: ObservableObject {
     var isPdfScrollGridSyncEnabled: Bool { allFeaturesEnabled || pdfScrollGridSyncEnabledInternal }
     /// Bidirectional claim highlight sync across PDF, Content, and Inspector panes. Defaulted OFF.
     var isClaimHighlightSyncEnabled: Bool { allFeaturesEnabled || claimHighlightSyncEnabledInternal }
+    var isWorkspaceModeEnabled: Bool { allFeaturesEnabled || workspaceModeEnabledInternal }
+    var isSpatialModeEnabled: Bool { allFeaturesEnabled || spatialModeEnabledInternal }
     var isResearchEnabled: Bool { allFeaturesEnabled || researchEnabledInternal }
     /// Knowledge Graph / Ontology browser (#498). Defaulted ON — the view is complete.
     var isKnowledgeGraphEnabled: Bool { allFeaturesEnabled || knowledgeGraphEnabledInternal }
@@ -205,15 +216,14 @@ class FeatureManager: ObservableObject {
         mcpEnabledInternal = false
         integrationsEnabledInternal = false
         activityEnabledInternal = true
-        // Mind Palace is ON during dev so Daniel can see the full feature and
-        // flip it off if it's not ready. NOTE: revisit the release default
-        // before shipping 0.0.2 — likely OFF until the spatial UX is signed off.
-        mindPalaceEnabledInternal = true
 
         settingsGeneralTabEnabledInternal = true
-        settingsBackendTabEnabledInternal = true
-        settingsModelsTabEnabledInternal = true
-        settingsAIAdvancedTabEnabledInternal = false
+        settingsBackendTabEnabledInternal = false
+        settingsModelsTabEnabledInternal = false
+        settingsEngineTabEnabledInternal = true
+        settingsShareTabEnabledInternal = true
+        settingsUsersTabEnabledInternal = true
+        settingsCaptureTabEnabledInternal = true
         workflowToolsMCPEnabledInternal = false
         workflowToolsAgentsEnabledInternal = false
         workflowToolsAudioEnabledInternal = false
@@ -230,6 +240,8 @@ class FeatureManager: ObservableObject {
         workflowLangGraphPreviewEnabledInternal = true
         workflowFilesToolbarEnabledInternal = true
         workflowRunOnSelectionEnabledInternal = true
+        workspaceModeEnabledInternal = false
+        spatialModeEnabledInternal = false
         researchEnabledInternal = true
         knowledgeGraphEnabledInternal = true
         releaseProfileVersionApplied = Self.releaseProfileVersion

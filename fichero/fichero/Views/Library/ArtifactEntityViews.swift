@@ -23,6 +23,7 @@ struct ArtifactEntitiesView: View {
     var visibleTypes: Set<String> = ["people", "places", "organizations", "dates", "events", "keywords"]
 
     @EnvironmentObject var artifactService: ArtifactServiceGenerated
+    @Environment(WorkflowExecutionObserver.self) var executionObserver
 
     @State private var people: [String] = []
     @State private var places: [String] = []
@@ -48,6 +49,12 @@ struct ArtifactEntitiesView: View {
             }
         }
         .onAppear { Task { await loadEntities() } }
+        .onChange(of: documentId) {
+            Task { await loadEntities(forceRefresh: true) }
+        }
+        .onChange(of: executionObserver.workflowCompletedCount) {
+            Task { await loadEntities(forceRefresh: true) }
+        }
     }
 
     @ViewBuilder
@@ -55,11 +62,11 @@ struct ArtifactEntitiesView: View {
         switch style {
         case .singleLine:
             HStack(spacing: 8) {
-                chip("👤", names: people, max: 2)
-                chip("📍", names: places, max: 2)
-                chip("🏢", names: organizations, max: 1)
-                chip("📅", names: dates, max: 1)
-                chip("⚡", names: events, max: 1)
+                chip(systemName: "person", names: people, max: 2)
+                chip(systemName: "mappin", names: places, max: 2)
+                chip(systemName: "building.2", names: organizations, max: 1)
+                chip(systemName: "calendar", names: dates, max: 1)
+                chip(systemName: "bolt", names: events, max: 1)
             }
             .font(.caption)
             .lineLimit(1)
@@ -90,12 +97,12 @@ struct ArtifactEntitiesView: View {
     }
 
     @ViewBuilder
-    private func chip(_ icon: String, names: [String], max: Int) -> some View {
+    private func chip(systemName: String, names: [String], max: Int) -> some View {
         if !names.isEmpty {
             let shown = Array(names.prefix(max))
             let extra = names.count - shown.count
             let suffix = extra > 0 ? " +\(extra)" : ""
-            Text("\(icon) \(shown.joined(separator: ", "))\(suffix)")
+            Label("\(shown.joined(separator: ", "))\(suffix)", systemImage: systemName)
                 .foregroundStyle(.secondary)
         }
     }
@@ -149,20 +156,27 @@ struct ArtifactEntitiesView: View {
     }
 
     @MainActor
-    private func loadEntities() async {
+    private func loadEntities(forceRefresh: Bool = false) async {
         let cacheKey = "\(documentId)|own"
         let artifacts: [Artifact]
-        if let cached = artifactService.artifactsByDocument[cacheKey] {
+        people = []
+        places = []
+        organizations = []
+        events = []
+        dates = []
+        keywords = []
+
+        if !forceRefresh, let cached = artifactService.artifactsByDocument[cacheKey] {
             artifacts = cached
+        } else if let fetched = try? await artifactService.getArtifacts(
+            forDocumentId: documentId,
+            forceRefresh: forceRefresh,
+            includeDescendants: false
+        ) {
+            artifacts = fetched
         } else {
-            do {
-                artifacts = try await artifactService.getArtifacts(
-                    forDocumentId: documentId, includeDescendants: false
-                )
-            } catch {
-                loaded = true
-                return
-            }
+            loaded = true
+            return
         }
         for artifact in artifacts {
             switch artifact.artifactType {

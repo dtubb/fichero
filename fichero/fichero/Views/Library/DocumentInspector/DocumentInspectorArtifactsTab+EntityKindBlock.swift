@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import SwiftUI
 
 // MARK: - Per-kind list block
@@ -8,6 +9,19 @@ import SwiftUI
 struct EntityKindBlock: View {
     let kind: EntityKind
     let items: [GroupedItem]
+    var claimById: [String: Components.Schemas.KnowledgeClaim] = [:]
+    var selectedClaimIds: Set<String> = []
+    var claimScopeLabel: String?
+    var claimContextMenuTarget: ((Components.Schemas.KnowledgeClaim) -> [Components.Schemas.KnowledgeClaim])?
+    var onClaimTap: ((Components.Schemas.KnowledgeClaim) -> Void)?
+    var applyClaimBulkAction: ((
+        InspectorClaimBulkAction,
+        InspectorEntityBulkActionScope,
+        [Components.Schemas.KnowledgeClaim]
+    ) async -> Void)?
+    var requestClaimMergeAction: (([Components.Schemas.KnowledgeClaim]) -> Void)?
+    var requestClaimDeleteAction: (([Components.Schemas.KnowledgeClaim]) -> Void)?
+    var requestPruneTrivialAction: ((InspectorEntityBulkActionScope) -> Void)?
     var onNavigateToSource: ((String) -> Void)?
     var onClaimSelect: ((String, String?, String?, String?, Int?, Int?) -> Void)?
 
@@ -77,10 +91,8 @@ struct EntityKindBlock: View {
                     .padding(.top, 4)
                     .contextMenu {
                         Button("Copy all keywords") {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(
-                                items.map(\.displayName).joined(separator: "; "),
-                                forType: .string
+                            PlatformPasteboard.writeString(
+                                items.map(\.displayName).joined(separator: "; ")
                             )
                         }
                     }
@@ -90,6 +102,15 @@ struct EntityKindBlock: View {
                             EntityKindRow(
                                 item: item,
                                 kind: kind,
+                                claimById: claimById,
+                                selectedClaimIds: selectedClaimIds,
+                                claimScopeLabel: claimScopeLabel,
+                                claimContextMenuTarget: claimContextMenuTarget,
+                                onClaimTap: onClaimTap,
+                                applyClaimBulkAction: applyClaimBulkAction,
+                                requestClaimMergeAction: requestClaimMergeAction,
+                                requestClaimDeleteAction: requestClaimDeleteAction,
+                                requestPruneTrivialAction: requestPruneTrivialAction,
                                 onNavigateToSource: onNavigateToSource,
                                 onClaimSelect: onClaimSelect
                             )

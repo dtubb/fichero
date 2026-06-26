@@ -18,7 +18,9 @@ not just the unit-level math.
 
 from __future__ import annotations
 
+import os
 import shutil
+import importlib.util
 from pathlib import Path
 
 import pytest
@@ -27,7 +29,24 @@ from fichero.db_manager import DatabaseManager
 from fichero.models import Artifact, Document
 
 
-pytestmark = pytest.mark.integration
+
+def _real_search_ready() -> bool:
+    """Search E2E is opt-in and requires the local search stack."""
+    if os.getenv("FICHERO_RUN_SEARCH_E2E") != "1":
+        return False
+    return (
+        importlib.util.find_spec("fastembed") is not None
+        and importlib.util.find_spec("lance") is not None
+    )
+
+
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        not _real_search_ready(),
+        reason="Search E2E is opt-in and requires local embeddings + lance support",
+    ),
+]
 
 
 # Minimal fixture corpus: 5 short pages with overlapping vocab so we can
@@ -509,12 +528,13 @@ class TestKnowledgeGraphRoutes:
         results = asyncio.run(
             related_documents("fix-leidy-001", limit=10, db=search_library)
         )
-        ids = {r.document_id for r in results}
+        assert results.count >= 1
+        ids = {r.document_id for r in results.items}
         assert "rel-third" in ids
         # Self is never in related.
         assert "fix-leidy-001" not in ids
         # Sample entity names round-trip from KnowledgeEntity.canonical_name.
-        third_row = next(r for r in results if r.document_id == "rel-third")
+        third_row = next(r for r in results.items if r.document_id == "rel-third")
         assert third_row.shared_entities >= 1
         assert "Quibdó" in third_row.sample_entity_names
 

@@ -1,4 +1,5 @@
 // swiftlint:disable file_length
+import OSLog
 import SwiftUI
 
 // MARK: - Focused Values for Menu Commands
@@ -79,22 +80,33 @@ struct SidebarSelectionInfoKey: FocusedValueKey {
 
 /// FocusedValue key for triggering library file picker
 struct OpenLibraryActionKey: FocusedValueKey {
-    typealias Value = () -> Void
+    typealias Value = FocusedLibraryAction
 }
 
 /// FocusedValue key for opening a new window on current library
 struct NewWindowActionKey: FocusedValueKey {
-    typealias Value = () -> Void
+    typealias Value = FocusedLibraryAction
 }
 
 /// FocusedValue key for creating a new library and opening it in a new window
 struct NewLibraryActionKey: FocusedValueKey {
-    typealias Value = () -> Void
+    typealias Value = FocusedLibraryAction
+}
+
+/// FocusedValue key for duplicating the current window — clones its library,
+/// selection, and active lens into a new window via `openWindow(value:)` (#2262).
+struct DuplicateWindowActionKey: FocusedValueKey {
+    typealias Value = FocusedLibraryAction
 }
 
 /// FocusedValue key for saving the current library (Save As for Untitled libraries)
 struct SaveLibraryActionKey: FocusedValueKey {
-    typealias Value = () -> Void
+    typealias Value = FocusedLibraryAction
+}
+
+/// FocusedValue key for closing the current library from the active window.
+struct CloseLibraryActionKey: FocusedValueKey {
+    typealias Value = FocusedLibraryAction
 }
 
 /// FocusedValue key for running a workflow on selected documents
@@ -105,7 +117,26 @@ struct RunWorkflowOnSelectionKey: FocusedValueKey {
 /// FocusedValue key for navigating to the current folder's parent. Bound to
 /// Cmd+\` so users can ascend the hierarchy when the sidebar is hidden. (#786)
 struct NavigateToParentActionKey: FocusedValueKey {
-    typealias Value = () -> Void
+    typealias Value = FocusedLibraryAction
+}
+
+/// FocusedValue key for undoing the most recent navigation change.
+struct NavigationUndoActionKey: FocusedValueKey {
+    typealias Value = FocusedLibraryAction
+}
+
+/// FocusedValue key for the focused window's library view-display mode binding.
+/// Carries a `Binding<ViewDisplayMode>` so the View menu can both read (checkmark)
+/// and write (switch mode) without coupling directly to ContentView. (#2032 regression)
+struct LibraryDisplayModeKey: FocusedValueKey {
+    typealias Value = Binding<ViewDisplayMode>
+}
+
+/// FocusedValue key for the display modes currently available in the focused
+/// window (driven by sidebar mode + feature flags). The Spatial section in the
+/// View menu hides itself when neither .spatial nor .realitykit is in this list.
+struct AvailableLibraryDisplayModesKey: FocusedValueKey {
+    typealias Value = [ViewDisplayMode]
 }
 
 extension FocusedValues {
@@ -139,9 +170,19 @@ extension FocusedValues {
         set { self[NewLibraryActionKey.self] = newValue }
     }
 
+    var duplicateWindowAction: DuplicateWindowActionKey.Value? {
+        get { self[DuplicateWindowActionKey.self] }
+        set { self[DuplicateWindowActionKey.self] = newValue }
+    }
+
     var saveLibraryAction: SaveLibraryActionKey.Value? {
         get { self[SaveLibraryActionKey.self] }
         set { self[SaveLibraryActionKey.self] = newValue }
+    }
+
+    var closeLibraryAction: CloseLibraryActionKey.Value? {
+        get { self[CloseLibraryActionKey.self] }
+        set { self[CloseLibraryActionKey.self] = newValue }
     }
 
     var runWorkflowOnSelection: RunWorkflowOnSelectionKey.Value? {
@@ -152,6 +193,21 @@ extension FocusedValues {
     var navigateToParentAction: NavigateToParentActionKey.Value? {
         get { self[NavigateToParentActionKey.self] }
         set { self[NavigateToParentActionKey.self] = newValue }
+    }
+
+    var navigationUndoAction: NavigationUndoActionKey.Value? {
+        get { self[NavigationUndoActionKey.self] }
+        set { self[NavigationUndoActionKey.self] = newValue }
+    }
+
+    var libraryDisplayMode: LibraryDisplayModeKey.Value? {
+        get { self[LibraryDisplayModeKey.self] }
+        set { self[LibraryDisplayModeKey.self] = newValue }
+    }
+
+    var availableLibraryDisplayModes: AvailableLibraryDisplayModesKey.Value? {
+        get { self[AvailableLibraryDisplayModesKey.self] }
+        set { self[AvailableLibraryDisplayModesKey.self] = newValue }
     }
 }
 
@@ -233,7 +289,7 @@ struct FocusedOpenLibraryButton: View {
 
     var body: some View {
         Button("Open Library...") {
-            openLibraryAction?()
+            openLibraryAction?.run()
         }
         .keyboardShortcut("o", modifiers: [.command])
     }
@@ -245,7 +301,7 @@ struct FocusedOpenDatabaseButton: View {
 
     var body: some View {
         Button("Open Database...") {
-            openLibraryAction?()
+            openLibraryAction?.run()
         }
         .keyboardShortcut("o", modifiers: [.command])
     }
@@ -257,7 +313,7 @@ struct FocusedNewWindowButton: View {
 
     var body: some View {
         Button("New Window") {
-            newWindowAction?()
+            newWindowAction?.run()
         }
         .keyboardShortcut("t", modifiers: [.command])
         .disabled(newWindowAction == nil)
@@ -270,7 +326,7 @@ struct FocusedNewLibraryButton: View {
 
     var body: some View {
         Button("New Library") {
-            newLibraryAction?()
+            newLibraryAction?.run()
         }
         .keyboardShortcut("n", modifiers: [.command])
     }
@@ -282,7 +338,7 @@ struct FocusedNewDatabaseButton: View {
 
     var body: some View {
         Button("New Database") {
-            newLibraryAction?()
+            newLibraryAction?.run()
         }
         .keyboardShortcut("n", modifiers: [.command])
         .disabled(newLibraryAction == nil)
@@ -295,7 +351,7 @@ struct FocusedSaveLibraryButton: View {
 
     var body: some View {
         Button("Save As...") {
-            saveLibraryAction?()
+            saveLibraryAction?.run()
         }
         .keyboardShortcut("s", modifiers: [.command, .shift])
         .disabled(saveLibraryAction == nil)
@@ -308,7 +364,7 @@ struct FocusedSaveDatabaseButton: View {
 
     var body: some View {
         Button("Save Database As...") {
-            saveLibraryAction?()
+            saveLibraryAction?.run()
         }
         .keyboardShortcut("s", modifiers: [.command, .shift])
         .disabled(saveLibraryAction == nil)
@@ -404,6 +460,80 @@ struct FocusedNewTriggerButton: View {
             sidebarActions?.createTrigger()
         }
         .disabled(sidebarActions == nil)
+    }
+}
+
+// MARK: - Undo (audited actions)
+
+/// ⌘Z — undo the last audited action via `POST /api/actions/audit/{id}/undo` (#2015).
+///
+/// MVP **single-level** undo: it reverses the most recent action recorded in the
+/// shared `LastAction` holder (seeded today by the entity-merge button), then
+/// clears the holder so a repeated ⌘Z can't double-undo the same audit row.
+/// The observable change stream propagates the reversed state back into the open
+/// views, so there is no manual refresh here.
+///
+/// Multi-level undo — a per-window stack that walks the `/api/actions/audit`
+/// log row by row — is a deliberate follow-up. This replaces SwiftUI's default
+/// `.undoRedo` menu items so there is exactly one "Undo", and so the view-local
+/// `UndoManager` isn't fighting the audited backend undo.
+struct UndoLastActionButton: View {
+    /// `@State` over the `@Observable` shared holder so the menu item's title +
+    /// enabled state track the last recorded action without manual republishing.
+    @State private var lastAction = LastAction.shared
+    @FocusedValue(\.navigationUndoAction) private var navigationUndoAction
+
+    private var logger: Logger {
+        Logger(subsystem: "app.fichero.fichero", category: "ActionUndo")
+    }
+
+    var body: some View {
+        Button(undoTitle) {
+            performUndo()
+        }
+        .keyboardShortcut("z", modifiers: .command)
+        .disabled(!isEnabled)
+    }
+
+    /// "Undo Merge" when an action is recorded, plain "Undo" otherwise.
+    private var undoTitle: String {
+        if navigationUndoAction != nil {
+            return "Undo"
+        }
+        guard let name = lastAction.actionName else { return "Undo" }
+        return "Undo \(Self.menuLabel(for: name))"
+    }
+
+    private var isEnabled: Bool {
+        navigationUndoAction?.isEnabled == true || lastAction.auditId != nil
+    }
+
+    /// `"entity.merge"` → `"Merge"`. Falls back to the raw name if unverbed.
+    private static func menuLabel(for actionName: String) -> String {
+        let verb = actionName.split(separator: ".").last.map(String.init) ?? actionName
+        guard let first = verb.first else { return verb }
+        return first.uppercased() + verb.dropFirst()
+    }
+
+    private func performUndo() {
+        if let navigationUndoAction, navigationUndoAction.isEnabled {
+            navigationUndoAction.run()
+            return
+        }
+        guard let auditId = lastAction.auditId,
+              let service = LibraryManager.shared.globalLibrary?.actionsService else { return }
+        // Clear up front so a second ⌘Z can't replay the inverse of the same row
+        // (single-level undo). Re-records nothing: redo is a follow-up.
+        lastAction.auditId = nil
+        lastAction.actionName = nil
+        Task {
+            do {
+                _ = try await service.undoAction(auditId: auditId)
+                logger.info("⌘Z undo of audit \(auditId) succeeded")
+            } catch {
+                logger.error("⌘Z undo of audit \(auditId) failed: \(error.localizedDescription)")
+            }
+        }
     }
 }
 

@@ -15,9 +15,15 @@ struct WorkflowCanvasView: View {
     // App state for accessing AI defaults
     @EnvironmentObject var appState: AppState
 
-    /// Node execution states from the observer (reactive via @Observable)
+    /// Node execution states for the editor canvas.
+    ///
+    /// Intentionally empty (#2546 / B2): run progress now lives ONLY in the
+    /// Activity monitor, so the editor stays a pure editing surface — no node
+    /// progress badges, status coloring, or "∑ N files" edge labels light up
+    /// during a run. Watch progress in Activity (in-sidebar or its own window).
+    /// The node/edge views already render gracefully with no state.
     private var nodeStates: [String: NodeExecutionState] {
-        executionObserver.activeExecutions[workflow.id]?.nodeStates ?? [:]
+        [:]
     }
 
     /// Live file count for a fan edge, or nil when idle. Fan-out edges
@@ -122,9 +128,11 @@ struct WorkflowCanvasView: View {
         .focused($isCanvasFocused)
         .focusEffectDisabled()
         .onAppear { isCanvasFocused = true }
+        #if os(macOS)
         .onDeleteCommand {
             deleteSelection()
         }
+        #endif
     }
 
     /// Delete selected edge or nodes
@@ -273,6 +281,7 @@ extension WorkflowCanvasView {
                     duplicateNode(at: index)
                 }
             )
+            .environment(executionObserver)
         }
         .position(x: node.positionX, y: node.positionY)
         // Double tap to open popover for editing (must come before single tap)
@@ -340,8 +349,8 @@ extension WorkflowCanvasView {
         let duplicate = WorkflowNode(
             tool: original.tool,
             label: "\((original.label ?? original.tool)) Copy",
-            positionX: original.positionX + 50,
-            positionY: original.positionY + 50,
+            positionX: original.positionX + Double(nodeWidth) + 80,
+            positionY: original.positionY + 30,
             inputPorts: original.inputPorts,
             outputPorts: original.outputPorts,
             providerName: original.providerName,

@@ -12,7 +12,7 @@ let sidebarViewLogger = Logger(subsystem: "app.fichero.fichero", category: "Side
 struct SidebarView: View {
     @Binding var sidebarMode: SidebarMode
     @Binding var viewMode: AppViewMode
-    @Binding var selectedItemId: String?
+    @Bindable var selectionState: SidebarSelectionState
 
     // LibraryManager - shows all open libraries
     @ObservedObject var libraryManager: LibraryManager
@@ -24,8 +24,7 @@ struct SidebarView: View {
     @EnvironmentObject var apiClient: APIClient
     @Environment(WorkflowExecutionObserver.self) var executionObserver
 
-    // Callback when documents are dropped to create a new chat
-    var onCreateChatWithDocuments: (([String]) -> Void)?
+    var onOpenChatWithCurrentScope: (() -> Void)?
 
     // Item type registry for extensible item creation (injected from ContentView)
     @ObservedObject var itemRegistry: ItemTypeRegistry
@@ -34,11 +33,12 @@ struct SidebarView: View {
     @StateObject var sidebarState: SidebarState
 
     // Rename and delete state (internal for extension access)
-    @StateObject var renameState = RenameStateManager()
-    @StateObject var deleteState = DeleteStateManager()
+    @State var renameState = RenameStateManager()
+    @State var deleteState = DeleteStateManager()
 
     // Cached sidebar items - rebuilt when service data changes (via Combine observers)
     @State var cachedLibraryHeaders: [SidebarItem] = []
+    @State var sidebarFilterText = ""
 
     // Chain service for workflows sidebar (global - not per-library yet)
     @StateObject var chainService: ChainService
@@ -61,24 +61,26 @@ struct SidebarView: View {
 
     // Store Combine subscriptions
     @State var cancellables = Set<AnyCancellable>()
-    @State private var lastHandledSelectionId: String?
+    // Internal (not private) so the extracted `handleSelectionChange` routing in
+    // SidebarView+SelectionHandling.swift can read/update it (#2548).
+    @State var lastHandledSelectionId: String?
 
     init(
         sidebarMode: Binding<SidebarMode>,
         viewMode: Binding<AppViewMode>,
-        selectedItemId: Binding<String?>,
+        selectionState: SidebarSelectionState,
         libraryManager: LibraryManager,
         itemRegistry: ItemTypeRegistry,
         apiClient: APIClient,
         windowPersistenceId: String,
-        onCreateChatWithDocuments: (([String]) -> Void)? = nil
+        onOpenChatWithCurrentScope: (() -> Void)? = nil
     ) {
         self._sidebarMode = sidebarMode
         self._viewMode = viewMode
-        self._selectedItemId = selectedItemId
+        self.selectionState = selectionState
         self.libraryManager = libraryManager
         self.itemRegistry = itemRegistry
-        self.onCreateChatWithDocuments = onCreateChatWithDocuments
+        self.onOpenChatWithCurrentScope = onOpenChatWithCurrentScope
         self._sidebarState = StateObject(
             wrappedValue: SidebarState(windowId: windowPersistenceId)
         )
@@ -86,9 +88,21 @@ struct SidebarView: View {
         self._chainService = StateObject(wrappedValue: ChainService(apiClient: apiClient))
     }
 
+    var selectedItemId: String? {
+        get { selectionState.selectedItemId }
+        // nonmutating: mutates the @Bindable selectionState (class), not self.
+        // Preserves the old @Binding semantics so non-mutating extension
+        // methods (SidebarCreationHandlers) can still assign selectedItemId (#2548).
+        nonmutating set { selectionState.selectedItemId = newValue }
+    }
+
     var body: some View {
         sidebarContent
             .sidebarStyle()
+            // Suppress the NavigationSplitView sidebar-column title header (#2309).
+            // The title is now shown centred in the main window toolbar by another
+            // worker; the redundant sidebar column header is removed here.
+            .navigationTitle("")
             .task {
                 // Check cancellation before starting
                 guard !Task.isCancelled else { return }
@@ -131,48 +145,17 @@ struct SidebarView: View {
                 } else {
                     historicalRunsByLibrary = [:]
                 }
+
+                guard !Task.isCancelled else { return }
+
+                // Drive a restored (@SceneStorage) selection into the view mode
+                // now that caches exist — .onChange(of:) never fired for it
+                // because the value didn't change on launch (#2548).
+                reconcileRestoredSelection()
             }
-            .onChange(of: selectedItemId) { _, newId in
-                // Handle selection changes
-                sidebarViewLogger.info("selectedItemId changed to: \(newId ?? "nil")")
-                if newId == nil || !(newId?.hasPrefix("run:") ?? false) {
-                    selectedActivityItemIds.removeAll()
-                } else if let runId = newId {
-                    selectedActivityItemIds = [runId]
-                }
-                if let id = newId {
-                    if lastHandledSelectionId == id {
-                        return
-                    }
-                    lastHandledSelectionId = id
-                    if id == "activity-browser" {
-                        sidebarMode = .activity
-                        viewMode = .activity(nil)
-                        return
-                    }
-                    if id == "workflows-browser" {
-                        sidebarMode = .workflows
-                        viewMode = .workflow(nil)
-                        return
-                    }
-                    if id == "batches-browser" {
-                        viewMode = .batches
-                        return
-                    }
-                    if id == "entities-browser" {
-                        sidebarMode = .knowledgeGraph
-                        return
-                    }
-                    if id.hasPrefix("run:"),
-                       let selectedRun = unifiedSelectedRun(forSidebarId: id) {
-                        viewMode = .activity(selectedRun.toSelectedRun())
-                        return
-                    }
-                    let item = findItemById(id, in: allCachedItems)
-                    handleSelection(item)
-                } else {
-                    lastHandledSelectionId = nil
-                }
+            .onChange(of: selectionState.selectedItemId) { _, newId in
+                // Route the live selection change to sidebarMode / viewMode.
+                handleSelectionChange(newId)
             }
             .onChange(of: libraryManager.openLibraries.count) { _, _ in
                 // Rebuild when libraries are added/removed
@@ -180,6 +163,15 @@ struct SidebarView: View {
 
                 // Resubscribe to service changes for new libraries
                 setupServiceObservers()
+            }
+            .onChange(of: libraryManager.librariesLoadVersion) { _, _ in
+                // Rebuild after any library finishes loading its data (#2472).
+                // On iPhone, SidebarView.task fires before loadCollections()
+                // completes; this is the stable signal that collections are ready.
+                rebuildCaches()
+                // A restored selection may only now resolve against the freshly
+                // built caches — reconcile it into the view mode (#2548).
+                reconcileRestoredSelection()
             }
             .onChange(of: sidebarMode) { _, newMode in
                 // Switching sections should allow re-selecting the same item in the
@@ -217,6 +209,13 @@ struct SidebarView: View {
                     await loadActivityData()
                 }
             }
+            .onChange(of: libraryManager.globalLibrary?.activityStore.refreshToken ?? 0) { _, _ in
+                guard FeatureManager.shared.isActivityEnabled else { return }
+                guard case .activity = viewMode else { return }
+                Task { @MainActor in
+                    await loadActivityData()
+                }
+            }
             .sidebarFocusedValues(config: SidebarFocusedValuesConfig(
                 selectedItem: selectedItem,
                 createFolder: handleCreateNewFolder,
@@ -239,6 +238,7 @@ struct SidebarView: View {
                 sidebarState: sidebarState,
                 createFolder: createFolder
             )
+            .sidebarDropAlerts(sidebarState: sidebarState)
             .sidebarFileImporter(
                 isPresented: $sidebarState.showingFileImporter,
                 importFiles: handleImportedFiles

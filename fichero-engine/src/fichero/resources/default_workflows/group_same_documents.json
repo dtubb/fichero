@@ -1,0 +1,72 @@
+{
+  "name": "Group Same Documents",
+  "description": "Score the selected files together, group duplicate or variant forms of the same underlying document, then organize duplicate clusters into subfolders through the audited action registry.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Organize",
+  "tags": [
+    "preset",
+    "organize",
+    "cluster",
+    "reviewable"
+  ],
+  "config": {
+    "preset_version": 2,
+    "stage": "group_same_documents"
+  },
+  "nodes": [
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Files",
+      "position_x": 80,
+      "position_y": 200,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "similarity",
+      "tool": "similarity",
+      "label": "Group Same Documents",
+      "position_x": 320,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "max_image_dimension": 1024
+      }
+    },
+    {
+      "id": "organize",
+      "tool": "organize_same_documents",
+      "label": "Organize Clusters",
+      "position_x": 580,
+      "position_y": 200,
+      "inputs": {},
+      "config": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-files-similarity-files",
+      "source": "files-source",
+      "target": "similarity",
+      "source_port": "files",
+      "target_port": "files"
+    },
+    {
+      "id": "edge-files-similarity-documents",
+      "source": "files-source",
+      "target": "similarity",
+      "source_port": "documents",
+      "target_port": "documents"
+    },
+    {
+      "id": "edge-similarity-organize-clusters",
+      "source": "similarity",
+      "target": "organize",
+      "source_port": "clusters",
+      "target_port": "clusters"
+    }
+  ]
+}

@@ -7,12 +7,11 @@ from unittest.mock import patch, MagicMock
 from pathlib import Path
 
 from fichero.integrations.base import (
-    AppIntegration,
     IntegrationRegistry,
     IntegrationStatus,
     AppInfo,
     ImportedItem,
-    get_integration_registry,
+    escape_applescript,
 )
 from fichero.integrations.devonthink import DEVONthinkIntegration
 from fichero.integrations.bookends import BookendsIntegration
@@ -111,6 +110,33 @@ class TestIntegrationRegistry:
         all_integrations = registry.list_all()
         assert len(all_integrations) == 2
 
+    def test_initialize_registers_default_integrations_once(self):
+        """Test initialization registers default integrations idempotently."""
+        registry = IntegrationRegistry()
+
+        registry.initialize()
+
+        integrations_by_name = {
+            integration.name: integration
+            for integration in registry.list_all()
+        }
+        assert set(integrations_by_name) == {"DEVONthink", "Bookends", "Tinderbox"}
+        assert registry.get("devonthink") is integrations_by_name["DEVONthink"]
+        assert registry.get("bookends") is integrations_by_name["Bookends"]
+        assert registry.get("tinderbox") is integrations_by_name["Tinderbox"]
+
+        first_instances = {
+            integration.name: id(integration)
+            for integration in registry.list_all()
+        }
+
+        registry.initialize()
+
+        assert {
+            integration.name: id(integration)
+            for integration in registry.list_all()
+        } == first_instances
+
 
 class TestDEVONthinkIntegration:
     """Tests for DEVONthink integration."""
@@ -159,6 +185,45 @@ class TestDEVONthinkIntegration:
         assert len(result) == 1
         assert result[0].get("name") == "Test"
         assert result[0].get("uuid") == "123"
+
+    @pytest.mark.asyncio
+    async def test_list_items_search_escapes_applescript_literal(self):
+        """Adversarial search text stays inside the AppleScript string literal."""
+        integration = DEVONthinkIntegration()
+        payload = 'x" \nset y to do shell script "echo pwned'
+        captured_script = ""
+
+        def capture_script(script):
+            nonlocal captured_script
+            captured_script = script
+            return True, "{}"
+
+        with patch.object(
+            integration,
+            "_app_info",
+            AppInfo(
+                name="DEVONthink",
+                bundle_id="com.devon-technologies.think3",
+                status=IntegrationStatus.AVAILABLE,
+            ),
+        ):
+            with patch.object(integration, "run_applescript", side_effect=capture_script):
+                await integration.list_items(limit="3", search=payload)
+
+        expected = 'search "x\\" \\nset y to do shell script \\"echo pwned"'
+        assert expected in captured_script
+        assert 'do shell script "echo pwned' not in captured_script
+        assert 'search "x" \nset y' not in captured_script
+        assert "if counter >= 3 then exit repeat" in captured_script
+
+
+class TestAppleScriptEscaping:
+    """Tests for shared AppleScript literal escaping."""
+
+    def test_escape_applescript_neutralizes_quote_backslash_and_newline(self):
+        value = 'quote" slash\\ newline\nend'
+
+        assert escape_applescript(value) == 'quote\\" slash\\\\ newline\\nend'
 
 
 class TestBookendsIntegration:

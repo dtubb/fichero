@@ -486,7 +486,9 @@ def _copy_document_assets(
     if not _is_image_document(doc):
         return []
 
-    source = get_display(doc, package_path=package_path) or resolve_source(doc)
+    source = get_display(doc, package_path=package_path) or resolve_source(
+        doc, library_root=package_path
+    )
     if source is None or not source.exists() or not source.is_file():
         return []
 
@@ -503,7 +505,9 @@ def _copy_document_assets(
 def _docx_image_source(doc: Document, package_path: Path | None) -> Path | None:
     if not _is_image_document(doc):
         return None
-    source = get_display(doc, package_path=package_path) or resolve_source(doc)
+    source = get_display(doc, package_path=package_path) or resolve_source(
+        doc, library_root=package_path
+    )
     if source and source.exists() and source.is_file():
         return source
     return None

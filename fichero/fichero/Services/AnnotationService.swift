@@ -55,7 +55,9 @@ enum AnnotationKind: String, Codable, CaseIterable, Identifiable {
 /// backend field never breaks decoding.
 struct DocumentAnnotation: Codable, Identifiable, Hashable {
     let id: String
-    let documentId: String
+    let documentId: String?
+    let pageId: String?
+    let folderId: String?
     var pageLabel: String?
     var charStart: Int?
     var charEnd: Int?
@@ -75,6 +77,8 @@ struct DocumentAnnotation: Codable, Identifiable, Hashable {
     enum CodingKeys: String, CodingKey {
         case id
         case documentId = "document_id"
+        case pageId = "page_id"
+        case folderId = "folder_id"
         case pageLabel = "page_label"
         case charStart = "char_start"
         case charEnd = "char_end"
@@ -95,7 +99,9 @@ struct DocumentAnnotation: Codable, Identifiable, Hashable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
-        documentId = try container.decode(String.self, forKey: .documentId)
+        documentId = try container.decodeIfPresent(String.self, forKey: .documentId)
+        pageId = try container.decodeIfPresent(String.self, forKey: .pageId)
+        folderId = try container.decodeIfPresent(String.self, forKey: .folderId)
         pageLabel = try container.decodeIfPresent(String.self, forKey: .pageLabel)
         charStart = try container.decodeIfPresent(Int.self, forKey: .charStart)
         charEnd = try container.decodeIfPresent(Int.self, forKey: .charEnd)
@@ -119,10 +125,16 @@ struct DocumentAnnotation: Codable, Identifiable, Hashable {
     /// True when the annotation carries a text span.
     var hasSpan: Bool { charStart != nil && charEnd != nil }
 
+    var isFolderScoped: Bool { folderId != nil }
+
+    var canRevealSource: Bool { documentId != nil }
+
     /// Convenience initializer for tests and local construction.
     init(
         id: String,
-        documentId: String,
+        documentId: String? = nil,
+        pageId: String? = nil,
+        folderId: String? = nil,
         pageLabel: String? = nil,
         charStart: Int? = nil,
         charEnd: Int? = nil,
@@ -141,6 +153,8 @@ struct DocumentAnnotation: Codable, Identifiable, Hashable {
     ) {
         self.id = id
         self.documentId = documentId
+        self.pageId = pageId
+        self.folderId = folderId
         self.pageLabel = pageLabel
         self.charStart = charStart
         self.charEnd = charEnd
@@ -159,6 +173,12 @@ struct DocumentAnnotation: Codable, Identifiable, Hashable {
     }
 }
 
+enum AnnotationScope: Equatable {
+    case document(String)
+    case page(String)
+    case folder(String)
+}
+
 /// Envelope returned by `GET /api/annotations` (#1276). The backend declares
 /// `items: list[Any]`, so the OpenAPI generator can only emit an untyped array —
 /// decoding it here against the concrete `Annotation` model is what gives the UI
@@ -170,6 +190,7 @@ private struct AnnotationListResponse: Decodable {
 
 // MARK: - Service
 
+// swiftlint:disable type_body_length
 /// Thin generated-client wrapper over the backend annotations API (`/api/annotations`, #1276).
 ///
 /// Every method degrades gracefully: a network or decode failure sets `error`
@@ -194,9 +215,10 @@ final class AnnotationService: ObservableObject {
     private let client: FicheroClient
     private let decoder = JSONDecoder()
 
-    init(ficheroClient: FicheroClient = FicheroClient(), libraryPath: String? = nil) {
-        self.client = ficheroClient
-        self.libraryPath = libraryPath ?? ficheroClient.currentLibraryPath
+    init(ficheroClient: FicheroClient? = nil, libraryPath: String? = nil) {
+        let resolvedClient = ficheroClient ?? FicheroClient(baseURL: EngineConfig.host, libraryPath: libraryPath)
+        self.client = resolvedClient
+        self.libraryPath = libraryPath ?? resolvedClient.currentLibraryPath
         client.currentLibraryPath = self.libraryPath
     }
 
@@ -209,10 +231,6 @@ final class AnnotationService: ObservableObject {
         }
     }
 
-    private var headers: Operations.ListAnnotationsApiAnnotationsGet.Input.Headers {
-        .init(xFicheroLibraryPath: libraryPath ?? "")
-    }
-
     private func annotation(from value: OpenAPIValueContainer) throws -> DocumentAnnotation {
         guard let object = value.value else { throw AnnotationServiceError.emptyContainer }
         let data = try JSONSerialization.data(withJSONObject: object)
@@ -220,10 +238,40 @@ final class AnnotationService: ObservableObject {
     }
 
     private func annotation(from generated: Components.Schemas.Annotation) -> DocumentAnnotation? {
-        guard let id = generated.id else { return nil }
+        // documentId is optional on the wire since #1759 (folder-scoped
+        // annotations carry folder_id, not document_id). This per-document
+        // converter only surfaces annotations bound to a document.
+        guard let id = generated.id, let documentId = generated.documentId else { return nil }
+        return DocumentAnnotation(
+            id: id,
+            documentId: documentId,
+            pageId: generated.pageId,
+            folderId: generated.folderId,
+            pageLabel: generated.pageLabel,
+            charStart: generated.charStart,
+            charEnd: generated.charEnd,
+            bbox: generated.bbox,
+            kind: AnnotationKind(rawValue: generated.kind.rawValue) ?? .unknown,
+            text: generated.text,
+            rating: generated.rating,
+            color: generated.color,
+            tags: generated.tags ?? [],
+            linkedClaimIds: generated.linkedClaimIds ?? [],
+            linkedEntityIds: generated.linkedEntityIds ?? [],
+            linkedNoteIds: generated.linkedNoteIds ?? [],
+            createdBy: generated.createdBy,
+            createdAt: generated.createdAt?.ISO8601Format(),
+            updatedAt: generated.updatedAt?.ISO8601Format()
+        )
+    }
+
+    private func folderAnnotation(from generated: Components.Schemas.Annotation) -> DocumentAnnotation? {
+        guard let id = generated.id, let folderId = generated.folderId else { return nil }
         return DocumentAnnotation(
             id: id,
             documentId: generated.documentId,
+            pageId: generated.pageId,
+            folderId: folderId,
             pageLabel: generated.pageLabel,
             charStart: generated.charStart,
             charEnd: generated.charEnd,
@@ -247,6 +295,20 @@ final class AnnotationService: ObservableObject {
     /// Load annotations for a document into `annotations`. Never throws — on failure
     /// `annotations` is cleared and `error` is set so the tab can show an empty state.
     func load(documentId: String) async {
+        await load(query: .init(documentId: documentId))
+    }
+
+    func load(pageId: String) async {
+        await load(query: .init(pageId: pageId))
+    }
+
+    func load(folderId: String) async {
+        await load(query: .init(folderId: folderId))
+    }
+
+    private func load(
+        query: Operations.ListAnnotationsApiAnnotationsGet.Input.Query
+    ) async {
         syncLibraryPath()
         isLoading = true
         error = nil
@@ -254,8 +316,7 @@ final class AnnotationService: ObservableObject {
 
         do {
             let response = try await client.api.listAnnotationsApiAnnotationsGet(.init(
-                query: .init(documentId: documentId),
-                headers: headers
+                query: query
             ))
             guard case .ok(let okResponse) = response else {
                 logger.warning("List annotations returned non-OK response")
@@ -264,7 +325,10 @@ final class AnnotationService: ObservableObject {
                 return
             }
             let decoded = try okResponse.body.json
-            annotations = try decoded.items.map { try annotation(from: $0) }
+            // List items arrive as untyped containers (backend `items: list[Any]`);
+            // DocumentAnnotation decodes them directly (carrying document/page/folder
+            // ids). Scope is already enforced by the query above.
+            annotations = decoded.items.compactMap { try? annotation(from: $0) }
         } catch {
             // Backend may not be wired yet during parallel development — degrade
             // to an empty list rather than crashing the inspector (#1276).
@@ -283,7 +347,6 @@ final class AnnotationService: ObservableObject {
         do {
             let response = try await client.api.getAnnotationApiAnnotationsAnnotationIdGet(.init(
                 path: .init(annotationId: id),
-                headers: .init(xFicheroLibraryPath: libraryPath ?? "")
             ))
             guard case .ok(let okResponse) = response,
                   let annotation = annotation(from: try okResponse.body.json) else {
@@ -310,7 +373,7 @@ final class AnnotationService: ObservableObject {
     /// Returns the created annotation, or `nil` on failure (with `error` set).
     @discardableResult
     func addNote(
-        documentId: String,
+        scope: AnnotationScope,
         text: String,
         pageLabel: String? = nil,
         bbox: [Double]? = nil,
@@ -321,8 +384,27 @@ final class AnnotationService: ObservableObject {
     ) async -> DocumentAnnotation? {
         syncLibraryPath()
         do {
+            let documentId: String?
+            let pageId: String?
+            let folderId: String?
+            switch scope {
+            case .document(let scopedDocumentId):
+                documentId = scopedDocumentId
+                pageId = nil
+                folderId = nil
+            case .page(let scopedPageId):
+                documentId = nil
+                pageId = scopedPageId
+                folderId = nil
+            case .folder(let scopedFolderId):
+                documentId = nil
+                pageId = nil
+                folderId = scopedFolderId
+            }
             let request = Components.Schemas.AnnotationCreateRequest(
                 documentId: documentId,
+                pageId: pageId,
+                folderId: folderId,
                 kind: Components.Schemas.AnnotationKind(rawValue: (kind == .unknown ? AnnotationKind.note : kind).rawValue) ?? .note,
                 pageLabel: pageLabel,
                 bbox: bbox,
@@ -332,11 +414,10 @@ final class AnnotationService: ObservableObject {
                 linkedClaimIds: linkedClaimIds.isEmpty ? nil : linkedClaimIds
             )
             let response = try await client.api.createAnnotationApiAnnotationsPost(.init(
-                headers: .init(xFicheroLibraryPath: libraryPath ?? ""),
                 body: .json(request)
             ))
             guard case .ok(let okResponse) = response,
-                  let created = annotation(from: try okResponse.body.json) else {
+                  let created = createdAnnotation(from: try okResponse.body.json, scope: scope) else {
                 error = "Could not save annotation"
                 return nil
             }
@@ -350,6 +431,18 @@ final class AnnotationService: ObservableObject {
         }
     }
 
+    private func createdAnnotation(
+        from generated: Components.Schemas.Annotation,
+        scope: AnnotationScope
+    ) -> DocumentAnnotation? {
+        switch scope {
+        case .folder:
+            return folderAnnotation(from: generated)
+        case .document, .page:
+            return annotation(from: generated)
+        }
+    }
+
     // MARK: - Update
 
     /// Patch an annotation's note text (and optionally its color/tags). Updates the
@@ -360,7 +453,6 @@ final class AnnotationService: ObservableObject {
         do {
             let response = try await client.api.patchAnnotationApiAnnotationsAnnotationIdPatch(.init(
                 path: .init(annotationId: id),
-                headers: .init(xFicheroLibraryPath: libraryPath ?? ""),
                 body: .json(.init(text: text))
             ))
             guard case .ok(let okResponse) = response,
@@ -389,7 +481,6 @@ final class AnnotationService: ObservableObject {
         do {
             let response = try await client.api.getCropApiAnnotationsAnnotationIdCropGet(.init(
                 path: .init(annotationId: id),
-                headers: .init(xFicheroLibraryPath: libraryPath ?? "")
             ))
             guard case .ok(let okResponse) = response else {
                 error = "Could not crop annotation"
@@ -420,7 +511,6 @@ final class AnnotationService: ObservableObject {
         do {
             let response = try await client.api.promoteToClaimApiAnnotationsAnnotationIdPromoteToClaimPost(.init(
                 path: .init(annotationId: id),
-                headers: .init(xFicheroLibraryPath: libraryPath ?? "")
             ))
             guard case .ok = response else {
                 error = "Could not promote annotation"
@@ -444,7 +534,6 @@ final class AnnotationService: ObservableObject {
         do {
             let response = try await client.api.deleteAnnotationApiAnnotationsAnnotationIdDelete(.init(
                 path: .init(annotationId: id),
-                headers: .init(xFicheroLibraryPath: libraryPath ?? "")
             ))
             guard case .noContent = response else {
                 error = "Could not delete annotation"
@@ -475,6 +564,7 @@ final class AnnotationService: ObservableObject {
         return false
     }
 }
+// swiftlint:enable type_body_length
 
 enum AnnotationServiceError: LocalizedError {
     case emptyContainer

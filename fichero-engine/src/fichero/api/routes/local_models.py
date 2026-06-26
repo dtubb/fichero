@@ -6,56 +6,16 @@ Models are stored in ~/Library/Application Support/com.fichero.fichero/models/
 """
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
-from pydantic import BaseModel
+
+from fichero.models import (
+    DeleteModelResponse,
+    DiskUsageResponse,
+    DownloadStartedResponse,
+    LocalModelInfoResponse,
+    LocalModelListResponse,
+)
 
 router = APIRouter(prefix="/local-models")
-
-
-# =============================================================================
-# Response Models
-# =============================================================================
-
-
-class LocalModelInfoResponse(BaseModel):
-    """A locally-managed AI model (Whisper, embeddings)."""
-
-    model_id: str
-    model_type: str
-    display_name: str
-    size_bytes: int
-    is_downloaded: bool
-    expected_size_mb: int
-    path: str | None
-    metadata: dict
-
-
-class LocalModelListResponse(BaseModel):
-    """List of local models."""
-
-    models: list[LocalModelInfoResponse]
-
-
-class DiskUsageResponse(BaseModel):
-    """Disk usage broken down by model type."""
-
-    whisper: int
-    embeddings: int
-    total: int
-
-
-class DownloadStartedResponse(BaseModel):
-    """Confirmation that a model download has been queued."""
-
-    status: str
-    model_type: str
-    model_id: str
-
-
-class DeleteModelResponse(BaseModel):
-    """Result of a model deletion."""
-
-    status: str
-    freed_bytes: int
 
 
 # =============================================================================
@@ -63,7 +23,7 @@ class DeleteModelResponse(BaseModel):
 # =============================================================================
 
 
-@router.get("")
+@router.get("", response_model=LocalModelListResponse)
 def list_local_models(model_type: str | None = None) -> LocalModelListResponse:
     """List all local models, optionally filtered by type.
 
@@ -86,7 +46,7 @@ def list_local_models(model_type: str | None = None) -> LocalModelListResponse:
     )
 
 
-@router.get("/disk-usage")
+@router.get("/disk-usage", response_model=DiskUsageResponse)
 def disk_usage() -> DiskUsageResponse:
     """Get total disk usage by model type."""
     from fichero.local_models import LocalModelManager
@@ -95,7 +55,7 @@ def disk_usage() -> DiskUsageResponse:
     return DiskUsageResponse(**data)
 
 
-@router.post("/download/{model_type}/{model_id:path}")
+@router.post("/download/{model_type}/{model_id:path}", response_model=DownloadStartedResponse)
 def download_model(
     model_type: str,
     model_id: str,
@@ -136,7 +96,7 @@ def download_model(
     )
 
 
-@router.delete("/{model_type}/{model_id:path}")
+@router.delete("/{model_type}/{model_id:path}", response_model=DeleteModelResponse)
 def delete_model(model_type: str, model_id: str) -> DeleteModelResponse:
     """Delete a downloaded model.
 

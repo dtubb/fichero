@@ -17,6 +17,9 @@ from typing import Optional
 
 import typer
 
+from fichero.bind_host import resolve_bind_host
+from fichero.remote_access_tls import uvicorn_ssl_kwargs_from_env
+
 # PID file location: ~/.fichero/engine.pid
 PID_FILE = Path.home() / ".fichero" / "engine.pid"
 
@@ -55,7 +58,7 @@ def _is_process_alive(pid: int) -> bool:
 
 
 def _wait_for_port(
-    port: int, timeout_s: int = 5, retries: int = 10
+    host: str, port: int, timeout_s: int = 5, retries: int = 10
 ) -> bool:
     """Poll port until responsive or timeout.
 
@@ -65,7 +68,7 @@ def _wait_for_port(
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(1)
-            s.connect(("localhost", port))
+            s.connect((host, port))
             s.close()
             return True
         except (socket.timeout, ConnectionRefusedError, OSError):
@@ -125,12 +128,31 @@ def status() -> None:
         typer.echo("Engine stopped")
 
 
-def start(port: int = 8765, workers: int = 4) -> None:
+def start(port: int = 8765, workers: int = 1, host: str | None = None) -> None:
     """Start engine in background.
 
     Launches a detached uvicorn process and polls the port until responsive.
     If engine is already running, prints its PID and returns.
+
+    The engine MUST run as a single process (``workers=1``). DuckDB serializes
+    writes only *within* one process, and the change-stream hub + DB connection
+    manager are in-process singletons (see ``api/change_stream.py`` /
+    ``db_manager.py``). Multiple worker processes therefore corrupt the
+    single-writer DuckDB file AND split the SSE fan-out (a mutation handled by
+    worker B never reaches an SSE client on worker A). The multi-user topology is
+    **one engine process, many remote clients** — never multi-process on one
+    library. ``workers`` is clamped to 1 here as a hard guard (#2044).
     """
+    if workers != 1:
+        typer.secho(
+            f"--workers={workers} is not supported: the engine must run as a "
+            "single process (DuckDB single-writer + in-process change-stream "
+            "hub). Forcing workers=1.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        workers = 1
+
     pid = _read_pid()
     if pid and _is_process_alive(pid):
         typer.echo(f"Engine already running (PID {pid})")
@@ -139,6 +161,8 @@ def start(port: int = 8765, workers: int = 4) -> None:
     # Clear stale PID file if process is gone
     if pid:
         _remove_pid()
+
+    bind_host = resolve_bind_host(host=host)
 
     try:
         # Daemonize uvicorn: detach from parent process group on POSIX
@@ -154,6 +178,14 @@ def start(port: int = 8765, workers: int = 4) -> None:
         if sys.platform != "win32":
             kwargs["start_new_session"] = True
 
+        ssl_kwargs = uvicorn_ssl_kwargs_from_env()
+        if not ssl_kwargs:
+            raise ValueError(
+                "The engine must be started with TLS. Set both "
+                "FICHERO_TLS_CERTFILE and FICHERO_TLS_KEYFILE, or use "
+                "start_backend.sh which generates loopback TLS material."
+            )
+
         proc = subprocess.Popen(
             [
                 sys.executable,
@@ -161,11 +193,15 @@ def start(port: int = 8765, workers: int = 4) -> None:
                 "uvicorn",
                 "fichero.api.main:app",
                 "--host",
-                "127.0.0.1",
+                bind_host,
                 "--port",
                 str(port),
                 "--workers",
                 str(workers),
+                "--ssl-certfile",
+                ssl_kwargs["ssl_certfile"],
+                "--ssl-keyfile",
+                ssl_kwargs["ssl_keyfile"],
             ],
             **kwargs,  # type: ignore[arg-type]
         )
@@ -173,7 +209,7 @@ def start(port: int = 8765, workers: int = 4) -> None:
         _write_pid(proc.pid)
 
         # Poll port until responsive
-        if _wait_for_port(port, timeout_s=5, retries=10):
+        if _wait_for_port(bind_host, port, timeout_s=5, retries=10):
             typer.echo(f"Engine started (PID {proc.pid})")
         else:
             typer.echo(
@@ -223,11 +259,11 @@ def stop() -> None:
     typer.echo("Engine stopped")
 
 
-def restart(port: int = 8765, workers: int = 4) -> None:
+def restart(port: int = 8765, workers: int = 1, host: str | None = None) -> None:
     """Stop and start engine.
 
     Useful for reloading configuration or recovering from a hung state.
     """
     stop()
     time.sleep(1)
-    start(port=port, workers=workers)
+    start(port=port, workers=workers, host=host)

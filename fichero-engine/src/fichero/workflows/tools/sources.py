@@ -13,6 +13,7 @@ by downstream processing tools like transcribe, describe, etc.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 from fichero.workflows.types import State, PortDef, DataType
@@ -25,20 +26,36 @@ from fichero.retrieval.graph_rag import GraphAwareRetriever
 logger = logging.getLogger(__name__)
 
 
+def _resolve_abs_path(file_doc: "Document", library_root: "str | None") -> str:
+    """Resolve a document's stored path to an absolute on-disk path for downstream
+    file tools (vision/transcribe/audio).
+
+    Stored paths are library-relative (``files/fi/<hash>_<name>.pdf``) for COPY
+    ingests so the bundle can be moved/renamed (#1663). Downstream tools open the
+    path directly, which fails when the engine CWD isn't the library root (#2183).
+    ``resolve_source`` resolves bookmark (survives moves) → absolute → library-
+    relative, confined to allowed roots via path_security. Falls back to the raw
+    stored path when it can't resolve, so behaviour is never worse than before:
+    a legitimate LINK-ingest file outside the library returns its raw absolute
+    path (confinement rejects it, so resolve_source returns None → fallback).
+    """
+    from fichero.storage import resolve_source
+
+    resolved = resolve_source(file_doc, library_root=library_root)
+    return str(resolved) if resolved else (file_doc.path or "")
+
+
 def _resolve_page_to_parent(doc: "Document", db) -> "Document | None":
     """Resolve a page document to its parent file, preserving page context.
 
     Page documents have path=None; their parent (typically a PDF) holds the
-    file. Today no downstream tool supports per-page OCR — process_vision
-    OCRs the whole PDF regardless — so the user selecting "page 3" of a
-    100-page book ends up processing all 100 pages. Per-page fan-out is
-    tracked in the 0.0.3 #670 follow-up.
+    file. The files tool emits the selected page document and only borrows the
+    parent path; downstream vision tools use the page sequence to process that
+    page.
 
-    Until then, this helper at least makes the promotion observable:
-    - loud warning in the log so the behaviour isn't silent
-    - `requested_page` and `page_promotion_warning` on the returned
-      document's metadata so downstream tools that opt into the hint can
-      branch on it without a schema change
+    This helper keeps the path lookup observable:
+    - `requested_page` on the returned document's metadata so downstream tools
+      that opt into the hint can branch on it without a schema change
     - returned doc is a deep copy so the cached parent Document in the DB
       layer isn't mutated
     """
@@ -56,16 +73,116 @@ def _resolve_page_to_parent(doc: "Document", db) -> "Document | None":
         requested = parent.model_copy(deep=True)
         requested.metadata = dict(parent.metadata or {})
         requested.metadata["requested_page"] = doc.sequence
-        requested.metadata["page_promotion_warning"] = (
-            f"User selected page {doc.sequence + 1} but per-page OCR isn't "
-            f"wired in; processing whole parent file instead."
-        )
-    logger.warning(
-        "files_tool: page %s (seq=%s) promoted to parent %s — "
-        "tool will process the whole file. See #670 for per-page fan-out.",
+    logger.info(
+        "files_tool: page %s (seq=%s) resolved through parent %s path; "
+        "downstream receives the selected page document.",
         doc.id, doc.sequence, parent.id,
     )
     return requested
+
+
+# =============================================================================
+# Eager-load cap (#2544)
+# =============================================================================
+
+# A folder/collection source otherwise loads ALL Documents eagerly into workflow
+# state: a 100k-image folder materializes 100k Document objects + 100k JSON dicts
+# before any processing starts, which blows up RAM up front. We bound that eager
+# load with a generous default cap, overridable per install via the
+# FICHERO_SOURCE_MAX_FILES env var. The default is high enough that normal
+# folders (Marshall/Choco) are never clipped; only pathologically huge folders
+# hit it, and when they do we LOG LOUDLY (no silent truncation).
+_DEFAULT_SOURCE_MAX_FILES = 5000
+
+
+def _source_max_files() -> int:
+    """Resolve the default eager-load cap from FICHERO_SOURCE_MAX_FILES (#2544).
+
+    Returns the configured cap, or ``_DEFAULT_SOURCE_MAX_FILES`` when unset/blank.
+    A value of ``0`` (or negative) is the explicit opt-in for "all files" — no
+    cap. An unparseable value falls back to the default with a loud warning.
+    """
+    raw = os.environ.get("FICHERO_SOURCE_MAX_FILES")
+    if raw is None or raw.strip() == "":
+        return _DEFAULT_SOURCE_MAX_FILES
+    try:
+        value = int(raw.strip())
+    except ValueError:
+        logger.warning(
+            "FICHERO_SOURCE_MAX_FILES=%r is not an integer — using default cap %d",
+            raw,
+            _DEFAULT_SOURCE_MAX_FILES,
+        )
+        return _DEFAULT_SOURCE_MAX_FILES
+    return value if value > 0 else 0  # <= 0 = unbounded (explicit "all files")
+
+
+def _resolve_source_limit(requested: int) -> int:
+    """Resolve the effective file cap for a source tool run (#2544).
+
+    An explicit per-run ``limit`` from the tool inputs always wins (it is already
+    a deliberate cap). When none is set — the common case, ``requested == 0`` —
+    fall back to the env-configured default cap so a huge folder doesn't blow up
+    RAM up front. Returns ``0`` for unbounded.
+    """
+    if requested and requested > 0:
+        return requested
+    return _source_max_files()
+
+
+def _load_capped_folder_files(
+    db,
+    folder_id: str,
+    *,
+    recursive: bool,
+    file_types: list[str] | None,
+    status_filter: str,
+    requested_limit: int,
+    source_label: str,
+) -> list["Document"]:
+    """Load files in a folder, bounded by the effective source cap (#2544).
+
+    Returns the (possibly truncated) list of Documents, preserving the existing
+    ``_get_files_in_folder`` ordering so ``files``/``documents`` stay index-
+    aligned downstream. When the cap clips the folder, logs LOUDLY that only the
+    first N were taken and how to raise the cap — it never silently truncates as
+    if it had processed everything (Daniel's no-silent-fallback rule).
+    """
+    cap = _resolve_source_limit(requested_limit)
+    if cap <= 0:
+        # Explicit opt-in to load every file (FICHERO_SOURCE_MAX_FILES=0).
+        return _get_files_in_folder(
+            db=db,
+            folder_id=folder_id,
+            recursive=recursive,
+            file_types=file_types,
+            status_filter=status_filter,
+            limit=0,
+        )
+    # Fetch one extra so we can distinguish "exactly cap files, all taken" from
+    # "more than cap exist, clipped" without a second full traversal.
+    files = _get_files_in_folder(
+        db=db,
+        folder_id=folder_id,
+        recursive=recursive,
+        file_types=file_types,
+        status_filter=status_filter,
+        limit=cap + 1,
+    )
+    if len(files) > cap:
+        taken = files[:cap]
+        logger.warning(
+            "%s: folder has MORE than the %d-file source cap — taking the first "
+            "%d of (at least) %d+ files; the remainder are NOT processed this "
+            "run. Raise FICHERO_SOURCE_MAX_FILES=<n> (or set it to 0 for all "
+            "files) to process everything.",
+            source_label,
+            cap,
+            cap,
+            cap,
+        )
+        return taken
+    return files
 
 
 # =============================================================================
@@ -82,6 +199,7 @@ def _resolve_page_to_parent(doc: "Document", db) -> "Document | None":
     color="green",
     uses_llm=False,
     supports_batch=False,
+    tested=True,  # part of the validated HTR transcription chain
     input_ports=[
         PortDef(
             id="query",
@@ -151,6 +269,23 @@ async def files_tool(
             db = db_manager.get_database(library_path)
             docs = [db.get(Document, doc_id) for doc_id in selected_doc_ids]
             docs = [d for d in docs if d is not None]
+            if len(docs) < len(selected_doc_ids):
+                missing = set(selected_doc_ids) - {d.id for d in docs}
+                logger.warning(
+                    "files_tool: %d/%d selected_doc_ids not found (stale/invalid): %s",
+                    len(missing),
+                    len(selected_doc_ids),
+                    list(missing)[:5],
+                )
+
+            # Stored paths are library-relative (e.g. "files/fi/<hash>_<name>.pdf")
+            # for COPY ingests, so the bundle can be renamed/moved (#1663). Downstream
+            # tools (vision/transcribe) open these paths directly, which fails when
+            # the engine CWD isn't the library root. Resolve each file to its absolute,
+            # confined on-disk path via the canonical resolver; fall back to the raw
+            # path if it can't resolve so behaviour is never worse than before.
+            def _abs(file_doc: "Document") -> str:
+                return _resolve_abs_path(file_doc, library_path)
 
             # Per-page fan-out (#891). We emit one (file_path, document)
             # entry per ATOMIC UNIT of work:
@@ -170,8 +305,29 @@ async def files_tool(
             pairs: list[tuple[str, Document]] = []
             seen_ids: set[str] = set()
 
+            # Bound the eager load (#2544): selecting a 100k-image folder in the
+            # UI would otherwise expand to 100k (path, Document) pairs and 100k
+            # JSON dicts below. files_tool has no explicit limit input, so use
+            # the env-configured default cap. 0 = unbounded (explicit opt-in).
+            _pairs_cap = _source_max_files()
+            _cap_logged = False
+
             def _add(path: str, document: Document) -> None:
+                nonlocal _cap_logged
                 if document.id in seen_ids:
+                    return
+                if _pairs_cap > 0 and len(pairs) >= _pairs_cap:
+                    if not _cap_logged:
+                        logger.warning(
+                            "files_tool: selection expands to MORE than the "
+                            "%d-file source cap — taking the first %d files "
+                            "only; the remainder are NOT processed this run. "
+                            "Raise FICHERO_SOURCE_MAX_FILES=<n> (or 0 for all "
+                            "files) to process everything.",
+                            _pairs_cap,
+                            _pairs_cap,
+                        )
+                        _cap_logged = True
                     return
                 seen_ids.add(document.id)
                 pairs.append((path, document))
@@ -193,10 +349,41 @@ async def files_tool(
                     Document, parent_id=file_doc.id, doc_type=DocType.page
                 )
                 if not page_children:
-                    return False
+                    # No page children — a PDF imported before per-page splitting
+                    # landed, or where the split silently failed at ingest
+                    # (#2430). Split on the spot so the workflow fans out
+                    # per-page instead of transcribing the whole PDF onto the
+                    # parent. This auto-backfills already-imported PDFs on their
+                    # next workflow run. (no-silent-fallback)
+                    from pathlib import Path
+
+                    from fichero.ingest import _create_pdf_page_children
+
+                    abs_path = _abs(file_doc)
+                    try:
+                        created = _create_pdf_page_children(
+                            file_doc, Path(abs_path), db, auto_embed=False
+                        )
+                    except Exception as exc:
+                        logger.error(
+                            "files_tool: on-the-spot PDF split failed for %s: %s",
+                            file_doc.id,
+                            exc,
+                        )
+                        created = []
+                    if not created:
+                        return False
+                    logger.info(
+                        "files_tool: split %s into %d page children on the spot "
+                        "(was unsplit at ingest, #2430)",
+                        file_doc.id,
+                        len(created),
+                    )
+                    page_children = created
                 ordered = sorted(page_children, key=lambda p: p.sequence or 0)
+                abs_path = _abs(file_doc)  # resolve the parent file once, not per page
                 for page in ordered:
-                    _add(file_doc.path, page)
+                    _add(abs_path, page)
                 return True
 
             def _expand_folder(folder: Document) -> None:
@@ -206,7 +393,7 @@ async def files_tool(
                     if child.doc_type == DocType.folder:
                         _expand_folder(child)
                     elif child.path and not _expand_to_pages(child):
-                        _add(child.path, child)
+                        _add(_abs(child), child)
 
             for doc in docs:
                 if doc.doc_type == DocType.folder:
@@ -216,13 +403,13 @@ async def files_tool(
                     )
                 elif doc.path:
                     if not _expand_to_pages(doc):
-                        _add(doc.path, doc)
+                        _add(_abs(doc), doc)
                 elif doc.parent_id:
                     # Page selected directly — emit just this page,
                     # using the parent's path as the file pointer.
                     resolved_parent = _resolve_page_to_parent(doc, db)
                     if resolved_parent is not None and resolved_parent.path:
-                        _add(resolved_parent.path, doc)
+                        _add(_abs(resolved_parent), doc)
                 else:
                     logger.warning(
                         f"files_tool: doc {doc.id} type={doc.doc_type} "
@@ -230,7 +417,7 @@ async def files_tool(
                     )
 
             files = [path for path, _ in pairs]
-            documents = [d.model_dump() for _, d in pairs]
+            documents = [d.model_dump(mode="json") for _, d in pairs]
             logger.info(
                 f"Files source tool: {len(files)} entries from selected_doc_ids "
                 f"({len(seen_ids)} unique docs)"
@@ -405,16 +592,25 @@ async def collection_tool(
             db = db_manager.get_database(library_path)
             docs = [db.get(Document, doc_id) for doc_id in selected_doc_ids]
             docs = [d for d in docs if d is not None]
-            resolved: dict[str, Document] = {}
+            # Use list-of-pairs so multiple pages of the same PDF are kept
+            # as separate entries (dict keyed by path collapses them, #2242).
+            resolved_pairs: list[tuple[str, Document]] = []
+            seen_ids: set[str] = set()
             for doc in docs:
+                if doc.id in seen_ids:
+                    continue
                 if doc.path:
-                    resolved[doc.path] = doc
+                    seen_ids.add(doc.id)
+                    resolved_pairs.append((_resolve_abs_path(doc, library_path), doc))
                 elif doc.parent_id:
                     resolved_parent = _resolve_page_to_parent(doc, db)
                     if resolved_parent is not None and resolved_parent.path:
-                        resolved[resolved_parent.path] = resolved_parent
-            files = list(resolved.keys())
-            documents = [d.model_dump() for d in resolved.values()]
+                        seen_ids.add(doc.id)
+                        resolved_pairs.append(
+                            (_resolve_abs_path(resolved_parent, library_path), doc)
+                        )
+            files = [path for path, _ in resolved_pairs]
+            documents = [d.model_dump(mode="json") for _, d in resolved_pairs]
             logger.info(
                 f"collection_tool: {len(files)} files from selected_doc_ids "
                 f"(overriding collection {collection_id})"
@@ -439,19 +635,21 @@ async def collection_tool(
     try:
         db = db_manager.get_database(library_path)
 
-        # Get all files in collection
-        files = _get_files_in_folder(
-            db=db,
-            folder_id=collection_id,
+        # Get all files in collection, bounded by the eager-load cap (#2544).
+        files = _load_capped_folder_files(
+            db,
+            collection_id,
             recursive=recursive,
             file_types=file_types,
             status_filter=status_filter,
-            limit=limit,
+            requested_limit=limit,
+            source_label=f"Collection {collection_id}",
         )
 
-        # Extract file paths and document data
-        file_paths = [doc.path for doc in files if doc.path]
-        doc_data = [doc.model_dump() for doc in files]
+        # Keep file_paths and doc_data index-aligned: filter both by doc.path (#2240)
+        aligned = [(doc, _resolve_abs_path(doc, library_path)) for doc in files if doc.path]
+        file_paths = [path for _, path in aligned]
+        doc_data = [doc.model_dump(mode="json") for doc, _ in aligned]
 
         logger.info(f"Collection {collection_id}: found {len(files)} files")
 
@@ -593,21 +791,40 @@ async def folder_tool(
                     "error": f"Folder not found: {folder_path}",
                 }
 
-        # Get files
-        files = _get_files_in_folder(
-            db=db,
-            folder_id=folder_id,
+        # Get files, bounded by the eager-load cap (#2544).
+        files = _load_capped_folder_files(
+            db,
+            folder_id,
             recursive=include_subfolders,
             file_types=file_types,
-            limit=limit,
+            status_filter="all",
+            requested_limit=limit,
+            source_label=f"Folder {folder_id}",
         )
 
         # Get direct subfolders (for hierarchical processing)
         subfolders = db.query(Document, parent_id=folder_id, doc_type=DocType.folder)
         subfolder_ids = [sf.id for sf in subfolders]
 
-        file_paths = [doc.path for doc in files if doc.path]
-        doc_data = [doc.model_dump() for doc in files]
+        # Resolve abs paths, keep file_paths/doc_data index-aligned, and
+        # expand PDFs that already have per-page children (#2239/#2240).
+        aligned_paths: list[str] = []
+        aligned_docs: list[Document] = []
+        for doc in files:
+            if not doc.path:
+                continue
+            abs_path = _resolve_abs_path(doc, library_path)
+            if doc.file_type == FileType.pdf:
+                page_children = db.query(Document, parent_id=doc.id, doc_type=DocType.page)
+                if page_children:
+                    for page in sorted(page_children, key=lambda p: p.sequence or 0):
+                        aligned_paths.append(abs_path)
+                        aligned_docs.append(page)
+                    continue
+            aligned_paths.append(abs_path)
+            aligned_docs.append(doc)
+        file_paths = aligned_paths
+        doc_data = [d.model_dump(mode="json") for d in aligned_docs]
 
         logger.info(
             f"Folder {folder_id}: found {len(files)} files, {len(subfolder_ids)} subfolders"
@@ -645,6 +862,7 @@ async def folder_tool(
     color="green",
     uses_llm=False,
     supports_batch=False,
+    tested=True,  # part of the validated HTR transcription chain
     input_ports=[],
     output_ports=[
         PortDef(
@@ -716,11 +934,15 @@ async def search_tool(
     """
     query = inputs.get("query")
     if not query:
+        # #2613: a missing query is a graceful skip, not a systemic failure.
+        # Downstream nodes receive empty arrays and the UI sees a clear
+        # "skipped — no query" status instead of an aborted run.
         return {
             "files": [],
             "documents": [],
             "count": 0,
-            "error": "No search query provided",
+            "skipped": True,
+            "skip_reason": "No search query provided",
         }
 
     search_type = inputs.get("search_type", "hybrid")
@@ -774,8 +996,8 @@ async def search_tool(
                 if collection_id and not _is_descendant_of(db, doc, collection_id):
                     continue
                 if doc.path:
-                    files.append(doc.path)
-                doc_dict = doc.model_dump()
+                    files.append(_resolve_abs_path(doc, library_path))
+                doc_dict = doc.model_dump(mode="json")
                 doc_dict["search_score"] = item.get("search_score")
                 doc_dict["highlights"] = None
                 doc_data.append(doc_dict)
@@ -823,6 +1045,20 @@ async def search_tool(
         }
 
     except Exception as e:
+        if _is_reference_search_unavailable_error(e):
+            logger.info(
+                "Search tool: reference corpus/index unavailable, returning empty result: %s",
+                e,
+            )
+            return {
+                "files": [],
+                "documents": [],
+                "count": 0,
+                "document_count": 0,
+                "context_count": 0,
+                "kg_claims_used": 0,
+                "kg_entities_used": 0,
+            }
         logger.error(f"Search tool failed: {e}")
         return {
             "files": [],
@@ -839,6 +1075,43 @@ async def search_tool(
 # =============================================================================
 # Helper Functions
 # =============================================================================
+
+
+def _is_reference_search_unavailable_error(exc: Exception) -> bool:
+    """Return True when search infra is absent and reference search should be optional.
+
+    Transcription presets use the search node as auxiliary context for pass-two
+    review. A library with no vector/search index should produce an empty
+    reference list, not abort the whole workflow after pass one already saved
+    its artifacts.
+    """
+    message = str(exc).lower()
+    infra_markers = (
+        "embedding",
+        "embeddings",
+        "vector",
+        "vectors",
+        "lance",
+        "search index",
+        "fts",
+        "full-text",
+        "full text",
+        "bm25",
+        "index",
+    )
+    unavailable_markers = (
+        "does not exist",
+        "not found",
+        "no such",
+        "missing",
+        "unavailable",
+        "not available",
+        "cannot open",
+        "failed to open",
+    )
+    return any(marker in message for marker in infra_markers) and any(
+        marker in message for marker in unavailable_markers
+    )
 
 
 def _get_files_in_folder(

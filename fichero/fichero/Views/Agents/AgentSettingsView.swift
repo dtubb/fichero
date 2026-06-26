@@ -7,7 +7,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "AgentSe
 /// This is accessed from the Fichero menu
 struct AgentSettingsView: View {
     @StateObject private var settings = AgentSettings.shared
-    @State private var selectedAgentType: AgentType = .react
+    @State private var selectedAgentType: AgentType? = .react
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -25,10 +25,18 @@ struct AgentSettingsView: View {
             .listStyle(.sidebar)
         } detail: {
             // Detail view for selected agent type
-            AgentTypeSettingsView(
-                agentType: selectedAgentType,
-                settings: settings
-            )
+            if let selectedAgentType {
+                AgentTypeSettingsView(
+                    agentType: selectedAgentType,
+                    settings: settings
+                )
+            } else {
+                ContentUnavailableView(
+                    "No Agent Selected",
+                    systemImage: "person.crop.circle.badge.questionmark",
+                    description: Text("Select an agent type to configure its defaults.")
+                )
+            }
         }
         .frame(minWidth: 700, minHeight: 500)
     }

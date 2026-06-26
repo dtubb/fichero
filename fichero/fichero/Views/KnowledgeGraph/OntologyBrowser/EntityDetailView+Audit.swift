@@ -36,7 +36,7 @@ extension EntityDetailView {
             }
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.controlBackgroundColor))
+            .background(.regularMaterial)
             .clipShape(RoundedRectangle(cornerRadius: 8))
         }
     }

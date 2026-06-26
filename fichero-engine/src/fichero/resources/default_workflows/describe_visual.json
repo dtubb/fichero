@@ -1,0 +1,53 @@
+{
+  "name": "Describe (visual)",
+  "description": "Visually describe each selected image or PDF page: what is depicted, layout, figures, handwriting versus print, physical condition, and notable visual details. Saves one description artifact per page child.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Describe",
+  "tags": ["preset", "describe", "visual", "vision", "per-page"],
+  "config": {
+    "preset_version": 1
+  },
+  "nodes": [
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Files",
+      "position_x": 80,
+      "position_y": 200,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "describe",
+      "tool": "describe",
+      "label": "Describe visually",
+      "position_x": 300,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "vision_mode": "auto",
+        "detail_level": "detailed",
+        "save_to_db": true,
+        "prompt": "Visually describe this page or image. Include what is depicted, the layout and reading order, figures or illustrations, handwriting versus print, visible condition or damage, and any notable marks, stamps, seals, labels, or symbols. Do not transcribe the whole page; summarize visible text only when it helps identify the object."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-files-describe",
+      "source": "files-source",
+      "target": "describe",
+      "source_port": "files",
+      "target_port": "files"
+    },
+    {
+      "id": "edge-files-describe-documents",
+      "source": "files-source",
+      "target": "describe",
+      "source_port": "documents",
+      "target_port": "documents"
+    }
+  ]
+}

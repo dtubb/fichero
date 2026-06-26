@@ -12,7 +12,7 @@ final class ImageEditOperationDisplayTests: XCTestCase {
             ] as [String: Any]
         ] as [String: Any]))
 
-        XCTAssertEqual(operation.title, "Fuzzy Clean")
+        XCTAssertEqual(operation.title, "Despeckle")
         XCTAssertEqual(operation.icon, "sparkles")
         XCTAssertEqual(operation.summary, "despeckle 3, background clean")
     }

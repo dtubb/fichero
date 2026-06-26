@@ -7,10 +7,13 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.spatial_models import (
     ArrangementType,
+    CanvasItem,
+    CanvasItemKind,
+    CanvasLayout,
     CaptureRegion,
     ConnectionType,
     NativeNote,
@@ -25,7 +28,13 @@ from fichero.spatial_models import (
     SpatialViewport,
     SpatialRoom,
 )
-from fichero.models import MindPalaceListResponse
+from fichero.models import Document, MindPalaceListResponse
+from fichero.actions.registry import action, ActionContext, ChangeSpec
+from fichero.spatial_arrange import (
+    DEFAULT_SPACING,
+    ArrangeStrategy,
+    compute_arrangement,
+)
 
 
 router = APIRouter()
@@ -168,7 +177,7 @@ class ViewportSaveRequest(BaseModel):
 @router.post("/rooms", response_model=SpatialRoom)
 async def create_room(
     request: RoomCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> SpatialRoom:
     now = datetime.now()
     room = SpatialRoom(
@@ -213,7 +222,7 @@ async def get_room(
 async def update_room(
     room_id: str,
     request: RoomUpdateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> SpatialRoom:
     room = db.get(SpatialRoom, room_id)
     if not room:
@@ -230,7 +239,7 @@ async def update_room(
 @router.delete("/rooms/{room_id}")
 async def delete_room(
     room_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> MindPalaceDeletedResponse:
     room = db.get(SpatialRoom, room_id)
     if not room:
@@ -277,7 +286,7 @@ async def get_scene_summary(
 @router.post("/nodes", response_model=SpatialNode)
 async def place_node(
     request: NodeCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> SpatialNode:
     room = db.get(SpatialRoom, request.room_id)
     if not room:
@@ -334,7 +343,7 @@ async def get_node(
 async def move_node(
     node_id: str,
     request: NodeMoveRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> SpatialNode:
     node = db.get(SpatialNode, node_id)
     if not node:
@@ -359,7 +368,7 @@ async def move_node(
 @router.delete("/nodes/{node_id}")
 async def remove_node(
     node_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> MindPalaceDeletedResponse:
     node = db.get(SpatialNode, node_id)
     if not node:
@@ -376,7 +385,7 @@ async def remove_node(
 @router.post("/connections", response_model=SpatialConnection)
 async def create_connection(
     request: ConnectionCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> SpatialConnection:
     room = db.get(SpatialRoom, request.room_id)
     if not room:
@@ -425,7 +434,7 @@ async def list_connections(
 @router.delete("/connections/{connection_id}")
 async def remove_connection(
     connection_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> MindPalaceDeletedResponse:
     conn = db.get(SpatialConnection, connection_id)
     if not conn:
@@ -444,7 +453,7 @@ async def remove_connection(
 @router.post("/stacks", response_model=SpatialStack)
 async def create_stack(
     request: StackCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> SpatialStack:
     room = db.get(SpatialRoom, request.room_id)
     if not room:
@@ -491,7 +500,7 @@ async def get_stack(
 async def add_to_stack(
     stack_id: str,
     node_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> SpatialStack:
     stack = db.get(SpatialStack, stack_id)
     if not stack:
@@ -507,7 +516,7 @@ async def add_to_stack(
 async def remove_from_stack(
     stack_id: str,
     node_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> SpatialStack:
     stack = db.get(SpatialStack, stack_id)
     if not stack:
@@ -527,7 +536,7 @@ async def remove_from_stack(
 @router.post("/notes", response_model=NativeNote)
 async def create_note(
     request: NoteCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> NativeNote:
     now = datetime.now()
     note = NativeNote(
@@ -581,7 +590,7 @@ async def get_note(
 async def update_note(
     note_id: str,
     request: NoteUpdateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> NativeNote:
     note = db.get(NativeNote, note_id)
     if not note:
@@ -598,7 +607,7 @@ async def update_note(
 @router.delete("/notes/{note_id}")
 async def delete_note(
     note_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> MindPalaceDeletedResponse:
     note = db.get(NativeNote, note_id)
     if not note:
@@ -635,7 +644,7 @@ async def save_viewport(
     room_id: str,
     user_id: str,
     request: ViewportSaveRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> SpatialViewport:
     rows = [
         v
@@ -676,7 +685,7 @@ async def focus_node(
     room_id: str,
     user_id: str = "user",
     node_id: str | None = None,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> SpatialViewport:
     """Set focus on a specific node in a room."""
     rows = [
@@ -710,7 +719,7 @@ async def focus_node(
 async def suggest_arrangement(
     room_id: str,
     request: ArrangeRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> list[SpatialNode]:
     """Propose positions for nodes based on an arrangement strategy.
 
@@ -781,7 +790,7 @@ async def capture_viewport(
 async def export_to_tinderbox(
     room_id: str,
     tinderbox_note_id: str | None = None,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> TinderboxExportResponse:
     """Export room notes to Tinderbox.
 
@@ -802,10 +811,484 @@ async def export_to_tinderbox(
 async def import_from_tinderbox(
     tinderbox_note_id: str,
     room_id: str | None = None,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> list[NativeNote]:
     """Import notes from Tinderbox.
 
     Requires Tinderbox integration — returns a placeholder.
     """
     return []
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Canvas layout (FOLDER-scoped spatial positions — NOT room-scoped)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class CanvasLayoutItem(BaseModel):
+    """One item's position within a folder's spatial canvas.
+
+    ``folder_id`` is taken from the path, never the body, so a batch can only
+    update document-backed positions for the folder it is addressed to.
+    """
+
+    item_id: str
+    x: float = 0.0
+    y: float = 0.0
+    z: float = 0.0
+    w: float | None = None
+    h: float | None = None
+    d: float | None = None
+    angle: float = 0.0
+    z_index: int = 0
+    style: str | None = None
+
+
+class CanvasLayoutSaveRequest(BaseModel):
+    """Batch of item positions to persist for a folder (one drag -> one save)."""
+
+    items: list[CanvasLayoutItem]
+
+
+def _canvas_layout_row_from_document(folder_id: str, doc: Document) -> CanvasLayout:
+    """Compatibility shape for the retired canvas_layout table, backed by Document attrs."""
+    metadata = doc.metadata if isinstance(doc.metadata, dict) else {}
+    return CanvasLayout(
+        id=CanvasLayout.make_id(folder_id, doc.id),
+        folder_id=folder_id,
+        item_id=doc.id,
+        x=doc.position_x or 0.0,
+        y=doc.position_y or 0.0,
+        z=doc.position_z or 0.0,
+        w=metadata.get("canvas_w"),
+        h=metadata.get("canvas_h"),
+        d=metadata.get("canvas_d"),
+        angle=doc.rotation_z or 0.0,
+        z_index=doc.z_index,
+        style=metadata.get("canvas_style"),
+        updated_at=doc.updated_at,
+    )
+
+
+def _folder_canvas_documents(db: Database, folder_id: str) -> list[Document]:
+    """Folder child documents that currently carry canvas position data."""
+    rows = db.query(Document, parent_id=folder_id)
+    return [
+        doc for doc in rows
+        if doc.position_x is not None
+        or doc.position_y is not None
+        or doc.position_z is not None
+        or doc.rotation_z is not None
+        or doc.z_index != 0
+        or (
+            isinstance(doc.metadata, dict)
+            and any(
+                key in doc.metadata
+                for key in ("canvas_w", "canvas_h", "canvas_d", "canvas_style")
+            )
+        )
+    ]
+
+
+def _folder_canvas_document_or_404(db: Database, folder_id: str, item_id: str) -> Document:
+    doc = db.get(Document, item_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail=f"Document not found: {item_id}")
+    if doc.parent_id != folder_id:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Document {item_id} is not in folder {folder_id}",
+        )
+    return doc
+
+
+@router.get("/folders/{folder_id}/canvas-layout", response_model=MindPalaceListResponse)
+async def get_canvas_layout(
+    folder_id: str,
+    db: Database = Depends(get_library_database),
+) -> MindPalaceListResponse:
+    """Load all persisted item positions for a folder's spatial canvas."""
+    rows = [
+        _canvas_layout_row_from_document(folder_id, doc)
+        for doc in _folder_canvas_documents(db, folder_id)
+    ]
+    return MindPalaceListResponse(items=rows, count=len(rows))
+
+
+@router.put("/folders/{folder_id}/canvas-layout")
+async def save_canvas_layout(
+    folder_id: str,
+    request: CanvasLayoutSaveRequest,
+    db: Database = Depends(get_library_database_for_write),
+) -> list[CanvasLayout]:
+    """Compatibility wrapper: persist folder item positions onto Document attrs."""
+    saved: list[CanvasLayout] = []
+    for item in request.items:
+        doc = _folder_canvas_document_or_404(db, folder_id, item.item_id)
+        metadata = dict(doc.metadata) if isinstance(doc.metadata, dict) else {}
+        doc.position_x = item.x
+        doc.position_y = item.y
+        doc.position_z = item.z
+        doc.rotation_z = item.angle
+        doc.z_index = item.z_index
+        metadata["canvas_w"] = item.w
+        metadata["canvas_h"] = item.h
+        metadata["canvas_d"] = item.d
+        metadata["canvas_style"] = item.style
+        doc.metadata = metadata
+        doc.updated_at = datetime.now()
+        db.save(doc)
+        saved.append(_canvas_layout_row_from_document(folder_id, doc))
+    return saved
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Arrange — compute + PERSIST canvas transforms for a set of nodes by strategy
+# (#2297). One endpoint, agent-callable via the action registry (#1848).
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class ArrangeNodesRequest(BaseModel):
+    """Arrange a set of folder nodes by a geometric strategy and persist them.
+
+    ``folder_id`` comes from the path, never the body — the computed rows can
+    only be written for the folder the request is addressed to. An unknown
+    ``strategy`` is rejected by Pydantic with a 422 (it is an enum field).
+    """
+
+    node_ids: list[str]
+    strategy: ArrangeStrategy = ArrangeStrategy.grid
+    spacing: float = DEFAULT_SPACING
+    columns: int | None = None
+    radius: float | None = None
+
+
+def arrange_impl(
+    db: Database,
+    folder_id: str,
+    node_ids: list[str],
+    strategy: ArrangeStrategy | str,
+    *,
+    spacing: float = DEFAULT_SPACING,
+    columns: int | None = None,
+    radius: float | None = None,
+) -> list[CanvasLayout]:
+    """Compute transforms for ``node_ids`` and persist them onto Document attrs.
+
+    Shared by the HTTP route and the registered action so both drive the same
+    code (iterate-not-replace). Raises ``ValueError`` (empty / unknown strategy)
+    for the caller to map to a 4xx. Each row is keyed by the deterministic
+    ``(folder_id, item_id)`` composite, so re-arranging overwrites prior
+    positions rather than duplicating.
+    """
+    if not node_ids:
+        raise ValueError("node_ids must not be empty")
+
+    positions = compute_arrangement(
+        node_ids, strategy, spacing=spacing, columns=columns, radius=radius
+    )
+    saved: list[CanvasLayout] = []
+    now = datetime.now()
+    for pos in positions:
+        doc = _folder_canvas_document_or_404(db, folder_id, pos["item_id"])
+        doc.position_x = pos["x"]
+        doc.position_y = pos["y"]
+        doc.position_z = pos["z"]
+        doc.z_index = pos["z_index"]
+        doc.updated_at = now
+        db.save(doc)
+        saved.append(_canvas_layout_row_from_document(folder_id, doc))
+    return saved
+
+
+@router.post("/folders/{folder_id}/arrange", response_model=MindPalaceListResponse)
+async def arrange_folder_canvas(
+    folder_id: str,
+    request: ArrangeNodesRequest,
+    db: Database = Depends(get_library_database_for_write),
+) -> MindPalaceListResponse:
+    """Lay out a folder's nodes by ``strategy`` and persist the transforms.
+
+    Computes positions (grid/row/column/circle/stack), writes them onto the
+    underlying child documents, then returns the compatibility payload in the
+    standard ``{items, count}`` envelope.
+    """
+    try:
+        rows = arrange_impl(
+            db,
+            folder_id,
+            request.node_ids,
+            request.strategy,
+            spacing=request.spacing,
+            columns=request.columns,
+            radius=request.radius,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return MindPalaceListResponse(items=rows, count=len(rows))
+
+
+# Action-layer registration (EPIC #1848) — agent/chat/App-Intents callable.
+# Wraps the same ``arrange_impl`` the HTTP route uses (iterate-not-replace), so
+# every invocation routes through ``registry.invoke`` → ActionAudit + emit.
+class CanvasArrangeParams(ArrangeNodesRequest):
+    """Params for the ``canvas.arrange`` action (folder_id carried in the body)."""
+
+    folder_id: str
+
+
+@action("canvas.arrange", CanvasArrangeParams, domains=["canvas"])
+def _action_arrange_canvas(
+    db: Database, params: CanvasArrangeParams, ctx: ActionContext
+) -> tuple[list[dict], ChangeSpec]:
+    node_id_set = set(params.node_ids)
+    before = [
+        _canvas_layout_row_from_document(params.folder_id, doc).model_dump(mode="json")
+        for doc in _folder_canvas_documents(db, params.folder_id)
+        if doc.id in node_id_set
+    ]
+    rows = arrange_impl(
+        db,
+        params.folder_id,
+        params.node_ids,
+        params.strategy,
+        spacing=params.spacing,
+        columns=params.columns,
+        radius=params.radius,
+    )
+    after = [r.model_dump(mode="json") for r in rows]
+    spec = ChangeSpec(
+        domains=["canvas"],
+        target_ids=[r.id for r in rows],
+        before={"rows": before},
+        after={"rows": after},
+        emit_type="canvas.arranged",
+    )
+    return after, spec
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Canvas items — STANDALONE placeable CONTENT (#2294): notes, quotes,
+# work-notes, links/connectors, free text. The non-document placeables.
+# Folder-scoped via the path. One model, a ``kind`` field -- not a model per
+# kind. Document/page placement now lives on Document attrs; these items remain
+# as content payloads only.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class CanvasItemCreateRequest(BaseModel):
+    """Create one standalone canvas item in a folder (``folder_id`` from path).
+
+    For ``kind="link"`` set ``source_item_id``/``target_item_id`` to the two
+    item ids the connector joins. ``payload`` carries small kind-specific bits.
+    """
+
+    kind: CanvasItemKind = CanvasItemKind.note
+    text: str = ""
+    source_item_id: str | None = None
+    target_item_id: str | None = None
+    payload: dict = Field(default_factory=dict)
+
+
+class CanvasItemUpdateRequest(BaseModel):
+    """Patch a canvas item — every field optional; only provided ones change."""
+
+    kind: CanvasItemKind | None = None
+    text: str | None = None
+    source_item_id: str | None = None
+    target_item_id: str | None = None
+    payload: dict | None = None
+
+
+def create_canvas_item_impl(
+    db: Database, folder_id: str, req: CanvasItemCreateRequest
+) -> CanvasItem:
+    """Persist a new canvas item for ``folder_id``. Shared by route + action."""
+    now = datetime.now()
+    item = CanvasItem(
+        folder_id=folder_id,
+        kind=req.kind,
+        text=req.text,
+        source_item_id=req.source_item_id,
+        target_item_id=req.target_item_id,
+        payload=req.payload,
+        created_at=now,
+        updated_at=now,
+    )
+    db.save(item)
+    return item
+
+
+def update_canvas_item_impl(
+    db: Database, folder_id: str, item_id: str, req: CanvasItemUpdateRequest
+) -> tuple[dict, CanvasItem]:
+    """Apply a partial edit to a canvas item. Shared by route + action.
+
+    Returns ``(before, item)`` — the pre-edit snapshot (for the action's audit)
+    and the saved row — so the action need not re-read the row. Raises
+    ``KeyError`` if the item is absent or belongs to another folder, for the
+    caller to map to a 404.
+    """
+    item = db.get(CanvasItem, item_id)
+    if item is None or item.folder_id != folder_id:
+        raise KeyError(item_id)
+    before = item.model_dump(mode="json")
+    fields = req.model_dump(exclude_unset=True)
+    for name, value in fields.items():
+        setattr(item, name, value)
+    item.updated_at = datetime.now()
+    db.save(item)
+    return before, item
+
+
+def delete_canvas_item_impl(db: Database, folder_id: str, item_id: str) -> CanvasItem:
+    """Delete a canvas item, returning the removed row. Shared by route + action.
+
+    Raises ``KeyError`` if absent / cross-folder, for the caller to map to 404.
+    The item's ``canvas_layout`` placement row (if any) is left for the layout
+    surface to reap — content and placement are separate concerns (#2293).
+    """
+    item = db.get(CanvasItem, item_id)
+    if item is None or item.folder_id != folder_id:
+        raise KeyError(item_id)
+    db.delete(item)
+    return item
+
+
+@router.get(
+    "/folders/{folder_id}/canvas-items", response_model=MindPalaceListResponse
+)
+async def list_canvas_items(
+    folder_id: str,
+    kind: CanvasItemKind | None = None,
+    db: Database = Depends(get_library_database),
+) -> MindPalaceListResponse:
+    """List a folder's standalone canvas items in the ``{items, count}`` envelope."""
+    filters: dict[str, Any] = {"folder_id": folder_id}
+    if kind is not None:
+        filters["kind"] = kind
+    rows = db.query(CanvasItem, **filters)
+    return MindPalaceListResponse(items=rows, count=len(rows))
+
+
+@router.post("/folders/{folder_id}/canvas-items", response_model=CanvasItem)
+async def create_canvas_item(
+    folder_id: str,
+    request: CanvasItemCreateRequest,
+    db: Database = Depends(get_library_database_for_write),
+) -> CanvasItem:
+    """Create one standalone canvas item (note / quote / work_note / link / text)."""
+    return create_canvas_item_impl(db, folder_id, request)
+
+
+@router.patch(
+    "/folders/{folder_id}/canvas-items/{item_id}", response_model=CanvasItem
+)
+async def update_canvas_item(
+    folder_id: str,
+    item_id: str,
+    request: CanvasItemUpdateRequest,
+    db: Database = Depends(get_library_database_for_write),
+) -> CanvasItem:
+    """Patch a canvas item's text / payload / kind / link endpoints."""
+    try:
+        _, item = update_canvas_item_impl(db, folder_id, item_id, request)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="canvas item not found") from exc
+    return item
+
+
+@router.delete(
+    "/folders/{folder_id}/canvas-items/{item_id}",
+    response_model=MindPalaceDeletedResponse,
+)
+async def delete_canvas_item(
+    folder_id: str,
+    item_id: str,
+    db: Database = Depends(get_library_database_for_write),
+) -> MindPalaceDeletedResponse:
+    """Delete a standalone canvas item from a folder."""
+    try:
+        delete_canvas_item_impl(db, folder_id, item_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="canvas item not found") from exc
+    return MindPalaceDeletedResponse(status="deleted")
+
+
+# Action-layer registration (EPIC #1848) — agent/chat/App-Intents callable.
+# Each wraps the same ``*_impl`` the HTTP routes use (iterate-not-replace), so
+# every agent invocation routes through ``registry.invoke`` → ActionAudit + emit.
+class CanvasItemCreateParams(CanvasItemCreateRequest):
+    """Params for ``canvas.item.create`` (folder_id carried in the body)."""
+
+    folder_id: str
+
+
+class CanvasItemUpdateParams(CanvasItemUpdateRequest):
+    """Params for ``canvas.item.update`` (folder_id + item_id in the body)."""
+
+    folder_id: str
+    item_id: str
+
+
+class CanvasItemDeleteParams(BaseModel):
+    """Params for ``canvas.item.delete`` (folder_id + item_id in the body)."""
+
+    folder_id: str
+    item_id: str
+
+
+@action("canvas.item.create", CanvasItemCreateParams, domains=["canvas"])
+def _action_create_canvas_item(
+    db: Database, params: CanvasItemCreateParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    # params IS-A CanvasItemCreateRequest (plus folder_id) — pass it straight in.
+    item = create_canvas_item_impl(db, params.folder_id, params)
+    after = item.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["canvas"],
+        target_ids=[item.id],
+        before=None,
+        after={"item": after},
+        emit_type="canvas.item.created",
+    )
+    return after, spec
+
+
+@action("canvas.item.update", CanvasItemUpdateParams, domains=["canvas"])
+def _action_update_canvas_item(
+    db: Database, params: CanvasItemUpdateParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    before, item = update_canvas_item_impl(
+        db,
+        params.folder_id,
+        params.item_id,
+        CanvasItemUpdateRequest(
+            **params.model_dump(exclude={"folder_id", "item_id"}, exclude_unset=True)
+        ),
+    )
+    after = item.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["canvas"],
+        target_ids=[item.id],
+        before={"item": before},
+        after={"item": after},
+        emit_type="canvas.item.updated",
+    )
+    return after, spec
+
+
+@action("canvas.item.delete", CanvasItemDeleteParams, domains=["canvas"])
+def _action_delete_canvas_item(
+    db: Database, params: CanvasItemDeleteParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    item = delete_canvas_item_impl(db, params.folder_id, params.item_id)
+    before = item.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["canvas"],
+        target_ids=[item.id],
+        before={"item": before},
+        after=None,
+        emit_type="canvas.item.deleted",
+    )
+    return before, spec

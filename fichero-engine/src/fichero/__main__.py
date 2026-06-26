@@ -7,6 +7,9 @@ entry point ``fichero = "fichero.__main__:main"`` is declared in pyproject.toml.
 
 from __future__ import annotations
 
+import base64
+import json
+import mimetypes
 import sys
 import time
 from pathlib import Path
@@ -40,6 +43,8 @@ interpretation_app = typer.Typer(help="Inspect and curate hermeneutic interpreta
 audit_app = typer.Typer(help="Review entity merge/split audit trail.", no_args_is_help=True)
 settings_app = typer.Typer(help="Read and write AI-defaults settings.", no_args_is_help=True)
 providers_app = typer.Typer(help="Manage LLM provider configurations.", no_args_is_help=True)
+devices_app = typer.Typer(help="Manage paired devices.", no_args_is_help=True)
+compare_app = typer.Typer(help="Compare models and workflows.", no_args_is_help=True)
 app.add_typer(docs_app, name="docs")
 app.add_typer(workflow_app, name="workflow")
 app.add_typer(kg_app, name="kg")
@@ -52,6 +57,8 @@ app.add_typer(interpretation_app, name="interpretation")
 app.add_typer(audit_app, name="audit")
 app.add_typer(settings_app, name="settings")
 app.add_typer(providers_app, name="providers")
+app.add_typer(devices_app, name="devices")
+app.add_typer(compare_app, name="compare")
 workflow_app.add_typer(threads_app, name="threads")
 
 # Execution statuses the workflow status endpoint may return when the run has
@@ -148,6 +155,124 @@ def _resolve_required_doc_id(
     return str(doc_id).strip()
 
 
+def _normalize_json_payload(value: Any) -> Any:
+    if hasattr(value, "model_dump"):
+        return value.model_dump(mode="json")
+    return value
+
+
+def _load_prompt(
+    *,
+    prompt: Optional[str],
+    prompt_file: Optional[Path],
+    default: Optional[str] = None,
+) -> str:
+    if prompt is not None and prompt_file is not None:
+        typer.secho(
+            "Error: pass either --prompt or --prompt-file, not both.",
+            err=True,
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=2)
+    if prompt_file is not None:
+        return prompt_file.read_text(encoding="utf-8")
+    if prompt is not None:
+        return prompt
+    if default is not None:
+        return default
+    typer.secho(
+        "Error: either --prompt or --prompt-file is required.",
+        err=True,
+        fg=typer.colors.RED,
+    )
+    raise typer.Exit(code=2)
+
+
+def _parse_models_csv(models: str) -> list[dict[str, str]]:
+    parsed: list[dict[str, str]] = []
+    for raw in [item.strip() for item in models.split(",") if item.strip()]:
+        provider, sep, model = raw.partition("/")
+        if not sep or not model.strip():
+            typer.secho(
+                f"Error: model '{raw}' must be in provider/model form.",
+                err=True,
+                fg=typer.colors.RED,
+            )
+            raise typer.Exit(code=2)
+        parsed.append({"provider": provider.strip(), "model": model.strip()})
+    if not parsed:
+        typer.secho("Error: at least one model is required.", err=True, fg=typer.colors.RED)
+        raise typer.Exit(code=2)
+    return parsed
+
+
+def _image_to_data_uri(path: Path) -> str:
+    mime_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:{mime_type};base64,{encoded}"
+
+
+def _response_summary(result: dict[str, Any]) -> str:
+    text = str(result.get("response") or "").replace("\n", " ").strip()
+    if not text and result.get("error"):
+        text = f"ERROR: {result['error']}"
+    if len(text) > 80:
+        return text[:77] + "..."
+    return text
+
+
+def _render_comparison(result: Any, *, as_json: bool) -> None:
+    payload = _normalize_json_payload(result)
+    if as_json:
+        typer.echo(json.dumps(payload, indent=2, ensure_ascii=False))
+        return
+
+    results = payload.get("results", []) if isinstance(payload, dict) else []
+    fastest = payload.get("fastest_model") if isinstance(payload, dict) else None
+    cheapest = payload.get("cheapest_model") if isinstance(payload, dict) else None
+
+    rows: list[tuple[str, str, str, str]] = []
+    for result_row in results:
+        model_name = f"{result_row.get('provider', '')}/{result_row.get('model', '')}"
+        badges = []
+        if model_name == fastest:
+            badges.append("fastest")
+        if model_name == cheapest:
+            badges.append("cheapest")
+        if badges:
+            model_name = f"{model_name} [{' '.join(badges)}]"
+        rows.append(
+            (
+                model_name,
+                f"{float(result_row.get('latency_ms') or 0):.1f}",
+                f"${float(result_row.get('cost_usd') or 0):.4f}",
+                _response_summary(result_row),
+            )
+        )
+
+    headers = ("model", "latency_ms", "$cost", "response")
+    widths = [len(h) for h in headers]
+    for row in rows:
+        widths = [max(widths[i], len(row[i])) for i in range(len(headers))]
+
+    header_line = " | ".join(headers[i].ljust(widths[i]) for i in range(len(headers)))
+    divider = "-+-".join("-" * widths[i] for i in range(len(headers)))
+    typer.echo(header_line)
+    typer.echo(divider)
+    for row in rows:
+        typer.echo(" | ".join(row[i].ljust(widths[i]) for i in range(len(headers))))
+
+    if isinstance(payload, dict):
+        typer.echo("")
+        typer.echo(f"comparison_id: {payload.get('comparison_id', '')}")
+        typer.echo(f"total_cost_usd: {float(payload.get('total_cost_usd') or 0):.4f}")
+        typer.echo(f"total_latency_ms: {float(payload.get('total_latency_ms') or 0):.1f}")
+        if fastest:
+            typer.echo(f"fastest_model: {fastest}")
+        if cheapest:
+            typer.echo(f"cheapest_model: {cheapest}")
+
+
 register_generated_openapi_commands(
     app,
     _invoke,
@@ -162,11 +287,126 @@ register_generated_openapi_commands(
 )
 
 
+@compare_app.command("models")
+def compare_models_command(
+    ctx: typer.Context,
+    models: str = typer.Option(..., "--models", help="Comma-separated provider/model list."),
+    prompt: Optional[str] = typer.Option(None, "--prompt", help="Prompt text to compare."),
+    prompt_file: Optional[Path] = typer.Option(
+        None, "--prompt-file", exists=True, dir_okay=False, readable=True
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Emit raw JSON."),
+) -> None:
+    comparison_prompt = _load_prompt(prompt=prompt, prompt_file=prompt_file)
+    model_specs = _parse_models_csv(models)
+    try:
+        with _client(ctx) as client:
+            result = client.compare_models(prompt=comparison_prompt, models=model_specs)
+    except FicheroError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    _render_comparison(result, as_json=json_output or ctx.obj["json"])
+
+
+@compare_app.command("vision")
+def compare_vision_command(
+    ctx: typer.Context,
+    image: Path = typer.Option(..., "--image", exists=True, dir_okay=False, readable=True),
+    models: str = typer.Option(..., "--models", help="Comma-separated provider/model list."),
+    prompt: Optional[str] = typer.Option(None, "--prompt", help="Vision prompt."),
+    prompt_file: Optional[Path] = typer.Option(
+        None, "--prompt-file", exists=True, dir_okay=False, readable=True
+    ),
+    detail: str = typer.Option("high", "--detail", help="Vision detail level."),
+    json_output: bool = typer.Option(False, "--json", help="Emit raw JSON."),
+) -> None:
+    comparison_prompt = _load_prompt(
+        prompt=prompt,
+        prompt_file=prompt_file,
+        default="Describe this image in detail",
+    )
+    model_specs = _parse_models_csv(models)
+    try:
+        with _client(ctx) as client:
+            result = client.compare_vision(
+                images=[_image_to_data_uri(image)],
+                prompt=comparison_prompt,
+                models=model_specs,
+                detail=detail,
+            )
+    except FicheroError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    _render_comparison(result, as_json=json_output or ctx.obj["json"])
+
+
+@compare_app.command("tool")
+def compare_tool_command(
+    ctx: typer.Context,
+    tool: str = typer.Option(..., "--tool", help="Workflow tool name."),
+    inputs_json: Path = typer.Option(
+        ..., "--inputs-json", exists=True, dir_okay=False, readable=True
+    ),
+    models: str = typer.Option(..., "--models", help="Comma-separated provider/model list."),
+    json_output: bool = typer.Option(False, "--json", help="Emit raw JSON."),
+) -> None:
+    model_specs = _parse_models_csv(models)
+    inputs = json.loads(inputs_json.read_text(encoding="utf-8"))
+    try:
+        with _client(ctx) as client:
+            result = client.compare_tool(
+                tool_name=tool,
+                inputs=inputs,
+                models=model_specs,
+            )
+    except FicheroError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    _render_comparison(result, as_json=json_output or ctx.obj["json"])
+
+
+@compare_app.command("workflow")
+def compare_workflow_command(
+    ctx: typer.Context,
+    workflow: str = typer.Option(..., "--workflow", help="Workflow ID."),
+    doc_id: str = typer.Option(..., "--doc", help="Document ID to run."),
+    models: str = typer.Option(..., "--models", help="Comma-separated provider/model list."),
+    json_output: bool = typer.Option(False, "--json", help="Emit raw JSON."),
+) -> None:
+    model_specs = _parse_models_csv(models)
+    try:
+        with _client(ctx) as client:
+            result = client.compare_workflow(
+                workflow_id=workflow,
+                doc_id=doc_id,
+                models=model_specs,
+            )
+    except FicheroError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    _render_comparison(result, as_json=json_output or ctx.obj["json"])
+
+
 # -- top-level commands ----------------------------------------------------
 @app.command()
 def health(ctx: typer.Context) -> None:
     """Check that the backend is up."""
     _invoke(ctx, lambda c: c.health())
+
+
+@devices_app.command("list")
+def devices_list(ctx: typer.Context) -> None:
+    """List paired devices."""
+    _invoke(ctx, lambda c: c.list_devices())
+
+
+@devices_app.command("revoke")
+def devices_revoke(
+    ctx: typer.Context,
+    device_id: str = typer.Argument(..., help="Paired device id."),
+) -> None:
+    """Revoke a paired device token."""
+    _invoke(ctx, lambda c: c.revoke_device(device_id))
 
 
 def _iter_importable_files(root: Path, recursive: bool) -> list[Path]:
@@ -350,18 +590,15 @@ def import_sergio_corpus_command(
         "--library-path",
         help="Target .fichero package to create/update.",
     ),
-    source_root: Path = typer.Option(
-        Path("/Users/danieltubb/Library/CloudStorage/Box-Box/Sergio Mosquera Notebooks"),
+    source_root: Optional[Path] = typer.Option(
+        None,
         "--source-root",
-        help="Notebook source directory.",
+        help="Notebook source directory (or set FICHERO_SERGIO_SOURCE_ROOT).",
     ),
-    spreadsheet_path: Path = typer.Option(
-        Path(
-            "/Users/danieltubb/Library/CloudStorage/Box-Box/01 Database/"
-            "Base de datos Cuadernos Sergio_Notaría Primera de Quibdó (1808-1825).xlsx"
-        ),
+    spreadsheet_path: Optional[Path] = typer.Option(
+        None,
         "--spreadsheet-path",
-        help="Catalogue spreadsheet (.xlsx).",
+        help="Catalogue spreadsheet (.xlsx) (or set FICHERO_SERGIO_SPREADSHEET).",
     ),
     limit: Optional[int] = typer.Option(
         None,
@@ -424,10 +661,10 @@ def import_newton_marshall_diary_command(
         "--library-path",
         help="Target .fichero package to create/update.",
     ),
-    source_path: Path = typer.Option(
-        Path("/Users/danieltubb/Library/CloudStorage/Box-Box/Newton C Marshall Diary"),
+    source_path: Optional[Path] = typer.Option(
+        None,
         "--source-path",
-        help="Newton C. Marshall diary source folder.",
+        help="Newton C. Marshall diary source folder (or set FICHERO_NEWTON_SOURCE).",
     ),
     reset: bool = typer.Option(False, "--reset", help="Delete target package before import."),
     no_embed: bool = typer.Option(False, "--no-embed", help="Skip embedding creation."),
@@ -469,29 +706,20 @@ def import_istmina_mineria_command(
         "--library-path",
         help="Target .fichero package to create/update.",
     ),
-    transcript_root: Path = typer.Option(
-        Path(
-            "/Users/danieltubb/Library/CloudStorage/Box-Box/JPG files (minería hasta 1980)/"
-            "Istmina_Minería 1980_Completo_Transcripcion"
-        ),
+    transcript_root: Optional[Path] = typer.Option(
+        None,
         "--transcript-root",
-        help="Transcribed corpus root.",
+        help="Transcribed corpus root (or set FICHERO_ISTMINA_TRANSCRIPT).",
     ),
-    spreadsheet_root: Path = typer.Option(
-        Path(
-            "/Users/danieltubb/Library/CloudStorage/Box-Box/JPG files (minería hasta 1980)/"
-            "Workflow/05 Added to spreadsheet"
-        ),
+    spreadsheet_root: Optional[Path] = typer.Option(
+        None,
         "--spreadsheet-root",
-        help="Spreadsheet-complete root.",
+        help="Spreadsheet-complete root (or set FICHERO_ISTMINA_SPREADSHEET).",
     ),
-    review_root: Path = typer.Option(
-        Path(
-            "/Users/danieltubb/Library/CloudStorage/Box-Box/JPG files (minería hasta 1980)/"
-            "Workflow/04 Transcribed and catalogued, awaiting human check"
-        ),
+    review_root: Optional[Path] = typer.Option(
+        None,
         "--review-root",
-        help="Awaiting-human-check root.",
+        help="Awaiting-human-check root (or set FICHERO_ISTMINA_REVIEW).",
     ),
     reset: bool = typer.Option(False, "--reset", help="Delete target package before import."),
     no_embed: bool = typer.Option(False, "--no-embed", help="Skip embedding creation."),
@@ -711,10 +939,10 @@ def import_archivo_judicial_medellin_command(
         "--library-path",
         help="Target .fichero package to create/update.",
     ),
-    catalogue_root: Path = typer.Option(
-        Path("/Users/danieltubb/Library/CloudStorage/Box-Box/Archivo Judicial de Medellín_UN/Catalogue"),
+    catalogue_root: Optional[Path] = typer.Option(
+        None,
         "--catalogue-root",
-        help="Archivo Judicial de Medellin catalogue root.",
+        help="Archivo Judicial de Medellin catalogue root (or set FICHERO_ARCHIVO_JUDICIAL_CATALOGUE).",
     ),
     reset: bool = typer.Option(False, "--reset", help="Delete target package before import."),
     no_embed: bool = typer.Option(False, "--no-embed", help="Skip embedding creation."),
@@ -756,15 +984,15 @@ def import_ghc_catalogued_materials_command(
         "--library-path",
         help="Target .fichero package to create/update.",
     ),
-    acenet_root: Path = typer.Option(
-        Path("/Users/danieltubb/Library/CloudStorage/Box-Box/GHC/ACENET imports"),
+    acenet_root: Optional[Path] = typer.Option(
+        None,
         "--acenet-root",
-        help="Root for ACENET import materials.",
+        help="Root for ACENET import materials (or set FICHERO_GHC_ACENET_ROOT).",
     ),
-    catalogued_root: Path = typer.Option(
-        Path("/Users/danieltubb/Library/CloudStorage/Box-Box/GHC/already_catalogued"),
+    catalogued_root: Optional[Path] = typer.Option(
+        None,
         "--catalogued-root",
-        help="Root for already-catalogued GHC materials.",
+        help="Root for already-catalogued GHC materials (or set FICHERO_GHC_CATALOGUED_ROOT).",
     ),
     reset: bool = typer.Option(False, "--reset", help="Delete target package before import."),
     no_embed: bool = typer.Option(False, "--no-embed", help="Skip embedding creation."),
@@ -807,10 +1035,13 @@ def import_chota_colombian_pacific_maps_command(
         "--library-path",
         help="Target .fichero package to create/update.",
     ),
-    source_root: Path = typer.Option(
-        Path("/Users/danieltubb/code/maps_southern_colombia"),
+    source_root: Optional[Path] = typer.Option(
+        None,
         "--source-root",
-        help="Root folder containing Chota Valley + Colombian Pacific maps corpus.",
+        help=(
+            "Root folder containing Chota Valley + Colombian Pacific maps corpus "
+            "(or set FICHERO_CHOTA_PACIFIC_SOURCE)."
+        ),
     ),
     reset: bool = typer.Option(False, "--reset", help="Delete target package before import."),
     no_embed: bool = typer.Option(False, "--no-embed", help="Skip embedding creation."),
@@ -1069,6 +1300,7 @@ def artifacts_get(
 # alias for `fulltext` so users with that mental model don't get a 400.
 _SEARCH_TYPE_CHOICES = ("semantic", "fulltext", "hybrid", "keyword")
 _SEARCH_TYPE_ALIASES = {"keyword": "fulltext"}
+_SEARCH_SCOPE_CHOICES = ("content", "entities", "claims")
 
 
 def _validate_search_type(value: str) -> str:
@@ -1079,6 +1311,25 @@ def _validate_search_type(value: str) -> str:
             f"'{value}' is not one of {list(_SEARCH_TYPE_CHOICES)}."
         )
     return _SEARCH_TYPE_ALIASES.get(normalized, normalized)
+
+
+def _normalize_search_scopes(values: list[str]) -> list[str] | None:
+    """Accept repeated and comma-separated --scope flags."""
+    if not values:
+        return None
+    normalized_scopes: list[str] = []
+    for raw_value in values:
+        for part in raw_value.split(","):
+            scope = part.strip().lower()
+            if not scope:
+                continue
+            if scope not in _SEARCH_SCOPE_CHOICES:
+                raise typer.BadParameter(
+                    f"'{scope}' is not one of {list(_SEARCH_SCOPE_CHOICES)}."
+                )
+            if scope not in normalized_scopes:
+                normalized_scopes.append(scope)
+    return normalized_scopes or None
 
 
 @app.command()
@@ -1098,8 +1349,14 @@ def search(
     in_folder: Optional[str] = typer.Option(
         None, "--in-folder", help="Restrict results to this folder ID."
     ),
+    scope: list[str] = typer.Option(
+        [],
+        "--scope",
+        help="Search scopes: content, entities, claims. Repeat or pass a comma-separated list.",
+    ),
 ) -> None:
     """Search documents. Use --in-doc / --in-folder to scope results."""
+    include = _normalize_search_scopes(scope)
     if ctx.obj["json"]:
         _invoke(
             ctx,
@@ -1107,6 +1364,7 @@ def search(
                 query,
                 limit=limit,
                 search_type=search_type,
+                include=include,
                 doc_id=in_doc,
                 folder_id=in_folder,
             ),
@@ -1118,6 +1376,7 @@ def search(
                 query,
                 limit=limit,
                 search_type=search_type,
+                include=include,
                 doc_id=in_doc,
                 folder_id=in_folder,
             )
@@ -1127,8 +1386,12 @@ def search(
 
     from fichero.cli.formatters import render_claim
 
+    payload = data.model_dump(mode="json") if hasattr(data, "model_dump") else data
+
     # Try to render as search results with custom formatting first
-    results = data.get("results") if isinstance(data, dict) else data
+    results = payload.get("results") if isinstance(payload, dict) else payload
+    entity_hits = payload.get("entity_hits") if isinstance(payload, dict) else None
+    claim_hits = payload.get("claim_hits") if isinstance(payload, dict) else None
     if isinstance(results, list) and results:
         typer.echo(f"results ({len(results)}):")
         for r in results:
@@ -1138,8 +1401,30 @@ def search(
             else:
                 # Fall back to custom search result formatting
                 typer.echo(_render_search_result_item(r))
+    elif isinstance(payload, dict):
+        typer.echo(_render_search_results(payload))
     else:
-        typer.echo(_render_search_results(data))
+        typer.echo(_render_search_results(payload))
+
+    if isinstance(entity_hits, list) and entity_hits:
+        typer.echo(f"entity hits ({len(entity_hits)}):")
+        for entity in entity_hits:
+            if not isinstance(entity, dict):
+                typer.echo(f"  - {entity}")
+                continue
+            name = entity.get("canonical_name") or entity.get("name") or "(unnamed entity)"
+            entity_id = str(entity.get("id") or "?")[:8]
+            score = entity.get("similarity_score")
+            score_str = f"{score:.3f}" if isinstance(score, (int, float)) else "  -  "
+            typer.echo(f"  {score_str}  {entity_id}  {name}")
+
+    if isinstance(claim_hits, list) and claim_hits:
+        typer.echo(f"claim hits ({len(claim_hits)}):")
+        for claim in claim_hits:
+            if isinstance(claim, dict) and "subject_canonical" in claim:
+                typer.echo(f"  {render_claim(claim)}")
+            else:
+                typer.echo(f"  - {claim}")
 
 
 def _render_search_result_item(r: Any) -> str:
@@ -1269,24 +1554,31 @@ def notes_create(
     linked_document_ids: Optional[list[str]] = typer.Option(
         None, "--doc", help="Repeatable linked document ID."
     ),
+    page_id: Optional[str] = typer.Option(None, "--page", help="Primary page scope document ID."),
+    folder_id: Optional[str] = typer.Option(None, "--folder", help="Primary folder scope document ID."),
     address: Optional[str] = typer.Option(None, "--address"),
     parent_address: Optional[str] = typer.Option(None, "--parent-address"),
 ) -> None:
     """Create a Zettelkasten note."""
+    kwargs = {
+        "title": title,
+        "body": body,
+        "kind": kind,
+        "tags": tags,
+        "linked_note_ids": linked_note_ids,
+        "linked_entity_ids": linked_entity_ids,
+        "linked_claim_ids": linked_claim_ids,
+        "linked_document_ids": linked_document_ids,
+        "address": address,
+        "parent_address": parent_address,
+    }
+    if page_id is not None:
+        kwargs["page_id"] = page_id
+    if folder_id is not None:
+        kwargs["folder_id"] = folder_id
     _invoke(
         ctx,
-        lambda c: c.create_note(
-            title=title,
-            body=body,
-            kind=kind,
-            tags=tags,
-            linked_note_ids=linked_note_ids,
-            linked_entity_ids=linked_entity_ids,
-            linked_claim_ids=linked_claim_ids,
-            linked_document_ids=linked_document_ids,
-            address=address,
-            parent_address=parent_address,
-        ),
+        lambda c: c.create_note(**kwargs),
     )
 
 
@@ -1298,19 +1590,26 @@ def notes_list(
     linked_entity_id: Optional[str] = typer.Option(None, "--entity"),
     linked_claim_id: Optional[str] = typer.Option(None, "--claim"),
     linked_document_id: Optional[str] = typer.Option(None, "--doc"),
+    page_id: Optional[str] = typer.Option(None, "--page", help="Filter by page scope document ID."),
+    folder_id: Optional[str] = typer.Option(None, "--folder", help="Filter by folder scope document ID."),
     query: Optional[str] = typer.Option(None, "--query", "-q", help="Text search."),
 ) -> None:
     """List Zettelkasten notes."""
+    kwargs = {
+        "kind": kind,
+        "tag": tag,
+        "linked_entity_id": linked_entity_id,
+        "linked_claim_id": linked_claim_id,
+        "linked_document_id": linked_document_id,
+        "query": query,
+    }
+    if page_id is not None:
+        kwargs["page_id"] = page_id
+    if folder_id is not None:
+        kwargs["folder_id"] = folder_id
     _invoke(
         ctx,
-        lambda c: c.list_notes(
-            kind=kind,
-            tag=tag,
-            linked_entity_id=linked_entity_id,
-            linked_claim_id=linked_claim_id,
-            linked_document_id=linked_document_id,
-            query=query,
-        ),
+        lambda c: c.list_notes(**kwargs),
     )
 
 
@@ -1862,6 +2161,74 @@ def library_create(
         return {"status": f"Created and registered: {expanded}"}
 
     _invoke(ctx, op)
+
+
+@library_app.command("snapshot")
+def library_snapshot(
+    ctx: typer.Context,
+    path: Optional[str] = typer.Argument(
+        None,
+        help="Path to the .fichero package. Defaults to --library/FICHERO_LIBRARY_PATH.",
+    ),
+    reason: str = typer.Option("", "--reason", "-r", help="Reason stored in manifest."),
+) -> None:
+    """Create a database and embedding snapshot for a library."""
+    library_path = path or ctx.obj.get("library")
+    if not library_path:
+        typer.secho(
+            "Error: provide a library path or pass --library.",
+            err=True,
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=2)
+    expanded = str(Path(library_path).expanduser())
+
+    def op(c: FicheroClient) -> dict:
+        snapshot = c.create_library_snapshot(expanded, reason=reason)
+        return {
+            "status": f"Snapshot: {snapshot.id}",
+            "library": snapshot.library_path,
+            "reason": snapshot.reason,
+            "duckdb_size_bytes": snapshot.duckdb_size_bytes,
+            "lance_size_bytes": snapshot.lance_size_bytes,
+        }
+
+    _invoke(ctx, op)
+
+
+@library_app.command("snapshots")
+def library_snapshots(
+    ctx: typer.Context,
+    library_name: Optional[str] = typer.Option(
+        None, "--library-name", help="Filter by library package name."
+    ),
+    include_expired: bool = typer.Option(
+        False, "--include-expired", help="Include expired snapshots."
+    ),
+) -> None:
+    """List library snapshots."""
+    _invoke(
+        ctx,
+        lambda c: c.list_library_snapshots(
+            library_name=library_name,
+            include_expired=include_expired,
+        ),
+    )
+
+
+@library_app.command("restore")
+def library_restore(
+    ctx: typer.Context,
+    snapshot_id: str = typer.Argument(..., help="Snapshot ID to restore."),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+) -> None:
+    """Restore a snapshot into its original library package."""
+    if not yes:
+        typer.confirm(
+            f"Restore snapshot {snapshot_id} into its original library package?",
+            abort=True,
+        )
+    _invoke(ctx, lambda c: c.restore_library_snapshot(snapshot_id))
 
 
 @library_app.command("delete")
@@ -3034,6 +3401,8 @@ def check(ctx: typer.Context) -> None:
         "/api/search/stats", "/api/activity", "/api/entities/top",
         "/api/entities", "/api/kg/search", "/api/kg/graph/communities",
         "/api/kg/graph/neighborhood/{entity_id}", "/api/kg/sparql",
+        "/api/kg/query/examples", "/api/kg/query/sparql",
+        "/api/kg/export/rdf",
         "/api/settings/ai-defaults", "/api/providers", "/api/artifacts",
         "/api/kg/entity-curation/audit",
     }
@@ -3088,8 +3457,21 @@ def engine_status() -> None:
 @engine_app.command("start")
 def engine_start(
     port: int = typer.Option(8765, "--port", help="Port to run the engine on."),
+    host: str | None = typer.Option(
+        None,
+        "--host",
+        help=(
+            "Bind host for the engine. Defaults to FICHERO_BIND_HOST or "
+            "127.0.0.1. Non-loopback binds are refused by default; use "
+            "tailscale serve or SSH loopback forwarding for remote access."
+        ),
+    ),
     workers: int = typer.Option(
-        4, "--workers", help="Number of uvicorn worker processes."
+        1,
+        "--workers",
+        help="uvicorn worker processes. Must be 1 — the engine is "
+        "single-process (DuckDB single-writer + in-process change-stream hub); "
+        "values >1 are clamped to 1 (#2044).",
     ),
 ) -> None:
     """Start the engine in the background.
@@ -3099,7 +3481,7 @@ def engine_start(
     """
     from fichero.cli.engine_manager import start
 
-    start(port=port, workers=workers)
+    start(port=port, workers=workers, host=host)
 
 
 @engine_app.command("stop")
@@ -3117,8 +3499,21 @@ def engine_stop() -> None:
 @engine_app.command("restart")
 def engine_restart(
     port: int = typer.Option(8765, "--port", help="Port to run the engine on."),
+    host: str | None = typer.Option(
+        None,
+        "--host",
+        help=(
+            "Bind host for the engine. Defaults to FICHERO_BIND_HOST or "
+            "127.0.0.1. Non-loopback binds are refused by default; use "
+            "tailscale serve or SSH loopback forwarding for remote access."
+        ),
+    ),
     workers: int = typer.Option(
-        4, "--workers", help="Number of uvicorn worker processes."
+        1,
+        "--workers",
+        help="uvicorn worker processes. Must be 1 — the engine is "
+        "single-process (DuckDB single-writer + in-process change-stream hub); "
+        "values >1 are clamped to 1 (#2044).",
     ),
 ) -> None:
     """Stop and start the engine.
@@ -3127,7 +3522,7 @@ def engine_restart(
     """
     from fichero.cli.engine_manager import restart
 
-    restart(port=port, workers=workers)
+    restart(port=port, workers=workers, host=host)
 
 
 def main() -> None:

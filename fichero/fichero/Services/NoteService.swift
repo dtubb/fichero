@@ -5,23 +5,9 @@ import OSLog
 
 // MARK: - Note model
 
-struct NoteItem: Codable, Identifiable {
-    let id: String
-    let title: String?
-    let body: String
-    let kind: String
-    let tags: [String]
-    let linkedDocumentIds: [String]
-    let createdAt: String
-    let updatedAt: String
+typealias NoteItem = Components.Schemas.Note
 
-    enum CodingKeys: String, CodingKey {
-        case id, title, body, kind, tags
-        case linkedDocumentIds = "linked_document_ids"
-        case createdAt = "created_at"
-        case updatedAt = "updated_at"
-    }
-}
+extension Components.Schemas.Note: @retroactive Identifiable {}
 
 struct NoteListResponse: Codable {
     let items: [NoteItem]
@@ -65,6 +51,12 @@ struct NoteCreateFreeBody: Encodable {
     let kind: String
 }
 
+enum NoteScope: Equatable {
+    case linkedDocument(String)
+    case page(String)
+    case folder(String)
+}
+
 // MARK: - Service
 
 @MainActor
@@ -86,9 +78,10 @@ final class NoteService: ObservableObject {
     private let client: FicheroClient
     private let decoder = JSONDecoder()
 
-    init(ficheroClient: FicheroClient = FicheroClient(), libraryPath: String? = nil) {
-        self.client = ficheroClient
-        self.libraryPath = libraryPath ?? ficheroClient.currentLibraryPath
+    init(ficheroClient: FicheroClient? = nil, libraryPath: String? = nil) {
+        let resolvedClient = ficheroClient ?? FicheroClient(baseURL: EngineConfig.host, libraryPath: libraryPath)
+        self.client = resolvedClient
+        self.libraryPath = libraryPath ?? resolvedClient.currentLibraryPath
         client.currentLibraryPath = self.libraryPath
     }
 
@@ -101,28 +94,15 @@ final class NoteService: ObservableObject {
         }
     }
 
-    private var headers: Operations.ListNotesApiNotesGet.Input.Headers {
-        .init(xFicheroLibraryPath: libraryPath ?? "")
-    }
-
     private func note(from value: OpenAPIValueContainer) throws -> NoteItem {
         guard let object = value.value else { throw NoteServiceError.emptyContainer }
         let data = try JSONSerialization.data(withJSONObject: object)
-        return try decoder.decode(NoteItem.self, from: data)
+        return try note(from: decoder.decode(NoteItem.self, from: data))
     }
 
     private func note(from generated: Components.Schemas.Note) throws -> NoteItem {
-        guard let id = generated.id else { throw NoteServiceError.missingId }
-        return NoteItem(
-            id: id,
-            title: generated.title,
-            body: generated.body ?? "",
-            kind: generated.kind?.rawValue ?? "zettel",
-            tags: generated.tags ?? [],
-            linkedDocumentIds: generated.linkedDocumentIds ?? [],
-            createdAt: generated.createdAt?.ISO8601Format() ?? "",
-            updatedAt: generated.updatedAt?.ISO8601Format() ?? ""
-        )
+        guard generated.id != nil else { throw NoteServiceError.missingId }
+        return generated
     }
 
     private func noteKind(_ kind: String?) -> Components.Schemas.NoteKind? {
@@ -136,7 +116,7 @@ final class NoteService: ObservableObject {
         error = nil
         defer { isLoading = false }
         do {
-            let response = try await client.api.listNotesApiNotesGet(.init(query: query, headers: headers))
+            let response = try await client.api.listNotesApiNotesGet(.init(query: query))
             guard case .ok(let okResponse) = response else {
                 notes = []
                 self.error = "Notes unavailable"
@@ -151,6 +131,14 @@ final class NoteService: ObservableObject {
 
     func load(linkedDocumentId: String) async {
         await load(query: .init(linkedDocumentId: linkedDocumentId))
+    }
+
+    func load(pageId: String) async {
+        await load(query: .init(pageId: pageId))
+    }
+
+    func load(folderId: String) async {
+        await load(query: .init(folderId: folderId))
     }
 
     /// Load all notes, optionally filtered by kind / tag / linked entity /
@@ -190,7 +178,19 @@ final class NoteService: ObservableObject {
     }
 
     func create(body: String, linkedDocumentId: String) async throws -> NoteItem {
-        let note = try await create(body: body, linkedDocumentIds: [linkedDocumentId])
+        let note = try await create(body: body, scope: .linkedDocument(linkedDocumentId))
+        notes.insert(note, at: 0)
+        return note
+    }
+
+    func create(body: String, pageId: String) async throws -> NoteItem {
+        let note = try await create(body: body, scope: .page(pageId))
+        notes.insert(note, at: 0)
+        return note
+    }
+
+    func create(body: String, folderId: String) async throws -> NoteItem {
+        let note = try await create(body: body, scope: .folder(folderId))
         notes.insert(note, at: 0)
         return note
     }
@@ -199,17 +199,40 @@ final class NoteService: ObservableObject {
         body: String,
         kind: String? = nil,
         linkedEntityIds: [String]? = nil,
-        linkedDocumentIds: [String]? = nil
+        linkedDocumentIds: [String]? = nil,
+        scope: NoteScope? = nil
     ) async throws -> NoteItem {
         syncLibraryPath()
+        let resolvedLinkedDocumentIds: [String]?
+        let pageId: String?
+        let folderId: String?
+        switch scope {
+        case .linkedDocument(let documentId):
+            resolvedLinkedDocumentIds = [documentId]
+            pageId = nil
+            folderId = nil
+        case .page(let scopedPageId):
+            resolvedLinkedDocumentIds = nil
+            pageId = scopedPageId
+            folderId = nil
+        case .folder(let scopedFolderId):
+            resolvedLinkedDocumentIds = nil
+            pageId = nil
+            folderId = scopedFolderId
+        case nil:
+            resolvedLinkedDocumentIds = linkedDocumentIds
+            pageId = nil
+            folderId = nil
+        }
         let payload = Components.Schemas.FicheroApiRoutesNotesNoteCreateRequest(
             body: body,
             kind: noteKind(kind),
             linkedEntityIds: linkedEntityIds,
-            linkedDocumentIds: linkedDocumentIds
+            linkedDocumentIds: resolvedLinkedDocumentIds,
+            pageId: pageId,
+            folderId: folderId
         )
         let response = try await client.api.createNoteApiNotesPost(.init(
-            headers: .init(xFicheroLibraryPath: libraryPath ?? ""),
             body: .json(payload)
         ))
         guard case .ok(let okResponse) = response else { throw NoteServiceError.unexpectedResponse }
@@ -220,7 +243,6 @@ final class NoteService: ObservableObject {
         syncLibraryPath()
         let response = try await client.api.patchNoteApiNotesNoteIdPatch(.init(
             path: .init(noteId: noteId),
-            headers: .init(xFicheroLibraryPath: libraryPath ?? ""),
             body: .json(.init(body: body))
         ))
         guard case .ok(let okResponse) = response else { throw NoteServiceError.unexpectedResponse }
@@ -235,7 +257,6 @@ final class NoteService: ObservableObject {
         syncLibraryPath()
         let response = try await client.api.deleteNoteApiNotesNoteIdDelete(.init(
             path: .init(noteId: noteId),
-            headers: .init(xFicheroLibraryPath: libraryPath ?? "")
         ))
         guard case .noContent = response else { throw NoteServiceError.unexpectedResponse }
         notes.removeAll { $0.id == noteId }

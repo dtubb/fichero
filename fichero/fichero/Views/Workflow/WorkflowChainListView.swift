@@ -6,7 +6,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Workflo
 /// View for browsing and managing workflow chains
 struct WorkflowChainListView: View {
     @StateObject private var chainService: ChainService
-    @EnvironmentObject var workflowStore: WorkflowStore
+    @Environment(WorkflowStore.self) var workflowStore
     @State private var searchText = ""
     @State private var selectedChainId: String?
     @State private var showNewChainSheet = false
@@ -26,6 +26,7 @@ struct WorkflowChainListView: View {
             searchText: searchText,
             executingChainId: executingChainId,
             onNewChain: { showNewChainSheet = true },
+            selectedChainId: $selectedChainId,
             onSelectChain: { selectedChainId = $0 },
             onExecuteChain: { executeChain($0) },
             onConfirmDelete: { confirmDelete($0) },

@@ -1,6 +1,12 @@
+// swiftlint:disable file_length
+#if canImport(AppKit)
 import AppKit
+#endif
+import FicheroAPIClient
 import OSLog
 import SwiftUI
+
+#if os(macOS)
 
 // MARK: - Zoomable Image Preview (with controls and magnifier)
 
@@ -14,14 +20,50 @@ struct ZoomableImagePreview: View {
     /// over `url` for display — the URL is still used as a stable identity key
     /// but image data comes from this override (#1402).
     var renderedImage: NSImage?
+    /// Optional callback fired when the user steps to a sibling image. macOS
+    /// relies on the window-level sibling navigation (#593); the parameter is
+    /// kept for API parity with the iOS overlay buttons (#2420).
+    var onNavigateToDocument: ((String) -> Void)?
+    /// Drives the host's view↔edit toggle from the unified reader toolbar's edit
+    /// button. `nil` greys the edit tool out (e.g. a context without an editor).
+    /// Threading it here removes the floating edit toggle that used to overlap
+    /// the split control (#2421).
+    var isEditing: Binding<Bool>?
 
-    init(url: URL? = nil, documentId: String? = nil, renderedImage: NSImage? = nil) {
+    init(
+        url: URL? = nil,
+        documentId: String? = nil,
+        renderedImage: NSImage? = nil,
+        onNavigateToDocument: ((String) -> Void)? = nil,
+        isEditing: Binding<Bool>? = nil
+    ) {
         self.url = url
         self.documentId = documentId
         self.renderedImage = renderedImage
+        self.onNavigateToDocument = onNavigateToDocument
+        self.isEditing = isEditing
+    }
+
+    /// Annotation tools are present in the unified reader toolbar but their
+    /// region-anchored creation + on-canvas rendering is owned by **#2458**.
+    /// Stub until that lands so the section is visible without orphan writes.
+    private func requestAnnotation(_ tool: ReaderAnnotationTool) {
+        Self.logger.info(
+            "Reader annotation '\(tool.rawValue, privacy: .public)' on image — pending region capture + rendering (#2458)"
+        )
     }
 
     private static let logger = Logger(subsystem: "app.fichero.fichero", category: "ZoomableImagePreview")
+
+    /// Document ids in the +/-`radius` window around `currentId`, excluding `currentId` itself.
+    /// Static so it can be called in unit tests without a live view (#2469).
+    static func preloadIds(from docs: [Document], currentId: String, radius: Int = 3) -> [String] {
+        guard let index = docs.firstIndex(where: { $0.id == currentId }) else { return [] }
+        let start = max(0, index - radius)
+        let end = min(docs.count - 1, index + radius)
+        guard start <= end else { return [] }
+        return (start...end).compactMap { idx in idx == index ? nil : docs[idx].id }
+    }
 
     private var scaleKey: String? {
         documentId.map { "imageZoom_\($0)" }
@@ -39,6 +81,8 @@ struct ZoomableImagePreview: View {
     @AppStorage("imagePreview.magnifierLocked") private var magnifierLocked = false
     @AppStorage("imagePreview.loupeLocked") private var loupeLocked = false
 
+    @EnvironmentObject private var storageService: StorageServiceGenerated
+
     @State private var scale: CGFloat = 1.0
     @State private var minScale: CGFloat = 0.01
     @State private var maxScale: CGFloat = 10.0
@@ -48,6 +92,9 @@ struct ZoomableImagePreview: View {
     @State private var image: NSImage?
     @State private var visibleRect: CGRect = .zero  // Normalized 0-1
     @State private var imageCoordinator: ImageWithCursorTracking.Coordinator?
+    // Full-resolution source image fetched lazily when zoom exceeds 1.5× (#2427).
+    @State private var highResImage: NSImage?
+    @State private var isLoadingHighRes = false
 
     private func loadSavedScale(for key: String) -> CGFloat? {
         guard let data = zoomScalesByDocumentJSON.data(using: .utf8),
@@ -79,102 +126,16 @@ struct ZoomableImagePreview: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Zoom toolbar. Uses MiniToolbar so the image preview header is the
-            // same standard 44pt height as the PDF preview, list mode rail,
-            // knowledge surface, and inspector tab strip — instead of the short
-            // ad-hoc padded strip it used to be (#1555).
-            MiniToolbar {
-                Button(action: zoomOut) {
-                    Image(systemName: "minus.magnifyingglass")
-                }
-                .buttonStyle(.plain)
-                .help("Zoom Out")
-
-                Text("\(Int(scale * 100))%")
-                    .font(.caption)
-                    .monospacedDigit()
-                    .frame(width: 50)
-
-                Button(action: zoomIn) {
-                    Image(systemName: "plus.magnifyingglass")
-                }
-                .buttonStyle(.plain)
-                .help("Zoom In")
-
-                Divider()
-                    .frame(height: 16)
-
-                Button(action: fitToWindow) {
-                    Image(systemName: "arrow.up.left.and.arrow.down.right")
-                }
-                .buttonStyle(.plain)
-                .help("Fit to Window")
-
-                Button(action: actualSize) {
-                    Image(systemName: "1.square")
-                }
-                .buttonStyle(.plain)
-                .help("Actual Size (100%)")
-
-                Divider()
-                    .frame(height: 16)
-
-                // Magnifier panel toggle
-                Button {
-                    magnifierEnabled.toggle()
-                } label: {
-                    Image(systemName: "rectangle.bottomhalf.inset.filled")
-                }
-                .buttonStyle(.plain)
-                .foregroundColor(magnifierEnabled ? .accentColor : .primary)
-                .help("Magnifier Panel")
-
-                // Loupe toggle with zoom controls
-                HStack(spacing: 4) {
-                    Button {
-                        loupeEnabled.toggle()
-                    } label: {
-                        Image(systemName: loupeEnabled ? "magnifyingglass.circle.fill" : "magnifyingglass.circle")
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundColor(loupeEnabled ? .accentColor : .primary)
-                    .help("Loupe (crosshairs follow cursor, Option+move to reposition, lock to freeze)")
-
-                    if loupeEnabled {
-                        Button {
-                            loupeLocked.toggle()
-                        } label: {
-                            Image(systemName: loupeLocked ? "lock.fill" : "lock.open")
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundColor(loupeLocked ? .accentColor : .secondary)
-                        .help(loupeLocked ? "Unlock loupe (crosshairs follow cursor)" : "Lock loupe (freeze view)")
-
-                        Text(String(format: "%.1fx", CGFloat(loupeMagnification)))
-                            .font(.caption2)
-                            .monospacedDigit()
-                            .foregroundColor(.secondary)
-                            .frame(width: 32)
-
-                        Text("\(Int(loupeSize))px")
-                            .font(.caption2)
-                            .monospacedDigit()
-                            .foregroundColor(.secondary.opacity(0.7))
-                    }
-                }
-
-                Spacer()
-            }
-
-            Divider()
-
-            // Main content area
+            // Main content area. The reader toolbar (zoom / magnifier / loupe /
+            // edit / annotation) now lives at the BOTTOM of the canvas via the
+            // shared ReaderToolbar (#2423), so the image and PDF readers present
+            // one identical, persistent bar.
             ZStack(alignment: .topTrailing) {
                 VStack(spacing: 0) {
                     if renderedImage != nil || url != nil {
                         ImageWithCursorTracking(
                             url: url ?? URL(fileURLWithPath: "/"),
-                            overrideImage: renderedImage,
+                            overrideImage: highResImage ?? renderedImage,
                             scale: $scale,
                             cursorPosition: $cursorPosition,
                             imageSize: $imageSize,
@@ -227,7 +188,7 @@ struct ZoomableImagePreview: View {
                         .frame(height: CGFloat(panelHeight))
                     }
                 }
-                .background(Color(nsColor: NSColor(white: 0.88, alpha: 1.0)))
+                .background(Color(white: 0.88, opacity: 1.0))
 
                 // Mini-map navigator (top right) - show when zoomed in (visible rect < full) or loupe active.
                 // visibleRect starts at (0,0,0,0) before layout completes, which would
@@ -249,6 +210,10 @@ struct ZoomableImagePreview: View {
                     .padding(8)
                 }
             }
+
+            Divider()
+
+            readerToolbar
         }
         .onAppear {
             image = renderedImage ?? url.flatMap { NSImage(contentsOf: $0) }
@@ -290,6 +255,25 @@ struct ZoomableImagePreview: View {
             if let key = scaleKey {
                 saveScale(newScale, for: key)
             }
+            // Fetch full-res source on first zoom past 1.5× (#2427). The display
+            // image is JPEG-compressed for fast loading; once zoomed the source file
+            // provides the real pixel detail. Only fires once per document.
+            if newScale > 1.5, highResImage == nil, !isLoadingHighRes, let docId = documentId {
+                isLoadingHighRes = true
+                Task {
+                    if let data = try? await storageService.getSourceData(docId),
+                       let img = NSImage(data: data) {
+                        highResImage = img
+                        image = img
+                        imageSize = img.size
+                    }
+                    isLoadingHighRes = false
+                }
+            }
+        }
+        .onChange(of: documentId) { _, _ in
+            highResImage = nil
+            isLoadingHighRes = false
         }
         .onKeyPress(.init("+"), phases: .down) { _ in
             zoomIn()
@@ -342,6 +326,28 @@ struct ZoomableImagePreview: View {
             canZoomIn: scale < maxScale,
             canZoomOut: scale > minScale
         ))
+    }
+
+    // Unified, persistent reader toolbar (#2423 / #2421) — bottom-anchored.
+    // Image capabilities: zoom + magnifier-panel + loupe + image-edit +
+    // annotation enabled; page-navigation renders greyed (a single image has no
+    // pages). Split buttons are injected by MiniToolbar. Extracted from the body
+    // so the (large) image-preview body stays under the type-checker's limit.
+    private var readerToolbar: some View {
+        ReaderToolbar(
+            pageNav: nil,
+            scalePercent: Int(scale * 100),
+            zoomIn: zoomIn,
+            zoomOut: zoomOut,
+            fitToWindow: fitToWindow,
+            actualSize: actualSize,
+            magnifierEnabled: $magnifierEnabled,
+            loupeEnabled: $loupeEnabled,
+            loupeLocked: $loupeLocked,
+            loupeMagnification: $loupeMagnification,
+            isEditing: isEditing,
+            onAnnotate: requestAnnotation
+        )
     }
 
     // MARK: - Zoom Actions
@@ -418,3 +424,244 @@ struct ZoomableImagePreview: View {
         )
     }
 }
+
+#else
+
+struct ZoomableImagePreview: View {
+    var url: URL?
+    var documentId: String?
+    var renderedImage: PlatformImage?
+    /// Fired when the user steps to a sibling image in the folder image viewer.
+    var onNavigateToDocument: ((String) -> Void)?
+    /// API parity with the macOS variant so the shared `DocumentCanvas` call
+    /// site compiles on every platform. The image editor is macOS-only, so this
+    /// is unused here. (#2421)
+    var isEditing: Binding<Bool>?
+
+    init(
+        url: URL? = nil,
+        documentId: String? = nil,
+        renderedImage: PlatformImage? = nil,
+        onNavigateToDocument: ((String) -> Void)? = nil,
+        isEditing: Binding<Bool>? = nil
+    ) {
+        self.url = url
+        self.documentId = documentId
+        self.renderedImage = renderedImage
+        self.onNavigateToDocument = onNavigateToDocument
+        self.isEditing = isEditing
+    }
+
+    @Environment(DocumentStore.self) private var documentStore
+    @EnvironmentObject private var storageService: StorageServiceGenerated
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    @State private var scale: CGFloat = 1.0
+    @State private var cursorPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)
+    @State private var imageSize: CGSize = .zero
+    @State private var visibleRect: CGRect = .zero
+    @State private var loupeMagnification: CGFloat = 3.0
+    @State private var loupeSize: CGFloat = 150.0
+    @State private var loupeEnabled: Bool = false
+    @State private var loupeLocked: Bool = false
+    @State private var imageCoordinator: ImageWithCursorTracking.Coordinator?
+
+    private let minScale: CGFloat = 0.01
+    private let maxScale: CGFloat = 10.0
+
+    private var isCompact: Bool {
+        horizontalSizeClass == .compact
+    }
+
+    /// Image/page siblings in the current folder, in display order.
+    private var siblingImageDocs: [Document] {
+        guard documentId != nil else { return [] }
+        return documentStore.currentDocuments.filter { $0.fileType == .image || $0.docType == .page }
+    }
+
+    private var currentImageIndex: Int? {
+        guard let documentId else { return nil }
+        return siblingImageDocs.firstIndex(where: { $0.id == documentId })
+    }
+
+    private var previousAction: (() -> Void)? {
+        guard let onNavigateToDocument,
+              let index = currentImageIndex,
+              index > 0 else { return nil }
+        let target = siblingImageDocs[index - 1]
+        return { onNavigateToDocument(target.id) }
+    }
+
+    private var nextAction: (() -> Void)? {
+        guard let onNavigateToDocument,
+              let index = currentImageIndex,
+              index < siblingImageDocs.count - 1 else { return nil }
+        let target = siblingImageDocs[index + 1]
+        return { onNavigateToDocument(target.id) }
+    }
+
+    /// Document ids in the +/-`radius` window around `currentId`, excluding `currentId` itself.
+    /// Static so it can be called in unit tests without a live view (#2469).
+    static func preloadIds(from docs: [Document], currentId: String, radius: Int = 3) -> [String] {
+        guard let index = docs.firstIndex(where: { $0.id == currentId }) else { return [] }
+        let start = max(0, index - radius)
+        let end = min(docs.count - 1, index + radius)
+        guard start <= end else { return [] }
+        return (start...end).compactMap { idx in idx == index ? nil : docs[idx].id }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            MiniToolbar {
+                Spacer(minLength: 0)
+                if isCompact {
+                    Text("\(Int(scale * 100))%")
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                } else {
+                    Button(action: zoomOut) {
+                        Image(systemName: "minus.magnifyingglass")
+                    }
+                    .buttonStyle(.plain)
+                    .help("Zoom Out")
+
+                    Text("\(Int(scale * 100))%")
+                        .font(.caption)
+                        .monospacedDigit()
+                        .frame(width: 50)
+
+                    Button(action: zoomIn) {
+                        Image(systemName: "plus.magnifyingglass")
+                    }
+                    .buttonStyle(.plain)
+                    .help("Zoom In")
+
+                    Divider()
+                        .frame(height: 16)
+
+                    Button(action: fitToWindow) {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    }
+                    .buttonStyle(.plain)
+                    .help("Fit to Window")
+
+                    Button(action: actualSize) {
+                        Image(systemName: "1.square")
+                    }
+                    .buttonStyle(.plain)
+                    .help("Actual Size (100%)")
+                }
+
+                Spacer()
+            }
+
+            Divider()
+
+            ZStack(alignment: .bottom) {
+                Group {
+                    if renderedImage != nil || url != nil {
+                        ImageWithCursorTracking(
+                            url: url ?? URL(fileURLWithPath: "/"),
+                            overrideImage: renderedImage,
+                            scale: $scale,
+                            cursorPosition: $cursorPosition,
+                            imageSize: $imageSize,
+                            visibleRect: $visibleRect,
+                            minScale: minScale,
+                            maxScale: maxScale,
+                            loupeEnabled: loupeEnabled,
+                            loupeLocked: loupeLocked,
+                            loupeMagnification: $loupeMagnification,
+                            loupeSize: $loupeSize,
+                            coordinator: $imageCoordinator
+                        )
+                    } else {
+                        ContentUnavailableView(
+                            "Image Preview",
+                            systemImage: "photo",
+                            description: Text("The image could not be loaded.")
+                        )
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(white: 0.88, opacity: 1.0))
+
+                // iOS touch prev/next overlay for folder image siblings (#2420).
+                if previousAction != nil || nextAction != nil {
+                    HStack(spacing: 16) {
+                        Button {
+                            previousAction?()
+                        } label: {
+                            Image(systemName: "chevron.left")
+                                .font(.title3.weight(.semibold))
+                                .frame(width: 40, height: 40)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(previousAction == nil)
+                        .accessibilityIdentifier("folderImagePrev")
+
+                        Button {
+                            nextAction?()
+                        } label: {
+                            Image(systemName: "chevron.right")
+                                .font(.title3.weight(.semibold))
+                                .frame(width: 40, height: 40)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(nextAction == nil)
+                        .accessibilityIdentifier("folderImageNext")
+                    }
+                    .padding(.bottom, 16)
+                    .padding(.horizontal, 24)
+                }
+            }
+        }
+        .task(id: documentId) {
+            guard let docId = documentId else { return }
+            let neighbors = Self.preloadIds(from: siblingImageDocs, currentId: docId)
+            guard !neighbors.isEmpty else { return }
+            await storageService.prefetchDisplayImages(neighbors)
+        }
+    }
+
+    // MARK: - Zoom Actions
+
+    private func zoomIn() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            scale = min(scale * 1.25, maxScale)
+        }
+    }
+
+    private func zoomOut() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            scale = max(scale / 1.25, minScale)
+        }
+    }
+
+    private func fitToWindow() {
+        if let fitScale = imageCoordinator?.calculateFitScale() {
+            scale = fitScale
+            DispatchQueue.main.async {
+                imageCoordinator?.centerContent()
+            }
+        }
+    }
+
+    private func actualSize() {
+        scale = 1.0
+        DispatchQueue.main.async {
+            imageCoordinator?.centerContent()
+        }
+    }
+}
+
+#if canImport(UIKit)
+#Preview("Compact Zoomable Image Preview") {
+    ZoomableImagePreview(renderedImage: UIImage(systemName: "photo"))
+        .environmentObject(StorageServiceGenerated(ficheroClient: FicheroClient(libraryPath: nil)))
+        .frame(width: 280, height: 360)
+}
+#endif
+
+#endif

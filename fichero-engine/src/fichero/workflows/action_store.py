@@ -157,7 +157,7 @@ class ActionStore:
 
     def _ensure_table(self) -> None:
         """Ensure the actions table exists."""
-        self.db.duck.execute("""
+        self.db.execute("""
             CREATE TABLE IF NOT EXISTS actions (
                 id VARCHAR PRIMARY KEY,
                 name VARCHAR NOT NULL,
@@ -186,7 +186,7 @@ class ActionStore:
 
     def _insert(self, action: Action) -> None:
         """Insert an action."""
-        self.db.duck.execute(
+        self.db.execute(
             """
             INSERT INTO actions (id, name, description, category, tags, icon,
                 node_template, nodes, edges, is_builtin, is_composite,
@@ -216,7 +216,7 @@ class ActionStore:
     def _update(self, action: Action) -> None:
         """Update an action."""
         action.updated_at = datetime.now()
-        self.db.duck.execute(
+        self.db.execute(
             """
             UPDATE actions SET name=?, description=?, category=?, tags=?, icon=?,
                 node_template=?, nodes=?, edges=?, is_composite=?, author=?,
@@ -264,9 +264,9 @@ class ActionStore:
 
     def get(self, action_id: str) -> Optional[Action]:
         """Get an action by ID."""
-        result = self.db.duck.execute(
+        result = self.db.execute_fetchone(
             "SELECT * FROM actions WHERE id = ?", [action_id]
-        ).fetchone()
+        )
         return self._row_to_action(result) if result else None
 
     def save(self, action: Action) -> Action:
@@ -282,55 +282,55 @@ class ActionStore:
         action = self.get(action_id)
         if not action or action.is_builtin:
             return False
-        self.db.duck.execute("DELETE FROM actions WHERE id = ?", [action_id])
+        self.db.execute("DELETE FROM actions WHERE id = ?", [action_id])
         return True
 
     def list_all(self) -> list[Action]:
         """List all actions."""
-        rows = self.db.duck.execute("SELECT * FROM actions ORDER BY name").fetchall()
+        rows = self.db.execute_fetchall("SELECT * FROM actions ORDER BY name")
         return [self._row_to_action(r) for r in rows]
 
     def list_builtin(self) -> list[Action]:
         """List built-in actions."""
-        rows = self.db.duck.execute(
+        rows = self.db.execute_fetchall(
             "SELECT * FROM actions WHERE is_builtin = TRUE ORDER BY name"
-        ).fetchall()
+        )
         return [self._row_to_action(r) for r in rows]
 
     def list_custom(self) -> list[Action]:
         """List user-created actions."""
-        rows = self.db.duck.execute(
+        rows = self.db.execute_fetchall(
             "SELECT * FROM actions WHERE is_builtin = FALSE ORDER BY name"
-        ).fetchall()
+        )
         return [self._row_to_action(r) for r in rows]
 
     def list_by_category(self, category: str) -> list[Action]:
         """List actions by category."""
-        rows = self.db.duck.execute(
+        rows = self.db.execute_fetchall(
             "SELECT * FROM actions WHERE category = ? ORDER BY name", [category]
-        ).fetchall()
+        )
         return [self._row_to_action(r) for r in rows]
 
     def list_recent(self, limit: int = 10) -> list[Action]:
         """List recently used actions."""
-        rows = self.db.duck.execute(
+        rows = self.db.execute_fetchall(
             "SELECT * FROM actions WHERE last_used_at IS NOT NULL ORDER BY last_used_at DESC LIMIT ?",
             [limit],
-        ).fetchall()
+        )
         return [self._row_to_action(r) for r in rows]
 
     def list_popular(self, limit: int = 10) -> list[Action]:
         """List most used actions."""
-        rows = self.db.duck.execute(
+        rows = self.db.execute_fetchall(
             "SELECT * FROM actions ORDER BY use_count DESC LIMIT ?", [limit]
-        ).fetchall()
+        )
         return [self._row_to_action(r) for r in rows]
 
     def get_categories(self) -> list[str]:
         """Get all categories."""
-        rows = self.db.duck.execute(
+        rows = self.db.execute_fetchall(
             "SELECT DISTINCT category FROM actions ORDER BY category"
-        ).fetchall()
+        )
         return [r[0] for r in rows]
 
     def search(
@@ -349,7 +349,7 @@ class ActionStore:
             sql += " AND category = ?"
             params.append(category)
         sql += " ORDER BY name"
-        rows = self.db.duck.execute(sql, params).fetchall()
+        rows = self.db.execute_fetchall(sql, params)
         actions = [self._row_to_action(r) for r in rows]
         if tags:
             actions = [a for a in actions if all(t in a.tags for t in tags)]
@@ -357,7 +357,7 @@ class ActionStore:
 
     def record_use(self, action_id: str) -> None:
         """Record action usage."""
-        self.db.duck.execute(
+        self.db.execute(
             "UPDATE actions SET use_count = use_count + 1, last_used_at = ? WHERE id = ?",
             [datetime.now(), action_id],
         )

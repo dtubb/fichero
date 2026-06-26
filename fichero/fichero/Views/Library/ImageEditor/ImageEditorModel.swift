@@ -1,4 +1,8 @@
+#if canImport(AppKit)
 import AppKit
+#elseif canImport(UIKit)
+import UIKit
+#endif
 import Foundation
 import OSLog
 import SwiftUI
@@ -12,25 +16,31 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "ImageEd
 /// backend op, refresh the chain, then re-render the *edited* preview so the
 /// canvas reflects the new chain immediately.
 @MainActor
-final class ImageEditorModel: ObservableObject {
+@Observable
+final class ImageEditorModel {
     /// Currently displayed preview (original or edited, per `showEdited`).
-    @Published var preview: PreviewImage?
+    var preview: PreviewImage?
     /// Cached original preview (apply_edits=false) for A/B compare UI.
-    @Published var originalPreview: PreviewImage?
+    var originalPreview: PreviewImage?
     /// Cached edited preview (apply_edits=true) for A/B compare UI.
-    @Published var editedPreview: PreviewImage?
+    var editedPreview: PreviewImage?
     /// The document's saved edit chain.
-    @Published var chain: ImageEditChain
+    var chain: ImageEditChain
     /// #469 toggle — false shows the untouched source, true shows the chain applied.
-    @Published var showEdited: Bool = true
+    var showEdited: Bool = true
     /// 1-indexed page (PDF documents); always 1 for single images.
-    @Published var page: Int = 1
+    var page: Int = 1
     /// True while any op / load is in flight (drives the busy overlay + disables controls).
-    @Published var isBusy: Bool = false
-    @Published var errorMessage: String?
+    var isBusy: Bool = false
+    var errorMessage: String?
     /// Bidirectional selection between inspector and canvas (#1420).
     /// The inspector highlights this step; the canvas could show an overlay handle.
-    @Published var selectedStepIndex: Int?
+    var selectedStepIndex: Int?
+
+    /// Called after every successful edit or reset so the caller can evict
+    /// stale storage-display caches for the affected document. Set from
+    /// `ImageEditorView` once the view is configured.
+    var onEditApplied: ((String) -> Void)?
 
     private var service: ImageEditingServiceGenerated?
     private(set) var documentId: String = ""
@@ -133,6 +143,12 @@ final class ImageEditorModel: ObservableObject {
         }
     }
 
+    func straighten() async {
+        await runOp { service in
+            try await service.straighten(documentId: self.documentId, page: self.page)
+        }
+    }
+
     func enhance(brightness: Double, contrast: Double, sharpen: Double, autoLevels: Bool) async {
         await runOp { service in
             try await service.enhance(
@@ -203,6 +219,7 @@ final class ImageEditorModel: ObservableObject {
         for id in documentIds {
             do {
                 try await operation(service, id)
+                onEditApplied?(id)
             } catch {
                 failures += 1
                 logger.error("batch op failed for \(id): \(error.localizedDescription)")
@@ -221,6 +238,7 @@ final class ImageEditorModel: ObservableObject {
         do {
             try await service.resetChain(documentId: documentId)
             chain = ImageEditChain(documentId: documentId, operations: [], updatedAt: nil)
+            onEditApplied?(documentId)
             await reloadPreviews()
         } catch {
             errorMessage = error.localizedDescription
@@ -236,6 +254,7 @@ final class ImageEditorModel: ObservableObject {
         defer { isBusy = false }
         do {
             chain = try await body(service)
+            onEditApplied?(documentId)
             showEdited = true
             await reloadPreviews()
         } catch {

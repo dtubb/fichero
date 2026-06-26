@@ -19,6 +19,10 @@ from fichero.llm import LLMConfig, chat_structured_with_fallback
 from fichero.models import DocType, Document
 from fichero.workflows.registry import register_tool
 from fichero.workflows.tools._entity_writer import save_claim, upsert_entity
+from fichero.workflows.tools._workflow_change_emit import (
+    emit_workflow_citation_changes,
+    emit_workflow_kg_changes,
+)
 from fichero.workflows.types import DataType, PortDef, State
 
 logger = logging.getLogger(__name__)
@@ -358,8 +362,6 @@ def _resolve_source_document(inputs: dict[str, Any], state: State) -> Document |
         doc = db.get(Document, str(doc_id))
         if doc is None:
             continue
-        if doc.doc_type == DocType.page and doc.parent_id:
-            return db.get(Document, doc.parent_id) or doc
         return doc
     return None
 
@@ -370,6 +372,7 @@ async def extract_citations_for_document(
     llm_config: LLMConfig,
 ) -> dict[str, Any]:
     pages = _page_records_for_document(db, source_doc)
+    document_ids: set[str] = {source_doc.id}
     full_text = "\n\n".join(page.text for page in pages)
     body_text, bibliography_text = find_bibliography_section(full_text)
     if not bibliography_text:
@@ -388,6 +391,8 @@ async def extract_citations_for_document(
         key=lambda cite: (cite.page_doc_id, cite.char_start, cite.number or 0),
     )
     claims: list[dict[str, Any]] = []
+    written_entity_ids: list[str] = []
+    written_claim_ids: list[str] = []
     seen_claim_keys: set[tuple[str, str]] = set()
     for inline in inline_citations:
         entry = resolve_inline_citation(inline, entries)
@@ -404,6 +409,9 @@ async def extract_citations_for_document(
             aliases=[entry.title] if entry.title else [],
             description=entry.raw_text,
         )
+        if entity_id is None:
+            continue
+        written_entity_ids.append(entity_id)
         entity = db.get(KnowledgeEntity, entity_id)
         if entity is not None:
             metadata = dict(entity.metadata or {})
@@ -438,7 +446,10 @@ async def extract_citations_for_document(
             provider=llm_config.provider,
             model=llm_config.model,
         )
-        claims.append({"id": claim_id, "entity_id": entity_id, "entry": entry.as_metadata()})
+        if claim_id is not None:
+            written_claim_ids.append(claim_id)
+            document_ids.add(inline.page_doc_id)
+            claims.append({"id": claim_id, "entity_id": entity_id, "entry": entry.as_metadata()})
     return {
         "entries": [entry.as_metadata() for entry in entries],
         "inline_citations": [
@@ -453,6 +464,9 @@ async def extract_citations_for_document(
             for cite in inline_citations
         ],
         "claims": claims,
+        "entity_ids": written_entity_ids,
+        "claim_ids": written_claim_ids,
+        "document_ids": sorted(document_ids),
     }
 
 
@@ -537,6 +551,19 @@ async def citations_extract(
         return {"citations": {}, "text": "", "error": "No source document selected"}
 
     result = await extract_citations_for_document(db, source_doc, llm_config)
+    if result.get("entity_ids") or result.get("claim_ids"):
+        emit_workflow_kg_changes(
+            str(db.path.parent),
+            entity_ids=result.get("entity_ids") or [],
+            claim_ids=result.get("claim_ids") or [],
+            document_ids=result.get("document_ids") or [],
+        )
+    if result.get("document_ids"):
+        emit_workflow_citation_changes(
+            str(db.path.parent),
+            citation_ids=[],
+            document_ids=result.get("document_ids") or [],
+        )
     lines = [
         f"{len(result['entries'])} bibliography entries",
         f"{len(result['claims'])} resolved inline citations",

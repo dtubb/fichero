@@ -9,9 +9,6 @@ import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from fichero.workflows.activity import ActivityStats
-
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -45,6 +42,8 @@ def _make_mock_tracker(activities=None) -> MagicMock:
     tracker.get_recent.return_value = activities or []
     tracker.get_stats = AsyncMock(return_value=_make_mock_stats())
     tracker.cleanup = AsyncMock(return_value=0)
+    tracker.subscribe.return_value = "sub-1"
+    tracker.unsubscribe = MagicMock()
     # cleanup route calls tracker.store.delete_old(dt)
     tracker.store = MagicMock()
     tracker.store.delete_old = AsyncMock(return_value=0)
@@ -141,6 +140,73 @@ class TestGetActivityStats:
         assert "total_activities" in data
         assert "error_count" in data
         assert "success_rate" in data
+
+
+# ---------------------------------------------------------------------------
+# GET /api/activity/stream
+# ---------------------------------------------------------------------------
+
+
+class TestActivityStream:
+    @pytest.mark.asyncio
+    async def test_stream_yields_activity_response_sse_shape(self):
+        from fichero.api.routes.activity import stream_activities
+
+        act = _make_mock_activity(
+            activity_id="act-stream-1",
+            activity_type="workflow_completed",
+            message="Workflow completed",
+        )
+        act.thread_id = "thread-1"
+        tracker = _make_mock_tracker([act])
+
+        async def stream(sub_id, filter):
+            assert sub_id == "sub-1"
+            assert filter.workflow_id is None
+            yield act
+
+        tracker.stream = stream
+        with patch("fichero.api.routes.activity.get_activity_tracker", return_value=tracker):
+            response = await stream_activities(
+                db=MagicMock(path="/tmp/test.fichero"),
+                types=None,
+                levels=None,
+            )
+
+        chunk = await anext(response.body_iterator)
+        assert chunk.startswith("data: ")
+        assert '"type":"workflow_completed"' in chunk
+        assert '"thread_id":"thread-1"' in chunk
+        await response.body_iterator.aclose()
+        tracker.unsubscribe.assert_called_once_with("sub-1")
+
+    @pytest.mark.asyncio
+    async def test_stream_yields_workflow_started_events(self):
+        from fichero.api.routes.activity import stream_activities
+
+        act = _make_mock_activity(
+            activity_id="act-started-1",
+            activity_type="workflow_started",
+            message="Workflow started",
+        )
+        act.thread_id = "thread-started-1"
+        tracker = _make_mock_tracker([act])
+
+        async def stream(sub_id, filter):
+            yield act
+
+        tracker.stream = stream
+        with patch("fichero.api.routes.activity.get_activity_tracker", return_value=tracker):
+            response = await stream_activities(
+                db=MagicMock(path="/tmp/test.fichero"),
+                types=None,
+                levels=None,
+            )
+
+        chunk = await anext(response.body_iterator)
+        assert '"type":"workflow_started"' in chunk
+        assert '"thread_id":"thread-started-1"' in chunk
+        await response.body_iterator.aclose()
 
 
 # ---------------------------------------------------------------------------

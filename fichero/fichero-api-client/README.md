@@ -23,9 +23,12 @@ Auto-generated Swift API client from the Python FastAPI backend's OpenAPI schema
 import FicheroAPIClient
 import OpenAPIURLSession
 
-// Create client pointing to backend
+// Create client pointing to backend.
+// NOTE: the engine serves HTTPS and the app pins it fail-closed (#2538).
+// In the app, do NOT build a bare client here — use the shared `FicheroClient`,
+// which wires the pinned TLS session (RemoteCertificatePinning) + engine auth.
 let client = Client(
-    serverURL: URL(string: "http://localhost:8765/api")!,
+    serverURL: URL(string: "https://127.0.0.1:8765/api")!,
     transport: URLSessionTransport()
 )
 
@@ -102,10 +105,10 @@ Benefits:
 
 ## Keeping in Sync
 
-When the Python API changes:
+When the Python API changes (also runs automatically in `build-release.sh` and CI):
 
 ```bash
-./scripts/sync_openapi_schema.sh
+./fichero-engine/scripts/sync_openapi_schema.sh
 ```
 
 This:

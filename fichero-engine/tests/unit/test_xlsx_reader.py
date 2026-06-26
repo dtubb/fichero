@@ -114,6 +114,32 @@ def _xlsx_fixture(tmp_path: Path, rows: list[list]) -> Path:
     return p
 
 
+def _malicious_xlsx_fixture(tmp_path: Path) -> Path:
+    p = tmp_path / "evil.xlsx"
+    malicious_shared_strings = """\
+<?xml version="1.0"?>
+<!DOCTYPE lolz [
+ <!ENTITY lol "lol">
+ <!ENTITY lol1 "&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;">
+]>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <si><t>&lol1;</t></si>
+</sst>
+"""
+    sheet_xml = (
+        f'<?xml version="1.0" encoding="UTF-8"?>'
+        f'<worksheet xmlns="{_NS}"><sheetData>'
+        '<row r="1"><c r="A1" t="s"><v>0</v></c></row>'
+        "</sheetData></worksheet>"
+    )
+    with zipfile.ZipFile(p, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("[Content_Types].xml", _CONTENT_TYPES)
+        zf.writestr("xl/workbook.xml", _WORKBOOK)
+        zf.writestr("xl/sharedStrings.xml", malicious_shared_strings)
+        zf.writestr("xl/worksheets/sheet1.xml", sheet_xml)
+    return p
+
+
 # ---------------------------------------------------------------------------
 # Unit tests — helpers
 # ---------------------------------------------------------------------------
@@ -128,6 +154,24 @@ class TestHelpers:
 
     def test_col_index_aa(self):
         assert _col_index("AA") == 26
+
+
+def test_xlsx_rejects_billion_laughs_entities(tmp_path):
+    path = _malicious_xlsx_fixture(tmp_path)
+
+    with pytest.raises(ValueError, match="entity declarations"):
+        read_xlsx_records(path)
+
+
+def test_xlsx_rejects_oversized_zip_member(tmp_path):
+    path = tmp_path / "oversized.xlsx"
+    with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_STORED) as zf:
+        zf.writestr("[Content_Types].xml", _CONTENT_TYPES)
+        zf.writestr("xl/workbook.xml", _WORKBOOK)
+        zf.writestr("xl/worksheets/sheet1.xml", "x" * (20 * 1024 * 1024 + 1))
+
+    with pytest.raises(ValueError, match="XLSX member too large"):
+        read_xlsx_records(path)
 
     def test_col_index_ab(self):
         assert _col_index("AB") == 27

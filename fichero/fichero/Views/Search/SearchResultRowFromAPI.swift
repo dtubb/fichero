@@ -3,6 +3,7 @@ import SwiftUI
 /// Reusable search result row component for API results
 struct SearchResultRowFromAPI: View {
     let result: SearchResult
+    var onOpenExcerpt: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -25,8 +26,26 @@ struct SearchResultRowFromAPI: View {
 
             // Info
             VStack(alignment: .leading, spacing: 4) {
-                // Document ID (would ideally show name from metadata)
-                if let name = result.metadata["name"]?.value as? String {
+                // For page results: show parent document name with page badge.
+                // For other results: show the document's own name.
+                let parentName = result.metadata["parent_name"]?.value as? String
+                let pageLabel = pageLabelText
+                if let parentName {
+                    HStack(spacing: 6) {
+                        Text(parentName)
+                            .font(.body)
+                            .lineLimit(1)
+                        if let pageLabel {
+                            Text(pageLabel)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.accentColor)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(Color.accentColor.opacity(0.12))
+                                .clipShape(Capsule())
+                        }
+                    }
+                } else if let name = result.metadata["name"]?.value as? String {
                     Text(name)
                         .font(.body)
                         .lineLimit(1)
@@ -64,7 +83,26 @@ struct SearchResultRowFromAPI: View {
                 // markers (added by the backend) as colored highlights.
                 // Entity matches (#1052) get accent color + background;
                 // search-term matches get bold + primary foreground (#481).
-                if let highlights = result.highlights, !highlights.isEmpty {
+                if let excerpt = preferredExcerptText, let onOpenExcerpt {
+                    Button(action: onOpenExcerpt) {
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            if let pageLabel = pageLabelText {
+                                Text(pageLabel)
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundColor(.accentColor)
+                            }
+
+                            Text(attributedExcerpt(excerpt))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .lineLimit(3)
+                                .multilineTextAlignment(.leading)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Open this matched passage")
+                } else if let highlights = result.highlights, !highlights.isEmpty {
                     VStack(alignment: .leading, spacing: 2) {
                         ForEach(highlights.prefix(2), id: \.self) { highlight in
                             Text(SearchResultRowFromAPI.attributedHighlight(
@@ -89,6 +127,32 @@ struct SearchResultRowFromAPI: View {
         .padding(.vertical, 4)
     }
 
+    var preferredExcerptText: String? {
+        if let transcript = result.transcriptExcerpts.first {
+            return Self.cleanedExcerptText(transcript.text)
+        }
+        if let sourceExcerpt = metadataString(keys: ["source_excerpt", "sourceExcerpt"]) {
+            return Self.cleanedExcerptText(sourceExcerpt)
+        }
+        if let highlight = result.highlights?.first {
+            return Self.cleanedExcerptText(highlight)
+        }
+        if let contentPreview = result.contentPreview {
+            return Self.cleanedExcerptText(contentPreview)
+        }
+        return nil
+    }
+
+    var pageLabelText: String? {
+        if let pageLabel = metadataString(keys: ["source_page_label", "page_label"]) {
+            return "p. \(pageLabel)"
+        }
+        if let pageNum = Self.metadataInt(from: result, keys: ["page_number"]) {
+            return "p. \(pageNum)"
+        }
+        return nil
+    }
+
     /// "fulltext", "semantic", "entity", "fulltext + semantic", etc.
     /// Returns nil when the backend didn't provide match_sources (older
     /// engines or pure-mode searches). Read from result.metadata so the
@@ -103,6 +167,41 @@ struct SearchResultRowFromAPI: View {
             return single
         }
         return nil
+    }
+
+    static func navigationUserInfo(for result: SearchResult) -> [String: Any]? {
+        if let excerpt = result.transcriptExcerpts.first {
+            return [
+                "documentId": excerpt.anchor.documentId,
+                "excerpt": excerpt.text,
+                "charStart": excerpt.anchor.charStart,
+                "charEnd": excerpt.anchor.charEnd
+            ]
+        }
+
+        let excerpt = metadataString(
+            from: result,
+            keys: ["source_excerpt", "sourceExcerpt"]
+        ) ?? result.contentPreview
+        guard let cleaned = cleanedExcerptText(excerpt) else {
+            return nil
+        }
+
+        var info: [String: Any] = [
+            "documentId": result.documentId,
+            "excerpt": cleaned
+        ]
+
+        if let pageLabel = metadataString(from: result, keys: ["source_page_label", "page_label"]) {
+            info["pageLabel"] = pageLabel
+        }
+        if let charStart = metadataInt(from: result, keys: ["source_char_start", "char_start"]) {
+            info["charStart"] = charStart
+        }
+        if let charEnd = metadataInt(from: result, keys: ["source_char_end", "char_end"]) {
+            info["charEnd"] = charEnd
+        }
+        return info
     }
 
     /// Build an AttributedString with `**...**` spans highlighted.
@@ -144,5 +243,51 @@ struct SearchResultRowFromAPI: View {
         }
         attributed += AttributedString(remaining)
         return attributed
+    }
+
+    private func attributedExcerpt(_ text: String) -> AttributedString {
+        SearchResultRowFromAPI.attributedHighlight(
+            text,
+            matchSource: matchSourceLabel
+        )
+    }
+
+    private func metadataString(keys: [String]) -> String? {
+        SearchResultRowFromAPI.metadataString(from: result, keys: keys)
+    }
+
+    private static func metadataString(from result: SearchResult, keys: [String]) -> String? {
+        for key in keys {
+            if let value = result.metadata[key]?.value as? String,
+               let cleaned = cleanedExcerptText(value) {
+                return cleaned
+            }
+        }
+        return nil
+    }
+
+    private static func metadataInt(from result: SearchResult, keys: [String]) -> Int? {
+        for key in keys {
+            guard let raw = result.metadata[key]?.value else { continue }
+            switch raw {
+            case let value as Int:
+                return value
+            case let value as Double:
+                return Int(value)
+            case let value as NSNumber:
+                return value.intValue
+            case let value as String:
+                return Int(value)
+            default:
+                continue
+            }
+        }
+        return nil
+    }
+
+    private static func cleanedExcerptText(_ text: String?) -> String? {
+        guard let text else { return nil }
+        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.isEmpty ? nil : cleaned
     }
 }

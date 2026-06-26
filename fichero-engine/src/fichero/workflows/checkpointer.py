@@ -16,11 +16,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import pickle
+import threading
 from pathlib import Path
 from typing import Any, AsyncIterator
 
 import duckdb
+from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.checkpoint.base import (
     BaseCheckpointSaver,
     Checkpoint,
@@ -29,17 +30,46 @@ from langgraph.checkpoint.base import (
     SerializerProtocol,
 )
 
+from fichero.workflows.types import compact_output_for_state
+
 logger = logging.getLogger(__name__)
 
 
-class PickleSerializer(SerializerProtocol):
-    """Default serializer using pickle."""
+def _compact_checkpoint(checkpoint: Checkpoint) -> Checkpoint:
+    """Trim redundant State.outputs payloads before persisting checkpoints."""
+    compact = dict(checkpoint)
+    channel_values = compact.get("channel_values")
+    if not isinstance(channel_values, dict):
+        return compact
+
+    outputs = channel_values.get("outputs")
+    if not isinstance(outputs, dict):
+        return compact
+
+    compact_channel_values = dict(channel_values)
+    compact_channel_values["outputs"] = {
+        node_id: compact_output_for_state(node_output)
+        for node_id, node_output in outputs.items()
+    }
+    compact["channel_values"] = compact_channel_values
+    return compact
+
+
+class JsonCheckpointSerializer(SerializerProtocol):
+    """Adapter for LangGraph's safe JSON/msgpack serializer."""
+
+    def __init__(self) -> None:
+        self._serde = JsonPlusSerializer()
 
     def dumps(self, obj: Any) -> bytes:
-        return pickle.dumps(obj)
+        serde_type, payload = self._serde.dumps_typed(obj)
+        return serde_type.encode("ascii") + b"\n" + payload
 
     def loads(self, data: bytes) -> Any:
-        return pickle.loads(data)
+        serde_type, sep, payload = data.partition(b"\n")
+        if not sep:
+            raise ValueError("Invalid JSON checkpoint payload")
+        return self._serde.loads_typed((serde_type.decode("ascii"), payload))
 
 
 class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
@@ -78,10 +108,17 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
 
         Args:
             conn: DuckDB connection
-            serde: Serializer for checkpoint data (defaults to pickle)
+            serde: Serializer for checkpoint data (defaults to JsonPlusSerializer)
         """
-        super().__init__(serde=serde or PickleSerializer())
+        super().__init__(serde=serde or JsonCheckpointSerializer())
+        # ponytail: already locked / not a managed shared conn (#2508). This is
+        # the checkpointer's OWN raw duckdb connection (opened by from_db_path),
+        # not the package's managed Database. Every access below is already
+        # serialized on this object's own RLock (self._lock), so it is internally
+        # thread-safe; Database._lock and the locked execute() helpers do not
+        # apply because this connection is not the managed shared one.
         self.conn = conn
+        self._lock = threading.RLock()
         self._setup()
         logger.info("Initialized DuckDB checkpointer")
 
@@ -104,36 +141,87 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
 
     def _setup(self) -> None:
         """Create checkpoint tables if they don't exist."""
-        # Checkpoints table - stores workflow execution state
-        self.conn.execute("""
-            CREATE TABLE IF NOT EXISTS checkpoints (
-                thread_id TEXT NOT NULL,
-                checkpoint_ns TEXT NOT NULL DEFAULT '',
-                checkpoint_id TEXT NOT NULL,
-                parent_checkpoint_id TEXT,
-                type TEXT,
-                checkpoint BLOB,
-                metadata BLOB,
-                PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id)
-            )
-        """)
+        with self._lock:
+            # Checkpoints table - stores workflow execution state
+            self.conn.execute("""
+                CREATE TABLE IF NOT EXISTS checkpoints (
+                    thread_id TEXT NOT NULL,
+                    checkpoint_ns TEXT NOT NULL DEFAULT '',
+                    checkpoint_id TEXT NOT NULL,
+                    parent_checkpoint_id TEXT,
+                    type TEXT,
+                    checkpoint BLOB,
+                    metadata BLOB,
+                    PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id)
+                )
+            """)
 
-        # Writes table - stores pending checkpoint writes
-        self.conn.execute("""
-            CREATE TABLE IF NOT EXISTS checkpoint_writes (
-                thread_id TEXT NOT NULL,
-                checkpoint_ns TEXT NOT NULL DEFAULT '',
-                checkpoint_id TEXT NOT NULL,
-                task_id TEXT NOT NULL,
-                idx INTEGER NOT NULL,
-                channel TEXT NOT NULL,
-                type TEXT,
-                value BLOB,
-                PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id, task_id, idx)
-            )
-        """)
+            # Writes table - stores pending checkpoint writes
+            self.conn.execute("""
+                CREATE TABLE IF NOT EXISTS checkpoint_writes (
+                    thread_id TEXT NOT NULL,
+                    checkpoint_ns TEXT NOT NULL DEFAULT '',
+                    checkpoint_id TEXT NOT NULL,
+                    task_id TEXT NOT NULL,
+                    idx INTEGER NOT NULL,
+                    channel TEXT NOT NULL,
+                    type TEXT,
+                    value BLOB,
+                    PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id, task_id, idx)
+                )
+            """)
 
         logger.debug("Checkpoint tables created/verified")
+
+    async def _execute_locked(
+        self,
+        query: str,
+        params: list[Any] | None = None,
+    ) -> None:
+        """Run a statement against the shared DuckDB connection under lock."""
+
+        def _run() -> None:
+            with self._lock:
+                if params is None:
+                    self.conn.execute(query)
+                else:
+                    self.conn.execute(query, params)
+
+        await asyncio.to_thread(_run)
+
+    async def _fetchone_locked(
+        self,
+        query: str,
+        params: list[Any] | None = None,
+    ) -> Any:
+        """Execute and consume one row atomically on the shared connection."""
+
+        def _run() -> Any:
+            with self._lock:
+                if params is None:
+                    cur = self.conn.execute(query)
+                else:
+                    cur = self.conn.execute(query, params)
+                return cur.fetchone()
+
+        return await asyncio.to_thread(_run)
+
+    async def _fetchall_locked(
+        self,
+        query: str,
+        params: list[Any] | None = None,
+    ) -> list[Any]:
+        """Execute and consume all rows atomically on the shared connection."""
+
+        def _run() -> list[Any]:
+            with self._lock:
+                if params is None:
+                    cur = self.conn.execute(query)
+                else:
+                    cur = self.conn.execute(query, params)
+                return cur.fetchall()
+
+        return await asyncio.to_thread(_run)
 
     async def aput(
         self,
@@ -159,13 +247,12 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
         checkpoint_id = checkpoint["id"]
 
         # Serialize checkpoint and metadata
-        checkpoint_blob = self.serde.dumps(checkpoint)
+        checkpoint_blob = self.serde.dumps(_compact_checkpoint(checkpoint))
         metadata_blob = self.serde.dumps(metadata)
 
         # Insert checkpoint (run in thread pool since DuckDB doesn't have native async)
         # Use ON CONFLICT for DuckDB (not INSERT OR REPLACE which is SQLite syntax)
-        await asyncio.to_thread(
-            self.conn.execute,
+        await self._execute_locked(
             """
             INSERT INTO checkpoints
             (thread_id, checkpoint_ns, checkpoint_id, parent_checkpoint_id, type, checkpoint, metadata)
@@ -234,8 +321,7 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
             """
             params = [thread_id, checkpoint_ns]
 
-        result = await asyncio.to_thread(self.conn.execute, query, params)
-        row = result.fetchone()
+        row = await self._fetchone_locked(query, params)
 
         if not row:
             logger.debug(
@@ -250,8 +336,7 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
         metadata = self.serde.loads(bytes(metadata_blob))
 
         # Get pending writes
-        writes_result = await asyncio.to_thread(
-            self.conn.execute,
+        writes_rows = await self._fetchall_locked(
             """
             SELECT task_id, channel, value
             FROM checkpoint_writes
@@ -263,7 +348,7 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
 
         pending_writes = [
             (task_id, channel, self.serde.loads(bytes(value)))
-            for task_id, channel, value in writes_result.fetchall()
+            for task_id, channel, value in writes_rows
         ]
 
         logger.debug(
@@ -329,17 +414,16 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
             query += " LIMIT ?"
             params.append(limit)
 
-        result = await asyncio.to_thread(self.conn.execute, query, params)
+        rows = await self._fetchall_locked(query, params)
 
-        for row in result.fetchall():
+        for row in rows:
             checkpoint_blob, metadata_blob, parent_id, checkpoint_id = row
 
             checkpoint = self.serde.loads(bytes(checkpoint_blob))
             metadata = self.serde.loads(bytes(metadata_blob))
 
             # Get pending writes for this checkpoint
-            writes_result = await asyncio.to_thread(
-                self.conn.execute,
+            writes_rows = await self._fetchall_locked(
                 """
                 SELECT task_id, channel, value
                 FROM checkpoint_writes
@@ -351,7 +435,7 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
 
             pending_writes = [
                 (task_id, channel, self.serde.loads(bytes(value)))
-                for task_id, channel, value in writes_result.fetchall()
+                for task_id, channel, value in writes_rows
             ]
 
             yield CheckpointTuple(
@@ -399,8 +483,7 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
         for idx, (channel, value) in enumerate(writes):
             value_blob = self.serde.dumps(value)
 
-            await asyncio.to_thread(
-                self.conn.execute,
+            await self._execute_locked(
                 """
                 INSERT INTO checkpoint_writes
                 (thread_id, checkpoint_ns, checkpoint_id, task_id, idx, channel, value)
@@ -446,19 +529,20 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
 
         def _delete() -> int:
             total = 0
-            self.conn.execute("BEGIN TRANSACTION")
-            try:
-                for table in ("checkpoints", "checkpoint_writes"):
-                    result = self.conn.execute(
-                        f"DELETE FROM {table} WHERE thread_id = ? RETURNING 1",
-                        [thread_id],
-                    )
-                    rows = result.fetchall()
-                    total += len(rows)
-                self.conn.execute("COMMIT")
-            except Exception:
-                self.conn.execute("ROLLBACK")
-                raise
+            with self._lock:
+                self.conn.execute("BEGIN TRANSACTION")
+                try:
+                    for table in ("checkpoints", "checkpoint_writes"):
+                        result = self.conn.execute(
+                            f"DELETE FROM {table} WHERE thread_id = ? RETURNING 1",
+                            [thread_id],
+                        )
+                        rows = result.fetchall()
+                        total += len(rows)
+                    self.conn.execute("COMMIT")
+                except Exception:
+                    self.conn.execute("ROLLBACK")
+                    raise
             return total
 
         deleted = await asyncio.to_thread(_delete)
@@ -481,16 +565,17 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
         """
 
         def _list() -> list[str]:
-            result = self.conn.execute(
-                """
-                SELECT DISTINCT thread_id
-                FROM checkpoints
-                ORDER BY checkpoint_id DESC
-                LIMIT ?
-                """,
-                [limit],
-            )
-            return [row[0] for row in result.fetchall()]
+            with self._lock:
+                result = self.conn.execute(
+                    """
+                    SELECT DISTINCT thread_id
+                    FROM checkpoints
+                    ORDER BY checkpoint_id DESC
+                    LIMIT ?
+                    """,
+                    [limit],
+                )
+                return [row[0] for row in result.fetchall()]
 
         return await asyncio.to_thread(_list)
 
@@ -498,13 +583,18 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
         return self
 
     def __exit__(self, *args):
-        self.conn.close()
+        with self._lock:
+            self.conn.close()
 
     async def __aenter__(self):
         return self
 
     async def __aexit__(self, *args):
-        await asyncio.to_thread(self.conn.close)
+        def _close() -> None:
+            with self._lock:
+                self.conn.close()
+
+        await asyncio.to_thread(_close)
 
 
 # Convenience function to get checkpointer from default DB path

@@ -65,15 +65,13 @@ enum SidebarItemBuilder {
     ///
     /// Included in the sidebar:
     ///   - Folders (navigation containers)
-    ///   - PDFs (first-class containers per #568 — appear as leaf rows with
-    ///     no children; their pages show up in the main grid when selected,
-    ///     via `loadChildren(of:)` in `ContentViewModifiers`)
+    ///   - PDFs (first-class containers per #568) — PDF is a LEAF in the sidebar;
+    ///     pages are reached via the column/content view (#2404). A structured PDF
+    ///     still exposes its chapter outline via buildStructureItems.
     ///
     /// **Not** included in the sidebar:
-    ///   - Pages — they're PDF children that show only in the icon view,
-    ///     not duplicated as sidebar sub-rows (#581). Dumping all pages of
-    ///     a 200-page PDF into the sidebar tree was too noisy.
     ///   - Images, text, docx — stay in the main grid only.
+    ///   - PDF pages — not shown as sidebar children (#2404, reverses #2260).
     ///
     /// The sidebar is for containers, one level of drill-in at a time, like
     /// Finder.
@@ -98,15 +96,13 @@ enum SidebarItemBuilder {
             }
         }
 
-        // Recursively build tree. Pages are sorted by sequence so PDF children
-        // render in page order; folders/PDFs fall back to name ordering.
+        // Recursively build the tree (children sorted by sequence, then name).
         func buildItem(_ doc: Document) -> SidebarItem {
             let raw = childrenMap[doc.id] ?? []
             let documentChildren = raw.sorted(by: childOrder).map { buildItem($0) }
             let structureChildren = buildStructureItems(for: doc, libraryId: libraryId)
-            let allChildren = documentChildren + structureChildren
-            let children = allChildren.isEmpty ? nil : allChildren
-            return SidebarItem.fromDocument(doc, libraryId: libraryId, children: children)
+            let combined = documentChildren + structureChildren
+            return SidebarItem.fromDocument(doc, libraryId: libraryId, children: combined.isEmpty ? nil : combined)
         }
 
         // Build Inbox with custom icon

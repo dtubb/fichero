@@ -35,15 +35,13 @@ def _validate_api_key_format(provider: str, api_key: str) -> None:
     # OpenAI keys should start with sk-
     if provider_lower == "openai" and not api_key.startswith("sk-"):
         raise ProviderValidationError(
-            f"Invalid OpenAI API key format. Keys should start with 'sk-' "
-            f"(got: {api_key[:10]}...)"
+            "Invalid OpenAI API key format. Keys should start with 'sk-'."
         )
 
     # Anthropic keys should start with sk-ant-
     if provider_lower == "anthropic" and not api_key.startswith("sk-ant-"):
         raise ProviderValidationError(
-            f"Invalid Anthropic API key format. Keys should start with 'sk-ant-' "
-            f"(got: {api_key[:10]}...)"
+            "Invalid Anthropic API key format. Keys should start with 'sk-ant-'."
         )
 
     # Google/Gemini API keys are typically longer JSON or simple strings

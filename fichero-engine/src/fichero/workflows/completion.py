@@ -66,10 +66,19 @@ def collect_processed_document_ids(final_state: Any) -> set[str]:
     def _add(doc: Any) -> None:
         if isinstance(doc, dict):
             doc_id = doc.get("id")
+            doc_type = doc.get("doc_type")
+            parent_id = doc.get("parent_id")
         else:
             doc_id = getattr(doc, "id", None)
+            doc_type = getattr(doc, "doc_type", None)
+            parent_id = getattr(doc, "parent_id", None)
         if isinstance(doc_id, str) and doc_id:
             ids.add(doc_id)
+        # For page children emitted by sources.py per-page fan-out, the
+        # parent file doc is never in the documents list — include it so
+        # complete_run_documents can flip the parent to completed (#2219).
+        if doc_type == "page" and isinstance(parent_id, str) and parent_id:
+            ids.add(parent_id)
 
     outputs = final_state.get("outputs")
     if isinstance(outputs, dict):
@@ -106,14 +115,22 @@ def complete_run_documents(
     workflow_run_entry = _normalize_workflow_run(workflow_run)
 
     updated = 0
+    changed_ids: list[str] = []
 
-    def _complete(doc: Any) -> None:
+    def _complete(doc: Any, explicit: bool = False) -> None:
         nonlocal updated
         if doc is None:
             return
 
         changed = False
-        if getattr(doc, "status", None) == Status.processing:
+        current_status = getattr(doc, "status", None)
+        if current_status == Status.processing:
+            doc.status = Status.completed
+            changed = True
+        elif explicit and current_status == Status.pending:
+            # A parent file doc targeted via per-page fan-out is never touched
+            # by save_artifact (which only sees page child IDs), so its status
+            # stays pending even though all its children were processed (#2219).
             doc.status = Status.completed
             changed = True
 
@@ -127,10 +144,13 @@ def complete_run_documents(
         if changed:
             db.save(doc)
             updated += 1
+            doc_id = getattr(doc, "id", None)
+            if doc_id:
+                changed_ids.append(doc_id)
 
     for doc_id in document_ids:
         try:
-            _complete(db.get(Document, doc_id))
+            _complete(db.get(Document, doc_id), explicit=True)
             # Page children (PDF pages) may have been set to processing during
             # the run even when only the parent id surfaced in the outputs. The
             # processing guard leaves untouched siblings (e.g. unprocessed
@@ -146,4 +166,33 @@ def complete_run_documents(
         logger.info(
             "Workflow completion: marked %d document(s) completed", updated
         )
+
+    # Broadcast the terminal status to the library change-stream so the UI's
+    # green-check / completed badge updates live, not on next reload (#2518).
+    # Centralised here — both the main runner and the batch path call this — so
+    # the completed-status emit can't be added to one caller and forgotten on
+    # the other. Best-effort: a broadcast failure must never fail the run.
+    if changed_ids:
+        try:
+            from pathlib import Path
+
+            from fichero.api.change_stream import emit_change
+
+            run_id = (
+                workflow_run_entry.get("thread_id") if workflow_run_entry else None
+            )
+            emit_change(
+                str(Path(db.path).parent),
+                type="document.updated",
+                document_ids=changed_ids,
+                run_id=run_id,
+                actor="workflow",
+            )
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning(
+                "complete_run_documents: change-stream emit failed "
+                "(documents persisted; UI will refresh on reload): %s",
+                exc,
+            )
+
     return updated

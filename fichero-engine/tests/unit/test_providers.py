@@ -156,6 +156,16 @@ class TestLLMConfig:
 class TestAPIKeyResolution:
     """Tests for API key resolution in llm.py"""
 
+    @pytest.fixture(autouse=True)
+    def _clear_api_key_cache(self):
+        # get_api_key caches resolved keys process-wide (#2545); clear between
+        # tests so each case observes its own mocked Keychain/env result.
+        from fichero.llm import clear_api_key_cache
+
+        clear_api_key_cache()
+        yield
+        clear_api_key_cache()
+
     def test_get_api_key_from_keychain(self):
         """Test API key resolution from keychain."""
         from fichero.llm import get_api_key

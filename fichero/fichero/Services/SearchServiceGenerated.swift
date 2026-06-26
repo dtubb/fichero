@@ -1,14 +1,13 @@
-import Foundation
-import OSLog
+// swiftlint:disable file_length
 import FicheroAPIClient
+import Foundation
 import OpenAPIRuntime
+import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "SearchServiceGenerated")
 
 /// Service for search operations using generated OpenAPI client
 /// Lightweight DTO matching `KeywordCloudEntry` on the backend.
-/// Manual decoding because the OpenAPI client doesn't include this
-/// endpoint yet (added without regenerating; #519/#481 follow-up).
 struct KeywordCloudEntryDTO: Decodable, Identifiable {
     let name: String
     let count: Int
@@ -16,7 +15,19 @@ struct KeywordCloudEntryDTO: Decodable, Identifiable {
 }
 
 @MainActor
+// swiftlint:disable:next type_body_length
 class SearchServiceGenerated: ObservableObject {
+    struct SearchRequestOptions {
+        let query: String
+        let limit: Int
+        let include: [Components.Schemas.SearchInclude]?
+        let minScore: Double
+        let searchType: String
+        let sortBy: String
+        let sortDirection: String
+        let offset: Int
+    }
+
     private let client: FicheroClient
 
     /// Initialize with FicheroClient (preferred)
@@ -35,6 +46,7 @@ class SearchServiceGenerated: ObservableObject {
     func search(
         query: String,
         limit: Int = 10,
+        include: [Components.Schemas.SearchInclude]? = nil,
         minScore: Double = 0.0,
         searchType: String = "hybrid",
         filters: [String: any Sendable]? = nil,
@@ -47,20 +59,24 @@ class SearchServiceGenerated: ObservableObject {
             return Components.Schemas.SearchRequest.FiltersPayload(additionalProperties: container)
         }
 
-        let searchRequest = Components.Schemas.SearchRequest(
+        let options = SearchRequestOptions(
             query: query,
             limit: limit,
+            include: include,
             minScore: minScore,
             searchType: searchType,
-            filters: filtersPayload,
             sortBy: sortBy,
             sortDirection: sortDirection,
             offset: offset
         )
 
+        let searchRequest = Self.makeSearchRequest(
+            options,
+            filtersPayload: filtersPayload
+        )
+
         let response = try await client.api.enhancedSearchApiSearchPost(
             .init(
-                headers: .init(xFicheroLibraryPath: libraryPath),
                 body: .json(searchRequest)
             )
         )
@@ -79,18 +95,16 @@ class SearchServiceGenerated: ObservableObject {
     /// Get search/embedding statistics
     func stats() async throws -> EmbeddingStatsResponse {
         let response = try await client.api.searchStatsApiSearchStatsGet(
-            .init(
-                headers: .init(xFicheroLibraryPath: libraryPath)
-            )
+            .init()
         )
 
         switch response {
         case .ok(let okResponse):
-            let container = try okResponse.body.json
-            return extractEmbeddingStats(from: container)
-        case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw SearchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            let payload = try okResponse.body.json
+            return EmbeddingStatsResponse(
+                indexedCount: payload.indexedCount,
+                tableExists: payload.tableExists
+            )
         case .undocumented(let statusCode, _):
             throw SearchServiceGeneratedError.unexpectedResponse(statusCode)
         }
@@ -99,18 +113,13 @@ class SearchServiceGenerated: ObservableObject {
     /// Reindex all documents.  POST /api/search/reindex
     func reindexAll() async throws -> ReindexStatus {
         let response = try await client.api.reindexAllApiSearchReindexPost(
-            .init(
-                headers: .init(xFicheroLibraryPath: libraryPath)
-            )
+            .init()
         )
 
         switch response {
         case .ok(let okResponse):
             let result = try okResponse.body.json
             return ReindexStatus(status: result.status, message: result.message)
-        case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw SearchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
             throw SearchServiceGeneratedError.unexpectedResponse(statusCode)
         }
@@ -121,7 +130,6 @@ class SearchServiceGenerated: ObservableObject {
         let response = try await client.api.embedDocumentApiSearchEmbedDocIdPost(
             .init(
                 path: .init(docId: documentId),
-                headers: .init(xFicheroLibraryPath: libraryPath)
             )
         )
 
@@ -142,17 +150,12 @@ class SearchServiceGenerated: ObservableObject {
     /// List all saved searches.  GET /api/search/saved
     func listSavedSearches() async throws -> [Components.Schemas.SavedSearchResponse] {
         let response = try await client.api.listSavedSearchesApiSearchSavedGet(
-            .init(
-                headers: .init(xFicheroLibraryPath: libraryPath)
-            )
+            .init()
         )
 
         switch response {
         case .ok(let okResponse):
             return try okResponse.body.json.items
-        case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw SearchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
             throw SearchServiceGeneratedError.unexpectedResponse(statusCode)
         }
@@ -187,7 +190,6 @@ class SearchServiceGenerated: ObservableObject {
 
         let response = try await client.api.saveSearchApiSearchSavedPost(
             .init(
-                headers: .init(xFicheroLibraryPath: libraryPath),
                 body: .json(createRequest)
             )
         )
@@ -232,7 +234,6 @@ class SearchServiceGenerated: ObservableObject {
         let response = try await client.api.updateSavedSearchApiSearchSavedSearchIdPut(
             .init(
                 path: .init(searchId: searchId),
-                headers: .init(xFicheroLibraryPath: libraryPath),
                 body: .json(updateRequest)
             )
         )
@@ -253,7 +254,6 @@ class SearchServiceGenerated: ObservableObject {
         let response = try await client.api.deleteSavedSearchApiSearchSavedSearchIdDelete(
             .init(
                 path: .init(searchId: searchId),
-                headers: .init(xFicheroLibraryPath: libraryPath)
             )
         )
 
@@ -273,7 +273,6 @@ class SearchServiceGenerated: ObservableObject {
         let response = try await client.api.duplicateSavedSearchApiSearchSavedSearchIdDuplicatePost(
             .init(
                 path: .init(searchId: searchId),
-                headers: .init(xFicheroLibraryPath: libraryPath)
             )
         )
 
@@ -293,7 +292,6 @@ class SearchServiceGenerated: ObservableObject {
     func reorderSavedSearches(ids: [String]) async throws -> [Components.Schemas.SavedSearchResponse] {
         let response = try await client.api.reorderSavedSearchesApiSearchSavedReorderPost(
             .init(
-                headers: .init(xFicheroLibraryPath: libraryPath),
                 body: .json(ids)
             )
         )
@@ -313,22 +311,24 @@ class SearchServiceGenerated: ObservableObject {
     // MARK: - Backward Compatibility Methods
 
     /// Top-N keyword cloud — name + per-doc count, sorted by frequency.
-    /// Hand-written URL fetch (the OpenAPI client doesn't yet expose
-    /// /api/search/keywords because we added it without regenerating).
     /// Empty array when the workflow hasn't extracted any keywords yet.
     func keywordCloud(limit: Int = 50) async throws -> [KeywordCloudEntryDTO] {
-        var components = URLComponents(string: "http://127.0.0.1:8765/api/search/keywords")!
-        components.queryItems = [URLQueryItem(name: "limit", value: String(limit))]
-        guard let url = components.url else { return [] }
-        var request = URLRequest(url: url)
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.addEngineAuth(libraryPath: libraryPath)
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse,
-              (200...299).contains(http.statusCode) else {
+        let response = try await client.api.keywordCloudApiSearchKeywordsGet(
+            .init(
+                query: .init(limit: limit),
+            )
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            let payload = try okResponse.body.json
+            return payload.items.map { KeywordCloudEntryDTO(name: $0.name, count: $0.count) }
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw SearchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented:
             return []
         }
-        return (try? JSONDecoder().decode([KeywordCloudEntryDTO].self, from: data)) ?? []
     }
 
     /// Search with backward-compatible interface returning manual types
@@ -336,6 +336,7 @@ class SearchServiceGenerated: ObservableObject {
     func searchCompatible(
         query: String,
         limit: Int = 10,
+        include: [Components.Schemas.SearchInclude]? = nil,
         minScore: Double = 0.0,
         searchType: String = "hybrid",
         filters: [String: String]? = nil,
@@ -351,6 +352,7 @@ class SearchServiceGenerated: ObservableObject {
         let response = try await search(
             query: query,
             limit: limit,
+            include: include,
             minScore: minScore,
             searchType: searchType,
             filters: filtersAsAny,
@@ -360,6 +362,23 @@ class SearchServiceGenerated: ObservableObject {
         )
 
         return convertToManualSearchResponse(response)
+    }
+
+    static func makeSearchRequest(
+        _ options: SearchRequestOptions,
+        filtersPayload: Components.Schemas.SearchRequest.FiltersPayload?
+    ) -> Components.Schemas.SearchRequest {
+        Components.Schemas.SearchRequest(
+            query: options.query,
+            limit: options.limit,
+            include: options.include,
+            minScore: options.minScore,
+            searchType: options.searchType,
+            filters: filtersPayload,
+            sortBy: options.sortBy,
+            sortDirection: options.sortDirection,
+            offset: options.offset
+        )
     }
 
     /// Convert generated SearchResponse to manual SearchResponse type
@@ -383,6 +402,8 @@ class SearchServiceGenerated: ObservableObject {
 
         return SearchResponse(
             results: results,
+            entityHits: generated.entityHits ?? [],
+            claimHits: generated.claimHits ?? [],
             count: generated.count,
             totalResults: generated.totalResults,
             query: generated.query,
@@ -409,28 +430,12 @@ class SearchServiceGenerated: ObservableObject {
             score: generated.score,
             contentPreview: generated.contentPreview,
             metadata: metadata,
-            highlights: generated.highlights
+            highlights: generated.highlights,
+            transcriptExcerpts: generated.transcriptExcerpts ?? []
         )
     }
 
     // MARK: - Type Conversions
-
-    /// Extract embedding stats from untyped response container
-    private func extractEmbeddingStats(from container: OpenAPIRuntime.OpenAPIValueContainer) -> EmbeddingStatsResponse {
-        var indexedCount = 0
-        var tableExists = false
-
-        if let dict = container.value as? [String: any Sendable] {
-            if let count = dict["indexed_count"] as? Int {
-                indexedCount = count
-            }
-            if let exists = dict["table_exists"] as? Bool {
-                tableExists = exists
-            }
-        }
-
-        return EmbeddingStatsResponse(indexedCount: indexedCount, tableExists: tableExists)
-    }
 
     /// Extract reindex status from untyped response container
     private func extractReindexStatus(from container: OpenAPIRuntime.OpenAPIValueContainer) -> ReindexStatus {
@@ -489,11 +494,6 @@ struct EmbedStatus: Codable {
     enum CodingKeys: String, CodingKey {
         case documentId = "document_id"
         case embedded
-    }
-
-    init(documentId: String, embedded: Bool) {
-        self.documentId = documentId
-        self.embedded = embedded
     }
 }
 

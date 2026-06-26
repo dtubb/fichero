@@ -1,13 +1,23 @@
 {
   "name": "Rotate / Auto-Orient Images",
-  "description": "Create rotated or EXIF-oriented image derivatives without modifying the originals. Defaults to auto-orienting camera scans and writing JPGs for downstream image editing or OCR workflows.",
+  "description": "Create rotated or EXIF-oriented image derivatives without modifying the originals. Use this as the camera/DSLR watched-folder capture preset for auto-orienting imports and writing JPGs for downstream image editing or OCR workflows.",
   "format": "nodes",
   "is_template": true,
   "is_system": true,
   "folder_path": "/Image Editing",
-  "tags": ["preset", "image-editing", "rotate", "orientation", "ocr"],
+  "tags": [
+    "preset",
+    "capture",
+    "camera",
+    "dslr",
+    "watch-folder",
+    "image-editing",
+    "rotate",
+    "orientation",
+    "ocr"
+  ],
   "config": {
-    "preset_version": 1
+    "preset_version": 2
   },
   "nodes": [
     {

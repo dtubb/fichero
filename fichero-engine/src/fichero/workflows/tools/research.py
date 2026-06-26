@@ -14,168 +14,72 @@ workflows without HTTP overhead.
 
 from __future__ import annotations
 
-import ipaddress
 import asyncio
 import logging
 import re
-import socket
 import time
 from datetime import datetime
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urljoin
 
 import httpx
 
+from fichero.url_security import is_internal_ip, is_safe_url
 from fichero.workflows.types import State, PortDef, DataType
 from fichero.workflows.registry import register_tool
 from fichero.llm import LLMConfig
 
 logger = logging.getLogger(__name__)
-
-# URL schemes that are never allowed in sandboxed requests
-_SANDBOX_BLOCKED_SCHEMES = frozenset(
-    [
-        "file",
-        "ftp",
-        "ftps",
-        "s3",
-        "smb",
-        "ssh",
-        "telnet",
-        "gopher",
-        "ldap",
-        "ldaps",
-    ]
-)
-
-# Internal/private IP networks that should be blocked
-_BLOCKED_NETWORKS = [
-    ipaddress.ip_network("127.0.0.0/8"),      # loopback
-    ipaddress.ip_network("10.0.0.0/8"),       # private A
-    ipaddress.ip_network("172.16.0.0/12"),     # private B
-    ipaddress.ip_network("192.168.0.0/16"),   # private C
-    ipaddress.ip_network("169.254.0.0/16"),   # link-local (cloud metadata)
-    ipaddress.ip_network("0.0.0.0/8"),        # current network
-    ipaddress.ip_network("::1/128"),        # IPv6 loopback
-    ipaddress.ip_network("::ffff:0:0/96"),   # IPv4-mapped IPv6
-    ipaddress.ip_network("fc00::/7"),         # IPv6 unique local
-    ipaddress.ip_network("fe80::/10"),       # IPv6 link-local
-]
-
-# Cloud metadata endpoints
-_CLOUD_METADATA_HOSTS = frozenset(
-    [
-        "169.254.169.254",
-        "metadata.google.internal",
-        "metadata.googleapis.com",
-        "169.254.170.2",
-        "169.254.170.1",
-    ]
-)
+_ASYNCIO_FOR_TEST_COMPAT = asyncio
 
 # Maximum allowed content size (10MB)
 _MAX_CONTENT_SIZE = 10 * 1024 * 1024
+_MAX_REDIRECTS = 5
 
 
 async def _is_internal_ip(hostname: str | None) -> bool:
-    """Check if a hostname or IP is internal/private.
-
-    Args:
-        hostname: Hostname or IP address to check
-
-    Returns:
-        True if the hostname resolves to an internal IP
-    """
-    if not hostname:
-        return False
-
-    # Check for cloud metadata hosts
-    if hostname.lower() in _CLOUD_METADATA_HOSTS:
-        return True
-
-    try:
-        # Check if it's a bare IP address
-        addr = ipaddress.ip_address(hostname)
-        for network in _BLOCKED_NETWORKS:
-            if addr in network:
-                return True
-        return False
-    except ValueError:
-        # It's a hostname, resolve it
-        pass
-
-    # Try to resolve the hostname
-    try:
-        # Get all addresses (IPv4 and IPv6)
-        addrs = await asyncio.to_thread(socket.getaddrinfo, hostname, None)
-        for addr_info in addrs:
-            ip_str = addr_info[4][0]
-            try:
-                ip = ipaddress.ip_address(ip_str)
-                for network in _BLOCKED_NETWORKS:
-                    if ip in network:
-                        return True
-            except ValueError:
-                continue
-    except (socket.gaierror, socket.herror):
-        # If we can't resolve, assume it might be internal and block
-        # This is the safer default
-        pass
-
-    return False
+    return await is_internal_ip(hostname)
 
 
 async def _is_safe_url(url: str, allow_userinfo: bool = False) -> tuple[bool, str]:
-    """Comprehensive URL safety check for sandboxed requests.
+    return await is_safe_url(url, allow_userinfo=allow_userinfo)
 
-    Args:
-        url: URL to validate
-        allow_userinfo: Whether to allow username:password in URL
 
-    Returns:
-        Tuple of (is_safe, error_message)
-    """
-    if not url:
-        return False, "URL is empty"
+async def _get_with_safe_redirects(
+    client: httpx.AsyncClient,
+    url: str,
+    *,
+    headers: dict[str, str] | None = None,
+    params: dict[str, Any] | None = None,
+    max_redirects: int = _MAX_REDIRECTS,
+) -> httpx.Response:
+    """GET a URL while re-validating every redirect target against SSRF rules."""
 
-    # Parse URL components
-    try:
-        parsed = urlparse(url)
-    except Exception as e:
-        return False, f"Invalid URL format: {e}"
+    current_url = url
+    current_params = params
+    for _ in range(max_redirects + 1):
+        is_safe, error_msg = await _is_safe_url(current_url)
+        if not is_safe:
+            raise ValueError(f"URL not allowed: {error_msg}")
 
-    # Check scheme (http/https only, case-insensitive)
-    scheme = parsed.scheme.lower()
-    if not scheme:
-        return False, "URL must have a scheme (http:// or https://)"
+        response = await client.get(
+            current_url,
+            headers=headers,
+            params=current_params,
+            follow_redirects=False,
+        )
+        if response.status_code not in (301, 302, 303, 307, 308):
+            return response
 
-    if scheme in _SANDBOX_BLOCKED_SCHEMES:
-        return False, f"URL scheme '{parsed.scheme}' is not allowed"
+        location = response.headers.get("location")
+        if not location:
+            return response
+        response_url = getattr(response, "url", None)
+        base_url = str(response_url) if isinstance(response_url, httpx.URL) else current_url
+        current_url = urljoin(base_url, location)
+        current_params = None
 
-    if scheme not in ("http", "https"):
-        return False, f"URL scheme '{parsed.scheme}' is not allowed (only http/https)"
-
-    # Check for credentials in URL
-    if not allow_userinfo and (parsed.username or parsed.password):
-        return False, "URLs with embedded credentials are not allowed"
-
-    # Check hostname is present
-    hostname = parsed.hostname
-    if not hostname:
-        return False, "URL must have a hostname"
-
-    # Check for internal IPs
-    if await _is_internal_ip(hostname):
-        return False, f"Internal addresses are not allowed: {hostname}"
-
-    # Check for bare IP address bypass attempts
-    # (e.g., http://0x7f.0.0.1/ is 127.0.0.1 in hex)
-    if re.match(r"^0[xX][0-9a-fA-F]+", hostname) or re.match(r"^\d+$", hostname):
-        # Numeric hostname might be octal/hex IP
-        if await _is_internal_ip(hostname):
-            return False, "Numeric IP addresses are not allowed"
-
-    return True, ""
+    raise ValueError(f"Redirect limit exceeded ({max_redirects})")
 
 
 def _check_content_size(content: bytes | str, max_size: int = _MAX_CONTENT_SIZE) -> tuple[bool, str]:
@@ -322,11 +226,15 @@ async def research_web_search(
     try:
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(timeout_seconds, connect=10.0),
-            follow_redirects=True,
+            follow_redirects=False,
             limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
         ) as client:
             params = {"q": query, "kl": language}
-            resp = await client.get("https://html.duckduckgo.com/html/", params=params)
+            resp = await _get_with_safe_redirects(
+                client,
+                "https://html.duckduckgo.com/html/",
+                params=params,
+            )
             resp.raise_for_status()
             html = resp.text
 
@@ -529,7 +437,7 @@ async def research_browser_navigate(
     try:
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(timeout_seconds, connect=10.0),
-            follow_redirects=True,
+            follow_redirects=False,
             limits=httpx.Limits(max_connections=10),
         ) as client:
             headers = {
@@ -541,7 +449,7 @@ async def research_browser_navigate(
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                 "Accept-Language": "en-US,en;q=0.9",
             }
-            resp = await client.get(url, headers=headers)
+            resp = await _get_with_safe_redirects(client, url, headers=headers)
             resp.raise_for_status()
             html_content = resp.text
 
@@ -769,14 +677,14 @@ async def research_document_fetch(
     try:
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(timeout_seconds, connect=10.0),
-            follow_redirects=True,
+            follow_redirects=False,
         ) as client:
             headers = {
                 "User-Agent": (
                     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
                 ),
             }
-            resp = await client.get(url, headers=headers)
+            resp = await _get_with_safe_redirects(client, url, headers=headers)
             resp.raise_for_status()
             content = resp.text
             content_type = resp.headers.get("content-type", "text/plain")

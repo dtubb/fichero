@@ -147,10 +147,10 @@ struct WorkflowInspector: View {
                     Image(systemName: "lock.shield")
                         .font(.title2)
                         .foregroundColor(.secondary)
-                    Text("No tools enabled")
+                    Text("No built-in tools available")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    Text("Enable reviewed tools via feature flags.")
+                    Text("External workflow categories may still be gated.")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
@@ -164,7 +164,7 @@ struct WorkflowInspector: View {
                             Text("\(hiddenBuiltinToolCount) tool\(hiddenBuiltinToolCount == 1 ? "" : "s") hidden by feature flags")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                            Text("Hidden tools are intentionally gated in this release profile.")
+                            Text("Only separately gated external workflow categories are hidden.")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                         }

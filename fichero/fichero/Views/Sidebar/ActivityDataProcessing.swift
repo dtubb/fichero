@@ -56,8 +56,9 @@ func runsByWorkflow(
         }
     }
 
-    let libraryRuns = historicalRuns[library.id] ?? []
-    for item in libraryRuns where item.type != "workflow_started" {
+    let libraryRuns = (historicalRuns[library.id] ?? [])
+        .sorted { ($0.parsedTimestamp ?? .distantPast) > ($1.parsedTimestamp ?? .distantPast) }
+    for item in libraryRuns {
         // Batch-level events can be missing threadId; use synthetic thread token.
         let threadId = item.threadId ?? item.batchId.map { "batch:\($0)" }
         guard let threadId else { continue }
@@ -100,7 +101,8 @@ func runsByWorkflow(
 
 func activityMapExecutionStatus(_ status: WorkflowStatus) -> ActivityRunStatus {
     switch status {
-    case .running, .paused, .idle: return .running
+    case .running, .idle: return .running
+    case .paused: return .paused
     case .completed: return .completed
     case .failed: return .failed
     }
@@ -108,6 +110,8 @@ func activityMapExecutionStatus(_ status: WorkflowStatus) -> ActivityRunStatus {
 
 func activityMapActivityType(_ type: String) -> ActivityRunStatus {
     switch type {
+    case "workflow_started": return .running
+    case "workflow_paused": return .paused
     case "workflow_completed": return .completed
     case "workflow_failed": return .failed
     case "workflow_cancelled": return .cancelled
@@ -125,9 +129,9 @@ func activityHasError(_ item: ActivityItem) -> Bool {
 }
 
 func activityExtractFileCount(from item: ActivityItem) -> Int {
-    if let count = item.metadata?["input_count"].flatMap(Int.init) { return count }
-    if let count = item.metadata?["total_results"].flatMap(Int.init) { return count }
-    if let count = item.metadata?["nodes_completed"].flatMap(Int.init) { return count }
+    if let count = item.metadataStrings?["input_count"].flatMap(Int.init) { return count }
+    if let count = item.metadataStrings?["total_results"].flatMap(Int.init) { return count }
+    if let count = item.metadataStrings?["nodes_completed"].flatMap(Int.init) { return count }
     return 0
 }
 
@@ -135,7 +139,7 @@ func activityExtractWorkflowName(from item: ActivityItem) -> String {
     if item.type.hasPrefix("batch_"), let batchId = item.batchId {
         return "Batch \(String(batchId.prefix(8)))"
     }
-    if let name = item.metadata?["workflow_name"] { return activityCleanWorkflowName(name) }
+    if let name = item.metadataStrings?["workflow_name"] { return activityCleanWorkflowName(name) }
     if item.message.hasPrefix("Workflow '") {
         let afterPrefix = String(item.message.dropFirst(10))
         if let endQuote = afterPrefix.firstIndex(of: "'") {

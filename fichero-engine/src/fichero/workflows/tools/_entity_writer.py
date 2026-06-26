@@ -15,15 +15,22 @@ from __future__ import annotations
 import logging
 import re
 import threading
+import unicodedata
 from functools import wraps
 from typing import Optional
 
 from fichero.db import Database
+from fichero.kg._common import is_bare_is_a_copula
 from fichero.knowledge_models import (
     AttributionRole,
     AttributionStep,
+    ClaimCurationState,
+    ClaimSuppressionRule,
+    ClaimSuppressionRuleAction,
     ClaimType,
     ClaimRelationType,
+    EntityResolutionRule,
+    EntityResolutionRuleType,
     EntityType,
     EvidenceBasis,
     EpistemicStatus,
@@ -53,6 +60,184 @@ def _serialized_entity_upsert(func):
     return wrapper
 
 
+def _norm_rule_text(value: str | None) -> str:
+    return " ".join(str(value or "").split()).strip().casefold()
+
+
+def _matching_entity_resolution_rules(
+    db: Database,
+    canonical_name: str,
+    entity_type: EntityType,
+) -> list[EntityResolutionRule]:
+    normalized_name = _norm_rule_text(canonical_name)
+    rules = [
+        rule
+        for rule in db.query(EntityResolutionRule)
+        if _norm_rule_text(rule.match_canonical_name) == normalized_name
+    ]
+    matched = [
+        rule
+        for rule in rules
+        if rule.match_entity_type is None or rule.match_entity_type == entity_type
+    ]
+    matched.sort(key=lambda rule: (rule.created_at, rule.id))
+    return matched
+
+
+def _apply_entity_resolution_rules(
+    db: Database,
+    canonical_name: str,
+    entity_type: EntityType,
+) -> tuple[str, EntityType] | None:
+    current_name = canonical_name
+    current_type = entity_type
+    seen: set[tuple[str, str]] = set()
+
+    for _ in range(8):
+        loop_key = (_norm_rule_text(current_name), current_type.value)
+        if loop_key in seen:
+            logger.warning(
+                "upsert_entity: not writing %r/%s after resolution-rule loop detected; suppressing due to suspected cycle/overflow",
+                current_name,
+                current_type.value,
+            )
+            return None
+        seen.add(loop_key)
+
+        rules = _matching_entity_resolution_rules(db, current_name, current_type)
+        if not rules:
+            return current_name, current_type
+
+        suppress_rule = next(
+            (rule for rule in rules if rule.rule_type == EntityResolutionRuleType.suppress),
+            None,
+        )
+        if suppress_rule is not None:
+            logger.info(
+                "upsert_entity: suppressing %r/%s via rule %s",
+                current_name,
+                current_type.value,
+                suppress_rule.id,
+            )
+            return None
+
+        reclassify_rule = next(
+            (
+                rule
+                for rule in rules
+                if rule.rule_type == EntityResolutionRuleType.reclassify
+                and rule.target_entity_type is not None
+                and rule.target_entity_type != current_type
+            ),
+            None,
+        )
+        if reclassify_rule is not None:
+            logger.info(
+                "upsert_entity: reclassifying %r %s -> %s via rule %s",
+                current_name,
+                current_type.value,
+                reclassify_rule.target_entity_type.value,
+                reclassify_rule.id,
+            )
+            current_type = reclassify_rule.target_entity_type
+            continue
+
+        redirect_rule = next(
+            (
+                rule
+                for rule in rules
+                if rule.rule_type in {
+                    EntityResolutionRuleType.merge_into,
+                    EntityResolutionRuleType.alias,
+                }
+                and rule.target_canonical_name
+            ),
+            None,
+        )
+        if redirect_rule is not None:
+            redirected_name = redirect_rule.target_canonical_name.strip()
+            redirected_type = redirect_rule.target_entity_type or current_type
+            logger.info(
+                "upsert_entity: redirecting %r/%s -> %r/%s via rule %s",
+                current_name,
+                current_type.value,
+                redirected_name,
+                redirected_type.value,
+                redirect_rule.id,
+            )
+            current_name = redirected_name
+            current_type = redirected_type
+            continue
+
+        return current_name, current_type
+
+    logger.warning(
+        "upsert_entity: not writing %r/%s after resolution-rule iteration cap reached; suppressing due to suspected cycle/overflow",
+        current_name,
+        current_type.value,
+    )
+    return None
+
+def _matching_claim_suppression_rules(
+    db: Database,
+    subject_canonical: str | None,
+    predicate_verb: str | None,
+    object_phrase: str | None,
+) -> list[ClaimSuppressionRule]:
+    subject_norm = _norm_rule_text(subject_canonical)
+    predicate_norm = _norm_rule_text(predicate_verb)
+    object_norm = _norm_rule_text(object_phrase)
+    matches: list[ClaimSuppressionRule] = []
+    for rule in db.all(ClaimSuppressionRule):
+        if rule.match_subject_name and _norm_rule_text(rule.match_subject_name) != subject_norm:
+            continue
+        if rule.match_predicate_verb and _norm_rule_text(rule.match_predicate_verb) != predicate_norm:
+            continue
+        if rule.match_object_phrase and _norm_rule_text(rule.match_object_phrase) != object_norm:
+            continue
+        if rule.suppress_is_a_copulas and not is_bare_is_a_copula(predicate_verb, object_phrase):
+            continue
+        matches.append(rule)
+    matches.sort(key=lambda rule: (rule.created_at, rule.id))
+    return matches
+
+
+def _effective_claim_suppression_action(
+    rule: ClaimSuppressionRule,
+    predicate_verb: str | None,
+    object_phrase: str | None,
+) -> ClaimSuppressionRuleAction:
+    if rule.suppress_is_a_copulas and is_bare_is_a_copula(predicate_verb, object_phrase):
+        return ClaimSuppressionRuleAction.demote
+    return rule.action
+
+
+def _claim_suppression_action(
+    db: Database,
+    subject_canonical: str | None,
+    predicate_verb: str | None,
+    object_phrase: str | None,
+) -> ClaimSuppressionRuleAction | None:
+    matched = _matching_claim_suppression_rules(
+        db,
+        subject_canonical=subject_canonical,
+        predicate_verb=predicate_verb,
+        object_phrase=object_phrase,
+    )
+    if not matched:
+        return None
+
+    actions = [
+        _effective_claim_suppression_action(rule, predicate_verb, object_phrase)
+        for rule in matched
+    ]
+    if ClaimSuppressionRuleAction.prune in actions:
+        return ClaimSuppressionRuleAction.prune
+    if ClaimSuppressionRuleAction.disable in actions:
+        return ClaimSuppressionRuleAction.disable
+    return ClaimSuppressionRuleAction.demote
+
+
 # Admin-subdivision qualifier vocabulary (#1114 issue 2)
 # ------------------------------------------------------
 # Words that act as "type qualifiers" on a place name — adding or
@@ -80,10 +265,58 @@ _ADMIN_PREFIXES = frozenset({
 })
 
 
+def _fold_accents(s: str) -> str:
+    """Strip diacritics so "Peña" folds onto "Pena" (#1811).
+
+    NFKD-decompose then drop the combining marks. Case is left to the
+    caller (token helpers lowercase separately). Folding is deliberately
+    accent-only — it does NOT transliterate (ñ→n is a side effect of
+    decomposition, but ß/ø/đ that have no canonical decomposition are
+    left intact rather than guessed at), keeping the transform lossless
+    enough that distinct names ("Müller" vs "Mahler") don't collide.
+    """
+    decomposed = unicodedata.normalize("NFKD", s)
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+
+
 def _tokenise_lower(s: str) -> list[str]:
     """Split a name into lowercase alphanumeric tokens."""
     cleaned = "".join(c if c.isalnum() or c.isspace() else " " for c in s.lower())
     return [tok for tok in cleaned.split() if tok]
+
+
+def _normalized_match_key(name: str) -> str:
+    """Conservative high-precision identity key for a name (#1811).
+
+    Accent-fold, lowercase, strip punctuation/whitespace, drop leading
+    articles and trailing admin-subdivision qualifiers, then re-join.
+    Two names with the same key are the *same* entity for matching
+    purposes — this captures accent variants ("Peña"/"Pena"), trailing
+    punctuation ("San Pablo."), case, and article/qualifier noise
+    ("the X"/"X department") without any fuzzy tolerance, so it never
+    collapses genuinely distinct names ("San Pablo" vs "San Juan").
+    """
+    return " ".join(_strip_admin_qualifiers(_tokenise_lower(_fold_accents(name))))
+
+
+def _normalized_claim_svo_key(
+    subject: str | None,
+    predicate: str | None,
+    object_phrase: str | None,
+) -> tuple[str, str, str] | None:
+    """High-precision identity key for structured SVO claims (#1805).
+
+    Mirrors the entity normalized key for each SVO component: accent-fold,
+    case-fold, punctuation/whitespace folding, and article/admin-qualifier
+    stripping. It deliberately does not translate or synonym-match; two
+    claims collapse only when all three normalized components are identical.
+    """
+    parts = (
+        _normalized_match_key(subject or ""),
+        _normalized_match_key(predicate or ""),
+        _normalized_match_key(object_phrase or ""),
+    )
+    return parts if all(parts) else None
 
 
 def _strip_admin_qualifiers(tokens: list[str]) -> list[str]:
@@ -96,6 +329,53 @@ def _strip_admin_qualifiers(tokens: list[str]) -> list[str]:
     while tokens and tokens[-1] in _ADMIN_SUFFIXES:
         tokens = tokens[:-1]
     return tokens
+
+
+# Embedding auto-merge precision gate (#1907)
+# -------------------------------------------
+# A high e5-large cosine alone over-merges surface-distinct but
+# semantically-similar names ("San Pablo" vs "San Juan" — both
+# saint-name places land at ~0.93 cosine). Before honouring an
+# embedding auto-merge we ALSO require a lexical agreement signal so
+# the two surface forms actually look like the same name.
+_AUTO_MERGE_LEXICAL_SEQ_FLOOR = 0.80
+_AUTO_MERGE_MIN_SHARED_TOKENS = 2
+
+
+def _significant_tokens(s: str) -> set[str]:
+    """Accent-folded, lowercased tokens of length > 2 (drops generic
+    short connectors like 'of'/'on'/'la' and single letters).
+    """
+    return {tok for tok in _tokenise_lower(_fold_accents(s)) if len(tok) > 2}
+
+
+def _lexical_agreement(name_a: str, name_b: str) -> bool:
+    """Precision gate for embedding auto-merge (#1907).
+
+    Returns True only when the two surface forms agree lexically — via
+    EITHER signal:
+
+    - **High SequenceMatcher ratio** on accent-folded forms — catches
+      accent / spacing variants of the *same* name ("Bogotá"/"Bogota"
+      → 1.0, "San Pablo"/"San Pabloo" → ~0.94).
+    - **>= 2 shared significant tokens** — catches verbose paraphrases
+      that share content words ("Narrator's Account of Racial Economic
+      Exclusion" / "Narrator's Monologue on Race and Economic
+      Marginalization" share {narrator, economic}).
+
+    Surface-distinct names that merely share a single generic token
+    ("San Pablo" vs "San Juan" — only "san" in common, seq ratio
+    ~0.59) fail BOTH signals and are therefore NOT auto-merged on
+    embedding cosine alone; they route to the human review queue.
+    """
+    from difflib import SequenceMatcher
+
+    folded_a = _fold_accents(name_a.lower())
+    folded_b = _fold_accents(name_b.lower())
+    if SequenceMatcher(None, folded_a, folded_b).ratio() >= _AUTO_MERGE_LEXICAL_SEQ_FLOOR:
+        return True
+    shared = _significant_tokens(name_a) & _significant_tokens(name_b)
+    return len(shared) >= _AUTO_MERGE_MIN_SHARED_TOKENS
 
 
 def _admin_qualifier_match(a: str, b: str) -> bool:
@@ -117,8 +397,12 @@ def _admin_qualifier_match(a: str, b: str) -> bool:
                                            upsert's type-conflict check;
                                            this is name-only)
     """
-    core_a = _strip_admin_qualifiers(_tokenise_lower(a))
-    core_b = _strip_admin_qualifiers(_tokenise_lower(b))
+    # Accent-fold (#1811) so "Peña" / "Pena department" reduce to the
+    # same core tokens. Folding happens here rather than in
+    # `_tokenise_lower` so the tokeniser's surface-preserving contract
+    # (used elsewhere) is unchanged.
+    core_a = _strip_admin_qualifiers(_tokenise_lower(_fold_accents(a)))
+    core_b = _strip_admin_qualifiers(_tokenise_lower(_fold_accents(b)))
     return bool(core_a) and core_a == core_b
 
 
@@ -170,19 +454,51 @@ def _fuzzy_match_existing(
     if not canonical_name or not existing:
         return None
 
-    # Normalise: lower, drop punctuation. Token-set similarity is
-    # more forgiving of reordering than raw SequenceMatcher.ratio.
+    # Normalise: accent-fold (#1811), lower, drop punctuation. Token-set
+    # similarity is more forgiving of reordering than raw
+    # SequenceMatcher.ratio. Diacritic folding makes "Peña"/"Pena" and
+    # "Bogotá"/"Bogota" score as identical instead of 0.75 (which fell
+    # under the 0.78 threshold and silently created near-duplicates).
     def _tokens(s: str) -> set[str]:
-        cleaned = "".join(c if c.isalnum() or c.isspace() else " " for c in s.lower())
+        folded = _fold_accents(s.lower())
+        cleaned = "".join(c if c.isalnum() or c.isspace() else " " for c in folded)
         return {tok for tok in cleaned.split() if len(tok) > 2}
 
+    def _single_token_suffix_noise_match(a: str, b: str) -> bool:
+        tokens_a = _tokenise_lower(_fold_accents(a))
+        tokens_b = _tokenise_lower(_fold_accents(b))
+        if len(tokens_a) != 1 or len(tokens_b) != 1:
+            return False
+        left, right = tokens_a[0], tokens_b[0]
+        shorter, longer = sorted((left, right), key=len)
+        if len(shorter) < 5 or not longer.startswith(shorter):
+            return False
+        suffix = longer[len(shorter):]
+        return 0 < len(suffix) <= 3 and longer.endswith(shorter[-1])
+
+    # High-precision short-circuit: identical normalized identity key
+    # (accent/case/punctuation/article/admin-qualifier folded) is a
+    # guaranteed-safe merge — no fuzzy tolerance, so distinct names
+    # can never collide here.
+    needle_key = _normalized_match_key(canonical_name)
+    if needle_key:
+        for ent in existing:
+            if _normalized_match_key(ent.canonical_name) == needle_key:
+                return ent
+            if _single_token_suffix_noise_match(
+                canonical_name, ent.canonical_name
+            ):
+                return ent
+
     needle_tokens = _tokens(canonical_name)
-    needle_lower = canonical_name.lower()
+    needle_lower = _fold_accents(canonical_name.lower())
 
     best: tuple[float, Optional[KnowledgeEntity]] = (0.0, None)
     for ent in existing:
         # Two metrics, take the max so either signal can hit threshold.
-        seq_ratio = SequenceMatcher(None, needle_lower, ent.canonical_name.lower()).ratio()
+        seq_ratio = SequenceMatcher(
+            None, needle_lower, _fold_accents(ent.canonical_name.lower())
+        ).ratio()
         ent_tokens = _tokens(ent.canonical_name)
         if needle_tokens and ent_tokens:
             intersection = len(needle_tokens & ent_tokens)
@@ -626,14 +942,51 @@ def _same_structured_claim(a: KnowledgeClaim, b: KnowledgeClaim) -> bool:
     if set(a.entity_ids) != set(b.entity_ids):
         return False
 
-    a_svo = (a.svo_subject or a.subject_canonical, a.svo_verb, a.svo_object)
-    b_svo = (b.svo_subject or b.subject_canonical, b.svo_verb, b.svo_object)
+    a_svo = (
+        a.svo_subject or a.subject_canonical,
+        a.svo_verb or a.predicate_canonical or a.predicate_verb,
+        a.svo_object or a.object_phrase,
+    )
+    b_svo = (
+        b.svo_subject or b.subject_canonical,
+        b.svo_verb or b.predicate_canonical or b.predicate_verb,
+        b.svo_object or b.object_phrase,
+    )
     if all(a_svo) and all(b_svo):
-        return a_svo == b_svo
+        a_key = _normalized_claim_svo_key(*a_svo)
+        b_key = _normalized_claim_svo_key(*b_svo)
+        return a_key is not None and a_key == b_key
 
     from difflib import SequenceMatcher
 
     return SequenceMatcher(None, a.text, b.text).ratio() >= 0.92
+
+
+def _same_claim_identity(
+    prior: KnowledgeClaim,
+    *,
+    entity_ids: set[str],
+    text: str,
+    svo_subject: str | None,
+    svo_verb: str | None,
+    svo_object: str | None,
+) -> bool:
+    """Return True when an incoming save would duplicate ``prior``."""
+    if set(prior.entity_ids) != entity_ids:
+        return False
+
+    incoming_key = _normalized_claim_svo_key(svo_subject, svo_verb, svo_object)
+    prior_key = _normalized_claim_svo_key(
+        prior.svo_subject or prior.subject_canonical,
+        prior.svo_verb or prior.predicate_canonical or prior.predicate_verb,
+        prior.svo_object or prior.object_phrase,
+    )
+    if incoming_key is not None and prior_key is not None:
+        return incoming_key == prior_key
+
+    from difflib import SequenceMatcher
+
+    return SequenceMatcher(None, prior.text, text).ratio() >= 0.9
 
 
 def _find_cross_source_canonical_claim(
@@ -647,6 +1000,54 @@ def _find_cross_source_canonical_claim(
         if _same_structured_claim(prior, claim):
             return prior
     return None
+
+
+def _repoint_claim_entity_references(
+    db: Database,
+    *,
+    duplicate_ids: set[str],
+    survivor_id: str,
+) -> list[str]:
+    """Replace duplicate entity references in claims before deleting rows."""
+    if not duplicate_ids:
+        return []
+
+    scalar_fields = (
+        "subject_entity_id",
+        "speaker_entity_id",
+        "subject_of_inquiry_entity_id",
+        "scribe_entity_id",
+        "editor_entity_id",
+    )
+    repointed_claim_ids: list[str] = []
+
+    for claim in db.query(KnowledgeClaim):
+        changed = False
+
+        old_ids = claim.entity_ids or []
+        if any(entity_id in duplicate_ids for entity_id in old_ids):
+            new_ids = [
+                survivor_id if entity_id in duplicate_ids else entity_id
+                for entity_id in old_ids
+            ]
+            seen: set[str] = set()
+            claim.entity_ids = [
+                entity_id
+                for entity_id in new_ids
+                if not (entity_id in seen or seen.add(entity_id))
+            ]
+            changed = True
+
+        for field_name in scalar_fields:
+            if getattr(claim, field_name, None) in duplicate_ids:
+                setattr(claim, field_name, survivor_id)
+                changed = True
+
+        if changed:
+            db.save(claim)
+            repointed_claim_ids.append(claim.id)
+
+    return repointed_claim_ids
 
 
 def _support_key(
@@ -777,7 +1178,7 @@ def upsert_entity(
     aliases: Optional[list[str]] = None,
     description: Optional[str] = None,
     source_document_id: Optional[str] = None,
-) -> str:
+) -> str | None:
     """Look up entity by ``(canonical_name, entity_type)``; create if missing.
 
     Three-stage match (#897 → #899 Phase B):
@@ -787,8 +1188,10 @@ def upsert_entity(
        same-type entities. Catches semantic divergence in noun
        phrases ("Racial Economic Exclusion" vs "Race and Economic
        Marginalization") that pure SequenceMatcher misses. Cosine
-       >= 0.92 → auto-merge; 0.75–0.92 → logged for future review
-       gate (#377); <0.75 → fall through.
+       >= 0.92 → auto-merge ONLY IF a lexical-agreement precision
+       gate also passes (#1907 — otherwise routed to review so
+       "San Pablo"/"San Juan" don't collapse); 0.75–0.92 → logged
+       for the review gate (#377); <0.75 → fall through.
     3. SequenceMatcher fallback for the case where vectors aren't
        available yet (table empty, model failed to load, etc.). Keeps
        the 0.0.2 behaviour as a floor.
@@ -801,6 +1204,11 @@ def upsert_entity(
     Returns the entity ID. Idempotent on the exact path; the fuzzy
     paths preserve surface-form evidence via the aliases list.
     """
+    resolved = _apply_entity_resolution_rules(db, canonical_name, entity_type)
+    if resolved is None:
+        return None
+    canonical_name, entity_type = resolved
+
     existing = db.query(
         KnowledgeEntity,
         canonical_name=canonical_name,
@@ -926,13 +1334,31 @@ def upsert_entity(
         )
         if hits:
             best_id, best_score, best_name = hits[0]
-            if best_score >= entity_vectors.AUTO_MERGE_THRESHOLD:
+            if best_score >= entity_vectors.AUTO_MERGE_THRESHOLD and _lexical_agreement(
+                canonical_name, best_name
+            ):
+                # Precision gate passed (#1907): cosine is in the
+                # auto-merge band AND the surface forms agree lexically
+                # (accent/spacing variant or shared content tokens).
                 matched = db.get(KnowledgeEntity, best_id)
                 if matched is not None:
                     logger.info(
                         "upsert_entity: embedding auto-merge %r → %s (%r, cosine=%.3f)",
                         canonical_name, best_id, best_name, best_score,
                     )
+            elif best_score >= entity_vectors.AUTO_MERGE_THRESHOLD:
+                # Precision gate FAILED (#1907): cosine alone would
+                # merge, but the surface forms materially differ
+                # ("San Pablo" vs "San Juan"). Embedding similarity is
+                # not enough to collapse distinct entities, so route to
+                # the human review queue instead of auto-merging.
+                logger.info(
+                    "upsert_entity: embedding cosine %.3f for %r ~ %r but "
+                    "lexical agreement low — routing to review instead of "
+                    "auto-merge (#1907)",
+                    best_score, canonical_name, best_name,
+                )
+                _pending_review = (best_id, best_score, best_name)
             elif best_score >= entity_vectors.REVIEW_THRESHOLD:
                 # Mid-band: surface for the human review queue (#377 /
                 # #899 Phase D). We DON'T auto-merge here — false
@@ -1042,6 +1468,12 @@ def upsert_entity(
     if len(siblings) > 1:
         siblings.sort(key=lambda e: e.created_at)
         survivor = siblings[0]
+        duplicate_ids = {dup.id for dup in siblings[1:]}
+        repointed_claim_ids = _repoint_claim_entity_references(
+            db,
+            duplicate_ids=duplicate_ids,
+            survivor_id=survivor.id,
+        )
         # Aliases-fold helper inline so it's local to the race path.
         seen_folded = {a.strip().casefold(): a.strip()
                        for a in (survivor.aliases or [])
@@ -1061,8 +1493,8 @@ def upsert_entity(
         db.save(survivor)
         logger.warning(
             "upsert_entity: race-recovery merged %d duplicate(s) of "
-            "%r → %s (#1121)",
-            len(siblings) - 1, canonical_name, survivor.id,
+            "%r → %s and repointed %d claim(s) (#1121)",
+            len(siblings) - 1, canonical_name, survivor.id, len(repointed_claim_ids),
         )
         # The caller wants the surviving id, not the one we just
         # created (which we just deleted above if we lost the race).
@@ -1283,7 +1715,8 @@ def save_claim(
     place_values: Optional[list[EvidentialPlace | dict]] = None,
     attribution_chain: Optional[list[AttributionStep | dict]] = None,
     source_supports: Optional[list[SourceSupport | dict]] = None,
-) -> str:
+    claim_recorded_at: Optional[str] = None,
+) -> str | None:
     """Save a `KnowledgeClaim` row. Returns the claim ID.
 
     Claims are document-scoped textual assertions linked to entities via
@@ -1306,22 +1739,11 @@ def save_claim(
     check existed; per the issue, the upstream fan-out gets fixed
     separately but this guard means a partial regression can't
     repopulate the same six rows.
-    """
-    from difflib import SequenceMatcher
 
+    Returns ``None`` when a matching `ClaimSuppressionRule` prunes the
+    claim at write time.
+    """
     entity_ids_set = set(entity_ids or [])
-    if source_page_label and source_document_id:
-        existing = db.query(
-            KnowledgeClaim,
-            source_document_id=source_document_id,
-            source_page_label=source_page_label,
-        )
-        for prior in existing:
-            if set(prior.entity_ids) != entity_ids_set:
-                continue
-            ratio = SequenceMatcher(None, prior.text, text).ratio()
-            if ratio >= 0.9:
-                return prior.id
 
     # Promoted SVO fields (#984): also accept subject/verb/object via
     # the kwargs above; fall back to metadata['subject'/'verb'/'object']
@@ -1331,6 +1753,7 @@ def save_claim(
     sc = subject_canonical or (meta.get("subject") if isinstance(meta.get("subject"), str) else None)
     sv = predicate_verb or (meta.get("verb") if isinstance(meta.get("verb"), str) else None)
     so = object_phrase or (meta.get("object") if isinstance(meta.get("object"), str) else None)
+
     # Predicate canonicalisation (#1123 Phase C): every claim that
     # carries a free-text predicate_verb also gets the canonical slug
     # looked up at write time. Unknown verbs → None (honest absence
@@ -1339,6 +1762,50 @@ def save_claim(
     # additions in kg/_common.py reach every existing writer for free.
     from fichero.kg._common import canonical_verb as _canonical_verb
     pred_canonical = _canonical_verb(sv)
+
+    incoming_svo_subject = svo_subject if svo_subject is not None else sc
+    incoming_svo_verb = svo_verb if svo_verb is not None else pred_canonical
+    incoming_svo_object = svo_object if svo_object is not None else so
+
+    if source_page_label and source_document_id:
+        existing = db.query(
+            KnowledgeClaim,
+            source_document_id=source_document_id,
+            source_page_label=source_page_label,
+        )
+        for prior in existing:
+            if _same_claim_identity(
+                prior,
+                entity_ids=entity_ids_set,
+                text=text,
+                svo_subject=incoming_svo_subject,
+                svo_verb=incoming_svo_verb or sv,
+                svo_object=incoming_svo_object,
+            ):
+                return prior.id
+
+    suppression_action = _claim_suppression_action(
+        db,
+        subject_canonical=sc,
+        predicate_verb=sv,
+        object_phrase=so,
+    )
+    if suppression_action == ClaimSuppressionRuleAction.prune:
+        logger.info(
+            "save_claim: pruned claim for subject=%r predicate=%r object=%r",
+            sc,
+            sv,
+            so,
+        )
+        return None
+
+    claim_confidence = confidence
+    claim_curation_state = ClaimCurationState.unreviewed
+    if suppression_action == ClaimSuppressionRuleAction.disable:
+        claim_curation_state = ClaimCurationState.rejected
+    elif suppression_action == ClaimSuppressionRuleAction.demote:
+        claim_curation_state = ClaimCurationState.rejected
+        claim_confidence = min(confidence, 0.2)
 
     # Attribution heuristics (#1123 Phase D): derive speaker / audience /
     # quotation_kind from the claim text + excerpt when not explicitly
@@ -1406,7 +1873,8 @@ def save_claim(
         claim_geo=claim_geo,
         place_values=derived_place_values,
         claim_type=claim_type,
-        confidence=confidence,
+        curation_state=claim_curation_state,
+        confidence=claim_confidence,
         metadata=meta,
         epistemic_status=epistemic_status,
         subject_canonical=sc,
@@ -1414,9 +1882,9 @@ def save_claim(
         predicate_verb=sv,
         predicate_canonical=pred_canonical,
         object_phrase=so,
-        svo_subject=svo_subject if svo_subject is not None else sc,
-        svo_verb=svo_verb if svo_verb is not None else pred_canonical,
-        svo_object=svo_object if svo_object is not None else so,
+        svo_subject=incoming_svo_subject,
+        svo_verb=incoming_svo_verb,
+        svo_object=incoming_svo_object,
         # Provider attribution (#1113) — which LLM (and any heuristic
         # post-processing) produced this claim. Surface in the inspector
         # so users can audit per-model claim quality.
@@ -1439,8 +1907,9 @@ def save_claim(
             {support.source_document_id for support in support_values},
         ),
         corroborating_source_ids=sorted({support.source_document_id for support in support_values}),
-        evidential_confidence=confidence,
+        evidential_confidence=claim_confidence,
         evidential_confidence_source=evidential_confidence_source,
+        claim_recorded_at=claim_recorded_at,
     )
     canonical = _find_cross_source_canonical_claim(db, claim)
     if canonical is not None:

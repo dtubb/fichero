@@ -90,14 +90,6 @@ struct SheetModifiers: ViewModifier {
                 .environmentObject(appState.providerService)
             }
             .sheet(isPresented: Binding(
-                get: { appState.showProvidersSettings },
-                set: { appState.showProvidersSettings = $0 }
-            )) {
-                ProvidersSettingsSheet()
-                    .environmentObject(appState)
-                    .environmentObject(appState.providerService)
-            }
-            .sheet(isPresented: Binding(
                 get: { appState.showMCPServers },
                 set: { appState.showMCPServers = $0 }
             )) {
@@ -120,8 +112,10 @@ struct DropTargetModifiers: ViewModifier {
         content
             // Transferable API — does not interfere with hit testing on sidebar
             // icon/text rows the way .onDrop(of:) does. Root-level drops are
-            // routed to Inbox in handleFileDrop; the 400 error is now readable
-            // via LocalizedError so the real backend message surfaces (#598).
+            // classified in handleFileDrop: `.fichero` packages open/focus a
+            // window, everything else still imports to Inbox. The 400 error is
+            // now readable via LocalizedError so the real backend message
+            // surfaces (#598).
             .dropDestination(for: URL.self) { urls, _ in
                 handleFileDrop(urls)
                 return true
@@ -143,7 +137,7 @@ struct DropTargetModifiers: ViewModifier {
                             }
                         }
                         .padding(20)
-                        .background(Color(nsColor: .controlBackgroundColor))
+                        .background(Color(platformColor: .controlBackgroundColor))
                         .cornerRadius(8)
                     }
                     .allowsHitTesting(false)
@@ -298,8 +292,6 @@ struct MainContentModifiers: ViewModifier {
             viewMode = .automation
         case .activity:
             viewMode = .activity(nil)
-        case .mindPalace:
-            viewMode = .mindPalace
         case .research, .knowledgeGraph:
             // Research and Knowledge Graph have no ViewMode case; contentView
             // intercepts on sidebarMode == .research / .knowledgeGraph, so leave

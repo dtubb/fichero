@@ -1,3 +1,4 @@
+#if os(macOS)
 import AppKit
 
 #if canImport(Sparkle)
@@ -82,3 +83,15 @@ final class SparkleUpdater {
         alert.runModal()
     }
 }
+
+#else
+
+// iOS stub: Sparkle is macOS-only. Callers still compile; updates are a no-op.
+@MainActor
+final class SparkleUpdater {
+    static let shared = SparkleUpdater()
+    private init() {}
+    func checkForUpdates() {}
+}
+
+#endif

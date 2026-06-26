@@ -7,7 +7,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "ChainEd
 /// Uses the ChainDetailContent as the main content
 struct ChainEditorView: View {
     let chain: WorkflowChain
-    @EnvironmentObject var workflowStore: WorkflowStore
+    @Environment(WorkflowStore.self) var workflowStore
     @EnvironmentObject var apiClient: APIClient
     @State private var isExecuting = false
     @State private var showDeleteConfirmation = false

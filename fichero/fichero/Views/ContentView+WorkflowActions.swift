@@ -53,7 +53,7 @@ extension ContentView {
 
     func navigateToDocument(_ doc: Document) {
         viewMode = .library(doc)
-        selectedSidebarItemId = "doc:\(doc.id)"
+        sidebarSelectionState.selectedItemId = "doc:\(doc.id)"
     }
 
     /// Open the source page behind a KG entity click. The source claim
@@ -162,7 +162,7 @@ extension ContentView {
     /// the sidebar is hidden. (#786)
     @MainActor
     func navigateToParent() {
-        guard let prefixedId = selectedSidebarItemId,
+        guard let prefixedId = sidebarSelectionState.selectedItemId,
               prefixedId.hasPrefix("doc:") else {
             return
         }
@@ -171,9 +171,9 @@ extension ContentView {
             ?? detailDocument
         guard let current else { return }
         if let parentId = current.parentId, !parentId.isEmpty {
-            selectedSidebarItemId = "doc:\(parentId)"
+            sidebarSelectionState.selectedItemId = "doc:\(parentId)"
         } else {
-            selectedSidebarItemId = nil
+            sidebarSelectionState.selectedItemId = nil
             detailDocument = nil
             viewMode = .library(nil)
         }
@@ -245,13 +245,14 @@ extension ContentView {
         providerOverride: String? = nil,
         modelOverride: String? = nil
     ) {
+        var executionThreadId = "pending:\(UUID().uuidString)"
         // Optimistic insert (#944): show the Activity row immediately, then replace
         // the placeholder thread ID once the POST returns.
         // If the POST fails, the row stays visible and is marked failed.
         executionObserver.startExecution(
             workflowId: workflowId,
             name: workflowName,
-            threadId: "pending"
+            threadId: executionThreadId
         )
 
         Task { @MainActor in
@@ -262,10 +263,23 @@ extension ContentView {
                     inputs: ["selected_doc_ids": docIds],
                     providerOverride: providerOverride,
                     modelOverride: modelOverride,
+                    onAccepted: { acceptedResponse in
+                        let threadId = acceptedResponse.threadId
+                        executionObserver.promoteExecution(
+                            from: executionThreadId,
+                            to: threadId,
+                            onCancel: { [weak workflowStreamService] in
+                                Task { @MainActor in
+                                    try? await workflowStreamService?.stopWorkflow(threadId: threadId)
+                                }
+                            }
+                        )
+                        executionThreadId = threadId
+                    },
                     onEvent: { [weak documentStore] event in
                         if handleWorkflowStreamEvent(
                             event,
-                            workflowId: workflowId,
+                            threadId: executionThreadId,
                             documentStore: documentStore
                         ) {
                             streamCompleted = true
@@ -274,31 +288,24 @@ extension ContentView {
                 )
 
                 let threadId = response.threadId
-                // Re-register with the real threadId + cancel handler.
-                // Reuses the optimistic row's slot in activeExecutions.
-                executionObserver.startExecution(
-                    workflowId: workflowId,
-                    name: workflowName,
-                    threadId: threadId,
-                    onCancel: { [weak workflowStreamService] in
-                        Task { @MainActor in
-                            try? await workflowStreamService?.stopWorkflow(threadId: threadId)
-                        }
-                    }
-                )
                 importProgress = nil
                 workflowLogger.info("Started SSE workflow \(workflowId) thread \(threadId) for \(docIds.count) docs")
 
                 streamCompleted = await waitForWorkflowCompletion(
-                    workflowId: workflowId,
+                    threadId: executionThreadId,
                     streamCompleted: streamCompleted
                 )
-                await finishWorkflowExecution(workflowId: workflowId, docIds: docIds, streamCompleted: streamCompleted)
+                await finishWorkflowExecution(
+                    threadId: executionThreadId,
+                    workflowId: workflowId,
+                    docIds: docIds,
+                    streamCompleted: streamCompleted
+                )
             } catch {
                 importProgress = nil
                 importError = "Workflow failed to start: \(error.localizedDescription)"
                 workflowLogger.error("executeWorkflowViaSSE failed: \(error.localizedDescription)")
-                executionObserver.endExecution(workflowId: workflowId, status: .failed)
+                executionObserver.endExecution(threadId: executionThreadId, status: .failed)
             }
         }
     }
@@ -311,6 +318,7 @@ extension ContentView {
     /// data. (#1445)
     @MainActor
     private func finishWorkflowExecution(
+        threadId: String,
         workflowId: String,
         docIds: [String],
         streamCompleted: Bool
@@ -318,8 +326,8 @@ extension ContentView {
         if streamCompleted {
             await documentStore.refreshDocumentsByIds(docIds)
         }
-        let finalStatus = workflowFinalStatus(for: workflowId)
-        executionObserver.endExecution(workflowId: workflowId, status: finalStatus)
+        let finalStatus = workflowFinalStatus(forThreadId: threadId)
+        executionObserver.endExecution(threadId: threadId, status: finalStatus)
         workflowLogger.info(
             "Workflow \(workflowId) finished with status: \(String(describing: finalStatus))"
         )
@@ -327,10 +335,10 @@ extension ContentView {
 
     private func handleWorkflowStreamEvent(
         _ event: WorkflowStreamEvent,
-        workflowId: String,
+        threadId: String,
         documentStore: DocumentStore?
     ) -> Bool {
-        executionObserver.handleEvent(event, for: workflowId)
+        executionObserver.handleEvent(event, forThreadId: threadId)
         updateDocumentStatusFromEvent(event, documentStore: documentStore)
         switch event {
         case .complete, .error, .systemicError:
@@ -340,8 +348,8 @@ extension ContentView {
         }
     }
 
-    private func workflowFinalStatus(for workflowId: String) -> WorkflowStatus {
-        guard let exec = executionObserver.activeExecutions[workflowId] else {
+    private func workflowFinalStatus(forThreadId threadId: String) -> WorkflowStatus {
+        guard let exec = executionObserver.activeExecutions[threadId] else {
             return .completed
         }
         return exec.workflowError != nil || exec.status == .failed ? .failed : .completed
@@ -349,14 +357,14 @@ extension ContentView {
 
     @MainActor
     private func waitForWorkflowCompletion(
-        workflowId: String,
+        threadId: String,
         streamCompleted: Bool
     ) async -> Bool {
         var completed = streamCompleted
         while !completed {
             try? await Task.sleep(for: .milliseconds(200))
             if Task.isCancelled { break }
-            if let exec = executionObserver.activeExecutions[workflowId], !exec.isRunning {
+            if let exec = executionObserver.activeExecutions[threadId], !exec.isRunning {
                 completed = true
             }
         }
@@ -369,16 +377,22 @@ extension ContentView {
     ) {
         guard let documentStore else { return }
         switch event {
-        case .fileStart(_, _, let filePath, _, _, _):
-            documentStore.updateProcessingStatus(forPath: filePath, status: .processing)
-        case .fileComplete(_, _, let filePath, _, _, _, _):
+        case .fileStart:
+            if let identity = event.fileProgressIdentity {
+                documentStore.updateProcessingStatus(for: identity, status: .processing)
+            }
+        case .fileComplete:
             // Per-file fanout slot finished, but reduce-phase nodes
             // (extract_all etc.) may still be touching this page. Defer
             // the green checkmark until the workflow's terminal event.
             // See DocumentStore.recordFanoutComplete + flushPendingFanoutCompletions (#948).
-            documentStore.recordFanoutComplete(forPath: filePath)
-        case .fileError(_, _, let filePath, _, _):
-            documentStore.updateProcessingStatus(forPath: filePath, status: .failed)
+            if let identity = event.fileProgressIdentity {
+                documentStore.recordFanoutComplete(for: identity)
+            }
+        case .fileError:
+            if let identity = event.fileProgressIdentity {
+                documentStore.updateProcessingStatus(for: identity, status: .failed)
+            }
         case .complete:
             documentStore.flushPendingFanoutCompletions(status: .completed)
         case .error, .systemicError:

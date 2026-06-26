@@ -1,11 +1,25 @@
+#if canImport(AppKit)
 import AppKit
+#endif
 import FicheroAPIClient
 import SwiftUI
 
 // MARK: - Claim Summary Card
 
+/// True when a value is a bare UUID / hash with no human-readable content
+/// — e.g. `31a6d4d2…519710`. The extractor occasionally leaves a raw
+/// source-annotation id in subject/object; we never want to render that as
+/// an SVO chip. (#1864)
+private func isOpaqueIdentifier(_ value: String) -> Bool {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard trimmed.count >= 16 else { return false }
+    let hexAndDashes = CharacterSet(charactersIn: "0123456789abcdefABCDEF-")
+    return trimmed.rangeOfCharacter(from: hexAndDashes.inverted) == nil
+}
+
 struct ClaimSummaryCard: View {
     let claim: Components.Schemas.KnowledgeClaim
+    var focusedEntityId: String?
     var onNavigateToSource: ((Components.Schemas.KnowledgeClaim) -> Void)?
 
     /// Expanded → reveals the verbatim source excerpt + fetches
@@ -19,7 +33,14 @@ struct ClaimSummaryCard: View {
     @State private var showEditSheet = false
     @State private var showDeleteConfirmation = false
     @State private var isInlineEditing = false
+    // Not `private`: written from the mutation handlers in the +Details.swift
+    // extension (a separate file), so it must be at least internal.
+    @State var mutationError: String?
     @Environment(KGFocusState.self) var kgFocusState
+    /// Claim mutations route through the store (#1862); the change-stream fans
+    /// the refresh back to every claim surface, retiring the `.ficheroClaim*`
+    /// NotificationCenter posts this card used to make.
+    @Environment(ClaimStore.self) var claimStore
     /// Finder-style Open in New Tab / New Window for claim cards (#1685).
     @Environment(\.openWindow) private var openWindow
     @AppStorage("editor.fontSize") private var defaultFontSize: Double = 13
@@ -47,7 +68,8 @@ struct ClaimSummaryCard: View {
         let subject = (claim.subjectCanonical ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let verb = (claim.predicateVerb ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let object = (claim.objectPhrase ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        if !subject.isEmpty, !verb.isEmpty, !object.isEmpty {
+        if !subject.isEmpty, !verb.isEmpty, !object.isEmpty,
+           !isOpaqueIdentifier(subject), !isOpaqueIdentifier(object) {
             return SVOTriple(subject: subject, verb: verb, object: object)
         }
         // Legacy metadata fallback.
@@ -55,7 +77,8 @@ struct ClaimSummaryCard: View {
         let metaSubject = (dict["subject"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let metaVerb = (dict["verb"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let metaObject = (dict["object"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !metaSubject.isEmpty, !metaVerb.isEmpty, !metaObject.isEmpty else { return nil }
+        guard !metaSubject.isEmpty, !metaVerb.isEmpty, !metaObject.isEmpty,
+              !isOpaqueIdentifier(metaSubject), !isOpaqueIdentifier(metaObject) else { return nil }
         return SVOTriple(subject: metaSubject, verb: metaVerb, object: metaObject)
     }
 
@@ -98,14 +121,10 @@ struct ClaimSummaryCard: View {
             InlineClaimEditor(
                 claim: claim,
                 onCancel: { isInlineEditing = false },
-                onSave: { updated in
-                    isInlineEditing = false
-                    NotificationCenter.default.post(
-                        name: .ficheroClaimUpdated,
-                        object: updated.id,
-                        userInfo: ["claim": updated]
-                    )
-                }
+                // The editor persists via PATCH; the change-stream's
+                // `claim.updated` event refreshes the bound surfaces (#1862),
+                // so no NotificationCenter nudge is needed.
+                onSave: { _ in isInlineEditing = false }
             )
         } else {
             VStack(alignment: .leading, spacing: 6) {
@@ -147,11 +166,15 @@ struct ClaimSummaryCard: View {
             .onTapGesture {
                 // Cmd-click opens in a new tab, Finder-style (#1685);
                 // plain click focuses the claim in place.
+                #if os(macOS)
                 if NSApp.currentEvent?.modifierFlags.contains(.command) ?? false {
                     openClaimInNewWindow(asTab: true)
                 } else {
                     focusClaim()
                 }
+                #else
+                focusClaim()
+                #endif
             }
             .onTapGesture(count: 2) { isInlineEditing = true }
             .contextMenu {
@@ -196,13 +219,21 @@ struct ClaimSummaryCard: View {
                 Text("This removes the claim from the knowledge graph. Related entities stay in place.")
             }
             .sheet(isPresented: $showEditSheet) {
-                EditClaimSheet(claim: claim) { updated in
-                    NotificationCenter.default.post(
-                        name: .ficheroClaimUpdated,
-                        object: updated.id,
-                        userInfo: ["claim": updated]
-                    )
-                }
+                // EditClaimSheet persists via PATCH; the change-stream refreshes
+                // bound surfaces, so no NotificationCenter nudge is needed (#1862).
+                EditClaimSheet(claim: claim) { _ in }
+            }
+            .alert(
+                "Couldn't update claim",
+                isPresented: Binding(
+                    get: { mutationError != nil },
+                    set: { if !$0 { mutationError = nil } }
+                ),
+                presenting: mutationError
+            ) { _ in
+                Button("OK", role: .cancel) { mutationError = nil }
+            } message: { message in
+                Text(message)
             }
         }
     }  // end else (isEmptyContent path)
@@ -210,6 +241,7 @@ struct ClaimSummaryCard: View {
     private func focusClaim() {
         kgFocusState.focusClaim(
             claimId: claim.id,
+            entityId: focusedEntityId,
             sourceDocumentId: claim.sourceDocumentId,
             sourcePageLabel: claim.sourcePageLabel
         )
@@ -250,7 +282,7 @@ struct ClaimSummaryCard: View {
                         .fontWeight(.medium)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(Color(NSColor.systemGray))
+                        .background(Color(platformColor: .systemGray))
                         .foregroundColor(.primary)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 })
@@ -282,7 +314,7 @@ struct ClaimSummaryCard: View {
                         .fontWeight(.medium)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(Color(NSColor.systemGray))
+                        .background(Color(platformColor: .systemGray))
                         .foregroundColor(.primary)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 })

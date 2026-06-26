@@ -1,8 +1,12 @@
-"""DatabaseManager thread-scoped connection pooling.
+"""DatabaseManager single-connection-per-package model (#2508).
 
-Workflow execution runs on a dedicated worker thread (#1000). A DuckDB
-Connection is not thread-safe, so DatabaseManager hands each
-(package, thread) its own connection to the same file.
+A DuckDB Connection is not safe for *concurrent* use but is safe serialized by
+a lock. DatabaseManager keeps exactly ONE Database (one connection, one RLock)
+per package, shared across every thread; Database's per-method ``with self._lock``
+then serializes all access globally, making read-after-write deterministic across
+threads. (Previously each (package, thread) got its own connection — the locking
+never serialized cross-thread and correctness rode on MVCC, the root of #2430 /
+#2462.)
 """
 
 from __future__ import annotations
@@ -16,16 +20,15 @@ from fichero.db_manager import DatabaseManager  # noqa: E402
 from fichero.models import Document, DocType  # noqa: E402
 
 
-def test_distinct_connection_per_thread(tmp_path):
-    """Two threads asking for the same package get different Database
-    objects (different DuckDB connections); the same thread asking
-    twice gets the cached instance back. (#1000)"""
+def test_shared_connection_across_threads(tmp_path):
+    """All threads asking for the same package get the SAME Database object and
+    the SAME DuckDB connection; asking twice on one thread is also cached. (#2508)"""
     pkg = tmp_path / "lib.fichero"
     pkg.mkdir()
     mgr = DatabaseManager()
     try:
         main_db = mgr.get_database(pkg)
-        assert mgr.get_database(pkg) is main_db  # same thread → cached
+        assert mgr.get_database(pkg) is main_db  # cached
 
         worker_holder: dict[str, object] = {}
 
@@ -36,14 +39,16 @@ def test_distinct_connection_per_thread(tmp_path):
         t.start()
         t.join()
 
-        assert worker_holder["db"] is not main_db  # worker thread → its own
+        # The worker thread gets the very same shared instance + connection.
+        assert worker_holder["db"] is main_db
+        assert worker_holder["db"].conn is main_db.conn
     finally:
         mgr.close_all()
 
 
-def test_active_count_counts_packages_not_connections(tmp_path):
-    """active_count reflects distinct packages, not the raw per-thread
-    connection count — so a 2-thread, 1-library setup reports 1. (#1000)"""
+def test_active_count_counts_packages(tmp_path):
+    """active_count reflects distinct packages — a 2-thread, 1-library setup
+    reports 1 (now trivially, since there is one shared connection). (#2508)"""
     pkg = tmp_path / "lib.fichero"
     pkg.mkdir()
     mgr = DatabaseManager()
@@ -62,87 +67,43 @@ def test_active_count_counts_packages_not_connections(tmp_path):
         mgr.close_all()
 
 
-def test_get_db_writer_is_per_thread(tmp_path):
-    """get_db_writer hands each thread its own DBWriter (bound to that
-    thread's connection); the same thread asking twice gets the cached
-    one. (#1000 Phase 2)"""
+# NOTE (#2514): the per-package DBWriter queue was removed — the single shared
+# connection lock (#2508) already serializes every write, so the queue was
+# redundant. The former test_get_db_writer_is_shared_per_package and
+# test_db_writer_persists_through_the_pool tested that removed API. Direct
+# db.save persistence is covered by test_cross_thread_writes_are_immediately_visible
+# below, and the extract_all/import_artifacts direct-save paths by
+# test_workflow_artifact_direct_save.py.
+
+
+def test_close_current_thread_is_noop_and_keeps_shared_connection(tmp_path):
+    """close_current_thread is a NO-OP under the shared-connection model (#2508):
+    a worker thread must NOT close the connection the event loop + every other
+    thread share. The shared Database survives and stays usable after the call."""
     pkg = tmp_path / "lib.fichero"
     pkg.mkdir()
     mgr = DatabaseManager()
     try:
-        main_writer = mgr.get_db_writer(pkg)
-        assert mgr.get_db_writer(pkg) is main_writer  # cached per thread
-
-        worker_holder: dict[str, object] = {}
-
-        def worker() -> None:
-            worker_holder["writer"] = mgr.get_db_writer(pkg)
-
-        t = threading.Thread(target=worker)
-        t.start()
-        t.join()
-
-        assert worker_holder["writer"] is not main_writer
-    finally:
-        mgr.close_all()
-
-
-def test_db_writer_persists_through_the_pool(tmp_path):
-    """A row saved via the manager's DBWriter lands in the package's
-    database. (#1000 Phase 2)"""
-    pkg = tmp_path / "lib.fichero"
-    pkg.mkdir()
-    mgr = DatabaseManager()
-    try:
-        writer = mgr.get_db_writer(pkg)
-        writer.save(Document(name="via-writer", doc_type=DocType.file))
-        writer.flush()
-        names = {d.name for d in mgr.get_database(pkg).query(Document)}
-        assert "via-writer" in names
-    finally:
-        mgr.close_all()
-
-
-def test_close_current_thread_releases_this_threads_resources(tmp_path):
-    """close_current_thread drops this thread's connection + writer but
-    leaves other threads' untouched — so a finished workflow worker
-    doesn't leak. (#1000)"""
-    pkg = tmp_path / "lib.fichero"
-    pkg.mkdir()
-    mgr = DatabaseManager()
-    try:
-        # A connection owned by some *other* thread must survive.
-        survivor: dict[str, object] = {}
-
-        def other_thread() -> None:
-            survivor["db"] = mgr.get_database(pkg)
-
-        t = threading.Thread(target=other_thread)
-        t.start()
-        t.join()
-
-        # This thread's resources, then release them.
-        mgr.get_database(pkg)
-        mgr.get_db_writer(pkg)
+        db = mgr.get_database(pkg)
         assert mgr.active_count == 1
 
+        # Simulate a finished workflow worker calling its finally hook.
         mgr.close_current_thread()
 
-        # This thread's entries are gone; the other thread's remain.
-        import threading as _t
-
-        tid = _t.get_ident()
-        assert not any(k[1] == tid for k in mgr._databases)
-        assert not any(k[1] == tid for k in mgr._db_writers)
-        assert mgr.active_count == 1  # the other thread's connection survived
+        # The shared connection is untouched and still works.
+        assert mgr.active_count == 1
+        assert mgr.get_database(pkg) is db
+        db.save(Document(id="still-alive", name="ok", doc_type=DocType.file))
+        names = {d.name for d in db.query(Document)}
+        assert "ok" in names
     finally:
         mgr.close_all()
 
 
-def test_cross_thread_writes_are_visible(tmp_path):
-    """A row written through the worker thread's connection is visible
-    to the main thread's connection — DuckDB serialises writes across
-    in-process connections. (#1000)"""
+def test_cross_thread_writes_are_immediately_visible(tmp_path):
+    """A row written on a worker thread is visible to the main thread
+    DETERMINISTICALLY — they share one connection, so there is no MVCC
+    snapshot lag (the #2430/#2462 class). (#2508)"""
     pkg = tmp_path / "lib.fichero"
     pkg.mkdir()
     mgr = DatabaseManager()
@@ -150,13 +111,16 @@ def test_cross_thread_writes_are_visible(tmp_path):
         main_db = mgr.get_database(pkg)
 
         def worker() -> None:
-            worker_db = mgr.get_database(pkg)
-            worker_db.save(Document(name="from-worker", doc_type=DocType.file))
+            mgr.get_database(pkg).save(
+                Document(id="from-worker", name="from-worker", doc_type=DocType.file)
+            )
 
         t = threading.Thread(target=worker)
         t.start()
         t.join()
 
+        # Immediately readable on the main thread by id (same connection).
+        assert main_db.get(Document, "from-worker") is not None
         names = {d.name for d in main_db.query(Document)}
         assert "from-worker" in names
     finally:

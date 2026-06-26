@@ -25,7 +25,10 @@ public final class FicheroClient: ObservableObject {
     public private(set) var api: Client
 
     /// The base URL of the API server
-    public let baseURL: URL
+    @Published public private(set) var baseURL: URL
+
+    /// The OpenAPI API root (`/api`) under `baseURL`.
+    public var apiBaseURL: URL { baseURL.appendingPathComponent("api") }
 
     /// The library path provider (for updating the path dynamically)
     private let libraryPathProvider: LibraryPathProvider
@@ -40,9 +43,15 @@ public final class FicheroClient: ObservableObject {
 
     /// Creates a new Fichero API client.
     /// - Parameters:
-    ///   - baseURL: The base URL of the Fichero backend (default: localhost:8765)
+    ///   - baseURL: The base URL of the Fichero backend (default: localhost:8765 over HTTPS)
     ///   - libraryPath: Optional library path header value
-    public init(baseURL: URL = URL(string: "http://127.0.0.1:8765")!, libraryPath: String? = nil) {
+    ///   - session: Optional URL session override, used by callers that need
+    ///     a custom transport such as certificate-pinned pairing probes.
+    public init(
+        baseURL: URL = URL(string: "https://127.0.0.1:8765")!,
+        libraryPath: String? = nil,
+        session: URLSession? = nil
+    ) {
         self.baseURL = baseURL
         self.libraryPathProvider = LibraryPathProvider(libraryPath: libraryPath)
         self.currentLibraryPath = libraryPath
@@ -55,10 +64,38 @@ public final class FicheroClient: ObservableObject {
         self.api = Client(
             serverURL: baseURL,
             configuration: .init(dateTranscoder: LenientISO8601DateTranscoder()),
-            transport: URLSessionTransport(),
+            transport: Self.makeTransport(session: session),
             middlewares: [
                 AuthTokenMiddleware(),
-                libraryPathProvider.createMiddleware(),
+                libraryPathProvider.createMiddleware()
+            ]
+        )
+    }
+
+    /// Convenience initializer for pairing probes that need to pin a specific
+    /// host certificate before the remote device is persisted.
+    public init(
+        baseURL: URL = URL(string: "https://127.0.0.1:8765")!,
+        libraryPath: String? = nil,
+        expectedSPKIPin: String?
+    ) throws {
+        self.baseURL = baseURL
+        self.libraryPathProvider = LibraryPathProvider(libraryPath: libraryPath)
+        self.currentLibraryPath = libraryPath
+
+        let session: URLSession? = if let expectedSPKIPin {
+            try RemoteCertificatePinning.pinnedSession(expectedSPKIPin: expectedSPKIPin)
+        } else {
+            nil
+        }
+
+        self.api = Client(
+            serverURL: baseURL,
+            configuration: .init(dateTranscoder: LenientISO8601DateTranscoder()),
+            transport: Self.makeTransport(session: session),
+            middlewares: [
+                AuthTokenMiddleware(),
+                libraryPathProvider.createMiddleware()
             ]
         )
     }
@@ -68,17 +105,29 @@ public final class FicheroClient: ObservableObject {
         self.api = Client(
             serverURL: baseURL,
             configuration: .init(dateTranscoder: LenientISO8601DateTranscoder()),
-            transport: URLSessionTransport(),
+            transport: Self.makeTransport(),
             middlewares: [
                 AuthTokenMiddleware(),
-                libraryPathProvider.createMiddleware(),
+                libraryPathProvider.createMiddleware()
             ]
         )
+    }
+
+    public func reconfigure(baseURL: URL) {
+        guard self.baseURL != baseURL else { return }
+        self.baseURL = baseURL
+        rebuildClient()
     }
 
     /// Default client pointing to localhost:8765
     public static var localhost: FicheroClient {
         FicheroClient()
+    }
+
+    private static func makeTransport(session: URLSession? = nil) -> URLSessionTransport {
+        let configuration = URLSessionConfiguration.default
+        let session = session ?? RemoteCertificatePinning.configuredSession(configuration: configuration)
+        return URLSessionTransport(configuration: .init(session: session))
     }
 }
 

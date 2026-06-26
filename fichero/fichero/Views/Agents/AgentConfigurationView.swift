@@ -133,32 +133,30 @@ struct ToolSelectionView: View {
                 Text("No tools available")
                     .foregroundColor(.secondary)
             } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 12) {
-                        ForEach(filteredCategories, id: \.name) { category in
-                            DisclosureGroup {
-                                ForEach(category.tools, id: \.name) { tool in
-                                    ToolRow(
-                                        tool: tool,
-                                        isSelected: selectedTools.contains(tool.name),
-                                        onToggle: { toggleTool(tool.name) }
-                                    )
-                                }
-                            } label: {
-                                HStack {
-                                    Image(systemName: category.icon)
-                                    Text(category.name)
-                                        .font(.headline)
-                                    Spacer()
-                                    Text("\(selectedToolsInCategory(category)) / \(category.tools.count)")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
+                List {
+                    ForEach(filteredCategories, id: \.name) { category in
+                        DisclosureGroup {
+                            ForEach(category.tools, id: \.name) { tool in
+                                ToolRow(
+                                    tool: tool,
+                                    isSelected: selectedTools.contains(tool.name),
+                                    onToggle: { toggleTool(tool.name) }
+                                )
+                            }
+                        } label: {
+                            HStack {
+                                Image(systemName: category.icon)
+                                Text(category.name)
+                                    .font(.headline)
+                                Spacer()
+                                Text("\(selectedToolsInCategory(category)) / \(category.tools.count)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
                         }
                     }
-                    .padding(.vertical, 4)
                 }
+                .listStyle(.inset)
                 .frame(maxHeight: 300)
             }
 

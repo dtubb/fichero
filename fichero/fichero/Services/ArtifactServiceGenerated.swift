@@ -57,7 +57,6 @@ class ArtifactServiceGenerated: ObservableObject {
         let response = try await client.api.listDocumentArtifactsApiArtifactsDocumentDocIdGet(
             path: .init(docId: documentId),
             query: .init(artifactType: type, includeDescendants: includeDescendants),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
 
         switch response {
@@ -81,7 +80,6 @@ class ArtifactServiceGenerated: ObservableObject {
     func getArtifact(id: String) async throws -> Artifact {
         let response = try await client.api.getArtifactApiArtifactsArtifactIdGet(
             path: .init(artifactId: id),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
 
         switch response {
@@ -98,81 +96,33 @@ class ArtifactServiceGenerated: ObservableObject {
 
     /// Get all artifact types in the library
     func getArtifactTypes() async throws -> [String] {
-        let response = try await client.api.listArtifactTypesApiArtifactsTypesGet(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
-        )
+        let response = try await client.api.listArtifactTypesApiArtifactsTypesGet()
 
         switch response {
         case .ok(let okResponse):
             return try okResponse.body.json.items
+        case .undocumented(let statusCode, _):
+            throw ArtifactServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
+    /// Get all artifacts in the library.
+    func getAllArtifacts(type: String? = nil, limit: Int = 100, offset: Int = 0) async throws -> [Artifact] {
+        let response = try await client.api.listAllArtifactsApiArtifactsGet(
+            query: .init(artifactType: type, limit: limit, offset: offset),
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            let artifactList = try okResponse.body.json
+            logger.info("Fetched \(artifactList.items.count) total artifacts")
+            return artifactList.items.map { convertToArtifact($0) }
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ArtifactServiceError.serverError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
             throw ArtifactServiceError.unexpectedResponse(statusCode)
         }
-    }
-
-    /// Get all artifacts in the library (uses direct HTTP call since generated client may not have this endpoint)
-    func getAllArtifacts(type: String? = nil, limit: Int = 100, offset: Int = 0) async throws -> [Artifact] {
-        var urlString = "http://localhost:8765/api/artifacts/?limit=\(limit)&offset=\(offset)"
-        if let type = type {
-            urlString += "&artifact_type=\(type.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? type)"
-        }
-
-        guard let url = URL(string: urlString) else {
-            throw ArtifactServiceError.serverError("Invalid URL")
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.addEngineAuth(libraryPath: client.currentLibraryPath)
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw ArtifactServiceError.unexpectedResponse(-1)
-        }
-
-        guard httpResponse.statusCode == 200 else {
-            throw ArtifactServiceError.unexpectedResponse(httpResponse.statusCode)
-        }
-
-        let decoder = JSONDecoder()
-        let artifactList = try decoder.decode(AllArtifactsResponse.self, from: data)
-
-        logger.info("Fetched \(artifactList.items.count) total artifacts")
-        return artifactList.items.map { convertToArtifactFromJSON($0) }
-    }
-
-    // MARK: - JSON Conversion for direct HTTP calls
-
-    private func convertToArtifactFromJSON(_ json: ArtifactJSON) -> Artifact {
-        // Use the multi-format parser (audit class F).
-        let createdAt = parseEngineDate(json.createdAt) ?? Date()
-
-        // Convert data dict
-        var data: [String: AnyCodable]?
-        if let jsonData = json.data, !jsonData.isEmpty {
-            var dict: [String: AnyCodable] = [:]
-            for (key, value) in jsonData {
-                dict[key] = AnyCodable(value)
-            }
-            data = dict
-        }
-
-        return Artifact(
-            id: json.id,
-            documentId: json.documentId,
-            version: json.version,
-            artifactType: json.artifactType,
-            content: json.content,
-            data: data,
-            provider: json.provider,
-            model: json.model,
-            reviewed: json.reviewed,
-            createdAt: createdAt
-        )
     }
 
     /// Update an artifact's editable fields (content, reviewed flag).
@@ -190,7 +140,6 @@ class ArtifactServiceGenerated: ObservableObject {
         )
         let response = try await client.api.updateArtifactApiArtifactsArtifactIdPut(.init(
             path: .init(artifactId: id),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(request)
         ))
 
@@ -222,7 +171,6 @@ class ArtifactServiceGenerated: ObservableObject {
     func deleteArtifact(id: String, documentId: String) async throws {
         let response = try await client.api.deleteArtifactApiArtifactsArtifactIdDelete(
             path: .init(artifactId: id),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
 
         switch response {
@@ -313,42 +261,6 @@ enum ArtifactServiceError: Error, LocalizedError {
     }
 }
 
-// MARK: - JSON Types for Direct HTTP Calls
-
-/// Response for list all artifacts endpoint
-private struct AllArtifactsResponse: Codable {
-    let items: [ArtifactJSON]
-    let count: Int
-}
-
-/// JSON artifact representation for direct HTTP decoding
-private struct ArtifactJSON: Codable {
-    let id: String
-    let documentId: String
-    let artifactType: String
-    let content: String?
-    let data: [String: AnyCodable]?
-    let version: Int
-    let provider: String?
-    let model: String?
-    let confidence: Double?
-    let reviewed: Bool
-    let createdAt: String
-
-    enum CodingKeys: String, CodingKey {
-        case id
-        case documentId = "document_id"
-        case artifactType = "artifact_type"
-        case content
-        case data
-        case version
-        case provider
-        case model
-        case confidence
-        case reviewed
-        case createdAt = "created_at"
-    }
-}
 // MARK: - Library entity-type registry models (#874 / #1372)
 
 struct LibraryEntityTypeItem: Decodable {
@@ -401,6 +313,11 @@ private let entityServiceLogger = Logger(
     category: "EntityServiceGenerated"
 )
 
+private let kgCurationServiceLogger = Logger(
+    subsystem: "app.fichero.fichero",
+    category: "KGCurationServiceGenerated"
+)
+
 /// Service wrapper for the dedicated `/api/entities` and `/api/claims`
 /// endpoints. The catalogue extractors write `KnowledgeEntity` +
 /// `KnowledgeClaim` rows (#728); this service is the read path the
@@ -438,7 +355,6 @@ final class EntityServiceGenerated: ObservableObject {
     ) async throws -> [Components.Schemas.KnowledgeEntity] {
         let response = try await client.api.listEntitiesApiEntitiesGet(
             query: .init(q: query, entityType: entityType, limit: limit),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
 
         switch response {
@@ -459,7 +375,6 @@ final class EntityServiceGenerated: ObservableObject {
     ) async throws -> [Components.Schemas.KnowledgeEntity] {
         let response = try await client.api.listEntitiesApiEntitiesGet(
             query: .init(documentId: documentId, limit: limit),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
 
         switch response {
@@ -473,16 +388,34 @@ final class EntityServiceGenerated: ObservableObject {
         }
     }
 
+    /// Inspector source-of-truth entity payload for one document/page.
+    ///
+    /// Backed by `GET /api/documents/{document_id}/inspector`, which is the
+    /// same route the CLI `docs inspector <page>` verifies in #1653.
+    func listInspectorEntitiesForDocument(
+        documentId: String
+    ) async throws -> [Components.Schemas.KnowledgeEntity] {
+        let response = try await client.api.inspectorApiDocumentsDocumentIdInspectorGet(
+            path: .init(documentId: documentId),
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.entities
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
     /// Fetch per-entity claim counts for badge display in the entity browser.
     func fetchClaimCounts() async throws -> [String: Int] {
-        let response = try await client.api.entityClaimCountsApiEntitiesClaimCountsGet(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
-        )
+        let response = try await client.api.entityClaimCountsApiEntitiesClaimCountsGet()
         switch response {
         case .ok(let okResponse):
             return try okResponse.body.json.counts.additionalProperties
-        case .unprocessableContent:
-            return [:]
         case .undocumented(let code, _):
             throw ServiceError.unexpectedResponse(code)
         }
@@ -494,7 +427,6 @@ final class EntityServiceGenerated: ObservableObject {
     ) async throws -> Components.Schemas.KnowledgeEntity {
         let response = try await client.api.getEntityApiEntitiesEntityIdGet(
             path: .init(entityId: entityId),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
 
         switch response {
@@ -526,7 +458,6 @@ final class EntityServiceGenerated: ObservableObject {
                 limit: limit,
                 offset: offset
             ),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
 
         switch response {
@@ -551,7 +482,32 @@ final class EntityServiceGenerated: ObservableObject {
         let response = try await client.api.knowledgeGraphApiDocumentsDocumentIdKnowledgeGraphGet(
             path: .init(documentId: documentId),
             query: .init(includeChildren: includeChildren),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    /// Cheap per-type child counts for a document (#2258).
+    ///
+    /// Backs a *collapsed* library outline row — returns artifact /
+    /// entity / note / claim / page counts rolled up over the document
+    /// and its descendant pages, without assembling the heavier child
+    /// payloads. The expandable Table shows these on a collapsed row and
+    /// only loads the per-type children when the disclosure is expanded.
+    /// GET /api/documents/{id}/rollup
+    func documentRollup(
+        documentId: String
+    ) async throws -> Components.Schemas.DocumentRollupResponse {
+        let response = try await client.api.documentRollupApiDocumentsDocumentIdRollupGet(
+            path: .init(documentId: documentId),
         )
 
         switch response {
@@ -576,7 +532,6 @@ final class EntityServiceGenerated: ObservableObject {
         let response = try await client.api.contradictionsApiKgClaimAnalysisClaimIdContradictionsGet(
             path: .init(claimId: claimId),
             query: .init(minLinkQuality: minLinkQuality),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
         switch response {
         case .ok(let okResponse):
@@ -598,7 +553,6 @@ final class EntityServiceGenerated: ObservableObject {
         let response = try await client.api.evidenceChainApiKgClaimAnalysisClaimIdEvidenceChainGet(
             path: .init(claimId: claimId),
             query: .init(maxDepth: maxDepth),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
         switch response {
         case .ok(let okResponse):
@@ -626,7 +580,6 @@ final class EntityServiceGenerated: ObservableObject {
             mergedDescription: mergedDescription
         )
         let response = try await client.api.mergeEntitiesApiKgEntityCurationMergePost(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(body)
         )
         switch response {
@@ -653,7 +606,6 @@ final class EntityServiceGenerated: ObservableObject {
             aliasesToMove: aliasesToMove
         )
         let response = try await client.api.splitEntityApiKgEntityCurationSplitPost(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(body)
         )
         switch response {
@@ -675,7 +627,6 @@ final class EntityServiceGenerated: ObservableObject {
     ) async throws -> [Components.Schemas.EntityAuditResponse] {
         let response = try await client.api.listEntityAuditsApiKgEntityCurationAuditGet(
             query: .init(entityId: entityId, limit: limit),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
         switch response {
         case .ok(let okResponse):
@@ -694,7 +645,6 @@ final class EntityServiceGenerated: ObservableObject {
     func undoEntityAudit(_ auditId: String) async throws -> Components.Schemas.EntityAuditResponse {
         let response = try await client.api.undoEntityOperationApiKgEntityCurationAuditAuditIdUndoPost(
             path: .init(auditId: auditId),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
         switch response {
         case .ok(let okResponse):
@@ -712,9 +662,7 @@ final class EntityServiceGenerated: ObservableObject {
     /// Backed by `/api/kg/claim-search/embed`.
     @discardableResult
     func embedClaims() async throws -> Int {
-        let response = try await client.api.embedClaimsApiKgClaimSearchEmbedPost(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
-        )
+        let response = try await client.api.embedClaimsApiKgClaimSearchEmbedPost()
         switch response {
         case .ok(let okResponse):
             return try okResponse.body.json.embedded
@@ -731,9 +679,7 @@ final class EntityServiceGenerated: ObservableObject {
     /// Backed by `/api/kg/entity-curation/semantic/embed`.
     @discardableResult
     func embedEntities() async throws -> Int {
-        let response = try await client.api.embedEntitiesApiKgEntityCurationSemanticEmbedPost(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
-        )
+        let response = try await client.api.embedEntitiesApiKgEntityCurationSemanticEmbedPost()
         switch response {
         case .ok(let okResponse):
             return try okResponse.body.json.embedded
@@ -770,7 +716,6 @@ final class EntityServiceGenerated: ObservableObject {
         }
         let response = try await client.api.patchEntityApiEntitiesEntityIdPatch(
             path: .init(entityId: entityId),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(body)
         )
         switch response {
@@ -816,7 +761,6 @@ final class EntityServiceGenerated: ObservableObject {
         body.confidence = confidence
         let response = try await client.api.patchClaimApiClaimsClaimIdPatch(
             path: .init(claimId: claimId),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(body)
         )
         switch response {
@@ -833,7 +777,6 @@ final class EntityServiceGenerated: ObservableObject {
     func getClaim(_ claimId: String) async throws -> Components.Schemas.KnowledgeClaim {
         let response = try await client.api.getClaimApiClaimsClaimIdGet(
             path: .init(claimId: claimId),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
         switch response {
         case .ok(let okResponse):
@@ -849,7 +792,6 @@ final class EntityServiceGenerated: ObservableObject {
     func deleteClaim(_ claimId: String) async throws {
         let response = try await client.api.deleteClaimApiClaimsClaimIdDelete(
             path: .init(claimId: claimId),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
         switch response {
         case .noContent:
@@ -870,7 +812,6 @@ final class EntityServiceGenerated: ObservableObject {
     ) async throws -> Components.Schemas.EntityInspectorResponse {
         let response = try await client.api.inspectorApiEntitiesEntityIdInspectorGet(
             path: .init(entityId: entityId),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
         switch response {
         case .ok(let okResponse):
@@ -889,7 +830,6 @@ final class EntityServiceGenerated: ObservableObject {
     func deleteEntity(_ entityId: String) async throws {
         let response = try await client.api.deleteEntityApiEntitiesEntityIdDelete(
             path: .init(entityId: entityId),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
         switch response {
         case .noContent:
@@ -917,7 +857,6 @@ final class EntityServiceGenerated: ObservableObject {
         body.entityType = typeEnum
         body.aliases = aliases.isEmpty ? nil : aliases
         let response = try await client.api.upsertEntityApiEntitiesPost(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(body)
         )
         switch response {
@@ -949,7 +888,6 @@ final class EntityServiceGenerated: ObservableObject {
         )
         let response = try await client.api.createClaimLinkApiClaimsClaimIdLinksPost(
             path: .init(claimId: claimId),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(body)
         )
         switch response {
@@ -1251,7 +1189,6 @@ final class EntityServiceGenerated: ObservableObject {
     ) async throws -> Components.Schemas.HeuristicPredictionsResponse {
         let body = Components.Schemas.HeuristicRequest(topK: topK, entityId: entityId)
         let response = try await client.api.generateHeuristicPredictionsApiKgPredictionsHeuristicPost(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(body)
         )
         switch response {
@@ -1275,7 +1212,6 @@ final class EntityServiceGenerated: ObservableObject {
     ) async throws -> [Components.Schemas.DocumentCitation] {
         let response = try await client.api.inboundApiCitationsGraphDocumentDocumentIdInboundGet(
             path: .init(documentId: documentId),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
         switch response {
         case .ok(let okResponse):
@@ -1296,7 +1232,6 @@ final class EntityServiceGenerated: ObservableObject {
     ) async throws -> [Components.Schemas.DocumentCitation] {
         let response = try await client.api.outboundApiCitationsGraphDocumentDocumentIdOutboundGet(
             path: .init(documentId: documentId),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
         switch response {
         case .ok(let okResponse):
@@ -1328,7 +1263,8 @@ final class EntityServiceGenerated: ObservableObject {
         }
         var request = URLRequest(url: url)
         request.addEngineAuth(libraryPath: client.currentLibraryPath)
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let session = RemoteCertificatePinning.configuredSession()
+        let (data, response) = try await session.data(for: request)
         if let http = response as? HTTPURLResponse, http.statusCode != 200 {
             throw ServiceError.unexpectedResponse(http.statusCode)
         }
@@ -1366,7 +1302,6 @@ final class EntityServiceGenerated: ObservableObject {
         let response = try await client.api.neighborhoodApiKgGraphNeighborhoodEntityIdGet(
             path: .init(entityId: entityId),
             query: .init(hops: hops, limit: limit, rank: rank),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
         switch response {
         case .ok(let okResponse):
@@ -1407,7 +1342,6 @@ final class EntityServiceGenerated: ObservableObject {
         let response = try await client.api.findSimilarClaimsApiKgClaimSearchClaimIdSimilarGet(
             path: .init(claimId: claimId),
             query: .init(limit: limit),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
         switch response {
         case .ok(let okResponse):
@@ -1431,7 +1365,6 @@ final class EntityServiceGenerated: ObservableObject {
     ) async throws -> Components.Schemas.MetadataResponse {
         let response = try await client.api.getMetadataApiBibliographyDocumentDocumentIdGet(
             path: .init(documentId: documentId),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
         switch response {
         case .ok(let okResponse):
@@ -1459,7 +1392,6 @@ final class EntityServiceGenerated: ObservableObject {
         let body = Components.Schemas.MetadataPatchRequest(metadata: payload)
         let response = try await client.api.patchMetadataApiBibliographyDocumentDocumentIdPatch(
             path: .init(documentId: documentId),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(body)
         )
         switch response {
@@ -1483,7 +1415,6 @@ final class EntityServiceGenerated: ObservableObject {
     ) async throws -> Components.Schemas.MetadataResponse {
         let response = try await client.api.runExtractorApiBibliographyDocumentDocumentIdExtractPost(
             path: .init(documentId: documentId),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
         switch response {
         case .ok(let okResponse):
@@ -1506,7 +1437,7 @@ final class EntityServiceGenerated: ObservableObject {
         }
         var req = URLRequest(url: url)
         req.addEngineAuth(libraryPath: lib)
-        let (data, _) = try await URLSession.shared.data(for: req)
+        let (data, _) = try await RemoteCertificatePinning.configuredSession().data(for: req)
         return (try? JSONDecoder().decode(EntityTypeListPayload.self, from: data))?.items ?? []
     }
 
@@ -1525,7 +1456,7 @@ final class EntityServiceGenerated: ObservableObject {
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.addEngineAuth(libraryPath: lib)
-        let (data, _) = try await URLSession.shared.data(for: req)
+        let (data, _) = try await RemoteCertificatePinning.configuredSession().data(for: req)
         return try JSONDecoder().decode(LibraryEntityTypeItem.self, from: data)
     }
 
@@ -1539,7 +1470,7 @@ final class EntityServiceGenerated: ObservableObject {
         var req = URLRequest(url: url)
         req.httpMethod = "DELETE"
         req.addEngineAuth(libraryPath: lib)
-        _ = try? await URLSession.shared.data(for: req)
+        _ = try? await RemoteCertificatePinning.configuredSession().data(for: req)
     }
 
     // MARK: - Document workflow provenance (#1434)
@@ -1549,7 +1480,6 @@ final class EntityServiceGenerated: ObservableObject {
     ) async throws -> [Components.Schemas.WorkflowRunProvenanceResponse] {
         let response = try await client.api.getDocumentWorkflowRunsApiDocumentsDocIdWorkflowRunsGet(
             path: .init(docId: documentId),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
         switch response {
         case .ok(let okResponse):
@@ -1569,7 +1499,6 @@ final class EntityServiceGenerated: ObservableObject {
     ) async throws -> Components.Schemas.DocumentCitationsResponse {
         let response = try await client.api.getDocumentCitationsApiDocumentsDocumentIdCitationsGet(
             path: .init(documentId: documentId),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
         switch response {
         case .ok(let okResponse):
@@ -1607,7 +1536,8 @@ final class EntityServiceGenerated: ObservableObject {
             request.addValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONSerialization.data(withJSONObject: jsonBody)
         }
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let session = RemoteCertificatePinning.configuredSession()
+        let (data, response) = try await session.data(for: request)
         if let http = response as? HTTPURLResponse,
            !(200...299).contains(http.statusCode) {
             throw ServiceError.unexpectedResponse(http.statusCode)
@@ -1809,7 +1739,7 @@ final class EntityServiceGenerated: ObservableObject {
         }
         var req = URLRequest(url: url)
         req.addEngineAuth(libraryPath: lib)
-        let (data, _) = try await URLSession.shared.data(for: req)
+        let (data, _) = try await RemoteCertificatePinning.configuredSession().data(for: req)
         struct Envelope: Decodable {
             let items: [Components.Schemas.ClassificationValue]
         }
@@ -1826,7 +1756,7 @@ final class EntityServiceGenerated: ObservableObject {
         }
         var req = URLRequest(url: url)
         req.addEngineAuth(libraryPath: lib)
-        let (data, _) = try await URLSession.shared.data(for: req)
+        let (data, _) = try await RemoteCertificatePinning.configuredSession().data(for: req)
         struct Envelope: Decodable {
             let items: [Components.Schemas.ClassificationValue]
         }
@@ -1840,7 +1770,6 @@ final class EntityServiceGenerated: ObservableObject {
     ) async throws -> Components.Schemas.PrototypeAssignResponse {
         let response = try await client.api.assignDocumentPrototypeApiDocumentsDocIdPrototypePut(
             path: .init(docId: documentId),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(.init(prototypeKey: prototypeKey))
         )
         switch response {
@@ -1868,7 +1797,7 @@ final class EntityServiceGenerated: ObservableObject {
         }
         var req = URLRequest(url: url)
         req.addEngineAuth(libraryPath: lib)
-        let (data, _) = try await URLSession.shared.data(for: req)
+        let (data, _) = try await RemoteCertificatePinning.configuredSession().data(for: req)
         struct Envelope: Decodable {
             let items: [Components.Schemas.Interpretation]
         }
@@ -1881,7 +1810,7 @@ final class EntityServiceGenerated: ObservableObject {
         guard let url = URL(string: "\(client.baseURL)/api/hermeneutics/frameworks") else { return [] }
         var req = URLRequest(url: url)
         req.addEngineAuth(libraryPath: lib)
-        let (data, _) = try await URLSession.shared.data(for: req)
+        let (data, _) = try await RemoteCertificatePinning.configuredSession().data(for: req)
         struct Envelope: Decodable {
             let items: [Components.Schemas.InterpretiveFramework]
         }
@@ -1909,7 +1838,7 @@ final class EntityServiceGenerated: ObservableObject {
             "confidence": confidence
         ]
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (data, _) = try await URLSession.shared.data(for: req)
+        let (data, _) = try await RemoteCertificatePinning.configuredSession().data(for: req)
         return try JSONDecoder().decode(Components.Schemas.Interpretation.self, from: data)
     }
 
@@ -1939,7 +1868,7 @@ final class EntityServiceGenerated: ObservableObject {
             "created_by": "human"
         ]
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (data, _) = try await URLSession.shared.data(for: req)
+        let (data, _) = try await RemoteCertificatePinning.configuredSession().data(for: req)
         return try JSONDecoder().decode(Components.Schemas.Interpretation.self, from: data)
     }
 
@@ -2426,3 +2355,304 @@ final class EntityServiceGenerated: ObservableObject {
         )
     }
 }
+
+// Typed wrappers for `/api/kg/curation-rules/*`.
+
+// swiftlint:disable type_body_length
+@MainActor
+final class KGCurationServiceGenerated: ObservableObject {
+    private let client: FicheroClient
+
+    init(ficheroClient: FicheroClient) {
+        self.client = ficheroClient
+    }
+
+    enum ServiceError: Error {
+        case validationError(String)
+        case unexpectedResponse(Int)
+    }
+
+    enum PruneTrivialScope: Equatable {
+        case document(documentId: String)
+        case folder(folderId: String)
+        case libraryWide
+    }
+
+    static func makePruneTrivialClaimsRequest(
+        scope: PruneTrivialScope,
+        reason: String = "Prune trivial is-a copula claims",
+        createdBy: String = "human"
+    ) -> Components.Schemas.PruneTrivialClaimsRequest {
+        var request = Components.Schemas.PruneTrivialClaimsRequest()
+        switch scope {
+        case .document(let documentId):
+            request.documentId = documentId
+            request.folderId = nil
+            request.libraryWide = false
+        case .folder(let folderId):
+            request.documentId = nil
+            request.folderId = folderId
+            request.libraryWide = false
+        case .libraryWide:
+            request.documentId = nil
+            request.folderId = nil
+            request.libraryWide = true
+        }
+        request.reason = reason
+        request.createdBy = createdBy
+        return request
+    }
+
+    func listEntityRules() async throws -> [Components.Schemas.EntityRuleReadResponse] {
+        let response = try await client.api.listEntityRulesApiKgCurationRulesEntityRulesGet()
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.items
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("listEntityRules unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    func createEntityRule(
+        _ request: Components.Schemas.EntityRuleCreateRequest
+    ) async throws -> Components.Schemas.EntityRuleReadResponse {
+        let response = try await client.api.createEntityRuleApiKgCurationRulesEntityRulesPost(
+            body: .json(request)
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("createEntityRule unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    func deleteEntityRule(ruleId: String) async throws -> Components.Schemas.EntityRuleDeleteResponse {
+        let request = Components.Schemas.EntityRuleDeleteRequest(ruleId: ruleId)
+        let response = try await client.api.deleteEntityRuleApiKgCurationRulesEntityRulesDelete(
+            body: .json(request)
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("deleteEntityRule unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    func batchCreateEntityRules(
+        _ requests: [Components.Schemas.EntityRuleCreateRequest]
+    ) async throws -> [Components.Schemas.EntityRuleReadResponse] {
+        var body = Components.Schemas.EntityRuleBatchCreateRequest()
+        body.items = requests
+        let response = try await client.api.createEntityRulesBatchApiKgCurationRulesEntityRulesBatchPost(
+            body: .json(body)
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.items
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("batchCreateEntityRules unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    func batchSetEntityCurationState(
+        entityIds: [String],
+        curationState: Components.Schemas.EntityCurationState
+    ) async throws -> Components.Schemas.BatchEntityCurationResponse {
+        let body = Components.Schemas.BatchEntityCurationRequest(
+            entityIds: entityIds,
+            curationState: curationState
+        )
+        let response = try await client.api.batchSetEntityCurationStateApiKgEntitiesBatchCurationPatch(
+            body: .json(body)
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("batchSetEntityCurationState unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    func listClaimRules() async throws -> [Components.Schemas.ClaimRuleReadResponse] {
+        let response = try await client.api.listClaimRulesApiKgCurationRulesClaimRulesGet()
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.items
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("listClaimRules unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    func createClaimRule(
+        _ request: Components.Schemas.ClaimRuleCreateRequest
+    ) async throws -> Components.Schemas.ClaimRuleReadResponse {
+        let response = try await client.api.createClaimRuleApiKgCurationRulesClaimRulesPost(
+            body: .json(request)
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("createClaimRule unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    func deleteClaimRule(ruleId: String) async throws -> Components.Schemas.ClaimRuleDeleteResponse {
+        let request = Components.Schemas.ClaimRuleDeleteRequest(ruleId: ruleId)
+        let response = try await client.api.deleteClaimRuleApiKgCurationRulesClaimRulesDelete(
+            body: .json(request)
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("deleteClaimRule unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    func batchCreateClaimRules(
+        _ requests: [Components.Schemas.ClaimRuleCreateRequest]
+    ) async throws -> [Components.Schemas.ClaimRuleReadResponse] {
+        var body = Components.Schemas.ClaimRuleBatchCreateRequest()
+        body.items = requests
+        let response = try await client.api.createClaimRulesBatchApiKgCurationRulesClaimRulesBatchPost(
+            body: .json(body)
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.items
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("batchCreateClaimRules unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    func batchSetClaimCurationState(
+        claimIds: [String],
+        curationState: Components.Schemas.ClaimCurationState
+    ) async throws -> Components.Schemas.BatchClaimCurationResponse {
+        let body = Components.Schemas.BatchClaimCurationRequest(
+            claimIds: claimIds,
+            curationState: curationState
+        )
+        let response = try await client.api.batchSetClaimCurationStateApiKgClaimsBatchCurationPatch(
+            body: .json(body)
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("batchSetClaimCurationState unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    func mergeClaims(
+        survivorId: String,
+        absorbedIds: [String]
+    ) async throws -> Components.Schemas.ClaimAuditResponse {
+        let body = Components.Schemas.ClaimMergeRequest(
+            survivingClaimId: survivorId,
+            absorbedClaimIds: absorbedIds
+        )
+        let response = try await client.api.mergeClaimsApiKgClaimsMergePost(
+            body: .json(body)
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("mergeClaims unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    func unmergeClaims(
+        auditId: String
+    ) async throws -> Components.Schemas.ClaimAuditResponse {
+        let body = Components.Schemas.ClaimUnmergeRequest(auditId: auditId)
+        let response = try await client.api.unmergeClaimsApiKgClaimsUnmergePost(
+            body: .json(body)
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("unmergeClaims unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    func pruneTrivialClaims(
+        scope: PruneTrivialScope
+    ) async throws -> Components.Schemas.PruneTrivialClaimsResponse {
+        let body = Self.makePruneTrivialClaimsRequest(scope: scope)
+        let response = try await client.api.pruneTrivialClaimsApiKgClaimsPruneTrivialPost(
+            body: .json(body)
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("pruneTrivialClaims unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+}
+// swiftlint:enable type_body_length

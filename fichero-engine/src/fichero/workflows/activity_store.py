@@ -10,7 +10,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Any, Optional
 
 import duckdb
 
@@ -55,6 +55,251 @@ _STALE_RUN_ERROR = (
     "Run interrupted: process crashed or was killed before completion "
     "(recovered on startup)."
 )
+
+_PROGRESS_EVENT_FIELDS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("node_id", ("node_id", "node")),
+    ("file_path", ("file_path",)),
+    ("file_index", ("file_index",)),
+    ("file_total", ("file_total",)),
+    ("progress", ("progress",)),
+    ("document_id", ("document_id",)),
+    ("page_id", ("page_id",)),
+    ("display_name", ("display_name",)),
+    ("sequence", ("sequence",)),
+)
+
+
+def _progress_event_data(event: dict[str, Any]) -> dict[str, Any]:
+    data = event.get("data")
+    return data if isinstance(data, dict) else {}
+
+
+def _hydrate_progress_event(event: dict[str, Any]) -> dict[str, Any]:
+    hydrated = dict(event)
+    data = _progress_event_data(hydrated)
+    for field, keys in _PROGRESS_EVENT_FIELDS:
+        if hydrated.get(field) is not None:
+            continue
+        for key in keys:
+            value = data.get(key)
+            if value is not None:
+                hydrated[field] = value
+                break
+    return hydrated
+
+
+def _progress_event_key(event: dict[str, Any]) -> tuple[Any, Any, Any]:
+    return (
+        event.get("node_id"),
+        event.get("page_id"),
+        event.get("file_path"),
+    )
+
+
+def _progress_terminal_status(event_type: str) -> str | None:
+    if event_type == "complete":
+        return "completed"
+    if event_type in {"error", "systemic_error"}:
+        return "failed"
+    if event_type == "cancelled":
+        return "cancelled"
+    if event_type == "pause":
+        return "paused"
+    return None
+
+
+def _hydrate_progress_steps(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    steps: list[dict[str, Any]] = []
+    active_steps: dict[tuple[Any, Any, Any], dict[str, Any]] = {}
+    active_nodes: dict[str, dict[str, Any]] = {}
+
+    for event in events:
+        event_type = event.get("event")
+        timestamp = event.get("timestamp")
+        data = _progress_event_data(event)
+
+        if event_type == "node_begin":
+            node_id = event.get("node_id")
+            if not node_id:
+                continue
+            step = {
+                "node_id": node_id,
+                "started_at": timestamp,
+                "status": "running",
+            }
+            steps.append(step)
+            active_steps[_progress_event_key(event)] = step
+            active_nodes[node_id] = step
+            continue
+
+        if event_type == "node_end":
+            node_id = event.get("node_id")
+            if not node_id:
+                continue
+            step = active_nodes.get(node_id)
+            if step is None:
+                continue
+            step["completed_at"] = timestamp
+            step["status"] = _progress_event_data(event).get("status") or "success"
+            if (duration_ms := _progress_event_data(event).get("duration_ms")) is not None:
+                step["duration_ms"] = duration_ms
+            if (skip_reason := _progress_event_data(event).get("skip_reason")) is not None:
+                step["skip_reason"] = skip_reason
+            continue
+
+        if event_type not in {"file_start", "file_complete", "file_error"}:
+            continue
+
+        key = _progress_event_key(event)
+        step = active_steps.get(key)
+        if event_type == "file_start" or step is None:
+            step = {
+                "type": "file",
+                "node_id": event.get("node_id"),
+                "file_path": event.get("file_path"),
+                "document_id": event.get("document_id"),
+                "page_id": event.get("page_id"),
+                "file_index": event.get("file_index"),
+                "file_total": event.get("file_total"),
+                "display_name": event.get("display_name"),
+                "sequence": event.get("sequence"),
+                "started_at": timestamp,
+                "status": "running",
+            }
+            steps.append(step)
+            active_steps[key] = step
+
+        if event_type == "file_complete":
+            step["completed_at"] = timestamp
+            step["status"] = "success"
+            started_at = step.get("started_at")
+            if started_at and timestamp and "duration_ms" not in step:
+                try:
+                    step["duration_ms"] = (
+                        datetime.fromisoformat(timestamp)
+                        - datetime.fromisoformat(started_at)
+                    ).total_seconds() * 1000
+                except ValueError:
+                    pass
+        elif event_type == "file_error":
+            step["completed_at"] = timestamp
+            step["status"] = "error"
+            error = data.get("error") or event.get("error")
+            if error is not None:
+                step["error"] = error
+            for key_name in ("error_category", "error_hint", "error_action"):
+                value = data.get(key_name) or event.get(key_name)
+                if value is not None:
+                    step[key_name] = value
+
+    return steps
+
+
+def _hydrate_progress_nodes(events: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    nodes: dict[str, dict[str, Any]] = {}
+
+    for event in events:
+        event_type = event.get("event")
+        timestamp = event.get("timestamp")
+        data = _progress_event_data(event)
+        node_id = event.get("node_id")
+
+        if not node_id:
+            continue
+
+        if event_type == "node_begin":
+            nodes[node_id] = {
+                "node_id": node_id,
+                "display_name": event.get("display_name") or node_id,
+                "started_at": timestamp,
+                "status": "running",
+            }
+            continue
+
+        if event_type == "node_end":
+            node = nodes.setdefault(
+                node_id,
+                {
+                    "node_id": node_id,
+                    "display_name": event.get("display_name") or node_id,
+                    "started_at": timestamp,
+                    "status": "running",
+                },
+            )
+            node["completed_at"] = timestamp
+            node["status"] = data.get("status") or "success"
+            if data.get("duration_ms") is not None:
+                node["duration_ms"] = data["duration_ms"]
+            if data.get("skip_reason") is not None:
+                node["skip_reason"] = data["skip_reason"]
+            continue
+
+        if event_type == "parallel_complete":
+            node = nodes.setdefault(
+                node_id,
+                {
+                    "node_id": node_id,
+                    "display_name": event.get("display_name") or node_id,
+                    "started_at": timestamp,
+                    "status": "running",
+                },
+            )
+            node["total_files"] = data.get("total", 0)
+            node["success_count"] = data.get("success_count", 0)
+            node["error_count"] = data.get("error_count", 0)
+
+    return nodes
+
+
+def _hydrate_progress_timeline(
+    progress_timeline: dict[str, Any] | None,
+    *,
+    status: str | None = None,
+    error: str | None = None,
+    execution_log: str | None = None,
+) -> dict[str, Any] | None:
+    if not progress_timeline:
+        return progress_timeline
+
+    hydrated = dict(progress_timeline)
+    events = hydrated.get("events")
+    if isinstance(events, list):
+        hydrated_events = [
+            _hydrate_progress_event(event)
+            for event in events
+            if isinstance(event, dict)
+        ]
+        hydrated["events"] = hydrated_events
+
+        if not hydrated.get("steps"):
+            hydrated["steps"] = _hydrate_progress_steps(hydrated_events)
+        if not hydrated.get("nodes"):
+            hydrated["nodes"] = _hydrate_progress_nodes(hydrated_events)
+        if not hydrated.get("logs"):
+            hydrated["logs"] = [
+                line
+                for event in hydrated_events
+                if event.get("event") == "log"
+                and (line := _progress_event_data(event).get("line"))
+            ]
+
+        for event in reversed(hydrated_events):
+            terminal_status = _progress_terminal_status(event.get("event", ""))
+            if terminal_status:
+                hydrated.setdefault("terminal_status", terminal_status)
+                terminal_error = _progress_event_data(event).get("error")
+                if terminal_error is not None:
+                    hydrated.setdefault("terminal_error", terminal_error)
+                break
+
+    if status is not None:
+        hydrated.setdefault("terminal_status", status)
+    if error is not None:
+        hydrated.setdefault("terminal_error", error)
+    if execution_log is not None:
+        hydrated.setdefault("execution_log", execution_log)
+
+    return hydrated
 
 
 def _rebuild_workflow_runs_flipping_stale(
@@ -276,6 +521,14 @@ class ActivityStore:
         """Initialize activity store with database path."""
         self.db_path = db_path
         self._init_database()
+
+    # ponytail: not a managed shared conn (#2508). Every method below opens a
+    # FRESH ``conn = duckdb.connect(self.db_path)`` for the duration of one
+    # operation and closes it — a connection-per-operation pattern, never the
+    # package's managed Database connection. So the Database._lock seam and the
+    # locked execute()/execute_fetchall() helpers do not apply here. Folding
+    # ActivityStore onto the shared Database is a separate architectural call
+    # (lead review).
 
     def _init_database(self) -> None:
         """Initialize database tables for activity tracking."""
@@ -636,10 +889,13 @@ class ActivityStore:
         workflow_id: str,
         workflow_name: str,
         python_code: Optional[str] = None,
+        execution_log: Optional[str] = None,
         workflow_snapshot: Optional[dict] = None,
         node_name_map: Optional[dict[str, str]] = None,
+        progress_timeline: Optional[dict] = None,
         diagram_mermaid: Optional[str] = None,
         started_at: Optional[datetime] = None,
+        status: str = "running",
     ) -> None:
         """Save a new workflow run record."""
 
@@ -653,18 +909,25 @@ class ActivityStore:
                 node_name_map_json = (
                     json.dumps(node_name_map) if node_name_map else None
                 )
+                progress_timeline_json = (
+                    json.dumps(progress_timeline) if progress_timeline else None
+                )
 
                 conn.execute(
                     """
                     INSERT INTO workflow_runs
-                    (thread_id, workflow_id, workflow_name, python_code, workflow_snapshot,
-                     node_name_map, diagram_mermaid, status, started_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 'running', ?)
+                    (thread_id, workflow_id, workflow_name, python_code, execution_log,
+                     workflow_snapshot, node_name_map, progress_timeline,
+                     diagram_mermaid, status, started_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT (thread_id) DO UPDATE SET
                         python_code = COALESCE(EXCLUDED.python_code, workflow_runs.python_code),
+                        execution_log = COALESCE(EXCLUDED.execution_log, workflow_runs.execution_log),
                         workflow_snapshot = COALESCE(EXCLUDED.workflow_snapshot, workflow_runs.workflow_snapshot),
                         node_name_map = COALESCE(EXCLUDED.node_name_map, workflow_runs.node_name_map),
+                        progress_timeline = COALESCE(EXCLUDED.progress_timeline, workflow_runs.progress_timeline),
                         diagram_mermaid = COALESCE(EXCLUDED.diagram_mermaid, workflow_runs.diagram_mermaid),
+                        status = EXCLUDED.status,
                         workflow_name = EXCLUDED.workflow_name
                 """,
                     [
@@ -672,9 +935,12 @@ class ActivityStore:
                         workflow_id,
                         workflow_name,
                         python_code,
+                        execution_log,
                         workflow_snapshot_json,
                         node_name_map_json,
+                        progress_timeline_json,
                         diagram_mermaid,
+                        status,
                         started_at or datetime.now(timezone.utc),
                     ],
                 )
@@ -759,6 +1025,12 @@ class ActivityStore:
         workflow_snapshot = json.loads(row[10]) if row[10] else None
         node_name_map = json.loads(row[11]) if row[11] else None
         progress_timeline = json.loads(row[12]) if row[12] else None
+        progress_timeline = _hydrate_progress_timeline(
+            progress_timeline,
+            status=row[5],
+            error=row[9],
+            execution_log=row[4],
+        )
 
         return WorkflowRun(
             thread_id=row[0],
@@ -802,6 +1074,29 @@ class ActivityStore:
                 conn.close()
 
         return await asyncio.to_thread(_get)
+
+    async def delete_workflow_run(self, thread_id: str) -> int:
+        """Mark a persisted workflow run as deleted."""
+
+        def _delete():
+            conn = duckdb.connect(self.db_path)
+            try:
+                rows = conn.execute(
+                    """
+                    UPDATE workflow_runs
+                    SET status = 'deleted',
+                        completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP),
+                        execution_log = COALESCE(execution_log, '') || 'Run history deleted\n'
+                    WHERE thread_id = ?
+                    RETURNING thread_id
+                    """,
+                    [thread_id],
+                ).fetchall()
+                return len(rows)
+            finally:
+                conn.close()
+
+        return await asyncio.to_thread(_delete)
 
     async def list_workflow_runs(
         self,

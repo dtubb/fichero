@@ -219,7 +219,7 @@ struct ModelInfoRow: View {
             }
         }
         .padding(12)
-        .background(isSelected ? Color.accentColor.opacity(0.1) : Color(nsColor: .controlBackgroundColor))
+        .background(isSelected ? Color.accentColor.opacity(0.1) : Color(platformColor: .controlBackgroundColor))
         .cornerRadius(8)
         .overlay(
             RoundedRectangle(cornerRadius: 8)

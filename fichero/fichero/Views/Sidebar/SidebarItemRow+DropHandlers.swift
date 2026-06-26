@@ -2,6 +2,16 @@ import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
 
+func sidebarTemporaryDropDirectories(for urls: [URL]) -> [URL] {
+    Array(
+        Set(
+            urls
+                .filter { $0.path.contains("/fichero-drop-") }
+                .map { $0.deletingLastPathComponent() }
+        )
+    )
+}
+
 extension SidebarItemRow {
     // MARK: - NSItemProvider-based file drop (preserves folder URLs, #587)
 
@@ -22,10 +32,10 @@ extension SidebarItemRow {
         targetFolder: SidebarItem?
     ) -> Bool {
         sidebarRowLogger.debug(
-            "📦 handleProvidersDrop: \(providers.count) provider(s), target=\(targetFolder?.name ?? "root")"
+            "handleProvidersDrop: \(providers.count) provider(s), target=\(targetFolder?.name ?? "root")"
         )
         guard !providers.isEmpty else {
-            sidebarRowLogger.warning("  ⚠️ no providers")
+            sidebarRowLogger.warning("  no providers")
             return false
         }
         Task {
@@ -48,7 +58,7 @@ extension SidebarItemRow {
                 }
             }
             guard !stableURLs.isEmpty || !tempURLs.isEmpty else {
-                sidebarRowLogger.warning("  ⚠️ all URL loads failed — import won't fire")
+                sidebarRowLogger.warning("  all URL loads failed — import won't fire")
                 return
             }
             if !stableURLs.isEmpty {
@@ -87,18 +97,18 @@ extension SidebarItemRow {
     static func loadAnyFileURL(from provider: NSItemProvider) async throws -> URL {
         let utis = provider.registeredTypeIdentifiers
         let canURL = provider.canLoadObject(ofClass: URL.self)
-        sidebarRowLogger.debug("🔍 loadAnyFileURL: canLoadURL=\(canURL) UTIs=[\(utis.joined(separator: ", "))]")
+        sidebarRowLogger.debug("loadAnyFileURL: canLoadURL=\(canURL) UTIs=[\(utis.joined(separator: ", "))]")
 
         // Cheapest path first: direct URL load if the provider advertises it.
         if canURL {
             sidebarRowLogger.debug("  → trying direct URL load (canLoadObject=true)")
             do {
                 let url = try await loadURL(from: provider)
-                sidebarRowLogger.debug("  ✅ direct URL load succeeded: \(url.lastPathComponent) [\(url.pathExtension)]")
+                sidebarRowLogger.debug("  direct URL load succeeded: \(url.lastPathComponent) [\(url.pathExtension)]")
                 return url
             } catch {
                 sidebarRowLogger.warning(
-                    "  ⚠️ direct URL load failed despite canLoadObject=true: \(error.localizedDescription)"
+                    "  direct URL load failed despite canLoadObject=true: \(error.localizedDescription)"
                 )
                 // Fall through to representation-based fallback rather than throwing,
                 // in case the provider lied about canLoadObject (seen with some .mov drags).
@@ -111,7 +121,7 @@ extension SidebarItemRow {
         // `public.jpeg` — they don't respond to `loadObject(URL.self)`
         // but do respond to `loadFileRepresentation(forTypeIdentifier:)`.
         guard !utis.isEmpty else {
-            sidebarRowLogger.warning("  ✗ provider has no UTIs and canLoadObject=false — no path available")
+            sidebarRowLogger.warning("  provider has no UTIs and canLoadObject=false — no path available")
             throw NSError(
                 domain: "SidebarDrop",
                 code: -1,
@@ -128,14 +138,14 @@ extension SidebarItemRow {
                 from: provider,
                 typeIdentifier: identifier
             ) {
-                sidebarRowLogger.debug("    ✅ representation succeeded for UTI \(identifier): \(url.lastPathComponent)")
+                sidebarRowLogger.debug("    representation succeeded for UTI \(identifier): \(url.lastPathComponent)")
                 return url
             } else {
-                sidebarRowLogger.debug("    ✗ representation failed for UTI \(identifier)")
+                sidebarRowLogger.debug("    representation failed for UTI \(identifier)")
             }
         }
         sidebarRowLogger.warning(
-            "  ✗ all \(utis.count) UTI representation(s) failed; UTIs=[\(utis.joined(separator: ", "))]"
+            "  all \(utis.count) UTI representation(s) failed; UTIs=[\(utis.joined(separator: ", "))]"
         )
         throw NSError(
             domain: "SidebarDrop",
@@ -215,15 +225,16 @@ extension SidebarItemRow {
 
     func handleExternalFileDrop(urls: [URL], targetFolder: SidebarItem?, mode: IngestMode = .link) -> Bool {
         guard let importService else {
-            sidebarRowLogger.warning("❌ External drop rejected: no import service for library")
+            sidebarRowLogger.warning("External drop rejected: no import service for library")
             return false
         }
 
         let fileURLs = urls.filter { $0.isFileURL }
         guard !fileURLs.isEmpty else {
-            sidebarRowLogger.warning("❌ External drop rejected: no file URLs")
+            sidebarRowLogger.warning("External drop rejected: no file URLs")
             return false
         }
+        let temporaryDirectories = sidebarTemporaryDropDirectories(for: fileURLs)
 
         var targetFolderId: String?
         if let targetFolder,
@@ -239,6 +250,11 @@ extension SidebarItemRow {
         }
 
         Task {
+            defer {
+                for tempDir in temporaryDirectories {
+                    try? FileManager.default.removeItem(at: tempDir)
+                }
+            }
             do {
                 _ = try await importService.importFiles(
                     fileURLs,
@@ -246,16 +262,11 @@ extension SidebarItemRow {
                     parentId: targetFolderId
                 )
                 if let targetFolderId {
-                    sidebarRowLogger.debug("✅ Imported \(fileURLs.count) external file(s) to folder \(targetFolderId)")
+                    sidebarRowLogger.debug("Imported \(fileURLs.count) external file(s) to folder \(targetFolderId)")
                 } else {
                     sidebarRowLogger.debug(
-                        "✅ Imported \(fileURLs.count) external file(s) to library root (no Inbox found)"
+                        "Imported \(fileURLs.count) external file(s) to library root (no Inbox found)"
                     )
-                }
-                // Clean up fichero-drop-UUID temp dirs created by loadFileRepresentation.
-                for url in fileURLs where url.path.contains("/fichero-drop-") {
-                    let tempDir = url.deletingLastPathComponent()
-                    try? FileManager.default.removeItem(at: tempDir)
                 }
                 // Refresh twice: once immediately, again after 500ms to catch
                 // the race where the backend hasn't finished indexing new
@@ -264,7 +275,7 @@ extension SidebarItemRow {
                 try? await Task.sleep(for: .milliseconds(500))
                 await documentStore?.refresh()
             } catch {
-                sidebarRowLogger.error("❌ External drop import failed: \(error.localizedDescription)")
+                sidebarRowLogger.error("External drop import failed: \(error.localizedDescription)")
             }
         }
 
@@ -287,11 +298,11 @@ extension SidebarItemRow {
             targetParentId = targetDoc.parentId
             sidebarRowLogger.debug(" Target parent ID: \(targetParentId ?? "root")")
         } else {
-            sidebarRowLogger.debug(" ⚠️ Drop rejected: target \(targetItem.name) is not a document")
+            sidebarRowLogger.debug(" Drop rejected: target \(targetItem.name) is not a document")
             return false
         }
 
-        for itemID in itemIDs {
+        let documentIds = itemIDs.filter { itemID in
             let sourceKind = SidebarItemKind(prefixedId: itemID)
             sidebarRowLogger.debug(" Moving item \(itemID) (kind=\(String(describing: sourceKind))) to be sibling of \(targetItem.name)")
 
@@ -303,33 +314,63 @@ extension SidebarItemRow {
             // returns 404.
             guard sourceKind == .document else {
                 let src = String(describing: sourceKind)
-                sidebarRowLogger.debug(" ⚠️ Drop rejected: source kind \(src) cannot be reparented via document move")
-                continue
+                sidebarRowLogger.debug(" Drop rejected: source kind \(src) cannot be reparented via document move")
+                return false
             }
 
             guard itemID != targetItem.id else {
-                sidebarRowLogger.debug(" ⚠️ Drop rejected: cannot drop item onto itself")
-                continue
+                sidebarRowLogger.debug(" Drop rejected: cannot drop item onto itself")
+                return false
             }
 
-            Task {
-                if let parentId = targetParentId {
-                    await moveItemToFolder(itemId: itemID, targetFolderId: parentId)
-                } else {
-                    let actualItemId = extractActualId(from: itemID)
-                    guard let documentStore = documentStore else { return }
-                    do {
-                        _ = try await documentStore.moveDocument(actualItemId, toParent: nil)
-                        sidebarRowLogger.debug(" ✅ Move to root successful")
-                    } catch {
-                        sidebarRowLogger.debug(" ❌ Move to root failed: \(error.localizedDescription)")
-                    }
-                }
-            }
+            return true
         }
+
+        guard !documentIds.isEmpty else {
+            sidebarRowLogger.debug(" No document moves to perform")
+            return true
+        }
+
+        performTransactionalSiblingReparent(
+            documentIds: documentIds,
+            targetParentId: targetParentId
+        )
 
         sidebarRowLogger.debug(" ========== DROP BESIDE COMPLETED ==========")
         return true
+    }
+
+    private func performTransactionalSiblingReparent(
+        documentIds: [String],
+        targetParentId: String?
+    ) {
+        guard let documentStore else { return }
+
+        Task {
+            await MainActor.run {
+                sidebarState.dropErrorMessage = nil
+            }
+            let moveResult = await moveSidebarDocumentsTransactionally(
+                documentIds,
+                toParent: targetParentId,
+                move: { itemId, parentId in
+                    _ = try await documentStore.moveDocument(
+                        extractActualId(from: itemId),
+                        toParent: parentId
+                    )
+                },
+                refresh: {
+                    await documentStore.refresh()
+                }
+            )
+
+            guard moveResult.isSuccessful else {
+                await MainActor.run {
+                    sidebarState.dropErrorMessage = moveResult.errorMessage
+                }
+                return
+            }
+        }
     }
 
     func handleDropIntoFolder(itemIDs: [String], targetFolder: SidebarItem) -> Bool {
@@ -344,7 +385,7 @@ extension SidebarItemRow {
         // `SidebarItem.folderKind` returns the enum kind the target accepts
         // and nil for anything that isn't a folder.
         guard let targetKind = targetFolder.folderKind else {
-            sidebarRowLogger.warning("❌ Drop rejected: target \(targetFolder.name) is not a folder")
+            sidebarRowLogger.warning("Drop rejected: target \(targetFolder.name) is not a folder")
             return false
         }
 
@@ -361,21 +402,21 @@ extension SidebarItemRow {
             guard sourceKind == targetKind else {
                 let src = String(describing: sourceKind)
                 let tgt = String(describing: targetKind)
-                sidebarRowLogger.debug(" ⚠️ Drop rejected: source (\(src)) and target (\(tgt)) sections differ")
+                sidebarRowLogger.debug(" Drop rejected: source (\(src)) and target (\(tgt)) sections differ")
                 continue
             }
 
             guard itemID != targetFolder.id else {
-                sidebarRowLogger.debug(" ⚠️ Drop rejected: cannot drop item onto itself")
+                sidebarRowLogger.debug(" Drop rejected: cannot drop item onto itself")
                 continue
             }
 
             if isDescendant(targetFolder.id, of: itemID) {
-                sidebarRowLogger.debug(" ⚠️ Drop rejected: circular reference detected")
+                sidebarRowLogger.debug(" Drop rejected: circular reference detected")
                 continue
             }
 
-            sidebarRowLogger.debug(" ✅ Validation passed, calling routeMove")
+            sidebarRowLogger.debug(" Validation passed, calling routeMove")
             sidebarRowLogger.debug("    Source ID: \(itemID)")
             sidebarRowLogger.debug("    Target ID: \(targetFolder.id)")
             Task {

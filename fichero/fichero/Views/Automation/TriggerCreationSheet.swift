@@ -6,7 +6,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Trigger
 /// Sheet for creating a new file trigger
 struct TriggerCreationSheet: View {
     @EnvironmentObject var apiClient: APIClient
-    @EnvironmentObject var workflowStore: WorkflowStore
+    @Environment(WorkflowStore.self) var workflowStore
     @Environment(\.dismiss) private var dismiss
 
     @State private var name = ""
@@ -124,6 +124,7 @@ struct TriggerCreationSheet: View {
     }
 
     private func selectFolder() {
+        #if os(macOS)
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
@@ -133,6 +134,11 @@ struct TriggerCreationSheet: View {
         if panel.runModal() == .OK, let url = panel.url {
             watchPath = url.path
         }
+        #else
+        // iOS: folder picker goes through UIDocumentPickerViewController in
+        // the iPad UI pass. Until then, the field stays empty.
+        _ = watchPath
+        #endif
     }
 
     private func createTrigger() {

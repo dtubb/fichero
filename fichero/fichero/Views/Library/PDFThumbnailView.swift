@@ -1,4 +1,8 @@
+#if canImport(AppKit)
 import AppKit
+#elseif canImport(UIKit)
+import UIKit
+#endif
 import PDFKit
 import SwiftUI
 
@@ -8,18 +12,19 @@ import SwiftUI
 ///   Pass `pageIndex = sequence - 1` (PDFKit is 0-indexed, our sequence is 1-based).
 /// Used as a fallback when the backend hasn't generated a PDF thumbnail.
 struct PDFThumbnailView: View {
-    let path: String
+    let documentId: String
     let size: CGSize
     var pageIndex: Int = 0
 
-    @State private var image: NSImage?
+    @EnvironmentObject private var storageService: StorageServiceGenerated
+    @State private var image: PlatformImage?
     @State private var pageCount: Int = 0
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
             Group {
                 if let image {
-                    Image(nsImage: image)
+                    Image(platformImage: image)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                 } else {
@@ -40,10 +45,15 @@ struct PDFThumbnailView: View {
                     .padding(4)
             }
         }
-        .task(id: "\(path):\(pageIndex)") {
+        .task(id: "\(documentId):\(pageIndex)") {
+            guard let data = try? await storageService.getSourceData(documentId) else {
+                image = nil
+                pageCount = 0
+                return
+            }
             let result = await Self.renderThumbnailWithPageCount(
-                at: path, pageIndex: pageIndex, size: size,
-                )
+                from: data, pageIndex: pageIndex, size: size
+            )
             image = result?.image
             pageCount = result?.pageCount ?? 0
         }
@@ -72,21 +82,21 @@ struct PDFThumbnailView: View {
 
     /// Render a specific page of a PDF at the requested pixel size.
     /// Runs off the main actor — PDFKit can do the render on any thread.
-    static func renderThumbnail(at path: String, pageIndex: Int = 0, size: CGSize) async -> NSImage? {
+    static func renderThumbnail(from data: Data, pageIndex: Int = 0, size: CGSize) async -> PlatformImage? {
         await renderThumbnailWithPageCount(
-            at: path, pageIndex: pageIndex, size: size,
-            )?.image
+            from: data, pageIndex: pageIndex, size: size
+        )?.image
     }
 
     /// Render the page AND surface the PDF's total page count so the
     /// multi-page badge can render without a second document load.
-    /// One \`PDFDocument(url:)\` call serves both — half the cost of
+    /// One \`PDFDocument(data:)\` call serves both — half the cost of
     /// computing them independently. (#946)
     static func renderThumbnailWithPageCount(
-        at path: String, pageIndex: Int = 0, size: CGSize,
-        ) async -> (image: NSImage, pageCount: Int)? {
+        from data: Data, pageIndex: Int = 0, size: CGSize
+    ) async -> (image: PlatformImage, pageCount: Int)? {
         await Task.detached(priority: .userInitiated) {
-            guard let pdf = PDFDocument(url: URL(fileURLWithPath: path)),
+            guard let pdf = PDFDocument(data: data),
                   pageIndex >= 0, pageIndex < pdf.pageCount,
                   let page = pdf.page(at: pageIndex) else {
                 return nil

@@ -1,3 +1,5 @@
+// swiftlint:disable file_length
+import FicheroAPIClient
 import Foundation
 
 // MARK: - Document Types
@@ -108,7 +110,7 @@ enum Status: String, Codable, CaseIterable {
 // MARK: - Document Model
 
 /// Main document model matching Python Document (Pydantic)
-struct Document: Identifiable, Codable, Hashable {
+struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
     let id: String
     var parentId: String?
     var docType: DocType
@@ -120,6 +122,7 @@ struct Document: Identifiable, Codable, Hashable {
     var status: Status
     var metadata: [String: AnyCodable]
     var pageContent: String?
+    var excludeFromProcessing: Bool
     var isWorkspace: Bool
     var curatedItems: [[String: AnyCodable]]
     var structure: [DocumentStructureNode]
@@ -148,6 +151,7 @@ struct Document: Identifiable, Codable, Hashable {
         case status
         case metadata
         case pageContent = "page_content"
+        case excludeFromProcessing = "exclude_from_processing"
         case isWorkspace = "is_workspace"
         case curatedItems = "curated_items"
         case structure
@@ -171,6 +175,7 @@ struct Document: Identifiable, Codable, Hashable {
         status: Status = .pending,
         metadata: [String: AnyCodable] = [:],
         pageContent: String? = nil,
+        excludeFromProcessing: Bool = false,
         isWorkspace: Bool = false,
         curatedItems: [[String: AnyCodable]] = [],
         structure: [DocumentStructureNode] = [],
@@ -192,6 +197,7 @@ struct Document: Identifiable, Codable, Hashable {
         self.status = status
         self.metadata = metadata
         self.pageContent = pageContent
+        self.excludeFromProcessing = excludeFromProcessing
         self.isWorkspace = isWorkspace
         self.curatedItems = curatedItems
         self.structure = structure
@@ -219,6 +225,7 @@ struct Document: Identifiable, Codable, Hashable {
         self.status = try container.decode(Status.self, forKey: .status)
         self.metadata = try container.decode([String: AnyCodable].self, forKey: .metadata)
         self.pageContent = try container.decodeIfPresent(String.self, forKey: .pageContent)
+        self.excludeFromProcessing = try container.decodeIfPresent(Bool.self, forKey: .excludeFromProcessing) ?? false
         self.isWorkspace = try container.decodeIfPresent(Bool.self, forKey: .isWorkspace) ?? false
         self.curatedItems = try container.decodeIfPresent([[String: AnyCodable]].self, forKey: .curatedItems) ?? []
         self.structure = try container.decodeIfPresent([DocumentStructureNode].self, forKey: .structure) ?? []
@@ -233,6 +240,26 @@ struct Document: Identifiable, Codable, Hashable {
     /// Non-optional file type string for sorting (empty string for nil)
     var sortableFileType: String {
         fileType?.rawValue ?? ""
+    }
+
+    /// Label to show beneath a PDF page thumbnail / as a page row's title.
+    ///
+    /// A page child document's `name` is an internal id / source filename
+    /// ("page_0003", a hash), not something a reader recognizes — so for
+    /// page rows we show the human **page number** instead: the 1-based
+    /// `sequence` the backend stamps on each child. When the backend later
+    /// exposes an extracted `page_label` (e.g. "iv", "Plate 3") we prefer
+    /// that over the raw number — that field is added to the page model by
+    /// #2080; until it lands this resolves to the numeric page only.
+    ///
+    /// Returns `nil` for non-page documents so callers fall back to `name`.
+    /// Scoped to `docType == .page` so top-level documents and non-PDF
+    /// items are never relabeled.
+    var pageThumbnailLabel: String? {
+        guard docType == .page, let pageNumber = sequence else { return nil }
+        // #2080: prefer a non-empty extracted `page_label` here, i.e.
+        //   `pageLabel?.nonEmpty ?? "\(pageNumber)"`
+        return "\(pageNumber)"
     }
 }
 
@@ -319,6 +346,7 @@ struct SearchResult: Identifiable, Codable {
     let contentPreview: String?
     let metadata: [String: AnyCodable]
     let highlights: [String]?  // Highlighted text snippets
+    let transcriptExcerpts: [Components.Schemas.SearchExcerpt]
 
     enum CodingKeys: String, CodingKey {
         case documentId = "document_id"
@@ -326,6 +354,36 @@ struct SearchResult: Identifiable, Codable {
         case contentPreview = "content_preview"
         case metadata
         case highlights
+        case transcriptExcerpts = "transcript_excerpts"
+    }
+
+    init(
+        documentId: String,
+        score: Double,
+        contentPreview: String?,
+        metadata: [String: AnyCodable],
+        highlights: [String]?,
+        transcriptExcerpts: [Components.Schemas.SearchExcerpt] = []
+    ) {
+        self.documentId = documentId
+        self.score = score
+        self.contentPreview = contentPreview
+        self.metadata = metadata
+        self.highlights = highlights
+        self.transcriptExcerpts = transcriptExcerpts
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        documentId = try container.decode(String.self, forKey: .documentId)
+        score = try container.decode(Double.self, forKey: .score)
+        contentPreview = try container.decodeIfPresent(String.self, forKey: .contentPreview)
+        metadata = try container.decode([String: AnyCodable].self, forKey: .metadata)
+        highlights = try container.decodeIfPresent([String].self, forKey: .highlights)
+        transcriptExcerpts = try container.decodeIfPresent(
+            [Components.Schemas.SearchExcerpt].self,
+            forKey: .transcriptExcerpts
+        ) ?? []
     }
 }
 
@@ -338,6 +396,8 @@ struct DocumentListResponse: Codable {
 
 struct SearchResponse: Codable {
     let results: [SearchResult]
+    let entityHits: [Components.Schemas.SearchEntityHit]
+    let claimHits: [Components.Schemas.SearchClaimHit]
     let count: Int
     let totalResults: Int
     let query: String
@@ -349,6 +409,8 @@ struct SearchResponse: Codable {
 
     enum CodingKeys: String, CodingKey {
         case results
+        case entityHits = "entity_hits"
+        case claimHits = "claim_hits"
         case count
         case totalResults = "total_results"
         case query
@@ -357,6 +419,53 @@ struct SearchResponse: Codable {
         case hasMore = "has_more"
         case filtersApplied = "filters_applied"
         case suggestions
+    }
+
+    init(
+        results: [SearchResult],
+        entityHits: [Components.Schemas.SearchEntityHit] = [],
+        claimHits: [Components.Schemas.SearchClaimHit] = [],
+        count: Int,
+        totalResults: Int,
+        query: String,
+        searchType: String,
+        executionTimeMs: Double,
+        hasMore: Bool,
+        filtersApplied: [String: String]?,
+        suggestions: [String]?
+    ) {
+        self.results = results
+        self.entityHits = entityHits
+        self.claimHits = claimHits
+        self.count = count
+        self.totalResults = totalResults
+        self.query = query
+        self.searchType = searchType
+        self.executionTimeMs = executionTimeMs
+        self.hasMore = hasMore
+        self.filtersApplied = filtersApplied
+        self.suggestions = suggestions
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        results = try container.decode([SearchResult].self, forKey: .results)
+        entityHits = try container.decodeIfPresent(
+            [Components.Schemas.SearchEntityHit].self,
+            forKey: .entityHits
+        ) ?? []
+        claimHits = try container.decodeIfPresent(
+            [Components.Schemas.SearchClaimHit].self,
+            forKey: .claimHits
+        ) ?? []
+        count = try container.decode(Int.self, forKey: .count)
+        totalResults = try container.decode(Int.self, forKey: .totalResults)
+        query = try container.decode(String.self, forKey: .query)
+        searchType = try container.decode(String.self, forKey: .searchType)
+        executionTimeMs = try container.decode(Double.self, forKey: .executionTimeMs)
+        hasMore = try container.decode(Bool.self, forKey: .hasMore)
+        filtersApplied = try container.decodeIfPresent([String: String].self, forKey: .filtersApplied)
+        suggestions = try container.decodeIfPresent([String].self, forKey: .suggestions)
     }
 }
 

@@ -1,5 +1,9 @@
+#if canImport(AppKit)
 import AppKit
+#endif
 import SwiftUI
+
+#if os(macOS)
 
 /// Finder-style "Open" affordances shared across library rows, sidebar rows,
 /// and ontology rows (entities / claims). Renders **Open / Open in New Tab /
@@ -49,26 +53,145 @@ enum WindowOpener {
         using openWindow: OpenWindowAction
     ) {
         let manager = LibraryManager.shared
-        manager.currentLibraryId = libraryId
+        manager.pendingWindowLibraryIds.append(libraryId)
         manager.pendingOpenDocumentId = documentId
+
+        let hostWindow = NSApp.keyWindow ?? NSApp.mainWindow
 
         // Snapshot existing windows so we can identify the newly created one
         // for tab-merging below.
         let before = Set(NSApp.windows.map(ObjectIdentifier.init))
-        openWindow(id: "main")
+        if asTab {
+            openWindow(id: "main")
+        } else {
+            openWindowDisallowingAutomaticTabs(using: openWindow, before: before)
+        }
 
         guard asTab else { return }
+        guard let hostWindow else { return }
 
         // SwiftUI materialises the new NSWindow on a later runloop turn, so
         // defer the tab-merge until it exists.
         DispatchQueue.main.async {
-            guard let host = NSApp.keyWindow ?? NSApp.mainWindow else { return }
-            let newWindow = NSApp.windows.first {
-                !before.contains(ObjectIdentifier($0)) && $0.isVisible && $0 !== host
-            }
+            let newWindow = newlyCreatedWindow(afterOpeningWindows: before, hostWindow: hostWindow)
             guard let newWindow else { return }
-            host.addTabbedWindow(newWindow, ordered: .above)
+            hostWindow.tabbingMode = .preferred
+            newWindow.tabbingMode = .preferred
+            hostWindow.addTabbedWindow(newWindow, ordered: .above)
             newWindow.makeKeyAndOrderFront(nil)
         }
     }
+
+    @MainActor
+    private static func openWindowDisallowingAutomaticTabs(
+        using openWindow: OpenWindowAction,
+        before: Set<ObjectIdentifier>
+    ) {
+        let previousAllowsAutomaticTabbing = NSWindow.allowsAutomaticWindowTabbing
+        NSWindow.allowsAutomaticWindowTabbing = false
+        openWindow(id: "main")
+        DispatchQueue.main.async {
+            NSWindow.allowsAutomaticWindowTabbing = previousAllowsAutomaticTabbing
+            if let newWindow = NSApp.windows.first(where: {
+                !before.contains(ObjectIdentifier($0)) && $0.isVisible
+            }) {
+                newWindow.tabbingMode = .disallowed
+            }
+        }
+    }
+
+    @MainActor
+    private static func newlyCreatedWindow(
+        afterOpeningWindows before: Set<ObjectIdentifier>,
+        hostWindow: NSWindow
+    ) -> NSWindow? {
+        NSApp.windows.first {
+            !before.contains(ObjectIdentifier($0)) && $0.isVisible && $0 !== hostWindow
+        }
+    }
 }
+
+enum LibraryWindowOpener {
+    @MainActor
+    static func openOrFocusLibrary(at url: URL, using openWindow: OpenWindowAction) {
+        let normalizedURL = url.standardizedFileURL
+        Task {
+            await KnownLibraryRegistryStore.shared.noteOpenedLibrary(
+                url: normalizedURL,
+                displayName: normalizedURL.deletingPathExtension().lastPathComponent
+            )
+        }
+        guard !focusExistingWindow(for: normalizedURL) else { return }
+        let manager = LibraryManager.shared
+        let library = manager.openLibraries.first(where: {
+            $0.url.standardizedFileURL == normalizedURL
+        }) ?? manager.openLibrary(at: normalizedURL, makeCurrent: false)
+
+        WindowOpener.open(libraryId: library.id, asTab: false, using: openWindow)
+    }
+
+    @MainActor
+    private static func focusExistingWindow(for url: URL) -> Bool {
+        let normalizedURL = url.standardizedFileURL
+        guard let window = NSApp.windows.first(where: {
+            $0.representedURL?.standardizedFileURL == normalizedURL
+        }) else {
+            return false
+        }
+
+        NSApp.activate(ignoringOtherApps: true)
+        if window.isMiniaturized {
+            window.deminiaturize(nil)
+        }
+        window.makeKeyAndOrderFront(nil)
+        return true
+    }
+}
+
+#else
+// iOS stubs for the shared open affordances. These keep cross-platform call
+// sites compiling; real iOS behavior (tabs / scene activation) will be added
+// in a later bucket-D pass.
+
+struct OpenInMenuItems: View {
+    var open: (() -> Void)?
+    let openInNewTab: () -> Void
+    let openInNewWindow: () -> Void
+
+    var body: some View {
+        if let open {
+            Button(action: open) {
+                Label("Open", systemImage: "arrow.up.forward.app")
+            }
+        }
+        Button(action: openInNewWindow) {
+            Label("Open in New Window", systemImage: "macwindow.badge.plus")
+        }
+    }
+}
+
+enum WindowOpener {
+    @MainActor
+    static func open(
+        libraryId: UUID,
+        documentId: String? = nil,
+        asTab: Bool,
+        using openWindow: OpenWindowAction
+    ) {
+        // iOS: no native tabs; just open a new window scene.
+        openWindow(id: "main")
+    }
+}
+
+enum LibraryWindowOpener {
+    @MainActor
+    static func openOrFocusLibrary(at url: URL, using openWindow: OpenWindowAction) {
+        // iOS: open the library in a new window scene; focus is scene-based.
+        let manager = LibraryManager.shared
+        let library = manager.openLibraries.first(where: {
+            $0.url.standardizedFileURL == url.standardizedFileURL
+        }) ?? manager.openLibrary(at: url, makeCurrent: false)
+        WindowOpener.open(libraryId: library.id, asTab: false, using: openWindow)
+    }
+}
+#endif

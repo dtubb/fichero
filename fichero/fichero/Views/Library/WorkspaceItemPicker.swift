@@ -85,18 +85,6 @@ final class WorkspacePickerService: ObservableObject {
     }
 }
 
-enum WorkspacePickerError: LocalizedError {
-    case invalidURL
-    case server(Int)
-
-    var errorDescription: String? {
-        switch self {
-        case .invalidURL: "Invalid URL"
-        case let .server(code): "Server returned \(code)"
-        }
-    }
-}
-
 // MARK: - Wire models
 
 /// Minimal projection of a document row — only the fields the picker needs.
@@ -266,7 +254,7 @@ struct WorkspaceItemPicker: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(Color(.quaternaryLabelColor).opacity(0.12))
+                    .fill(Color(platformColor: .platformQuaternaryLabel).opacity(0.12))
             )
         }
         .buttonStyle(.plain)

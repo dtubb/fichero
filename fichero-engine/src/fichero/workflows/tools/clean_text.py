@@ -154,8 +154,9 @@ def _build_prompt(
 {aspect_block}
 
 Preserve the original meaning, wording, spelling, capitalisation, and the
-order of the content. Do NOT summarize, paraphrase, translate, reorder, or
-add any new information or commentary.
+order of the content. Preserve any [ilegible] / [uncertain] markers and
+original accents / diacritics verbatim. Do NOT summarize, paraphrase,
+translate, reorder, or add any new information or commentary.
 
 Output ONLY the cleaned text, with no preamble or explanation."""
 

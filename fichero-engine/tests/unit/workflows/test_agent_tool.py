@@ -7,6 +7,8 @@ Tests the react_agent tool that uses LangGraph's create_react_agent.
 import pytest
 from unittest.mock import AsyncMock, Mock, patch
 
+from langchain_core.messages import SystemMessage
+
 from fichero.workflows.tools.agent import react_agent
 from fichero.workflows.types import State
 from fichero.llm import LLMConfig
@@ -51,6 +53,44 @@ async def test_react_agent_basic():
             assert len(result["messages"]) == 2
             assert "tool_calls" in result
             assert result["tool_calls"] == []
+
+
+@pytest.mark.asyncio
+async def test_react_agent_composes_integrity_system_prompt():
+    inputs = {
+        "task": "Inspect the records",
+        "tools": [],
+        "system_prompt": "Use the archive lookup tool before answering.",
+    }
+    state: State = {}
+    llm_config = LLMConfig(provider="openai", model="gpt-4o-mini")
+    captured: dict[str, object] = {}
+
+    with patch("fichero.workflows.tools.agent.create_react_agent") as mock_create:
+        with patch("fichero.workflows.tools.agent.get_langchain_model") as mock_get_model:
+            mock_get_model.return_value = Mock()
+
+            mock_agent = Mock()
+
+            async def _ainvoke(agent_state):
+                captured["messages"] = agent_state["messages"]
+                return {
+                    "messages": [
+                        {"type": "human", "content": "Inspect the records"},
+                        {"type": "ai", "content": "Done."},
+                    ]
+                }
+
+            mock_agent.ainvoke = _ainvoke
+            mock_create.return_value = mock_agent
+
+            await react_agent(inputs, state, llm_config)
+
+    messages = captured["messages"]
+    assert isinstance(messages, list)
+    assert isinstance(messages[0], SystemMessage)
+    assert "transparent, local instrument" in messages[0].content
+    assert "Use the archive lookup tool before answering." in messages[0].content
 
 
 @pytest.mark.asyncio

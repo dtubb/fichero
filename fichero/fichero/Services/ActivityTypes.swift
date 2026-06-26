@@ -1,4 +1,6 @@
+import FicheroAPIClient
 import Foundation
+import OpenAPIRuntime
 
 // MARK: - Activity Types
 // Shared types used by ActivityServiceGenerated and views
@@ -7,7 +9,6 @@ import Foundation
 struct AnyValueAsString: Codable, Hashable {
     let value: String
 
-    /// Create with a string value directly
     init(_ stringValue: String) {
         self.value = stringValue
     }
@@ -33,38 +34,34 @@ struct AnyValueAsString: Codable, Hashable {
     }
 }
 
-/// Activity item from the API
-struct ActivityItem: Codable, Identifiable, Hashable {
-    let id: String
-    let type: String
-    let level: String
-    let timestamp: String
-    let message: String
-    let workflowId: String?
-    let batchId: String?
-    let threadId: String?
-    let nodeId: String?
-    private let metadataRaw: [String: AnyValueAsString]?
-    let durationMs: Double?
-    let error: String?
+typealias ActivityItem = Components.Schemas.ActivityResponse
 
-    /// Metadata with all values as strings
-    var metadata: [String: String]? {
-        metadataRaw?.mapValues { $0.value }
+// The hand-rolled ActivityItem was Identifiable (id: String); the generated
+// schema has the same `id`, so opt it into Identifiable for ForEach (#1702).
+extension Components.Schemas.ActivityResponse: @retroactive Identifiable {}
+
+extension Components.Schemas.ActivityResponse {
+    var type: String { _type }
+
+    /// Metadata with all values as strings. Named distinctly from the generated
+    /// `metadata` (a `MetadataPayload?`) to avoid shadowing it (#1702).
+    var metadataStrings: [String: String]? {
+        guard let metadata else { return nil }
+        let converted = metadata.additionalProperties.value.mapValues { value -> String in
+            if let string = value as? String {
+                return string
+            }
+            if let number = value as? NSNumber {
+                return number.stringValue
+            }
+            if let bool = value as? Bool {
+                return String(bool)
+            }
+            return String(describing: value)
+        }
+        return converted.isEmpty ? nil : converted
     }
 
-    enum CodingKeys: String, CodingKey {
-        case id, type, level, timestamp, message
-        case workflowId = "workflow_id"
-        case batchId = "batch_id"
-        case threadId = "thread_id"
-        case nodeId = "node_id"
-        case metadataRaw = "metadata"
-        case durationMs = "duration_ms"
-        case error
-    }
-
-    /// Memberwise initializer for programmatic creation
     init(
         id: String,
         type: String,
@@ -79,22 +76,27 @@ struct ActivityItem: Codable, Identifiable, Hashable {
         durationMs: Double? = nil,
         error: String? = nil
     ) {
-        self.id = id
-        self.type = type
-        self.level = level
-        self.timestamp = timestamp
-        self.message = message
-        self.workflowId = workflowId
-        self.batchId = batchId
-        self.threadId = threadId
-        self.nodeId = nodeId
-        self.metadataRaw = metadataRaw
-        self.durationMs = durationMs
-        self.error = error
+        let metadataPayload = metadataRaw.map { raw -> Components.Schemas.ActivityResponse.MetadataPayload in
+            let object = (try? OpenAPIObjectContainer(unvalidatedValue: raw.mapValues(\.value))) ?? .init()
+            return .init(additionalProperties: object)
+        }
+        self.init(
+            id: id,
+            _type: type,
+            level: level,
+            timestamp: timestamp,
+            message: message,
+            workflowId: workflowId,
+            batchId: batchId,
+            threadId: threadId,
+            nodeId: nodeId,
+            metadata: metadataPayload,
+            durationMs: durationMs,
+            error: error
+        )
     }
 
     var parsedTimestamp: Date? {
-        // First try ISO8601 with timezone info (Z or +HH:MM offset)
         let isoFormatter = ISO8601DateFormatter()
         isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         if let date = isoFormatter.date(from: timestamp) {
@@ -105,26 +107,20 @@ struct ActivityItem: Codable, Identifiable, Hashable {
             return date
         }
 
-        // Backend often uses datetime.now().isoformat() without timezone info
-        // These timestamps are in the server's local time (assumed same as client)
-        // Parse them in local timezone to display correctly
         let dateFormatter = DateFormatter()
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")
-        dateFormatter.timeZone = .current  // Use local timezone for timestamps without TZ info
+        dateFormatter.timeZone = .current
 
-        // Try with microseconds
         dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS"
         if let date = dateFormatter.date(from: timestamp) {
             return date
         }
 
-        // Try with milliseconds
         dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS"
         if let date = dateFormatter.date(from: timestamp) {
             return date
         }
 
-        // Try without fractional seconds
         dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
         return dateFormatter.date(from: timestamp)
     }
@@ -158,17 +154,13 @@ struct ActivityItem: Codable, Identifiable, Hashable {
         }
     }
 
-    /// Display name for sidebar
     var name: String {
-        // Use message truncated, or workflow type
         let displayMessage = message.prefix(40)
         return displayMessage.isEmpty ? type : String(displayMessage) + (message.count > 40 ? "..." : "")
     }
 
-    /// Status icon for sidebar (alias for typeIcon)
     var statusIcon: String { typeIcon }
 
-    /// Status derived from type
     var status: String {
         switch type {
         case "workflow_started", "node_started", "batch_started": return "running"
@@ -204,5 +196,4 @@ struct ActivityStats: Codable {
         case periodStart = "period_start"
         case periodEnd = "period_end"
     }
-
 }

@@ -23,7 +23,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import unquote
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from fichero.db import Database
 from fichero.db_manager import db_manager
@@ -70,6 +70,7 @@ def list_known_libraries(
 
 @router.post("/registry/add", response_model=KnownLibrary)
 def add_known_library(
+    request: Request,
     path: str,
     name: str | None = None,
     db: Database = Depends(get_global_database),
@@ -108,19 +109,25 @@ def add_known_library(
             lib = existing[0]
             lib.last_accessed = datetime.now()
             db.save(lib)
-            return lib
+            library = lib
+        else:
+            # Create new registration
+            if name is None:
+                name = pkg_path.name  # e.g. "My Library.fichero" → "My Library.fichero"
 
-        # Create new registration
-        if name is None:
-            name = pkg_path.name  # e.g. "My Library.fichero" → "My Library.fichero"
+            library = KnownLibrary(
+                path=str(pkg_path),
+                name=name,
+                added_at=datetime.now(),
+                last_accessed=datetime.now(),
+            )
+            db.save(library)
 
-        library = KnownLibrary(
-            path=str(pkg_path),
-            name=name,
-            added_at=datetime.now(),
-            last_accessed=datetime.now(),
-        )
-        db.save(library)
+        try:
+            db_manager.get_database(str(pkg_path))
+        except Exception as exc:
+            logger.warning("Inbox seeding skipped for %s: %s", pkg_path, exc)
+
         return library
     except Exception as e:
         logger.error("Failed to add known library: %s", e)

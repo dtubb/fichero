@@ -29,8 +29,46 @@ extension LibraryManager {
     func backendDidBecomeReady() async {
         backendIsReady = true
         for library in openLibraries {
+            library.reconfigureBackendHost()
             await loadLibraryDataIfNeeded(for: library)
         }
+    }
+
+    func reconfigureGeneratedClientsForCurrentHost() {
+        for library in openLibraries {
+            library.reconfigureBackendHost()
+        }
+    }
+
+    /// Remote clients use only the library path explicitly advertised by the
+    /// host's pairing payload. Do not infer from the host registry: registry
+    /// entries are recents/known libraries, not the set currently open for
+    /// remote use.
+    func adoptPairedRemoteLibrary() {
+        guard EngineConfig.requiresExternalBackendConnection else { return }
+        let path = RemoteAccessConfig.pairedLibraryPath
+        guard !path.isEmpty else { return }
+
+        let remoteURL = URL(fileURLWithPath: path)
+        if let current = globalLibrary, current.url.path == remoteURL.path {
+            current.reconfigureBackendHost()
+            return
+        }
+
+        let library = LibraryReference(
+            url: remoteURL,
+            document: FicheroDocument(),
+            displayName: remoteURL.deletingPathExtension().lastPathComponent,
+            id: Self.globalLibraryId,
+            startAccessing: false
+        )
+
+        openLibraries.removeAll { $0.id == Self.globalLibraryId }
+        openLibraries.insert(library, at: 0)
+        currentLibraryId = library.id
+        loadedLibraryIds.removeAll()
+        loadingLibraryIds.removeAll()
+        libraryManagerLogger.info("Adopted paired remote library: \(remoteURL.path, privacy: .public)")
     }
 
     /// Starts a library load immediately when the backend is ready, otherwise
@@ -62,6 +100,7 @@ extension LibraryManager {
         await loadLibraryData(for: library)
         await ensureInboxFolder(for: library)
         loadedLibraryIds.insert(library.id)
+        librariesLoadVersion += 1
     }
 
     /// Create the .fichero package directory structure
@@ -107,9 +146,6 @@ extension LibraryManager {
     /// Initialize the backend database for a library
     func initializeBackendDatabase(for library: LibraryReference) async {
         do {
-            struct HealthResponse: Codable {
-                let status: String
-            }
             let _: HealthResponse = try await library.apiClient.get("/health")
             libraryManagerLogger.info("Initialized backend database for: \(library.displayName)")
         } catch {
@@ -158,7 +194,7 @@ extension LibraryManager {
                     parentId: nil
                 )
                 libraryManagerLogger.info(
-                    "✅ Created default Inbox folder in \(library.displayName) library: \(inbox.id)"
+                    "Created default Inbox folder in \(library.displayName) library: \(inbox.id)"
                 )
 
                 // Reload documents to include the new Inbox
@@ -167,7 +203,7 @@ extension LibraryManager {
                 libraryManagerLogger.info("Reloaded collections, now have \(reloadedCount) documents")
             } catch {
                 libraryManagerLogger.error(
-                    "❌ Failed to create Inbox folder in \(library.displayName): \(error.localizedDescription)"
+                    "Failed to create Inbox folder in \(library.displayName): \(error.localizedDescription)"
                 )
             }
         } else {

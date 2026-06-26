@@ -368,16 +368,11 @@ class ProviderServiceGenerated: ObservableObject {
 
     /// List provider references for the current library
     func listProviderRefs() async throws -> [Components.Schemas.ProviderRefResponse] {
-        let response = try await client.api.listLibraryProviderRefsApiProvidersRefsGet(
-            headers: .init(xFicheroLibraryPath: libraryPath)
-        )
+        let response = try await client.api.listLibraryProviderRefsApiProvidersRefsGet()
 
         switch response {
         case .ok(let okResponse):
             return try okResponse.body.json.items
-        case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw ProviderServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
             throw ProviderServiceGeneratedError.unexpectedResponse(statusCode)
         }
@@ -388,7 +383,6 @@ class ProviderServiceGenerated: ObservableObject {
         let request = Components.Schemas.ProviderRefCreate(providerId: providerId)
 
         let response = try await client.api.addProviderRefApiProvidersRefsPost(
-            headers: .init(xFicheroLibraryPath: libraryPath),
             body: .json(request)
         )
 
@@ -416,7 +410,6 @@ class ProviderServiceGenerated: ObservableObject {
 
         let response = try await client.api.updateProviderRefApiProvidersRefsRefIdPatch(
             path: .init(refId: refId),
-            headers: .init(xFicheroLibraryPath: libraryPath),
             body: .json(request)
         )
 
@@ -435,7 +428,6 @@ class ProviderServiceGenerated: ObservableObject {
     func deleteProviderRef(refId: String) async throws {
         let response = try await client.api.deleteProviderRefApiProvidersRefsRefIdDelete(
             path: .init(refId: refId),
-            headers: .init(xFicheroLibraryPath: libraryPath)
         )
 
         switch response {

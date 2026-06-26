@@ -17,7 +17,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.knowledge_models import (
     ClaimRelationType,
@@ -49,7 +49,7 @@ def _ensure_pykeen_compat() -> None:
             model_file = Path(directory) / "trained_model.pkl"
             if not model_file.exists():
                 raise FileNotFoundError(f"trained_model.pkl not found in {directory}")
-            return torch.load(model_file, map_location="cpu")
+            return torch.load(model_file, map_location="cpu", weights_only=True)
 
         pykeen.models.Model.load_directory = _load_directory_compat
 
@@ -143,7 +143,7 @@ async def generate_heuristic_predictions(
     out: list[dict[str, Any]] = []
     for claim in all_claims:
         try:
-            qv = db._embed_text(claim.text)  # type: ignore[attr-defined]
+            qv = await db._embed_text_async(claim.text, role="passage")  # type: ignore[attr-defined]
         except Exception:
             continue
         similar = db.search_vectors(
@@ -193,7 +193,7 @@ async def apply_prediction_run(
     run_id: str,
     min_confidence: float = Query(default=0.7, ge=0.0, le=1.0),
     max_links: int = Query(default=100, ge=1, le=1000),
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ApplyPredictionsResponse:
     """Apply a prediction run's top-scoring predictions as claim links."""
     import pykeen.models  # noqa: PLC0415

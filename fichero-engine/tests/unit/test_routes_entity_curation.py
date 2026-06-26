@@ -11,9 +11,11 @@ from datetime import datetime
 
 from fichero.knowledge_models import (
     ClaimCurationState,
+    EntityCurationState,
     EntityType,
     KnowledgeClaim,
     KnowledgeEntity,
+    MutationLog,
 )
 from fichero.models import DocType, Document
 
@@ -53,6 +55,66 @@ def _make_claim(db, doc: Document, entity: KnowledgeEntity, text: str = "A claim
     )
     db.save(claim)
     return claim
+
+
+# ---------------------------------------------------------------------------
+# Regression: a merged-away (tombstoned) entity must NOT reappear in the
+# entity list the UI shows — otherwise merge "looks like it did nothing"
+# even though the DB merge succeeded.  (#1849)
+# ---------------------------------------------------------------------------
+
+
+class TestMergedEntitiesHiddenFromList:
+    def test_absorbed_entity_excluded_from_full_list(self, client, db):
+        absorber = _make_entity(db, "Alice")
+        absorbed = _make_entity(db, "Alicia")
+        r = client.post(
+            "/api/kg/entity-curation/merge",
+            json={
+                "absorbing_entity_id": absorber.id,
+                "absorbed_entity_ids": [absorbed.id],
+            },
+        )
+        assert r.status_code == 200
+        ids = {item["id"] for item in client.get("/api/entities").json()["items"]}
+        assert absorber.id in ids
+        assert absorbed.id not in ids  # tombstoned entity must be hidden
+
+    def test_absorbed_entity_excluded_from_doc_scoped_list(self, client, db):
+        """The document_id union loop must also drop tombstoned entities even
+        when their source_document_ids still intersect the requested doc."""
+        absorber = _make_entity(db, "Alice")
+        absorbed = _make_entity(db, "Alicia")
+        doc = _make_doc(db)
+        _make_claim(db, doc, absorbed, "Alicia was here.")
+        absorbed.source_document_ids = [doc.id]
+        db.save(absorbed)
+        r = client.post(
+            "/api/kg/entity-curation/merge",
+            json={
+                "absorbing_entity_id": absorber.id,
+                "absorbed_entity_ids": [absorbed.id],
+            },
+        )
+        assert r.status_code == 200
+        listed = client.get(f"/api/entities?document_id={doc.id}").json()
+        ids = {item["id"] for item in listed["items"]}
+        assert absorbed.id not in ids
+
+    def test_absorbed_entity_excluded_from_alias_map(self, client, db):
+        absorber = _make_entity(db, "Alice")
+        absorbed = _make_entity(db, "Alicia")
+        r = client.post(
+            "/api/kg/entity-curation/merge",
+            json={
+                "absorbing_entity_id": absorber.id,
+                "absorbed_entity_ids": [absorbed.id],
+            },
+        )
+        assert r.status_code == 200
+        alias_map = client.get("/api/entities/alias-map").json()
+        mapped_ids = {entry["entity_id"] for entry in alias_map["entries"]}
+        assert absorbed.id not in mapped_ids  # tombstone must not seed the map
 
 
 # ---------------------------------------------------------------------------
@@ -183,6 +245,54 @@ class TestMergeEntities:
         assert r.status_code == 200
         absorber_after = db.get(KnowledgeEntity, absorber.id)
         assert absorber_after.description == "Unified Alice entity"
+
+
+class TestBatchEntityCuration:
+    def test_batch_updates_entities_and_logs_mutations(self, client, db):
+        left = _make_entity(db, "Alice")
+        right = _make_entity(db, "Bob")
+
+        r = client.patch(
+            "/api/kg/entities/batch-curation",
+            json={
+                "entity_ids": [left.id, right.id],
+                "curation_state": "verified",
+            },
+        )
+
+        assert r.status_code == 200
+        assert r.json() == {
+            "updated": 2,
+            "entity_ids": [left.id, right.id],
+        }
+        assert db.get(KnowledgeEntity, left.id).curation_state.value == "verified"
+        assert db.get(KnowledgeEntity, right.id).curation_state.value == "verified"
+
+        logs = [m for m in db.all(MutationLog) if m.entity_type == "KnowledgeEntity"]
+        assert len(logs) == 2
+        assert {m.entity_id for m in logs} == {left.id, right.id}
+        for log in logs:
+            assert log.operation.value == "update"
+            assert log.changed_fields == ["curation_state"]
+            assert log.before_state["curation_state"] == "unreviewed"
+            assert log.after_state["curation_state"] == "verified"
+
+    def test_batch_skips_unchanged_entities(self, client, db):
+        entity = _make_entity(db, "Alice")
+        entity.curation_state = EntityCurationState.unreviewed
+        db.save(entity)
+
+        r = client.patch(
+            "/api/kg/entities/batch-curation",
+            json={
+                "entity_ids": [entity.id],
+                "curation_state": "unreviewed",
+            },
+        )
+
+        assert r.status_code == 200
+        assert r.json() == {"updated": 0, "entity_ids": []}
+        assert db.all(MutationLog) == []
 
 
 # ---------------------------------------------------------------------------

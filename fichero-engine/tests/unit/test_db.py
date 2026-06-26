@@ -7,16 +7,33 @@ Tests the simple Pythonic interface for:
 - Parquet export/import
 """
 
+import asyncio
+
 import pytest
 import tempfile
 import shutil
+import threading
+import time
 from pathlib import Path
+from uuid import uuid4
 
+import duckdb
+from pydantic import BaseModel, Field
+
+from fichero import db as db_module
 from fichero.models import (
     Document, Artifact, Workflow, Run, Trace, Note, Event,
-    DocType, FileType, Status, RunStatus
+    DocType, FileType, Status, RunStatus, SavedSearch
 )
 from fichero.db import Database
+from fichero.knowledge_models import (
+    ClaimRelationType,
+    EntityType,
+    KnowledgeClaim,
+    KnowledgeClaimLink,
+    KnowledgeEntity,
+    LibraryItemLink,
+)
 
 
 @pytest.fixture
@@ -44,7 +61,21 @@ class TestDatabaseBasics:
         so clear it here and reload `fichero.storage` so its module-level
         `settings = StorageSettings()` re-reads the (now-empty) env.
         """
+        class FakeConn:
+            def close(self):
+                return None
+
         monkeypatch.delenv("FICHERO_BASE_PATH", raising=False)
+        monkeypatch.setattr(duckdb, "connect", lambda _path: FakeConn())
+        import fichero.db_migrations as _db_migrations
+        monkeypatch.setattr(_db_migrations, "migrate_document_table", lambda _conn: None)
+        monkeypatch.setattr(_db_migrations, "migrate_workflow_table", lambda _conn: None)
+        monkeypatch.setattr(_db_migrations, "migrate_saved_search_table", lambda _conn: None)
+        monkeypatch.setattr(_db_migrations, "migrate_provider_refs_table", lambda _conn: None)
+        monkeypatch.setattr(_db_migrations, "migrate_known_libraries_table", lambda _conn: None)
+        monkeypatch.setattr(_db_migrations, "migrate_library_entity_types_table", lambda _conn: None)
+        monkeypatch.setattr(_db_migrations, "migrate_references_table", lambda _conn: None)
+        monkeypatch.setattr(_db_migrations, "migrate_reference_provenance_table", lambda _conn: None)
         import fichero.storage as _storage_mod
         from importlib import reload as _reload
         _reload(_storage_mod)
@@ -53,6 +84,147 @@ class TestDatabaseBasics:
         expected = Path.home() / "Library/Application Support/Fichero/library.duckdb"
         assert db.path == expected
         db.close()
+
+
+class TestDatabaseConcurrencySafety:
+    """Regression coverage for two-writer data-layer hardening."""
+
+    def test_execute_retries_duckdb_write_conflict(self, temp_db, monkeypatch):
+        """DuckDB write conflicts are retried with bounded backoff."""
+
+        class ConflictThenSuccess:
+            def __init__(self):
+                self.calls = 0
+
+            def execute(self, sql, params=None):
+                self.calls += 1
+                if self.calls < 3:
+                    raise duckdb.TransactionException(
+                        "TransactionContext Error: Conflict on update!"
+                    )
+                return {"sql": sql, "params": params}
+
+        fake_conn = ConflictThenSuccess()
+        sleeps: list[float] = []
+        monkeypatch.setattr(temp_db, "conn", fake_conn)
+        monkeypatch.setattr(db_module.time, "sleep", sleeps.append)
+
+        result = temp_db._execute("UPDATE documents SET name = ? WHERE id = ?", ["b", "a"])
+
+        assert result == {
+            "sql": "UPDATE documents SET name = ? WHERE id = ?",
+            "params": ["b", "a"],
+        }
+        assert fake_conn.calls == 3
+        assert sleeps == [0.01, 0.02]
+
+    def test_async_route_offload_keeps_write_conflict_backoff_off_event_loop(
+        self, temp_db, monkeypatch
+    ):
+        """Route-level to_thread offload keeps DuckDB retry sleeps off the loop."""
+
+        class ConflictThenSuccess:
+            def __init__(self):
+                self.calls = 0
+
+            def execute(self, sql, params=None):
+                self.calls += 1
+                if self.calls < 2:
+                    raise duckdb.TransactionException(
+                        "TransactionContext Error: Conflict on update!"
+                    )
+                return {"sql": sql, "params": params}
+
+        fake_conn = ConflictThenSuccess()
+        sleeps: list[tuple[float, int]] = []
+        monkeypatch.setattr(temp_db, "conn", fake_conn)
+
+        async def run_write():
+            event_loop_thread_id = threading.get_ident()
+
+            def fake_sleep(delay: float) -> None:
+                sleeps.append((delay, threading.get_ident()))
+
+            monkeypatch.setattr(db_module.time, "sleep", fake_sleep)
+            result = await asyncio.to_thread(
+                temp_db._execute,
+                "UPDATE documents SET name = ? WHERE id = ?",
+                ["b", "a"],
+            )
+            return event_loop_thread_id, result
+
+        event_loop_thread_id, result = asyncio.run(run_write())
+
+        assert result == {
+            "sql": "UPDATE documents SET name = ? WHERE id = ?",
+            "params": ["b", "a"],
+        }
+        assert fake_conn.calls == 2
+        assert sleeps == [(0.01, sleeps[0][1])]
+        assert sleeps[0][1] != event_loop_thread_id
+
+    def test_execute_raises_clear_error_after_retry_bound(self, temp_db, monkeypatch):
+        """Unresolved write conflicts fail with an actionable message."""
+
+        class AlwaysConflict:
+            def __init__(self):
+                self.calls = 0
+
+            def execute(self, sql, params=None):
+                self.calls += 1
+                raise duckdb.TransactionException(
+                    "TransactionContext Error: Conflict on update!"
+                )
+
+        fake_conn = AlwaysConflict()
+        monkeypatch.setattr(temp_db, "conn", fake_conn)
+        monkeypatch.setattr(db_module.time, "sleep", lambda _delay: None)
+
+        with pytest.raises(RuntimeError, match="write conflict did not resolve"):
+            temp_db._execute("UPDATE documents SET name = 'blocked'")
+
+        assert fake_conn.calls == 4
+
+    def test_execute_does_not_swallow_non_conflict_duckdb_error(
+        self, temp_db, monkeypatch
+    ):
+        """Non-transient DuckDB errors still surface unchanged."""
+
+        class BrokenConn:
+            def __init__(self):
+                self.calls = 0
+
+            def execute(self, sql, params=None):
+                self.calls += 1
+                raise duckdb.Error("Parser Error: syntax error at or near nope")
+
+        fake_conn = BrokenConn()
+        monkeypatch.setattr(temp_db, "conn", fake_conn)
+
+        with pytest.raises(duckdb.Error, match="Parser Error"):
+            temp_db._execute("nope")
+
+        assert fake_conn.calls == 1
+
+    def test_connect_reports_actionable_library_lock_error(self, monkeypatch, tmp_path):
+        """Read-write lock failures should not leak a raw DuckDB stack."""
+
+        def locked_connect(_path):
+            raise duckdb.IOException(
+                "IO Error: Could not set lock on file "
+                f'"{tmp_path / "locked.duckdb"}": Conflicting lock is held'
+            )
+
+        db = object.__new__(Database)
+        db.path = tmp_path / "locked.duckdb"
+        monkeypatch.setattr(db_module.duckdb, "connect", locked_connect)
+
+        with pytest.raises(RuntimeError) as exc_info:
+            db._connect()
+
+        message = str(exc_info.value)
+        assert "Library already open by another Fichero engine process" in message
+        assert "Only one engine may hold a library read-write" in message
 
 
 class TestDocumentCRUD:
@@ -107,6 +279,32 @@ class TestDocumentCRUD:
         names = {d.name for d in all_docs}
         assert names == {"First", "Second"}
 
+    def test_query_skips_null_primary_key_ghost_rows(self, temp_db):
+        """Malformed NULL-id rows must not poison typed table scans (#2012)."""
+        doc = Document(name="Real", path="/real")
+        entity = KnowledgeEntity(
+            canonical_name="Ada Mock",
+            entity_type=EntityType.person,
+        )
+        temp_db.save(doc)
+        temp_db.save(entity)
+
+        assert [d.id for d in temp_db.all(Document)] == [doc.id]
+        assert [d.id for d in temp_db.query(Document)] == [doc.id]
+        assert temp_db.query(Document, parent_id=None) == [doc]
+        assert [e.id for e in temp_db.all(KnowledgeEntity)] == [entity.id]
+        assert [e.id for e in temp_db.query(KnowledgeEntity)] == [entity.id]
+        assert temp_db._hydrate_row(
+            Document,
+            ["id", "name", "created_at", "updated_at"],
+            [None, None, None, None],
+        ) is None
+        assert temp_db._hydrate_row(
+            KnowledgeEntity,
+            ["id", "canonical_name", "created_at", "updated_at"],
+            [None, None, None, None],
+        ) is None
+
     def test_count(self, temp_db):
         """Test counting documents."""
         assert temp_db.count(Document) == 0
@@ -130,6 +328,20 @@ class TestDocumentCRUD:
         retrieved = temp_db.get(Document, doc.id)
         assert retrieved.status == Status.processing
         assert retrieved.file_type == FileType.pdf
+
+    def test_document_page_label_round_trips(self, temp_db):
+        """Named PDF page labels must persist without a dedicated migration."""
+        doc = Document(
+            name="page-1",
+            doc_type=DocType.page,
+            sequence=1,
+            page_label="i",
+        )
+        temp_db.save(doc)
+
+        retrieved = temp_db.get(Document, doc.id)
+        assert retrieved is not None
+        assert retrieved.page_label == "i"
 
     def test_document_hierarchy(self, temp_db):
         """Test document parent-child relationships."""
@@ -595,6 +807,68 @@ class TestQuery:
         assert temp_db.count(Document, status=Status.completed) == 1
         assert temp_db.count(Document, status=Status.pending) == 1
 
+    def test_query_none_filter_matches_root_documents(self, temp_db):
+        """None filters must compile to IS NULL instead of = NULL."""
+        root = Document(name="root.txt", path="/root.txt", parent_id=None)
+        child = Document(name="child.txt", path="/child.txt", parent_id="parent-1")
+        temp_db.save(root)
+        temp_db.save(child)
+
+        docs = temp_db.query(Document, parent_id=None)
+
+        assert [doc.id for doc in docs] == [root.id]
+        assert docs[0].parent_id is None
+
+    def test_query_in_deduplicates_values_and_returns_each_match_once(self, temp_db):
+        """query_in should tolerate duplicate ids without duplicating rows."""
+        first = Document(name="first.txt", path="/first.txt")
+        second = Document(name="second.txt", path="/second.txt")
+        temp_db.save(first)
+        temp_db.save(second)
+
+        docs = temp_db.query_in(Document, "id", [first.id, second.id, first.id])
+
+        assert {doc.id for doc in docs} == {first.id, second.id}
+        assert len(docs) == 2
+
+
+class TestJsonFieldParsing:
+    """Test JSON/default coercion for DB rows loaded into Pydantic models."""
+
+    def test_parse_json_fields_uses_defaults_for_null_new_columns(self, temp_db):
+        class ExampleModel(BaseModel):
+            id: str
+            items: list[str] = Field(default_factory=list)
+            flags: dict[str, bool] = Field(default_factory=dict)
+            status: str = "pending"
+
+        parsed = temp_db._parse_json_fields(
+            ExampleModel,
+            {"id": "row-1", "items": None, "flags": None, "status": None},
+        )
+
+        assert parsed["items"] == []
+        assert parsed["flags"] == {}
+        assert parsed["status"] == "pending"
+
+    def test_parse_json_fields_decodes_json_strings(self, temp_db):
+        class ExampleModel(BaseModel):
+            id: str
+            items: list[str] = Field(default_factory=list)
+            metadata: dict[str, str] = Field(default_factory=dict)
+
+        parsed = temp_db._parse_json_fields(
+            ExampleModel,
+            {
+                "id": "row-1",
+                "items": '["alpha", "beta"]',
+                "metadata": '{"role": "source"}',
+            },
+        )
+
+        assert parsed["items"] == ["alpha", "beta"]
+        assert parsed["metadata"] == {"role": "source"}
+
 
 class TestLanceDB:
     """Test LanceDB vector operations."""
@@ -621,6 +895,161 @@ class TestLanceDB:
         """Test searching nonexistent table."""
         results = temp_db.search_vectors("nonexistent", [0.1, 0.2])
         assert results == []
+
+    def test_save_vectors_serializes_delete_add_mutations(self, temp_db):
+        """Concurrent LanceDB replace writes must not interleave delete/add."""
+
+        class FakeTable:
+            def __init__(self):
+                self.events: list[tuple[str, str]] = []
+
+            def delete(self, predicate: str) -> None:
+                key = predicate.split("'")[1]
+                self.events.append(("delete", key))
+                time.sleep(0.01)
+
+            def add(self, data: list[dict]) -> None:
+                key = data[0]["id"]
+                self.events.append(("add", key))
+                time.sleep(0.01)
+
+        class FakeLance:
+            def __init__(self, table: FakeTable):
+                self.table = table
+
+            def list_tables(self):
+                return ["embeddings"]
+
+            def open_table(self, _name: str):
+                return self.table
+
+        table = FakeTable()
+        temp_db._lance_db = FakeLance(table)
+        start = threading.Barrier(3)
+
+        def worker(key: str) -> None:
+            start.wait()
+            temp_db.save_vectors(
+                "embeddings",
+                [{"id": key, "text": key, "vector": [0.1, 0.2, 0.3]}],
+                replace=True,
+            )
+
+        threads = [
+            threading.Thread(target=worker, args=("a",)),
+            threading.Thread(target=worker, args=("b",)),
+        ]
+        for thread in threads:
+            thread.start()
+        start.wait()
+        for thread in threads:
+            thread.join()
+
+        assert table.events in (
+            [("delete", "a"), ("add", "a"), ("delete", "b"), ("add", "b")],
+            [("delete", "b"), ("add", "b"), ("delete", "a"), ("add", "a")],
+        )
+
+    def test_save_embedding_serializes_delete_add_sequence(self, temp_db, monkeypatch):
+        """save_embedding keeps its delete+add pair in one lock scope."""
+
+        events: list[tuple[str, str]] = []
+        start = threading.Barrier(3)
+
+        def fake_delete(_field: str, value: str) -> None:
+            events.append(("delete", value))
+            time.sleep(0.01)
+
+        def fake_save_vectors(_table_name: str, data: list[dict], **_kwargs) -> None:
+            events.append(("add", data[0]["document_id"]))
+            time.sleep(0.01)
+
+        monkeypatch.setattr(temp_db, "_delete_embedding_rows", fake_delete)
+        monkeypatch.setattr(temp_db, "save_vectors", fake_save_vectors)
+
+        def worker(doc_id: str) -> None:
+            start.wait()
+            doc = Document(id=doc_id, name=f"{doc_id}.txt", page_content="hello world")
+            temp_db.save_embedding(doc, [0.1, 0.2, 0.3])
+
+        threads = [
+            threading.Thread(target=worker, args=("doc-a",)),
+            threading.Thread(target=worker, args=("doc-b",)),
+        ]
+        for thread in threads:
+            thread.start()
+        start.wait()
+        for thread in threads:
+            thread.join()
+
+        assert events in (
+            [("delete", "doc-a"), ("add", "doc-a"), ("delete", "doc-b"), ("add", "doc-b")],
+            [("delete", "doc-b"), ("add", "doc-b"), ("delete", "doc-a"), ("add", "doc-a")],
+        )
+
+    def test_save_passage_embeddings_returns_zero_without_records(self, temp_db, monkeypatch):
+        monkeypatch.setattr(temp_db, "passage_embedding_records", lambda *_args, **_kwargs: [])
+        delete_calls: list[tuple[str, str]] = []
+        save_calls: list[tuple[str, list[dict]]] = []
+        monkeypatch.setattr(
+            temp_db, "_delete_embedding_rows", lambda field, value: delete_calls.append((field, value))
+        )
+        monkeypatch.setattr(
+            temp_db, "save_vectors", lambda table_name, data: save_calls.append((table_name, data))
+        )
+
+        count = temp_db.save_passage_embeddings(Document(id="doc-1", name="Doc 1"), text="body")
+
+        assert count == 0
+        assert delete_calls == []
+        assert save_calls == []
+
+    def test_save_passage_embeddings_replaces_rows_for_same_document(self, temp_db, monkeypatch):
+        records = [
+            {"id": "passage-1", "document_id": "doc-1", "text": "first", "vector": [0.1, 0.2, 0.3]},
+            {"id": "passage-2", "document_id": "doc-1", "text": "second", "vector": [0.4, 0.5, 0.6]},
+        ]
+        monkeypatch.setattr(temp_db, "passage_embedding_records", lambda *_args, **_kwargs: records)
+        delete_calls: list[tuple[str, str]] = []
+        saved_payloads: list[tuple[str, list[dict]]] = []
+        monkeypatch.setattr(
+            temp_db, "_delete_embedding_rows", lambda field, value: delete_calls.append((field, value))
+        )
+        monkeypatch.setattr(
+            temp_db, "save_vectors", lambda table_name, data: saved_payloads.append((table_name, data))
+        )
+
+        count = temp_db.save_passage_embeddings(Document(id="doc-1", name="Doc 1"), text="body")
+
+        assert count == 2
+        assert delete_calls == [("document_id", "doc-1")]
+        assert saved_payloads == [("embeddings", records)]
+
+    def test_embed_page_mode_uses_single_embedding_path(self, temp_db, monkeypatch):
+        doc = Document(id="doc-page", name="Page Doc", page_content="embedded body")
+        save_calls: list[tuple[str, list[float], str]] = []
+
+        monkeypatch.setattr(temp_db, "_embedding_text_for_document", lambda _doc: "embedded body")
+        monkeypatch.setattr(temp_db, "_embed_text", lambda text, role="passage": [0.1, 0.2, 0.3])
+        monkeypatch.setattr(
+            temp_db,
+            "save_embedding",
+            lambda saved_doc, vector, text=None: save_calls.append((saved_doc.id, vector, text or "")),
+        )
+
+        result = temp_db.embed(doc, mode="page")
+
+        assert result is True
+        assert save_calls == [("doc-page", [0.1, 0.2, 0.3], "embedded body")]
+
+    def test_embed_passage_mode_returns_false_when_no_passages_saved(self, temp_db, monkeypatch):
+        doc = Document(id="doc-passages", name="Passage Doc", page_content="embedded body")
+        monkeypatch.setattr(temp_db, "_embedding_text_for_document", lambda _doc: "embedded body")
+        monkeypatch.setattr(temp_db, "save_passage_embeddings", lambda *_args, **_kwargs: 0)
+
+        result = temp_db.embed(doc)
+
+        assert result is False
 
 
 class TestProviderCRUD:
@@ -727,15 +1156,90 @@ class TestSavedSearchCRUD:
         assert retrieved.query == "unprocessed images"
         assert retrieved.filters["status"] == "pending"
 
+        mirrored = temp_db.get(Document, search.id)
+        assert mirrored is not None
+        assert mirrored.node_kind == "saved_search"
+        assert mirrored.doc_type == DocType.folder
+        assert mirrored.metadata["node_class"] == "smart_folder"
+        assert mirrored.metadata["saved_search_query"] == "unprocessed images"
+
     def test_query_saved_searches(self, temp_db):
         """Test getting all saved searches."""
-        from fichero.models import SavedSearch
-
         temp_db.save(SavedSearch(query="recent documents"))
         temp_db.save(SavedSearch(query="flagged items"))
 
         all_searches = temp_db.all(SavedSearch)
         assert len(all_searches) == 2
+
+
+class TestLibraryLinkBackfill:
+    def test_reopen_backfills_claim_links_into_library_links(self):
+        """Legacy claim-link rows should appear in the generic library-link table."""
+        tmpdir = tempfile.mkdtemp()
+        db_path = Path(tmpdir) / "test.duckdb"
+        db = Database(db_path)
+        try:
+            doc = Document(name="Doc", doc_type=DocType.file)
+            db.save(doc)
+            first = KnowledgeClaim(
+                id="claim-a",
+                text="First",
+                source_document_id=doc.id,
+                entity_ids=[],
+            )
+            second = KnowledgeClaim(
+                id="claim-b",
+                text="Second",
+                source_document_id=doc.id,
+                entity_ids=[],
+            )
+            db.save(first)
+            db.save(second)
+            db.save(KnowledgeClaimLink(
+                id="claim-link-1",
+                claim_id=first.id,
+                related_claim_id=second.id,
+                relation_type=ClaimRelationType.supports,
+            ))
+            db._execute("DELETE FROM libraryitemlinks WHERE id = $id", {"id": "claim-link-1"})
+            assert db.get(LibraryItemLink, "claim-link-1") is None
+            db.close()
+
+            reopened = Database(db_path)
+            try:
+                mirrored = reopened.get(LibraryItemLink, "claim-link-1")
+                assert mirrored is not None
+                assert mirrored.source_id == first.id
+                assert mirrored.source_type.value == "claim"
+                assert mirrored.target_id == second.id
+                assert mirrored.target_type.value == "claim"
+            finally:
+                reopened.close()
+        finally:
+            shutil.rmtree(tmpdir)
+
+    def test_reopen_backfills_saved_search_document(self):
+        """Existing saved-search rows are backfilled into document nodes on open."""
+        tmpdir = tempfile.mkdtemp()
+        db_path = Path(tmpdir) / "test.duckdb"
+        db = Database(db_path)
+        try:
+            saved = SavedSearch(query="reopen me")
+            db.save(saved)
+            db._execute("DELETE FROM documents WHERE id = $id", {"id": saved.id})
+            assert db.get(Document, saved.id) is None
+            db.close()
+
+            reopened = Database(db_path)
+            try:
+                mirrored = reopened.get(Document, saved.id)
+                assert mirrored is not None
+                assert mirrored.node_kind == "saved_search"
+                assert mirrored.metadata["saved_search_query"] == "reopen me"
+            finally:
+                reopened.close()
+        finally:
+            shutil.rmtree(tmpdir)
 
 
 class TestTraceJSONL:
@@ -831,14 +1335,45 @@ class TestParquet:
 
         db2.close()
 
+    def test_import_parquet_rejects_parent_traversal_path(self, temp_db):
+        """Parquet imports must stay confined to the library package."""
+        outside = temp_db.path.parent.parent / f"escaped-{uuid4().hex}.parquet"
+        conn = duckdb.connect()
+        try:
+            conn.execute(f"COPY (SELECT 1 AS ok) TO '{outside}' (FORMAT PARQUET)")
+        finally:
+            conn.close()
+        try:
+            with pytest.raises(ValueError, match="must stay inside the library package"):
+                temp_db.import_parquet(Document, Path("..") / outside.name)
+        finally:
+            outside.unlink(missing_ok=True)
+
+    def test_import_parquet_rejects_malicious_column_name(self, temp_db):
+        """Column names with SQL metacharacters are rejected before import."""
+        bad_path = temp_db.path.parent / "bad-columns.parquet"
+        conn = duckdb.connect()
+        try:
+            conn.execute(
+                f"""COPY (
+                    SELECT 1 AS "bad;drop table documents;--"
+                ) TO '{bad_path}' (FORMAT PARQUET)"""
+            )
+        finally:
+            conn.close()
+
+        with pytest.raises(ValueError, match="Invalid Parquet column name"):
+            temp_db.import_parquet(Document, bad_path)
+
 
 class TestEmbeddingsModelLoading:
     """Test embedding model loading/caching behavior."""
 
     def test_embedder_uses_managed_cache_dir(self, temp_db, monkeypatch):
-        """Embedding model should use app-managed cache dir and configured model."""
+        """Embedding model should use app-managed cache dir and the pinned alias."""
         import sys
         import types
+        import fichero.db_embeddings as db_embeddings_module
         from fichero.local_models import MODELS_BASE
 
         calls: list[dict] = []
@@ -853,22 +1388,19 @@ class TestEmbeddingsModelLoading:
 
         fake_fastembed = types.SimpleNamespace(TextEmbedding=FakeTextEmbedding)
         monkeypatch.setitem(sys.modules, "fastembed", fake_fastembed)
-
-        class FakeAppDB:
-            @staticmethod
-            def get_setting(key: str):
-                if key == "default_embeddings_model":
-                    return "intfloat/multilingual-e5-base"
-                return None
-
-        fake_app_db_module = types.SimpleNamespace(get_app_db=lambda: FakeAppDB())
-        monkeypatch.setitem(sys.modules, "fichero.app_db", fake_app_db_module)
+        monkeypatch.setattr(
+            db_embeddings_module,
+            "_register_pinned_fastembed_model",
+            lambda: None,
+        )
+        monkeypatch.delenv("FICHERO_EMBED_MODEL", raising=False)
+        db_embeddings_module._EMBEDDER_CACHE.clear()
 
         temp_db._embedder = None
         temp_db._ensure_embedder()
 
         assert len(calls) == 1
-        assert calls[0]["model_name"] == "intfloat/multilingual-e5-base"
+        assert calls[0]["model_name"] == "fichero-pinned/multilingual-e5-large-mean-v1"
         assert calls[0]["cache_dir"] == str(MODELS_BASE / "embeddings")
 
 

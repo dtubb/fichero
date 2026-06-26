@@ -20,7 +20,7 @@ from datetime import datetime
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.knowledge_models import (
     EntityMatchCandidate,
@@ -260,7 +260,7 @@ class AcceptResponse(BaseModel):
 async def accept_pair(
     pair_id: str,
     background_tasks: BackgroundTasks,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> AcceptResponse:
     pair = db.get(EntityMatchCandidate, pair_id)
     if pair is None:
@@ -374,7 +374,7 @@ class RejectResponse(BaseModel):
 async def reject_pair(
     pair_id: str,
     background_tasks: BackgroundTasks,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> RejectResponse:
     pair = db.get(EntityMatchCandidate, pair_id)
     if pair is None:
@@ -461,7 +461,7 @@ class ManualPairRequest(BaseModel):
 )
 async def queue_pair(
     request: ManualPairRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ReviewPairResponse:
     if request.survivor_entity_id == request.candidate_entity_id:
         raise HTTPException(400, "survivor and candidate must differ")

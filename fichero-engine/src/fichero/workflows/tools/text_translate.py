@@ -135,8 +135,8 @@ def _build_prompt(
         )
     rules.extend(
         [
-            "- If a passage is illegible or marked [ilegible], carry the marker "
-            "across unchanged.",
+            "- If a passage is illegible or marked [ilegible] / [uncertain], "
+            "carry the marker across unchanged and do not replace it with a guess.",
             f"- Output ONLY the {target} translation, with no preamble, notes, "
             "or the original text.",
         ]

@@ -7,10 +7,13 @@ API endpoints for accessing processing artifacts (transcriptions, summaries, ent
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fichero.api.library_header import optional_library_path
+from fichero.api.auth import request_actor
+from fichero.api.change_stream import emit_change
 from pydantic import BaseModel
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.models import Artifact, ArtifactTypeListResponse, Document
 
@@ -88,7 +91,13 @@ def _artifact_response(artifact: Artifact) -> ArtifactResponse:
 @router.post("/", response_model=ArtifactResponse)
 async def create_artifact(
     request: ArtifactCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None,
+        alias="X-Fichero-Origin-Window",
+    ),
+    actor: str = Depends(request_actor),
 ) -> ArtifactResponse:
     """Create a processing artifact for a document."""
     doc = db.get(Document, request.document_id)
@@ -116,6 +125,15 @@ async def create_artifact(
         reviewed=request.reviewed,
     )
     db.save(artifact)
+    emit_change(
+        x_fichero_library_path or str(db.path.parent),
+        type="artifact.created",
+        artifact_ids=[artifact.id],
+        document_ids=[artifact.document_id],
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
     return _artifact_response(artifact)
 
 
@@ -197,9 +215,7 @@ async def list_document_artifacts(
         child_ids = [d.id for d in children]
         # Map page-child doc_id → sequence so we can sort artifacts by page
         # number (ascending) rather than creation time (#1271).
-        page_sequence: dict[str, int] = {
-            d.id: (d.sequence or 0) for d in children
-        }
+        page_sequence: dict[str, int] = {d.id: (d.sequence or 0) for d in children}
         all_doc_ids = [doc_id] + child_ids
         if doc.parent_id:
             all_doc_ids.append(doc.parent_id)
@@ -266,7 +282,13 @@ class ArtifactUpdate(BaseModel):
 async def update_artifact(
     artifact_id: str,
     update: ArtifactUpdate,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None,
+        alias="X-Fichero-Origin-Window",
+    ),
+    actor: str = Depends(request_actor),
 ) -> ArtifactResponse:
     """Update an artifact's editable fields (content, reviewed flag).
 
@@ -287,6 +309,15 @@ async def update_artifact(
         artifact.reviewed = update.reviewed
 
     db.save(artifact)
+    emit_change(
+        x_fichero_library_path or str(db.path.parent),
+        type="artifact.updated",
+        artifact_ids=[artifact.id],
+        document_ids=[artifact.document_id],
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
 
     return _artifact_response(artifact)
 
@@ -294,7 +325,13 @@ async def update_artifact(
 @router.delete("/{artifact_id}", status_code=204)
 async def delete_artifact(
     artifact_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None,
+        alias="X-Fichero-Origin-Window",
+    ),
+    actor: str = Depends(request_actor),
 ) -> None:
     """Delete an artifact."""
     artifact = db.get(Artifact, artifact_id)
@@ -302,6 +339,16 @@ async def delete_artifact(
         raise HTTPException(
             status_code=404, detail=f"Artifact not found: {artifact_id}"
         )
+    document_id = artifact.document_id
 
     db.delete(artifact)
+    emit_change(
+        x_fichero_library_path or str(db.path.parent),
+        type="artifact.deleted",
+        artifact_ids=[artifact_id],
+        document_ids=[document_id],
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
     logger.info(f"Deleted artifact {artifact_id}")

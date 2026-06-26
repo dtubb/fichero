@@ -1,3 +1,4 @@
+#if canImport(AppKit)
 import AppKit
 import OSLog
 import SwiftUI
@@ -37,6 +38,13 @@ struct FicheroApp: App {
 
     // Library manager - singleton managing all open libraries
     @StateObject private var libraryManager = LibraryManager.shared
+
+    // App-level fallback observer injected into secondary scenes (artifact-detail,
+    // citation-detail, etc.) that don't go through LibraryWindow. Prevents
+    // @Environment(WorkflowExecutionObserver.self) crashes if workflow-aware views
+    // are ever embedded in those scenes (#1587). LibraryWindow's own per-window
+    // observer overrides this for the main window tree.
+    @State private var appExecutionObserver = WorkflowExecutionObserver()
 
     init() {
         // Xcode Previews / Playgrounds host the app to render a single view —
@@ -107,17 +115,26 @@ struct FicheroApp: App {
         }
     }
 
+    /// The shared library-window root + its environment. Used by BOTH the
+    /// primary `id: "main"` window and the value-seeded Duplicate Window group
+    /// (#2262), so there is exactly one LibraryWindow scene definition — the
+    /// duplicate path reuses it rather than introducing a parallel one.
+    @ViewBuilder
+    private func libraryWindowRoot(seed: WindowSeed?) -> some View {
+        LibraryWindow(seed: seed)
+            .environmentObject(backendService)
+            .environmentObject(appState)
+            .environmentObject(viewSettings)
+            .environmentObject(libraryManager)
+            .environmentObject(claimFocusState)
+            .environment(kgFocusState)
+            .environmentObject(appState.mcpService)
+            .frame(minWidth: 640, minHeight: 700)
+    }
+
     var body: some Scene {
         WindowGroup("Fichero", id: "main") {
-            LibraryWindow()
-                .environmentObject(backendService)
-                .environmentObject(appState)
-                .environmentObject(viewSettings)
-                .environmentObject(libraryManager)
-                .environmentObject(claimFocusState)
-                .environment(kgFocusState)
-                .environmentObject(appState.mcpService)
-                .frame(minWidth: 1100, minHeight: 700)
+            libraryWindowRoot(seed: nil)
                 .onOpenURL { url in
                     handleOpenURL(url)
                 }
@@ -126,14 +143,46 @@ struct FicheroApp: App {
 
                     // Start backend on app launch
                     let backendStart = Date()
-                    do {
-                        try await backendService.start()
+                    if EngineConfig.requiresExternalBackendConnection {
+                        backendService.status = .starting
+                        await appState.checkBackendHealth()
                         let backendMs = Date().timeIntervalSince(backendStart) * 1000
-                        logger.info("⏱ backendService.start: \(backendMs, format: .fixed(precision: 1))ms")
-                        await libraryManager.backendDidBecomeReady()
-                    } catch {
-                        logger.error("Failed to start backend: \(error.localizedDescription)")
-                        await showBackendError(error)
+                        logger.info("⏱ remote backend probe: \(backendMs, format: .fixed(precision: 1))ms")
+                        if appState.isBackendRunning {
+                            backendService.status = .running
+                            backendService.errorMessage = nil
+                            appState.startBackendHeartbeat()
+                            await KnownLibraryRegistryStore.shared.refresh()
+                            libraryManager.adoptPairedRemoteLibrary()
+                            await libraryManager.backendDidBecomeReady()
+                        } else {
+                            backendService.status = .failed
+                            backendService.errorMessage = appState.backendError
+                            logger.error(
+                                "Configured backend is not reachable at \(EngineConfig.host.absoluteString, privacy: .public)"
+                            )
+                        }
+                    } else {
+                        do {
+                            try await backendService.start()
+                            let backendMs = Date().timeIntervalSince(backendStart) * 1000
+                            logger.info("⏱ backendService.start: \(backendMs, format: .fixed(precision: 1))ms")
+                            // Serialize the launch health probe after the backend is
+                            // running so startup state and window state converge
+                            // without overlapping probes.
+                            await appState.checkBackendHealth()
+                            guard appState.isBackendRunning else {
+                                backendService.status = .failed
+                                backendService.errorMessage = appState.backendError
+                                throw BackendError.notRunning
+                            }
+                            appState.startBackendHeartbeat()
+                            await KnownLibraryRegistryStore.shared.refresh()
+                            await libraryManager.backendDidBecomeReady()
+                        } catch {
+                            logger.error("Failed to start backend: \(error.localizedDescription)")
+                            await showBackendError(error)
+                        }
                     }
                 }
         }
@@ -142,24 +191,23 @@ struct FicheroApp: App {
         .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
             CommandGroup(after: .appInfo) {
+                #if os(macOS)
                 Button("Check for Updates...") {
                     SparkleUpdater.shared.checkForUpdates()
                 }
+                #endif
             }
 
             // File menu - Database/Library management
             CommandGroup(replacing: .newItem) {
-                FocusedNewDatabaseButton()
+                FileMenuCommands()
+                    .environmentObject(libraryManager)
+            }
 
-                FocusedOpenDatabaseButton()
-
-                Divider()
-
-                FocusedNewWindowButton()
-
-                Divider()
-
-                FocusedSaveDatabaseButton()
+            // Edit menu — ⌘Z drives the audited-action undo (#2015), replacing
+            // SwiftUI's view-local UndoManager items so there's exactly one Undo.
+            CommandGroup(replacing: .undoRedo) {
+                UndoLastActionButton()
             }
 
             // Edit menu
@@ -186,15 +234,6 @@ struct FicheroApp: App {
                 FocusedNewFolderButton()
 
                 FocusedImportFilesButton()
-
-                Divider()
-
-                // Standalone notes browser (#1500)
-                Button {
-                    appState.showNotesBrowser = true
-                } label: {
-                    Label("Notes Browser…", systemImage: "note.text")
-                }
 
                 if featureManager.isSearchEnabled
                     || featureManager.isChatEnabled
@@ -238,7 +277,7 @@ struct FicheroApp: App {
                 Divider()
 
                 Button {
-                    appState.showProvidersSettings = true
+                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
                 } label: {
                     Label("AI Providers & Models...", systemImage: "cpu")
                 }
@@ -272,9 +311,90 @@ struct FicheroApp: App {
             }
         }
 
+        // Duplicate Window (#2262, reform master plan §J): a value-seeded
+        // sibling of the primary "Fichero" window. `openWindow(value: WindowSeed)`
+        // lands here; LibraryWindow seeds the cloned window's library + selection
+        // + lens (the #2273 scene-storage keys) from the WindowSeed before its
+        // content mounts. Reuses the exact same LibraryWindow root + environment
+        // as the primary window — no parallel scene. Gated in the menu on
+        // `@Environment(\.supportsMultipleWindows)`.
+        WindowGroup("Fichero", for: WindowSeed.self) { $seed in
+            libraryWindowRoot(seed: seed)
+        }
+        .defaultSize(width: 1400, height: 900)
+        .windowStyle(.titleBar)
+        .windowToolbarStyle(.unified(showsTitle: false))
+
+        // Track B (#2003): a detachable artifact-detail scene. Torn off from
+        // the inspector's Artifacts tab, it follows the shared FocusedArtifact
+        // selection by default (with a pin toggle to park on one artifact).
+        // Read-only — it observes FocusedArtifact.shared's resolved snapshot,
+        // so it needs no library-service environment plumbing.
+        WindowGroup("Artifact", id: "artifact-detail") {
+            ArtifactDetailWindow()
+                .environment(appExecutionObserver)
+        }
+        .defaultSize(width: 480, height: 620)
+
+        // Track B (#2004): detachable citation detail scene, torn off from the
+        // Citations inspector tab and following FocusedCitation.shared by default.
+        // Read-only — no library-service environment plumbing needed.
+        WindowGroup("Citation", id: "citation-detail") {
+            CitationDetailWindow()
+                .environment(appExecutionObserver)
+        }
+        .defaultSize(width: 480, height: 560)
+
+        // Track B (#2010 / #2011): detachable annotation + note detail scenes,
+        // each torn off from its inspector tab and following the matching shared
+        // focus holder by default. Read-only in the detached scene, so they
+        // need no library-service environment plumbing.
+        WindowGroup("Annotation", id: "annotation-detail") {
+            AnnotationDetailWindow()
+                .environment(appExecutionObserver)
+        }
+        .defaultSize(width: 480, height: 620)
+
+        WindowGroup("Note", id: "note-detail") {
+            NoteDetailWindow()
+                .environment(appExecutionObserver)
+        }
+        .defaultSize(width: 480, height: 620)
+
+        WindowGroup("Document", id: "document-detail") {
+            DocumentDetailWindow()
+                .environmentObject(libraryManager)
+                .environmentObject(claimFocusState)
+                .environment(kgFocusState)
+        }
+        .defaultSize(width: 540, height: 720)
+
+        // Activity monitor (#2546 / B2): the poppable live workflow monitor —
+        // the window's root IS the hierarchical outline table. Resolves the
+        // active library's shared WorkflowExecutionStore via LibraryManager and
+        // observes it live; needs libraryManager + the app-level execution
+        // observer injected here (env from the main window does not flow into a
+        // separate scene). Opened via `openWindow(id: "activity-monitor")`.
+        WindowGroup("Activity", id: "activity-monitor") {
+            ActivityMonitorWindow()
+                .environmentObject(libraryManager)
+                .environment(appExecutionObserver)
+        }
+        .defaultSize(width: 720, height: 480)
+
+        // `Settings` is a SEPARATE Scene: environment objects injected into the
+        // main WindowGroup do NOT flow into it. Every object a settings pane
+        // reads via @EnvironmentObject must be re-injected here, or its body
+        // traps with "No ObservableObject of type … found" the moment the pane
+        // is constructed. TabView builds ALL tabs eagerly, so AI's Downloads
+        // area (which needs LibraryManager) is constructed on open even when it
+        // isn't the front segment — hence the crash guard from #2051.
         Settings {
             SettingsView()
                 .environmentObject(appState)
+                .environmentObject(backendService)
+                .environmentObject(libraryManager)
         }
     }
 }
+#endif

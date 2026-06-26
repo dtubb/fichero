@@ -6,7 +6,7 @@ Uses pytest and httpx for async testing of FastAPI endpoints.
 
 import pytest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 import tempfile
 
 from fichero.models import Document, DocType, FileType, Status, Artifact
@@ -52,7 +52,7 @@ class TestStatsEndpoint:
     """Tests for /api/stats endpoint."""
 
     def test_get_stats(self, client, db, sample_doc):
-        """Stats endpoint returns counts."""
+        """Stats endpoint returns counts including the default Inbox."""
         # Add some test data
         db.save(sample_doc)
 
@@ -60,21 +60,22 @@ class TestStatsEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert "documents" in data
-        assert data["documents"] == 1
+        assert data["documents"] == 2
 
 
 class TestDocumentRoutes:
     """Tests for /api/documents endpoints."""
 
     def test_list_documents(self, client, db, sample_doc):
-        """List documents returns array."""
+        """List documents returns array including the default Inbox."""
         db.save(sample_doc)
 
         response = client.get("/api/documents")
         assert response.status_code == 200
         data = response.json()["items"]
         assert isinstance(data, list)
-        assert len(data) == 1
+        assert len(data) == 2
+        assert any(item["id"] == sample_doc.id for item in data)
 
     def test_list_documents_with_filters(self, client, db, sample_doc):
         """List documents with type filter."""
@@ -86,16 +87,17 @@ class TestDocumentRoutes:
         assert len(data) == 1
 
     def test_list_collections(self, client, db, sample_collection):
-        """List collections returns only collections."""
+        """List collections returns root folders including the default Inbox."""
         db.save(sample_collection)
 
         response = client.get("/api/documents/collections")
         assert response.status_code == 200
         data = response.json()["items"]
         assert isinstance(data, list)
-        # Should have at least our saved collection
-        assert len(data) == 1
-        assert data[0]["doc_type"] == "folder"
+        assert len(data) == 2
+        assert all(item["doc_type"] == "folder" for item in data)
+        assert any(item["name"] == "Inbox" for item in data)
+        assert any(item["id"] == sample_collection.id for item in data)
 
     def test_get_document_found(self, client, db, sample_doc):
         """Get document by ID returns document."""
@@ -165,6 +167,54 @@ class TestDocumentRoutes:
         data = response.json()["items"]
         assert isinstance(data, list)
         assert len(data) == 1
+
+    def test_get_children_resolvability_check_uses_one_batched_lookup(
+        self, client, db, sample_collection, monkeypatch
+    ):
+        """Child browsing must not regress to one DB lookup per child."""
+        from fichero.db import Database
+
+        db.save(sample_collection)
+        children = [
+            Document(
+                id=f"child-{idx}",
+                name=f"Child {idx}",
+                doc_type=DocType.page,
+                parent_id=sample_collection.id,
+                sort_order=idx,
+            )
+            for idx in range(5)
+        ]
+        for child in children:
+            db.save(child)
+
+        query_in_calls: list[tuple[type, str, tuple[str, ...]]] = []
+        document_get_ids: list[str] = []
+        original_query_in = Database.query_in
+        original_get = Database.get
+
+        def counting_query_in(self, model_class, field_name, values):
+            query_in_calls.append((model_class, field_name, tuple(values)))
+            return original_query_in(self, model_class, field_name, values)
+
+        def counting_get(self, model_class, record_id):
+            if model_class is Document:
+                document_get_ids.append(record_id)
+            return original_get(self, model_class, record_id)
+
+        monkeypatch.setattr(Database, "query_in", counting_query_in)
+        monkeypatch.setattr(Database, "get", counting_get)
+
+        response = client.get(f"/api/documents/{sample_collection.id}/children")
+
+        assert response.status_code == 200
+        assert [item["id"] for item in response.json()["items"]] == [
+            child.id for child in children
+        ]
+        assert query_in_calls == [
+            (Document, "id", tuple(child.id for child in children))
+        ]
+        assert document_get_ids == []
 
     def test_get_children_doc_prefix(self, client, db, sample_doc, sample_collection):
         """GET /children accepts a doc:-prefixed id and returns the same result (#1345).
@@ -238,15 +288,17 @@ class TestDocumentRoutes:
         assert response.status_code == 404
 
     def test_delete_document(self, client, db, sample_doc):
-        """Delete document removes it."""
+        """Delete document soft-deletes it."""
         db.save(sample_doc)
 
         response = client.delete(f"/api/documents/{sample_doc.id}")
         assert response.status_code == 204
-        assert db.get(Document, sample_doc.id) is None
+        persisted = db.get(Document, sample_doc.id)
+        assert persisted is not None
+        assert persisted.deleted_at is not None
 
-    def test_delete_document_cascades_descendants_and_artifacts(self, client, db):
-        """Delete document removes descendants and related artifacts."""
+    def test_delete_document_cascades_soft_delete_to_descendants(self, client, db):
+        """Delete document soft-deletes descendants."""
         parent = Document(name="Parent", doc_type=DocType.folder)
         child = Document(name="Child", doc_type=DocType.file, parent_id=parent.id, file_type=FileType.image)
         grandchild = Document(name="Grandchild", doc_type=DocType.file, parent_id=child.id, file_type=FileType.image)
@@ -264,10 +316,10 @@ class TestDocumentRoutes:
         response = client.delete(f"/api/documents/{parent.id}")
         assert response.status_code == 204
 
-        assert db.get(Document, parent.id) is None
-        assert db.get(Document, child.id) is None
-        assert db.get(Document, grandchild.id) is None
-        assert db.get(Artifact, child_artifact.id) is None
+        assert db.get(Document, parent.id).deleted_at is not None
+        assert db.get(Document, child.id).deleted_at is not None
+        assert db.get(Document, grandchild.id).deleted_at is not None
+        assert db.get(Artifact, child_artifact.id) is not None
 
     def test_delete_document_not_found(self, client, db):
         """Delete nonexistent document returns 404."""
@@ -337,10 +389,38 @@ class TestSearchRoutes:
         assert response.status_code == 200
         data = response.json()
         assert "indexed_count" in data
+        assert "entity_indexed_count" in data
+        assert "claim_indexed_count" in data
 
 
 class TestIngestRoutes:
     """Tests for /api/ingest endpoints."""
+
+    @pytest.mark.asyncio
+    async def test_ingest_file_offloads_sync_import_work_to_thread(self):
+        """The async route must not run file copy/OCR/embed work on the loop."""
+        from fichero.api.routes import ingest as ingest_routes
+
+        request = ingest_routes.IngestFileRequest(path="/tmp/input.jpg")
+        db = MagicMock()
+        doc = Document(id="new123", name="ingested.jpg", doc_type=DocType.file)
+        to_thread = AsyncMock(return_value=doc)
+
+        with patch.object(ingest_routes.asyncio, "to_thread", to_thread):
+            result = await ingest_routes.ingest_file(
+                request,
+                db=db,
+                x_fichero_library_path="/tmp/library.fichero",
+            )
+
+        to_thread.assert_awaited_once()
+        assert to_thread.await_args.args == (
+            ingest_routes.import_file_impl,
+            db,
+            request,
+            Path("/tmp/library.fichero"),
+        )
+        assert result is doc
 
     def test_ingest_file(self, client):
         """Ingest file creates document."""

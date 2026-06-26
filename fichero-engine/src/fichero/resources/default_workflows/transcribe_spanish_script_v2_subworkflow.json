@@ -1,0 +1,85 @@
+{
+  "name": "Transcribe Spanish Script (19th-20th C.)",
+  "description": "Use this when: you have 19th-20th century Spanish notarial, administrative, or secretarial cursive script. Three-pass (draft → review → final reconcile) with capability-scoped vision tiers for cost/quality control. Replaces 'Transcribe Spanish Script v2 (19th-20th C., Sub-Workflow)' and 'Transcribe Spanish Script (19th-20th C., Multi-Pass)' (#2251).",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Transcribe",
+  "tags": [
+    "preset",
+    "transcribe",
+    "spanish",
+    "script",
+    "notarial",
+    "multi-pass",
+    "sub-workflow"
+  ],
+  "config": {
+    "preset_version": 2
+  },
+  "nodes": [
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Files",
+      "position_x": 80,
+      "position_y": 260,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "spanish-script-v2",
+      "tool": "sub_workflow",
+      "label": "Spanish Script v2",
+      "position_x": 340,
+      "position_y": 260,
+      "inputs": {},
+      "config": {
+        "workflow_ref": "Spanish Script v2 Child Passes (19th-20th C.)",
+        "input_contract": [
+          {
+            "id": "files",
+            "data_type": "files",
+            "required": true,
+            "description": "Selected page image paths to transcribe."
+          },
+          {
+            "id": "documents",
+            "data_type": "any",
+            "required": false,
+            "description": "Per-page document metadata (index-aligned with files) so each page gets its own transcription artifact instead of the parent PDF."
+          }
+        ],
+        "output_contract": [
+          {
+            "id": "text",
+            "data_type": "text",
+            "required": true,
+            "description": "Final reconciled transcription text."
+          }
+        ],
+        "output_mapping": {
+          "text": "$.nodes.transcribe-final-large.text"
+        },
+        "max_depth": 4,
+        "allow_partial": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-files-subworkflow",
+      "source": "files-source",
+      "target": "spanish-script-v2",
+      "source_port": "files",
+      "target_port": "files"
+    },
+    {
+      "id": "edge-files-subworkflow-documents",
+      "source": "files-source",
+      "target": "spanish-script-v2",
+      "source_port": "documents",
+      "target_port": "documents"
+    }
+  ]
+}

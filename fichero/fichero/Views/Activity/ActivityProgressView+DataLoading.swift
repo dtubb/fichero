@@ -4,29 +4,28 @@ import OSLog
 
 extension ActivityProgressView {
 
+    /// Seed the shared `WorkflowExecutionStore` from the persisted run (#2546).
+    ///
+    /// Called when there is no live execution yet (`liveExecution == nil`): for a
+    /// run that already finished — or was mid-flight — when Activity opened, this
+    /// fetches `getWorkflowRun` and seeds a `WorkflowExecution` into the store.
+    /// Because the parent (`ActivityDetailView`) reads the store to compute
+    /// `liveExecution`, the Progress tab re-renders with real status/log instead
+    /// of "Progress data not available". Running runs get their detailed live
+    /// state from subscribe-on-select; this fills the gap for the rest.
+    ///
+    /// (Previously a disabled stub that fetched `getWorkflowRun` and threw the
+    /// result away pending a backend progress-timeline schema.)
     func loadProgressTimeline() async {
         guard let threadId = selectedRun.threadId else { return }
+        guard let store = executionStore else {
+            activityProgressLogger.info("No WorkflowExecutionStore in environment; skipping seed")
+            return
+        }
 
         isLoadingTimeline = true
         defer { isLoadingTimeline = false }
 
-        do {
-            let service = ActivityServiceGenerated(apiClient: apiClient)
-            _ = try await service.getWorkflowRun(threadId: threadId)
-
-            // Convert progress timeline from dictionary to typed model
-            // Note: progressTimeline may not be available in current backend schema
-            // swiftlint:disable:next todo
-            // TODO: Re-enable when backend schema is updated
-            /*
-             if let timelineDict = run.progressTimeline {
-             let data = try JSONSerialization.data(withJSONObject: timelineDict)
-             progressTimeline = try JSONDecoder().decode(ProgressTimeline.self, from: data)
-             }
-             */
-            activityProgressLogger.info("Progress timeline loading disabled - waiting for backend schema update")
-        } catch {
-            activityProgressLogger.error("Failed to load progress timeline: \(error)")
-        }
+        await store.seedFromPersistedRun(threadId: threadId)
     }
 }

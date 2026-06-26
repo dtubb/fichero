@@ -26,6 +26,12 @@ class LibraryManager: ObservableObject {
     /// no parallel tab system.
     @Published var pendingOpenDocumentId: String?
 
+    /// Cross-window library handoff queue for open-in-new-window flows. The
+    /// caller appends one library id per `openWindow(id: "main")`; each new
+    /// destination scene consumes the oldest pending id during initialization
+    /// so batched opens don't clobber one another.
+    @Published var pendingWindowLibraryIds: [UUID] = []
+
     /// Counter for unsaved library numbering (Untitled, Untitled 2, Untitled 3, etc.)
     var untitledCounter: Int = 1
 
@@ -36,6 +42,11 @@ class LibraryManager: ObservableObject {
     var backendIsReady = false
     var loadedLibraryIds: Set<UUID> = []
     var loadingLibraryIds: Set<UUID> = []
+
+    /// Bumped each time a library's data finishes loading. SidebarView observes
+    /// this via @ObservedObject to trigger rebuildCaches() — ensures the sidebar
+    /// populates on iPhone even when its .task fires before loadCollections() (#2472).
+    @Published var librariesLoadVersion: Int = 0
 
     /// Represents an open library with its associated resources
     /// Each library has one instance of each service, shared across all windows/tabs viewing this library
@@ -64,11 +75,131 @@ class LibraryManager: ObservableObject {
         let modelService: ModelServiceGenerated
         let artifactService: ArtifactServiceGenerated
         let entityService: EntityServiceGenerated  // /api/entities + /api/claims (#728)
+        let kgCurationService: KGCurationServiceGenerated
         let activityService: ActivityServiceGenerated
         let batchService: BatchServiceGenerated
         let automationService: AutomationServiceGenerated
         let chainService: ChainService
         let researchService: ResearchService
+        let noteService: NoteService
+        let annotationService: AnnotationService
+        let actionsService: ActionsService
+
+        // Observable domain stores (#1851 / #1885) — wrap the transport wrappers
+        // above. One per library, shared across that library's windows, so a
+        // mutation in one window reaches every window's views through the shared
+        // store. Lazy: built on first use. See
+        // docs/architecture/swiftui/observable_data_layer.md.
+        lazy var entityStore: EntityStore = EntityStore(
+            entityService: entityService,
+            kgCurationService: kgCurationService,
+            libraryPath: url.path
+        )
+
+        /// Per-library claim store (#1862) — wraps the same transport wrappers,
+        /// owns the claim list for the current document/entity scope, and reacts
+        /// to `claim.*` change events. Retires the `.ficheroClaim*`
+        /// NotificationCenter bus.
+        lazy var claimStore: ClaimStore = ClaimStore(
+            entityService: entityService,
+            kgCurationService: kgCurationService,
+            libraryPath: url.path
+        )
+
+        /// Per-library note store (#1882). Wraps `noteService`, owns the note
+        /// list for the current scope, and reacts to `note.*` change events.
+        lazy var noteStore: NoteStore = NoteStore(noteService: noteService)
+
+        /// Per-library annotation store (#1883). Wraps `annotationService`,
+        /// owns the annotation list for the current scope, and reacts to
+        /// `annotation.*` change events.
+        lazy var annotationStore: AnnotationStore = AnnotationStore(annotationService: annotationService)
+
+        /// Per-library action store (#1905). Wraps `actionsService`, owns the
+        /// action list + categories, and reacts to `action.*` change events.
+        lazy var actionStore: ActionStore = ActionStore(service: actionsService)
+
+        /// Per-library activity store (#2448). Wraps `activityService`, owns the
+        /// run-browser list, and signals `ActivityBrowserView` to refresh on
+        /// `workflow.*` SSE events (best-effort until the backend emits dedicated
+        /// `activity.*` events).
+        lazy var activityStore: ActivityStore = ActivityStore(service: activityService)
+
+        /// Per-library live workflow-execution store (#2546). Keyed by `threadId`,
+        /// it is the shared home for live execution state feeding the Activity
+        /// monitor: it subscribes-on-select to a running thread's SSE stream
+        /// (reusing `WorkflowStreamService`) and reduces events via the shared
+        /// `WorkflowExecution.apply(_:)`, so Activity shows live progress for ANY
+        /// running workflow regardless of where it was started.
+        lazy var workflowExecutionStore: WorkflowExecutionStore = WorkflowExecutionStore(
+            ficheroClient: ficheroClient,
+            activityService: activityService
+        )
+
+        /// Per-library audit store (#2085). Reads the global "who changed what"
+        /// action-registry log (`GET /api/actions/audit`) and undoes rows
+        /// (`POST /api/actions/audit/{id}/undo`) through the generated client.
+        lazy var auditStore: AuditStore = AuditStore(client: ficheroClient)
+
+        /// Per-library backup store (#2087). Lists / creates / restores / deletes
+        /// point-in-time snapshots (`/api/storage/snapshots`) through the
+        /// generated client.
+        lazy var backupStore: BackupStore = BackupStore(client: ficheroClient)
+
+        /// Per-library research store (#1904). Wraps `researchService`, owns the
+        /// per-project data (plans, tasks, checklists, sources, notes), and
+        /// reacts to `research.*` change events.
+        lazy var researchStore: ResearchStore = ResearchStore(researchService: researchService)
+
+        /// Per-library search store (#1903). Wraps `searchService`, owns the
+        /// current result set and index stats, and invalidates stale results on
+        /// `document.*` change events.
+        lazy var searchStore: SearchStore = SearchStore(searchService: searchService)
+
+        /// Per-document artifact store (#1997). Wraps `artifactService`, owns the
+        /// selected document's artifacts, and reacts to `artifact.*` change
+        /// events. Built on the generic `ObservableDomainStore` substrate.
+        lazy var artifactStore: ArtifactStore = ArtifactStore(artifactService: artifactService)
+
+        /// Per-document citation store (#1998). Wraps `entityService`, owns the
+        /// selected document's inbound/outbound citations + usage rows, and
+        /// reacts to `citation.*` change events.
+        lazy var citationStore: CitationStore = CitationStore(entityService: entityService)
+
+        /// Per-document reference store (#1999). Wraps `entityService`, owns the
+        /// selected document's extracted bibliography, and reacts to
+        /// `reference.*` change events.
+        lazy var referenceStore: ReferenceStore = ReferenceStore(entityService: entityService)
+
+        /// Per-document interpretation store (#2009). Wraps `entityService`, owns
+        /// the selected document's hermeneutic interpretations, and reacts to
+        /// `interpretation.*` change events (#2008).
+        lazy var interpretationStore: InterpretationStore = InterpretationStore(entityService: entityService)
+
+        /// One SSE change-stream per library (#1863), fanning events to the
+        /// stores above. `start()` is idempotent — each window kicks it from
+        /// its `.task`; only the first connects.
+        lazy var changeStream: LibraryChangeStream = {
+            let stream = LibraryChangeStream(
+                baseURLProvider: { self.apiClient.baseURL },
+                libraryPath: self.url.path
+            )
+            stream.register(self.documentStore)
+            stream.register(self.entityStore)
+            stream.register(self.claimStore)
+            stream.register(self.noteStore)
+            stream.register(self.annotationStore)
+            stream.register(self.actionStore)
+            stream.register(self.activityStore)
+            stream.register(self.researchStore)
+            stream.register(self.searchStore)
+            stream.register(self.workflowStore)
+            stream.register(self.artifactStore)
+            stream.register(self.citationStore)
+            stream.register(self.referenceStore)
+            stream.register(self.interpretationStore)
+            return stream
+        }()
 
         // Security-scoped resource tracking
         private nonisolated(unsafe) var isAccessingSecurityScope: Bool = false
@@ -106,7 +237,7 @@ class LibraryManager: ObservableObject {
             self.apiClient.currentLibraryPath = url.path
 
             // Create the generated API client (shares same library path)
-            self.ficheroClient = FicheroClient(libraryPath: url.path)
+            self.ficheroClient = FicheroClient(baseURL: EngineConfig.host, libraryPath: url.path)
 
             // Initialize all services with the library's APIClient
             self.documentStore = documentStore ?? DocumentStore(apiClient: self.apiClient)
@@ -116,7 +247,7 @@ class LibraryManager: ObservableObject {
             self.chatServiceGenerated = ChatServiceGenerated(ficheroClient: self.ficheroClient)
             self.workflowStore = workflowStore ?? WorkflowStore(ficheroClient: self.ficheroClient)
             self.workflowServiceGenerated = WorkflowServiceGenerated(ficheroClient: self.ficheroClient)
-            self.workflowStreamService = WorkflowStreamService(apiClient: self.apiClient, ficheroClient: self.ficheroClient)
+            self.workflowStreamService = WorkflowStreamService(ficheroClient: self.ficheroClient)
             self.importService = importService ?? ImportServiceGenerated(ficheroClient: self.ficheroClient)
             self.documentServiceGenerated = DocumentServiceGenerated(ficheroClient: self.ficheroClient)
             self.storageService = storageService ?? StorageServiceGenerated(ficheroClient: self.ficheroClient)
@@ -124,11 +255,15 @@ class LibraryManager: ObservableObject {
             self.modelService = modelService ?? ModelServiceGenerated(ficheroClient: self.ficheroClient)
             self.artifactService = ArtifactServiceGenerated(ficheroClient: self.ficheroClient)
             self.entityService = EntityServiceGenerated(ficheroClient: self.ficheroClient)
+            self.kgCurationService = KGCurationServiceGenerated(ficheroClient: self.ficheroClient)
             self.activityService = ActivityServiceGenerated(ficheroClient: self.ficheroClient)
             self.batchService = BatchServiceGenerated(ficheroClient: self.ficheroClient)
             self.automationService = AutomationServiceGenerated(ficheroClient: self.ficheroClient)
             self.chainService = ChainService(apiClient: self.apiClient)
-            self.researchService = ResearchService(apiClient: self.apiClient)
+            self.researchService = ResearchService(ficheroClient: self.ficheroClient)
+            self.noteService = NoteService(ficheroClient: self.ficheroClient)
+            self.annotationService = AnnotationService(ficheroClient: self.ficheroClient)
+            self.actionsService = ActionsService(client: self.ficheroClient)
 
             // Start accessing security-scoped resource if requested
             if startAccessing {
@@ -154,6 +289,10 @@ class LibraryManager: ObservableObject {
         deinit {
             stopAccessingSecurityScope()
         }
+
+        func reconfigureBackendHost() {
+            ficheroClient.reconfigure(baseURL: EngineConfig.host)
+        }
     }
 
     private init() {
@@ -170,7 +309,7 @@ class LibraryManager: ObservableObject {
         // disposable temp dir (#1230) so smoke tests never touch the real
         // global.fichero. Outside UI tests this is the standard location.
         let appSupport = uiTestSupportDirectory()
-            ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            ?? hostAccessibleApplicationSupportDirectory()
         let globalURL = appSupport
             .appendingPathComponent("Fichero")
             .appendingPathComponent("global.fichero")
@@ -203,6 +342,19 @@ class LibraryManager: ObservableObject {
         libraryManagerLogger.info("Loaded Global library at: \(globalURL.path)")
 
         scheduleLoadWhenBackendReady(for: library)
+    }
+
+    private func hostAccessibleApplicationSupportDirectory() -> URL {
+        #if targetEnvironment(simulator) && !os(macOS)
+        if EngineConfig.engineIsLocal {
+            if let hostHome = ProcessInfo.processInfo.environment["SIMULATOR_HOST_HOME"],
+               !hostHome.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return URL(fileURLWithPath: hostHome)
+                    .appendingPathComponent("Library/Application Support")
+            }
+        }
+        #endif
+        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
     }
 
     /// Get the Global library (always available)

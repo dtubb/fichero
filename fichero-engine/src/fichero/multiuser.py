@@ -1,0 +1,51 @@
+"""Shared feature-gate helpers for multi-user auth and pairing.
+
+Remote pairing should not depend on one fragile env variable when the engine is
+already explicitly configured for remote presence or transport. This module
+centralizes the "is multi-user mode on?" decision so auth middleware, ACLs, and
+pairing routes all agree.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Mapping
+import os
+
+from fichero.bind_host import _is_loopback_host
+
+TRUE_VALUES = {"1", "true", "yes", "on"}
+FALSE_VALUES = {"0", "false", "no", "off"}
+
+
+def _truthy(value: str | None) -> bool:
+    return (value or "").strip().lower() in TRUE_VALUES
+
+
+def multiuser_enabled(env: Mapping[str, str] | None = None) -> bool:
+    """Return True when per-user auth/pairing should be active.
+
+    Multi-user auth is enabled by default. Explicit `FICHERO_MULTIUSER=0` is
+    the off switch for development/tests that need the legacy single-user
+    behavior. Remote-facing deployment signals also force it on:
+    - Bonjour advertisement
+    - a configured public/private reachable URL for clients
+    - a deliberate non-loopback bind host
+    """
+
+    source = env if env is not None else os.environ
+    configured = (source.get("FICHERO_MULTIUSER") or "").strip().lower()
+    if configured in FALSE_VALUES:
+        return False
+    if configured in TRUE_VALUES:
+        return True
+    if _truthy(source.get("FICHERO_ENABLE_BONJOUR")):
+        return True
+    if (source.get("FICHERO_PUBLIC_BASE_URL") or "").strip():
+        return True
+
+    for name in ("FICHERO_BIND_HOST", "FICHERO_REMOTE_BACKEND_BIND_HOST"):
+        host = (source.get(name) or "").strip()
+        if host and not _is_loopback_host(host):
+            return True
+
+    return True

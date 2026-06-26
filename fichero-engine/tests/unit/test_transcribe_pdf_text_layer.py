@@ -58,10 +58,9 @@ def _tool_config() -> VisionToolConfig:
 
 
 @pytest.mark.asyncio
-async def test_born_digital_pdf_uses_text_layer_in_llm_mode(tmp_path: Path) -> None:
-    """The #1033 fix: a born-digital PDF, vision_mode='llm', no document
-    records passed — the text-layer short-circuit must still fire and the
-    LLM vision call must NOT happen."""
+async def test_born_digital_pdf_uses_text_layer_in_apple_mode(tmp_path: Path) -> None:
+    """The #1033 fix: a born-digital PDF in vision_mode='apple' must use the
+    embedded text layer rather than running Apple Vision OCR on the images."""
     pdf = tmp_path / "born_digital.pdf"
     _make_pdf_with_text(pdf, [
         "Davidson signed the deed on the third of March nineteen thirty one.",
@@ -84,12 +83,69 @@ async def test_born_digital_pdf_uses_text_layer_in_llm_mode(tmp_path: Path) -> N
             library_path="",
             task_id=None,
             tool_config=_tool_config(),
-            vision_mode="llm",
+            vision_mode="apple",
         )
 
     assert "Davidson" in result["text"]
     assert "Asprilla" in result["text"]
     vision_mock.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_scanned_pdf_page_llm_mode_calls_llm_not_text_layer(tmp_path: Path) -> None:
+    """#2222 regression: a PDF page with no embedded text (is_blank=True at ingest)
+    must always call the LLM vision path in vision_mode='llm', even when
+    _try_pdf_text_layer returns a non-None list (e.g. thin OCR artifacts from
+    the PDF scanner). Before the fix, a non-None layer set pdf_layer_used=True
+    and silently returned empty text instead of calling the LLM."""
+    pdf = tmp_path / "scan_with_thin_ocr.pdf"
+    # Simulate a scanned PDF that PyMuPDF finds has a thin OCR layer — just
+    # enough text to pass the non-empty check in _try_pdf_text_layer but not
+    # the actual handwritten content.
+    pdf.write_bytes(b"%PDF-stub")
+
+    llm_result = "El alcalde mayor Antonio García firmó el acta."
+    vision_mock = AsyncMock(return_value=llm_result)
+
+    with (
+        patch(
+            "fichero.workflows.tools.vision_base.save_artifact",
+            new=AsyncMock(return_value=None),
+        ),
+        # Simulate _try_pdf_text_layer returning non-None (thin OCR layer)
+        # which is the bug trigger: before the fix this set pdf_layer_used=True
+        # and skipped the LLM call, returning empty text for the blank page.
+        patch(
+            "fichero.workflows.tools.vision_base._try_pdf_text_layer",
+            return_value=[""],  # non-None but empty content per page
+        ),
+        patch(
+            "fichero.workflows.tools.vision_base._pdf_page_to_data_uri",
+            return_value="data:image/png;base64,STUB",
+        ),
+        patch("fichero.llm.vision", new=vision_mock),
+    ):
+        result = await process_vision(
+            files=[str(pdf)],
+            documents=[{
+                "id": "page-1",
+                "path": None,
+                "parent_id": "parent-pdf-id",
+                "sequence": 1,
+                "page_content": None,
+                "metadata": {"is_blank": True, "text_extracted": False},
+            }],
+            prompt="Transcribe.",
+            llm_config=_llm_config(),
+            library_path="",
+            task_id=None,
+            tool_config=_tool_config(),
+            vision_mode="llm",
+        )
+
+    # LLM must be called — not silently skipped by the text-layer shortcut.
+    vision_mock.assert_awaited()
+    assert llm_result in result["text"]
 
 
 @pytest.mark.asyncio
@@ -170,11 +226,11 @@ async def test_born_digital_pdf_beats_stale_cached_artifact(tmp_path: Path) -> N
             files=[str(pdf)],
             documents=[],
             prompt="Transcribe.",
-            llm_config=_llm_config(),
+            llm_config=_apple_llm_config(),
             library_path="/tmp/fichero-test-lib-1064",
             task_id=None,
             tool_config=_tool_config(),
-            vision_mode="llm",
+            vision_mode="apple",
         )
 
     # The fresh text layer wins — not the stale garbage artifact.
@@ -296,3 +352,69 @@ async def test_pdf_text_layer_page_child_uses_only_that_page(
     assert result["page_records"] == [
         {"doc_id": "page-2", "text": "Text from page 2"}
     ]
+
+
+@pytest.mark.asyncio
+async def test_llm_vision_multipage_pdf_processes_all_pages(tmp_path: Path) -> None:
+    """#2215 regression: LLM vision on a whole PDF (no per-page fan-out) must
+    process every page separately and populate per_page_texts so
+    _propagate_to_page_children distributes each page's transcript to its
+    child document. Before the fix, only page 0 was rendered (hard-coded
+    `page_index=0`) and _propagate_to_page_children never fired."""
+    pdf = tmp_path / "multipage.pdf"
+    _make_pdf_with_text(pdf, ["Page one body.", "Page two body."])
+
+    page_transcripts = ["Transcription of page one.", "Transcription of page two."]
+    llm_call_count = 0
+
+    async def _mock_vision(images, prompt, config):
+        nonlocal llm_call_count
+        text = page_transcripts[llm_call_count % len(page_transcripts)]
+        llm_call_count += 1
+        return text
+
+    save_mock = AsyncMock(return_value="artifact-parent")
+    propagate_mock = AsyncMock(
+        return_value=["artifact-page-1", "artifact-page-2"]
+    )
+
+    with (
+        patch("fichero.workflows.tools.vision_base.save_artifact", new=save_mock),
+        # Force LLM path: pretend this is a scanned PDF with no text layer
+        patch("fichero.workflows.tools.vision_base._try_pdf_text_layer", return_value=None),
+        # Avoid Quartz rendering in CI
+        patch(
+            "fichero.workflows.tools.vision_base._pdf_page_to_data_uri",
+            return_value="data:image/png;base64,STUB",
+        ),
+        patch(
+            "fichero.workflows.tools.vision_base._propagate_to_page_children",
+            new=propagate_mock,
+        ),
+        patch("fichero.llm.vision", new=_mock_vision),
+    ):
+        result = await process_vision(
+            files=[str(pdf)],
+            documents=[{"id": "parent-pdf", "path": str(pdf)}],
+            prompt="Transcribe.",
+            llm_config=_llm_config(),
+            library_path="/tmp/fichero-test-2215",
+            task_id=None,
+            tool_config=_tool_config(),
+            vision_mode="llm",
+        )
+
+    # LLM must be called once per page (2), not just once for page 0
+    assert llm_call_count == 2, (
+        f"Expected 2 LLM calls (one per page), got {llm_call_count}. "
+        "Fix: LLM path must iterate all pages, not hard-code page_index=0."
+    )
+    # Both page transcriptions appear in the combined output
+    assert "page one" in result["text"]
+    assert "page two" in result["text"]
+    # _propagate_to_page_children must be triggered with all per-page texts
+    propagate_mock.assert_awaited_once()
+    propagated_parent_id, propagated_texts = propagate_mock.await_args.args[:2]
+    assert propagated_parent_id == "parent-pdf"
+    assert propagated_texts == page_transcripts
+    assert result["artifacts"] == ["artifact-page-1", "artifact-page-2"]

@@ -58,3 +58,17 @@ extension URLRequest {
         }
     }
 }
+
+func engineEventStreamRequest(
+    baseURL: URL,
+    pathComponents: [String],
+    libraryPath: String? = nil
+) -> URLRequest {
+    let url = pathComponents.reduce(baseURL) { partialURL, component in
+        partialURL.appendingPathComponent(component)
+    }
+    var request = URLRequest(url: url)
+    request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+    request.addEngineAuth(libraryPath: libraryPath)
+    return request
+}

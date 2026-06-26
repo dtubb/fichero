@@ -20,6 +20,7 @@ from fichero.workflows.batch import (
     BatchEvent,
     BatchExecution,
     BatchItem,
+    BatchItemStatus,
     BatchManager,
     BatchProgress,
     BatchStatus,
@@ -410,3 +411,481 @@ async def delete_batch(batch_id: str) -> BatchDeletedResponse:
 from fichero.models import BatchListResponse  # noqa: E402
 
 BatchListResponse.model_rebuild(_types_namespace={"BatchResponse": BatchResponse})
+
+
+# ---------------------------------------------------------------------------
+# Action layer registration (EPIC #1848 / sweep #2014) — batch domain
+# ---------------------------------------------------------------------------
+#
+# Every batch mutation becomes ONE audited action routed through
+# `registry.invoke`, which writes the generic ActionAudit + emits a typed
+# change event. The actions WRAP the proven BatchManager methods (iterate-not-
+# replace: the algorithms are wrapped, never re-derived); the existing SSE /
+# REST routes above are untouched and stay the live-progress path.
+#
+# Two wrinkles drive the shapes below:
+#  1. BatchManager is async + backed by the *app* DuckDB (get_db_path); the
+#     action's execute() is sync and the ActionAudit lands in the *library*
+#     Database passed to invoke. So execute() ignores `db` for the batch op
+#     (uses the manager) and `_run_async` bridges sync->async. `_run_async`
+#     also survives being called from inside a running loop (the generic
+#     /api/actions/invoke handler) by off-loading to a worker thread.
+#  2. create/delete/pause/cancel are discrete mutations wrapped directly.
+#     execute/resume/retry are SSE generators that run live workflows; to be
+#     faithful single-shot audited actions they DRAIN the generator to
+#     completion (auditing who-ran + final batch state). The discrete reset
+#     half of retry is also exposed via the extracted manager.reset_failed_items
+#     so the transition is testable without a live run.
+
+import asyncio as _asyncio  # noqa: E402
+from datetime import datetime as _datetime  # noqa: E402
+
+from pydantic import BaseModel as _BaseModel, Field as _Field  # noqa: E402
+
+from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
+
+
+def _run_async(coro: Any) -> Any:
+    """Run an awaitable from a sync action.execute().
+
+    Works whether or not an event loop is already running: outside a loop we
+    use ``asyncio.run``; inside one (the async /api/actions/invoke handler) we
+    off-load to a dedicated worker thread with its own loop so we never call
+    ``asyncio.run`` re-entrantly.
+    """
+    try:
+        _asyncio.get_running_loop()
+    except RuntimeError:
+        return _asyncio.run(coro)
+
+    import concurrent.futures
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(lambda: _asyncio.run(coro)).result()
+
+
+def _batch_snapshot(batch: BatchExecution) -> dict:
+    """JSON-able full snapshot (batch + items) — the audit/undo payload."""
+    return BatchResponse.from_batch(batch, include_items=True).model_dump()
+
+
+def _parse_dt(value: Optional[str]) -> Optional[_datetime]:
+    return _datetime.fromisoformat(value) if value else None
+
+
+def _batch_from_snapshot(snap: dict) -> BatchExecution:
+    """Reconstruct a BatchExecution from a `_batch_snapshot` dict (for restore)."""
+    items = [
+        BatchItem(
+            thread_id=i["thread_id"],
+            item_index=i["item_index"],
+            inputs=i.get("inputs") or {},
+            status=BatchItemStatus(i["status"]),
+            error=i.get("error"),
+            started_at=_parse_dt(i.get("started_at")),
+            completed_at=_parse_dt(i.get("completed_at")),
+        )
+        for i in snap.get("items", [])
+    ]
+    return BatchExecution(
+        batch_id=snap["batch_id"],
+        workflow_id=snap["workflow_id"],
+        status=BatchStatus(snap["status"]),
+        items=items,
+        created_at=_parse_dt(snap["created_at"]) or _datetime.now(),
+        started_at=_parse_dt(snap.get("started_at")),
+        completed_at=_parse_dt(snap.get("completed_at")),
+        error_message=snap.get("error_message"),
+        max_concurrent=snap.get("max_concurrent", 5),
+    )
+
+
+# -- params models -----------------------------------------------------------
+
+
+class CreateBatchParams(_BaseModel):
+    workflow_id: str
+    items: list[dict[str, Any]] = _Field(
+        min_length=1, description="Input dicts, one per item (>=1)."
+    )
+    max_concurrent: int = _Field(default=5, ge=1, le=50)
+
+
+class _BatchIdParams(_BaseModel):
+    batch_id: str
+
+
+class DeleteBatchParams(_BatchIdParams):
+    pass
+
+
+class RestoreBatchParams(_BaseModel):
+    snapshot: dict = _Field(description="A `_batch_snapshot` dict to re-insert.")
+
+
+class ExecuteBatchParams(_BatchIdParams):
+    pass
+
+
+class PauseBatchParams(_BatchIdParams):
+    pass
+
+
+class ResumeBatchParams(_BatchIdParams):
+    pass
+
+
+class CancelBatchParams(_BatchIdParams):
+    pass
+
+
+class RetryBatchParams(_BatchIdParams):
+    pass
+
+
+# -- inverts -----------------------------------------------------------------
+
+
+def _invert_create(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Undo a create by deleting the created batch."""
+    if not after or not after.get("batch_id"):
+        return None
+    return ("batch.delete", {"batch_id": after["batch_id"]})
+
+
+def _invert_delete(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Undo a delete by restoring the pre-delete snapshot."""
+    if not before:
+        return None
+    return ("batch.restore", {"snapshot": before})
+
+
+# -- actions -----------------------------------------------------------------
+
+
+@action(
+    "batch.create",
+    CreateBatchParams,
+    domains=["batch"],
+    undoable=True,
+    invert=_invert_create,
+)
+def _action_create_batch(
+    db: Any, params: CreateBatchParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    manager = get_batch_manager()
+    batch = _run_async(
+        manager.create_batch(
+            workflow_id=params.workflow_id,
+            items_inputs=params.items,
+            max_concurrent=params.max_concurrent,
+        )
+    )
+    after = _batch_snapshot(batch)
+    spec = ChangeSpec(
+        domains=["batch"],
+        target_ids=[batch.batch_id],
+        before=None,
+        after=after,
+        emit_type="batch.created",
+    )
+    return after, spec
+
+
+@action(
+    "batch.delete",
+    DeleteBatchParams,
+    domains=["batch"],
+    undoable=True,
+    invert=_invert_delete,
+)
+def _action_delete_batch(
+    db: Any, params: DeleteBatchParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    manager = get_batch_manager()
+
+    async def _run() -> tuple[Optional[str], Optional[dict]]:
+        existing = await manager.get_batch(params.batch_id)
+        if existing is None:
+            return None, None
+        # Guard BEFORE mutating: a running batch must not be deleted (mirrors
+        # the DELETE route's 400). Snapshot then delete only when safe.
+        if existing.status == BatchStatus.RUNNING:
+            return BatchStatus.RUNNING.value, None
+        snapshot = _batch_snapshot(existing)
+        await manager.delete_batch(params.batch_id)
+        return existing.status.value, snapshot
+
+    status, before = _run_async(_run())
+    if status is None:
+        raise HTTPException(status_code=404, detail=f"Batch {params.batch_id} not found")
+    if status == BatchStatus.RUNNING.value:
+        raise HTTPException(status_code=400, detail="Cannot delete a running batch")
+    spec = ChangeSpec(
+        domains=["batch"],
+        target_ids=[params.batch_id],
+        before=before,
+        after=None,
+        emit_type="batch.deleted",
+    )
+    return {"status": "deleted", "batch_id": params.batch_id}, spec
+
+
+@action(
+    "batch.restore",
+    RestoreBatchParams,
+    domains=["batch"],
+    undoable=False,
+)
+def _action_restore_batch(
+    db: Any, params: RestoreBatchParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Inverse of batch.delete — re-insert a snapshotted batch + its items."""
+    manager = get_batch_manager()
+    batch = _batch_from_snapshot(params.snapshot)
+
+    async def _run() -> None:
+        await manager._save_batch(batch)
+
+    _run_async(_run())
+    manager._batches[batch.batch_id] = batch
+    after = _batch_snapshot(batch)
+    spec = ChangeSpec(
+        domains=["batch"],
+        target_ids=[batch.batch_id],
+        before=None,
+        after=after,
+        emit_type="batch.created",
+    )
+    return after, spec
+
+
+@action(
+    "batch.pause",
+    PauseBatchParams,
+    domains=["batch"],
+    undoable=False,
+)
+def _action_pause_batch(
+    db: Any, params: PauseBatchParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    manager = get_batch_manager()
+    batch = _run_async(manager.pause_batch(params.batch_id))
+    after = _batch_snapshot(batch)
+    spec = ChangeSpec(
+        domains=["batch"],
+        target_ids=[params.batch_id],
+        before={"status": BatchStatus.RUNNING.value},
+        after={"status": batch.status.value},
+        emit_type="batch.paused",
+    )
+    return after, spec
+
+
+@action(
+    "batch.cancel",
+    CancelBatchParams,
+    domains=["batch"],
+    undoable=False,
+)
+def _action_cancel_batch(
+    db: Any, params: CancelBatchParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    manager = get_batch_manager()
+
+    async def _run() -> tuple[Optional[str], BatchExecution]:
+        before_batch = await manager.get_batch(params.batch_id)
+        before_status = before_batch.status.value if before_batch else None
+        cancelled = await manager.cancel_batch(params.batch_id)
+        return before_status, cancelled
+
+    before_status, batch = _run_async(_run())
+    after = _batch_snapshot(batch)
+    spec = ChangeSpec(
+        domains=["batch"],
+        target_ids=[params.batch_id],
+        before={"status": before_status},
+        after={"status": batch.status.value},
+        emit_type="batch.cancelled",
+    )
+    return after, spec
+
+
+@action(
+    "batch.execute",
+    ExecuteBatchParams,
+    domains=["batch"],
+    undoable=False,
+)
+def _action_execute_batch(
+    db: Any, params: ExecuteBatchParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Run a batch to completion (drains the SSE generator) and audits the run.
+
+    The live-progress SSE route above stays the UI path; this single-shot
+    action is what chat tools (#1847) / App Intents (#1837) / tests drive.
+    """
+    manager = get_batch_manager()
+    store = get_workflow_store()
+
+    async def _run() -> tuple[Optional[dict], Optional[dict]]:
+        before_batch = await manager.get_batch(params.batch_id)
+        before = _batch_snapshot(before_batch) if before_batch else None
+        async for _event in manager.execute_batch(params.batch_id, store):
+            pass
+        final = await manager.get_batch(params.batch_id)
+        after = _batch_snapshot(final) if final else None
+        return before, after
+
+    before, after = _run_async(_run())
+    spec = ChangeSpec(
+        domains=["batch"],
+        target_ids=[params.batch_id],
+        before=before,
+        after=after,
+        emit_type="batch.executed",
+    )
+    return after or {"batch_id": params.batch_id}, spec
+
+
+@action(
+    "batch.resume",
+    ResumeBatchParams,
+    domains=["batch"],
+    undoable=False,
+)
+def _action_resume_batch(
+    db: Any, params: ResumeBatchParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Resume a paused batch to completion (drains the SSE generator)."""
+    manager = get_batch_manager()
+    store = get_workflow_store()
+
+    async def _run() -> tuple[Optional[dict], Optional[dict]]:
+        before_batch = await manager.get_batch(params.batch_id)
+        before = _batch_snapshot(before_batch) if before_batch else None
+        async for _event in manager.resume_batch(params.batch_id, store):
+            pass
+        final = await manager.get_batch(params.batch_id)
+        after = _batch_snapshot(final) if final else None
+        return before, after
+
+    before, after = _run_async(_run())
+    spec = ChangeSpec(
+        domains=["batch"],
+        target_ids=[params.batch_id],
+        before=before,
+        after=after,
+        emit_type="batch.resumed",
+    )
+    return after or {"batch_id": params.batch_id}, spec
+
+
+@action(
+    "batch.retry",
+    RetryBatchParams,
+    domains=["batch"],
+    undoable=False,
+)
+def _action_retry_batch(
+    db: Any, params: RetryBatchParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Retry a batch's failed items: reset them to PENDING then run to completion.
+
+    Audits the whole retry (who-retried + final state). The discrete reset is
+    the extracted ``manager.reset_failed_items`` so the transition stays one
+    proven code path with the streaming retry route.
+    """
+    manager = get_batch_manager()
+    store = get_workflow_store()
+
+    async def _run() -> tuple[Optional[dict], Optional[dict]]:
+        before_batch = await manager.get_batch(params.batch_id)
+        before = _batch_snapshot(before_batch) if before_batch else None
+        async for _event in manager.retry_failed_items(params.batch_id, store):
+            pass
+        final = await manager.get_batch(params.batch_id)
+        after = _batch_snapshot(final) if final else None
+        return before, after
+
+    before, after = _run_async(_run())
+    spec = ChangeSpec(
+        domains=["batch"],
+        target_ids=[params.batch_id],
+        before=before,
+        after=after,
+        emit_type="batch.retried",
+    )
+    return after or {"batch_id": params.batch_id}, spec
+
+
+# ---------------------------------------------------------------------------
+# The MISSING workflow action (#2018) — workflow.run (single-shot)
+# ---------------------------------------------------------------------------
+#
+# The #2000-era inventory flagged "run workflow on docs" as a capability with no
+# single endpoint: the UI does it in TWO steps (POST /batches to create, then
+# POST /batches/{id}/execute to run). workflow.run COLLAPSES that into one audited
+# action — it WRAPS the proven BatchManager.create_batch + execute_batch
+# (iterate-not-replace: both algorithms are wrapped, never re-derived), draining
+# the SSE generator to completion, and returns the run/task id (the batch_id) the
+# caller polls. NOT undoable: a workflow run produces artifacts/side effects with
+# no clean inverse (delete the batch via batch.delete if you must discard it).
+
+
+class WorkflowRunParams(_BaseModel):
+    workflow_id: str
+    items: list[dict[str, Any]] = _Field(
+        min_length=1, description="Input dicts, one per document (>=1)."
+    )
+    max_concurrent: int = _Field(default=5, ge=1, le=50)
+
+
+@action(
+    "workflow.run",
+    WorkflowRunParams,
+    domains=["workflow", "batch"],
+    undoable=False,
+)
+def _action_workflow_run(
+    db: Any, params: WorkflowRunParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Create a batch over the docs AND run it to completion in one shot.
+
+    Returns ``run_id`` / ``batch_id`` (same value) so a caller can poll
+    ``/api/batches/{id}`` for results — the one-call equivalent of the UI's
+    create-then-execute two-step.
+    """
+    manager = get_batch_manager()
+    store = get_workflow_store()
+
+    async def _run() -> Optional[BatchExecution]:
+        batch = await manager.create_batch(
+            workflow_id=params.workflow_id,
+            items_inputs=params.items,
+            max_concurrent=params.max_concurrent,
+        )
+        async for _event in manager.execute_batch(batch.batch_id, store):
+            pass
+        return await manager.get_batch(batch.batch_id)
+
+    final = _run_async(_run())
+    after = _batch_snapshot(final) if final else None
+    run_id = final.batch_id if final else None
+    result = {
+        "run_id": run_id,
+        "batch_id": run_id,
+        "status": final.status.value if final else None,
+    }
+    spec = ChangeSpec(
+        domains=["workflow", "batch"],
+        target_ids=[run_id] if run_id else [],
+        before=None,
+        after=after,
+        emit_type="workflow.run",
+    )
+    return result, spec

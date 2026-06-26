@@ -61,6 +61,8 @@ class TestDocumentViewRoute:
         assert "Transcript" in response.text
         assert "Digest" in response.text
         assert "Graph" in response.text
+        assert "Timeline" in response.text
+        assert "Map" in response.text
 
     def test_html_uses_apple_system_fonts_and_native_tab_bridge(self, client, db):
         # #1228 follow-up: fonts are Apple system defaults, the in-page tab bar
@@ -163,6 +165,50 @@ class TestDocumentViewRoute:
         assert response.status_code == 200
         assert '"id": "claim-pg1"' in response.text
         assert '"canonical_name": "Hernández"' in response.text
+
+    def test_document_view_includes_doc_scoped_event_entities_without_claim_links(self, client, db):
+        doc = _make_document(
+            doc_id="doc-events",
+            name="Diary.pdf",
+            doc_type=DocType.file,
+            file_type=FileType.pdf,
+            page_content="Friday, October 19, 1923. Andagoya.",
+        )
+        db.save(doc)
+
+        event = KnowledgeEntity(
+            id="event-1",
+            canonical_name="Friday, October 19, 1923",
+            entity_type=EntityType.event,
+            source_document_ids=[doc.id],
+            date_values=[{
+                "start": "1923-10-19",
+                "label": "Friday, October 19, 1923",
+                "basis": "asserted",
+            }],
+        )
+        place = KnowledgeEntity(
+            id="place-1",
+            canonical_name="Andagoya",
+            entity_type=EntityType.location,
+            source_document_ids=[doc.id],
+            place_values=[{
+                "label": "Andagoya",
+                "lat": 5.093,
+                "lon": -76.695,
+                "basis": "asserted",
+            }],
+        )
+        db.save(event)
+        db.save(place)
+
+        response = client.get(f"/view/document/{doc.id}")
+        assert response.status_code == 200
+        assert '"id": "event-1"' in response.text
+        assert '"entity_type": "event"' in response.text
+        assert '"date_values": [{"id":' in response.text
+        assert '"id": "place-1"' in response.text
+        assert '"place_values": [{"id":' in response.text
 
     def test_missing_document_returns_404(self, client):
         response = client.get("/view/document/no-such-document")

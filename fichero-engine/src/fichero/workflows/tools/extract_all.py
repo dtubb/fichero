@@ -1,13 +1,13 @@
 """
 Combined entity extractor — ONE-SHOT AND TWO-STAGE MODES
 
-ONE-SHOT MODE (default): One LLM call per page returns all six entity types (people,
+ONE-SHOT MODE: One LLM call per page returns all six entity types (people,
 places, organizations, dates, events, keywords) as a single JSON payload. This is the
 speed-optimised default for Catalogue preset.
 
-TWO-STAGE MODE (experimental): First pass extracts entity names only (no SVO pressure);
-second pass runs per-entity claim extraction for grounded SVO + quotes. Better for Apple
-Intelligence where the one-shot prompt often produces weak/chatty SVO output.
+TWO-STAGE MODE: First pass extracts entity names only (no SVO pressure); second pass
+runs per-entity claim extraction for grounded SVO + quotes. Better for provider paths
+where one-shot tends to return weak/chatty SVO output.
 
 Both modes produce the same output shape (people/places/organizations/dates/events/quotes
 as lists of items with verb/object/source_text) so downstream tools (folder_cleanup,
@@ -50,6 +50,10 @@ from fichero.workflows.tools.llm_base import (
     merge_ports,
 )
 from fichero.workflows.tools.progress import emit_progress_event
+from fichero.workflows.tools._workflow_change_emit import (
+    emit_workflow_kg_changes,
+    emit_workflow_artifact_changes,
+)
 from fichero.workflows.types import DataType, PortDef, State
 
 logger = logging.getLogger(__name__)
@@ -175,13 +179,21 @@ async def _yield_page_work(
 # combined call now produces structurally-identical output to the
 # single-section path. (#1113 — without this the combined call left
 # claim.predicate_verb / object_phrase NULL on every row.)
+# Defaults make these optional so a model that returns a partial item
+# (e.g. {name, source_text} with no verb/object, or a loose {name, fact})
+# still validates and we salvage the entity/claim instead of failing the
+# whole page with 66 "field required" errors → 0 claims. The prompt still
+# asks for verb/object, so capable models fill them; this is the safety net.
 _VERB = Field(
+    default="",
     description="Specific predicate verb phrase.",
 )
 _OBJ = Field(
+    default="",
     description="Specific object or complement.",
 )
 _SRC = Field(
+    default="",
     description="Short exact supporting quote.",
 )
 
@@ -210,9 +222,9 @@ class _Organization(BaseModel):
 
 
 class _DateItem(BaseModel):
-    date: str = Field(description="as written")
+    date: str = Field(default="", description="as written")
     date_normalized: str = Field(
-        description="YYYY-MM-DD, YYYY-MM, YYYY, or range"
+        default="", description="YYYY-MM-DD, YYYY-MM, YYYY, or range"
     )
     verb: str = _VERB
     object: str = _OBJ
@@ -230,8 +242,8 @@ class _Event(BaseModel):
 class _Quote(BaseModel):
     name: str | None = Field(default=None, description="speaker name, or null")
     verb: str = Field(default="said", description="attribution verb")
-    object: str = Field(description="exact quote")
-    source_text: str = Field(description="short exact source phrase")
+    object: str = Field(default="", description="exact quote")
+    source_text: str = Field(default="", description="short exact source phrase")
 
 
 class _Extraction(BaseModel):
@@ -358,6 +370,8 @@ def _build_entity_only_instructions(output_language: str) -> str:
     return (
         f"You are an expert archivist extracting entity names from a document. "
         f"Extract ONLY the entity names - no facts, no claims, just the names. "
+        f"If a mention is obscured, do not guess it; keep any [ilegible] / "
+        f"[uncertain] markers exactly as written. "
         f"Write in {output_language}.\n\n"
         f"Sections to extract:\n"
         f"- people: named people (proper names only)\n"
@@ -377,7 +391,8 @@ def _build_per_entity_claim_instructions(output_language: str) -> str:
         f"For each claim, provide:\n"
         f"1. The predicate verb (e.g., 'served as', 'located in', 'wrote')\n"
         f"2. The object/complement (e.g., 'alcalde of Popayán', 'a mining region')\n"
-        f"3. The exact source text where this claim appears\n"
+        f"3. The exact source text where this claim appears, preserving any "
+        f"   [ilegible] / [uncertain] markers and original accents exactly\n"
         f"Write in {output_language}. Only include facts directly supported by the text."
     )
 
@@ -588,7 +603,7 @@ def _persist_additional_entities(
     db,
     additional_entities: dict[str, list[str]],
     target_doc_id: str,
-) -> None:
+) -> tuple[list[str], list[str]]:
     """Persist names extracted for custom registry types as KnowledgeEntity rows.
 
     Writes one KnowledgeEntity (entity_type=other) per extracted name with the
@@ -606,16 +621,26 @@ def _persist_additional_entities(
     """
     container_id = target_doc_id
     from fichero.knowledge_models import KnowledgeEntity, EntityType
-    from fichero.workflows.tools._entity_writer import save_claim
+    from fichero.workflows.tools._entity_writer import save_claim, upsert_entity
+    written_entity_ids: list[str] = []
+    written_claim_ids: list[str] = []
 
     for type_key, names in additional_entities.items():
         for name in names:
             name = name.strip()
             if not name:
                 continue
-            existing = db.query(KnowledgeEntity, canonical_name=name, entity_type=EntityType.other)
-            if existing:
-                e = existing[0]
+            entity_id = upsert_entity(
+                db,
+                canonical_name=name,
+                entity_type=EntityType.other,
+                source_document_id=container_id,
+            )
+            if entity_id is None:
+                continue
+            written_entity_ids.append(entity_id)
+            e = db.get(KnowledgeEntity, entity_id)
+            if e is not None:
                 # Append to list — don't clobber when the same name appears under
                 # multiple custom types (e.g. "silver" tagged as both "minerals"
                 # and "trade_goods").
@@ -625,32 +650,16 @@ def _persist_additional_entities(
                     existing_keys = [*existing_keys, type_key]
                     e.metadata = {**e.metadata, "custom_entity_type_keys": existing_keys}
                     changed = True
-                # #1562 — record the source page/doc scope. The caller now
-                # passes the per-child target_doc_id (page/image), so this
-                # accumulates each child the name was extracted from; the parent
-                # compiles the union across descendants.
                 if container_id and container_id not in (e.source_document_ids or []):
                     e.source_document_ids = [*(e.source_document_ids or []), container_id]
                     changed = True
                 if changed:
                     db.save(e)
-                entity_id = e.id
-            else:
-                entity = KnowledgeEntity(
-                    canonical_name=name,
-                    entity_type=EntityType.other,
-                    metadata={"custom_entity_type_keys": [type_key]},
-                    # #1562 — scope to the per-child target_doc_id supplied by
-                    # the caller (page/image), not the parent container.
-                    source_document_ids=[container_id] if container_id else [],
-                )
-                db.save(entity)
-                entity_id = entity.id
             # Minimal provenance claim — links entity to source document so KG
             # queries ("which docs mention X?") work for custom types just like
             # built-in types. No SVO at this stage; a follow-up pass can enrich.
             try:
-                save_claim(
+                claim_id = save_claim(
                     db=db,
                     text=name,
                     source_document_id=container_id,
@@ -658,11 +667,14 @@ def _persist_additional_entities(
                     subject_canonical=name,
                     metadata={"custom_entity_type_key": type_key},
                 )
+                if claim_id is not None:
+                    written_claim_ids.append(claim_id)
             except Exception as exc:
                 logger.warning(
                     "extract_all: failed to save provenance claim for custom entity %s/%s: %s",
                     type_key, name, exc,
                 )
+    return written_entity_ids, written_claim_ids
 
 
 def _build_instructions(output_language: str, custom_entity_types: list[str] | None = None) -> str:
@@ -709,7 +721,8 @@ def _build_instructions(output_language: str, custom_entity_types: list[str] | N
         f"is a location', or 'cash is a concept'. Entity type is "
         f"metadata only. For each useful entity or index term, extract "
         f"specific SVO facts grounded in nearby text, with source_text "
-        f"as a short exact quote from the page. Cover repeated useful "
+        f"as a short exact quote from the page, preserving any [ilegible] / "
+        f"[uncertain] markers exactly as written. Cover repeated useful "
         f"facts for the same entity when the text supports them. Only "
         f"include facts the text supports — do not speculate or invent. "
         f"Keywords are book-index terms for finding this page later: "
@@ -749,6 +762,7 @@ _SYSTEMIC_SIGNATURES = (
 # Fraction of chunks that must fail before we treat the run as systemically
 # broken rather than partially degraded.
 _SYSTEMIC_FAIL_FRACTION = 0.8
+_SYSTEMIC_MIN_FAILED_CHUNKS = 3
 
 
 def _record_text(record: Any) -> str:
@@ -954,14 +968,19 @@ def _classify_systemic_error(
     Two systemic signals:
     - an explicit infra signature (401/403, quota, "$large not configured",
       connection) present in any error, once at least half the chunks failed;
-    - a high fraction of chunks failing, or nearly all chunks failing with
-      the *same* message (the $large-unconfigured / provider-down pattern,
-      where every page re-raises an identical error).
+    - a sufficiently large batch of chunks failing at a high rate, or nearly
+      all chunks failing with the *same* message (the $large-unconfigured /
+      provider-down pattern, where every page re-raises an identical error).
+
+    The minimum-failed-chunk guard matters for folder-scope extraction:
+    when each page is its own one-chunk extract_all run, 1/1 or 1/2 transient
+    page failures must warn-and-continue instead of aborting the whole folder.
     """
     if not errors or n_chunks <= 0:
         return None
 
-    fail_fraction = len(errors) / n_chunks
+    failed_chunks = len(errors)
+    fail_fraction = failed_chunks / n_chunks
     infra_hit = next(
         (e for e in errors
          if any(sig in e.lower() for sig in _SYSTEMIC_SIGNATURES)),
@@ -969,10 +988,11 @@ def _classify_systemic_error(
     )
     most_common, count = Counter(errors).most_common(1)[0]
     repetitive = count / n_chunks >= _SYSTEMIC_FAIL_FRACTION
+    enough_failures_for_pattern = failed_chunks >= _SYSTEMIC_MIN_FAILED_CHUNKS
 
     if (
-        fail_fraction >= _SYSTEMIC_FAIL_FRACTION
-        or repetitive
+        (enough_failures_for_pattern and fail_fraction >= _SYSTEMIC_FAIL_FRACTION)
+        or (enough_failures_for_pattern and repetitive)
         or (infra_hit and fail_fraction >= 0.5)
     ):
         return infra_hit or most_common
@@ -1316,6 +1336,9 @@ async def _run_two_stage(
 
     persist_kg = inputs.get("persist_kg", True)
     kg_payload: list[dict[str, Any]] = []
+    written_entity_ids: list[str] = []
+    written_claim_ids: list[str] = []
+    written_document_ids: set[str] = set()
     _skip_sections = {"rivers_extract", "mines_extract", "properties_extract", "legal_references_extract"}
     _section_by_key = {s["schema_key"]: s for s in _SECTIONS}
 
@@ -1328,6 +1351,7 @@ async def _run_two_stage(
             logger.error("extract_all (two-stage): cannot open DB for KG writes: %s", exc)
 
     all_claims: dict[str, list[dict]] = {}
+    entity_jobs: list[dict[str, Any]] = []
     entity_done = 0
     for section_key, entities in all_entities.items():
         section = _section_by_key.get(section_key)
@@ -1349,82 +1373,105 @@ async def _run_two_stage(
                 entity_context = "\n\n".join(chunks[i] for i in relevant_indices)
             else:
                 entity_context = text
-            claims = await _extract_claims_for_entity(
-                entity_context, entity.name, section_key.rstrip("s"), llm_config,
-                claim_instructions, extraction_sem
-            )
-            all_claims[entity.name] = claims
-            entity_done += 1
-            await emit_progress_event(
-                progress_callback,
-                "file_complete",
-                "",
-                f"Stage 2 entity {entity_done}/{total_entities}",
-                entity_done,
-                total_entities,
-                message=(
-                    f"Stage 2 completed {section_key} '{entity.name}': "
-                    f"{len(claims)} claims"
+            entity_jobs.append({
+                "section_key": section_key,
+                "section": section,
+                "entity": entity,
+                "relevant_indices": relevant_indices,
+                "entity_context": entity_context,
+                "claims_task": _extract_claims_for_entity(
+                    entity_context,
+                    entity.name,
+                    section_key.rstrip("s"),
+                    llm_config,
+                    claim_instructions,
+                    extraction_sem,
                 ),
-            )
-            logger.info(
-                "Stage 2: %s/%s — %s '%s': %d claims",
-                entity_done, total_entities, section_key, entity.name, len(claims),
-            )
+            })
 
-            # Write this entity's KG rows immediately — partial runs leave
-            # partial KG instead of nothing (#1263 incremental resilience).
-            # Guard on `container` (needed for container.id), not `db`: db is
-            # only required for the optional inline write. When db=None the
-            # payload is still built so the downstream kg_writer node can
-            # persist it with its own connection (#1285).
-            if section and section["name"] not in _skip_sections and claims and container:
-                items = _build_entity_items_for_section(entity, section_key, claims)
-                if items:
-                    target_indices = relevant_indices or [0]
-                    for page_idx in target_indices:
-                        page_doc_id = (
-                            page_doc_ids[page_idx]
-                            if page_idx < len(page_doc_ids)
-                            else None
-                        )
-                        target_doc_id = page_doc_id or container.id
-                        page_label = (
-                            f"Page {page_idx + 1}"
-                            if len(chunks) > 1
-                            else None
-                        )
-                        page_text = chunks[page_idx] if page_idx < len(chunks) else entity_context
+    claim_results = await asyncio.gather(*(job["claims_task"] for job in entity_jobs))
 
-                        kg_payload.append({
-                            "section_name": section["name"],
-                            "section_key": section_key,
-                            "items": items,
-                            "target_doc_id": target_doc_id,
-                            "page_label": page_label,
-                            "source_excerpt": page_text[:500] if page_text else None,
-                            "provider": getattr(llm_config, "provider", None),
-                            "model": getattr(llm_config, "model", None),
-                            "grounding_text": page_text,
-                        })
-                        if persist_kg and db:
-                            try:
-                                _write_kg_rows(
-                                    db, section, items, target_doc_id,
-                                    page_label=page_label,
-                                    source_excerpt=page_text[:500] if page_text else None,
-                                    provider=getattr(llm_config, "provider", None),
-                                    model=getattr(llm_config, "model", None),
-                                    grounding_text=page_text,
-                                )
-                            except Exception as exc:
-                                logger.error(
-                                    "extract_all (two-stage): KG write failed for %s '%s' on %s: %s",
-                                    section_key,
-                                    entity.name,
-                                    target_doc_id,
-                                    exc,
-                                )
+    for job, claims in zip(entity_jobs, claim_results, strict=True):
+        section_key = job["section_key"]
+        section = job["section"]
+        entity = job["entity"]
+        relevant_indices = job["relevant_indices"]
+        entity_context = job["entity_context"]
+        all_claims[entity.name] = claims
+        entity_done += 1
+        await emit_progress_event(
+            progress_callback,
+            "file_complete",
+            "",
+            f"Stage 2 entity {entity_done}/{total_entities}",
+            entity_done,
+            total_entities,
+            message=(
+                f"Stage 2 completed {section_key} '{entity.name}': "
+                f"{len(claims)} claims"
+            ),
+        )
+        logger.info(
+            "Stage 2: %s/%s — %s '%s': %d claims",
+            entity_done, total_entities, section_key, entity.name, len(claims),
+        )
+
+        # Write this entity's KG rows immediately — partial runs leave
+        # partial KG instead of nothing (#1263 incremental resilience).
+        # Guard on `container` (needed for container.id), not `db`: db is
+        # only required for the optional inline write. When db=None the
+        # payload is still built so the downstream kg_writer node can
+        # persist it with its own connection (#1285).
+        if section and section["name"] not in _skip_sections and claims and container:
+            items = _build_entity_items_for_section(entity, section_key, claims)
+            if items:
+                target_indices = relevant_indices or [0]
+                for page_idx in target_indices:
+                    page_doc_id = (
+                        page_doc_ids[page_idx]
+                        if page_idx < len(page_doc_ids)
+                        else None
+                    )
+                    target_doc_id = page_doc_id or container.id
+                    page_label = (
+                        f"Page {page_idx + 1}"
+                        if len(chunks) > 1
+                        else None
+                    )
+                    page_text = chunks[page_idx] if page_idx < len(chunks) else entity_context
+
+                    kg_payload.append({
+                        "section_name": section["name"],
+                        "section_key": section_key,
+                        "items": items,
+                        "target_doc_id": target_doc_id,
+                        "page_label": page_label,
+                        "source_excerpt": page_text[:500] if page_text else None,
+                        "provider": getattr(llm_config, "provider", None),
+                        "model": getattr(llm_config, "model", None),
+                        "grounding_text": page_text,
+                    })
+                    if persist_kg and db:
+                        try:
+                            entity_ids, claim_ids = _write_kg_rows(
+                                db, section, items, target_doc_id,
+                                page_label=page_label,
+                                source_excerpt=page_text[:500] if page_text else None,
+                                provider=getattr(llm_config, "provider", None),
+                                model=getattr(llm_config, "model", None),
+                                grounding_text=page_text,
+                            )
+                            written_entity_ids.extend(entity_ids)
+                            written_claim_ids.extend(claim_ids)
+                            written_document_ids.add(target_doc_id)
+                        except Exception as exc:
+                            logger.error(
+                                "extract_all (two-stage): KG write failed for %s '%s' on %s: %s",
+                                section_key,
+                                entity.name,
+                                target_doc_id,
+                                exc,
+                            )
 
     # Convert to extraction format for the return value.
     combined_entities = _EntitiesOnly(
@@ -1446,6 +1493,13 @@ async def _run_two_stage(
         "%d entities with claims, %d KG rows queued",
         len(chunks), total_entities, entity_done, len(kg_payload),
     )
+    if persist_kg and db and (written_entity_ids or written_claim_ids):
+        emit_workflow_kg_changes(
+            str(db.path.parent),
+            entity_ids=written_entity_ids,
+            claim_ids=written_claim_ids,
+            document_ids=sorted(written_document_ids),
+        )
     return {
         "text": _render_extraction_markdown(extraction),
         "value": {
@@ -1501,14 +1555,25 @@ async def extract_all(
     if not text:
         return {"text": "", "value": {}, "error": "No text input"}
 
+    from fichero.app_db import get_app_db
     from fichero.lang_detect import resolve_output_language
+    primary_language = get_app_db().get_setting("default_primary_language")
     output_language = resolve_output_language(
-        inputs.get("output_language"), text, default="English"
+        inputs.get("output_language"),
+        text,
+        default="English",
+        primary_language=primary_language,
     )
 
-    # Determine extraction mode. Default to two-stage for Apple Intelligence
-    # so the NER→SVO split runs automatically without requiring explicit config.
-    default_mode = "twostage" if llm_config.provider == "apple" else "oneshot"
+    # Keep the higher-quality twostage path on the three provider families
+    # called out in #1807. Direct OpenAI/OpenRouter runs were still defaulting
+    # to oneshot, so the same document extracted worse there than on Apple.
+    provider_name = (llm_config.provider or "").lower()
+    default_mode = (
+        "twostage"
+        if provider_name in {"apple", "openai", "openrouter"}
+        else "oneshot"
+    )
     extraction_mode = inputs.get("extraction_mode") or default_mode
 
     # Start banner (#1251) — visible in the activity log so long/stalled runs
@@ -1642,21 +1707,32 @@ async def extract_all(
         call_start = time.monotonic()
         try:
             async with extraction_sem:
+                # Apple Intelligence (on-device) needs the schema echoed into
+                # the prompt to populate the 6-section _Extraction structure.
+                # Empirically, with include_schema_in_prompt=False the bridge's
+                # grammar constraint alone collapses this large/nested schema to
+                # `{}` — every field empty — whereas True yields fully-populated
+                # people/places/dates/events. (The original #843 token-saving
+                # rationale holds for small flat schemas but breaks _Extraction.)
+                # The flag is Apple-only; LangChain providers ignore it, so a
+                # provider check keeps the saving everywhere it's safe. (#1802)
+                schema_in_prompt = llm_config.provider.lower() == "apple"
                 extraction = await chat_structured_with_fallback(
                     prompt=chunk_text,
                     schema=_Extraction,
                     config=llm_config,
                     system=instructions,
-                    # Apple Intelligence has a ~4K window; the schema is
-                    # already enforced at decode time, so the auto-injected
-                    # schema dump in the prompt is wasted tokens. Our system
-                    # instructions cover behavior; let the grammar carry the
-                    # shape (#843).
-                    include_schema_in_prompt=False,
+                    include_schema_in_prompt=schema_in_prompt,
                 )
                 if _extraction_is_thin(extraction, chunk_text):
-                    raise RuntimeError(
-                        "thin structured extraction output (no auto-fallback enabled)"
+                    # Thin output normally triggers an auto-fallback to $large;
+                    # when that isn't configured, KEEP the sparse extraction
+                    # rather than discarding the whole page. Short diary pages
+                    # legitimately yield few entities — failing them produced
+                    # 0 claims across the run. (#1803)
+                    logger.warning(
+                        f"extract_all chunk {idx}: thin extraction output — "
+                        "keeping it (no auto-fallback configured)"
                     )
         except ProviderQuotaError:
             raise
@@ -1747,6 +1823,11 @@ async def extract_all(
 
     persist_kg = inputs.get("persist_kg", True)
     kg_payload: list[dict[str, Any]] = []
+    written_entity_ids: list[str] = []
+    written_claim_ids: list[str] = []
+    written_document_ids: set[str] = set()
+    created_artifact_ids: list[str] = []
+    artifact_document_ids: set[str] = set()
 
     # Write errors and KG saves whenever we have a container/library —
     # even if every chunk failed, the per-page extraction_error
@@ -1755,12 +1836,9 @@ async def extract_all(
     if container and library_path:
         try:
             db = _registry_db if _registry_db is not None else db_manager.get_database(library_path)
-            # Append-only artifact writes funnel through the
-            # single-writer queue (#1000 Phase 2). KG entity/claim
-            # writes (_write_kg_rows) stay direct — they're
-            # read-modify-write and need immediate consistency for the
-            # upsert dedup, so they can't be queued async.
-            db_writer = db_manager.get_db_writer(library_path)
+            # All writes go direct through the package's one shared connection;
+            # the single per-package lock (#2508) serializes them, so the #1000
+            # Phase-2 DBWriter queue is redundant and was removed (#2514).
             for section in _SECTIONS:
                 key = section["schema_key"]
                 # Skip sections that aren't in the default preset's
@@ -1820,13 +1898,16 @@ async def extract_all(
                         }
                     )
                     if persist_kg:
-                        _write_kg_rows(
+                        entity_ids, claim_ids = _write_kg_rows(
                             db, section, items, target_doc_id,
                             page_label=page_label, source_excerpt=excerpt,
                             provider=getattr(llm_config, "provider", None),
                             model=getattr(llm_config, "model", None),
                             grounding_text=chunk_text,
                         )
+                        written_entity_ids.extend(entity_ids)
+                        written_claim_ids.extend(claim_ids)
+                        written_document_ids.add(target_doc_id)
                     await emit_progress_event(
                         progress_callback,
                         "file_complete",
@@ -1851,7 +1932,7 @@ async def extract_all(
                         if not page_doc_id or not items:
                             continue
                         page_md = _render_section_markdown(section, items)
-                        db_writer.save(Artifact(
+                        artifact = Artifact(
                             document_id=page_doc_id,
                             artifact_type=section["artifact"],
                             content=page_md,
@@ -1859,13 +1940,16 @@ async def extract_all(
                             provider=getattr(llm_config, "provider", None),
                             model=getattr(llm_config, "model", None),
                             run_id=state.get("task_id"),
-                        ))
+                        )
+                        db.save(artifact)
+                        created_artifact_ids.append(artifact.id)
+                        artifact_document_ids.add(page_doc_id)
                 else:
                     # Container-level fallback.
                     await _yield_page_work(f"{key} artifact save", 0, 1)
                     flat = [item for ic in section_chunks for item in ic]
                     if flat:
-                        db_writer.save(Artifact(
+                        artifact = Artifact(
                             document_id=container.id,
                             artifact_type=section["artifact"],
                             content=_render_section_markdown(section, flat),
@@ -1873,7 +1957,10 @@ async def extract_all(
                             provider=getattr(llm_config, "provider", None),
                             model=getattr(llm_config, "model", None),
                             run_id=state.get("task_id"),
-                        ))
+                        )
+                        db.save(artifact)
+                        created_artifact_ids.append(artifact.id)
+                        artifact_document_ids.add(container.id)
             # Per-page extraction_error artifacts: write one for each
             # page whose chunk failed, so the inspector can show WHY a
             # page came back empty (instead of indistinguishable from
@@ -1889,7 +1976,7 @@ async def extract_all(
                     )
                     if not err or not page_doc_id:
                         continue
-                    db.save(Artifact(
+                    artifact = Artifact(
                         document_id=page_doc_id,
                         artifact_type="extraction_error",
                         content=(
@@ -1906,7 +1993,10 @@ async def extract_all(
                         provider=getattr(llm_config, "provider", None),
                         model=getattr(llm_config, "model", None),
                         run_id=state.get("task_id"),
-                    ))
+                    )
+                    db.save(artifact)
+                    created_artifact_ids.append(artifact.id)
+                    artifact_document_ids.add(page_doc_id)
             # Persist custom entity types from the registry (#1240).
             #
             # #1562 write-path: scope each custom-entity name to the CHILD doc
@@ -1949,15 +2039,31 @@ async def extract_all(
                         k: list(v) for k, v in type_map.items() if v
                     }
                     if merged_additional:
-                        _persist_additional_entities(
+                        entity_ids, claim_ids = _persist_additional_entities(
                             db, merged_additional, target_doc_id
                         )
+                        written_entity_ids.extend(entity_ids)
+                        written_claim_ids.extend(claim_ids)
+                        written_document_ids.add(target_doc_id)
 
-            # Drain the queued artifact writes before this node returns
-            # — downstream folder-cleanup nodes read these artifacts.
-            await asyncio.to_thread(db_writer.flush)
+            # Artifact writes above are direct + already durable (serialized on
+            # the single per-package connection lock, #2508/#2514) — no queue to
+            # drain before downstream folder-cleanup nodes read them.
             container.updated_at = datetime.now()
             db.save(container)
+            if persist_kg and (written_entity_ids or written_claim_ids):
+                emit_workflow_kg_changes(
+                    str(db.path.parent),
+                    entity_ids=written_entity_ids,
+                    claim_ids=written_claim_ids,
+                    document_ids=sorted(written_document_ids),
+                )
+            if created_artifact_ids:
+                emit_workflow_artifact_changes(
+                    str(db.path.parent),
+                    artifact_ids=created_artifact_ids,
+                    document_ids=artifact_document_ids,
+                )
         except Exception as exc:
             logger.error(f"extract_all: KG/artifact save failed: {exc}")
 

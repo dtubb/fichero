@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - Settings View
 
-/// Main settings view with tabs for General, AI, Backend, and Models
+/// Main settings view with tabs for General, AI, and backend/system settings.
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
     @ObservedObject var featureManager = FeatureManager.shared
@@ -11,7 +11,7 @@ struct SettingsView: View {
         TabView {
             AISettingsView()
                 .tabItem {
-                    Label("Defaults", systemImage: "brain")
+                    Label("AI", systemImage: "brain")
                 }
 
             if featureManager.isSettingsGeneralTabEnabled {
@@ -21,6 +21,22 @@ struct SettingsView: View {
                     }
             }
 
+            #if canImport(AppKit)
+            if featureManager.isSettingsEngineTabEnabled {
+                EngineSettingsView()
+                    .tabItem {
+                        Label("Engine", systemImage: "square.grid.3x1.below.line.grid.1x2")
+                    }
+            }
+
+            if featureManager.isSettingsShareTabEnabled {
+                ShareSettingsView()
+                    .tabItem {
+                        Label("Connect", systemImage: "qrcode.viewfinder")
+                    }
+            }
+            #endif
+
             if featureManager.isSettingsBackendTabEnabled {
                 BackendSettingsView()
                     .tabItem {
@@ -28,13 +44,61 @@ struct SettingsView: View {
                     }
             }
 
-            if featureManager.isSettingsModelsTabEnabled {
-                LocalModelsSettingsView()
+            if featureManager.isSettingsUsersTabEnabled {
+                UsersSettingsView()
                     .tabItem {
-                        Label("Models", systemImage: "arrow.down.circle")
+                        Label("Users", systemImage: "person.2")
                     }
             }
+
+            if featureManager.isSettingsCaptureTabEnabled {
+                CaptureSettingsView()
+                    .tabItem {
+                        Label("Capture", systemImage: "arrow.up.doc")
+                    }
+            }
+
+            AuditHistorySettingsTab()
+                .tabItem {
+                    Label("History", systemImage: "clock.arrow.circlepath")
+                }
+
+            BackupsSettingsTab()
+                .tabItem {
+                    Label("Backups", systemImage: "externaldrive.badge.timemachine")
+                }
         }
         .frame(width: 680, height: 520)
+    }
+}
+
+// MARK: - Preview / Regression Guard (#2051)
+
+/// Constructs the full settings root with the SAME environment objects the
+/// real `Settings` scene injects (`appState` + `libraryManager`). Because
+/// `TabView` builds every tab eagerly, rendering this preview exercises each
+/// pane's construct path — so any settings pane that reads an @EnvironmentObject
+/// NOT injected here (the exact bug behind #2051, where the Models tab's
+/// LibraryManager dependency was missing from the Settings scene) traps on
+/// render. Keep this preview's injected objects in sync with the `Settings`
+/// scene in `FicheroApp.swift`; a divergence here is the regression signal.
+#Preview("Settings (all panes)") {
+    SettingsPreviewHarness()
+}
+
+/// Forces every gated settings tab on (so the preview covers the full surface,
+/// not just the always-on Defaults tab) and injects the same environment
+/// objects the real `Settings` scene does. The flag flip lives in `init` so the
+/// preview body stays a clean single-expression `@ViewBuilder`.
+private struct SettingsPreviewHarness: View {
+    init() {
+        FeatureManager.shared.allFeaturesEnabled = true
+    }
+
+    var body: some View {
+        SettingsView()
+            .environmentObject(AppState())
+            .environmentObject(EmbeddedBackendService())
+            .environmentObject(LibraryManager.shared)
     }
 }

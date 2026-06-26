@@ -42,3 +42,10 @@ def test_graph_uses_pane_size_for_layout() -> None:
     assert "forceLayout(nodes, edges, width, height);" in source
     assert 'viewBox="0 0 ${width} ${height}"' in source
     assert "requestAnimationFrame(renderGraph)" in source
+
+
+def test_graph_neighborhood_fetch_uses_relative_api_path() -> None:
+    source = _template_source()
+
+    assert "fetch(`/api/kg/graph/neighborhood/${entityId}`" in source
+    assert "http://localhost:8765/api/kg/graph/neighborhood" not in source

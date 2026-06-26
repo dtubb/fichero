@@ -147,41 +147,51 @@ extension ModelComparisonView {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 8) {
-                        ForEach(service.history) { result in
-                            Button {
-                                service.lastResult = result
-                            } label: {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(result.prompt.prefix(50) + (result.prompt.count > 50 ? "..." : ""))
-                                        .font(.caption)
-                                        .lineLimit(2)
-                                        .multilineTextAlignment(.leading)
-
-                                    HStack {
-                                        Text("\(result.modelsCompared.count) models")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-
-                                        Spacer()
-
-                                        Text(String(format: "$%.4f", result.totalCostUsd))
-                                            .font(.caption2)
-                                            .foregroundStyle(.green)
-                                    }
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(8)
-                                .background(.quaternary.opacity(0.5))
-                                .cornerRadius(6)
-                            }
-                            .buttonStyle(.plain)
-                        }
+                List(selection: historySelection) {
+                    ForEach(service.history) { result in
+                        historyRow(result)
+                            .tag(result.id)
                     }
                 }
+                .listStyle(.inset)
             }
         }
         .padding()
+    }
+
+    /// Selection binding bridging the native List to the service's current result.
+    private var historySelection: Binding<ComparisonResult.ID?> {
+        Binding(
+            get: { service.lastResult?.id },
+            set: { newID in
+                if let newID, let match = service.history.first(where: { $0.id == newID }) {
+                    service.lastResult = match
+                }
+            }
+        )
+    }
+
+    @ViewBuilder
+    private func historyRow(_ result: ComparisonResult) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(result.prompt.prefix(50) + (result.prompt.count > 50 ? "..." : ""))
+                .font(.caption)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+
+            HStack {
+                Text("\(result.modelsCompared.count) models")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Text(String(format: "$%.4f", result.totalCostUsd))
+                    .font(.caption2)
+                    .foregroundStyle(.green)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 2)
     }
 }

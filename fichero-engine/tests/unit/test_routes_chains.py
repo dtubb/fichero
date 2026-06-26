@@ -138,7 +138,13 @@ class TestExecuteChain:
             mock_execute.return_value = fake_result
             r = client.post(
                 f"/api/chains/{created['id']}/execute",
-                json={"inputs": {"k": "v"}, "input_files": ["/tmp/in.txt"]},
+                json={
+                    "inputs": {
+                        "k": "v",
+                        "library_path": "/tmp/other-library.fichero",
+                    },
+                    "input_files": ["/tmp/in.txt"],
+                },
                 headers={"X-Fichero-Library-Path": "/tmp/test.fichero"},
             )
 
@@ -156,6 +162,10 @@ class TestExecuteChain:
         assert body["final_files"] == ["/tmp/out.txt"]
         assert len(body["step_results"]) == 1
         assert body["step_results"][0]["step_id"] == "step-1"
+        mock_execute.assert_awaited_once()
+        initial_inputs = mock_execute.await_args.kwargs["initial_inputs"]
+        assert initial_inputs["k"] == "v"
+        assert initial_inputs["library_path"] == "/tmp/test.fichero"
 
     def test_execute_missing_chain_returns_404(self, client):
         r = client.post(

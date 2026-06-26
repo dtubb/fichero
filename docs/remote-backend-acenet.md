@@ -7,6 +7,11 @@ then SSH-forward the remote `127.0.0.1:8765` to the Mac's `127.0.0.1:8765`.
 Keep the backend private. Do not bind it to `0.0.0.0`; the API is designed for a
 loopback client and also rejects non-loopback requests in middleware.
 
+This page covers SSH loopback forwarding for ACENET. For a lab machine reached
+over a tailnet, use the same loopback-only engine model with
+[`tailscale serve`](./remote-backend-tailscale.md). Do not use `tailscale funnel`
+or bind the engine directly to a Tailscale, LAN, or public address.
+
 ## Start the engine on ACENET
 
 On the ACENET host:
@@ -134,6 +139,13 @@ expect:
 If `FICHERO_REMOTE_BACKEND=1` is set with
 `FICHERO_REMOTE_BACKEND_BIND_HOST=0.0.0.0` or another non-loopback host, startup
 fails. Remote mode is intentionally SSH-loopback only.
+
+For the general engine bind host, `FICHERO_BIND_HOST` defaults to `127.0.0.1`.
+Wildcard binds (`0.0.0.0` and `::`) are refused. Other non-loopback values are
+allowed only with
+`FICHERO_ALLOW_NON_LOOPBACK_BIND=I_UNDERSTAND_SHARED_SECRET_RISK`, which is an
+owner-debugging escape hatch and not the supported remote-backend model. The
+shared-secret token is not an internet-facing auth boundary.
 
 For CLI validation against an alternate local tunnel port:
 

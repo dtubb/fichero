@@ -9,10 +9,13 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
-from fichero.api.main import get_library_database
+from fichero.api.library_header import require_library_path
+from fichero.api.auth import request_actor
+from fichero.api.change_stream import emit_change
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.knowledge_models import (
     ClaimRelationType,
@@ -69,17 +72,17 @@ class ClaimLinkResponse(BaseModel):
 
 
 # =============================================================================
-# Claim Link CRUD Endpoints
+# Claim-link mutation impls — the proven business logic, extracted so BOTH the
+# route handler and the audited action (EPIC #1848 / #2014) drive the SAME code
+# (iterate-not-replace). Emission stays with the caller; each raises
+# HTTPException on bad input exactly as the route did.
 # =============================================================================
 
 
-@router.post("/claims/{claim_id}/links", response_model=KnowledgeClaimLink)
-async def create_claim_link(
-    claim_id: str,
-    request: ClaimLinkCreateRequest,
-    db: Database = Depends(get_library_database),
+def create_claim_link_impl(
+    db: Database, claim_id: str, request: ClaimLinkCreateRequest
 ) -> KnowledgeClaimLink:
-    """Create a link between two claims."""
+    """Create + persist a link between two existing claims."""
     # Validate source claim exists
     claim = db.get(KnowledgeClaim, claim_id)
     if claim is None:
@@ -104,6 +107,77 @@ async def create_claim_link(
         created_at=datetime.now(),
     )
     db.save(link)
+    return link
+
+
+def update_claim_link_impl(
+    db: Database, link_id: str, request: "ClaimLinkUpdateRequest"
+) -> tuple[KnowledgeClaimLink, dict[str, Any]]:
+    """Apply a partial update to a claim link. Returns (link, before_snapshot)."""
+    link = db.get(KnowledgeClaimLink, link_id)
+    if link is None:
+        raise HTTPException(status_code=404, detail=f"Claim link not found: {link_id}")
+
+    before = link.model_dump(mode="json")
+    data = request.model_dump(exclude_unset=True, exclude_none=True)
+    for key, value in data.items():
+        setattr(link, key, value)
+    db.save(link)
+    return link, before
+
+
+def delete_claim_link_impl(
+    db: Database, link_id: str
+) -> tuple[dict[str, Any], list[str]]:
+    """Hard-delete a claim link. Returns (before_snapshot, affected_claim_ids)."""
+    link = db.get(KnowledgeClaimLink, link_id)
+    if link is None:
+        raise HTTPException(status_code=404, detail=f"Claim link not found: {link_id}")
+
+    before = link.model_dump(mode="json")
+    affected_claim_ids = [link.claim_id, link.related_claim_id]
+    db.delete(link)
+    return before, affected_claim_ids
+
+
+def restore_claim_link_impl(
+    db: Database, snapshot: dict[str, Any]
+) -> KnowledgeClaimLink:
+    """Re-create a claim link from a JSON snapshot (inverse of update/delete)."""
+    link = KnowledgeClaimLink.model_validate(snapshot)
+    db.save(link)
+    return link
+
+
+# =============================================================================
+# Claim Link CRUD Endpoints
+# =============================================================================
+
+
+@router.post("/claims/{claim_id}/links", response_model=KnowledgeClaimLink)
+async def create_claim_link(
+    claim_id: str,
+    request: ClaimLinkCreateRequest,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
+) -> KnowledgeClaimLink:
+    """Create a link between two claims."""
+    link = create_claim_link_impl(db, claim_id, request)
+
+    # Observable data layer (#1863): broadcast the new link so every window's
+    # ClaimStore refreshes both endpoints. Best-effort.
+    emit_change(
+        x_fichero_library_path,
+        type="claim.linked",
+        claim_ids=[claim_id, request.related_claim_id],
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
     return link
 
 
@@ -145,33 +219,52 @@ async def get_claim_link(
 async def update_claim_link(
     link_id: str,
     request: ClaimLinkUpdateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> KnowledgeClaimLink:
     """Update an existing claim link."""
-    link = db.get(KnowledgeClaimLink, link_id)
-    if link is None:
-        raise HTTPException(status_code=404, detail=f"Claim link not found: {link_id}")
+    link, _before = update_claim_link_impl(db, link_id, request)
 
-    # Update fields
-    data = request.model_dump(exclude_unset=True, exclude_none=True)
-    for key, value in data.items():
-        setattr(link, key, value)
-    db.save(link)
+    # Observable data layer (#1863): broadcast the link change so every window's
+    # ClaimStore refreshes both endpoints. Best-effort.
+    emit_change(
+        x_fichero_library_path,
+        type="claim.linked",
+        claim_ids=[link.claim_id, link.related_claim_id],
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
     return link
 
 
 @router.delete("/claim-links/{link_id}")
 async def delete_claim_link(
     link_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> ClaimLinkDeletedResponse:
     """Delete a claim link (hard delete)."""
-    link = db.get(KnowledgeClaimLink, link_id)
-    if link is None:
-        raise HTTPException(status_code=404, detail=f"Claim link not found: {link_id}")
+    _before, affected_claim_ids = delete_claim_link_impl(db, link_id)
 
-    # Delete from database
-    db.delete(link)
+    # Observable data layer (#1863): broadcast the link removal so every window's
+    # ClaimStore refreshes both endpoints. Best-effort.
+    emit_change(
+        x_fichero_library_path,
+        type="claim.linked",
+        claim_ids=affected_claim_ids,
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
     return ClaimLinkDeletedResponse(success=True, link_id=link_id, operation="deleted")
 
 
@@ -209,3 +302,155 @@ async def get_related_claims(
     related_claims = [db.get(KnowledgeClaim, rid) for rid in related_ids]
     items = [c for c in related_claims if c is not None]
     return ClaimListResponse(items=items, count=len(items))
+
+
+# =============================================================================
+# Action layer registration (EPIC #1848 / #2014) — claim-link CRUD.
+# =============================================================================
+#
+# Each action WRAPS the proven ``*_impl`` above (iterate-not-replace) and routes
+# through ``registry.invoke`` so chat tools / App Intents / tests / the audit
+# log share ONE path with the typed routes (which stay untouched). Reversible
+# pairs:
+#   * claim.create_link -> claim.delete_link
+#   * claim.update_link -> claim.restore_link  (restore the before-snapshot)
+#   * claim.delete_link -> claim.restore_link
+
+from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
+
+
+class ClaimCreateLinkParams(BaseModel):
+    """Params for claim.create_link — the owning claim_id + the link body."""
+
+    claim_id: str = Field(description="Claim the link originates from")
+    link: ClaimLinkCreateRequest = Field(description="Link to create")
+
+
+class ClaimUpdateLinkParams(BaseModel):
+    """Params for claim.update_link — the link id + a partial patch.
+
+    ``patch`` is a nested :class:`ClaimLinkUpdateRequest` so the registry's
+    ``model_validate`` preserves exclude-unset/none semantics.
+    """
+
+    link_id: str = Field(description="Claim link id to update")
+    patch: ClaimLinkUpdateRequest = Field(description="Partial link update")
+
+
+class ClaimDeleteLinkParams(BaseModel):
+    """Params for claim.delete_link — also the inverse of claim.create_link."""
+
+    link_id: str = Field(description="Claim link id to delete")
+
+
+class ClaimRestoreLinkParams(BaseModel):
+    """Params for claim.restore_link — re-create a link from a JSON snapshot."""
+
+    snapshot: dict[str, Any] = Field(
+        description="KnowledgeClaimLink.model_dump snapshot"
+    )
+
+
+def _invert_create_link(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not after:
+        return None
+    link_id = after.get("link_id")
+    if not link_id:
+        return None
+    return ("claim.delete_link", {"link_id": link_id})
+
+
+def _invert_restore_from_before(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not before:
+        return None
+    return ("claim.restore_link", {"snapshot": before})
+
+
+@action(
+    "claim.create_link",
+    ClaimCreateLinkParams,
+    domains=["claim"],
+    undoable=True,
+    invert=_invert_create_link,
+)
+def _action_create_link(
+    db: Database, params: ClaimCreateLinkParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    link = create_claim_link_impl(db, params.claim_id, params.link)
+    claim_ids = [link.claim_id, link.related_claim_id]
+    spec = ChangeSpec(
+        domains=["claim"],
+        target_ids=[link.id],
+        after={"link_id": link.id},
+        emit_type="claim.linked",
+        claim_ids=claim_ids,
+    )
+    return link.model_dump(mode="json"), spec
+
+
+@action(
+    "claim.update_link",
+    ClaimUpdateLinkParams,
+    domains=["claim"],
+    undoable=True,
+    invert=_invert_restore_from_before,
+)
+def _action_update_link(
+    db: Database, params: ClaimUpdateLinkParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    link, before = update_claim_link_impl(db, params.link_id, params.patch)
+    spec = ChangeSpec(
+        domains=["claim"],
+        target_ids=[link.id],
+        before=before,
+        after=link.model_dump(mode="json"),
+        emit_type="claim.linked",
+        claim_ids=[link.claim_id, link.related_claim_id],
+    )
+    return link.model_dump(mode="json"), spec
+
+
+@action(
+    "claim.delete_link",
+    ClaimDeleteLinkParams,
+    domains=["claim"],
+    undoable=True,
+    invert=_invert_restore_from_before,
+)
+def _action_delete_link(
+    db: Database, params: ClaimDeleteLinkParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    before, affected_claim_ids = delete_claim_link_impl(db, params.link_id)
+    spec = ChangeSpec(
+        domains=["claim"],
+        target_ids=[params.link_id],
+        before=before,
+        after=None,
+        emit_type="claim.linked",
+        claim_ids=affected_claim_ids,
+    )
+    return {"deleted_link_id": params.link_id}, spec
+
+
+@action(
+    "claim.restore_link",
+    ClaimRestoreLinkParams,
+    domains=["claim"],
+    undoable=False,
+)
+def _action_restore_link(
+    db: Database, params: ClaimRestoreLinkParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    link = restore_claim_link_impl(db, params.snapshot)
+    spec = ChangeSpec(
+        domains=["claim"],
+        target_ids=[link.id],
+        after=link.model_dump(mode="json"),
+        emit_type="claim.linked",
+        claim_ids=[link.claim_id, link.related_claim_id],
+    )
+    return link.model_dump(mode="json"), spec

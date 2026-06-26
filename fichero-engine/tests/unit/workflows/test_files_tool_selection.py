@@ -15,10 +15,10 @@ from unittest.mock import MagicMock, patch
 
 from langgraph.graph import StateGraph, START, END
 
-from fichero.models import Document, DocType, Status
+from fichero.models import Document, DocType, FileType, Status
 from fichero.workflows.builder import build_graph
 from fichero.workflows.runtime import build_initial_state
-from fichero.workflows.types import State, WorkflowDef, NodeDef, EdgeDef
+from fichero.workflows.types import State, WorkflowDef, NodeDef
 
 
 # ---------------------------------------------------------------------------
@@ -244,3 +244,96 @@ class TestFilesToolEndToEnd:
         output = final_state["outputs"][files_node_id]
         assert output["count"] == 3
         assert set(output["files"]) == {"/library/a.pdf", "/library/b.pdf", "/library/c.pdf"}
+
+    @pytest.mark.asyncio
+    async def test_files_tool_folder_selection_preserves_media_and_pdf_pages(self):
+        """Default workflows use files_tool; guard its mixed-media routing."""
+        workflow, files_node_id = _files_only_workflow()
+        folder = Document(id="folder", name="Folder", doc_type=DocType.folder)
+        image = _make_doc("image", "/library/scan.jpg")
+        image.file_type = FileType.image
+        docx = _make_doc("docx", "/library/report.docx")
+        docx.file_type = FileType.docx
+        audio = _make_doc("audio", "/library/interview.mp3")
+        audio.file_type = FileType.audio
+        video = _make_doc("video", "/library/film.mov")
+        video.file_type = FileType.video
+        pdf = _make_doc("pdf", "/library/book.pdf")
+        pdf.file_type = FileType.pdf
+        page1 = Document(id="page-1", name="Page 1", doc_type=DocType.page, parent_id="pdf", sequence=1)
+        page2 = Document(id="page-2", name="Page 2", doc_type=DocType.page, parent_id="pdf", sequence=2)
+
+        children = {
+            "folder": [image, docx, audio, video, pdf],
+            "pdf": [page2, page1],
+        }
+        mock_db = MagicMock()
+        mock_db.get.return_value = folder
+        mock_db.query.side_effect = lambda _model, **kwargs: children.get(kwargs.get("parent_id"), [])
+
+        with (
+            patch("fichero.workflows.tools.sources.db_manager") as mock_mgr,
+            patch("fichero.workflows.tools.sources._resolve_abs_path", side_effect=lambda doc, _lib: doc.path),
+        ):
+            mock_mgr.get_database.return_value = mock_db
+            app = build_graph(workflow, enable_parallel=False)
+            initial_state = build_initial_state(
+                {"selected_doc_ids": ["folder"]},
+                library_path="/tmp/test.fichero",
+            )
+            final_state = await app.ainvoke(initial_state)
+
+        output = final_state["outputs"][files_node_id]
+        assert output["count"] == 6
+        assert output["files"] == [
+            "/library/scan.jpg",
+            "/library/report.docx",
+            "/library/interview.mp3",
+            "/library/film.mov",
+            "/library/book.pdf",
+            "/library/book.pdf",
+        ]
+        assert [doc["id"] for doc in output["documents"]] == [
+            "image",
+            "docx",
+            "audio",
+            "video",
+            "page-1",
+            "page-2",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_files_tool_direct_page_selection_keeps_page_doc_with_parent_path(self):
+        """Selecting one PDF page should process one page, not the whole PDF."""
+        workflow, files_node_id = _files_only_workflow()
+        parent = _make_doc("pdf", "/library/book.pdf")
+        parent.file_type = FileType.pdf
+        page = Document(
+            id="page-7",
+            name="Page 7",
+            doc_type=DocType.page,
+            parent_id=parent.id,
+            sequence=7,
+        )
+
+        mock_db = MagicMock()
+        mock_db.get.side_effect = lambda _model, doc_id: {"page-7": page, "pdf": parent}.get(doc_id)
+
+        with (
+            patch("fichero.workflows.tools.sources.db_manager") as mock_mgr,
+            patch("fichero.workflows.tools.sources._resolve_abs_path", side_effect=lambda doc, _lib: doc.path),
+        ):
+            mock_mgr.get_database.return_value = mock_db
+            app = build_graph(workflow, enable_parallel=False)
+            initial_state = build_initial_state(
+                {"selected_doc_ids": ["page-7"]},
+                library_path="/tmp/test.fichero",
+            )
+            final_state = await app.ainvoke(initial_state)
+
+        output = final_state["outputs"][files_node_id]
+        assert output["count"] == 1
+        assert output["files"] == ["/library/book.pdf"]
+        assert [doc["id"] for doc in output["documents"]] == ["page-7"]
+        assert output["documents"][0]["parent_id"] == "pdf"
+        assert output["documents"][0]["sequence"] == 7

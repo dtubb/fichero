@@ -26,15 +26,27 @@ from fichero.workflows.tasks import (
 
 
 @pytest.fixture
-def mock_db():
-    """Create a mock database for testing."""
+def mock_db(monkeypatch, tmp_path):
+    """Create a mock database for testing.
+
+    Workers now resolve a thread-local Database via
+    ``db_manager.get_database`` from inside the pool thread (#2509), never
+    capturing+shipping the queue's Database across the thread boundary. So
+    the mock is given a realistic package ``.path`` and we patch
+    ``db_manager.get_database`` to return it regardless of which thread asks.
+    """
     db = MagicMock(spec=Database)
+    db.path = tmp_path / "test.fichero" / "fichero.duckdb"
     db.all = MagicMock(return_value=[])
     db.save = MagicMock()
     db.delete = MagicMock()
     db.count = MagicMock(return_value=0)
     db.embed = MagicMock(return_value=True)
     db.embedding_stats = MagicMock(return_value={"total_vectors": 0})
+    monkeypatch.setattr(
+        "fichero.workflows.task_workers.db_manager.get_database",
+        lambda _path: db,
+    )
     return db
 
 

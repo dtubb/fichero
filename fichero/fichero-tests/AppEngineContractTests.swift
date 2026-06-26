@@ -72,9 +72,7 @@ final class AppEngineContractTests: XCTestCase {
     /// Entities have no hand-written service — go straight through the
     /// generated client, which also proves the envelope unwraps to typed rows.
     func test_entities_envelope_matches_library() async throws {
-        let response = try await engine.client.api.listEntitiesApiEntitiesGet(
-            .init(headers: .init(xFicheroLibraryPath: engine.libraryPath))
-        )
+        let response = try await engine.client.api.listEntitiesApiEntitiesGet(.init())
         switch response {
         case .ok(let okResponse):
             let items = try okResponse.body.json.items

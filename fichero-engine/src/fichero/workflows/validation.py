@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import logging
 
+from collections.abc import Callable
+
 from fichero.workflows.types import (
     PortDef,
     NodeDef,
@@ -16,6 +18,8 @@ from fichero.workflows.types import (
     ToolDef,
 )
 from fichero.workflows.registry import TOOL_DEFS, enrich_node_with_ports
+from fichero.llm import LLMConfig
+from fichero.workflows.subworkflow import validate_sub_workflow_references
 
 logger = logging.getLogger(__name__)
 
@@ -171,6 +175,165 @@ def validate_workflow_connections(workflow: WorkflowDef) -> list[str]:
             )
 
     return errors
+
+
+def _required_llm_capability(tool_def: ToolDef) -> str:
+    category = str(tool_def.category or "").strip().lower()
+    if category in {"vision", "audio", "video"}:
+        return category
+    return "text"
+
+
+def _node_provider_model(node: NodeDef) -> tuple[str, str]:
+    provider = node.provider_name or node.config.get("provider_name", "")
+    model = node.model_name or node.config.get("model_name", "")
+    return (provider, model)
+
+
+def _node_model_profile_ref(node: NodeDef) -> str:
+    ref = (
+        node.config.get("model_profile_id")
+        or node.config.get("profile_id")
+        or node.config.get("model_profile")
+    )
+    if ref:
+        return str(ref)
+
+    provider, _model = _node_provider_model(node)
+    from fichero.llm import extract_model_profile_reference
+
+    return extract_model_profile_reference(provider) or ""
+
+
+def validate_workflow_llm_preflight(
+    workflow: WorkflowDef,
+    workflow_llm_config: LLMConfig | None = None,
+) -> list[str]:
+    """Resolve LLM aliases and policy-check workflow nodes without execution."""
+    errors: list[str] = []
+    llm_config = workflow_llm_config or LLMConfig(
+        provider=workflow.provider,
+        model=workflow.model,
+    )
+
+    for node in workflow.nodes:
+        tool_def = TOOL_DEFS.get(node.tool)
+        if not (tool_def and tool_def.uses_llm):
+            continue
+
+        capability = _required_llm_capability(tool_def)
+        node_provider, node_model = _node_provider_model(node)
+        profile_ref = _node_model_profile_ref(node)
+        kind = "vision" if capability == "vision" else "llm"
+
+        try:
+            if profile_ref:
+                from fichero.llm import (
+                    enforce_local_only_provider,
+                    resolve_model_profile_for_capability,
+                )
+
+                profile_config = resolve_model_profile_for_capability(
+                    profile_ref,
+                    base_config=llm_config,
+                    required_capability=capability,
+                )
+                enforce_local_only_provider(
+                    profile_config.provider,
+                    profile_config.model,
+                    kind=kind,
+                )
+                continue
+
+            if node_provider or node_model:
+                provider = node_provider or llm_config.provider
+                model = node_model or llm_config.model
+                from fichero.llm import (
+                    enforce_local_only_provider,
+                    resolve_model_alias_for_capability,
+                )
+
+                provider, model = resolve_model_alias_for_capability(
+                    provider,
+                    model,
+                    required_capability=capability,
+                )
+                enforce_local_only_provider(provider, model, kind=kind)
+                continue
+
+            provider = llm_config.provider
+            model = llm_config.model
+            from fichero.llm import extract_model_profile_reference
+
+            workflow_profile_ref = extract_model_profile_reference(provider)
+            if workflow_profile_ref:
+                from fichero.llm import (
+                    enforce_local_only_provider,
+                    resolve_model_profile_for_capability,
+                )
+
+                profile_config = resolve_model_profile_for_capability(
+                    workflow_profile_ref,
+                    base_config=llm_config,
+                    required_capability=capability,
+                )
+                enforce_local_only_provider(
+                    profile_config.provider,
+                    profile_config.model,
+                    kind=kind,
+                )
+                continue
+
+            if not (provider and model):
+                try:
+                    from fichero.app_db import get_app_db
+
+                    app_db = get_app_db()
+                    cat_default = app_db.get_default_model_for_category(
+                        tool_def.category
+                    )
+                except Exception as exc:
+                    logger.debug(
+                        "Workflow preflight category default lookup failed for %s: %s",
+                        node.tool,
+                        exc,
+                    )
+                    cat_default = None
+                if cat_default:
+                    provider, model = cat_default
+
+            if provider or model:
+                from fichero.llm import (
+                    enforce_local_only_provider,
+                    resolve_model_alias_for_capability,
+                )
+
+                provider, model = resolve_model_alias_for_capability(
+                    provider,
+                    model,
+                    required_capability=capability,
+                )
+                enforce_local_only_provider(provider, model, kind=kind)
+        except Exception as exc:
+            node_label = node.label or node.id or node.tool
+            errors.append(f"Node '{node_label}' ({node.tool}): {exc}")
+
+    return errors
+
+
+def validate_workflow_preflight(
+    workflow: WorkflowDef,
+    workflow_llm_config: LLMConfig | None = None,
+    workflow_resolver: Callable[[str], WorkflowDef | None] | None = None,
+) -> list[str]:
+    """Validate LLM alias/capability/privacy policy before execution."""
+    return [
+        *validate_workflow_llm_preflight(workflow, workflow_llm_config),
+        *validate_sub_workflow_references(
+            workflow,
+            workflow_resolver=workflow_resolver,
+        ),
+    ]
 
 
 def get_compatible_tools(target_port: PortDef) -> list[ToolDef]:

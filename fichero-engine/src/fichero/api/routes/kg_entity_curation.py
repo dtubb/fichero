@@ -12,28 +12,40 @@ import asyncio
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from fichero.api.main import get_library_database
+from fichero.api.library_header import require_library_path
+from fichero.api.auth import request_actor
+from fichero.api.change_stream import emit_change
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
+from fichero.db_embeddings import KG_ENTITY_EMBEDDINGS_TABLE
 from fichero.knowledge_models import (
     EntityMergeAudit,
     EntityMergeOperationType,
+    EntityCurationState,
     EntityType,
     KnowledgeEntity,
     KnowledgeClaim,
+    MutationLog,
+    MutationOperationType,
 )
 from fichero.models import EntityAuditListResponse, KGGraphListResponse
 
 router = APIRouter(prefix="/kg/entity-curation")
+kg_entities_router = APIRouter(prefix="/kg/entities", tags=["knowledge-graph"])
 
-KG_ENTITY_EMBEDDINGS_TABLE = "kg_entity_embeddings"
+LEGACY_KG_ENTITY_EMBEDDINGS_TABLE = "kg_entities"
 
 
 class EntityMergeRequest(BaseModel):
-    absorbing_entity_id: str = Field(description="Entity that absorbs the others (survivor)")
-    absorbed_entity_ids: list[str] = Field(description="Entities merged into the absorber")
+    absorbing_entity_id: str = Field(
+        description="Entity that absorbs the others (survivor)"
+    )
+    absorbed_entity_ids: list[str] = Field(
+        description="Entities merged into the absorber"
+    )
     merged_aliases: list[str] = Field(default_factory=list)
     merged_description: str | None = None
 
@@ -60,8 +72,87 @@ class EmbedEntitiesResponse(BaseModel):
     table: str
 
 
+class BatchEntityCurationRequest(BaseModel):
+    entity_ids: list[str] = Field(min_length=1, description="Entity IDs to update.")
+    curation_state: EntityCurationState = Field(
+        description="New curation state for every listed entity."
+    )
+
+
+class BatchEntityCurationResponse(BaseModel):
+    updated: int
+    entity_ids: list[str] = Field(
+        default_factory=list, description="Entity IDs whose state actually changed."
+    )
+
+
 class _EmbedEntityRequest(BaseModel):
     entity_ids: list[str] | None = None
+
+
+def _vector_similarity(row: dict[str, Any]) -> float:
+    """Return a stable similarity score from LanceDB row metadata."""
+    if row.get("_score") is not None:
+        return float(row["_score"])
+    distance = row.get("_distance")
+    if distance is None:
+        return 0.0
+    value = 1.0 - (float(distance) ** 2) / 2.0
+    return max(-1.0, min(1.0, value))
+
+
+def _entity_embeddings_table_name(db: Database) -> str | None:
+    """Resolve the entity vector table for semantic search.
+
+    `kg_entities` is the long-lived table populated by entity upserts and KG
+    rebuilds. `kg_entity_embeddings` is the newer batch-embed route's table.
+    Keep semantic search readable across both so older libraries with existing
+    vectors do not 503.
+    """
+    tables = set(db._lance_tables())
+    if KG_ENTITY_EMBEDDINGS_TABLE in tables:
+        return KG_ENTITY_EMBEDDINGS_TABLE
+    if LEGACY_KG_ENTITY_EMBEDDINGS_TABLE in tables:
+        return LEGACY_KG_ENTITY_EMBEDDINGS_TABLE
+    return None
+
+
+def search_entities_semantic_impl(
+    *,
+    db: Database,
+    q: str,
+    entity_type: EntityType | None = None,
+    limit: int = 20,
+) -> KGGraphListResponse:
+    """Shared semantic entity retrieval for the route and /api/search."""
+    table_name = _entity_embeddings_table_name(db)
+    if table_name is None:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Entity embeddings not yet indexed. POST /kg/entity-curation/semantic/embed "
+                "first or rebuild KG vectors."
+            ),
+        )
+    try:
+        query_vector = db._embed_text(q)  # type: ignore[attr-defined]
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503, detail=f"Embedding generation failed: {exc}"
+        ) from exc
+    results = db.search_vectors(table_name, query_vector, limit=limit)
+    entity_ids = [r["id"] for r in results]
+    if not entity_ids:
+        return KGGraphListResponse(items=[], count=0)
+    entities = {e.id: e for e in db.all(KnowledgeEntity) if e.id in entity_ids}
+    score_map = {r["id"]: _vector_similarity(r) for r in results}
+    items = [
+        {**entities[eid].model_dump(), "similarity_score": score_map.get(eid, 0.0)}
+        for eid in entity_ids
+        if eid in entities
+        and (entity_type is None or entities[eid].entity_type == entity_type)
+    ]
+    return KGGraphListResponse(items=items, count=len(items))
 
 
 def _audit_response(audit: EntityMergeAudit) -> EntityAuditResponse:
@@ -77,21 +168,51 @@ def _audit_response(audit: EntityMergeAudit) -> EntityAuditResponse:
     )
 
 
-@router.post("/merge", response_model=EntityAuditResponse)
-async def merge_entities(
-    request: EntityMergeRequest,
-    db: Database = Depends(get_library_database),
-) -> EntityAuditResponse:
-    """Merge multiple entities into a single absorbing entity, with audit."""
+def _log_entity_curation_mutation(
+    *,
+    db: Database,
+    entity: KnowledgeEntity,
+    before_state: dict[str, Any],
+) -> None:
+    db.save(
+        MutationLog(
+            entity_type="KnowledgeEntity",
+            entity_id=entity.id,
+            operation=MutationOperationType.update,
+            before_state=before_state,
+            after_state=entity.model_dump(mode="json"),
+            changed_fields=["curation_state"],
+        )
+    )
+
+
+def merge_entities_impl(
+    db: Database, request: EntityMergeRequest
+) -> tuple[EntityMergeAudit, list[str], list[str]]:
+    """The proven entity-merge algorithm — reconciliation + audit + persistence.
+
+    Extracted verbatim from the ``/merge`` route so BOTH the route and the
+    ``entity.merge`` action (EPIC #1848) drive the *same* code (iterate-not-
+    replace: the algorithm is wrapped, never re-derived). Mutates + persists the
+    absorber, absorbed entities, and re-pointed claims, writes the
+    ``EntityMergeAudit``, and returns ``(audit, absorbed_ids, repointed_claim_ids)``.
+    Emission to the observable layer stays with the caller. Raises
+    ``HTTPException`` on bad ids exactly as before.
+    """
     absorber = db.get(KnowledgeEntity, request.absorbing_entity_id)
     if absorber is None:
-        raise HTTPException(status_code=404, detail=f"Absorbing entity not found: {request.absorbing_entity_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Absorbing entity not found: {request.absorbing_entity_id}",
+        )
 
     absorbed: list[KnowledgeEntity] = []
     for eid in request.absorbed_entity_ids:
         ent = db.get(KnowledgeEntity, eid)
         if ent is None:
-            raise HTTPException(status_code=404, detail=f"Absorbed entity not found: {eid}")
+            raise HTTPException(
+                status_code=404, detail=f"Absorbed entity not found: {eid}"
+            )
         if ent.merged_into_id is not None:
             raise HTTPException(
                 status_code=409,
@@ -126,14 +247,18 @@ async def merge_entities(
     # Re-point claims: replace absorbed entity IDs with the absorber ID so
     # claim queries on the absorber surface all previously-absorbed evidence.
     absorbed_ids = {e.id for e in absorbed}
+    repointed_claim_ids: list[str] = []
     for claim in db.query(KnowledgeClaim):
         old_ids = claim.entity_ids or []
         if any(eid in absorbed_ids for eid in old_ids):
             new_ids = [absorber.id if eid in absorbed_ids else eid for eid in old_ids]
             seen: set[str] = set()
-            claim.entity_ids = [eid for eid in new_ids if not (eid in seen or seen.add(eid))]  # type: ignore[func-returns-value]
+            claim.entity_ids = [
+                eid for eid in new_ids if not (eid in seen or seen.add(eid))
+            ]  # type: ignore[func-returns-value]
             claim.updated_at = now
             db.save(claim)
+            repointed_claim_ids.append(claim.id)
 
     audit = EntityMergeAudit(
         operation_type=EntityMergeOperationType.merge,
@@ -149,18 +274,88 @@ async def merge_entities(
     for ent in absorbed:
         db.save(ent)
     db.save(absorber)
+
+    return audit, [absorber.id, *sorted(absorbed_ids)], repointed_claim_ids
+
+
+@router.post("/merge", response_model=EntityAuditResponse)
+async def merge_entities(
+    request: EntityMergeRequest,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
+) -> EntityAuditResponse:
+    """Merge multiple entities into a single absorbing entity, with audit."""
+    audit, entity_ids, repointed_claim_ids = merge_entities_impl(db, request)
+
+    # Observable data layer (#1863): tell every window in this library that the
+    # entity set changed so their KG stores refresh. Best-effort — never breaks
+    # the merge.
+    emit_change(
+        x_fichero_library_path,
+        type="entity.merged",
+        entity_ids=entity_ids,
+        claim_ids=repointed_claim_ids,
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
     return _audit_response(audit)
+
+
+@kg_entities_router.patch(
+    "/batch-curation",
+    response_model=BatchEntityCurationResponse,
+    summary="Batch set entity curation state",
+)
+async def batch_set_entity_curation_state(
+    request: BatchEntityCurationRequest,
+    db: Database = Depends(get_library_database_for_write),
+) -> BatchEntityCurationResponse:
+    entities: list[KnowledgeEntity] = []
+    for entity_id in request.entity_ids:
+        entity = db.get(KnowledgeEntity, entity_id)
+        if entity is None:
+            raise HTTPException(
+                status_code=404, detail=f"Entity not found: {entity_id}"
+            )
+        entities.append(entity)
+
+    now = datetime.now()
+    updated_ids: list[str] = []
+    for entity in entities:
+        if entity.curation_state == request.curation_state:
+            continue
+        before_state = entity.model_dump(mode="json")
+        entity.curation_state = request.curation_state
+        entity.updated_at = now
+        db.save(entity)
+        _log_entity_curation_mutation(db=db, entity=entity, before_state=before_state)
+        updated_ids.append(entity.id)
+
+    return BatchEntityCurationResponse(updated=len(updated_ids), entity_ids=updated_ids)
 
 
 @router.post("/split", response_model=EntityAuditResponse)
 async def split_entity(
     request: EntitySplitRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> EntityAuditResponse:
     """Split one entity into a primary + new split-off entities."""
     primary = db.get(KnowledgeEntity, request.primary_entity_id)
     if primary is None:
-        raise HTTPException(status_code=404, detail=f"Primary entity not found: {request.primary_entity_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Primary entity not found: {request.primary_entity_id}",
+        )
 
     moved = {a.strip() for a in request.aliases_to_move if a.strip()}
     alias_changes: dict[str, Any] = {
@@ -175,7 +370,9 @@ async def split_entity(
     for sid in request.split_off_entity_ids:
         sp = db.get(KnowledgeEntity, sid)
         if sp is None:
-            raise HTTPException(status_code=404, detail=f"Split-off entity not found: {sid}")
+            raise HTTPException(
+                status_code=404, detail=f"Split-off entity not found: {sid}"
+            )
         sp.merged_into_id = None
         sp.updated_at = now
         db.save(sp)
@@ -194,18 +391,30 @@ async def split_entity(
     audit.reversal_id = audit.id
     db.save(audit)
     db.save(primary)
+
+    # Observable data layer (#1863): split changes the entity set — refresh
+    # every window's KG stores. Best-effort.
+    emit_change(
+        x_fichero_library_path,
+        type="entity.split",
+        entity_ids=[primary.id, *split_ids],
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
     return _audit_response(audit)
 
 
-@router.post("/audit/{audit_id}/undo", response_model=EntityAuditResponse)
-async def undo_entity_operation(
-    audit_id: str,
-    db: Database = Depends(get_library_database),
-) -> EntityAuditResponse:
-    """Undo a previous merge or split using its audit record."""
+def undo_entity_operation_impl(db: Database, audit_id: str) -> EntityMergeAudit:
+    """Reverse a previous merge/split from its audit record (returns the undo
+    audit). Extracted from the ``/audit/{id}/undo`` route so the ``entity.merge``
+    action's ``invert`` reuses the exact same proven reversal (iterate-not-
+    replace). Raises ``HTTPException`` on missing/already-undone records."""
     audit = db.get(EntityMergeAudit, audit_id)
     if audit is None:
-        raise HTTPException(status_code=404, detail=f"Audit record not found: {audit_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Audit record not found: {audit_id}"
+        )
     if audit.reversal_id != audit.id:
         raise HTTPException(
             status_code=409,
@@ -216,12 +425,17 @@ async def undo_entity_operation(
     if audit.operation_type == EntityMergeOperationType.merge:
         absorber = db.get(KnowledgeEntity, audit.target_entity_id)
         if absorber is None:
-            raise HTTPException(status_code=404, detail=f"Target entity not found: {audit.target_entity_id}")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Target entity not found: {audit.target_entity_id}",
+            )
         restored: list[str] = []
         for eid in audit.source_entity_ids:
             ent = db.get(KnowledgeEntity, eid)
             if ent is None:
-                raise HTTPException(status_code=404, detail=f"Source entity not found: {eid}")
+                raise HTTPException(
+                    status_code=404, detail=f"Source entity not found: {eid}"
+                )
             ent.merged_into_id = None
             ent.updated_at = now
             db.save(ent)
@@ -236,7 +450,12 @@ async def undo_entity_operation(
             operation_type=EntityMergeOperationType.undo_merge,
             source_entity_ids=audit.source_entity_ids,
             target_entity_id=audit.target_entity_id,
-            alias_changes={"added": [], "removed": [], "moved_to": {}, "restored_from": restored},
+            alias_changes={
+                "added": [],
+                "removed": [],
+                "moved_to": {},
+                "restored_from": restored,
+            },
             reversal_id=audit_id,
             created_by="human",
             created_at=now,
@@ -244,7 +463,10 @@ async def undo_entity_operation(
     elif audit.operation_type == EntityMergeOperationType.split:
         primary = db.get(KnowledgeEntity, audit.target_entity_id)
         if primary is None:
-            raise HTTPException(status_code=404, detail=f"Primary entity not found: {audit.target_entity_id}")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Primary entity not found: {audit.target_entity_id}",
+            )
         moved = audit.alias_changes.get("restored_from", [])
         primary.aliases = sorted(set(primary.aliases) | set(moved))
         primary.updated_at = now
@@ -259,12 +481,24 @@ async def undo_entity_operation(
             created_at=now,
         )
     else:
-        raise HTTPException(status_code=409, detail=f"Cannot undo operation type: {audit.operation_type}")
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot undo operation type: {audit.operation_type}",
+        )
 
     db.save(undo)
     audit.reversal_id = undo.id
     db.save(audit)
-    return _audit_response(undo)
+    return undo
+
+
+@router.post("/audit/{audit_id}/undo", response_model=EntityAuditResponse)
+async def undo_entity_operation(
+    audit_id: str,
+    db: Database = Depends(get_library_database_for_write),
+) -> EntityAuditResponse:
+    """Undo a previous merge or split using its audit record."""
+    return _audit_response(undo_entity_operation_impl(db, audit_id))
 
 
 @router.get("/audit", response_model=EntityAuditListResponse)
@@ -277,7 +511,8 @@ async def list_entity_audits(
     audits = db.all(EntityMergeAudit)
     if entity_id:
         audits = [
-            a for a in audits
+            a
+            for a in audits
             if a.target_entity_id == entity_id or entity_id in a.source_entity_ids
         ]
     audits.sort(key=lambda a: a.created_at, reverse=True)
@@ -290,26 +525,13 @@ def _embed_entities_sync(
     entities: list[KnowledgeEntity],
 ) -> int:
     """CPU-bound work for embed_entities. Runs off the event loop."""
-    texts = [
-        e.canonical_name + (" " + " ".join(e.aliases) if e.aliases else "")
-        for e in entities
-    ]
-    vectors = db._embed_texts(texts)  # type: ignore[attr-defined]
-    records = [
-        {
-            "id": e.id, "text": e.canonical_name, "aliases": e.aliases,
-            "entity_type": e.entity_type.value, "vector": v,
-        }
-        for e, v in zip(entities, vectors)
-    ]
-    db.save_vectors(KG_ENTITY_EMBEDDINGS_TABLE, records)
-    return len(records)
+    return db.embed_entities(entities)
 
 
 @router.post("/semantic/embed", response_model=EmbedEntitiesResponse)
 async def embed_entities(
     request: _EmbedEntityRequest | None = None,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> EmbedEntitiesResponse:
     """Embed entities into LanceDB for semantic search.
 
@@ -338,27 +560,12 @@ async def search_entities_semantic(
     db: Database = Depends(get_library_database),
 ) -> KGGraphListResponse:
     """Semantic entity search via LanceDB."""
-    if KG_ENTITY_EMBEDDINGS_TABLE not in db._lance_tables():
-        raise HTTPException(
-            status_code=503,
-            detail="Entity embeddings not yet indexed. POST /kg/entity-curation/semantic/embed first.",
-        )
-    try:
-        query_vector = db._embed_text(q)  # type: ignore[attr-defined]
-    except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"Embedding generation failed: {exc}") from exc
-    results = db.search_vectors(KG_ENTITY_EMBEDDINGS_TABLE, query_vector, limit=limit)
-    entity_ids = [r["id"] for r in results]
-    if not entity_ids:
-        return KGGraphListResponse(items=[], count=0)
-    entities = {e.id: e for e in db.all(KnowledgeEntity) if e.id in entity_ids}
-    score_map = {r["id"]: r.get("_score", 0.0) for r in results}
-    items = [
-        {**entities[eid].model_dump(), "similarity_score": score_map.get(eid, 0.0)}
-        for eid in entity_ids
-        if eid in entities and (entity_type is None or entities[eid].entity_type == entity_type)
-    ]
-    return KGGraphListResponse(items=items, count=len(items))
+    return search_entities_semantic_impl(
+        db=db,
+        q=q,
+        entity_type=entity_type,
+        limit=limit,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -374,6 +581,7 @@ async def search_entities_semantic(
 
 class CandidatePair(BaseModel):
     """One candidate merge pair surfaced by graph-context similarity."""
+
     entity_a_id: str
     entity_a_name: str
     entity_b_id: str
@@ -417,9 +625,8 @@ async def candidate_pairs(
     candidate_node_pairs = [
         (a, b)
         for i, a in enumerate(nodes)
-        for b in nodes[i + 1:]
-        if (not same_type_only)
-        or (by_id[a].entity_type == by_id[b].entity_type)
+        for b in nodes[i + 1 :]
+        if (not same_type_only) or (by_id[a].entity_type == by_id[b].entity_type)
     ]
     if not candidate_node_pairs:
         return KGGraphListResponse(items=[], count=0)
@@ -436,25 +643,125 @@ async def candidate_pairs(
         ent_b = by_id.get(v)
         if ent_a is None or ent_b is None:
             continue
-        rows.append(CandidatePair(
-            entity_a_id=u,
-            entity_a_name=ent_a.canonical_name,
-            entity_b_id=v,
-            entity_b_name=ent_b.canonical_name,
-            jaccard=float(coef),
-            shared_neighbors=shared,
-            entity_type=(
-                ent_a.entity_type.value if ent_a.entity_type
-                and hasattr(ent_a.entity_type, "value") else None
-            ),
-        ))
+        rows.append(
+            CandidatePair(
+                entity_a_id=u,
+                entity_a_name=ent_a.canonical_name,
+                entity_b_id=v,
+                entity_b_name=ent_b.canonical_name,
+                jaccard=float(coef),
+                shared_neighbors=shared,
+                entity_type=(
+                    ent_a.entity_type.value
+                    if ent_a.entity_type and hasattr(ent_a.entity_type, "value")
+                    else None
+                ),
+            )
+        )
     rows.sort(key=lambda r: r.jaccard, reverse=True)
     rows = rows[:top_k]
     return KGGraphListResponse(items=rows, count=len(rows))
+
+
+# ---------------------------------------------------------------------------
+# Action layer registration (EPIC #1848 keystone #2013) — entity.merge pilot
+# ---------------------------------------------------------------------------
+#
+# entity.merge is exhibit A: the action WRAPS the proven `merge_entities_impl`
+# algorithm above (iterate-not-replace) and routes through `registry.invoke`,
+# which writes the generic ActionAudit + emits the same `entity.merged` change
+# event. Its inverse, entity.unmerge, reuses `undo_entity_operation_impl` — the
+# exact reversal the existing /audit/{id}/undo route uses. The original typed
+# routes above are untouched and stay green; the action is the *additional*
+# uniform path that chat tools / App Intents / tests drive via
+# POST /api/actions/invoke.
+
+from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
+
+
+class UnmergeEntitiesParams(BaseModel):
+    """Params for entity.unmerge — the inverse of entity.merge."""
+
+    audit_id: str = Field(description="EntityMergeAudit id of the merge to reverse")
+
+
+def _snapshot_entities(db: Database, entity_ids: list[str]) -> dict[str, Any]:
+    """JSON-able snapshot of the named entities (existing ones only)."""
+    snap: dict[str, Any] = {}
+    for eid in entity_ids:
+        ent = db.get(KnowledgeEntity, eid)
+        if ent is not None:
+            snap[eid] = ent.model_dump(mode="json")
+    return snap
+
+
+def _invert_merge(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Derive the inverse action from a merge audit's after-payload."""
+    if not after:
+        return None
+    merge_audit_id = after.get("entity_merge_audit_id")
+    if not merge_audit_id:
+        return None
+    return ("entity.unmerge", {"audit_id": merge_audit_id})
+
+
+@action(
+    "entity.merge",
+    EntityMergeRequest,
+    domains=["entity", "claim"],
+    undoable=True,
+    invert=_invert_merge,
+)
+def _action_merge_entities(
+    db: Database, params: EntityMergeRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    # Capture before-state of every touched entity BEFORE the impl mutates.
+    touched = [params.absorbing_entity_id, *params.absorbed_entity_ids]
+    before = _snapshot_entities(db, touched)
+    audit, entity_ids, repointed_claim_ids = merge_entities_impl(db, params)
+    after = {
+        "entity_merge_audit_id": audit.id,
+        "entities": _snapshot_entities(db, entity_ids),
+    }
+    spec = ChangeSpec(
+        domains=["entity", "claim"],
+        target_ids=entity_ids,
+        before=before,
+        after=after,
+        emit_type="entity.merged",
+        entity_ids=entity_ids,
+        claim_ids=repointed_claim_ids,
+    )
+    return audit.model_dump(mode="json"), spec
+
+
+@action(
+    "entity.unmerge",
+    UnmergeEntitiesParams,
+    domains=["entity", "claim"],
+    undoable=False,
+)
+def _action_unmerge_entities(
+    db: Database, params: UnmergeEntitiesParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    undo_audit = undo_entity_operation_impl(db, params.audit_id)
+    entity_ids = [undo_audit.target_entity_id, *undo_audit.source_entity_ids]
+    spec = ChangeSpec(
+        domains=["entity", "claim"],
+        target_ids=entity_ids,
+        after={"entity_merge_audit_id": undo_audit.id},
+        emit_type="entity.split",
+        entity_ids=entity_ids,
+    )
+    return undo_audit.model_dump(mode="json"), spec
 
 
 # Resolve forward refs in EntityAuditListResponse (declared in models.py with
 # items: list["EntityAuditResponse"]). See #1144.
 from fichero.models import EntityAuditListResponse  # noqa: E402
 
-EntityAuditListResponse.model_rebuild(_types_namespace={"EntityAuditResponse": EntityAuditResponse})
+EntityAuditListResponse.model_rebuild(
+    _types_namespace={"EntityAuditResponse": EntityAuditResponse}
+)

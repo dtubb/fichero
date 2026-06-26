@@ -25,7 +25,7 @@ struct DocumentInspectorContentV2: View {
 
     @EnvironmentObject private var artifactService: ArtifactServiceGenerated
     @EnvironmentObject private var documentService: DocumentServiceGenerated
-    @EnvironmentObject private var documentStore: DocumentStore
+    @Environment(DocumentStore.self) private var documentStore: DocumentStore
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
 
     @State private var artifacts: [Artifact] = []
@@ -92,6 +92,10 @@ struct DocumentInspectorContentV2: View {
                     // In pageContentOnly there's no outer ScrollView, so the
                     // editor fills the pane top-down instead of centring (#1286).
                     fillsHeight: mode == .pageContentOnly,
+                    // Hand the store the page editor's flush so image prev/next
+                    // and inspector tab switches persist the in-flight edit
+                    // before the focused document changes (#2476).
+                    documentStore: documentStore,
                     onSave: { newContent in
                         await savePageContent(newContent)
                     }
@@ -310,14 +314,12 @@ func persistPageContent(
     documentService: DocumentServiceGenerated,
     documentStore: DocumentStore
 ) async -> String? {
-    do {
-        let updated = try await documentService.updateDocument(
-            document.id,
-            pageContent: content
-        )
-        documentStore.refreshLocalContent(updated)
-        return nil
-    } catch {
-        return error.localizedDescription
+    // Run the PUT inside a STORE-OWNED task so a view re-render / blur that
+    // cancels the editor's debounce/flush task can't abort the save mid-flight
+    // (NSURLError -999, #2466). `refreshLocalContent` happens inside the store
+    // task once the save lands.
+    let id = document.id
+    return await documentStore.savePageContent(documentId: id) {
+        try await documentService.updateDocument(id, pageContent: content)
     }
 }

@@ -65,6 +65,14 @@ class TaskQueue(TaskWorkersMixin):
 
     def _init_database(self) -> None:
         """Initialize database tables for task tracking."""
+        # ponytail: not a managed shared conn (#2508). Despite receiving an
+        # optional managed ``self.database``, every SQL method here opens a FRESH
+        # ``conn = duckdb.connect(self.db_path)`` per operation (guarded by the
+        # store's own ``self._db_lock`` for writes) and closes it — a
+        # connection-per-operation pattern, not the package's managed Database
+        # connection. Database._lock and the locked execute() helpers do not
+        # apply. Folding TaskQueue's SQL onto self.database is a separate
+        # architectural call (lead review).
         conn = duckdb.connect(self.db_path)
         try:
             conn.execute("""

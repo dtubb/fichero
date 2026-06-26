@@ -98,6 +98,63 @@ final class OntologyBrowserFilterTests: XCTestCase {
         XCTAssertFalse(OntologyBrowser.isOcrGarbage("Eugenio Córdoba"))
     }
 
+    func testIsOcrGarbageRejectsTimestampFormat() {
+        // "12:10" is the exact pattern reported in #2482 — pure digits + colon, zero letters.
+        XCTAssertTrue(OntologyBrowser.isOcrGarbage("12:10"))
+    }
+
+    func testIsOcrGarbageRejectsBboxFragment() {
+        XCTAssertTrue(OntologyBrowser.isOcrGarbage("0.42:0.87"))
+    }
+
+    func testIsOcrGarbageAcceptsAlphanumericMix() {
+        // Names like "Section 12" or "COVID-19" contain letters and must not be filtered.
+        XCTAssertFalse(OntologyBrowser.isOcrGarbage("Section 12"))
+        XCTAssertFalse(OntologyBrowser.isOcrGarbage("COVID-19"))
+    }
+
+    // MARK: - EntityRow display-label fallback
+
+    func testEntityRowFallbackForEmptyCanonicalName() {
+        // An entity with an empty canonicalName must not render as blank — it
+        // should fall back to a type+id hint. We verify via EntityRow's
+        // displayLabel property (tested via the OntologyBrowser's isOcrGarbage
+        // heuristic since the route now blocks storing garbage names, but
+        // pre-existing rows in the DB may still have empty names).
+        let entity = Components.Schemas.KnowledgeEntity(
+            id: "abc123",
+            canonicalName: "",
+            entityType: .person,
+            aliases: [],
+            description: nil,
+            language: nil,
+            metadata: nil,
+            mergedIntoId: nil,
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+        // EntityRow.displayLabel: empty name → falls back to "person ·abc123"
+        let row = EntityRow(entity: entity, claimCount: 0, style: .browser)
+        XCTAssertEqual(row.displayLabelForTesting, "person ·abc123")
+    }
+
+    func testEntityRowPassesThroughCleanName() {
+        let entity = Components.Schemas.KnowledgeEntity(
+            id: "e1",
+            canonicalName: "María García",
+            entityType: .person,
+            aliases: [],
+            description: nil,
+            language: nil,
+            metadata: nil,
+            mergedIntoId: nil,
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+        let row = EntityRow(entity: entity, claimCount: 0, style: .browser)
+        XCTAssertEqual(row.displayLabelForTesting, "María García")
+    }
+
     // MARK: - Helpers
 
     private func makeEntity(

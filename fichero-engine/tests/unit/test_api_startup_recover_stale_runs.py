@@ -44,3 +44,51 @@ async def test_lifespan_startup_recovers_stale_running_workflow_runs(
     recovered = await store.get_workflow_run("startup-zombie-thread")
     assert recovered is not None
     assert recovered.status == "failed"
+
+
+@pytest.mark.asyncio
+async def test_lifespan_startup_recovers_recent_stale_running_runs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """#2223: startup must mark 'running' rows as failed even when < 2 hours old.
+
+    The old recover_stale_runs(max_age_hours=2) default skipped recently-started
+    threads to protect in-flight workflows during normal operation.  At startup
+    time there are zero live workers, so that guard is wrong — any 'running' row
+    is stale regardless of age.  This test verifies that a thread started just
+    5 minutes ago is still marked failed after the lifespan startup sequence.
+    """
+    library_path = tmp_path / "recent-zombie.fichero"
+    library_path.mkdir(parents=True, exist_ok=True)
+    db_path = library_path / "fichero.duckdb"
+
+    store = ActivityStore(str(db_path))
+    # Started only 5 minutes ago — would survive the old max_age_hours=2 filter
+    started_at = datetime.now(timezone.utc) - timedelta(minutes=5)
+    await store.save_workflow_run(
+        thread_id="recent-zombie-thread",
+        workflow_id="wf-recent-zombie",
+        workflow_name="Recent Zombie",
+        started_at=started_at,
+    )
+
+    monkeypatch.setattr(api_main, "_seed_builtin_providers", lambda: None)
+    monkeypatch.setattr(api_main, "_collapse_duplicate_providers", lambda: None)
+    monkeypatch.setattr(api_main, "_install_access_log_filter", lambda: None)
+    monkeypatch.setattr(api_main, "_prewarm_embeddings", lambda: None)
+    monkeypatch.setattr(
+        api_main,
+        "_discover_known_library_paths",
+        lambda: [str(library_path)],
+    )
+
+    async with api_main.lifespan(api_main.app):
+        pass
+
+    recovered = await store.get_workflow_run("recent-zombie-thread")
+    assert recovered is not None
+    assert recovered.status == "failed", (
+        "#2223: a thread started 5 minutes ago must be marked 'failed' at "
+        "startup — max_age_hours=0 must catch all stale runs regardless of age"
+    )

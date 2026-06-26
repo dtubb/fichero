@@ -6,15 +6,15 @@ BaseCheckpointSaver interface.
 """
 
 import asyncio
+import pickle
 import shutil
 import tempfile
 from pathlib import Path
 from uuid import uuid4
 
 import pytest
-import duckdb
 
-from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer
+from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer, JsonCheckpointSerializer
 
 
 @pytest.fixture
@@ -120,6 +120,51 @@ class TestCheckpointerSetup:
         assert 'value' in columns
 
 
+def test_json_checkpoint_serializer_rejects_pickle_payload(monkeypatch):
+    """A malicious pickle blob is not deserialized by the checkpoint serializer."""
+    called = False
+
+    def fake_system(command):
+        nonlocal called
+        called = True
+        return 0
+
+    class Evil:
+        def __reduce__(self):
+            import os
+
+            return os.system, ("echo exploited",)
+
+    monkeypatch.setattr("os.system", fake_system)
+
+    serializer = JsonCheckpointSerializer()
+    with pytest.raises(Exception):
+        serializer.loads(pickle.dumps(Evil()))
+
+    assert called is False
+
+
+@pytest.mark.asyncio
+async def test_checkpointer_round_trips_json_checkpoint(temp_db):
+    checkpointer = AsyncDuckDBCheckpointer.from_db_path(temp_db)
+    checkpoint = {
+        "id": "checkpoint-json",
+        "type": "checkpoint",
+        "channel_values": {"score": 0.75, "status": "done"},
+        "channel_versions": {"score": 1},
+        "versions_seen": {"source": {"score": 1}},
+    }
+    metadata = {"source": "unit", "writes": {}}
+    config = {"configurable": {"thread_id": "thread-json"}}
+
+    saved = await checkpointer.aput(config, checkpoint, metadata, {})
+    loaded = await checkpointer.aget_tuple(saved)
+
+    assert loaded is not None
+    assert loaded.checkpoint == checkpoint
+    assert loaded.metadata == metadata
+
+
 class TestCheckpointSaveLoad:
     """Test checkpoint save and load operations."""
 
@@ -220,6 +265,41 @@ class TestCheckpointSaveLoad:
 
         assert result is not None
         assert result.checkpoint["id"] == sample_checkpoint["id"]
+
+    @pytest.mark.asyncio
+    async def test_aput_compacts_outputs_before_persisting_checkpoint(
+        self, checkpointer, sample_metadata
+    ):
+        checkpoint = {
+            "id": str(uuid4()),
+            "type": "checkpoint",
+            "channel_values": {
+                "outputs": {
+                    "tx": {
+                        "text": "joined",
+                        "texts": ["page 1", "page 2"],
+                        "results": [{"file": "a"}, {"file": "b"}],
+                        "values": ["v1", "v2"],
+                    }
+                }
+            },
+            "channel_versions": {"outputs": 1},
+            "versions_seen": {"source": {"outputs": 1}},
+        }
+        config = {"configurable": {"thread_id": "compact-thread", "checkpoint_ns": ""}}
+
+        await checkpointer.aput(config, checkpoint, sample_metadata, {})
+        result = await checkpointer.aget_tuple(config)
+
+        assert result is not None
+        tx = result.checkpoint["channel_values"]["outputs"]["tx"]
+        assert tx["text"] == "joined"
+        assert tx["text_count"] == 2
+        assert tx["result_count"] == 2
+        assert tx["value_count"] == 2
+        assert "texts" not in tx
+        assert "results" not in tx
+        assert "values" not in tx
 
 
 class TestThreadIsolation:
@@ -554,6 +634,85 @@ class TestDeleteThread:
         """Deleting an unknown thread is a no-op that returns 0."""
         deleted = await checkpointer.adelete_thread("does-not-exist")
         assert deleted == 0
+
+
+@pytest.mark.asyncio
+async def test_checkpointer_serializes_shared_connection_under_concurrency(
+    checkpointer,
+    sample_checkpoint,
+):
+    """Concurrent reads/writes on one shared connection do not corrupt row shape."""
+
+    async def worker(index: int) -> None:
+        thread_id = f"thread-{index}"
+        base_config = {
+            "configurable": {
+                "thread_id": thread_id,
+                "checkpoint_ns": "",
+            }
+        }
+
+        previous_id: str | None = None
+        for version in range(5):
+            checkpoint = sample_checkpoint.copy()
+            checkpoint["id"] = str(uuid4())
+            checkpoint["channel_values"] = {
+                "messages": [f"thread-{index}", f"version-{version}"]
+            }
+            checkpoint["channel_versions"] = {"messages": version + 1}
+            checkpoint["versions_seen"] = {"messages": version + 1}
+            if previous_id:
+                checkpoint["parent_checkpoint_id"] = previous_id
+
+            metadata = {
+                "source": "concurrency",
+                "step": version,
+                "writes": {},
+            }
+
+            saved = await checkpointer.aput(base_config, checkpoint, metadata, {})
+            message = f"pending-{index}-{version}"
+            await checkpointer.aput_writes(
+                saved,
+                [("messages", message)],
+                task_id=f"task-{index}",
+            )
+
+            loaded = await checkpointer.aget_tuple(saved)
+            assert loaded is not None
+            assert loaded.config["configurable"]["thread_id"] == thread_id
+            assert loaded.config["configurable"]["checkpoint_id"] == checkpoint["id"]
+            assert loaded.checkpoint["id"] == checkpoint["id"]
+            assert loaded.metadata["source"] == "concurrency"
+            assert loaded.pending_writes == [
+                (f"task-{index}", "messages", message)
+            ]
+            if previous_id is None:
+                assert loaded.parent_config is None
+            else:
+                assert loaded.parent_config is not None
+                assert (
+                    loaded.parent_config["configurable"]["checkpoint_id"]
+                    == previous_id
+                )
+
+            previous_id = checkpoint["id"]
+
+        latest = await checkpointer.aget_tuple(
+            {
+                "configurable": {
+                    "thread_id": thread_id,
+                    "checkpoint_ns": "",
+                    "checkpoint_id": previous_id,
+                }
+            }
+        )
+        assert latest is not None
+        assert latest.config["configurable"]["thread_id"] == thread_id
+        assert latest.checkpoint["id"] == previous_id
+        assert len(latest.pending_writes) == 1
+
+    await asyncio.gather(*(worker(index) for index in range(8)))
 
 
 class TestContextManagers:

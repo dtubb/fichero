@@ -1,6 +1,8 @@
 import FicheroAPIClient
 import SwiftUI
 
+// swiftlint:disable file_length type_body_length
+
 /// Inspector panel showing document metadata and details
 struct DocumentInspector: View {
     let document: Document?
@@ -11,8 +13,10 @@ struct DocumentInspector: View {
     var onNavigateToSource: ((String) -> Void)?
 
     @SceneStorage("inspectorSelectedTab") private var selectedTab: InspectorTab = .content
+    @Environment(DocumentStore.self) private var documentStore
     @EnvironmentObject private var entityService: EntityServiceGenerated
     @EnvironmentObject private var artifactService: ArtifactServiceGenerated
+    @EnvironmentObject private var kgCurationService: KGCurationServiceGenerated
     @ObservedObject private var featureManager = FeatureManager.shared
     @ObservedObject private var claimFocusState = ClaimFocusState.shared
     /// Cross-view KG focus. When an entity is focused (a lozenge / WebKit-graph
@@ -67,7 +71,7 @@ struct DocumentInspector: View {
                 Spacer()
             }
             .padding(.horizontal, 12)
-            .frame(height: MiniToolbar<EmptyView>.standardHeight)
+            .frame(height: MiniToolbar<EmptyView, EmptyView>.standardHeight)
             .accessibilityIdentifier("inspectorEntityBackBar")
 
             Divider()
@@ -120,26 +124,40 @@ struct DocumentInspector: View {
         }
     }
 
-    /// Xcode-style icon-only tab bar
+    /// Xcode-style icon-only facet selector, grouped into a single segmented
+    /// control: one rounded capsule with hairline dividers between segments and
+    /// a selected-segment fill, so the row reads as ONE control rather than a
+    /// loose row of N buttons (#1228). Stays icon-only buttons (not a native
+    /// `.segmented` Picker) so the per-tab `.help` tooltips and `.accessibility
+    /// Identifier` XCUITest hooks (#1230) attach to individual segments — a
+    /// `.segmented` Picker swallows those per-segment modifiers.
     @ViewBuilder
     private var tabBar: some View {
         let tabs = availableTabs(for: document)
-        HStack(spacing: 2) {
-            ForEach(tabs) { tab in
+        HStack(spacing: 0) {
+            ForEach(Array(tabs.enumerated()), id: \.element) { index, tab in
+                if index > 0 {
+                    // Hairline divider between segments — hidden adjacent to the
+                    // selected segment so its fill reads as one continuous pill.
+                    Divider()
+                        .frame(height: 14)
+                        .opacity(selectedTab == tab || selectedTab == tabs[index - 1] ? 0 : 1)
+                }
                 Button {
-                    selectedTab = tab
+                    selectTab(tab)
                 } label: {
                     Image(systemName: tab.icon)
-                        .font(.system(size: 16, weight: .regular))
+                        .font(.system(size: 15, weight: .regular))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .background(
-                    RoundedRectangle(cornerRadius: 6)
+                    RoundedRectangle(cornerRadius: 5)
                         .fill(selectedTab == tab
-                                ? Color.accentColor.opacity(0.15)
+                                ? Color.accentColor.opacity(0.18)
                                 : Color.clear)
+                        .padding(2)
                 )
                 .foregroundStyle(selectedTab == tab ? Color.accentColor : Color.secondary)
                 .help(tab.helpText)
@@ -147,15 +165,42 @@ struct DocumentInspector: View {
                 .accessibilityIdentifier("inspectorTab-\(tab.rawValue)")
             }
         }
+        .frame(maxWidth: .infinity)
+        // Single grouped capsule: subtle fill + hairline border, like Xcode's
+        // inspector facet selector.
+        .background(
+            RoundedRectangle(cornerRadius: 7)
+                .fill(Color(platformColor: .platformQuaternaryLabel).opacity(0.5))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 7)
+                .strokeBorder(Color(platformColor: .separatorColor), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 7))
         .padding(.horizontal, 8)
-        .frame(height: MiniToolbar<EmptyView>.standardHeight)
+        .padding(.vertical, 6)
+        .frame(height: MiniToolbar<EmptyView, EmptyView>.standardHeight)
         // XCUITest hook for the inspector tab bar (#1230).
         .accessibilityIdentifier("inspectorTabBar")
     }
 
-    /// Tab content for the selected tab
-    @ViewBuilder
-    private func tabContent(for doc: Document) -> some View {
+    /// Switch the inspector tab, first persisting any in-flight Page Content
+    /// edit so it isn't lost when the Content tab's editor disappears (#2476).
+    /// Only defers when an editor is registered, so tab switching stays snappy.
+    private func selectTab(_ tab: InspectorTab) {
+        if documentStore.activePageEditFlush != nil {
+            Task { @MainActor in
+                await documentStore.flushActivePageEdit()
+                selectedTab = tab
+            }
+        } else {
+            selectedTab = tab
+        }
+    }
+
+    // Tab content for the selected tab. One arm per inspector tab; complexity
+    // scales with the (intentionally flat) tab list, not nested branching.
+    @ViewBuilder private func tabContent(for doc: Document) -> some View {
         switch selectedTab {
         case .content:
             contentTab(for: doc)
@@ -171,6 +216,8 @@ struct DocumentInspector: View {
             knowledgeGraphTab(for: doc)
         case .artifacts:
             artifactsTab(for: doc)
+        case .citations:
+            CitationsInspectorPane(document: doc)
         case .edits:
             editsTab(for: doc)
         case .info:
@@ -181,7 +228,8 @@ struct DocumentInspector: View {
     private func availableTabs(for doc: Document?) -> [InspectorTab] {
         guard let doc else { return InspectorTab.allCases }
         var tabs: [InspectorTab] = [
-            .content, .outline, .annotations, .notes, .entities, .knowledgeGraph, .artifacts
+            .content, .annotations, .notes, .knowledgeGraph, .outline, .entities,
+            .artifacts, .citations
         ]
         if doc.fileType == .image || doc.fileType == .pdf || doc.docType == .page {
             tabs.append(.edits)
@@ -203,8 +251,8 @@ struct DocumentInspector: View {
     @ViewBuilder
     private func entitiesTab(for doc: Document) -> some View {
         DocumentInspectorEntitiesTab(
+            document: doc,
             documentId: doc.id,
-            entityService: entityService,
             onEntitySelect: { entityId in
                 kgFocusState.focusEntity(entityId: entityId)
             }
@@ -216,8 +264,10 @@ struct DocumentInspector: View {
         ScrollView {
             KnowledgeGraphInspectorSection(
                 documentId: doc.id,
+                documentScope: doc.docType == .page ? .page : .folder,
                 entityService: entityService,
                 artifactService: artifactService,
+                kgCurationService: kgCurationService,
                 onNavigateToSource: onNavigateToSource,
                 onClaimSelect: { claimId, claimText, sourceDocId, pageLabel, charStart, charEnd in
                     NotificationCenter.default.post(
@@ -240,7 +290,9 @@ struct DocumentInspector: View {
 
     @ViewBuilder
     private func artifactsTab(for doc: Document) -> some View {
-        DocumentInspectorContentV2(document: doc, mode: .artifactsOnly)
+        // Track B (#2003): List + detachable detail, replacing the stacked
+        // ArtifactPanels of DocumentInspectorContentV2(mode: .artifactsOnly).
+        ArtifactsInspectorPane(document: doc)
     }
 
     @ViewBuilder
@@ -273,28 +325,16 @@ struct DocumentInspector: View {
     // MARK: - Empty State
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "sidebar.right")
-                .font(.system(size: 36))
-                .foregroundColor(.secondary)
-
-            Text("No Selection")
-                .font(.headline)
-
-            Text("Select a document to view details")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
+        Text("No selection")
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Helpers
 
     private func copyToClipboard(_ text: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+        PlatformPasteboard.writeString(text)
     }
 }
 
@@ -302,7 +342,7 @@ private struct DocumentInspectorImageEditsTab: View {
     let document: Document
 
     @EnvironmentObject private var apiClient: APIClient
-    @StateObject private var model = ImageEditorModel()
+    @State private var model = ImageEditorModel()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -322,6 +362,7 @@ private struct DocumentInspectorImageEditsTab: View {
                 onRemove: { index in Task { await model.removeOperation(at: index) } },
                 onReset: { Task { await model.resetAll() } },
                 onRotate: { angle in Task { await model.rotate(by: angle) } },
+                onStraighten: { Task { await model.straighten() } },
                 onEnhance: { brightness, contrast, sharpen, auto in
                     Task { await model.enhance(brightness: brightness, contrast: contrast, sharpen: sharpen, autoLevels: auto) }
                 },
@@ -349,6 +390,9 @@ private struct DocumentInspectorImageEditsTab: View {
     DocumentInspector(document: nil)
         .environmentObject(library.artifactService)
         .environmentObject(library.entityService)
+        .environment(library.documentStore)
+        .environment(library.entityStore)
+        .environment(library.claimStore)
         .environment(KGFocusState.shared)
         .frame(width: 280, height: 400)
 }
@@ -376,6 +420,11 @@ private struct DocumentInspectorImageEditsTab: View {
     DocumentInspector(document: mockDocument)
         .environmentObject(library.artifactService)
         .environmentObject(library.entityService)
+        .environment(library.documentStore)
+        .environment(library.entityStore)
+        .environment(library.claimStore)
         .environment(KGFocusState.shared)
         .frame(width: 280, height: 400)
 }
+
+// swiftlint:enable file_length type_body_length

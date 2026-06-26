@@ -10,10 +10,13 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel
 
-from fichero.api.main import get_library_database
+from fichero.api.library_header import require_library_path
+from fichero.api.auth import request_actor
+from fichero.api.change_stream import emit_change
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.knowledge_models import (
     Project,
@@ -48,10 +51,23 @@ class ProjectCreateRequest(BaseModel):
 @router.post("", response_model=Project)
 async def create_project(
     request: ProjectCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> Project:
     project = Project(**request.model_dump())
     db.save(project)
+    emit_change(
+        x_fichero_library_path,
+        type="research.created",
+        entity_ids=[project.id],
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
     return project
 
 
@@ -91,7 +107,12 @@ class ProjectPatchRequest(BaseModel):
 async def patch_project(
     project_id: str,
     request: ProjectPatchRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> Project:
     project = db.get(Project, project_id)
     if project is None:
@@ -100,13 +121,26 @@ async def patch_project(
         setattr(project, field, value)
     project.updated_at = datetime.now()
     db.save(project)
+    emit_change(
+        x_fichero_library_path,
+        type="research.updated",
+        entity_ids=[project.id],
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
     return project
 
 
 @router.delete("/{project_id}", status_code=204)
 async def delete_project(
     project_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> None:
     project = db.get(Project, project_id)
     if project is None:
@@ -116,6 +150,14 @@ async def delete_project(
         if incl.project_id == project_id:
             db.delete(incl)
     db.delete(project)
+    emit_change(
+        x_fichero_library_path,
+        type="research.deleted",
+        entity_ids=[project_id],
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
 
 
 # =============================================================================
@@ -138,7 +180,12 @@ class InclusionRequest(BaseModel):
 async def include_item(
     project_id: str,
     request: InclusionRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> ProjectInclusion:
     if db.get(Project, project_id) is None:
         raise HTTPException(404, f"Project not found: {project_id}")
@@ -163,6 +210,14 @@ async def include_item(
         notes=request.notes,
     )
     db.save(incl)
+    emit_change(
+        x_fichero_library_path,
+        type="research.updated",
+        entity_ids=[project_id, request.target_id],
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
     return incl
 
 
@@ -173,7 +228,12 @@ async def include_item(
 async def remove_inclusion(
     project_id: str,
     inclusion_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> None:
     incl = db.get(ProjectInclusion, inclusion_id)
     if incl is None:
@@ -181,6 +241,14 @@ async def remove_inclusion(
     if incl.project_id != project_id:
         raise HTTPException(400, f"Inclusion does not belong to project {project_id}")
     db.delete(incl)
+    emit_change(
+        x_fichero_library_path,
+        type="research.updated",
+        entity_ids=[project_id, inclusion_id],
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
 
 
 @router.get(
@@ -195,10 +263,7 @@ async def list_items(
 ) -> ProjectInclusionListResponse:
     if db.get(Project, project_id) is None:
         raise HTTPException(404, f"Project not found: {project_id}")
-    rows = [
-        i for i in db.query(ProjectInclusion)
-        if i.project_id == project_id
-    ]
+    rows = [i for i in db.query(ProjectInclusion) if i.project_id == project_id]
     if target_type is not None:
         rows = [r for r in rows if r.target_type == target_type]
     rows.sort(key=lambda r: r.added_at, reverse=True)
@@ -216,7 +281,8 @@ async def project_membership(
     db: Database = Depends(get_library_database),
 ) -> list[Project]:
     inclusions = [
-        i for i in db.query(ProjectInclusion)
+        i
+        for i in db.query(ProjectInclusion)
         if i.target_id == target_id
         and (target_type is None or i.target_type == target_type)
     ]

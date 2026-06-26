@@ -1,0 +1,364 @@
+@testable import Fichero
+import XCTest
+// swiftlint:disable type_body_length
+
+final class AdaptiveShellPolicyTests: XCTestCase {
+    private static func appSource(_ relativePath: String) throws -> String {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero")
+            .appendingPathComponent(relativePath)
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    func testAdaptiveShellDefaultsAndLegacyRestoreStayPlatformSpecific() {
+        #if os(macOS)
+        XCTAssertEqual(ContentView.defaultColumnVisibility, .all)
+        XCTAssertEqual(ContentView.defaultColumnVisibilityRaw, 2)
+        XCTAssertEqual(ContentView.restoredColumnVisibility(from: 2), .all)
+        XCTAssertEqual(ContentView.persistedColumnVisibilityRaw(for: .all), 2)
+        #else
+        XCTAssertEqual(ContentView.defaultColumnVisibility, .detailOnly)
+        XCTAssertEqual(ContentView.defaultColumnVisibilityRaw, 1)
+        XCTAssertEqual(ContentView.restoredColumnVisibility(from: 2), .detailOnly)
+        XCTAssertEqual(ContentView.persistedColumnVisibilityRaw(for: .all), 3)
+        XCTAssertEqual(ContentView.restoredColumnVisibility(from: 3), .doubleColumn)
+        #endif
+    }
+
+    func testCompactSplitViewRootsAtDetailColumn() {
+        // On a phone the collapsed stack should land on the content/reader
+        // (document list), with the sidebar one swipe-back away (#2329/#2334).
+        XCTAssertEqual(ContentView.defaultPreferredCompactColumn, .detail)
+    }
+
+    func testAdaptiveShellPersistenceKeepsCollapsedAndExplicitWideStatesDistinct() {
+        XCTAssertEqual(ContentView.restoredColumnVisibility(from: 0), .automatic)
+        XCTAssertEqual(ContentView.restoredColumnVisibility(from: 1), .detailOnly)
+        XCTAssertEqual(ContentView.persistedColumnVisibilityRaw(for: .detailOnly), 1)
+        XCTAssertEqual(ContentView.persistedColumnVisibilityRaw(for: .automatic), 0)
+    }
+
+    func testWindowMinimumSeparatesMacShellChromeFromCompactDetailLayout() {
+        let detailWidth = 600.0
+
+        #if os(macOS)
+        let expected = ContentView.sidebarMinWidth + detailWidth + ContentView.inspectorMinWidth
+        XCTAssertEqual(
+            ContentView.windowMinWidth(
+                sidebarVisible: true,
+                inspectorVisible: true,
+                detailMinWidth: detailWidth
+            ),
+            expected
+        )
+        #else
+        XCTAssertEqual(
+            ContentView.windowMinWidth(
+                sidebarVisible: true,
+                inspectorVisible: true,
+            detailMinWidth: detailWidth
+        ),
+            detailWidth
+        )
+        #endif
+    }
+
+    func testNarrowWindowCollapsesSecondaryPanesBeforePersisting() {
+        let detailWidth = 600.0
+        let narrowWidth = ContentView.sidebarMinWidth + detailWidth - 1
+
+        let policy = ContentView.shellCollapsePolicy(
+            windowWidth: narrowWidth,
+            horizontalSizeClass: .regular,
+            sidebarVisible: true,
+            inspectorVisible: true,
+            detailMinWidth: detailWidth
+        )
+
+        XCTAssertTrue(policy.collapseSidebar)
+        XCTAssertTrue(policy.collapseInspector)
+    }
+
+    func testWiderWindowKeepsPreferredMacOrIPadSidebarState() {
+        let detailWidth = 600.0
+        let roomyWidth =
+            ContentView.sidebarMinWidth + detailWidth + ContentView.inspectorMinWidth + 40
+
+        let policy = ContentView.shellCollapsePolicy(
+            windowWidth: roomyWidth,
+            horizontalSizeClass: .regular,
+            sidebarVisible: true,
+            inspectorVisible: true,
+            detailMinWidth: detailWidth
+        )
+
+        XCTAssertFalse(policy.collapseSidebar)
+        XCTAssertFalse(policy.collapseInspector)
+    }
+
+    func testNarrowWindowDropsShellMinWidthToDetailWidth() {
+        let detailWidth = 600.0
+        let narrowWidth = ContentView.sidebarMinWidth + detailWidth - 1
+
+        XCTAssertEqual(
+            ContentView.shellWindowMinWidth(
+                windowWidth: narrowWidth,
+                horizontalSizeClass: .regular,
+                sidebarVisible: true,
+                inspectorVisible: true,
+                detailMinWidth: detailWidth
+            ),
+            detailWidth
+        )
+    }
+
+    func testRoomyWindowKeepsFullShellMinWidthForMacAndiPadLayouts() {
+        let detailWidth = 600.0
+        let roomyWidth =
+            ContentView.sidebarMinWidth + detailWidth + ContentView.inspectorMinWidth + 40
+
+        XCTAssertEqual(
+            ContentView.shellWindowMinWidth(
+                windowWidth: roomyWidth,
+                horizontalSizeClass: .regular,
+                sidebarVisible: true,
+                inspectorVisible: true,
+                detailMinWidth: detailWidth
+            ),
+            ContentView.windowMinWidth(
+                sidebarVisible: true,
+                inspectorVisible: true,
+                detailMinWidth: detailWidth
+            )
+        )
+    }
+
+    func testInspectorCollapseBandRelaxesShellMinWidthToSidebarAndDetail() {
+        let detailWidth = 600.0
+        let inspectorBandWidth =
+            ContentView.sidebarMinWidth + detailWidth + ContentView.inspectorMinWidth - 1
+
+        let policy = ContentView.shellCollapsePolicy(
+            windowWidth: inspectorBandWidth,
+            horizontalSizeClass: .regular,
+            sidebarVisible: true,
+            inspectorVisible: true,
+            detailMinWidth: detailWidth
+        )
+
+        XCTAssertFalse(policy.collapseSidebar)
+        XCTAssertTrue(policy.collapseInspector)
+        XCTAssertEqual(
+            ContentView.shellWindowMinWidth(
+                windowWidth: inspectorBandWidth,
+                horizontalSizeClass: .regular,
+                sidebarVisible: true,
+                inspectorVisible: true,
+                detailMinWidth: detailWidth
+            ),
+            ContentView.sidebarMinWidth + detailWidth
+        )
+    }
+
+    func testCompactNavigationFlowIsCompactOnly() {
+        #if os(macOS)
+        XCTAssertFalse(ContentView.shouldUseCompactNavigationFlow(horizontalSizeClass: nil))
+        XCTAssertFalse(ContentView.shouldUseCompactNavigationFlow(horizontalSizeClass: .compact))
+        #else
+        XCTAssertFalse(ContentView.shouldUseCompactNavigationFlow(horizontalSizeClass: nil))
+        XCTAssertFalse(ContentView.shouldUseCompactNavigationFlow(horizontalSizeClass: .regular))
+        XCTAssertTrue(ContentView.shouldUseCompactNavigationFlow(horizontalSizeClass: .compact))
+        #endif
+    }
+
+    func testAdaptiveAppleShellRouteUsesStackOnlyForCompactWidth() {
+        #if os(macOS)
+        XCTAssertEqual(AdaptiveAppleShellRoute.resolve(horizontalSizeClass: nil), .split)
+        XCTAssertEqual(AdaptiveAppleShellRoute.resolve(horizontalSizeClass: .compact), .split)
+        #else
+        XCTAssertEqual(AdaptiveAppleShellRoute.resolve(horizontalSizeClass: nil), .split)
+        XCTAssertEqual(AdaptiveAppleShellRoute.resolve(horizontalSizeClass: .regular), .split)
+        XCTAssertEqual(AdaptiveAppleShellRoute.resolve(horizontalSizeClass: .compact), .stack)
+        #endif
+    }
+
+    func testSplittablePanesCollapseWhenWindowIsTooNarrow() {
+        XCTAssertFalse(
+            ContentView.shouldUseSplittablePane(
+                horizontalSizeClass: .compact,
+                windowWidth: 1200,
+                minimumWidth: 800
+            )
+        )
+        XCTAssertFalse(
+            ContentView.shouldUseSplittablePane(
+                horizontalSizeClass: .regular,
+                windowWidth: 799,
+                minimumWidth: 800
+            )
+        )
+        XCTAssertTrue(
+            ContentView.shouldUseSplittablePane(
+                horizontalSizeClass: .regular,
+                windowWidth: 801,
+                minimumWidth: 800
+            )
+        )
+    }
+
+    func testSidebarRenderedPredicateMatchesActualSidebarColumnGate() {
+        XCTAssertFalse(
+            ContentView.shouldRenderSidebarColumn(
+                horizontalSizeClass: .compact,
+                showSidebar: true,
+                columnVisibility: .all
+            )
+        )
+        XCTAssertFalse(
+            ContentView.shouldRenderSidebarColumn(
+                horizontalSizeClass: .regular,
+                showSidebar: true,
+                columnVisibility: .detailOnly
+            )
+        )
+        XCTAssertFalse(
+            ContentView.shouldRenderSidebarColumn(
+                horizontalSizeClass: .regular,
+                showSidebar: false,
+                columnVisibility: .all
+            )
+        )
+        XCTAssertTrue(
+            ContentView.shouldRenderSidebarColumn(
+                horizontalSizeClass: .regular,
+                showSidebar: true,
+                columnVisibility: .all
+            )
+        )
+    }
+
+    func testAdaptiveWidescreenAvailableWidthOnlySubtractsInspector() {
+        XCTAssertNil(
+            ContentView.adaptiveWidescreenAvailableWidth(
+                windowWidth: nil,
+                inspectorVisible: true
+            )
+        )
+        XCTAssertEqual(
+            ContentView.adaptiveWidescreenAvailableWidth(
+                windowWidth: 200,
+                inspectorVisible: false
+            ),
+            200
+        )
+        XCTAssertEqual(
+            ContentView.adaptiveWidescreenAvailableWidth(
+                windowWidth: ContentView.inspectorMinWidth,
+                inspectorVisible: true
+            ),
+            0
+        )
+    }
+
+    func testWidescreenPanePlanStillCollapsesAtZeroAvailableWidth() {
+        let plan = WidescreenPanePlan.make(
+            showDocumentGrid: true,
+            showDocumentCanvas: true,
+            showReadingPane: true,
+            availableWidth: 0
+        )
+
+        XCTAssertTrue(plan.showsLibraryPane)
+        XCTAssertFalse(plan.showsCanvasPane)
+        XCTAssertFalse(plan.showsReadingPane)
+        XCTAssertEqual(plan.minimumWidth, ContentView.contentListMinWidth)
+    }
+
+    func testPersistentShellChromeStaysInSplitColumns() throws {
+        let contentSource = try Self.appSource("Views/ContentView.swift")
+        let buildersSource = try Self.appSource("Views/ContentView+ViewBuilders.swift")
+        let workspaceRootSource = try Self.appSource("Views/Library/LibraryWorkspaceRoot.swift")
+
+        XCTAssertTrue(contentSource.contains("NavigationSplitView("))
+        XCTAssertTrue(contentSource.contains("detailShellColumn"))
+        XCTAssertTrue(buildersSource.contains("var detailShellColumn: some View"))
+        XCTAssertTrue(buildersSource.contains("detailTabStrip"))
+        XCTAssertTrue(buildersSource.contains("detailLocationPathBar"))
+        XCTAssertTrue(buildersSource.contains("detailStatusPathBar"))
+        XCTAssertTrue(buildersSource.contains("WindowOpener.open(libraryId: windowState.libraryId, asTab: true"))
+        XCTAssertTrue(workspaceRootSource.contains("AdaptiveAppleShellHost"))
+    }
+
+    func testSelectionStatusTextKeepsCountAndPathVisible() throws {
+        let stateSource = try Self.appSource("Views/ContentView+State.swift")
+
+        XCTAssertTrue(stateSource.contains("var selectionStatusText: String"))
+        XCTAssertTrue(stateSource.contains("\"\\(browserSelection.count) items selected\""))
+        XCTAssertTrue(stateSource.contains("var selectionPathText: String"))
+        XCTAssertTrue(stateSource.contains("return \"\\(breadcrumbSubtitle) › \\(leaf)\""))
+    }
+
+    func testToolbarSearchStaysBesideContentTitle() throws {
+        let contentSource = try Self.appSource("Views/ContentView.swift")
+        guard let principalRange = contentSource.range(of: "private var principalToolbarContent: some ToolbarContent") else {
+            XCTFail("principal toolbar content missing")
+            return
+        }
+        let principalSource = contentSource[principalRange.lowerBound...]
+
+        XCTAssertTrue(principalSource.contains("Text(toolbarTitle)"))
+        XCTAssertTrue(principalSource.contains("TextField(\"Search \\(toolbarTitle)\", text: $toolbarSearchText)"))
+        XCTAssertTrue(principalSource.contains("runToolbarSearch(toolbarSearchText)"))
+    }
+
+    func testBottomEdgeFiltersStayPaneScoped() throws {
+        let sidebarSource = try Self.appSource("Views/Sidebar/SidebarView+ViewComponents.swift")
+        let sidebarHelpersSource = try Self.appSource("Views/Sidebar/SidebarView+Helpers.swift")
+        let annotationsSource = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorAnnotationsTab.swift"
+        )
+
+        XCTAssertTrue(sidebarSource.contains("sidebarFilterBar"))
+        XCTAssertTrue(sidebarSource.contains("TextField(\"Filter\", text: $sidebarFilterText)"))
+        XCTAssertTrue(sidebarHelpersSource.contains("var filteredLibraryHeaders: [SidebarItem]"))
+        XCTAssertTrue(annotationsSource.contains("annotationFilterBar"))
+        XCTAssertTrue(annotationsSource.contains("TextField(\"Search notes, tags, claim id…\", text: $searchText)"))
+    }
+
+    func testContentPaneControlsLiveInTopToolbar() throws {
+        let contentSource = try Self.appSource("Views/ContentView.swift")
+        let buildersSource = try Self.appSource("Views/ContentView+ViewBuilders.swift")
+
+        XCTAssertTrue(contentSource.contains("contentPaneToolbarContent"))
+        XCTAssertTrue(contentSource.contains("showDocumentGrid.toggle()"))
+        XCTAssertTrue(contentSource.contains("setCanvasPaneVisible(!showDocumentCanvas)"))
+        XCTAssertTrue(contentSource.contains("setReadingPaneVisible(!showReadingPane)"))
+        XCTAssertFalse(buildersSource.contains("viewSettings.previewMode = .none"))
+    }
+
+    func testPdfReaderUsesTheExistingReadingLayout() throws {
+        let buildersSource = try Self.appSource("Views/ContentView+ViewBuilders.swift")
+
+        XCTAssertTrue(buildersSource.contains("PDFReadingView("))
+        XCTAssertTrue(buildersSource.contains("contentWidth: $pageContentPaneWidth"))
+        XCTAssertTrue(buildersSource.contains("SwipeSiblingNavigator("))
+    }
+
+    func testSidebarsUseSystemGlassMaterials() throws {
+        let sidebarSource = try Self.appSource("Views/Sidebar/SidebarView+ViewComponents.swift")
+        let buildersSource = try Self.appSource("Views/ContentView+ViewBuilders.swift")
+
+        XCTAssertTrue(sidebarSource.contains(".background(.bar)"))
+        XCTAssertFalse(sidebarSource.contains(".background(Color(platformColor: .windowBackgroundColor))"))
+
+        guard let detailRange = buildersSource.range(of: "var detailView: some View") else {
+            XCTFail("detailView missing")
+            return
+        }
+        let detailSource = buildersSource[detailRange.lowerBound...]
+        XCTAssertTrue(detailSource.contains(".background(.bar)"))
+    }
+}
+// swiftlint:enable type_body_length

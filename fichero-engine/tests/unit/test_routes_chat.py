@@ -5,6 +5,8 @@ is out of scope here — tests focus on conversation CRUD (list, get, update,
 delete, reorder) and the providers list. Chat routes live at /api/chat/...
 """
 
+from langchain_core.messages import HumanMessage, SystemMessage
+
 from fichero.models import Conversation, Document
 
 
@@ -19,10 +21,10 @@ def _make_conv(conv_id: str = "conv-1", title: str = "My Chat") -> Conversation:
 
 class _FakeLLM:
     def __init__(self):
-        self.prompt = ""
+        self.messages = []
 
-    def invoke(self, prompt: str):
-        self.prompt = prompt
+    def invoke(self, messages):
+        self.messages = messages
 
         class _Response:
             content = "Ada Lovelace appears in the archive."
@@ -107,7 +109,12 @@ class TestChatWithSources:
         assert data["kg_entities_used"] == 0
         assert data["document_count"] == 1
         assert data["context_count"] == 1
-        assert "[Document 1: Lovelace notes]" in fake_llm.prompt
+        assert len(fake_llm.messages) == 2
+        assert isinstance(fake_llm.messages[0], SystemMessage)
+        assert isinstance(fake_llm.messages[1], HumanMessage)
+        assert "[Document 1: Lovelace notes]" in fake_llm.messages[1].content
+        assert "transparent, local instrument" in fake_llm.messages[0].content
+        assert "Never pretend to be human" in fake_llm.messages[0].content
         assert db.get(Conversation, data["conversation_id"]) is not None
 
     def test_chat_passes_graph_knobs_to_retriever(self, client, monkeypatch):
@@ -281,3 +288,65 @@ class TestReorderConversations:
     def test_reorder_missing_conv_returns_404(self, client):
         r = client.post("/api/chat/conversations/reorder", json=["no-such-conv"])
         assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# _get_langchain_llm — model factory fix (#2490)
+# ---------------------------------------------------------------------------
+
+
+class TestGetLangchainLlm:
+    """_get_langchain_llm must route through llm.get_langchain_model (not ChatLiteLLM)."""
+
+    def test_no_chatllm_import_error(self, monkeypatch):
+        """The function must not attempt to import the removed ChatLiteLLM."""
+        from unittest.mock import MagicMock
+
+        fake_model = MagicMock()
+        fake_model.invoke.return_value = MagicMock(content="ok")
+
+        captured_config = {}
+
+        def fake_get_langchain_model(config):
+            captured_config["provider"] = config.provider
+            captured_config["model"] = config.model
+            captured_config["temperature"] = config.temperature
+            captured_config["max_tokens"] = config.max_tokens
+            return fake_model
+
+        fake_db = MagicMock()
+        fake_db.query.return_value = []  # no configured providers → fallback defaults
+
+        monkeypatch.setattr(
+            "fichero.api.routes.chat.get_langchain_model",
+            fake_get_langchain_model,
+        )
+
+        from fichero.api.routes.chat import _get_langchain_llm
+
+        result = _get_langchain_llm(fake_db, provider="openai", model="gpt-4o-mini")
+
+        assert result is fake_model
+        assert captured_config["provider"] == "openai"
+        assert captured_config["model"] == "gpt-4o-mini"
+        assert captured_config["temperature"] == 0.7
+        assert captured_config["max_tokens"] == 2048
+
+    def test_chat_endpoint_uses_central_factory(self, client, monkeypatch):
+        """POST /api/chat succeeds when get_langchain_model returns a stub."""
+        from unittest.mock import MagicMock
+
+        fake_model = MagicMock()
+        fake_model.invoke.return_value = MagicMock(content="Hello from stub")
+
+        monkeypatch.setattr(
+            "fichero.api.routes.chat.get_langchain_model",
+            lambda _config: fake_model,
+        )
+
+        r = client.post(
+            "/api/chat",
+            json={"message": "test", "provider": "openai", "model": "gpt-4o-mini"},
+        )
+        assert r.status_code == 200
+        assert r.json()["message"] == "Hello from stub"

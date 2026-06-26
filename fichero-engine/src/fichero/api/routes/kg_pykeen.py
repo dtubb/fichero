@@ -7,7 +7,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.pykeen_inference import (
     StoredPrediction,
@@ -39,7 +39,7 @@ async def train(
     model: str = Query(default="TransE"),
     embedding_dim: int = Query(default=64, ge=8, le=512),
     num_epochs: int = Query(default=50, ge=1, le=1000),
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> TrainResponse:
     """Train + persist a KGE model. Synchronous (can take 30s+ on a
     small library; minutes on larger). Use the response to learn

@@ -1,4 +1,8 @@
+#if canImport(AppKit)
 import AppKit
+#elseif canImport(UIKit)
+import UIKit
+#endif
 import SwiftUI
 
 /// View shown while the embedded engine is booting (or when it failed to start).
@@ -10,6 +14,7 @@ import SwiftUI
 /// generic SF symbol.
 struct BackendConnectionView: View {
     @ObservedObject var appState: AppState
+    var onConnected: (@MainActor () async -> Void)?
     @EnvironmentObject var backendService: EmbeddedBackendService
 
     /// Index into `Self.startupMessages`, advanced by a timer.
@@ -27,9 +32,18 @@ struct BackendConnectionView: View {
     /// blocks are keyed on this value so SwiftUI cancels and re-creates them
     /// on each restart, resuming the poll loop from scratch.
     @State private var restartCount: Int = 0
+    @State private var completedConnectionForCurrentAttempt = false
 
     /// 12 × 5 s = 60 s before we give up and show the error state.
     private static let maxPollAttempts = 12
+
+    private var usesExternalBackendConnection: Bool {
+        #if os(iOS) || os(visionOS)
+        true
+        #else
+        EngineConfig.requiresExternalBackendConnection
+        #endif
+    }
 
     /// Messages cycled while `backendService.status == .starting`.
     ///
@@ -47,14 +61,20 @@ struct BackendConnectionView: View {
 
     /// Engine icon resolved from the bundled Fichero Engine.app.
     /// Falls back to the system server icon if the engine icon isn't found.
-    private var engineIconImage: NSImage {
+    private var engineIconImage: PlatformImage {
         if let resourcePath = Bundle.main.resourcePath {
             let iconPath = "\(resourcePath)/Fichero Engine.app/Contents/Resources/engine.icns"
-            if let image = NSImage(contentsOfFile: iconPath) {
+            if let image = PlatformImage(contentsOfFile: iconPath) {
                 return image
             }
         }
-        return NSImage(systemSymbolName: "server.rack", accessibilityDescription: nil) ?? NSImage()
+        #if canImport(AppKit)
+        return PlatformImage(systemSymbolName: "server.rack", accessibilityDescription: nil) ?? PlatformImage()
+        #elseif canImport(UIKit)
+        return PlatformImage(systemName: "server.rack") ?? PlatformImage()
+        #else
+        return PlatformImage()
+        #endif
     }
 
     /// Fichero app icon loaded as a flat .icns from the app bundle, NOT
@@ -62,19 +82,50 @@ struct BackendConnectionView: View {
     /// auto-wrapped in the system rounded-squircle treatment. The engine
     /// icon next to it renders flat (loaded the same way), so loading
     /// the Fichero side flat keeps the splash visually consistent (#793).
-    private var ficheroIconImage: NSImage {
+    private var ficheroIconImage: PlatformImage {
         if let resourcePath = Bundle.main.resourcePath {
             // The app's compiled icon catalog produces AppIcon.icns at
-            // the bundle root. Loading it directly via NSImage avoids
+            // the bundle root. Loading it directly via PlatformImage avoids
             // the system squircle that NSApp.applicationIconImage applies.
             let iconPath = "\(resourcePath)/AppIcon.icns"
-            if let image = NSImage(contentsOfFile: iconPath) {
+            if let image = PlatformImage(contentsOfFile: iconPath) {
                 return image
             }
         }
         // Fallback to the Tahoe-treated app icon if the .icns isn't
         // findable (custom builds, dev sandbox).
-        return NSApp.applicationIconImage ?? NSImage()
+        #if canImport(AppKit)
+        return NSApp.applicationIconImage ?? PlatformImage()
+        #elseif canImport(UIKit)
+        return PlatformImage(systemName: "books.vertical") ?? PlatformImage()
+        #else
+        return PlatformImage()
+        #endif
+    }
+
+    private var showsFailureState: Bool {
+        backendService.status == .failed || (!appState.isCheckingBackend && !appState.isBackendRunning)
+    }
+
+    private var titleText: String {
+        usesExternalBackendConnection ? "Connect to Fichero" : "Starting Fichero"
+    }
+
+    private var failureTitle: String {
+        usesExternalBackendConnection ? "Backend Not Reachable" : "Engine Not Running"
+    }
+
+    private var secondaryStatusText: String {
+        usesExternalBackendConnection ? "Connect to a running Fichero engine to continue." : "This can take a moment."
+    }
+
+    @MainActor
+    private func completeSuccessfulConnection() async {
+        guard !completedConnectionForCurrentAttempt else { return }
+        completedConnectionForCurrentAttempt = true
+        backendService.status = .running
+        backendService.errorMessage = nil
+        await onConnected?()
     }
 
     var body: some View {
@@ -85,7 +136,7 @@ struct BackendConnectionView: View {
             // The dots cycle through three phases on a 0.4s timer; the
             // single "active" dot lights up while the others dim.
             HStack(spacing: 16) {
-                Image(nsImage: ficheroIconImage)
+                Image(platformImage: ficheroIconImage)
                     .resizable()
                     .interpolation(.high)
                     .frame(width: 72, height: 72)
@@ -99,13 +150,13 @@ struct BackendConnectionView: View {
                 }
                 .frame(width: 50)
 
-                Image(nsImage: engineIconImage)
+                Image(platformImage: engineIconImage)
                     .resizable()
                     .interpolation(.high)
                     .frame(width: 72, height: 72)
             }
 
-            Text("Starting Fichero")
+            Text(titleText)
                 .font(.title)
                 .fontWeight(.semibold)
 
@@ -115,7 +166,7 @@ struct BackendConnectionView: View {
             // `.failed` triggers the red error text and the Retry button.
             // This prevents the "engine not running" flash that happens in
             // the ~100ms gap between view-mount and `start()` being called.
-            let isFailed = backendService.status == .failed
+            let isFailed = showsFailureState
             let isBootingOrChecking = !isFailed
 
             if isBootingOrChecking {
@@ -131,13 +182,13 @@ struct BackendConnectionView: View {
                         .id(messageIndex) // force re-render for transition
                         .transition(.opacity)
 
-                    Text("This can take a moment.")
+                    Text(secondaryStatusText)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
             } else {
                 VStack(spacing: 12) {
-                    Text("Engine Not Running")
+                    Text(failureTitle)
                         .font(.headline)
                         .foregroundColor(.red)
 
@@ -158,31 +209,47 @@ struct BackendConnectionView: View {
             // the 60-second window starts fresh.
             if isFailed {
                 Button {
-                    // Reset view state synchronously before incrementing
-                    // restartCount so the re-keyed .task blocks see a
-                    // non-failed status when they first evaluate the while
-                    // condition.
-                    pollCount = 0
-                    messageIndex = 0
-                    backendService.status = .stopped
-                    restartCount += 1
                     Task {
-                        backendService.stop()
-                        do {
-                            try await backendService.start()
-                        } catch {
-                            appState.backendError = error.localizedDescription
+                        pollCount = 0
+                        messageIndex = 0
+                        restartCount += 1
+                        completedConnectionForCurrentAttempt = false
+
+                        if usesExternalBackendConnection {
+                            backendService.status = .starting
+                            backendService.errorMessage = nil
+                            await appState.checkBackendHealth()
+                            if !appState.isBackendRunning {
+                                backendService.status = .failed
+                                backendService.errorMessage = appState.backendError
+                            } else {
+                                await completeSuccessfulConnection()
+                            }
+                        } else {
+                            // Reset view state before restarting so the re-keyed
+                            // tasks resume from a clean boot state.
+                            backendService.status = .stopped
+                            backendService.stop()
+                            do {
+                                try await backendService.start()
+                                await appState.checkBackendHealth()
+                                if appState.isBackendRunning {
+                                    await completeSuccessfulConnection()
+                                }
+                            } catch {
+                                appState.backendError = error.localizedDescription
+                            }
                         }
                     }
                 } label: {
-                    Label("Restart Engine", systemImage: "arrow.clockwise")
+                    Label(usesExternalBackendConnection ? "Retry Connection" : "Restart Engine", systemImage: "arrow.clockwise")
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(backendService.status == .starting)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(Color(platformColor: .windowBackgroundColor))
         .task(id: restartCount) {
             // Poll health every 5 s while the engine is booting. After
             // maxPollAttempts failures we give up and flip status to
@@ -197,6 +264,10 @@ struct BackendConnectionView: View {
                     }
                 }
                 await appState.checkBackendHealth()
+                if appState.isBackendRunning {
+                    await completeSuccessfulConnection()
+                    return
+                }
                 if !appState.isBackendRunning && backendService.status != .failed {
                     pollCount += 1
                     if pollCount >= Self.maxPollAttempts {

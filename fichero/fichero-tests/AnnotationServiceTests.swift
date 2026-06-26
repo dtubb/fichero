@@ -16,22 +16,57 @@ final class AnnotationServiceTests: XCTestCase {
     func testAnnotationServiceWiresDetailCropAndPromoteEndpoints() throws {
         let source = try Self.appSource("Services/AnnotationService.swift")
 
-        XCTAssertTrue(source.contains("/api/annotations/\\(id)"))
-        XCTAssertTrue(source.contains("/api/annotations/\\(id)/crop"))
-        XCTAssertTrue(source.contains("/api/annotations/\\(id)/promote-to-claim"))
-        XCTAssertTrue(source.contains("method: \"PATCH\""))
-        XCTAssertTrue(source.contains("method: \"DELETE\""))
-        XCTAssertTrue(source.contains("method: \"POST\""))
+        XCTAssertTrue(source.contains("client.api.getAnnotationApiAnnotationsAnnotationIdGet"))
+        XCTAssertTrue(source.contains("client.api.getCropApiAnnotationsAnnotationIdCropGet"))
+        XCTAssertTrue(source.contains("client.api.promoteToClaimApiAnnotationsAnnotationIdPromoteToClaimPost"))
+        XCTAssertTrue(source.contains("client.api.deleteAnnotationApiAnnotationsAnnotationIdDelete"))
+        XCTAssertFalse(source.contains("URLRequest("))
+        XCTAssertFalse(source.contains("URLSession"))
+        XCTAssertFalse(source.contains("URL(string:"))
     }
 
     func testDocumentInspectorAnnotationsTabWiresRowActions() throws {
+        // Row actions migrated from DocumentInspectorAnnotationsTab to AnnotationsInspectorPane
+        // as part of the Store-pattern refactor. The tab now delegates via AnnotationStore.
+        let source = try Self.appSource("Views/Library/AnnotationsInspectorPane.swift")
+
+        XCTAssertTrue(source.contains("annotationStore.cropAnnotation(id: annotation.id)"))
+        XCTAssertTrue(source.contains("annotationStore.reload()"))
+        XCTAssertTrue(source.contains("\"annotation.delete\""))
+        XCTAssertTrue(source.contains("guard let documentId = annotation.documentId else { return }"))
+        XCTAssertFalse(source.contains("URLRequest("))
+        XCTAssertFalse(source.contains("URLSession"))
+        XCTAssertFalse(source.contains("URL(string:"))
+    }
+
+    func testAnnotationServiceUsesExplicitPageAndFolderScopeFields() throws {
+        let source = try Self.appSource("Services/AnnotationService.swift")
+
+        XCTAssertTrue(source.contains("query: .init(pageId: pageId)"))
+        XCTAssertTrue(source.contains("query: .init(folderId: folderId)"))
+        XCTAssertTrue(source.contains("pageId: pageId"))
+        XCTAssertTrue(source.contains("folderId: folderId"))
+        XCTAssertTrue(source.contains("folderAnnotation(from:"))
+    }
+
+    func testDocumentInspectorAnnotationsTabSelectsScopeFromDocumentType() throws {
         let source = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorAnnotationsTab.swift")
 
-        XCTAssertTrue(source.contains("service.getAnnotation(id: annotation.id)"))
-        XCTAssertTrue(source.contains("service.updateText(id: annotation.id, text: editText)"))
-        XCTAssertTrue(source.contains("service.cropAnnotation(id: annotation.id)"))
-        XCTAssertTrue(source.contains("service.promoteToClaim(id: annotation.id)"))
-        XCTAssertTrue(source.contains("service.delete(id: annotation.id)"))
+        XCTAssertTrue(source.contains("case .folder:"))
+        XCTAssertTrue(source.contains("return .folder(document.id)"))
+        XCTAssertTrue(source.contains("case .page:"))
+        XCTAssertTrue(source.contains("return .page(document.id)"))
+        // Scope loading now goes through AnnotationStore.loadAnnotations(for:force:).
+        XCTAssertTrue(source.contains("await annotationStore.loadAnnotations(for: annotationScope, force: true)"))
+    }
+
+    func testFolderScopedAnnotationsHideRevealDependentActions() throws {
+        // Reveal/hide logic lives in AnnotationListView after the store migration.
+        let source = try Self.appSource("Views/Library/AnnotationListView.swift")
+        XCTAssertTrue(source.contains("annotation.canRevealSource && (annotation.hasRegion || annotation.hasSpan)"))
+        XCTAssertFalse(source.contains("URLRequest("))
+        XCTAssertFalse(source.contains("URLSession"))
+        XCTAssertFalse(source.contains("URL(string:"))
     }
 
     func testMatchesSearchByText() {

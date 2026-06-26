@@ -5,6 +5,8 @@ These tests verify route contract (status codes, request schema) and use
 mocking for LangGraph-dependent paths.
 """
 
+import asyncio
+
 import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -13,7 +15,8 @@ from langgraph.types import Send
 
 from fichero.api.routes.workflow_execution.core import get_thread_status
 from fichero.api.routes.workflow_execution.runner import _missing_exit_nodes
-from fichero.models import Workflow
+from fichero.models import Artifact, Document, DocType, FileType, Status, Workflow
+from fichero.workflows.activity import get_activity_tracker
 from fichero.workflows.activity_types import WorkflowRun
 
 
@@ -31,6 +34,18 @@ def _make_workflow(db, name: str = "Test Workflow") -> Workflow:
     )
     db.save(wf)
     return wf
+
+
+def _make_doc(db, name: str, *, doc_type: DocType = DocType.file) -> Document:
+    doc = Document(
+        name=name,
+        doc_type=doc_type,
+        file_type=FileType.pdf if name.endswith(".pdf") else FileType.image,
+        path=f"/tmp/{name}",
+        status=Status.completed,
+    )
+    db.save(doc)
+    return doc
 
 
 def _make_mock_checkpointer(thread_ids: list[str] | None = None):
@@ -201,6 +216,89 @@ class TestDeleteThread:
             r = client.delete("/api/workflow-execution/threads/nonexistent")
         assert r.status_code == 404
 
+    def test_delete_running_thread_returns_409(self, client):
+        mock_cp = _make_mock_checkpointer()
+        mock_cp.aget_tuple = AsyncMock(return_value=None)
+        mock_store = MagicMock()
+        mock_store.get_workflow_run = AsyncMock(
+            return_value=WorkflowRun(
+                thread_id="thread-accepted",
+                workflow_id="wf-1",
+                workflow_name="Accepted",
+                python_code=None,
+                execution_log=None,
+                status="running",
+                started_at=datetime.now(),
+                completed_at=None,
+                duration_ms=None,
+                error=None,
+                workflow_snapshot=None,
+                node_name_map=None,
+                progress_timeline=None,
+                diagram_mermaid=None,
+            )
+        )
+        tracker = MagicMock()
+        tracker.store = mock_store
+
+        with (
+            patch(
+                "fichero.api.routes.workflow_execution.threads.AsyncDuckDBCheckpointer.from_db_path",
+                return_value=mock_cp,
+            ),
+            patch(
+                "fichero.api.routes.workflow_execution.threads.get_activity_tracker",
+                return_value=tracker,
+            ),
+        ):
+            r = client.delete("/api/workflow-execution/threads/thread-accepted")
+
+        assert r.status_code == 409
+        mock_cp.adelete_thread.assert_not_called()
+
+    def test_delete_terminal_thread_marks_deleted_without_checkpoint(self, client):
+        mock_cp = _make_mock_checkpointer()
+        mock_cp.aget_tuple = AsyncMock(return_value=None)
+        mock_store = MagicMock()
+        mock_store.get_workflow_run = AsyncMock(
+            return_value=WorkflowRun(
+                thread_id="thread-done",
+                workflow_id="wf-1",
+                workflow_name="Done",
+                python_code=None,
+                execution_log=None,
+                status="completed",
+                started_at=datetime.now(),
+                completed_at=datetime.now(),
+                duration_ms=1,
+                error=None,
+                workflow_snapshot=None,
+                node_name_map=None,
+                progress_timeline=None,
+                diagram_mermaid=None,
+            )
+        )
+        mock_store.delete_workflow_run = AsyncMock(return_value=1)
+        tracker = MagicMock()
+        tracker.store = mock_store
+
+        with (
+            patch(
+                "fichero.api.routes.workflow_execution.threads.AsyncDuckDBCheckpointer.from_db_path",
+                return_value=mock_cp,
+            ),
+            patch(
+                "fichero.api.routes.workflow_execution.threads.get_activity_tracker",
+                return_value=tracker,
+            ),
+        ):
+            r = client.delete("/api/workflow-execution/threads/thread-done")
+
+        assert r.status_code == 200
+        mock_cp.adelete_thread.assert_not_called()
+        mock_store.delete_workflow_run.assert_awaited_once_with("thread-done")
+        tracker.workflow_deleted.assert_called_once()
+
 
 # ---------------------------------------------------------------------------
 # GET /api/workflow-execution/workflows/{workflow_id}/cache/stats
@@ -332,9 +430,19 @@ class TestExecuteWorkflow:
         assert data["workflow_name"] == "Gate Workflow"
         assert data["status"] == "accepted"
         assert data["thread_id"].startswith("thread-")
+        # The live SSE handler is stream_workflow_events on the workflow-execution
+        # router; the old /api/workflows/stream/ path had no handler (#2546).
         assert data["stream_url"].endswith(
-            f"/api/workflows/stream/{data['thread_id']}"
+            f"/api/workflow-execution/stream/{data['thread_id']}"
         )
+        run = asyncio.run(
+            get_activity_tracker(str(db.path)).store.get_workflow_run(data["thread_id"])
+        )
+        assert run is not None
+        assert run.workflow_id == wf.id
+        assert run.workflow_name == "Gate Workflow"
+        assert run.status == "accepted"
+        assert run.workflow_snapshot["inputs"]["selected_doc_ids"] == ["doc-1"]
         fake_thread.start.assert_called_once()
 
     def test_missing_workflow_returns_404(self, client):
@@ -351,7 +459,19 @@ class TestExecuteWorkflow:
 
 
 class TestGetWorkflowRun:
-    def test_get_workflow_run_returns_saved_execution_data(self, client):
+    def test_get_workflow_run_returns_saved_execution_data(self, client, db):
+        source_doc = _make_doc(db, "source.pdf")
+        output_doc = _make_doc(db, "page-1.png")
+        db.save(
+            Artifact(
+                document_id=output_doc.id,
+                source_document_id=source_doc.id,
+                artifact_type="transcription",
+                content="hola",
+                run_id="thread-123",
+                step_name="n1",
+            )
+        )
         run = MagicMock()
         run.thread_id = "thread-123"
         run.workflow_id = "wf-123"
@@ -363,7 +483,13 @@ class TestGetWorkflowRun:
         run.completed_at = None
         run.duration_ms = 42.0
         run.error = None
-        run.workflow_snapshot = {"nodes": []}
+        run.workflow_snapshot = {
+            "nodes": [
+                {"id": "n1", "tool": "files", "label": "Files"},
+                {"id": "n2", "tool": "transcribe", "label": "Transcribe"},
+            ],
+            "edges": [{"source": "n1", "target": "n2"}],
+        }
         run.node_name_map = {"n1": "Files"}
         run.progress_timeline = {"steps": []}
         run.diagram_mermaid = "graph TD;"
@@ -383,6 +509,71 @@ class TestGetWorkflowRun:
         assert data["workflow_id"] == "wf-123"
         assert data["status"] == "completed"
         assert data["execution_log"] == "completed"
+        assert data["diagram_svg_url"].endswith("/api/workflow-execution/threads/thread-123/diagram.svg")
+        assert data["planned_steps"] == [
+            {
+                "node_id": "n1",
+                "node_name": "Files",
+                "tool": "files",
+                "upstream_ids": [],
+                "downstream_ids": ["n2"],
+            },
+            {
+                "node_id": "n2",
+                "node_name": "Transcribe",
+                "tool": "transcribe",
+                "upstream_ids": ["n1"],
+                "downstream_ids": [],
+            },
+        ]
+        assert data["run_artifacts"][0]["artifact_type"] == "transcription"
+        assert data["run_artifacts"][0]["document_id"] == output_doc.id
+        assert data["run_artifacts"][0]["document_name"] == "page-1.png"
+        assert data["run_artifacts"][0]["source_document_id"] == source_doc.id
+        assert data["run_artifacts"][0]["source_document_name"] == "source.pdf"
+        assert data["run_artifacts"][0]["step_name"] == "n1"
+        assert data["run_artifacts"][0]["node_name"] == "Files"
+
+
+class TestThreadDiagramSvg:
+    def test_returns_svg_wrapper_for_run_diagram(self, client):
+        run = WorkflowRun(
+            thread_id="thread-svg",
+            workflow_id="wf-svg",
+            workflow_name="Transcribe",
+            python_code="",
+            execution_log="",
+            status="completed",
+            started_at=datetime.now(),
+            completed_at=datetime.now(),
+            duration_ms=1,
+            error=None,
+            workflow_snapshot={
+                "nodes": [{"id": "n1", "tool": "files", "label": "Files"}],
+                "edges": [],
+            },
+            node_name_map={"n1": "Files"},
+            progress_timeline=None,
+            diagram_mermaid="graph TD;",
+        )
+        tracker = MagicMock()
+        tracker.store.get_workflow_run = AsyncMock(return_value=run)
+
+        with (
+            patch(
+                "fichero.api.routes.workflow_execution.threads.get_activity_tracker",
+                return_value=tracker,
+            ),
+            patch(
+                "fichero.api.routes.workflow_execution.threads._render_run_diagram_png",
+                AsyncMock(return_value=b"png-bytes"),
+            ),
+        ):
+            r = client.get("/api/workflow-execution/threads/thread-svg/diagram.svg")
+
+        assert r.status_code == 200
+        assert r.headers["content-type"].startswith("image/svg+xml")
+        assert "data:image/png;base64," in r.text
 
 
 # ---------------------------------------------------------------------------
@@ -451,3 +642,137 @@ class TestClassifyProviderError:
         from fichero.api.routes.workflow_execution.runner import _classify_provider_error
         out = _classify_provider_error("upstream returned 500 Internal Server Error")
         assert out["category"] == "server"
+
+    def test_402_out_of_credits_is_quota(self):
+        """#2612: 402 Payment Required must be classified as a quota error."""
+        from fichero.api.routes.workflow_execution.runner import _classify_provider_error
+        out = _classify_provider_error("Provider returned 402: out of credits")
+        assert out["category"] == "quota"
+        assert "credits" in out["action"].lower() or "account" in out["action"].lower()
+
+
+class TestSystemicFailureMessage:
+    """#2612: systemic failures must surface provider/auth/quota details."""
+
+    def test_402_message_includes_provider_detail(self):
+        from fichero.api.routes.workflow_execution.runner import (
+            SystemicErrorDetected,
+            _systemic_failure_message,
+        )
+
+        raw = "Step 'Transcribe' failed: Provider returned 402: out of credits"
+        e = SystemicErrorDetected(
+            message=raw,
+            error_count=1,
+            total_count=1,
+            errors=[{"node": "transcribe", "error": raw}],
+        )
+        message, cls = _systemic_failure_message(e)
+        assert cls["category"] == "quota"
+        assert "out of credits" in message
+        assert "Top up account" in message
+
+    def test_unknown_error_passes_through_raw_message(self):
+        from fichero.api.routes.workflow_execution.runner import (
+            SystemicErrorDetected,
+            _systemic_failure_message,
+        )
+
+        raw = "Step 'X' failed: something obscure"
+        e = SystemicErrorDetected(message=raw)
+        message, cls = _systemic_failure_message(e)
+        assert cls["category"] == "unknown"
+        assert message == raw
+
+
+class TestDetectEmptyTextOutput:
+    """#2244/#2245: _detect_empty_text_output flags runs that processed files but
+    produced no text, without false-positives on no-input or rich-output workflows."""
+
+    def _fn(self, state):
+        from fichero.api.routes.workflow_execution.runner import _detect_empty_text_output
+        return _detect_empty_text_output(state)
+
+    def test_no_files_not_empty(self):
+        """Workflow with no input files must never be flagged."""
+        is_empty, _ = self._fn({"outputs": {"node": {"text": ""}}})
+        assert not is_empty
+
+    def test_text_output_not_empty(self):
+        """Non-whitespace text in any node output → not empty."""
+        state = {
+            "files": ["/tmp/page-1.jpg"],
+            "outputs": {"transcribe": {"text": "El alcalde firmó el acta."}},
+        }
+        is_empty, _ = self._fn(state)
+        assert not is_empty
+
+    def test_whitespace_only_text_is_empty(self):
+        """Whitespace-only text must not count as output."""
+        state = {
+            "files": ["/tmp/page-1.jpg"],
+            "outputs": {"transcribe": {"text": "   \n  "}},
+        }
+        is_empty, reason = self._fn(state)
+        assert is_empty
+        assert "page-1.jpg" not in reason  # reason contains file count, not paths
+        assert "1 file" in reason
+
+    def test_artifacts_count_as_output(self):
+        """Non-empty artifacts list means the run produced output."""
+        state = {
+            "files": ["/tmp/scan.pdf"],
+            "outputs": {"transcribe": {"text": "", "artifacts": ["artifact-1"]}},
+        }
+        is_empty, _ = self._fn(state)
+        assert not is_empty
+
+    def test_page_records_count_as_output(self):
+        """Non-empty page_records list means the run produced output."""
+        state = {
+            "files": ["/tmp/page-1.jpg"],
+            "outputs": {
+                "transcribe": {
+                    "text": "",
+                    "page_records": [{"doc_id": "doc-1", "text": "Transcribed"}],
+                }
+            },
+        }
+        is_empty, _ = self._fn(state)
+        assert not is_empty
+
+    def test_all_empty_outputs_flagged(self):
+        """Multiple nodes all with empty text/no artifacts → flagged as empty."""
+        state = {
+            "files": ["/tmp/a.jpg", "/tmp/b.jpg"],
+            "outputs": {
+                "transcribe-ts": {"text": ""},
+                "transcribe-ms": {"text": None},
+            },
+        }
+        is_empty, reason = self._fn(state)
+        assert is_empty
+        assert "2 file" in reason
+
+    def test_non_dict_final_state_not_empty(self):
+        """Non-dict final state (shouldn't happen) must not raise."""
+        is_empty, _ = self._fn(None)
+        assert not is_empty
+
+    def test_empty_outputs_dict_with_files_flagged(self):
+        """Files present but empty outputs dict → flagged."""
+        state = {"files": ["/tmp/x.jpg"], "outputs": {}}
+        is_empty, reason = self._fn(state)
+        assert is_empty
+        assert "1 file" in reason
+
+    def test_results_count_as_output(self):
+        """Non-empty results list counts as output (e.g. entity extraction)."""
+        state = {
+            "files": ["/tmp/doc.txt"],
+            "outputs": {
+                "extract_all": {"text": "", "results": [{"entity": "García"}]},
+            },
+        }
+        is_empty, _ = self._fn(state)
+        assert not is_empty

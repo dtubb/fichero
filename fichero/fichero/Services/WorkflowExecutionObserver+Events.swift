@@ -5,22 +5,55 @@ extension WorkflowExecutionObserver {
 
     // MARK: - Event Handling
 
-    // swiftlint:disable:next todo
-    // TODO: Refactor handleEvent - extract case handlers into separate methods
-    // Function is 145 lines, target <100
-    // swiftlint:disable:next function_body_length cyclomatic_complexity
-    func handleEvent(_ event: WorkflowStreamEvent, for workflowId: String) {
+    /// Apply one parsed SSE event to the execution tracked under `threadId`.
+    ///
+    /// The per-event state reduction now lives on `WorkflowExecution.apply(_:)`
+    /// (below) so it can be shared with the threadId-keyed `WorkflowExecutionStore`
+    /// (#2546) — the Activity monitor reduces the SAME events into the SAME model
+    /// without duplicating this logic. This method keeps the observer-specific
+    /// concerns: the threadId lookup, the missing-execution warning, the
+    /// `fileCompletedCount` inspector signal, and the write-back.
+    func handleEvent(_ event: WorkflowStreamEvent, forThreadId threadId: String) {
         // Log every event for debugging
         let eventDesc = String(describing: event).prefix(80)
-        workflowExecutionLogger.info("[EVENT] Received: \(eventDesc) for workflow: \(workflowId)")
+        workflowExecutionLogger.info("[EVENT] Received: \(eventDesc) for thread: \(threadId)")
 
-        guard var execution = activeExecutions[workflowId] else {
+        guard var execution = activeExecutions[threadId] else {
             let activeKeys = self.activeExecutions.keys.joined(separator: ", ")
             workflowExecutionLogger.warning(
-                "[EVENT] No execution found for workflow: \(workflowId). Active: \(activeKeys)"
+                "[EVENT] No execution found for thread: \(threadId). Active: \(activeKeys)"
             )
             return
         }
+
+        execution.apply(event)
+
+        // Inspector signal: a file finished — let DocumentInspector re-fetch
+        // artifacts without polling. (Observer-only concern, not part of the
+        // shared reducer.)
+        if case .fileComplete = event {
+            fileCompletedCount += 1
+        }
+
+        // Save updated execution
+        activeExecutions[threadId] = execution
+    }
+}
+
+// MARK: - Shared Event Reducer
+
+extension WorkflowExecution {
+
+    // swiftlint:disable function_body_length cyclomatic_complexity
+    /// Reduce one parsed SSE event into this execution's state.
+    ///
+    /// Pure, value-typed, side-effect-free: mutates only `self`. Shared by
+    /// `WorkflowExecutionObserver` (keyed by threadId, fed by the launchers) and
+    /// `WorkflowExecutionStore` (keyed by threadId, fed by Activity's
+    /// subscribe-on-select) — one reducer, two homes (#2546).
+    mutating func apply(_ event: WorkflowStreamEvent) {
+        var execution = self
+        defer { self = execution }
 
         switch event {
         case .start(_, let workflowName):
@@ -64,9 +97,29 @@ extension WorkflowExecutionObserver {
             execution.totalFiles = fileTotal
             execution.processedFiles = 0
 
-        case .fileStart(_, let nodeId, let filePath, let fileIndex, let fileTotal, let progress):
-            let fileName = (filePath as NSString).lastPathComponent
+        case .fileStart(
+            _, let nodeId, let filePath, let fileIndex, let fileTotal, let progress,
+            let documentId, let pageId, let displayName, let sequence
+        ):
+            let identity = FileProgressIdentity(
+                filePath: filePath,
+                documentId: documentId,
+                pageId: pageId,
+                displayName: displayName,
+                sequence: sequence
+            )
+            let fileName = identity.resolvedDisplayName
             workflowExecutionLogger.debug("File start: \(fileName) (\(fileIndex + 1)/\(fileTotal))")
+
+            // Drive `overallProgress` off the accurate processedFiles/totalFiles
+            // path. The graph-parallel run path (enable_parallel=True, #2532/#2541)
+            // never emits `parallel_start` — only file_start/complete/error — so
+            // `totalFiles` would otherwise stay 0 and the Overall Progress bar sat
+            // at 0% (#2546 follow-up). The file events carry the same `file_total`
+            // `parallel_start` used to; seed it here (max, never shrink).
+            if fileTotal > 0 {
+                execution.totalFiles = max(execution.totalFiles, fileTotal)
+            }
 
             // Update node state
             var state = execution.nodeStates[nodeId] ?? NodeExecutionState(nodeId: nodeId)
@@ -77,18 +130,34 @@ extension WorkflowExecutionObserver {
             execution.nodeStates[nodeId] = state
 
             // Update document progress
-            var docProgress = execution.documentProgress[filePath] ?? DocumentProgress(
-                id: filePath,
+            var docProgress = execution.documentProgress[identity.stableId] ?? DocumentProgress(
+                id: identity.stableId,
                 documentName: fileName,
                 stepStatuses: [:]
             )
             docProgress.stepStatuses[nodeId] = .running
-            execution.documentProgress[filePath] = docProgress
+            execution.documentProgress[identity.stableId] = docProgress
             execution.currentFilePath = filePath
 
-        case .fileComplete(_, let nodeId, let filePath, let fileIndex, let fileTotal, let progress, let cached):
-            let fileName = (filePath as NSString).lastPathComponent
+        case .fileComplete(
+            _, let nodeId, let filePath, let fileIndex, let fileTotal, let progress, let cached,
+            let documentId, let pageId, let displayName, let sequence
+        ):
+            let identity = FileProgressIdentity(
+                filePath: filePath,
+                documentId: documentId,
+                pageId: pageId,
+                displayName: displayName,
+                sequence: sequence
+            )
+            let fileName = identity.resolvedDisplayName
             workflowExecutionLogger.debug("File complete: \(fileName) (\(fileIndex + 1)/\(fileTotal))")
+
+            // Seed totalFiles here too — a cached file_complete (#700) skips
+            // file_start, and a late Activity subscriber may land mid-batch.
+            if fileTotal > 0 {
+                execution.totalFiles = max(execution.totalFiles, fileTotal)
+            }
 
             // Update node state
             var state = execution.nodeStates[nodeId] ?? NodeExecutionState(nodeId: nodeId)
@@ -99,23 +168,32 @@ extension WorkflowExecutionObserver {
             execution.nodeStates[nodeId] = state
 
             // Update document progress
-            var docProgress = execution.documentProgress[filePath] ?? DocumentProgress(
-                id: filePath,
+            var docProgress = execution.documentProgress[identity.stableId] ?? DocumentProgress(
+                id: identity.stableId,
                 documentName: fileName,
                 stepStatuses: [:]
             )
             docProgress.stepStatuses[nodeId] = .completed(duration: nil, cached: cached)
-            execution.documentProgress[filePath] = docProgress
+            execution.documentProgress[identity.stableId] = docProgress
 
             // Track overall progress
             execution.processedFiles += 1
             execution.currentFilePath = nil  // Clear current file
+            // (The observer raises `fileCompletedCount` in `handleEvent` — it is
+            // an observer-level inspector signal, not part of this reducer.)
 
-            // Signal inspectors to refresh artifacts for this file
-            fileCompletedCount += 1
-
-        case .fileError(_, let nodeId, let filePath, let error, let progress):
-            let fileName = (filePath as NSString).lastPathComponent
+        case .fileError(
+            _, let nodeId, let filePath, let error, let progress,
+            let documentId, let pageId, let displayName, let sequence
+        ):
+            let identity = FileProgressIdentity(
+                filePath: filePath,
+                documentId: documentId,
+                pageId: pageId,
+                displayName: displayName,
+                sequence: sequence
+            )
+            let fileName = identity.resolvedDisplayName
             workflowExecutionLogger.warning("File error: \(fileName) - \(error)")
 
             // Update node state
@@ -127,13 +205,13 @@ extension WorkflowExecutionObserver {
             execution.nodeStates[nodeId] = state
 
             // Update document progress
-            var docProgress = execution.documentProgress[filePath] ?? DocumentProgress(
-                id: filePath,
+            var docProgress = execution.documentProgress[identity.stableId] ?? DocumentProgress(
+                id: identity.stableId,
                 documentName: fileName,
                 stepStatuses: [:]
             )
             docProgress.stepStatuses[nodeId] = .failed(error: error)
-            execution.documentProgress[filePath] = docProgress
+            execution.documentProgress[identity.stableId] = docProgress
 
             // Track overall progress (errors also count as processed)
             execution.processedFiles += 1
@@ -171,6 +249,13 @@ extension WorkflowExecutionObserver {
         case .pause:
             workflowExecutionLogger.info("Workflow paused")
             execution.status = .paused
+            execution.isRunning = false
+
+        case .cancelled:
+            workflowExecutionLogger.info("Workflow cancelled")
+            execution.status = .failed
+            execution.workflowError = "Cancelled by user"
+            execution.isRunning = false
 
         case .error(_, let error):
             workflowExecutionLogger.error("Workflow error: \(error)")
@@ -187,8 +272,6 @@ extension WorkflowExecutionObserver {
         case .log(_, let line):
             execution.logLines.append(line)
         }
-
-        // Save updated execution
-        activeExecutions[workflowId] = execution
     }
+    // swiftlint:enable function_body_length cyclomatic_complexity
 }

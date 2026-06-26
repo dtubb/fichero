@@ -35,6 +35,14 @@ class TestClassifySystemicError:
         cause = _classify_systemic_error(errors, 12)
         assert cause is not None
 
+    def test_single_transient_failure_is_not_systemic(self):
+        errors = ["temporary decode hiccup"]
+        assert _classify_systemic_error(errors, 1) is None
+
+    def test_two_transient_failures_still_not_systemic(self):
+        errors = ["temporary decode hiccup", "provider returned malformed json"]
+        assert _classify_systemic_error(errors, 2) is None
+
     def test_high_fraction_failed_is_systemic(self):
         # 13/15 failed — not literally all, but well past the threshold.
         errors = ["guardrail refusal"] * 13
@@ -60,6 +68,11 @@ class TestClassifySystemicError:
         errors = ["provider quota exceeded"] * 9
         cause = _classify_systemic_error(errors, 10)
         assert "quota" in cause.lower()
+
+    def test_auth_signature_detected_on_first_failed_chunk(self):
+        errors = ["HTTP 401 Unauthorized"]
+        cause = _classify_systemic_error(errors, 1)
+        assert cause == "HTTP 401 Unauthorized"
 
     def test_large_not_configured_signature_detected(self):
         errors = ["$large fallback not configured"] * 6
@@ -189,23 +202,21 @@ class TestExtractAllCooperativeScheduling:
             query=lambda *_args, **_kwargs: [],
             save=lambda *_args, **_kwargs: None,
         )
-        fake_writer = SimpleNamespace(
-            save=lambda *_args, **_kwargs: None,
-            flush=lambda: None,
-        )
         write_calls = 0
 
         def slow_write(*_args, **_kwargs):
             nonlocal write_calls
             write_calls += 1
             time.sleep(0.002)
+            # _write_kg_rows now returns (entity_ids, claim_ids); the caller
+            # unpacks it to feed per-document change-stream emits.
+            return [], []
 
         # _extract_one (oneshot) calls chat_structured_with_fallback after #1284 fix.
         monkeypatch.setattr(module, "chat_structured_with_fallback", fake_chat_structured)
         monkeypatch.setattr(module, "_write_kg_rows", slow_write)
         monkeypatch.setattr(module, "_resolve_write_target", lambda *_: container)
         monkeypatch.setattr(module.db_manager, "get_database", lambda *_: fake_db)
-        monkeypatch.setattr(module.db_manager, "get_db_writer", lambda *_: fake_writer)
 
         progress_events = []
 
@@ -242,6 +253,83 @@ class TestExtractAllCooperativeScheduling:
             for _, data in progress_events
         )
         assert any("KG write page" in data["file_path"] for _, data in progress_events)
+
+
+class TestExtractAllOutputLanguageOverride:
+    @pytest.mark.asyncio
+    async def test_primary_language_setting_overrides_auto_detection(self, monkeypatch):
+        module = importlib.import_module("fichero.workflows.tools.extract_all")
+
+        async def fake_run_two_stage(
+            _text,
+            _records,
+            _state,
+            _llm_config,
+            output_language,
+            _inputs,
+            _progress_callback,
+        ):
+            return {"output_language": output_language}
+
+        class _FakeAppDB:
+            def get_setting(self, key: str):
+                if key == "default_primary_language":
+                    return "Spanish"
+                return None
+
+        monkeypatch.setattr(module, "_run_two_stage", fake_run_two_stage)
+        monkeypatch.setattr("fichero.app_db.get_app_db", lambda: _FakeAppDB())
+
+        result = await module.extract_all(
+            {
+                "text": (
+                    "Marshall wrote in English about Popayán and Andagoya, "
+                    "but the diary passage itself is ordinary English prose."
+                ),
+                "records": [],
+                "output_language": "auto",
+                "extraction_mode": "twostage",
+            },
+            {},
+            LLMConfig(provider="test", model="test"),
+        )
+
+        assert result["output_language"] == "Spanish"
+
+
+class TestExtractAllProviderDefaults:
+    @pytest.mark.asyncio
+    async def test_direct_cloud_providers_default_to_twostage(self, monkeypatch):
+        module = importlib.import_module("fichero.workflows.tools.extract_all")
+
+        async def fake_run_two_stage(
+            _text,
+            _records,
+            _state,
+            _llm_config,
+            _output_language,
+            _inputs,
+            _progress_callback,
+        ):
+            return {"mode": "twostage", "provider": _llm_config.provider}
+
+        async def fail_oneshot(*_args, **_kwargs):
+            raise AssertionError("oneshot path should not be the default here")
+
+        monkeypatch.setattr(module, "_run_two_stage", fake_run_two_stage)
+        monkeypatch.setattr(module, "chat_structured_with_fallback", fail_oneshot)
+
+        for provider, model in (
+            ("openai", "gpt-4o-mini"),
+            ("openrouter", "openai/gpt-4o-mini"),
+        ):
+            result = await module.extract_all(
+                {"text": "Marshall met Peña in San Pablo."},
+                {},
+                LLMConfig(provider=provider, model=model),
+            )
+
+            assert result == {"mode": "twostage", "provider": provider}
 
 
 class TestExtractAllGuardrailFallback:
@@ -287,10 +375,6 @@ class TestExtractAllGuardrailFallback:
             query=lambda *_args, **_kwargs: [],
             save=lambda *_args, **_kwargs: None,
         )
-        fake_writer = SimpleNamespace(
-            save=lambda *_args, **_kwargs: None,
-            flush=lambda: None,
-        )
 
         monkeypatch.setattr(
             module, "chat_structured_with_fallback", fake_chat_structured_with_fallback
@@ -299,7 +383,6 @@ class TestExtractAllGuardrailFallback:
         monkeypatch.setattr(module, "_resolve_write_target", lambda *_: container)
         monkeypatch.setattr(module, "_write_kg_rows", lambda *_args, **_kw: None)
         monkeypatch.setattr(module.db_manager, "get_database", lambda *_: fake_db)
-        monkeypatch.setattr(module.db_manager, "get_db_writer", lambda *_: fake_writer)
 
         result = await module.extract_all(
             {"text": "Beatriz lived in Cali.", "extraction_mode": "oneshot"},

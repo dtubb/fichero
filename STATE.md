@@ -1,106 +1,362 @@
-# STATE.md — Fichero
+# STATE — 2026-06-25 (manager takeover from Claude; 0.0.2 cleaned, pushed, workers shut down)
 
-## 2026-06-06 (PM) — Manager session: consistency sweep + IIIF integration
+Branch `0.0.2` @ **c8775216** (= `origin/0.0.2`, clean). I took over the manager lane from Claude's rate-limited session, recovered its session history, reconciled the live worktrees/branches, pushed the two held-local `#2594` commits, cleaned the dirty tree, filed the new PDF fan-out efficiency bug, and shut down the stale worker tmux sessions (`f_knowledge`, `f_mindpalace`, `f_runner`).
 
-**Branch:** `0.0.2` at `9450c148`, pushed. `main` integrated via PR #1706 (= 0.0.2).
-All Swift merges build-gated green via Xcode MCP (`BuildProject`, tab windowtab1).
+## LANDED / CONFIRMED
+- **#2594 option (a) is fully landed and pushed**: leaf-only `execution/` move, with `runner.py` intentionally left under `api/routes/workflow_execution/` so the SwiftUI wiring contract stays green. Remote `0.0.2` now includes:
+  - `df7b41ea` `refactor: move workflow runner into execution (#2594)`
+  - `c8775216` `test: update runner source guard for execution move (#2594)`
+- **#2593 is resolved as "do not delete those routers"**. The useful part that remains is the additive SSRF coverage migration already on branch (`304abc62` / `test_research_tools_ssrf.py`). No dead-router deletion should be merged.
+- **#2621** already tracks the Activity 0%-progress / empty-log live bug. Claude's final finding says the current root cause was a stale Mac app build that still used `URLSession.shared.bytes(...)` instead of the pinned session; fix path is rebuild + relaunch from current `0.0.2`, not a new code change.
+- **#2622** newly filed: PDF per-page fan-out currently re-renders the same source PDF once per page instead of rendering once up front, wasting CPU/memory without increasing model tokens.
 
-**Shipped this session (each merged + MCP-build-verified + pushed + issue closed). 0.0.2 now at 16fec8f6:**
-- #1701 — 3 hand-written URLSession sites → generated OpenAPI client (DocumentPickerSheet/batches, ComparisonDetailView/model-comparison, LocalModelsSettingsView/local-models).
-- #1699 — extracted shared `FicheroWebView`; de-duped WKWebView wrappers (left DocumentKGWebPane's GuardedWKWebView intact — genuinely different).
-- #1687 — removed user-facing 30/50 list caps (show ALL, Finder-style); kept recent-N widgets/chips/toggles.
-- #1683 — **IIIF/W3C importer integrated** (iiif_import.py + import-iiif CLI). Resolved 3 manifest_import conflicts to feat's page-scoping; fixed a double transcript-write bug (added `write_transcript_artifacts=False` on IIIF→manifest). 568 backend tests green; db.py/knowledge_models additions are no-migration auto-column-add safe.
-- #1685 — Finder "Open / Open in New Tab / Open in New Window" context menus + Cmd-click (library/sidebar/entity/claim); new shared `OpenAffordances.swift`; native macOS tabs via addTabbedWindow.
-- #1475 — Model Comparison UI made reachable (guard in ContentViewModifiers .chat case; re-applied fresh — the ms/researcher branch was too stale to merge).
+## HELD / NEEDS REVIEW
+1. **#2596** — `knowledge/` package consolidation is still OPEN and unmerged. Big mostly-move diff (~5.5k insertions / ~5.4k deletions) with no manager sign-off yet. Treat it as a supervised repo-hygiene lane, not a drive-by merge.
+2. **Swift/OpenAPI follow-ups for #2589/#2590/#2591** — backend fields/routes landed, but the app-side adoption and generated-surface consumption still need a deliberate lane.
+3. **Workflow hardening after today's live reports** — `#2622` should probably run under the same milestone as `#2545` (`Workflows & Catalogue Hardening`), because it's the same scale/reliability class.
 
-**Branch backlog cleared (worktrees + branches):** retired as already-on-0.0.2 / superseded: manifest-folder, manifest-copy-images, webkit-1641 (codex's GuardedWKWebView), apple-stage1-ner-empty (#1633 — already landed, closed). **#1590** (image viewer reflects edited rendition) HELD — its stale branch touches codex's image files Daniel is testing; re-implement fresh after he verifies. ms/researcher worktree is the stale #1475 branch — superseded, do not merge.
+## NEXT SESSION — START HERE
+1. Rebuild and relaunch the Mac app from current `0.0.2` to verify the `#2621` stale-build explanation and confirm Activity progress/log recover on the fresh app binary.
+2. Dispatch a backend worker on **#2622**: instrument the PDF fan-out path, switch it to batch-render once via `_batch_render_pdf_pages_to_cgimages()`, add a regression check.
+3. Dispatch a review lane on **#2596** before any merge. Require a narrow answer: does the `knowledge/` reorg preserve import compatibility and pass targeted backend gates, or should it stay parked?
+4. After the workflow/backend lane returns, decide whether the next manager batch should be **repo hygiene/reorg** (`#2596`, #104, README/docs cleanup) or **workflow reliability** (`#2545` + `#2622`).
 
-**ModelComparisonService migrated** (#1666, cb27f92a, build-green) — all 10 endpoints → generated ops; compare-node fix revealed a systemic class → filed **#1710** (no LibraryPathMiddleware on the generated client; library header hand-passed per call site → silent-422 risk). Adopted rule: fix→sweep→file (memory: fix-then-sweep-for-siblings).
-
-**#1666 URLSession audit done** — KEEP (SSE/binary/WKWebView/lifecycle/transport) vs MIGRATE classified. Concrete migration backlog filed:
-- **#1711** — migrate + DE-DUP ActionsService & ActionLibraryService (duplicate /api/actions code paths) → generated client.
-- **#1712** — migrate WorkflowExecutionService (7 calls).
-- **#1713** — migrate + consolidate IntegrationsService(+AppSpecific).
-- **#1714** — Tier-2 stragglers (WorkflowService reinstall-defaults, WorkflowDiagramPreview code JSON, WorkflowStream REST parts).
-- Tier-3 (SearchService keywords, Artifact list) blocked on backend OpenAPI exposure.
-
-**#1712 WorkflowExecutionService migrated** (6956d5e5, build-green) — build-gate caught pause/cancel as app-wide (reject the header) vs the other 5 library-scoped; fed back to #1710 as evidence.
-
-**#1710 Phase 1 DONE (a3929c43, build-green):** a LibraryPathMiddleware already existed in the FicheroAPIClient package but had a BUGGY skip-list (added the lib header to /registry + /settings, mishandled /providers/refs) — fixed to mirror APIClient.configureRequest exactly + live path read + test. So the library header IS auto-injected now. **#1710 stays open for Phase 2** (strip redundant per-call-site `xFicheroLibraryPath:` args — mechanical, low-urgency). Remaining migrations should pass `headers: .init()` and rely on the middleware unless the generated op REQUIRES the typed header.
-
-**(historical recommendation, now done) — land #1710 (LibraryPathMiddleware) NEXT, hands-on.** Every service migration keeps tripping on "which ops take the library header" (compareNode forgot a required one; pause/cancel got a rejected one). A middleware that injects the header by endpoint (app-wide skip-list, mirroring legacy APIClient configureRequest:132-143) makes #1711/#1713/#1714 trivial (no header args at all) and removes the silent-422 class. Do it carefully (add middleware + wire into FicheroClient + a contract test; then optionally strip manual `xFicheroLibraryPath:` args), build-gate via MCP. THEN the remaining migrations.
-
-**Migration queue:** #1713 ✅ → #1711 ✅ → #1714 ✅ (Tier-2 stragglers). **SWIFT-SIDE URLSESSION SWEEP COMPLETE** (0.0.2 at 9da66e29). Every hand-written REST URLSession service migrated to the generated client; legitimate raw uses (SSE, binary, WKWebView, lifecycle, AppleScript, APIClient core) kept. #1666 stays open as umbrella until Tier-3 (SearchService keywords + Artifact list — blocked on backend exposing those ops, folded into #1715) and #1710 Phase 2 (strip redundant header args — do AFTER #1715) land.
-
-**Audit hunt IN PROGRESS (batched-build cadence — Daniel: the Xcode build is the slow step, so let a few workers land then ONE build).** Read-only audit (2026-06-06) found 60+ findings → filed #1716/#1717/#1718, folded inventories into #1702/#1690/#1703. SHIPPED as a batch (one build): #1716 (Note/Annotation init-race → init+syncLibraryPath), #1717 (EngineConfig.swift single-source URL + killed force-unwraps). 0.0.2 at 904bc0fc.
-**Next batches (file-DISJOINT workers, ONE build per batch):** #1718 (error handling/try! crashes) + #1690 (extract shared EntityRow — Views/KnowledgeGraph+Sidebar); then #1702 (NoteItem/DocumentAnnotation→generated schemas — OK now #1716 landed) + #1703 (split the 7 large files, one worker per file, add-swift-file.rb for new files). Keep batches non-overlapping so merges are clean.
-
-**NEXT PHASE (Daniel's direction): return to the code-review/audit report + hunt more consistency-bug CLASSES.** Run a read-only audit agent for: (a) DUPLICATE/divergent code paths displaying the SAME data differently (knowledge-object display dup → #1690), (b) the folder-structure smells (#1703 split the 3 >1000-line files: OntologyBrowser 1982 / DocumentInspector 1787 / DocumentInspectorArtifactsTab 1713; #1704 reorg Views/Library/), (c) hand-rolled Codable structs that should be Components.Schemas.* (#1702). fix→sweep→file each. Then audit-plan issues #1690/#1692/#1686/#1696/#1697/#1700/#1702.
-
-**Migration queue (DONE):** #1713 (Integrations consolidation) → #1711 (Actions de-dup, bigger) → #1714 (Tier-2 stragglers).
-
-**ROOT-CAUSE FIX FILED — #1715 (backend, answers Daniel's "would OpenAPI solve this?"):** the recurring header bug (compareNode required / pause-cancel rejected / actions all-required) is backend OpenAPI-spec inconsistency — routes declare X-Fichero-Library-Path as a per-op Header param inconsistently. Fix: make it a schema-EXCLUDED FastAPI dependency so it vanishes from every generated op; then LibraryPathMiddleware (#1710) is the sole injector and #1710 Phase 2 (strip manual args) is trivial. #1715 is the headline OpenAPI-consistency win — backend/codex lane.
-
-**After the middleware + #1666 migrations (Daniel, 2026-06-06): GO BACK TO THE CODE-REVIEW/AUDIT FINDINGS and keep hunting more bugs of these classes.** Re-read the morning 6-theme frontend-consistency report (this session's history) + issues #1684–#1705, and proactively code-review for MORE instances of: hand-written URLSession / divergent code paths / duplicate code / bad folder structure / anti-patterns — fix→sweep→file each class. The audit is the headline; treat it as an ongoing hunt, not a fixed checklist. Then work the audit-plan issues: #1690 unified knowledge edit/display, #1692 multi-select, #1686 entity-as-library, #1696/#1697 chrome unification, #1703/#1704 folder reorg + file splits, #1700/#1702 reactivity. Then the rest of the audit plan: #1690 unified knowledge component, #1692 multi-select (notes+entity lists), #1694 exclude-from-search/KG, #1686 entity-as-library, #1703/#1704 folder reorg + file splits, #1700/#1702 reactivity. HOLD #1707 PDF + ContentView-editing chrome until Daniel tests codex's image/layout.
-
-**Filed:** #1707 (PDFs don't render like folders — consistent render path), #1708 (Marshall importer EPIC), #1709 (4 pre-existing Swift test failures), plus the UX-consistency plan #1684–#1705.
-
-**Known issues:**
-- #1709: 4 Swift tests fail (AnnotationService wiring, FeatureManager v001 defaults, ImageEditOp display, KGSurfaceTab ordering) — pre-existing, not from this session's merges. Build is green.
-- `verify_all.sh` pytest gate hung at 0% CPU (~40min) under the live :8765 backend — environmental (CrossLanguageGate vs Daniel's --reload backend), not a code failure. Backend tests pass when run directly.
-
-**Next session — start here (steady, one at a time, MCP build-gate each):**
-- Assess + integrate the remaining 1-ahead branches: **fix/apple-stage1-ner-empty (#1633 — HIGH: feeds #1662 0-SVO Marshall blocker)**, feat/manifest-folder-and-local-metadata, feat/manifest-copy-images, ms/researcher (#1475). Likely-superseded (verify then retire): agent-a0c2a1ba (image-viewer), fix/webkit-reading-surface-1641 (codex did GuardedWKWebView).
-- Continue UX-consistency issues: #1690 (unified knowledge edit/display component), #1685 (open in new tab/window context menus), #1684 (Cmd+'/Cmd+Shift+' nav), #1692 (multi-select sidebar/notes/entities), #1694 (exclude-from-search/KG).
-- HOLD until Daniel tests codex's image/layout fixes: #1707 (PDF render path) + chrome issues that edit ContentView.
-- Marshall epic #1708 children: #1673/#1674/#1675/#1676/#1677/#1678/#1662.
+GOTCHAS: the dirty worktree at takeover was just leftover schema/client regen plus `EOF` and `scripts/f_director-check.sh`; those are cleaned out and not part of the branch. `codex-execpkg`/`codex-execrunner` are superseded by pushed `0.0.2`; `codex-knowledge` still exists as the parked `#2596` worktree.
 
 ---
+## (recent context — earlier 2026-06-22 overnight; see HISTORY.md)
+Branch `0.0.2` @ **0dc1f276+**. Overnight loop shipped: workflow 100k-hardening, Activity rebuild, shell UX.
 
-## 2026-06-06 — Session ended after Marshall SwiftUI layout/image fixes (codex)
+## SHIPPED THIS SESSION (all gated + pushed to 0.0.2)
+**Workflows & Catalogue Hardening (#91):** untested-flag (display-only trust); #2533 (one save path); #2523 (per-page documents in ALL transcribe presets + builder double-fan-out bug); #2537 (typed nodes/edges boundary + source_port drift); #2538/#1943 (Activity SSE → shared FicheroClient; dev engine HTTPS).
+**100k-image reliability (EPIC #2545) — the whole chain is ON:** C2 #2540 (DB/embed off event loop) · C1 #2539 (vision loop bounded-concurrent) · C4 #2542 (batched writes + Lance compaction) · C5 #2543 (provider backoff + circuit breaker) · H1 #2544 (capped folder source) · M1 (API-key cache) · **#2532 FLIPPED — enable_parallel=True on the run path** (memory bounded O(4) by semaphore; 988 workflows pass).
+**Activity = live monitor (#2546):** B1 (shared @Observable WorkflowExecutionStore) + B2 (poppable hierarchical run→node→file table; editor inline progress removed) + **the live-stream FIX**: SSE /stream was a single-consumer queue (2nd subscriber starved → 0% + empty log); now a WorkflowEventHub pub/sub + replay buffer; plus overallProgress seeds totalFiles from file events. NEEDS Daniel visual confirm.
+**Mac App Shell (shell-reform):** ALL FOUR reported shell issues SHIPPED — #2547 (iPhone inspector full-height) · #2548 (Mac sidebar selection reconcile) · #2549 (iOS reader hide zoom on compact) · #2550 (glass minitoolbars). EPIC #2551 REMAINDER needs Daniel's runtime/visual review (build-gate-only can't verify these safely): NotificationCenter claim-selection → observable; singleton @ObservedObject → @Environment; split ContentView+State.swift(995)/ContentView(859)/PDFPageView(799); swipe-between-modes nav. Overnight loop holding on these — no risky blind refactors.
 
-**Branch:** `0.0.2` at `00ad0ca8` (`fix(layout): keep reading pane toggles stable`).
+## DEFERRED / NEEDS DANIEL
+- Visual confirm: Activity live progress+log now stream; per-page transcription all presets; B2 table (the ↗ pop-out button); the two shell P0 fixes.
+- Backend follow-up: aggregator-barrier retention at huge fan-out (ponytail note in builder.py, bounded by largest single fan-out).
+- Release pipeline tasks (#158-165) untouched.
 
-**Current focus:** Marshall IIIF/W3C import and staged workflow reliability. Keep the existing Catalogue workflow mostly intact; add/review staged workflows and chain them once each layer is reliable.
+---
+# (history) STATE — Session end 2026-06-22 (workflow review + integration + GH hygiene)
 
-**What is known:**
-- SMB transfer previously completed at about 29G in `_stage`, but re-check before assuming current local state.
-- Live backend storage returns real JPEG bytes for `MarshallStage5-133917.fichero`: thumbnail `157x200`, display `786x1000`.
-- SwiftUI fixes pushed: storage image loads key by `(document_id, image_type)` and Library/Search pane toggles are stable across Library/List, Document Canvas, Reading/WebKit, and Inspector.
-- Remaining generated-client risk is tracked on #1666: raw image-editing, artifact/KG, and model-comparison URLSession paths still need migration/allowlist tests.
-- 5-page/10-page imports worked previously; 20-page workflow completion/progress remains the scale gate.
+Branch `0.0.2` @ **1921aa35** (= origin, clean). Today's project: the **workflow / node-editor** system.
 
-**Open issue cluster:**
-- #1666 generated-client/raw URL audit.
-- #1669 staged Catalogue split.
-- #1673 long-stage page progress/checkpoint visibility.
-- #1674 imported vs extracted entity provenance layers.
-- #1675 reversible merge/split audit trail.
-- #1676 post-entity SVO/KVO stage.
-- #1677 SwiftUI review UI for staged layers.
-- #1678 ontological KG layer.
-- #1680/#1681 Marshall SwiftUI storage/layout QA.
+## SHIPPED THIS SESSION (0.0.2, each full-suite baseline-diff 0-new, pushed)
+- **#2513** (3b4b4d8b) — save_artifact ValidationError no longer swallowed (fail loud).
+- **#2514** (4ee6b3be) — removed redundant DBWriter; single connection+lock is the sole write path → **#90 AI Backend Hardening DONE**.
+- **#2523** (1921aa35) — **HTR two-pass saves PER-PAGE** (wired the unwired `documents` port across all 5 transcribe presets + DB-resolve backstop). RE-TEST: run Transcribe HTR on a multi-page PDF or folder of images → each page/image gets its own transcription + review; parent stays empty.
 
-**Next session — start here:**
-- Ask Daniel to test the latest `0.0.2` in Xcode with `MarshallStage5-133917.fichero`: thumbnails, center canvas image, Reading/WebKit text, and Inspector should stay stable.
-- Re-check `_stage` size and SMB/copy status, then resume Marshall staged import testing at 5 → 10 → 20 pages.
-- If SwiftUI still shows placeholder icons while `/api/storage/thumbnail/{id}` returns JPEG, inspect `LibraryImageView` environment service injection and `DocumentThumbnailView` branch selection.
-- Continue #1666 by adding an allowlist test for raw URLSession paths, then migrate `ImageEditingServiceGenerated` or `ArtifactServiceGenerated` slices to generated OpenAPI.
-- Continue staged workflow/chain work from #1669/#1673; do not modify `catalogue.json` directly.
+## PARKED — `worker/untested-flag` @ 6d1d7406 (2 commits, NOT landed)
+- "Untested" tool badge (ToolDef.tested; only the 4 HTR-chain tools tested) + "(Untested)" on all presets except Transcribe HTR + the existing-library in-place-rename fix (old names → `_DEPRECATED_PRESET_NAMES`).
+- **TODO before merge:** dedupe catalogue.json duplicate `config` key, fold #2445 (font), gate (ruff + swiftlint + compile-only Swift build — NOT RunAllTests on Daniel's desktop), full backend baseline-diff, cherry-pick to 0.0.2, push, remove worktree.
 
-## 2026-06-06 (PM cont.) — lint gate closed
-- swiftlint was NOT being run as a gate (MCP build ignores lint warnings) → Daniel flagged Xcode showing 48 violations. Fixed process: swiftlint is now a STANDING pre-commit gate (memory: manager-operating-model). #1719 shipped: 48→29 (my session nits + mechanical debt fixed; remaining 29 are structural file-splits → #1703/#1704). 0.0.2 at efe4146a.
-- Cadence reminders in force: batch a few disjoint workers → ONE Xcode build; run `swiftlint lint --quiet fichero/fichero/` before every push; ONE build/verify at a time.
+## THE WORKFLOW PATHWAY (the project — Workflows & Catalogue Hardening milestone, EPIC #2524)
+Grounded in **docs/reviews/workflow-nodes-backend-review.md**. North star: atomic tools the user chains → tests on one folder → copies the chain to another (per-page save is the contract).
+1. Land Phase 1 (untested-flag, above).
+2. **Structural** (review order): **#2532** P0 parallel-fork (preview graph ≠ run graph) → **#2537** P1 typed Workflow.nodes/edges boundary → **#2533** P1 collapse save-wrappers → **#2534** P2 bundle.
+3. **Editor form** (#2524): clickable/editable edges, user-chosen fan-out, native diagram (#2525 drop Pyppeteer), minitoolbar-at-bottom (#2527), import (#2528), compare-as-sidebar (#2526), font (#2445).
+4. **Capabilities:** HTR bboxes (#2530), human-in-loop (#2529), auto_detect port (#2531), RAG-in-HTR cleanup, exporter (#2535).
 
-## 2026-06-06 (PM cont.2) — audit-hunt batches + folder plan
-- Shipped (batched, one build each, swiftlint-gated): #1716+#1717 (init-race + EngineConfig URL centralization), #1719 (swiftlint 48→29), #1690+#1718 (shared EntityRow + try! crash fixes). 0.0.2 at bb8515b5. ~18 issues this session; Daniel tested the app — "ran and seemed to work" (migration sweep runtime-validated).
-- **#1704 folder-reorg PLAN posted** (concrete, build-safe, PBX-aware): Batch1 Views/Library→6 subfolders (ready), Batch2 Workflow renames, Batch3 Services/ grouping (high cross-ref, own session), Batch4 Models/ grouping (own session), Batch5 Views/root→ContentView/ (defer — codex's held files). Each batch = git mv + add-swift-file.rb register + MCP build-gate, one subfolder/commit, NEVER bulk mv.
-- New issues filed: #1720 (File menu: Open Recent + Close Database), #1721 (drag-drop .fichero → open new window vs import branch).
-- **Next:** #1703 (split the big files, one worker/file) + #1704 Batch1 (Views/Library reorg — scripted/gated) + #1702 (hand-rolled structs→generated, verify schema coverage first). Remaining swiftlint debt (29) is exactly the #1703 file-splits.
-- HOLD: #1707 PDF + ContentView image/layout chrome + #1721 (touches ContentViewModifiers) until Daniel explicitly confirms codex's image/layout.
+## NEXT SESSION — START HERE
+1. `git -C ~/code/fichero status` — 0.0.2 should be 1921aa35 = origin; worktree `untested-flag` @ 6d1d7406 carries parked work.
+2. Daniel's call: **land `untested-flag`** (do the TODO above) OR start the workflow **structural** lane #2532.
+3. GOTCHA: workers spawned before the overnight run are 50-110 commits STALE — never merge them wholesale (ios-reader-polish would revert ~5000 lines). Verify "closed" issues against actual code (#2445 was closed-but-unfixed).
+4. Build gate on Daniel's active desktop = swiftlint + compile-only `BuildProject`, NEVER RunAllTests/verify_all (launches Fichero GUI windows).
 
-## 2026-06-06 (PM cont.3) — big-file splits + codex53 transition
-- #1703: 3 biggest files split+shipped (build-gated): OntologyBrowser 1982→317 (8ca6c431), DocumentInspector 1807→381 (5960766c), DocumentInspectorArtifactsTab 1926→13 (47c060db). 0.0.2 at 47c060db.
-- **WORKER ENGINE = codex53 (Daniel's directive), not Claude** — run impl+reviews on `codex -m codex53` in tmux (scripts/spawn-worker.sh codex, add -m codex53) so Opus manager context is preserved. Claude/Sonnet = fallback only. Build-coordination: codex does swiftlint+compile-only, MANAGER owns the single MCP build-gate, never concurrent xcodebuild. (memory: manager-operating-model.)
-- Lessons: salvage uncommitted-but-complete worker output (commit-in-worktree→merge); parallel file-creating workers conflict on project.pbxproj → resolve with `git checkout --ours pbxproj` + re-run add-swift-file.rb, or serialize splits.
-- Next: remaining #1703 800-tier (SidebarView+ViewComponents 831, WelcomeView 830, DocumentInspectorInfoTab 803, SidebarItemRow 784) one codex53 worker/file; #1704 Batch1 Views/Library reorg; #1702 hand-rolled structs. HOLD #1707/#1721/ContentView-image-chrome until Daniel confirms codex's image fixes.
+---
+## (history — overnight 2026-06-22, mostly shipped/superseded this session)
+## (history below) STATE — Overnight autonomous run (2026-06-20 ~21:45, Daniel asleep)
+
+Branch `0.0.2`. Daniel is asleep; **work autonomously all night** fixing the filed bug backlog.
+Manager (Claude) dispatches Opus/Sonnet lanes (1–4 at a time, disjoint files), integrates,
+build-gates, and runs verify_all at checkpoints.
+
+## CADENCE (Daniel's rules, this session)
+- **1–4 lanes at a time**, disjoint files, claim issues (status:in-progress). Opus for important
+  UX/structural; sonnet for medium; backend lanes fine on sonnet. NO kimi (it 429-rate-limited).
+- Each lane: own worktree under ~/code/fichero-worktrees/<name>, commit (don't push), report.
+- Manager integrates: review diff, swiftlint/ruff, register new .swift (add-swift-file.rb — now
+  UTF-8-safe), cherry-pick to 0.0.2, BUILD-GATE via Xcode MCP BuildProject(windowtab5)=0 errors
+  (Daniel asleep → no conflict now), push only if green, close issue, remove worktree+branch,
+  shut down the agent. **Run full verify_all.sh at batch checkpoints** (it's slow).
+- `.buttonStyle(.glass)`/`.glassProminent` do NOT compile — bounce. `.glassEffect()` OK.
+- SwiftUI type-checker: large view bodies tip "unable to type-check in reasonable time" — split props.
+- All networking via generated OpenAPI client; no hand-rolled URLSession. App never uses local paths.
+- Do NOT touch the TLS/auth perimeter (cert SAN -9807 = #2382, Daniel's call).
+
+## DONE TONIGHT (all on 0.0.2, build-green, pushed) — through ad0a5530
+- Inspector-editor reliability: #2476 #2477 #2478 (store-owned save, flush-on-nav, self-echo filter).
+- #2480 legacy-embeddings warning de-noise (backend, fires once/process).
+- Reader: #2428 (pin keeps page) #2424 (focus ring) #2427 (full-res image zoom).
+- #2482 entity garbage-name filter ("12:10"): LibraryView filter + EntityRow fallback + 422 manual-create guard.
+- #2469 image spinner + ±3 neighbor preload + bounded display cache.
+- #2438 (silent save, removed "Saved" flash) + #2445 (node help-text font) — done by manager directly.
+- **#2453 KEYSTONE — editor unification**: deleted AppKit AttributedTextEditor (531 lines), unified on
+  SwiftUI 26 AttributedString TextEditor across Mac/iPad/iPhone; ArtifactRichTextCodec RTF boundary;
+  Document made @unchecked Sendable for the cross-actor save. ⚠️ NEEDS DANIEL TESTING (rich-text + RTF round-trip).
+- #2439 (run output → Activity, removed editor bottom panel) + #2437 (node/edge spacing).
+- #2429 artifact relative-timestamp in inspector list.
+- #2475 sidebar bottom toolbar — 44pt touch tier (reused MiniToolbarMetricPolicy) + Liquid Glass.
+- #2472 iPhone sidebar empty-on-launch — root-caused (compact .task runs before loadCollections);
+  fixed via @Published librariesLoadVersion + SidebarView.onChange (no withObservationTracking race).
+- #2430 HTR per-page artifacts — already fixed (stale build); added 7 adversarial regression tests as guard.
+- #2459 image-editor save — root-caused (the #2469 display cache had ZERO callers); wired
+  onEditApplied→invalidateImageCache on success only (+3 tests). NOTE: other image-mutating paths may need invalidation too.
+- #2434 inspector workflow-history — improved existing panel: status badge + newest-first sort + STABLE
+  ForEach id (fixes duplicate-workflowId crash) + 5 tests.
+- **~21 issues closed**, all build-gated green (Xcode BuildProject; verify_all NOT run — GUI-window rule).
+  HEAD = 6063ac43. Several worker lanes stalled or erred mid-run (workflow-polish, editor-unify, + a bad
+  pbxproj test registration) and were salvaged/fixed/reviewed by the manager — build-gate every lane.
+
+## LESSON (add to worker briefs)
+- NEVER run add-swift-file.rb on fichero-tests/* — the test target is a SYNCED group; manual registration
+  creates a duplicate PBXGroup with a doubled path → build fails ("input file cannot be found"). #2434 hit this.
+
+## MAINTENANCE (overnight, no code change)
+- BACKEND HEALTH CHECK (overnight): full unit suite as one process = 4133 passed / 1218 failed, BUT the
+  failures are ENVIRONMENTAL (sampled failing files pass in isolation; suite isn't built to run as one 5k-test
+  process against the live engine). HEAD is healthy. EXCEPTION — found ONE real bug hiding in the noise:
+  filed #2483 (default workflow 'Capture OCR + Transcribe' fails to build in LangGraph — builder names nodes
+  by label vs id inconsistently; 38/39 presets build fine, only this one fails, in isolation). Backend lane.
+- #2461 swiftlint: posted a scoping plan as an issue comment — 46 warnings, 0 serious; Batch 1 ~15
+  mechanical (swiftlint --fix safe), Batch 2 ~30 structural (file/type/function length — manual splits,
+  type-check-timeout risk, do file-by-file). Did NOT run --fix (would conflict with in-flight #2098 lane).
+- #2474 triaged: NOT a dup of the fixed #2475. It's a real SIBLING — `libraryBottomActionBar`
+  (LibraryView.swift:470), a 2nd bottom bar with small (.controlSize(.small)) buttons + no glass.
+  Exact fix scoped on the issue (mirror #2475: iOS 44pt touch tier + glassEffect, Mac stays native).
+  DEFERRED (not done blind): LibraryView.swift is at file-length limit + the in-flight #2098 lane edits
+  it — do after #2098 lands to avoid conflict. New issues check (last 24h): nothing newly actionable+small.
+- Stale LOCAL branches needing Daniel's call (NOT deleted — not in --merged):
+  - `worker/ios-reader-polish` — DIFF SUMMARY (vs 0.0.2): 3 commits (#2331/#2332/#2100). Adds a NET-NEW
+    compact iOS PDF reader — `iOSPDFReaderView.swift` (+48, not on 0.0.2, not superseded) doing swipe-pages +
+    pinch-zoom via PDFPageView, wired by a 12-line `EditorView.swift` edit, plus `CompactReaderPolicyTests`
+    (+44) and a junk FINDINGS.md. 0.0.2 has NO iOSPDFReader/CompactReader wiring today, so it's real added
+    functionality. BUT the branch base is ~1000 commits stale → a direct cherry-pick conflicts on pbxproj
+    (iOSPDFReaderView registration vs the diverged project file) + FINDINGS.md, and its EditorView edit predates
+    the #2453 editor-unification + reader-zoom changes. DECISION (recommend): do NOT cherry-pick the stale branch.
+    Either (a) DROP it if the shipped reader-zoom (#2417 pinch) + iOS-shell reading already cover iOS PDF reading
+    well enough, or (b) if you still want a dedicated swipe-pages compact reader, RE-IMPLEMENT the ~100-line delta
+    fresh on current 0.0.2 (re-add iOSPDFReaderView via add-swift-file.rb, re-wire EditorView) — cleaner than
+    untangling the stale merge. Your product call on whether (a) or (b).
+  - `worktree-agent-a6f4aac6c892361cf` — DELETED (was 451bd643, reflog-recoverable). Confirmed superseded:
+    all 4 of its files exist on 0.0.2 + 22 #2376/#2399/#2401 onboarding/pairing commits merged since its base;
+    it was just an early snapshot 0.0.2 evolved past.
+  - BRANCH-CRUFT TRIAGE (merge-status scan done): NONE are in `--merged`, but two tiers:
+    * SAFE-PRUNE SET (unique=1, ~3wk stale, reference CLOSED issues — superseded throwaway/model-bakeoffs):
+      tmp-1306/1307/1306v2/1307v2, gpt*, codex53-*, issue-1359, issue-1156-graph-rag-chat, feat/*, fix/*,
+      ms/activity-255/importers/macos-gating, work/real-data-processing-1594. Spot-confirmed tmp-1318
+      (issue #1318 CLOSED) → DELETED it as proof. The rest can be bulk-pruned after a quick "issue closed?"
+      confirm each (all reflog-recoverable). Low priority.
+    * REVIEW SET (real divergent work, higher unique counts): opus=28, haiku=22, sonnet=9, backend/1382=13,
+      ms/ai-backend-harden=8, ms/importer-fixes=3, gptmini-*=2, ms/kg-hermeneutics=2. Don't delete — verify content first.
+
+## DONE (borderline-design, post-drain) — through 2dae7aab
+- #2405 column/list view: real navigable page+artifact rows instead of count badges (→ reader focus #1463).
+- #2404 sidebar: PDF is now a LEAF (stop expanding pages in the tree) — coherent pair with #2405.
+- #2471 iOS image viewer: inline glass MiniToolbar (zoom/fit/actual-size) — assessed clean drop-in, no #2423/#2467 touch.
+- **~24 issues closed total this run.**
+
+## RUNNING NOW
+- Nothing. Isolated AND the three borderline-design items are now DONE. Everything remaining is
+  one of: (a) HELD design clusters, (b) device/data-specific (can't verify overnight), (c) perimeter
+  (Daniel's call). Categorized below — needs Daniel's direction to proceed well.
+
+## REMAINING OPEN — CATEGORIZED (for Daniel to direct)
+- **Held design clusters**: toolbar #2431/#2432/#2436/#2423/#2467/#2433; inspector redesign
+  #2468/#2470/#2455; workflow-node editor #2440/#2441/#2442/#2443/#2444; node model #2446/#2447;
+  splits #2422/#2481. → unified design + Opus, not piecemeal.
+- **Device/data-specific (can't verify overnight)**: #2464 (ICANH no PDFs — needs the real lib),
+  #2407/#2408/#2409 (iPad auth-race/perf/WebKit — needs iPad profiling), #2479 (cross-device sync — needs 2 devices).
+- **Perimeter (Daniel's call)**: #2400/#2403/#2435 (tailnet host / user-auth / KG-on-remote), #2382 cert SAN.
+- **Editor-area (hold until #2453 tested)**: #2416 (Mac RTF save bug) #2418 (cross-platform editor parity).
+- **Borderline-design (could do with a nudge)**: #2405 (list shows counts not items), #2404 (sidebar
+  expansion consistency), #2471 (iOS image-viewer toolbar overlay, low-pri).
+- **Backlog**: #2410-2414 (OpenAPI conversion EPIC), #2461 (~112 swiftlint — careful, no blanket font sweep).
+
+## MORNING — DANIEL, START HERE
+1. ⚠️ **TEST #2453** (editor unification): rich-text editing (bold/italic/headings) + RTF round-trip
+   (no formatting loss) + save persists, on Mac AND iPad AND iPhone. It deleted the AppKit editor.
+2. Quick-test the other UI changes: image zoom/preload + edit-then-view, reader focus ring, entity list
+   (no "12:10"), iPhone sidebar populates on launch, sidebar bottom toolbar tap targets, workflow spacing,
+   inspector workflow-history.
+3. Pick the next milestone/cluster to direct (see categorized list) — the held clusters need your call.
+4. `worker/ios-reader-polish` branch: integrate (resolve EditorView conflict) or confirm superseded.
+
+## HELD FOR DANIEL (don't piecemeal overnight)
+- **Toolbar-rationalization cluster #2431/#2432/#2436/#2423** — design-coupled (one consistent
+  view/mode-switch gesture, not per-view icon rows). Needs a unified design + Daniel's "frame-first"
+  direction; do with Opus, not piecemeal workers. #2481 (3-way panel split) + node model #2446/#2447
+  are likewise structural.
+- **worker/ios-reader-polish** branch (3 commits, net-new compact iOS PDF reader) — EditorView.swift
+  conflicts with merged reader-zoom; decide integrate-vs-superseded.
+
+## PRIORITY BANDS for the night (after inspector-editor lands)
+1. **Inspector/reader reliability** (the editor cluster above) — landing.
+2. **Reader/toolbar UX**: #2467 (glass + collapsible reader toolbars; absorbs the bright-blue
+   prev/next + #2419 magnifier + #2421 edit/annot toggle + #2432), #2423 (unified reader mini-toolbar
+   one code path), #2427 (full-res image zoom), #2428 (pin resets page), #2424 (focus ring),
+   #2475/#2474 (sidebar bottom toolbar touch size+glass), #2420 done.
+3. **Workflows editor**: #2443 umbrella — #2437 edges, #2438 saved-flash, #2439 output→Activity,
+   #2440 hidden tools, #2441 editable nodes, #2442 fan-out, #2444 DeepL tool, #2445 help font.
+4. **Mac shell**: #2431 toolbar control, #2450 activity status widget + Inbox header line,
+   #2408 rotation perf, #2409 WKWebView perf, #2436 KG toolbar icons.
+5. **Backend/quiet**: #2480 (embeddings stamp/de-noise), #2469 (image preload spinner),
+   #2470 (KG layers ontology/hermeneutic/interpretation), #2429 (artifact timestamps), #2430 (HTR per-page).
+6. **Node model / research-workspace**: #2446 (research/workspace into library tree), #2447
+   (entities into library), #2081.
+GATED ON DANIEL (perimeter): #2382 cert SAN, #2407 403 race, #2435 KG-pane remote, #2479 transport side.
+
+## DEFERRED BRANCH: worker/ios-reader-polish (3 commits, compact iOS PDF reader #2331/#2332) —
+conflicts with merged reader-zoom on EditorView; resolve + fold into a reader lane, or it's covered.
+
+## DONE THIS SESSION (all pushed to 0.0.2, build-gated where noted)
+Connection: #2448 Activity live-refresh, #2457 iPhone libs, #2465 connect-order, #2466 save -999,
+#2462 doc 404, #2473 workflow-diagram 500, #2451 chat-with-doc (was breaking ALL chat), #2452
+search→pages, #2463 pylance/FTS, OpenAPI conversions (#2410-2414), resumePendingUploads, SpatialView
+split+access fix, swift-file-script UTF-8. ~30 issues closed. Branch cleanup: 139 local branches deleted.
+# STATE — Manager cycle (2026-06-20 ~20:15) — integration done, 3 workers running
+
+**Priority (Daniel, explicit): CONNECTION → MAC SHELL → filed bugs.** Manager delegates
+(haiku/sonnet/kimi; opus only if structural), integrates + build-gates (Xcode BuildProject
+windowtab5), pushes only if green. Workers in their OWN worktrees; disjoint files; claim issues.
+
+## ✅ This cycle — integrated to 0.0.2, build-green, pushed
+- **7 OpenAPI conversions** (import/storage/activity/apiclient/engineconfig/appstate/applescript)
+  — killed hand-rolled URLSession (#2410–2414, #2406, #2392 partial). Fixed kimi's bogus
+  `.unprocessableContent` cases in PairingService. Closed #2401/#2399/#2417/#2420/#2411/#2412/#2413/#2414/#2406.
+- **4 feature lanes**: connected-capture (#2401), pairing-link (#2399), reader-zoom-nav
+  (#2417 pinch / #2420 folder nav). ios-reader-polish DEFERRED (overlapped reader-zoom on EditorView;
+  branch worker/ios-reader-polish kept).
+- **Shell fixes**: SpatialView Spatial2DCanvas split for SwiftLint; ContentView pane-width consts
+  `nonisolated` (#LayoutMode actor error); RemoteClientPairing.defaultDeviceName() `@MainActor`.
+- shell-mockups docs. All worktrees cleaned; single tree at HEAD.
+
+## 🔄 WORKERS RUNNING (background agents, own worktrees — manager integrates + build-gates)
+- **conn-activity** (sonnet) → #2448 Activity live updates over change-stream (CONNECTION band)
+- **shell-breadcrumb** (haiku) → #2425 window-title breadcrumb Library›Folder›File›page (SHELL)
+- **shell-glass** (sonnet) → #2041 Tahoe glass mini-toolbar + #2415 workflows toolbar button (SHELL)
+Issues #2448/#2425/#2041/#2415 carry status:in-progress. `.buttonStyle(.glass)` does NOT compile — bounce it.
+
+## NEXT after these land: Mac shell FRAME (zones sidebar|content|inspector, tabs inside content
+column #1968, native .inspector() #2033, zoned toolbar #2032) — the structural lane (opus/manager).
+Then remaining connection bugs (#2451 chat-with-doc, #2452 search→pages, #2435 KG remote) + filed UX.
+
+## ⚠️ Daniel's: TLS cert SAN loopback-only (-9807) for remote iPad = perimeter #2382 (his call).
+Backend running fine (non-loopback bind warning is expected/harmless).
+
+---
+# (prior hand-off below)
+# STATE — SESSION-END hand-off (2026-06-20 ~18:00, manager out of tokens ~1h)
+
+Branch `0.0.2`, synced with origin. Autonomous manager session for the iPhone/iPad demo
+(Ann tonight via **tailnet sharing** — she joins Daniel's Tailscale). Manager is token-limited;
+**kimi/codex workers keep grinding on a wakeup loop until ~19:30. NO verify/integrate by the
+manager — Daniel integrates + build-gates later.**
+
+## ✅ FIXED + PUSHED this session (build-green via Xcode MCP `BuildProject` tab windowtab5)
+- iPad **crash fix** `f3b8cdd2` — removed macOS-only `drawsBackground` KVC that crashed iOS
+  WKWebView (the "can't click / feels crashed"). **→ DANIEL: rebuild the iPad app to get it.**
+- **Per-page transcription** `849777af` (#2303/#2395/#2396) — HTR text saves per-page, not parent. 17 tests pass.
+- **iOS shell** `3e5431c7` — multiple libraries (registry picker) + phone launches on sidebar +
+  compact swipe nav (#2329/#2334/#2394).
+- **Liquid Glass bar** + button fix — `.glassEffect()` on MiniToolbar (`.buttonStyle(.glass)` NOT in SDK).
+- Mac deploy target → **macOS 26**; mini-toolbar glyphs scale w/ Dynamic Type; worktrees 23→1.
+
+## 🔄 LANES RUNNING (Daniel: integrate + build-gate these later, manager will NOT)
+KIMI (cheap, `codex exec --oss --local-provider ollama -m kimi-k2.7-code:cloud`):
+- `f_kimi_import` → #2412/#2406 ImportServiceGenerated → OpenAPI client (likely fixes iPad import 400)
+- `f_kimi_openapi-storage` → #2411 StorageServiceGenerated → OpenAPI
+- `f_kimi_openapi-activity` → #2413/#2392 ActivityServiceGenerated → OpenAPI (likely fixes empty Activity)
+CLAUDE (finishing, will not relaunch):
+- `f_lane_capture` #2401 capture-while-connected · `f_lane_link` #2399 pairing-link ·
+  `f_lane_mockups` HTML shell mockups · `f_lane_reader` DONE (~/code/fichero-worktrees/ios-reader-polish, integrate)
+Worktrees under ~/code/fichero-worktrees/. **Kimi may EDIT but NOT COMMIT — check git status.**
+
+## 📋 Issues filed this session (#2391–#2414) + milestone
+- iPad/UX: #2391 spatial zoom/xy · #2404 sidebar stop-expanding-pages · #2405 list show pages+artifacts
+  · #2406 import 400 · #2407 403 auth race · #2408 slow rotate · #2409 WKWebView slow/unresponsive
+- Connect/capture: #2392 Activity empty · #2393 URLSession guardrail · #2394 iOS↔Mac libs ·
+  #2397 cross-lib DnD · #2399 pairing-link · #2400 tailnet host (DECIDED: tailnet) · #2401 capture-while-connected
+- Multi-user: #2403 connect login-gate (no auto-owner) · #2083 add/manage users · #2084 multi-user toggle
+- Build/dist: #2402 notarized standalone build + embedded engine + Sparkle (needs Daniel's Apple creds)
+- AR: #2398 immersive Spaces (walls/floor)
+- **MILESTONE "Networking — OpenAPI-only (kill hand-rolled URLSession)"**: EPIC #2410 +
+  #2411/#2412/#2413/#2414. Guardrail #2393 enforces going forward.
+
+## ⚠️ DANIEL DECISIONS / TODO (manager will not auto-do — perimeter/credentials)
+1. **Rebuild iPad app** for the crash fix (f3b8cdd2).
+2. **TLS for the demo (#2382/#2400):** `remote_access_tls.py:182` builds the cert SAN for ONE host
+   (loopback) → iPad to `macbook-pro-m1.local` fails `-9807` → change-stream/images drop. For tailnet:
+   advertise the `*.ts.net` host (+ `tailscale serve` valid cert, or self-signed SAN incl. tailnet name).
+   This is the ONE thing blocking remote data load.
+3. **Integrate the worker lanes** (build-gate each via Xcode MCP, push if green).
+4. Multi-user slice (#2084 toggle → #2083 users → #2403 login-gate) when ready.
+
+## Shell design (Daniel, from the Safari mockups) — KEEP current Mac UX, same code adapts
+- Mac = all zones (sidebar·library·preview·reader·inspector), no redesign.
+- iPad LANDSCAPE = 2 views in pairs: Library¼+Preview¾ / Preview¾+Reader¼ / Reader¾+Inspector¼.
+- iPad PORTRAIT = 1 view + slideovers. iPhone = 1 view + swipe. visionOS = each zone its own window.
+- Mockups in docs/design/shell-mockups/ (mac.html, ipad.html ready; phone/tv/vision generating).
+
+## Operating model now
+Manager token-limited → **kimi/codex workers only**, light wakeup loop to keep them fed until ~19:30,
+**no manager verify/integrate/build**. All work is GitHub-issue-tracked.
+
+## Kimi worker output (2026-06-20 ~19:37) — UNINTEGRATED, for Daniel to build-gate + cherry-pick
+The bash/ollama dispatcher (f_dispatcher) ran kimi workers until 19:30 (no Claude). Committed work waiting
+in ~/code/fichero-worktrees/ (NOT built/verified/pushed by manager):
+- **OpenAPI-only conversions** (1 commit each): openapi-import (#2412/#2406), openapi-storage (#2411),
+  openapi-activity (#2413/#2392 — has 1 UNCOMMITTED file, commit it before integrating), openapi-apiclient,
+  openapi-engineconfig, openapi-appstate, openapi-applescript (all #2414).
+- **Feature lanes**: connected-capture (#2401, 3 commits), pairing-link (#2399, 4 commits),
+  reader-zoom-nav (#2417/#2420, 3 commits), ios-reader-polish (#2331/#2332, 3 commits).
+- **shell-mockups** (2 commits + uncommitted refinements): the per-device HTML mockups incl. the iPhone
+  reader/buttons + iPad orientation-pair + visionOS-windows refinements in docs/design/shell-mockups/.
+- ios-shell-nav: already integrated earlier (0 commits remaining).
+Integration order suggestion: build-gate each via Xcode MCP (windowtab5), backend conversions need pytest,
+push only if green. ~60 issues filed today (#2391–#2449) — all current-release; the workflow-editor cluster
+(#2437–#2445), node-model consolidation (#2446/#2447), chat redesign (#2449), and the change-stream/TLS
+remote bugs (#2382/#2407/#2435/#2448) are the big themes. Manager stopped (token budget); resume integration
+or dispatch more kimi via f_dispatcher pattern when ready.
+
+## ===== OVERNIGHT AUTONOMOUS OPERATING MODEL (Daniel, 2026-06-20 ~19:45) =====
+Work STEADILY and AUTONOMOUSLY overnight. Manager (Claude) integrates + tests, but judiciously.
+
+### PRIORITY ORDER (work top-down; finish a band before the next)
+1. **CONNECTION** — the remote/transport layer must actually work. Activity view live updates (#2448),
+   change-stream/SSE over remote, cert SAN / TLS (#2382/#2400), 403 auth race (#2407), KG-pane-on-remote
+   (#2435), OpenAPI-only conversions (#2410–2414, kill hand-rolled URLSession #2393). Get data flowing
+   reliably on Mac AND iPad/remote.
+2. **READER** — reading is the core. Pinch-zoom #2417, folder/page left-right #2420, full-res image #2427,
+   PDF magnifier #2419, unified reader mini-toolbar #2423 (absorbs #2419/#2421/#2432), per-pane split docs
+   #2422, pin-resets-page #2428, focus ring #2424.
+3. **UX SHELL — make every platform the best**: iOS/iPhone/iPad/tvOS/visionOS/macOS adaptive shell. Keep
+   Mac UX, same code adapts (mockups in docs/design/shell-mockups/). iPad portrait=1/landscape=2-pairs +
+   sidebar overlay; iPhone 1-swipe; visionOS windows-per-zone. Toolbar control #2431/#2450, window-title
+   breadcrumb #2425, Tahoe Liquid Glass #2041, rotation perf #2408, WKWebView perf #2409.
+4. **UX odds & ends** — sidebar/list (#2404/#2405/#2429), RTF/text save (#2416), editor parity #2418,
+   workflows toolbar button #2415, the toolbar-rationalization cluster, misc filed bugs.
+5. **WORKFLOWS** — node-editor parity #2443 (umbrella: #2437 edges, #2440 hidden tools, #2441 editable
+   nodes, #2442 fan-out, #2444 DeepL, #2445 help font, #2438 saved-flash, #2439 output→Activity).
+6. **CHAT** — Xcode-style chat redesign #2449 (paperclip-attach context drives mode).
+7. **RESEARCH/WORKSPACE + node-model** — #2446 (research/workspace into library tree), #2447 (entities into
+   library), then deeper node model #2081.
+
+### WORKER POLICY
+- Default to **ollama/kimi** workers (cheap) for most lanes — `codex exec --oss --local-provider ollama
+  -m kimi-k2.7-code:cloud --dangerously-bypass-approvals-and-sandbox` in tmux + external worktree. The
+  `f_dispatcher` bash-loop pattern can keep them fed without Claude.
+- Use **haiku/sonnet** (`claude --model …`) for medium frontend lanes; **opus** ONLY for complex/structural
+  (adaptive shell, node-model, chat redesign).
+- Multiple lanes at once (≤ ~4 active). Disjoint files to avoid collisions; claim issues.
+### MANAGER (Claude) DUTIES — judiciously, NOT every commit (slow)
+- Integrate landed lanes: review diff + real tests, swiftlint/ruff, register new .swift (add-swift-file.rb),
+  cherry-pick to 0.0.2. BUILD-GATE Swift via Xcode MCP BuildProject(tab windowtab5)=0 errors; backend via
+  pytest. Run full `verify_all.sh` only at batch checkpoints (it's slow). Push ONLY if green.
+- Liquid Glass SDK gotcha: `.glassEffect()`/`GlassEffectContainer` OK; `.buttonStyle(.glass)/.glassProminent`
+  do NOT compile — bounce reintroduction.
+- DO NOT auto-change the TLS/auth perimeter beyond what Daniel decided (tailnet); cert SAN work is OK to
+  IMPLEMENT carefully but flag perimeter assertions.
+- Conserve tokens: prefer kimi for the work; spend Claude on integration/build-gating + the hard lanes.

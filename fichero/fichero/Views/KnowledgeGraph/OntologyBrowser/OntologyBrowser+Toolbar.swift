@@ -67,16 +67,12 @@ extension OntologyBrowser {
             .help("New entity (#916)")
             toolsMenu
             filterMenu
-            Picker("Knowledge graph view", selection: viewModeBinding) {
-                ForEach(ViewMode.allCases) { mode in
-                    Image(systemName: mode.icon)
-                        .tag(mode)
-                        .accessibilityLabel(mode.helpText)
-                }
-            }
-            .pickerStyle(.segmented)
-            .fixedSize()
-            .help("Switch view: List, Graph, Chart, Timeline, or Map")
+            // The List/Graph/Chart/Timeline/Map switcher is NOT a row of icons
+            // in this pane toolbar anymore (#2436). View-mode switching belongs
+            // in the main window toolbar / View menu — the focused
+            // `OntologyBrowser` publishes `knowledgeGraphViewMode` (see body),
+            // which drives `KnowledgeGraphViewModeSection` in the View menu and
+            // the iOS toolbar View menu.
             // The manual refresh button was removed in #1007 — the
             // entity list now auto-refreshes when a workflow completes
             // (see `.onChange(of: executionObserver.workflowCompletedCount)`

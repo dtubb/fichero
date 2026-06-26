@@ -28,7 +28,7 @@
       "inputs": {},
       "config": {
         "vision_mode": "auto",
-        "language": "en",
+        "language": "auto",
         "update_page_content": true
       }
     },
@@ -55,6 +55,13 @@
       "target": "transcribe",
       "source_port": "files",
       "target_port": "files"
+    },
+    {
+      "id": "edge-files-transcribe-documents",
+      "source": "files-source",
+      "target": "transcribe",
+      "source_port": "documents",
+      "target_port": "documents"
     },
     {
       "id": "edge-transcribe-clean_text",

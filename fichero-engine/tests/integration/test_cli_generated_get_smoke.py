@@ -71,6 +71,24 @@ _MAX_SKIPPED_GET_COMMANDS = 115
 _MIN_EXECUTABLE_GET_COMMANDS = 160
 
 
+def _cli_smoke_ready() -> bool:
+    """Generated CLI smoke is opt-in and requires loopback socket access."""
+    if os.getenv("FICHERO_RUN_CLI_GENERATED_GET_SMOKE") != "1":
+        return False
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("127.0.0.1", 0))
+    except OSError:
+        return False
+    return True
+
+
+pytestmark = pytest.mark.skipif(
+    not _cli_smoke_ready(),
+    reason="Generated CLI smoke is opt-in and requires loopback socket access",
+)
+
+
 def _free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("127.0.0.1", 0))

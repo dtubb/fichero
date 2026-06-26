@@ -12,6 +12,35 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def _embedding_provider(model: str) -> str:
+    if "/" in model:
+        return model.split("/", 1)[0]
+    return "openai"
+
+
+def _enforce_embedding_call_allowed(model: str) -> None:
+    """Gate explicit remote embedding calls on local-only mode (#2234).
+
+    Previously gated on _paid_remote_fallbacks_enabled() in addition to
+    is_local_only(), which made EXPLICIT remote embedding configs behave
+    differently from explicit remote chat/vision configs (both of which only
+    check local-only mode). This asymmetry was a bug: a user who deliberately
+    sets an OpenAI embedding model should not be blocked by the fallback flag.
+    The paid-fallback flag is for automatic provider escalation, not user intent.
+    """
+    from fichero.llm import (
+        LocalOnlyViolationError,
+        _is_local_or_builtin_provider,
+        is_local_only,
+    )
+
+    provider = _embedding_provider(model)
+    if _is_local_or_builtin_provider(provider):
+        return
+    if is_local_only():
+        raise LocalOnlyViolationError(provider, model=model, kind="embedding")
+
+
 # =============================================================================
 # Embeddings
 # =============================================================================
@@ -64,6 +93,7 @@ def embed(
     Returns:
         List of embedding vectors
     """
+    _enforce_embedding_call_allowed(model)
     embeddings = _get_langchain_embeddings(model, api_key)
     return embeddings.embed_documents(texts)
 
@@ -74,5 +104,6 @@ async def aembed(
     api_key: str | None = None,
 ) -> list[list[float]]:
     """Async version of embed using LangChain."""
+    _enforce_embedding_call_allowed(model)
     embeddings = _get_langchain_embeddings(model, api_key)
     return await embeddings.aembed_documents(texts)

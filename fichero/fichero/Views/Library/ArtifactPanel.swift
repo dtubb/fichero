@@ -42,12 +42,13 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
     /// persisting it. nil hides the edit affordance (read-only panel).
     var onSave: ((String) async -> Void)?
 
-    @AppStorage("editor.rulersVisible") private var rulersVisible = true
-    @AppStorage("editor.fontName") private var fontName: String = "System"
-    @AppStorage("editor.fontSize") private var fontSize: Double = 14
-    @AppStorage("editor.lineSpacing") private var lineSpacing: Double = 4
-    @AppStorage("editor.marginHorizontal") private var marginH: Double = 16
-    @AppStorage("editor.marginVertical") private var marginV: Double = 12
+    /// The owning document store. Passed only by the Content-tab inspector so
+    /// the focused Page Content editor can register its flush with the store —
+    /// an external navigation (image prev/next, inspector tab switch) calls
+    /// `flushActivePageEdit()` before changing the focused document so the
+    /// in-flight edit isn't lost when the editor reseeds (#2476). nil for
+    /// read-only / detached hosts (no flush needed).
+    var documentStore: DocumentStore?
 
     /// Whether the panel starts expanded if there's no remembered choice.
     /// `true` for Page Content; `false` for generated artifacts.
@@ -85,12 +86,14 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
         kind: PanelKind,
         defaultExpanded: Bool = true,
         fillsHeight: Bool = false,
+        documentStore: DocumentStore? = nil,
         onDelete: (() -> Void)? = nil,
         onSave: ((String) async -> Void)? = nil
     ) {
         self.kind = kind
         self.defaultExpanded = defaultExpanded
         self.fillsHeight = fillsHeight
+        self.documentStore = documentStore
         self.onDelete = onDelete
         self.onSave = onSave
 
@@ -103,13 +106,19 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
         self._isExpanded = State(initialValue: initial)
     }
     @State private var confirmingDelete: Bool = false
-    @State private var draftAttributedText: NSAttributedString = NSAttributedString(string: "")
-    @State private var editorRevision: Int = 0
+    /// The editor's working copy, in SwiftUI-native `AttributedString` (#2453).
+    @State private var draftText = AttributedString("")
     @State private var isSaving: Bool = false
     @State private var saveError: String?
     @State private var autoSaveTask: Task<Void, Never>?
-    @State private var lastSeededContent: String = ""
-    @StateObject private var richTextController = RichTextController()
+    /// The raw stored content we last seeded the editor from — guards the
+    /// `.task(id:)` reseed against our own save echoing back (#2478).
+    @State private var lastLoadedRaw: String = ""
+    /// The canonical encoded form of the seeded/last-saved content — lets
+    /// `scheduleAutoSave` tell a real user edit from a programmatic reseed so
+    /// loading content never triggers a spurious save.
+    @State private var lastSavedEncoded: String = ""
+    @FocusState private var isEditorFocused: Bool
 
     /// Page Content is primary content and renders always-expanded with no
     /// collapse chrome; generated artifacts stay collapsable (#1245).
@@ -173,6 +182,12 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
         // Clip so the editor's AppKit text view can't paint outside the panel's
         // SwiftUI frame onto the attribute strip above it (#1245).
         .clipped()
+        .onDisappear {
+            // Stop offering this editor's flush once it leaves the hierarchy
+            // (tab switched away, document deselected) so a later
+            // flushActivePageEdit() doesn't call into a gone editor (#2476).
+            if isPageContent { documentStore?.unregisterActivePageEdit() }
+        }
         .onChange(of: isExpanded) { _, newValue in
             // Persist the user's choice so it carries across documents
             // and across app launches. See `storageKey(for:)` for keying.
@@ -250,52 +265,56 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
 
     // MARK: - Content body
     //
-    // Always render via AttributedTextEditor — toggling between a plain
-    // Text(read) and an editor(edit) was stripping formatting in the read
-    // view (Daniel: "not displaying the rtf, unless I click [edit]") and
-    // was responsible for the per-panel layout looking inconsistent. One
-    // editor for both modes, isEditable flips the cursor/typing behavior.
+    // ONE editor across Mac / iPad / iPhone: SwiftUI 26 `TextEditor(text:)`
+    // working in `AttributedString` (#2453). The AppKit NSTextView/ruler
+    // representable is retired. Native bold/italic/headings come from the OS;
+    // there is no Mac-only ruler. Width clamps to the inspector pane via
+    // `.frame(maxWidth: .infinity)` (#2477 — no more AppKit intrinsic overflow).
+    // Storage stays portable RTF/plain; conversion happens only at the
+    // ArtifactRichTextCodec boundary, never raw RTF in a view (#2454).
     @ViewBuilder
     private var contentBody: some View {
         VStack(alignment: .leading, spacing: 4) {
-            // Check if this is a structured output that should be read-only
             if isStructuredOutput {
                 structuredOutputView
                     .frame(maxWidth: .infinity)
                     .background(Color(.textBackgroundColor))
                     .cornerRadius(4)
+            } else if onSave != nil {
+                TextEditor(text: $draftText)
+                    .font(.body)
+                    .focused($isEditorFocused)
+                    .scrollContentBackground(.hidden)
+                    .frame(maxWidth: .infinity, maxHeight: fillsHeight ? .infinity : nil)
+                    .frame(minHeight: 60)
+                    .background(Color(.textBackgroundColor))
+                    .cornerRadius(4)
+                    .onChange(of: draftText) { _, _ in scheduleAutoSave() }
+                    .onChange(of: isEditorFocused) { _, focused in
+                        if focused {
+                            // Register this editor's flush so an external
+                            // navigation (image prev/next) or inspector tab
+                            // switch can persist the in-flight edit BEFORE the
+                            // focused document changes and the editor reseeds
+                            // (#2476). Only the Page Content editor registers;
+                            // it's the single editor the Content tab nav affects.
+                            if isPageContent {
+                                documentStore?.registerActivePageEdit { await flushAutoSave() }
+                            }
+                        } else {
+                            Task { await flushAutoSave() }
+                        }
+                    }
             } else {
-                // Format controls live in the AppKit ruler view (Styles / alignment /
-                // Spacing / Lists strip that AppKit draws above its numeric ruler)
-                // and in the Format menu (bold/italic/underline shortcuts). No
-                // separate SwiftUI format bar.
-                AttributedTextEditor(
-                    text: $draftAttributedText,
-                    isEditable: onSave != nil,
-                    rulersVisible: rulersVisible,
-                    fontName: fontName,
-                    fontSize: fontSize,
-                    lineSpacing: lineSpacing,
-                    marginH: marginH,
-                    marginV: marginV,
-                    contentRevision: editorRevision,
-                    onTextChanged: { scheduleAutoSave() },
-                    onEditingChanged: { editing in
-                        if !editing { Task { await flushAutoSave() } }
-                    },
-                    onRulerVisibilityChanged: { visible in
-                        if rulersVisible != visible { rulersVisible = visible }
-                    },
-                    marginLeading: marginH,
-                    marginTrailing: 0,
-                    controller: richTextController
-                )
-                // Width stretches; height comes from AttributedTextEditor's
-                // sizeThatFits (its layoutManager.usedRect). No maxHeight in the
-                // ScrollView path: letting it claim .infinity there made every
-                // expanded panel fill the viewport (#960). When fillsHeight is
-                // set (Page Content in the no-ScrollView Content tab), the
-                // editor DOES claim .infinity so it runs full-height (#1286).
+                // Read-only host (detached artifact window) — render the styled
+                // text, still selectable, with no editor chrome.
+                ScrollView {
+                    Text(draftText)
+                        .font(.body)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 4)
+                }
                 .frame(maxWidth: .infinity, maxHeight: fillsHeight ? .infinity : nil)
                 .background(Color(.textBackgroundColor))
                 .cornerRadius(4)
@@ -307,14 +326,16 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
             }
         }
         .task(id: rawArtifactContent) {
-            // Re-seed when the artifact content changes externally (workflow
-            // re-run, navigation to a different doc). Skip if the change
-            // came from our own auto-save echoing back, detected by the
-            // lastSeededContent watermark.
-            guard lastSeededContent != rawArtifactContent else { return }
-            draftAttributedText = decodeArtifactContent(rawArtifactContent)
-            lastSeededContent = rawArtifactContent
-            editorRevision += 1
+            // Re-seed when the stored content changes externally (workflow
+            // re-run, navigation to a different doc, a remote edit). Skip when
+            // it's our own save echoing back, detected by the lastLoadedRaw
+            // watermark (#2478). Seeding also resets lastSavedEncoded so the
+            // programmatic write below doesn't read as a user edit.
+            guard lastLoadedRaw != rawArtifactContent else { return }
+            let decoded = ArtifactRichTextCodec.decodeAttributed(rawArtifactContent)
+            draftText = decoded
+            lastLoadedRaw = rawArtifactContent
+            lastSavedEncoded = ArtifactRichTextCodec.encodeAttributed(decoded)
         }
     }
 
@@ -324,6 +345,11 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
     /// "did my edit save?" anxiety loop — auto-save with a small visible
     /// indicator is calmer. (Daniel feedback 2026-04-26.)
     private func scheduleAutoSave() {
+        // Distinguish a real user edit from a programmatic reseed (load /
+        // remote update): only the former changes the encoded form away from
+        // the last seeded/saved watermark. Without this, seeding draftText in
+        // `.task(id:)` would trip `onChange` and trigger a spurious save.
+        guard ArtifactRichTextCodec.encodeAttributed(draftText) != lastSavedEncoded else { return }
         autoSaveTask?.cancel()
         autoSaveTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(800))
@@ -340,17 +366,19 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
 
     private func performSave() async {
         guard let onSave, !isSaving else { return }
+        let encoded = ArtifactRichTextCodec.encodeAttributed(draftText)
+        // Nothing actually changed since the last seed/save — skip the PUT.
+        guard encoded != lastSavedEncoded else { return }
         isSaving = true
         defer { isSaving = false }
-        let encoded = encodeArtifactContent(draftAttributedText)
-        // Mark the watermark BEFORE the save round-trips. When the engine echoes
-        // the new pageContent/artifact content back through `rawArtifactContent`,
-        // the `.task(id:)` guard `lastSeededContent != rawArtifactContent` will
-        // short-circuit instead of reseeding the editor. Without this, every
-        // successful save re-runs decodeArtifactContent on the just-saved RTF,
-        // which costs the cursor/selection and looks to the user like the edit
-        // didn't take.
-        lastSeededContent = encoded
+        // Advance BOTH watermarks before the round-trip: `lastSavedEncoded` so a
+        // later onChange doesn't re-fire, and `lastLoadedRaw` so the engine
+        // echoing the saved content back through `rawArtifactContent` short-
+        // circuits the `.task(id:)` reseed instead of resetting the cursor
+        // (#2478). Self-echo suppression in DocumentStore handles the page-
+        // content path; this covers artifacts too.
+        lastSavedEncoded = encoded
+        lastLoadedRaw = encoded
         await onSave(encoded)
     }
 
@@ -364,20 +392,6 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
         case .pageContent(let text): return text
         case .artifact(let artifact): return artifact.content ?? ""
         }
-    }
-
-    /// Decode an artifact's stored content into an NSAttributedString. RTF
-    /// source (`{\rtf...`) is parsed; plain text becomes a styled run.
-    private func decodeArtifactContent(_ content: String) -> NSAttributedString {
-        ArtifactRichTextCodec.decode(content)
-    }
-
-    /// Encode an NSAttributedString back to a content string. Inline RTF
-    /// source (not base64) so the artifact's `content` field stays human-
-    /// readable when the artifact is plain text and round-trips losslessly
-    /// when the user added formatting. See `ArtifactRichTextCodec` (#710).
-    private func encodeArtifactContent(_ attr: NSAttributedString) -> String {
-        ArtifactRichTextCodec.encode(attr)
     }
 
     // MARK: - Computed properties
@@ -448,20 +462,7 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
             guard let content = artifact.content, !content.isEmpty else {
                 return "(no text)"
             }
-            // If the stored content is RTF source, render the plain string
-            // for the read view. The decode→encode round-trip on the editor
-            // path preserves the formatting; the read view shows plain so
-            // users see what's actually written without RTF chrome.
-            if content.hasPrefix("{\\rtf"),
-               let data = content.data(using: .utf8),
-               let attr = try? NSAttributedString(
-                data: data,
-                options: [.documentType: NSAttributedString.DocumentType.rtf],
-                documentAttributes: nil
-               ) {
-                return attr.string
-            }
-            return content
+            return ArtifactRichTextCodec.htmlForWebView(content)
         }
     }
 

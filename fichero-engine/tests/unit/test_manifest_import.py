@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from fichero.manifest_import import import_manifest, validate_nodes
+from fichero.models import Document
 
 
 CANONICAL_VERSION = "fichero-corpus-import-v1"
@@ -179,7 +180,7 @@ def test_import_creates_documents_entities_claims(client, db, tmp_path):
     assert summary.pages_seen == 1
     assert summary.documents_created == 2
     assert summary.entities_created == 2
-    assert summary.artifacts_created == 3
+    assert summary.artifacts_created == 4
     assert summary.claims_created == 1
     assert summary.warnings == []
 
@@ -193,9 +194,9 @@ def test_import_creates_documents_entities_claims(client, db, tmp_path):
     page = by_name["page_001"]
     # Parent wiring: page -> group.
     assert page["parent_id"] == by_name["Tiny Corpus"]["id"]
-    # Image is referenced (path points at the existing source file), not copied.
-    assert page["path"] == str(tmp_path / "page_001_enhanced.jpg")
-    assert Path(page["path"]).exists()
+    # External absolute sources stay in metadata; they are not promoted into
+    # the servable Document.path field.
+    assert page["path"] is None
     # Renditions preserved in metadata.
     assert page["metadata"]["canonical_external_id"] == "tiny_corpus__page_001"
     assert page["metadata"]["images"][0]["role"] == "enhanced"
@@ -212,7 +213,12 @@ def test_import_creates_documents_entities_claims(client, db, tmp_path):
         f"/api/artifacts/document/{page['id']}?include_descendants=false"
     ).json()
     artifact_types = {a["artifact_type"] for a in page_artifacts["items"]}
-    assert {"transcription", "people", "places"} <= artifact_types
+    assert {"import_receipt", "transcription", "people", "places"} <= artifact_types
+    import_receipt = next(
+        a for a in page_artifacts["items"] if a["artifact_type"] == "import_receipt"
+    )
+    assert import_receipt["data"]["external_id"] == "tiny_corpus__page_001"
+    assert import_receipt["data"]["page_label"] == "001"
     transcription = next(
         a for a in page_artifacts["items"] if a["artifact_type"] == "transcription"
     )
@@ -257,7 +263,7 @@ class _RecordingClient:
             # rewrite the active image path to local.
             return {
                 "id": f"doc-{self._counter}",
-                "path": f"/lib/files/copied_{self._counter}.jpg",
+                "path": f"files/co/copied_{self._counter}.jpg",
             }
         if method == "POST" and path == "/documents":
             self._counter += 1
@@ -307,7 +313,7 @@ def test_copy_images_triggers_ingest_copy_and_keeps_page_content(tmp_path):
     # Copy mode rewrites the active image path to the LOCAL in-library file so
     # the app never reaches over the network; the original is preserved.
     img = put_body["metadata"]["images"][0]
-    assert img["source_path"].startswith("/lib/files/copied_")
+    assert img["source_path"].startswith("files/")
     assert img["original_source_path"] == str(tmp_path / "page_001_enhanced.jpg")
 
     # The group container (no image) still goes through the reference create
@@ -324,10 +330,8 @@ def test_copy_images_triggers_ingest_copy_and_keeps_page_content(tmp_path):
 
 
 def test_link_mode_references_source_and_warms_local_preview(tmp_path):
-    """Default (link) keeps the original reference behaviour — POST /documents
-    with path pointing at the on-disk source, no ingest copy, path NOT rewritten
-    to local — BUT still warms a LOCAL preview cache so the app never reaches
-    over the network to render a thumbnail/display."""
+    """Default (link) preserves source metadata without copying bytes and still
+    warms a local preview cache."""
     from fichero.manifest_import import import_manifest
 
     manifest = _fixture_manifest(tmp_path)
@@ -341,9 +345,9 @@ def test_link_mode_references_source_and_warms_local_preview(tmp_path):
     page_post = next(
         c for c in rec.calls if c[1] == "/documents" and c[2]["name"] == "page_001"
     )
-    # The active path stays the (possibly remote) source — link does NOT
-    # rewrite to local.
-    assert page_post[2]["path"] == str(tmp_path / "page_001_enhanced.jpg")
+    # The external absolute source is metadata only; Document.path is reserved
+    # for confined, servable paths.
+    assert page_post[2]["path"] is None
     assert page_post[2]["metadata"]["images"][0]["source_path"] == str(
         tmp_path / "page_001_enhanced.jpg"
     )
@@ -471,7 +475,7 @@ def test_import_is_idempotent(client, db, tmp_path):
     assert second.entities_created == 0
     assert second.entities_reused == 2
     assert second.artifacts_created == 0
-    assert second.artifacts_skipped == 3
+    assert second.artifacts_skipped == 4
     assert second.claims_created == 0
     assert second.claims_skipped == 1
 
@@ -487,6 +491,72 @@ def test_import_is_idempotent(client, db, tmp_path):
     imported = [
         a
         for a in artifact_items
-        if a["artifact_type"] in {"transcription", "people", "places"}
+        if a["artifact_type"] in {"import_receipt", "transcription", "people", "places"}
     ]
-    assert len(imported) == 3
+    assert len(imported) == 4
+
+
+def test_import_skips_processing_for_excluded_existing_document(client, db, tmp_path):
+    manifest = _fixture_manifest(tmp_path)
+    summary = import_manifest(
+        _TestClientAdapter(client),
+        manifest,
+        str(tmp_path / "lib.fichero"),
+    )
+    assert summary.documents_created == 2
+
+    docs = client.get("/api/documents?limit=500").json()["items"]
+    page = next(d for d in docs if d["name"] == "page_001")
+
+    excluded = db.get(Document, page["id"])
+    assert excluded is not None
+    excluded.exclude_from_processing = True
+    db.save(excluded)
+
+    rerun = import_manifest(
+        _TestClientAdapter(client),
+        manifest,
+        str(tmp_path / "lib.fichero"),
+    )
+
+    assert rerun.documents_skipped == 2
+    assert rerun.entities_created == 0
+    assert rerun.claims_created == 0
+    assert rerun.artifacts_created == 0
+
+
+def test_import_receipt_is_created_even_without_text_or_entities(client, tmp_path):
+    manifest = tmp_path / "manifest.jsonl"
+    node = {
+        "canonical_version": CANONICAL_VERSION,
+        "node_type": "page",
+        "external_id": "receipt_only__page_001",
+        "parent_external_id": None,
+        "corpus": "receipt_only",
+        "name": "page_001",
+        "sequence": 1,
+        "page_label": "001",
+        "language": "en",
+        "text": "",
+        "images": [],
+        "entities": [],
+        "claims": [],
+        "metadata": {},
+    }
+    manifest.write_text(json.dumps(node) + "\n", encoding="utf-8")
+
+    summary = import_manifest(
+        _TestClientAdapter(client),
+        manifest,
+        str(tmp_path / "lib.fichero"),
+    )
+
+    assert summary.artifacts_created == 1
+    docs = client.get("/api/documents?limit=500").json()
+    items = docs["items"] if isinstance(docs, dict) else docs
+    page = next(d for d in items if d["name"] == "page_001")
+    page_artifacts = client.get(
+        f"/api/artifacts/document/{page['id']}?include_descendants=false"
+    ).json()
+    artifact_types = {a["artifact_type"] for a in page_artifacts["items"]}
+    assert artifact_types == {"import_receipt"}

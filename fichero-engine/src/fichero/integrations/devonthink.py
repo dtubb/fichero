@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from fichero.integrations.base import AppIntegration, ImportedItem
+from fichero.integrations.base import AppIntegration, ImportedItem, escape_applescript
 
 logger = logging.getLogger(__name__)
 
@@ -84,11 +84,14 @@ class DEVONthinkIntegration(AppIntegration):
         if not self.is_available:
             return []
 
+        limit = int(limit)
+
         if search:
             # Search query
+            search_escaped = escape_applescript(search)
             script = f'''
             tell application "DEVONthink 3"
-                set searchResults to search "{search}" in databases
+                set searchResults to search "{search_escaped}" in databases
                 set resultList to {{}}
                 set counter to 0
                 repeat with doc in searchResults
@@ -102,7 +105,11 @@ class DEVONthinkIntegration(AppIntegration):
             '''
         else:
             # List recent items
-            db_clause = f'database "{database}"' if database else "current database"
+            db_clause = (
+                f'database "{escape_applescript(database)}"'
+                if database
+                else "current database"
+            )
             script = f"""
             tell application "DEVONthink 3"
                 set docs to contents of {db_clause}
@@ -148,9 +155,10 @@ class DEVONthinkIntegration(AppIntegration):
         if not self.is_available:
             return None
 
+        external_id_escaped = escape_applescript(external_id)
         script = f'''
         tell application "DEVONthink 3"
-            set doc to get record with uuid "{external_id}"
+            set doc to get record with uuid "{external_id_escaped}"
             if doc is not missing value then
                 return {{|uuid|:uuid of doc, |name|:name of doc, |type|:type of doc as string, |path|:path of doc, |url|:reference URL of doc, |content|:plain text of doc, |created|:creation date of doc as string, |modified|:modification date of doc as string}}
             end if
@@ -207,11 +215,13 @@ class DEVONthinkIntegration(AppIntegration):
 
         # Otherwise, export via AppleScript
         if target_path:
+            external_id_escaped = escape_applescript(external_id)
+            target_path_escaped = escape_applescript(str(target_path))
             script = f'''
             tell application "DEVONthink 3"
-                set doc to get record with uuid "{external_id}"
+                set doc to get record with uuid "{external_id_escaped}"
                 if doc is not missing value then
-                    export record doc to POSIX file "{target_path}"
+                    export record doc to POSIX file "{target_path_escaped}"
                     return "success"
                 end if
             end tell
@@ -250,7 +260,11 @@ class DEVONthinkIntegration(AppIntegration):
             return None
 
         # Build import script
-        db_clause = f'database "{database}"' if database else "current database"
+        db_clause = (
+            f'database "{escape_applescript(database)}"'
+            if database
+            else "current database"
+        )
         group_clause = ""
         if group:
             group_clause = f"to incoming group of {db_clause}"
@@ -258,12 +272,14 @@ class DEVONthinkIntegration(AppIntegration):
             group_clause = f"to incoming group of {db_clause}"
 
         name = metadata.get("name", file_path.name) if metadata else file_path.name
+        file_path_escaped = escape_applescript(str(file_path))
+        name_escaped = escape_applescript(str(name))
 
         script = f'''
         tell application "DEVONthink 3"
-            set importedDoc to import POSIX file "{file_path}" {group_clause}
+            set importedDoc to import POSIX file "{file_path_escaped}" {group_clause}
             if importedDoc is not missing value then
-                set name of importedDoc to "{name}"
+                set name of importedDoc to "{name_escaped}"
                 return uuid of importedDoc
             end if
         end tell
@@ -282,9 +298,10 @@ class DEVONthinkIntegration(AppIntegration):
         if not self.is_available:
             return False
 
+        external_id_escaped = escape_applescript(external_id)
         script = f'''
         tell application "DEVONthink 3"
-            set doc to get record with uuid "{external_id}"
+            set doc to get record with uuid "{external_id_escaped}"
             if doc is not missing value then
                 open window for record doc
                 activate

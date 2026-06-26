@@ -2,15 +2,18 @@
   "_doc": "Intentional duplicate code paths. Keys are concern ids; values are explicit allowed handlers/writers.",
   "concerns": {
     "kg_write:KnowledgeClaim": [
-      "api/routes/annotations.py::promote_to_claim",
-      "api/routes/claims.py::create_claim",
+      "api/routes/annotations.py::promote_to_claim_impl",
+      "api/routes/claims.py::create_claim_impl",
       "api/routes/mcp_tools.py::mcp_knowledge_claim_create",
+      "workflows/tools/kg_persist_finalize.py::kg_persist_finalize",
       "workflows/tools/_entity_writer.py::save_claim",
       "workflows/tools/book_index.py::book_index_extract",
       "workflows/tools/citations_extract.py::extract_citations_for_document",
+      "workflows/tools/extract_svo_only.py::extract_svo_only",
       "workflows/tools/extract_all.py::_persist_additional_entities",
       "workflows/tools/extractors.py::_write_citation_usage_rows",
-      "workflows/tools/extractors.py::_write_kg_rows"
+      "workflows/tools/extractors.py::_write_kg_rows",
+      "workflows/tools/merge_dedup_only.py::merge_dedup_only"
     ],
     "kg_write:KnowledgeEntity": [
       "api/routes/entities.py::upsert_entity",
@@ -18,8 +21,11 @@
       "workflows/tools/_entity_writer.py::upsert_entity",
       "workflows/tools/book_index.py::_write_topic_entity",
       "workflows/tools/citations_extract.py::extract_citations_for_document",
+      "workflows/tools/extract_entities_only.py::extract_entities_only",
+      "workflows/tools/extract_svo_only.py::extract_svo_only",
       "workflows/tools/extract_all.py::_persist_additional_entities",
-      "workflows/tools/extractors.py::_write_kg_rows"
+      "workflows/tools/extractors.py::_write_kg_rows",
+      "workflows/tools/merge_dedup_only.py::merge_dedup_only"
     ],
     "route:DELETE /notes/{note_id}": [
       "api/routes/mind_palace.py::delete_note",

@@ -102,6 +102,21 @@ def get_api_key(provider: str) -> str | None:
     return None
 
 
+def _invalidate_llm_api_key_cache(provider: str) -> None:
+    """Bust llm.py's resolved-api-key cache after a Keychain write so a rotated
+    or deleted key takes effect immediately, without a process restart (#2545,
+    M1 follow-up). Local import avoids the keychain <- llm import cycle.
+    """
+    try:
+        from fichero.llm import clear_api_key_cache
+
+        clear_api_key_cache(provider)
+    except Exception as exc:  # don't fail the write; but never swallow silently
+        logger.warning(
+            "Could not invalidate API key cache for %s: %s", provider, exc
+        )
+
+
 def set_api_key(provider: str, key: str) -> bool:
     """Store API key in Keychain.
 
@@ -143,6 +158,7 @@ def set_api_key(provider: str, key: str) -> bool:
 
     if returncode == 0:
         logger.debug("Stored API key for %s", provider)
+        _invalidate_llm_api_key_cache(provider)
         return True
     else:
         logger.warning("Failed to store API key: %s", stderr.strip())
@@ -171,7 +187,10 @@ def delete_api_key(provider: str) -> bool:
     )
 
     # Success or item not found both count as successful delete
-    return returncode in (0, 44)
+    success = returncode in (0, 44)
+    if success:
+        _invalidate_llm_api_key_cache(provider)
+    return success
 
 
 def has_api_key(provider: str) -> bool:

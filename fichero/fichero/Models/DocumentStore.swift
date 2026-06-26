@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import Observation
 import OSLog
 import SwiftUI
 
@@ -19,37 +20,40 @@ enum DocumentChange {
 /// This is the bridge between the backend API and SwiftUI views.
 /// It manages loading state, caching, and provides reactive updates.
 @MainActor
-class DocumentStore: ObservableObject {
+@Observable
+final class DocumentStore {
     // MARK: - Private Properties
 
     let logger = Logger(subsystem: "app.fichero.fichero", category: "DocumentStore")
 
     /// Publisher for document changes.
+    @ObservationIgnored
     private let documentChanges = PassthroughSubject<DocumentChange, Error>()
+    @ObservationIgnored
     private var cancellables = Set<AnyCancellable>()
-    // MARK: - Published State
+    // MARK: - Observable State
 
     /// All collections (top-level documents)
-    @Published var collections: [Document] = []
+    var collections: [Document] = []
 
     /// Currently selected collection
-    @Published var selectedCollection: Document?
+    var selectedCollection: Document?
 
     /// Documents in the current view (children of selected item)
-    @Published var currentDocuments: [Document] = []
+    var currentDocuments: [Document] = []
 
     /// Currently selected document for detail view
-    @Published var selectedDocument: Document?
+    var selectedDocument: Document?
 
     /// Loading states
-    @Published var isLoading = false
-    @Published var isLoadingChildren = false
+    var isLoading = false
+    var isLoadingChildren = false
 
     /// Connection status
-    @Published var isConnected = false
+    var isConnected = false
 
     /// Last error
-    @Published var error: Error?
+    var error: Error?
 
     /// Per-document workflow status overlay, keyed by document.id. Survives
     /// reloads of `currentDocuments` / `collections` / `childrenCache` so a
@@ -58,19 +62,20 @@ class DocumentStore: ObservableObject {
     /// success icons appeared persistent only because artifact existence
     /// derived completion separately, while errors silently disappeared (#791).
     /// In-memory only; clears on app restart.
-    @Published var workflowStatusOverrides: [String: Status] = [:]
+    var workflowStatusOverrides: [String: Status] = [:]
 
     /// Workspace documents (is_workspace == true) — the curated-items
     /// workspaces surfaced in the Research sidebar's Workspaces section (#1617).
-    @Published var workspaces: [Document] = []
+    var workspaces: [Document] = []
 
-    /// File paths whose per-file fanout slot has finished (the `fileComplete`
-    /// SSE event arrived) but whose enclosing workflow is still running
-    /// reduce-phase nodes that further touch the page (extract_all, etc.).
-    /// Held here so the sidebar/grid keep showing a spinner — flipping to
-    /// the green checkmark happens only when the workflow's `complete`
-    /// event fires and `flushPendingFanoutCompletions` runs (#948).
-    var pendingFanoutCompletionPaths: Set<String> = []
+    /// File/page identities whose per-file fanout slot has finished (the
+    /// `fileComplete` SSE event arrived) but whose enclosing workflow is still
+    /// running reduce-phase nodes that further touch the page (extract_all,
+    /// etc.). Keyed by the stable page/document identity from the workflow
+    /// stream so sibling PDF pages that share one parent path do not collapse
+    /// onto one pending slot (#2634).
+    @ObservationIgnored
+    var pendingFanoutCompletions: [String: FileProgressIdentity] = [:]
 
     /// Publisher for document changes.
     var documentChangePublisher: AnyPublisher<DocumentChange, Error> {
@@ -87,7 +92,58 @@ class DocumentStore: ObservableObject {
     }
 
     /// Cache of children by parent ID
+    @ObservationIgnored
     var childrenCache: [String: [Document]] = [:]
+
+    // MARK: - Change-stream substrate (#1995 / #1996)
+
+    /// Shared 300ms trailing-reload coalescer (the #1973 beachball fix). Used by
+    /// the `ObservableDomainStore` conformance below to fold a burst of
+    /// `document.*` events into a single granular fetch+splice.
+    @ObservationIgnored
+    let reloadDebouncer = ReloadDebouncer()
+
+    /// Document ids touched by `document.updated`/`document.created` events,
+    /// accumulated across a burst and flushed once by the debouncer. The flush
+    /// fetches and splices ONLY these rows — the library table is never
+    /// wholesale-reloaded on a single event.
+    @ObservationIgnored
+    var pendingPatchIds: Set<String> = []
+
+    /// In-flight page-content saves, keyed by document id. These are
+    /// STORE-OWNED unstructured tasks so a view re-render / blur that cancels
+    /// the editor's own task can't abort the PUT mid-flight (NSURLError -999,
+    /// #2466). See `savePageContent(documentId:perform:)` in
+    /// `DocumentStore+Helpers`. Internal (not private) so that extension can
+    /// reach it.
+    @ObservationIgnored
+    var pageContentSaveTasks: [String: Task<String?, Never>] = [:]
+
+    /// Document ids this device just wrote, with the time of the write. Used to
+    /// drop the change-stream ECHO of our own save so a self-echoed
+    /// `document.updated` doesn't re-fetch + re-splice the row (which changes the
+    /// inspector's `document` identity and forces the page editor to rebuild —
+    /// width / cursor / scroll reset, #2478). A genuine update from ANOTHER
+    /// device is keyed differently in time and still applies in place (#2479).
+    /// Entries self-expire via `ownWriteEchoWindow` so a marker can never
+    /// suppress a later, legitimate remote edit to the same document.
+    @ObservationIgnored
+    var recentOwnWrites: [String: Date] = [:]
+
+    /// How long an own-write marker suppresses its echo. The echo arrives over
+    /// SSE within a few hundred ms of the PUT; a generous window absorbs jitter
+    /// while staying far below the cadence of human cross-device edits.
+    @ObservationIgnored
+    let ownWriteEchoWindow: TimeInterval = 5
+
+    /// Flush hook the active page-content editor registers (#2476). An external
+    /// navigation (image prev/next, inspector tab switch) calls
+    /// `flushActivePageEdit()` BEFORE changing the focused document so the
+    /// in-flight edit is persisted via the store-owned save instead of being
+    /// discarded when the editor reseeds to the new document. Nil when no
+    /// editable page-content editor is focused.
+    @ObservationIgnored
+    var activePageEditFlush: (@MainActor () async -> Void)?
 
     // MARK: - Initialization
 

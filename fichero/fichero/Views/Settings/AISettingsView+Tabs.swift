@@ -130,6 +130,18 @@ extension AISettingsView {
     }
 
     @ViewBuilder
+    var providersTab: some View {
+        ProvidersView()
+            .environmentObject(appState.providerService)
+            .environmentObject(appState.modelService)
+    }
+
+    @ViewBuilder
+    var downloadsTab: some View {
+        LocalModelsSettingsView()
+    }
+
+    @ViewBuilder
     var advancedTab: some View {
         Form {
             Section("Generation") {

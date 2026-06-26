@@ -23,6 +23,12 @@ struct ViewMenuCommands: View {
 
         Divider()
 
+        RepresentationSection()
+
+        KnowledgeGraphViewModeSection()
+
+        Divider()
+
         ImagePreviewMenuCommands()
 
         Divider()
@@ -41,7 +47,6 @@ struct ViewMenuCommands: View {
 
         Divider()
 
-        ShowRulerButton()
         ShowFindBarButton()
     }
 }
@@ -141,21 +146,6 @@ struct SidebarModeSection: View {
                 }
             }
 
-            if featureManager.isMindPalaceEnabled {
-                Divider()
-
-                // Mind Palace mode — spatial 3D-2D space
-                SidebarModeButton(
-                    mode: .mindPalace,
-                    label: SidebarMode.mindPalace.label,
-                    icon: SidebarMode.mindPalace.icon,
-                    shortcut: SidebarMode.mindPalace.shortcutNumber,
-                    current: currentMode
-                ) {
-                    sidebarMode?.wrappedValue = .mindPalace
-                }
-            }
-
             // Research (8) + Knowledge Graph (9) menu entries. These exist in the
             // sidebar mode-icon bar but had dropped out of the View menu, so the
             // menu items + ⌃⌘8 / ⌃⌘9 shortcuts that surface the entity browser
@@ -221,6 +211,8 @@ struct LibraryLayoutSection: View {
     @ObservedObject var viewSettings: ViewSettings
     @ObservedObject var featureManager = FeatureManager.shared
     @FocusedValue(\.sidebarMode) var sidebarMode
+    @FocusedValue(\.libraryDisplayMode) private var displayMode
+    @FocusedValue(\.availableLibraryDisplayModes) private var availableModes
 
     /// Only show view options for modes that need them (Library, Search)
     private var shouldShowViewOptions: Bool {
@@ -228,9 +220,13 @@ struct LibraryLayoutSection: View {
         switch mode {
         case .library, .search:
             return true
-        case .chat, .workflows, .automation, .activity, .mindPalace, .research, .knowledgeGraph:
+        case .chat, .workflows, .automation, .activity, .research, .knowledgeGraph:
             return false
         }
+    }
+
+    private var availableSpatialModes: [ViewDisplayMode] {
+        availableModes ?? []
     }
 
     private var availableLayouts: [LibraryLayout] {
@@ -274,7 +270,7 @@ struct LibraryLayoutSection: View {
                 if availableLayouts.contains(.table) {
                     LibraryLayoutButton(
                         layout: .table,
-                        label: "as Column",
+                        label: "as Columns",
                         icon: "tablecells",
                         shortcut: "3",
                         current: viewSettings.libraryLayout
@@ -286,13 +282,35 @@ struct LibraryLayoutSection: View {
                 if availableLayouts.contains(.map) {
                     LibraryLayoutButton(
                         layout: .map,
-                        label: "as Map",
+                        label: "as Canvas",
                         icon: "rectangle.3.group",
                         shortcut: "4",
                         current: viewSettings.libraryLayout
                     ) {
                         viewSettings.libraryLayout = .map
                     }
+                }
+
+                // Space (⌘5) — 3D RealityKit node view, peer to Canvas.
+                if availableSpatialModes.contains(.realitykit) {
+                    SpatialViewButton(
+                        mode: .realitykit,
+                        label: "as Space",
+                        icon: "cube.transparent",
+                        shortcut: "5",
+                        binding: displayMode
+                    )
+                }
+
+                if availableSpatialModes.contains(.spatial) {
+                    Divider()
+                    SpatialViewButton(
+                        mode: .spatial,
+                        label: "as Spatial (2D)",
+                        icon: "square.3.layers.3d",
+                        shortcut: "8",
+                        binding: displayMode
+                    )
                 }
             }
         }
@@ -346,10 +364,10 @@ struct SortSection: View {
             Section("Sort By") {
                 ForEach(LibrarySortField.allCases) { field in
                     Button {
-                        sortField?.wrappedValue = field.rawValue
+                        sortField?.set(field.rawValue)
                     } label: {
                         Label(field.rawValue, systemImage: field.icon)
-                        if sortField?.wrappedValue == field.rawValue {
+                        if sortField?.value == field.rawValue {
                             Image(systemName: "checkmark")
                         }
                     }
@@ -403,30 +421,37 @@ struct PreviewModeSection: View {
             return [.none, .standard, .widescreen]
         case .chat:
             return [.none, .standard, .widescreen]
-        case .workflows, .automation, .activity, .mindPalace, .research, .knowledgeGraph:
+        case .workflows, .automation, .activity, .research, .knowledgeGraph:
             return []
         }
     }
 
     var body: some View {
         if shouldShowPreviewOptions {
+            // Preview LAYOUT — where the document preview sits relative to the
+            // library list. Mail-modeled radio group (#2032/§6d):
+            //   .widescreen → list and preview side-by-side  → "Show Side Preview"
+            //   .standard   → list above, preview below       → "Show Bottom Preview"
+            //   .none       → list only, no preview           → "Hide Preview"
+            // (This is the PREVIEW position; the list's own column layout —
+            // Icons/List/Column/Map — is LibraryLayoutSection ⌘1-4, not here.)
             Section("Preview") {
-                if availablePreviewModes.contains(.none) {
+                if availablePreviewModes.contains(.widescreen) {
                     PreviewModeButton(
-                        mode: .none,
-                        label: "None",
-                        icon: "square",
+                        mode: .widescreen,
+                        label: "Show Side Preview",
+                        icon: "rectangle.split.2x1",
                         shortcut: "5",
                         current: viewSettings.previewMode
                     ) {
-                        viewSettings.previewMode = .none
+                        viewSettings.previewMode = .widescreen
                     }
                 }
 
                 if availablePreviewModes.contains(.standard) {
                     PreviewModeButton(
                         mode: .standard,
-                        label: "Standard",
+                        label: "Show Bottom Preview",
                         icon: "rectangle.split.1x2",
                         shortcut: "6",
                         current: viewSettings.previewMode
@@ -435,15 +460,15 @@ struct PreviewModeSection: View {
                     }
                 }
 
-                if availablePreviewModes.contains(.widescreen) {
+                if availablePreviewModes.contains(.none) {
                     PreviewModeButton(
-                        mode: .widescreen,
-                        label: "Widescreen",
-                        icon: "rectangle.split.2x1",
+                        mode: .none,
+                        label: "Hide Preview",
+                        icon: "square",
                         shortcut: "7",
                         current: viewSettings.previewMode
                     ) {
-                        viewSettings.previewMode = .widescreen
+                        viewSettings.previewMode = .none
                     }
                 }
             }
@@ -476,6 +501,74 @@ struct PreviewModeButton: View {
             KeyEquivalent(Character(shortcut)),
             modifiers: [.command]
         )
+    }
+}
+
+// MARK: - Representation Section ("Add View")
+
+/// Document content-area representation switcher, surfaced as View-menu items
+/// instead of a floating icon bar over the WebKit content (#2032 / reform §G).
+/// Daniel: "the stuff shown in the WebKit/content view are really views that can
+/// be ADDED — so the switcher should be MENU ITEMS, not icons." Reads/writes the
+/// focused `DocumentKGSurface`'s active representation via FocusedValues, so it's
+/// per-window and disables when no document surface is focused (same rationale as
+/// `InspectorButton` / `PaneVisibilitySection`).
+struct RepresentationSection: View {
+    @FocusedValue(\.documentRepresentation) private var representation
+
+    private var current: KGSurfaceTab? {
+        representation?.current
+    }
+
+    var body: some View {
+        Section("Add View") {
+            ForEach(KGSurfaceTab.allCases) { tab in
+                Button {
+                    representation?.select(tab)
+                } label: {
+                    Label(tab.title, systemImage: tab.icon)
+                    if current == tab {
+                        Image(systemName: "checkmark")
+                    }
+                }
+                .keyboardShortcut(
+                    KeyEquivalent(tab.representationShortcut),
+                    modifiers: [.control, .option, .command]
+                )
+                .disabled(representation == nil)
+            }
+        }
+    }
+}
+
+// MARK: - Knowledge Graph View Mode Section
+
+/// Global Knowledge Graph view-mode switcher (List/Graph/Chart/Timeline/Map),
+/// surfaced as View-menu items instead of a segmented icon row inside the KG
+/// pane toolbar (#2436, same principle as `RepresentationSection`). Reads/writes
+/// the focused `OntologyBrowser`'s active mode via FocusedValues, so it's
+/// per-window and disables when the KG browser is not focused.
+struct KnowledgeGraphViewModeSection: View {
+    @FocusedValue(\.knowledgeGraphViewMode) private var knowledgeGraphViewMode
+
+    private var current: OntologyBrowser.ViewMode? {
+        knowledgeGraphViewMode?.current
+    }
+
+    var body: some View {
+        Section("Knowledge Graph View") {
+            ForEach(OntologyBrowser.ViewMode.allCases) { mode in
+                Button {
+                    knowledgeGraphViewMode?.select(mode)
+                } label: {
+                    Label(mode.label, systemImage: mode.icon)
+                    if current == mode {
+                        Image(systemName: "checkmark")
+                    }
+                }
+                .disabled(knowledgeGraphViewMode == nil)
+            }
+        }
     }
 }
 
@@ -523,15 +616,15 @@ struct PaneVisibilitySection: View {
         Section("Panes") {
             PaneToggleButton(
                 binding: showDocumentGrid,
-                showLabel: "Show Library Pane",
-                hideLabel: "Hide Library Pane",
-                icon: "rectangle.split.2x1",
+                showLabel: "Show Library Browser",
+                hideLabel: "Hide Library Browser",
+                icon: "books.vertical",
                 shortcut: KeyboardShortcut("g", modifiers: [.command, .shift])
             )
             PaneToggleButton(
                 binding: showDocumentCanvas,
-                showLabel: "Show Document Canvas",
-                hideLabel: "Hide Document Canvas",
+                showLabel: "Show Preview",
+                hideLabel: "Hide Preview",
                 icon: "doc.richtext",
                 shortcut: nil
             )
@@ -542,6 +635,7 @@ struct PaneVisibilitySection: View {
                 icon: "text.book.closed",
                 shortcut: nil
             )
+            ShowMiniToolbarToggle()
         }
     }
 }
@@ -587,11 +681,21 @@ struct SelectionDrivenLayoutToggle: View {
     }
 }
 
-// MARK: - Show Ruler
+// MARK: - Show Mini Toolbar (#2460)
 
-// Toggles the inspector's text-editor ruler globally. Lives in Format > Text
-// in spirit but attaches to the View menu (FicheroApp wires this in).
-// AppStorage key matches the editor's `editor.rulersVisible` flag.
+/// App-wide toggle for reader mini-toolbars. Toggle in a CommandMenu renders as
+/// a checkmark item that stays in sync with @AppStorage changes from any window
+/// (same rationale as ShowRulerButton). Key must match MiniToolbar.toolbarVisibilityKey.
+struct ShowMiniToolbarToggle: View {
+    @AppStorage("fichero.ui.showMiniToolbar") private var showMiniToolbar: Bool = true
+
+    var body: some View {
+        Toggle(isOn: $showMiniToolbar) {
+            Label("Show Mini Toolbar", systemImage: "rectangle.topthird.inset.filled")
+        }
+    }
+}
+
 // MARK: - Go Up (Cmd+`)
 
 // Walks one level up the folder hierarchy via the focused window's
@@ -602,7 +706,7 @@ struct NavigateToParentButton: View {
 
     var body: some View {
         Button {
-            action?()
+            action?.run()
         } label: {
             Label("Go Up", systemImage: "arrow.up.to.line.compact")
         }
@@ -611,27 +715,13 @@ struct NavigateToParentButton: View {
     }
 }
 
-struct ShowRulerButton: View {
-    @AppStorage("editor.rulersVisible") private var rulersVisible: Bool = true
-
-    var body: some View {
-        // Toggle in a CommandMenu renders as a checkmark menu item — and
-        // unlike a Button with a dynamic label, the checkmark *does* update
-        // when @AppStorage changes from elsewhere (e.g. the keyboard
-        // shortcut). SwiftUI Commands cache Button labels and don't reliably
-        // re-evaluate them on UserDefaults change (#781 follow-up).
-        Toggle(isOn: $rulersVisible) {
-            Label("Show Ruler", systemImage: "ruler")
-        }
-        .keyboardShortcut("r", modifiers: [.command, .control])
-    }
-}
-
-/// Triggers the focused artifact panel's NSTextView inline find bar.
-/// `usesFindBar = true` is already set in AttributedTextEditor, so AppKit
-/// renders the bar across the top of that one editor — no app-wide search.
+/// Triggers the focused text view's inline find bar. Targets the first
+/// responder via `performFindPanelAction(_:)`, which SwiftUI's `TextEditor`
+/// (AppKit-backed on macOS) handles — no app-wide search. (#2453: the editor
+/// is now SwiftUI `TextEditor`, not a custom NSTextView representable.)
 struct ShowFindBarButton: View {
     var body: some View {
+        #if canImport(AppKit)
         Button {
             let item = NSMenuItem()
             item.tag = Int(NSFindPanelAction.showFindPanel.rawValue)
@@ -644,5 +734,52 @@ struct ShowFindBarButton: View {
             Label("Find in Artifact", systemImage: "magnifyingglass")
         }
         .keyboardShortcut("f", modifiers: .command)
+        #else
+        Button {
+        } label: {
+            Label("Find in Artifact", systemImage: "magnifyingglass")
+        }
+        .keyboardShortcut("f", modifiers: .command)
+        .disabled(true)
+        #endif
+    }
+}
+
+// MARK: - Spatial View Button
+
+/// Reusable button for switching `ViewDisplayMode` from the View menu.
+/// Shows a checkmark when the mode is currently active.
+struct SpatialViewButton: View {
+    let mode: ViewDisplayMode
+    let label: String
+    let icon: String
+    /// Optional keyboard shortcut character (nil = menu-only, no shortcut).
+    let shortcut: String?
+    let binding: Binding<ViewDisplayMode>?
+
+    var body: some View {
+        if let shortcut {
+            button
+                .keyboardShortcut(KeyEquivalent(Character(shortcut)), modifiers: [.command])
+        } else {
+            button
+        }
+    }
+
+    private var button: some View {
+        Button {
+            binding?.wrappedValue = mode
+        } label: {
+            HStack(spacing: 8) {
+                if binding?.wrappedValue == mode {
+                    Image(systemName: "checkmark")
+                        .frame(width: 12)
+                }
+                Image(systemName: icon)
+                    .frame(width: 16)
+                Text(label)
+            }
+        }
+        .disabled(binding == nil)
     }
 }

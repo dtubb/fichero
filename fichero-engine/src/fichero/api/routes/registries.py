@@ -23,7 +23,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.knowledge_models import (
     ClassificationDimension,
@@ -144,7 +144,7 @@ async def list_epistemic_statuses(
 )
 async def create_epistemic_status(
     request: RegistryCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ClassificationValue:
     """Register a new custom epistemic status (e.g., 'court-testimony', 'rumoured')."""
     _seed_registries_if_empty(db)
@@ -175,7 +175,7 @@ async def create_epistemic_status(
 async def patch_epistemic_status(
     value_id: str,
     request: RegistryPatchRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ClassificationValue:
     """Update label, description, icon, color, or rename (key change).
 
@@ -212,7 +212,7 @@ async def patch_epistemic_status(
 )
 async def delete_epistemic_status(
     value_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> None:
     """Delete a custom epistemic status.
 
@@ -275,7 +275,7 @@ async def list_claim_kinds(
 )
 async def create_claim_kind(
     request: RegistryCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ClassificationValue:
     """Register a new custom claim kind (e.g., 'citation', 'oral-testimony')."""
     _seed_registries_if_empty(db)
@@ -306,7 +306,7 @@ async def create_claim_kind(
 async def patch_claim_kind(
     value_id: str,
     request: RegistryPatchRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ClassificationValue:
     """Update label, description, icon, color, or rename (key change).
 
@@ -343,7 +343,7 @@ async def patch_claim_kind(
 )
 async def delete_claim_kind(
     value_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> None:
     """Delete a custom claim kind.
 

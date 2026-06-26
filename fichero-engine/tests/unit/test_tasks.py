@@ -179,12 +179,23 @@ class TestTaskExecution:
         return str(tmp_path / "test_exec.duckdb")
 
     @pytest.fixture
-    def mock_database(self):
-        """Create a mock database."""
+    def mock_database(self, monkeypatch, tmp_path):
+        """Create a mock database.
+
+        Workers now resolve a thread-local Database via
+        ``db_manager.get_database`` from inside the pool thread (#2509), so
+        the mock is given a realistic package ``.path`` and we patch
+        ``db_manager.get_database`` to return it regardless of thread.
+        """
         db = Mock()
+        db.path = tmp_path / "test.fichero" / "fichero.duckdb"
         db.all = Mock(return_value=[])
         db.embed = Mock(return_value=True)
         db.embedding_stats = Mock(return_value={"indexed": 0, "total": 0})
+        monkeypatch.setattr(
+            "fichero.workflows.task_workers.db_manager.get_database",
+            lambda _path: db,
+        )
         return db
 
     @pytest.fixture

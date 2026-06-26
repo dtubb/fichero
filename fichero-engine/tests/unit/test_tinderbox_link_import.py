@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from fichero.db import db_manager
 from fichero.models import DocType, FileType, Document
-from fichero.tinderbox_link_import import import_tinderbox_links
+from fichero.tinderbox_link_import import import_tinderbox_links, parse_tinderbox_notes
 
 
 def _write_tbx(path: Path, body: str) -> None:
@@ -102,3 +104,20 @@ def test_import_tinderbox_links_skips_url_bookmarks_without_text(tmp_path):
     assert len(note_docs) == 1
     assert note_docs[0].name == "Real"
     assert summary.skipped_notes >= 1
+
+
+def test_parse_tinderbox_notes_rejects_billion_laughs_entities(tmp_path):
+    tbx_path = tmp_path / "evil.tbx"
+    tbx_path.write_text(
+        """<?xml version="1.0"?>
+<!DOCTYPE lolz [
+ <!ENTITY lol "lol">
+ <!ENTITY lol1 "&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;">
+]>
+<tinderbox><note id="n1" name="&lol1;"/></tinderbox>
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="entity declarations"):
+        parse_tinderbox_notes(tbx_path)

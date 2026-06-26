@@ -15,7 +15,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.knowledge_models import (
     ClaimType,
@@ -201,7 +201,7 @@ def _validate_source_type(source_type: str) -> SourceType:
 )
 async def mcp_knowledge_entity_upsert(
     request: KnowledgeEntityUpsertRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> KnowledgeEntityUpsertResponse:
     """MCP tool endpoint: Upsert knowledge entity.
 
@@ -274,7 +274,7 @@ async def mcp_knowledge_entity_upsert(
 )
 async def mcp_knowledge_claim_create(
     request: KnowledgeClaimCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> KnowledgeClaimCreateResponse:
     """MCP tool endpoint: Create knowledge claim.
 
@@ -382,7 +382,7 @@ async def mcp_knowledge_claim_get(
 )
 async def mcp_knowledge_entity_delete(
     entity_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> MCPEntityDeletedResponse:
     """MCP tool endpoint: Soft-delete knowledge entity."""
     entity = db.get(KnowledgeEntity, entity_id)
@@ -401,7 +401,7 @@ async def mcp_knowledge_entity_delete(
 )
 async def mcp_knowledge_claim_delete(
     claim_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> MCPClaimDeletedResponse:
     """MCP tool endpoint: Soft-delete knowledge claim."""
     claim = db.get(KnowledgeClaim, claim_id)

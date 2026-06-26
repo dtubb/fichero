@@ -3,11 +3,19 @@ import SwiftUI
 /// Shared helper functions for Activity views
 enum ActivityViewHelpers {
 
+    enum RunAction {
+        case pause
+        case resume
+        case stop
+        case delete
+    }
+
     // MARK: - Status Helpers
 
     static func statusIcon(for status: SelectedActivityRun.ActivityRunStatusType) -> String {
         switch status {
         case .running: return "play.circle.fill"
+        case .paused: return "pause.circle.fill"
         case .completed: return "checkmark.circle.fill"
         case .failed: return "xmark.circle.fill"
         case .cancelled: return "stop.circle.fill"
@@ -17,6 +25,7 @@ enum ActivityViewHelpers {
     static func statusColor(for status: SelectedActivityRun.ActivityRunStatusType) -> Color {
         switch status {
         case .running: return .blue
+        case .paused: return .orange
         case .completed: return .green
         case .failed: return .red
         case .cancelled: return .orange
@@ -26,9 +35,52 @@ enum ActivityViewHelpers {
     static func statusText(for status: SelectedActivityRun.ActivityRunStatusType) -> String {
         switch status {
         case .running: return "Running"
+        case .paused: return "Paused"
         case .completed: return "Completed"
         case .failed: return "Failed"
         case .cancelled: return "Cancelled"
+        }
+    }
+
+    static func selectedRunStatus(
+        selectedRun: SelectedActivityRun,
+        liveExecution: WorkflowExecution?,
+        persistedRun: WorkflowRunResponse?
+    ) -> SelectedActivityRun.ActivityRunStatusType {
+        if let liveExecution {
+            return selectedRunStatus(for: liveExecution.status)
+        }
+        if let persistedRun {
+            return selectedRunStatus(forRaw: persistedRun.status)
+        }
+        return selectedRun.status
+    }
+
+    static func selectedRunStatus(for status: WorkflowStatus) -> SelectedActivityRun.ActivityRunStatusType {
+        switch status {
+        case .running, .idle:
+            return .running
+        case .paused:
+            return .paused
+        case .completed:
+            return .completed
+        case .failed:
+            return .failed
+        }
+    }
+
+    static func selectedRunStatus(forRaw raw: String) -> SelectedActivityRun.ActivityRunStatusType {
+        switch raw.lowercased() {
+        case "paused":
+            return .paused
+        case "completed", "complete", "success", "succeeded":
+            return .completed
+        case "failed", "error":
+            return .failed
+        case "cancelled", "canceled":
+            return .cancelled
+        default:
+            return .running
         }
     }
 
@@ -57,6 +109,28 @@ enum ActivityViewHelpers {
             return "\(minutes)m \(seconds)s"
         }
     }
+
+    @MainActor
+    static func performRunAction(
+        _ action: RunAction,
+        threadId: String,
+        apiClient: APIClient
+    ) async throws {
+        let service = WorkflowExecutionService(
+            baseURL: apiClient.baseURL,
+            libraryPath: apiClient.currentLibraryPath
+        )
+        switch action {
+        case .pause:
+            try await service.pauseWorkflow(threadId: threadId)
+        case .resume:
+            _ = try await service.resumeWorkflow(threadId: threadId)
+        case .stop:
+            try await service.cancelWorkflow(threadId: threadId)
+        case .delete:
+            try await service.deleteThread(threadId: threadId)
+        }
+    }
 }
 
 // MARK: - Activity Browser
@@ -68,7 +142,9 @@ struct ActivityBrowserView: View {
     let onSelectRun: (SelectedActivityRun) -> Void
 
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
+    @Environment(ActivityStore.self) private var activityStore
     @EnvironmentObject private var libraryManager: LibraryManager
+    @Environment(\.openWindow) private var openWindow
 
     @State private var runs: [ActivityRun] = []
     @State private var isLoading = false
@@ -84,6 +160,15 @@ struct ActivityBrowserView: View {
                 if isLoading {
                     ProgressView().scaleEffect(0.6)
                 }
+                // Pop the live monitor into its own window (#2546 / B2). The
+                // window's root is the hierarchical outline table.
+                Button {
+                    openWindow(id: "activity-monitor")
+                } label: {
+                    Image(systemName: "arrow.up.forward.app")
+                }
+                .buttonStyle(.borderless)
+                .help("Open Activity Monitor in its own window")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
@@ -113,7 +198,8 @@ struct ActivityBrowserView: View {
             }
         }
         .task { await loadRuns() }
-        .onChange(of: executionObserver.activeExecutions.count) { _, _ in
+        // SSE-driven refresh: bumped by ActivityStore when activity events arrive
+        .onChange(of: activityStore.refreshToken) { _, _ in
             Task { await loadRuns() }
         }
         .onChange(of: selectedRunId) { _, newId in
@@ -127,8 +213,7 @@ struct ActivityBrowserView: View {
         defer { isLoading = false }
 
         var result = executionObserver.activeExecutions.values.map { liveRunFromExecution($0) }
-        let seenThreadIds = Set(result.map { $0.runId })
-        let historical = await loadHistoricalRuns(excluding: seenThreadIds)
+        let historical = await loadHistoricalRuns(excluding: Set(result.map { $0.runId }))
         result.append(contentsOf: historical)
         runs = result.sorted { $0.timestamp > $1.timestamp }
     }
@@ -141,7 +226,7 @@ struct ActivityBrowserView: View {
             threadId: execution.threadId,
             workflowName: activityCleanWorkflowName(execution.name),
             timestamp: execution.startTime,
-            status: .running,
+            status: activityMapExecutionStatus(execution.status),
             progress: execution.overallProgress,
             currentStep: execution.currentNodeName,
             errorCount: execution.nodeStates.values.reduce(0) { $0 + $1.errorCount },
@@ -151,9 +236,10 @@ struct ActivityBrowserView: View {
     }
 
     private func loadHistoricalRuns(excluding seenThreadIds: Set<String>) async -> [ActivityRun] {
-        let types = ["workflow_completed", "workflow_failed", "workflow_cancelled"]
+        let types = ["workflow_started", "workflow_completed", "workflow_failed", "workflow_cancelled"]
         let since = Date().addingTimeInterval(-7 * 24 * 3600)
         var result: [ActivityRun] = []
+        var emittedThreadIds = seenThreadIds
         for library in libraryManager.openLibraries {
             guard !Task.isCancelled else { break }
             do {
@@ -162,9 +248,9 @@ struct ActivityBrowserView: View {
                     since: since,
                     limit: 100
                 )
-                for item in items {
+                for item in items.sorted(by: { ($0.parsedTimestamp ?? .distantPast) > ($1.parsedTimestamp ?? .distantPast) }) {
                     let threadId = item.threadId ?? item.batchId.map { "batch:\($0)" }
-                    guard let threadId, !seenThreadIds.contains(threadId) else { continue }
+                    guard let threadId, !emittedThreadIds.contains(threadId) else { continue }
                     result.append(ActivityRun(
                         id: threadId,
                         runId: threadId,
@@ -179,6 +265,7 @@ struct ActivityBrowserView: View {
                         fileCount: 0,
                         isLive: false
                     ))
+                    emittedThreadIds.insert(threadId)
                 }
             } catch {
                 // Individual library failure is non-fatal

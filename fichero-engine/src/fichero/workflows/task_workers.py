@@ -11,7 +11,9 @@ self._executing, self._tasks.
 import asyncio
 import logging
 from datetime import datetime
+from pathlib import Path
 
+from fichero.db import db_manager
 from fichero.knowledge_models import KnowledgeClaim, KnowledgeClaimLink, KnowledgeEntity
 from fichero.models import Artifact, Document
 
@@ -29,6 +31,30 @@ class TaskWorkersMixin:
     - self._executing: set[str]
     - self._claim_for_direct_execution(task): coroutine -> bool
     """
+
+    def _db_call(self, method_name: str, *args):
+        """Run a ``Database`` method inside the current (pool) thread using
+        that thread's OWN keyed connection.
+
+        A DuckDB ``Connection`` is not safe to share across threads, and
+        ``db_manager`` keys its connection pool by ``threading.get_ident()``
+        precisely for that reason. These workers drive the database from
+        arbitrary ``asyncio.to_thread`` pool threads, so we must NOT capture
+        and ship ``self.database`` (bound to the thread that created the
+        queue) across the thread boundary. Instead we resolve the package
+        path from the captured Database (reading the ``.path`` attribute is
+        safe — it never touches the connection) and obtain a thread-local
+        Database from ``db_manager`` from WITHIN the pool thread, so each
+        pool thread gets its own connection to the same package.
+
+        Must be invoked as the ``asyncio.to_thread`` callable so the
+        ``get_database`` call runs in the pool thread:
+
+            docs = await asyncio.to_thread(self._db_call, "all", Document)
+        """
+        package_path = Path(self.database.path).parent
+        db = db_manager.get_database(package_path)
+        return getattr(db, method_name)(*args)
 
     async def _execute_reindex(self, task: BackgroundTask) -> TaskResult:
         """Public entry point for reindex — claims task, runs, finalizes."""
@@ -63,7 +89,7 @@ class TaskWorkersMixin:
             return result
 
         # Get documents to reindex
-        docs = await asyncio.to_thread(self.database.all, Document)
+        docs = await asyncio.to_thread(self._db_call, "all", Document)
         total = len(docs)
 
         task.progress.total = total
@@ -78,7 +104,7 @@ class TaskWorkersMixin:
                     continue
 
                 # Embed document
-                success = await asyncio.to_thread(self.database.embed, doc)
+                success = await asyncio.to_thread(self._db_call, "embed", doc)
                 if success:
                     indexed += 1
 
@@ -144,7 +170,7 @@ class TaskWorkersMixin:
         task.progress.percent = 20.0
         await self._save_task(task)
 
-        docs = await asyncio.to_thread(self.database.all, Document)
+        docs = await asyncio.to_thread(self._db_call, "all", Document)
         doc_count = len(docs)
 
         # Step 2: Embedding stats
@@ -153,7 +179,7 @@ class TaskWorkersMixin:
         task.progress.percent = 40.0
         await self._save_task(task)
 
-        stats = await asyncio.to_thread(self.database.embedding_stats)
+        stats = await asyncio.to_thread(self._db_call, "embedding_stats")
 
         # Step 3: File type distribution
         task.progress.current = 3
@@ -247,11 +273,11 @@ class TaskWorkersMixin:
         task.progress.percent = 33.3
         await self._save_task(task)
 
-        docs = await asyncio.to_thread(self.database.all, Document)
+        docs = await asyncio.to_thread(self._db_call, "all", Document)
         for doc in docs:
             if doc.page_content and not getattr(doc, "embedding", None):
                 try:
-                    await asyncio.to_thread(self.database.embed, doc)
+                    await asyncio.to_thread(self._db_call, "embed", doc)
                     repaired["embeddings"] += 1
                 except Exception as e:
                     logger.warning(f"Failed to embed document {doc.id}: {e}")
@@ -262,13 +288,13 @@ class TaskWorkersMixin:
         task.progress.percent = 66.6
         await self._save_task(task)
 
-        artifacts = await asyncio.to_thread(self.database.all, Artifact)
+        artifacts = await asyncio.to_thread(self._db_call, "all", Artifact)
         doc_ids = {d.id for d in docs}
         for artifact in artifacts:
             artifact_doc_id = getattr(artifact, "document_id", None)
             if artifact_doc_id and artifact_doc_id not in doc_ids:
                 # Orphaned artifact - delete or mark as orphaned
-                await asyncio.to_thread(self.database.delete, artifact)
+                await asyncio.to_thread(self._db_call, "delete", artifact)
                 repaired["artifacts"] += 1
 
         # Step 3: Validate document metadata
@@ -286,7 +312,7 @@ class TaskWorkersMixin:
                 doc.created_at = datetime.now()
                 needs_save = True
             if needs_save:
-                await asyncio.to_thread(self.database.save, doc)
+                await asyncio.to_thread(self._db_call, "save", doc)
                 repaired["docs"] += 1
 
         total_repaired = sum(repaired.values())
@@ -349,7 +375,7 @@ class TaskWorkersMixin:
         task.progress.percent = 25.0
         await self._save_task(task)
 
-        docs = await asyncio.to_thread(self.database.all, Document)
+        docs = await asyncio.to_thread(self._db_call, "all", Document)
 
         # Step 2: Check for documents needing embeddings
         task.progress.current = 2
@@ -360,7 +386,7 @@ class TaskWorkersMixin:
         for doc in docs:
             if doc.page_content and not getattr(doc, "embedding", None):
                 try:
-                    success = await asyncio.to_thread(self.database.embed, doc)
+                    success = await asyncio.to_thread(self._db_call, "embed", doc)
                     if success:
                         repaired["added"] += 1
                 except Exception as e:
@@ -375,7 +401,7 @@ class TaskWorkersMixin:
 
         vector_count = 0
         try:
-            stats = await asyncio.to_thread(self.database.embedding_stats)
+            stats = await asyncio.to_thread(self._db_call, "embedding_stats")
             vector_count = stats.get("total_vectors", 0)
         except Exception as e:
             logger.warning(f"Could not get embedding stats: {e}")
@@ -448,7 +474,7 @@ class TaskWorkersMixin:
         task.progress.percent = 25.0
         await self._save_task(task)
 
-        entities = await asyncio.to_thread(self.database.all, KnowledgeEntity)
+        entities = await asyncio.to_thread(self._db_call, "all", KnowledgeEntity)
         entity_by_type: dict[str, int] = {}
         for ent in entities:
             et = ent.entity_type.value if ent.entity_type else "unknown"
@@ -460,7 +486,7 @@ class TaskWorkersMixin:
         task.progress.percent = 50.0
         await self._save_task(task)
 
-        claims = await asyncio.to_thread(self.database.all, KnowledgeClaim)
+        claims = await asyncio.to_thread(self._db_call, "all", KnowledgeClaim)
         claims_by_status: dict[str, int] = {}
         claims_by_type: dict[str, int] = {}
         claims_with_sources = 0
@@ -481,7 +507,7 @@ class TaskWorkersMixin:
         task.progress.percent = 75.0
         await self._save_task(task)
 
-        links = await asyncio.to_thread(self.database.all, KnowledgeClaimLink)
+        links = await asyncio.to_thread(self._db_call, "all", KnowledgeClaimLink)
         links_by_relation: dict[str, int] = {}
         for link in links:
             rt = link.relation_type.value if link.relation_type else "unknown"

@@ -1,10 +1,18 @@
 import Combine
+import FicheroAPIClient
+import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
+
+enum LibraryContentCollection {
+    case documents
+    case entities
+}
 
 /// Grid/List/Table/Map view of documents
 struct LibraryView: View {
     let documents: [Document]
+    let contentCollection: LibraryContentCollection
     let isLoading: Bool
     let isConnected: Bool
     let errorMessage: String?
@@ -22,6 +30,9 @@ struct LibraryView: View {
     var onRequestPreviousPaneFocus: () -> Void = {}  // Left arrow in list/table — move to sidebar
     var onRequestNextPaneFocus: () -> Void = {}  // Right arrow in list/table — move to inspector
     var onNavigateInto: (Document) -> Void = { _ in }  // Double-click on folder/PDF — navigate into it
+    /// Called when a page item row is selected in the outline table (#2405).
+    /// Callers should set `pageFocusDocument` to drive reader + inspector focus.
+    var onPageFocus: (Document) -> Void = { _ in }
     /// When the sidebar is hidden, single-click in the grid acts like Finder
     /// (no-sidebar fallback): plain click navigates INTO navigable containers
     /// instead of just selecting. Modified clicks (Shift/Cmd) still select
@@ -35,6 +46,8 @@ struct LibraryView: View {
     var onToolbarSearchSubmit: (String) -> Void = { _ in }
 
     @State var searchText: String = ""
+    /// Bottom-bar file import presenter (#2313).
+    @State var showingFileImporter = false
     /// Text for the toolbar's `.searchable` field. Distinct from
     /// `searchText` (which drives the inline ⌘F filter bar inside the
     /// view) — `toolbarQuery` lives on the window toolbar so users can
@@ -80,8 +93,12 @@ struct LibraryView: View {
     /// current library via the Safari new-window path (#1685).
     @Environment(\.openWindow) var openWindow
     @EnvironmentObject var workflowStreamService: WorkflowStreamService
-    @EnvironmentObject var documentStore: DocumentStore
+    @Environment(DocumentStore.self) var documentStore: DocumentStore
+    @EnvironmentObject var entityService: EntityServiceGenerated
+    @EnvironmentObject var artifactService: ArtifactServiceGenerated
     @Environment(WorkflowExecutionObserver.self) var executionObserver
+    @Environment(KGFocusState.self) var kgFocusState
+    @Environment(\.isSecondarySplitPane) private var isSecondarySplitPane
     @ObservedObject var featureManager = FeatureManager.shared
     @ObservedObject var workflowRunProviderCache = WorkflowRunProviderCache.shared
 
@@ -115,10 +132,47 @@ struct LibraryView: View {
     /// SwiftUI's TableColumnCustomization API on macOS 14+. State lives
     /// for the window lifetime; deeper persistence to @SceneStorage is a
     /// follow-up. (#519)
-    @State var tableColumnCustomization = TableColumnCustomization<Document>()
+    @State var tableColumnCustomization = TableColumnCustomization<LibraryOutlineNode>()
+
+    /// Drives the expandable outline Table (#2258). Lazily created on
+    /// first appear (needs the library's entity service from the
+    /// environment); caches per-document rollup counts so collapsed rows
+    /// can show "12 entities, 3 notes" without fetching the children.
+    @State var outlineModel: LibraryOutlineModel?
+    /// Disclosure expansion state for the outline Table, keyed by node id
+    /// (document id). Expanding a document triggers its rollup fetch.
+    @State var outlineExpanded: Set<String> = []
+    /// Compact width (iPhone) drops the macOS/iPadOS `DisclosureTableRow`
+    /// outline for a plain document list — `Table` disclosure is a
+    /// regular-width affordance.
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
     // Map view positions
     @State var mapPositions: [String: CGPoint] = [:]
+    @State var entities: [Components.Schemas.KnowledgeEntity] = []
+    @State private var spatialSelectedNodeId: String?
+
+    /// Observable store backing 2D-canvas item-position persistence (#2293).
+    /// Lazily created on first appear (needs the library's client from the
+    /// environment); shared across this view's display-mode switches so an
+    /// arranged layout survives switching away from `.spatial` and back.
+    @State private var canvasLayoutStore: CanvasLayoutStore?
+
+    /// Observable store backing standalone 2D-canvas item CONTENT (#2294).
+    /// Lazily created alongside `canvasLayoutStore`; the 2D canvas observes both.
+    @State private var canvasItemStore: CanvasItemStore?
+
+    @State var isLoadingEntities = false
+    @State var entityLoadErrorMessage: String?
+
+    // ponytail: recompute inputs — documents, entities, searchText, sortOrder, sortFieldRaw, sortAscending, folderId
+    // Not `private`: recomputeFiltered() lives in the LibraryView+FilterAndBatch.swift
+    // extension (a different file), so these must be at least internal to be visible there.
+    @State var filteredDocuments: [Document] = []
+    @State var filteredEntities: [Components.Schemas.KnowledgeEntity] = []
+    /// Stable key for .task(id:) in iconsView — updated inside recomputeFiltered()
+    /// to avoid allocating a joined string on every render (#2307).
+    @State var thumbnailPrefetchKey: String = ""
 
     // Delete confirmation state
     @State var showDeleteConfirmation = false
@@ -169,35 +223,66 @@ struct LibraryView: View {
         documents.contains { $0.status == .processing || $0.status == .pending }
     }
 
+    // Extracted from `body` to keep the body modifier chain within the Swift
+    // type-checker's budget — adding the #2307 onChange handlers tipped the
+    // single expression over "unable to type-check in reasonable time".
+    // See memory: librarywindow-body-typecheck-timeout.
+    @ViewBuilder
+    private var libraryContent: some View {
+        if !isConnected {
+            connectionErrorState
+        } else if isCollectionLoading {
+            loadingState
+        } else if let activeErrorMessage {
+            errorState(message: activeErrorMessage)
+        } else if isCollectionEmpty {
+            emptyState
+        } else {
+            switch displayMode {
+            case .icon:
+                iconsView
+            case .list:
+                listView
+            case .table:
+                tableView
+            case .realitykit:
+                SpatialScene3D(
+                    nodes: libraryProjection.nodes,
+                    connections: [],
+                    links: libraryProjection.links,
+                    selectedNodeId: $spatialSelectedNodeId,
+                    layoutStore: canvasLayoutStore,
+                    itemStore: canvasItemStore,
+                    folderScopeId: folderId ?? wholeLibraryRoomId
+                )
+            case .spatial:
+                Spatial2DCanvas(
+                    nodes: libraryProjection.nodes,
+                    connections: [],
+                    selectedNodeId: $spatialSelectedNodeId,
+                    layoutStore: canvasLayoutStore,
+                    itemStore: canvasItemStore,
+                    folderScopeId: folderId ?? wholeLibraryRoomId
+                )
+            case .map, .workspace:
+                mapView
+            }
+        }
+    }
+
     var body: some View {
         withKeyboardShortcuts(
             VStack(spacing: 0) {
-                // Inline filter bar (Cmd+F)
-                if featureManager.isLibraryFilterToolbarEnabled && showFilterBar {
-                    filterBarView
-                }
-
-                // Main content
-                if !isConnected {
-                    connectionErrorState
-                } else if isLoading {
-                    loadingState
-                } else if let errorMessage {
-                    errorState(message: errorMessage)
-                } else if filteredDocuments.isEmpty {
-                    emptyState
-                } else {
-                    switch displayMode {
-                    case .icon:
-                        iconsView
-                    case .list:
-                        listView
-                    case .table:
-                        tableView
-                    case .map, .realitykit:
-                        mapView
-                    }
-                }
+                libraryContent
+            }
+            // Xcode-navigator-style quick filter, pinned to the BOTTOM of the
+            // library list pane. Narrows the rows currently shown client-side
+            // (binds `searchText`, which drives `filteredDocuments`) — distinct
+            // from the toolbar `.searchable`, which fires a *global* search.
+            // Revealed on demand by ⌘F / the toolbar filter toggle, matching
+            // Xcode's navigator filter field.
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                bottomInsetContent
             }
             .background(
                 Group {
@@ -221,42 +306,76 @@ struct LibraryView: View {
                     }
                 )
                 .environmentObject(libraryManager)
+                .environment(executionObserver)
             }
             .sheet(item: $workspacePickerDocument) { document in
                 WorkspaceItemPicker(document: document)
+                    .environment(executionObserver)
             }
             .focusedSceneValue(
                 \.runWorkflowOnSelection,
-                (!selection.isEmpty && featureManager.isWorkflowRunOnSelectionEnabled) ? {
+                (!isShowingEntitiesCollection && !selection.isEmpty && featureManager.isWorkflowRunOnSelectionEnabled) ? {
                     selectedDocumentIdsForBatch = Array(selection)
                     showWorkflowPicker = true
                 } : nil
             )
             .onAppear {
+                if canvasLayoutStore == nil || canvasItemStore == nil {
+                    let client = libraryManager.globalLibrary?.ficheroClient ?? FicheroClient(baseURL: EngineConfig.host)
+                    canvasLayoutStore = canvasLayoutStore ?? CanvasLayoutStore(client: client)
+                    canvasItemStore = canvasItemStore ?? CanvasItemStore(client: client)
+                }
+                if outlineModel == nil {
+                    outlineModel = LibraryOutlineModel(
+                        service: entityService,
+                        artifactService: artifactService
+                    )
+                }
+                syncPagesByParentId()
                 loadSortSettings(for: folderId)
                 syncSortOrder()
+                recomputeFiltered()
                 consumePendingOpen()
             }
-            .onChange(of: documents.count) { _, _ in
+            // Key on the whole array, not .count: a same-count mutation (a
+            // processing doc finishing → status badge, a rename, a reorder)
+            // must refresh the memoized filteredDocuments or the list goes
+            // stale. Document is Hashable ⇒ [Document] is Equatable, so the
+            // per-render == is cheap relative to the sort it guards. (#2307)
+            .onChange(of: documents) { _, _ in
                 // A window opened via "Open in New Tab/Window" may still be
                 // loading its documents when it first appears; retry the
                 // pending-open hand-off once rows arrive (#1685).
+                recomputeFiltered()
                 consumePendingOpen()
+            }
+            .onChange(of: documentStore.currentDocuments) { _, _ in
+                syncPagesByParentId()
+            }
+            .onChange(of: entities) { _, _ in
+                recomputeFiltered()
+            }
+            .onChange(of: searchText) { _, _ in
+                recomputeFiltered()
             }
             .onChange(of: folderId) { _, newId in
                 loadSortSettings(for: newId)
                 syncSortOrder()
+                recomputeFiltered()
             }
             .onChange(of: sortFieldRaw) { _, _ in
                 syncSortOrder()
                 saveSortSettings(for: folderId)
+                recomputeFiltered()
             }
             .onChange(of: sortAscending) { _, _ in
                 syncSortOrder()
                 saveSortSettings(for: folderId)
+                recomputeFiltered()
             }
             .onChange(of: sortOrder) { _, newOrder in
                 handleSortOrderChange(newOrder)
+                recomputeFiltered()
             }
             .onReceive(processingPollTimer) { _ in
                 // Surgical refresh: only mutate rows whose status changed
@@ -266,8 +385,22 @@ struct LibraryView: View {
                 // currentDocuments in place and only swaps rows whose
                 // status flipped, so untouched rows keep referential
                 // identity and don't redraw.
+                //
+                // Perf (#2307): the guard below is a fast-path no-op when
+                // idle — hasProcessingDocuments short-circuits before any
+                // async work is queued, so the only cost while nothing is
+                // processing is a single Bool scan of `documents` per tick.
+                // A true lazy-suspend (connect/disconnect via onChange(of:
+                // documents)) would need @State bool machinery and risks
+                // altering poll cadence on reconnect — not worth the
+                // complexity until Instruments shows it matters. Upgrade
+                // path: onChange(of: hasProcessingDocuments) to toggle a
+                // @State isPollingActive, then gate the timer subscription.
                 guard hasProcessingDocuments, let parentId = folderId else { return }
                 Task { await documentStore.refreshPendingStatusesOnly(in: parentId) }
+            }
+            .task(id: entityCollectionTaskKey) {
+                await loadEntitiesIfNeeded()
             }
             // Suppress implicit animations on folder change — icons should appear
             // instantly, not slide in cascading from the top.
@@ -279,27 +412,17 @@ struct LibraryView: View {
         // by ContentView), which switches the sidebar to .search mode.
         // Each mode owns its own .searchable to avoid the NSToolbar
         // duplicate-identifier crash we hit when stacking them.
-        .searchable(
+        .conditionalSearchable(
             text: $toolbarQuery,
             placement: .toolbar,
-            prompt: "Search documents…"
+            prompt: "Search documents…",
+            isActive: !isSecondarySplitPane
         )
         .onSubmit(of: .search) {
+            guard !isSecondarySplitPane else { return }
             let trimmed = toolbarQuery.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return }
             onToolbarSearchSubmit(trimmed)
-        }
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                // Entity-type filter — toggles which People/Places/Orgs/
-                // Dates/Events/Keywords lozenges show in list rows.
-                // Hidden in non-list modes (icon/table/map) where no
-                // lozenges are rendered, so the button's purpose is clear
-                // (#1473 — Daniel: "not sure why this is here").
-                if displayMode == .list {
-                    entityFilterMenu
-                }
-            }
         }
     }
     private var connectionErrorState: some View {
@@ -325,13 +448,216 @@ struct LibraryView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+
+    /// Filter bar + bottom action bar stacked at the bottom of every library view mode.
+    private var bottomInsetContent: some View {
+        VStack(spacing: 0) {
+            if featureManager.isLibraryFilterToolbarEnabled && showFilterBar {
+                filterBarView
+            }
+            libraryBottomActionBar
+        }
+    }
+}
+
+// MARK: - Bottom Action Bar (#2313)
+extension LibraryView {
+    private var bottomBarLogger: Logger {
+        Logger(subsystem: "app.fichero.fichero", category: "LibraryView.BottomBar")
+    }
+
+    /// Finder/Xcode-style bottom toolbar acting on the current library selection.
+    private var libraryBottomActionBar: some View {
+        VStack(spacing: 0) {
+            Divider()
+
+            // Translucent Liquid Glass background, matching the sidebar mini-toolbars
+            // (SidebarModeBar / SidebarBottomToolbar / PaneFilterBar) for a consistent
+            // glass look across the window chrome (#2550).
+            GlassEffectContainer {
+                HStack(spacing: 12) {
+                    Button {
+                        handleCreateNewFolder()
+                    } label: {
+                        Image(systemName: "plus")
+                            .accessibilityLabel("New Folder")
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+                    .help("Create a new folder")
+
+                    Button {
+                        promptDeleteSelected()
+                    } label: {
+                        Image(systemName: "minus")
+                            .accessibilityLabel("Delete")
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+                    .help("Delete selection")
+                    .disabled(isShowingEntitiesCollection || selection.isEmpty)
+
+                    Spacer()
+
+                    if displayMode == .list {
+                        entityFilterMenu
+                    }
+
+                    Button {
+                        Task { await exportSelectedBibtex() }
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                            .accessibilityLabel("Export BibTeX")
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+                    .help("Export selection as BibTeX")
+                    .disabled(isShowingEntitiesCollection || selection.isEmpty)
+
+                    Button {
+                        showingFileImporter = true
+                    } label: {
+                        Image(systemName: "square.and.arrow.down")
+                            .accessibilityLabel("Import")
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+                    .help("Import files")
+
+                    Button {
+                        selectedDocumentIdsForBatch = Array(selection)
+                        showWorkflowPicker = true
+                    } label: {
+                        Image(systemName: "bolt")
+                            .accessibilityLabel("Run Workflow")
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+                    .help("Run workflow on selection")
+                    .disabled(isShowingEntitiesCollection || selection.isEmpty || !featureManager.isWorkflowRunOnSelectionEnabled)
+                }
+                .padding(.horizontal, 10)
+                .frame(height: 28)
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8))
+            }
+        }
+    }
+
+    private func exportSelectedBibtex() async {
+        guard !selection.isEmpty else { return }
+        let documentIds = Array(selection)
+        guard let library = libraryManager.getLibrary(id: windowState.libraryId) else { return }
+
+        do {
+            let request = Components.Schemas.FicheroApiRoutesBibliographyExportRequest(documentIds: documentIds)
+            let response = try await library.ficheroClient.api.exportBibtexApiBibliographyExportBibPost(
+                .init(body: .json(request))
+            )
+            guard case .ok(let success) = response else {
+                throw ExportError.unexpectedResponse
+            }
+            let body = try success.body.plainText
+            let data = try await Data(collecting: body, upTo: 10 * 1024 * 1024)
+            let saveURL = await presentBibtexSavePanel()
+            guard let saveURL else { return }
+            try data.write(to: saveURL, options: .atomic)
+        } catch {
+            bottomBarLogger.error("Failed to export selected BibTeX: \(error.localizedDescription)")
+        }
+    }
+
+    private enum ExportError: Error {
+        case unexpectedResponse
+    }
+
+    private func presentBibtexSavePanel() async -> URL? {
+        #if canImport(AppKit)
+        await withCheckedContinuation { continuation in
+            let savePanel = NSSavePanel()
+            savePanel.nameFieldStringValue = "selection.bib"
+            if let bibType = UTType(filenameExtension: "bib") {
+                savePanel.allowedContentTypes = [bibType]
+            }
+            savePanel.allowsOtherFileTypes = false
+            savePanel.canCreateDirectories = true
+            savePanel.begin { result in
+                continuation.resume(returning: result == .OK ? savePanel.url : nil)
+            }
+        }
+        #else
+        return nil
+        #endif
+    }
+
+    private func handleCreateNewFolder() {
+        guard libraryManager.globalLibrary != nil else { return }
+        // Creation lives on the library's document store; no sidebarState here.
+        Task {
+            guard let library = libraryManager.getLibrary(id: windowState.libraryId)
+                ?? libraryManager.globalLibrary else { return }
+            do {
+                _ = try await library.documentStore.createCollection(name: "New Folder")
+                await library.documentStore.refresh()
+            } catch {
+                bottomBarLogger.error("Failed to create folder from bottom bar: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func handleBottomBarImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            Task { @MainActor in
+                guard let library = libraryManager.getLibrary(id: windowState.libraryId)
+                    ?? libraryManager.globalLibrary else { return }
+                do {
+                    _ = try await library.importService.importFiles(urls, mode: .link)
+                    await library.documentStore.refresh()
+                } catch {
+                    bottomBarLogger.error("Bottom-bar import failed: \(error.localizedDescription)")
+                }
+            }
+        case .failure(let error):
+            bottomBarLogger.debug("Bottom-bar import cancelled or failed: \(error.localizedDescription)")
+        }
+    }
+
+}
+
+// MARK: - Spatial projection
+
+extension LibraryView {
+    /// Projects the current documents + entities into spatial nodes/links for
+    /// the `.realitykit` / `.spatial` views. Item positions are persisted
+    /// separately via `CanvasLayoutStore` (#2293); this only supplies the
+    /// projector's computed defaults.
+    var libraryProjection: SpatialLibraryProjection {
+        SpatialLibraryProjector.project(
+            SpatialLibraryInput(
+                documents: documents.map {
+                    SpatialLibraryInput.Document(id: $0.id, name: $0.name, parentId: $0.parentId)
+                },
+                entities: entities.compactMap { entity in
+                    guard let id = entity.id else { return nil }
+                    return SpatialLibraryInput.Entity(
+                        id: id,
+                        canonicalName: entity.canonicalName,
+                        entityType: entity.entityType?.rawValue
+                    )
+                },
+                claims: []
+            )
+        )
+    }
 }
 
 // MARK: - Previews
 
 #Preview("Empty") {
+    let client = FicheroClient(libraryPath: nil)
     LibraryView(
         documents: [],
+        contentCollection: .documents,
         isLoading: false,
         isConnected: true,
         errorMessage: nil,
@@ -343,12 +669,15 @@ struct LibraryView: View {
         displayMode: .icon,
         folderId: nil
     )
+    .environmentObject(ArtifactServiceGenerated(ficheroClient: client))
     .frame(width: 600, height: 500)
 }
 
 #Preview("Disconnected") {
+    let client = FicheroClient(libraryPath: nil)
     LibraryView(
         documents: [],
+        contentCollection: .documents,
         isLoading: false,
         isConnected: false,
         errorMessage: nil,
@@ -360,5 +689,6 @@ struct LibraryView: View {
         displayMode: .icon,
         folderId: nil
     )
+    .environmentObject(ArtifactServiceGenerated(ficheroClient: client))
     .frame(width: 600, height: 500)
 }

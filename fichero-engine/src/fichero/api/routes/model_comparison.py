@@ -4,15 +4,29 @@ Model Comparison API Routes
 Endpoints for comparing responses across multiple LLM models.
 """
 
+import asyncio
+import base64
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from fichero.app_db import AppDatabase, get_app_db
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database_for_write
 from fichero.db import Database
-from fichero.models import Workflow
+from fichero.language_coverage import (
+    LanguageFitModelSpec,
+    LanguageFitResponse,
+    recommend_language_fit,
+)
+from fichero.model_recommendations import (
+    ModelRecommendationCandidate,
+    ModelRecommendationRequest,
+    ModelRecommendationResponse,
+    build_model_recommendations,
+)
+from fichero.models import Document, Workflow
+from fichero.storage import ensure_display, get_display
 from fichero.workflows.resolver import resolve_inputs
 from fichero.workflows.model_comparison import (
     ComparisonRequest,
@@ -52,7 +66,13 @@ class CompareRequest(BaseModel):
 class VisionCompareRequest(BaseModel):
     """Request to compare vision models."""
 
-    images: list[str] = Field(..., description="Image URLs or base64 data URIs")
+    images: list[str] = Field(
+        default_factory=list, description="Image URLs or base64 data URIs"
+    )
+    doc_ids: list[str] = Field(
+        default_factory=list,
+        description="Library document IDs to render and compare as images",
+    )
     prompt: str = Field(
         default="Describe this image in detail",
         description="Prompt for vision analysis",
@@ -79,6 +99,26 @@ class ToolCompareRequest(BaseModel):
         default=None, description="Optional tool configuration overrides"
     )
     timeout_seconds: int = Field(default=120, description="Timeout per model")
+
+
+class WorkflowCompareRequest(BaseModel):
+    """Request to compare a whole workflow across multiple model overrides."""
+
+    workflow_id: str | None = Field(
+        default=None, description="Saved workflow ID when workflow is not supplied"
+    )
+    workflow: WorkflowDef | None = Field(
+        default=None, description="Unsaved workflow definition from the editor"
+    )
+    doc_id: str = Field(..., description="Document ID to run through the workflow")
+    models: list[ModelSpec] = Field(
+        default_factory=list, description="Models to compare"
+    )
+    inputs: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Additional workflow inputs merged with selected_doc_ids",
+    )
+    timeout_seconds: int = Field(default=300, description="Timeout per workflow run")
 
 
 class ModelInfo(BaseModel):
@@ -280,6 +320,29 @@ def _configured_models(app_db: AppDatabase) -> list[dict[str, Any]]:
     return models
 
 
+def _configured_recommendation_candidates(
+    app_db: AppDatabase,
+) -> list[ModelRecommendationCandidate]:
+    providers = {p.id: p for p in app_db.list_providers() if p.enabled}
+    candidates: list[ModelRecommendationCandidate] = []
+    for model in app_db.list_models():
+        provider = providers.get(model.provider_id)
+        if not provider or not model.enabled:
+            continue
+        candidates.append(
+            ModelRecommendationCandidate(
+                provider=provider.provider_type.value,
+                model=model.model_id,
+                capabilities=model.capabilities,
+                enabled=model.enabled,
+                input_price_per_million=model.input_cost,
+                output_price_per_million=model.output_cost,
+                source="settings",
+            )
+        )
+    return candidates
+
+
 def _model_specs(
     requested: list[dict[str, Any]],
     app_db: AppDatabase,
@@ -310,8 +373,99 @@ def _model_specs(
     return specs
 
 
+async def _render_compare_doc_images(
+    *,
+    doc_ids: list[str],
+    db: Database,
+) -> list[str]:
+    """Resolve library document IDs to display-image data URIs for comparison."""
+    if not doc_ids:
+        return []
+
+    package_path = db.path.parent if hasattr(db, "path") else None
+    if package_path is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Library path is required when comparing document IDs",
+        )
+
+    images: list[str] = []
+    for doc_id in doc_ids:
+        doc = db.get(Document, doc_id)
+        if doc is None:
+            raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+
+        display_path = get_display(doc, package_path)
+        if not display_path:
+            display_path = await asyncio.to_thread(
+                ensure_display,
+                doc,
+                package_path=package_path,
+                db=db,
+            )
+
+        if not display_path or not display_path.exists():
+            raise HTTPException(
+                status_code=422,
+                detail=f"Display image not available for document: {doc_id}",
+            )
+
+        encoded = base64.b64encode(display_path.read_bytes()).decode("ascii")
+        images.append("data:image/jpeg;base64," + encoded)
+
+    return images
+
+
+def _language_fit_models(
+    app_db: AppDatabase,
+    *,
+    provider: str | None,
+    model: str | None,
+) -> list[LanguageFitModelSpec]:
+    if provider or model:
+        if not provider or not model:
+            raise HTTPException(
+                status_code=400,
+                detail="provider and model must be supplied together",
+            )
+        return [LanguageFitModelSpec(provider=provider, model=model)]
+    models = [
+        LanguageFitModelSpec(provider=m["provider"], model=m["model"])
+        for m in _configured_models(app_db)
+        if m.get("provider") and m.get("model")
+    ]
+    if not models:
+        raise HTTPException(
+            status_code=400,
+            detail="No enabled models are configured in Settings",
+        )
+    return models
+
+
 def _workflow_from_request(
     request: NodeCompareRequest,
+    db: Database,
+) -> WorkflowDef:
+    if request.workflow:
+        return request.workflow
+    if not request.workflow_id:
+        raise HTTPException(status_code=400, detail="workflow_id or workflow required")
+    workflow = db.get(Workflow, request.workflow_id)
+    if not workflow:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    return WorkflowDef(
+        id=workflow.id,
+        name=workflow.name,
+        description=workflow.description,
+        provider=workflow.provider,
+        model=workflow.model,
+        nodes=[NodeDef(**node) for node in workflow.nodes],
+        edges=workflow.edges,
+    )
+
+
+def _workflow_from_compare_request(
+    request: WorkflowCompareRequest,
     db: Database,
 ) -> WorkflowDef:
     if request.workflow:
@@ -430,6 +584,46 @@ async def list_available_models(
     )
 
 
+@router.get("/language-fit", response_model=LanguageFitResponse)
+async def get_language_fit(
+    language: str,
+    provider: str | None = None,
+    model: str | None = None,
+    app_db: AppDatabase = Depends(_get_app_database),
+) -> LanguageFitResponse:
+    """Score local model/language tokenizer fit without cloud calls.
+
+    If provider/model are omitted, all enabled Settings models are scored.
+    Scores come from local derived LOOVE-style JSON when present; otherwise a
+    transparent heuristic fallback is returned.
+    """
+    models = _language_fit_models(app_db, provider=provider, model=model)
+    return recommend_language_fit(language, models)
+
+
+@router.post("/recommend-models", response_model=ModelRecommendationResponse)
+async def recommend_models_for_picker(
+    request: ModelRecommendationRequest,
+    app_db: AppDatabase = Depends(_get_app_database),
+) -> ModelRecommendationResponse:
+    """Rank model-picker candidates from local metadata only.
+
+    The endpoint composes Settings model rows, provider privacy posture, local
+    language coverage, cost metadata, and availability flags. It never invokes
+    an LLM, tokenizes user documents, downloads metadata, or makes cloud calls.
+    """
+    settings_candidates = _configured_recommendation_candidates(app_db)
+    if not request.candidates and not settings_candidates:
+        raise HTTPException(
+            status_code=400,
+            detail="No enabled models are configured in Settings",
+        )
+    return build_model_recommendations(
+        request,
+        settings_candidates=settings_candidates,
+    )
+
+
 @router.post("/estimate-cost")
 async def estimate_comparison_cost(
     request: CompareRequest,
@@ -540,6 +734,7 @@ async def get_models_grouped_by_tier(
 async def compare_vision_models(
     request: VisionCompareRequest,
     app_db: AppDatabase = Depends(_get_app_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ComparisonResultResponse:
     """Compare vision models on the same image(s).
 
@@ -549,12 +744,22 @@ async def compare_vision_models(
     Images can be:
     - URLs (https://...)
     - Base64 data URIs (data:image/jpeg;base64,...)
+    - Library document IDs via ``doc_ids`` (rendered through Fichero storage)
     """
     model_specs = _model_specs(request.models, app_db, require_capability="vision")
+    images = [
+        *request.images,
+        *await _render_compare_doc_images(doc_ids=request.doc_ids, db=db),
+    ]
+    if not images:
+        raise HTTPException(
+            status_code=422,
+            detail="At least one image URL/data URI or document ID is required",
+        )
 
     engine = get_comparison_engine()
     result = await engine.compare_vision(
-        images=request.images,
+        images=images,
         prompt=request.prompt,
         models=model_specs,
         detail=request.detail,
@@ -590,11 +795,39 @@ async def compare_tool_across_models(
     return ComparisonResultResponse(**result.to_dict())
 
 
+@router.post("/compare-workflow")
+async def compare_workflow_across_models(
+    request: WorkflowCompareRequest,
+    app_db: AppDatabase = Depends(_get_app_database),
+    db: Database = Depends(get_library_database_for_write),
+) -> ComparisonResultResponse:
+    """Run the same workflow once per provider/model override and compare outcomes."""
+    workflow = _workflow_from_compare_request(request, db)
+    model_specs = _model_specs(
+        [model.model_dump() for model in request.models],
+        app_db,
+    )
+    workflow_inputs = {
+        **request.inputs,
+        "selected_doc_ids": [request.doc_id],
+    }
+    engine = get_comparison_engine()
+    result = await engine.compare_workflow(
+        workflow=workflow,
+        inputs=workflow_inputs,
+        models=model_specs,
+        library_path=str(db.path.parent) if hasattr(db, "path") else "",
+        timeout_seconds=request.timeout_seconds,
+        db=db,
+    )
+    return ComparisonResultResponse(**result.to_dict())
+
+
 @router.post("/compare-node")
 async def compare_workflow_node(
     request: NodeCompareRequest,
     app_db: AppDatabase = Depends(_get_app_database),
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> NodeComparisonResponse:
     """Compare one workflow node across Settings-configured models."""
     workflow = _workflow_from_request(request, db)
@@ -638,7 +871,7 @@ async def compare_workflow_node(
 @router.post("/compare-node/apply")
 async def apply_model_to_workflow_node(
     request: ApplyNodeModelRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ApplyNodeModelResponse:
     """Persist a selected provider/model choice onto one workflow node."""
     workflow = db.get(Workflow, request.workflow_id)

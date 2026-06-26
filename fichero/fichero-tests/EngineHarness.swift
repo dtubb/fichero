@@ -68,7 +68,7 @@ enum EngineHarness {
     /// Cached so the (expensive) spawn happens once per test process.
     private static var cached: LiveEngine?
 
-    private static let baseURL = URL(string: "http://127.0.0.1:8765")!
+    private static let baseURL = URL(string: "https://127.0.0.1:8765")!
 
     /// Returns a live engine pointed at a freshly seeded test library.
     /// Reuses a running engine if present, else spawns one. Throws if neither
@@ -95,6 +95,18 @@ enum EngineHarness {
             guard await waitForHealth(baseURL, timeout: 30) else {
                 throw HarnessError.engineUnavailable("spawned engine never became healthy on \(baseURL)")
             }
+        }
+
+        // When reusing a running engine, the XCTest host sandbox may redirect
+        // applicationSupportDirectory to a container path that differs from where
+        // the engine wrote its token. Read the token via homeDirectoryForCurrentUser
+        // (which bypasses sandbox path translation, matching Python's Path.home())
+        // and export it as FICHERO_AUTH_TOKEN so AuthTokenMiddleware picks it up.
+        // Only inject when not already set (respects CI overrides) and not spawned
+        // (spawned engines run with FICHERO_DISABLE_AUTH=1, no token needed).
+        if !spawned, ProcessInfo.processInfo.environment["FICHERO_AUTH_TOKEN"] == nil,
+           let token = readEngineToken() {
+            setenv("FICHERO_AUTH_TOKEN", token, 1)
         }
 
         let client = FicheroClient(baseURL: baseURL, libraryPath: libURL.path)
@@ -142,12 +154,23 @@ enum EngineHarness {
 
     private static func spawnEngine(repo: URL, libraryPath: String) throws {
         let uvicorn = repo.appendingPathComponent(".venv/bin/uvicorn")
+        let tlsMaterial = try prepareTLSMaterial(repo: repo)
+        try RemoteCertificatePinning.persistSPKIPin(tlsMaterial.spkiPin, hostString: baseURL.absoluteString)
+
         let proc = Process()
         proc.executableURL = uvicorn
-        proc.arguments = ["fichero.api.main:app", "--port", "8765"]
+        proc.arguments = [
+            "fichero.api.main:app",
+            "--port", "8765",
+            "--ssl-certfile", tlsMaterial.certificatePath,
+            "--ssl-keyfile", tlsMaterial.keyPath
+        ]
         var env = ProcessInfo.processInfo.environment
         env["PYTHONPATH"] = repo.appendingPathComponent("fichero-engine/src").path
         env["FICHERO_DISABLE_AUTH"] = "1"
+        env["FICHERO_TLS_CERTFILE"] = tlsMaterial.certificatePath
+        env["FICHERO_TLS_KEYFILE"] = tlsMaterial.keyPath
+        env["FICHERO_TLS_SPKI_HASH"] = tlsMaterial.spkiPin
         // Isolate the app DB so we never lock-fight the real one.
         env["FICHERO_BASE_PATH"] = repo
             .appendingPathComponent("fichero-engine").path + "/.itest-base"
@@ -171,13 +194,57 @@ enum EngineHarness {
         }
     }
 
+    private struct HarnessTLSMaterial: Decodable {
+        let certificatePath: String
+        let keyPath: String
+        let spkiPin: String
+
+        enum CodingKeys: String, CodingKey {
+            case certificatePath = "certificate_path"
+            case keyPath = "key_path"
+            case spkiPin = "spki_pin"
+        }
+    }
+
+    private static func prepareTLSMaterial(repo: URL) throws -> HarnessTLSMaterial {
+        let python = repo.appendingPathComponent(".venv/bin/python")
+        let process = Process()
+        process.executableURL = python
+        process.arguments = [
+            "-c",
+            """
+            from fichero.remote_access_tls import material_manifest_json, prepare_remote_access_tls
+            print(material_manifest_json(prepare_remote_access_tls("https://127.0.0.1:8765", allow_loopback=True)))
+            """
+        ]
+        var env = ProcessInfo.processInfo.environment
+        env["PYTHONPATH"] = repo.appendingPathComponent("fichero-engine/src").path
+        process.environment = env
+
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.standardOutput = stdout
+        process.standardError = stderr
+        try process.run()
+        process.waitUntilExit()
+
+        let output = stdout.fileHandleForReading.readDataToEndOfFile()
+        if process.terminationStatus != 0 {
+            let errorData = stderr.fileHandleForReading.readDataToEndOfFile()
+            let message = String(data: errorData, encoding: .utf8) ?? "unknown TLS material error"
+            throw HarnessError.engineUnavailable(message)
+        }
+        return try JSONDecoder().decode(HarnessTLSMaterial.self, from: output)
+    }
+
     // MARK: - Health
 
     private static func isHealthy(_ base: URL) async -> Bool {
         var req = URLRequest(url: base.appendingPathComponent("api/health"))
         req.timeoutInterval = 2
         do {
-            let (data, resp) = try await URLSession.shared.data(for: req)
+            let session = RemoteCertificatePinning.configuredSession()
+            let (data, resp) = try await session.data(for: req)
             guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else { return false }
             if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 return (obj["status"] as? String) == "healthy"
@@ -195,6 +262,20 @@ enum EngineHarness {
             try? await Task.sleep(nanoseconds: 500_000_000)
         }
         return false
+    }
+
+    /// Reads the engine's shared-secret token from its canonical on-disk path.
+    /// Mirrors `_token_file_path()` in `fichero-engine/src/fichero/api/auth.py`:
+    ///   `Path.home() / "Library" / "Application Support" / "Fichero" / ".api-key"`
+    /// Uses `homeDirectoryForCurrentUser` because `url(for: .applicationSupportDirectory)`
+    /// resolves to the sandbox container path in the XCTest host, not the real `~`.
+    private static func readEngineToken() -> String? {
+        let tokenURL = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/Fichero/.api-key")
+        guard let data = try? Data(contentsOf: tokenURL),
+              let raw = String(data: data, encoding: .utf8) else { return nil }
+        let token = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return token.isEmpty ? nil : token
     }
 
     // MARK: - Repo root

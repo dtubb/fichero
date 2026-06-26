@@ -1,4 +1,5 @@
 @testable import Fichero
+import SwiftUI
 import XCTest
 
 /// Tests for the `LayoutMode` enum that drives the main-content area's
@@ -75,6 +76,34 @@ final class LayoutModeTests: XCTestCase {
         )
         XCTAssertTrue(listWithCanvas.showsLibraryDivider)
         XCTAssertFalse(listWithCanvas.showsCanvasReadingDivider)
+    }
+
+    func testCompactShellRootsAtDetailAndHidesSidebarColumn() {
+        XCTAssertEqual(ContentView.defaultPreferredCompactColumn, .detail)
+
+        XCTAssertFalse(
+            ContentView.shouldRenderSidebarColumn(
+                horizontalSizeClass: .compact,
+                showSidebar: true,
+                columnVisibility: .all
+            )
+        )
+
+        let policy = ContentView.shellCollapsePolicy(
+            windowWidth: 900,
+            horizontalSizeClass: .compact,
+            sidebarVisible: true,
+            inspectorVisible: true,
+            detailMinWidth: 600
+        )
+
+        XCTAssertTrue(policy.collapseSidebar)
+        XCTAssertFalse(policy.collapseInspector)
+    }
+
+    func testInspectorPlacementAdaptsToCompactWidth() {
+        XCTAssertEqual(InspectorPlacement.adaptiveDefault(horizontalSizeClass: .compact), .sheet)
+        XCTAssertEqual(InspectorPlacement.adaptiveDefault(horizontalSizeClass: .regular), .docked)
     }
 
     func testReadingWorkspacePaneToggleShowsPaneByEnteringWidescreen() {
@@ -243,5 +272,22 @@ final class LayoutModeTests: XCTestCase {
 
         XCTAssertTrue(CanvasDocumentPolicy.shouldUsePDFCanvas(for: pdfPage))
         XCTAssertTrue(CanvasDocumentPolicy.shouldUsePDFCanvas(for: pdfFile))
+    }
+
+    func testSpatialDocumentSelectionParsesDocumentNodeIds() {
+        XCTAssertEqual(
+            SpatialDocumentSelection.documentId(forNodeId: "doc-page-1"),
+            "page-1"
+        )
+        XCTAssertEqual(
+            SpatialDocumentSelection.documentId(forNodeId: "doc:page-2"),
+            "page-2"
+        )
+    }
+
+    func testSpatialDocumentSelectionIgnoresUnknownNodeIds() {
+        XCTAssertNil(SpatialDocumentSelection.documentId(forNodeId: nil))
+        XCTAssertNil(SpatialDocumentSelection.documentId(forNodeId: "entity-1"))
+        XCTAssertNil(SpatialDocumentSelection.documentId(forNodeId: ""))
     }
 }

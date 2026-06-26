@@ -51,6 +51,7 @@ def register_tool(
     supports_streaming: bool = False,
     supports_structured_output: bool = False,
     sort_order: int = 100,
+    tested: bool = False,
 ):
     """Decorator to register a tool function.
 
@@ -111,6 +112,7 @@ def register_tool(
             supports_streaming=supports_streaming,
             supports_structured_output=supports_structured_output,
             sort_order=sort_order,
+            tested=tested,
         )
 
         logger.debug(f"Registered tool: {name}")
@@ -201,6 +203,32 @@ def enrich_node_with_ports(node: NodeDef) -> NodeDef:
         if not node.input_ports and not node.output_ports:
             logger.warning(f"Tool not found in registry: {node.tool}")
         return node
+
+    if node.tool == "sub_workflow":
+        try:
+            from fichero.workflows.subworkflow import (
+                contract_ports,
+                parse_sub_workflow_config,
+            )
+
+            config = parse_sub_workflow_config(node.config)
+            return node.model_copy(
+                update={
+                    "input_ports": contract_ports(
+                        config.input_contract,
+                        port_type="input",
+                    ),
+                    "output_ports": contract_ports(
+                        config.output_contract,
+                        port_type="output",
+                    ),
+                    "uses_llm": False,
+                }
+            )
+        except Exception:
+            # Preserve the static registry ports so validation can report the
+            # typed config error instead of hiding the node entirely.
+            pass
 
     # Create a new node with ports from registry
     # Use model_copy to preserve all existing fields

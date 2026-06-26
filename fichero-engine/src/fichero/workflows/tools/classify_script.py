@@ -138,8 +138,6 @@ async def classify_script(
     # Parse and enrich results per document
     results = raw.get("results") or []
     enriched: list[dict] = []
-    aggregated_type: str | None = None
-    aggregated_confidence: float = 0.0
 
     for item in results:
         text = (item.get("text") or "").strip()
@@ -171,28 +169,41 @@ async def classify_script(
             "notes": notes,
         })
 
-        # Track the first (or dominant) result for top-level fields
-        if aggregated_type is None or confidence > aggregated_confidence:
-            aggregated_type = script_type
-            aggregated_confidence = confidence
+    # Determine top-level script_type: uniform batches keep their type;
+    # mixed batches surface "mixed" so the router can handle them explicitly
+    # rather than silently collapsing multiple types to one. #2237
+    distinct_types = {item["script_type"] for item in enriched} if enriched else set()
+    if len(distinct_types) == 1:
+        # Uniform batch — use that type and its maximum confidence
+        top_type = next(iter(distinct_types))
+        top_confidence = max(item["confidence"] for item in enriched)
+    elif len(distinct_types) > 1:
+        # Mixed batch — surface "mixed" so downstream routing does not silently
+        # apply one branch to all items. Confidence is the max across the batch.
+        top_type = "mixed"
+        top_confidence = max(item["confidence"] for item in enriched)
+    else:
+        # Empty batch
+        top_type = "manuscript"
+        top_confidence = 0.0
 
-    needs_human_selection = aggregated_confidence < threshold
+    needs_human_selection = top_confidence < threshold or top_type == "mixed"
 
     if needs_human_selection:
         logger.info(
-            "classify_script: confidence %.2f < threshold %.2f — needs_human_selection=True",
-            aggregated_confidence, threshold,
+            "classify_script: script_type=%r confidence=%.2f — needs_human_selection=True",
+            top_type, top_confidence,
         )
 
     return {
         **raw,
-        "script_type": aggregated_type or "manuscript",
-        "confidence": aggregated_confidence,
+        "script_type": top_type,
+        "confidence": top_confidence,
         "needs_human_selection": needs_human_selection,
         "results": enriched,
         "value": {
-            "script_type": aggregated_type or "manuscript",
-            "confidence": aggregated_confidence,
+            "script_type": top_type,
+            "confidence": top_confidence,
             "needs_human_selection": needs_human_selection,
             "profiles": enriched,
         },

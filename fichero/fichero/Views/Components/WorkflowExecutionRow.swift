@@ -29,7 +29,12 @@ struct WorkflowExecutionRow: View {
         }
         .sheet(isPresented: $showWorkflowPreview) {
             WorkflowPreviewSheet(execution: execution)
+                .environment(executionObserver)
         }
+    }
+
+    private var sortedNodeIds: [String] {
+        execution.nodeStates.keys.sorted()
     }
 
     @ViewBuilder
@@ -59,7 +64,7 @@ struct WorkflowExecutionRow: View {
             // Control buttons
             if execution.isRunning {
                 Button {
-                    executionObserver.cancelExecution(workflowId: execution.id)
+                    executionObserver.cancelExecution(threadId: execution.threadId)
                 } label: {
                     Image(systemName: "stop.fill")
                         .foregroundColor(.red)
@@ -129,7 +134,7 @@ struct WorkflowExecutionRow: View {
         // Node progress summary (skip in compact mode)
         if !compact && !execution.nodeStates.isEmpty {
             HStack(spacing: 8) {
-                ForEach(Array(execution.nodeStates.keys.sorted()), id: \.self) { nodeId in
+                ForEach(sortedNodeIds, id: \.self) { nodeId in
                     if let state = execution.nodeStates[nodeId] {
                         nodeStatusPill(state)
                     }

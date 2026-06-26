@@ -2,9 +2,10 @@
 import Foundation
 import XCTest
 
-/// Tests for DocumentStoreTypes (request DTOs + error model) and
-/// SidebarViewTypes (AppViewMode category routing + ActivityChildType
-/// label/icon table + SelectedActivityRun.with helper).
+// Tests for DocumentStoreTypes (request DTOs + error model) and
+// SidebarViewTypes (AppViewMode category routing + ActivityChildType
+// label/icon table + SelectedActivityRun.with helper).
+// swiftlint:disable:next type_body_length
 final class DocumentStoreAndSidebarTypesTests: XCTestCase {
 
     private static func appSource(_ relativePath: String) throws -> String {
@@ -119,23 +120,196 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertEqual(AppViewMode.schedule(nil).category, .workflow)
         XCTAssertEqual(AppViewMode.trigger(nil).category, .workflow)
         XCTAssertEqual(AppViewMode.activity(nil).category, .workflow)
-        XCTAssertEqual(AppViewMode.mindPalace.category, .folder)
     }
 
-    func testEntitiesSidebarEntryPointRoutesToKnowledgeGraph() throws {
+    func testEntitiesSidebarEntryPointRoutesToLibraryList() throws {
         let source = try Self.appSource("Views/Sidebar/SidebarView.swift")
 
         XCTAssertTrue(source.contains("id == \"entities-browser\""))
-        XCTAssertTrue(source.contains("sidebarMode = .knowledgeGraph"))
+        XCTAssertTrue(source.contains("sidebarMode = .library"))
+        XCTAssertTrue(source.contains("viewMode = .library(nil)"))
     }
 
     func testEntitiesSidebarEntryPointIsPinnedAndFeatureGated() throws {
-        let source = try Self.appSource("Views/Sidebar/SidebarView+ViewComponents.swift")
+        let source = try Self.appSource("Views/Sidebar/SidebarView+PinnedNavigationRows.swift")
 
-        XCTAssertTrue(source.contains("Label(\"Entities\", systemImage: SidebarMode.knowledgeGraph.icon)"))
-        XCTAssertTrue(source.contains(".tag(\"entities-browser\")"))
+        XCTAssertTrue(source.contains("tag: \"entities-browser\""))
+        XCTAssertTrue(source.contains("systemImage: SidebarMode.knowledgeGraph.icon"))
         XCTAssertTrue(source.contains("FeatureManager.shared.isKnowledgeGraphEnabled"))
         XCTAssertTrue(source.contains("entitiesNavigationRow()"))
+    }
+
+    func testEntityLibrarySelectionLocksDisplayModeToList() throws {
+        let stateSource = try Self.appSource("Views/ContentView+State.swift")
+
+        XCTAssertTrue(stateSource.contains("var isEntityLibrarySelection: Bool"))
+        XCTAssertTrue(stateSource.contains("if isEntityLibrarySelection {"))
+        XCTAssertTrue(stateSource.contains("return [.list]"))
+        XCTAssertTrue(stateSource.contains("if newFolderId == \"entities-browser\""))
+        XCTAssertTrue(stateSource.contains("viewDisplayMode = .list"))
+    }
+
+    func testEntityLibrarySelectionRoutesBrowserSelectionIntoKGFocus() throws {
+        let stateSource = try Self.appSource("Views/ContentView+State.swift")
+        let navigationSource = try Self.appSource("Views/ContentView+Navigation.swift")
+
+        XCTAssertTrue(stateSource.contains("if isEntityLibrarySelection {"))
+        XCTAssertTrue(stateSource.contains("kgFocusState.focusEntity(entityId: firstId)"))
+        XCTAssertTrue(stateSource.contains("kgFocusState.clear()"))
+        XCTAssertTrue(navigationSource.contains("contentCollection: isEntityLibrarySelection ? .entities : .documents"))
+    }
+
+    func testSidebarPinnedRowsExposeMindPalaceResearchAndComparison() throws {
+        let source = try Self.appSource("Views/Sidebar/SidebarView+PinnedNavigationRows.swift")
+
+        XCTAssertTrue(source.contains("tag: \"comparison-browser\""))
+        XCTAssertTrue(source.contains("if FeatureManager.shared.isChatEnabled {"))
+        XCTAssertFalse(source.contains("if FeatureManager.shared.isWorkflowsEnabled {\n            comparisonNavigationRow()"))
+        XCTAssertTrue(source.contains("tag: \"research-browser\""))
+        XCTAssertTrue(source.contains("FeatureManager.shared.isResearchEnabled"))
+    }
+
+    func testPinnedSidebarEntryPointsRouteToExpectedSurfaces() throws {
+        let source = try Self.appSource("Views/Sidebar/SidebarView.swift")
+
+        XCTAssertTrue(source.contains("id == \"comparison-browser\""))
+        XCTAssertTrue(source.contains("viewMode = .comparison(nil)"))
+        XCTAssertTrue(source.contains("id == \"research-browser\""))
+        XCTAssertTrue(source.contains("sidebarMode = .research"))
+    }
+
+    func testCurrentChatScopePrefersSelectionThenDetailThenVisibleCollection() {
+        let folder = Document(id: "folder-1", docType: .folder, name: "Folder")
+        let page = Document(id: "page-1", parentId: "folder-1", docType: .page, fileType: .pdf, name: "Page 1")
+        let image = Document(id: "image-1", parentId: "folder-1", docType: .file, fileType: .image, name: "Image 1")
+
+        XCTAssertEqual(
+            ChatScopeBuilder.currentScopeDocumentIds(
+                browserSelection: ["page-1"],
+                currentDocuments: [folder, page, image],
+                detailDocument: folder
+            ),
+            ["page-1"]
+        )
+
+        XCTAssertEqual(
+            ChatScopeBuilder.currentScopeDocumentIds(
+                browserSelection: [],
+                currentDocuments: [folder],
+                detailDocument: image
+            ),
+            ["image-1"]
+        )
+
+        XCTAssertEqual(
+            ChatScopeBuilder.currentScopeDocumentIds(
+                browserSelection: [],
+                currentDocuments: [folder, page, image],
+                detailDocument: folder
+            ),
+            ["page-1", "image-1"]
+        )
+    }
+
+    func testLibraryBrowserToggleCopyUsesExplicitLibraryName() throws {
+        let toolbarSource = try Self.appSource("Views/ContentView.swift")
+        let menuSource = try Self.appSource("Views/Menu/ViewMenuCommands.swift")
+
+        XCTAssertTrue(toolbarSource.contains("ToolbarItem(placement: .principal)"))
+        XCTAssertTrue(toolbarSource.contains("LibraryManager.shared.getLibrary(id: windowState.libraryId)?.displayName"))
+        XCTAssertTrue(toolbarSource.contains("Text(libraryName)"))
+        XCTAssertTrue(menuSource.contains("Show Library Browser"))
+        XCTAssertTrue(menuSource.contains("Hide Library Browser"))
+        XCTAssertTrue(menuSource.contains("icon: \"books.vertical\""))
+    }
+
+    func testIpadViewMenuUsesSharedViewCommands() throws {
+        let contentSource = try Self.appSource("Views/ContentView.swift")
+
+        XCTAssertTrue(contentSource.contains("ViewMenuCommands()"))
+        XCTAssertTrue(contentSource.contains("Label(\"View\", systemImage: \"rectangle.split.3x1\")"))
+    }
+
+    func testMacLaunchResyncsBackendStateAfterEngineStartup() throws {
+        let appSource = try Self.appSource("FicheroApp.swift")
+        let appStateSource = try Self.appSource("App/AppState.swift")
+
+        guard
+            let startRange = appSource.range(of: "try await backendService.start()"),
+            let resyncRange = appSource.range(
+                of: "await appState.checkBackendHealth()",
+                range: startRange.upperBound..<appSource.endIndex
+            ),
+            let heartbeatRange = appSource.range(
+                of: "appState.startBackendHeartbeat()",
+                range: resyncRange.upperBound..<appSource.endIndex
+            ),
+            let readyRange = appSource.range(
+                of: "await libraryManager.backendDidBecomeReady()",
+                range: heartbeatRange.upperBound..<appSource.endIndex
+            )
+        else {
+            return XCTFail("launch sequence changed unexpectedly")
+        }
+
+        XCTAssertLessThan(startRange.lowerBound, resyncRange.lowerBound)
+        XCTAssertLessThan(resyncRange.lowerBound, heartbeatRange.lowerBound)
+        XCTAssertLessThan(heartbeatRange.lowerBound, readyRange.lowerBound)
+        XCTAssertFalse(appStateSource.contains("await checkBackendHealth()"))
+    }
+
+    func testBackendRetryRunsSameReadinessSideEffectsAsStartup() throws {
+        let tabSource = try Self.appSource("Views/DocumentTabView.swift")
+        let connectionSource = try Self.appSource("Views/Components/BackendConnectionView.swift")
+
+        XCTAssertTrue(tabSource.contains("BackendConnectionView(appState: appState, onConnected: completeBackendRetryReadiness)"))
+        XCTAssertTrue(tabSource.contains("private func completeBackendRetryReadiness() async"))
+        XCTAssertTrue(tabSource.contains("appState.startBackendHeartbeat()"))
+        XCTAssertTrue(tabSource.contains("await KnownLibraryRegistryStore.shared.refresh()"))
+        XCTAssertTrue(tabSource.contains("await libraryManager.backendDidBecomeReady()"))
+
+        XCTAssertTrue(connectionSource.contains("var onConnected: (@MainActor () async -> Void)?"))
+        XCTAssertTrue(connectionSource.contains("await completeSuccessfulConnection()"))
+        XCTAssertTrue(connectionSource.contains("await onConnected?()"))
+    }
+
+    func testMacBackendSettingsShowsInlinePairingQrAndNoSheetAssumption() throws {
+        let settingsSource = try Self.appSource("Views/Settings/BackendSettingsView.swift")
+        let remoteAccessSource = try Self.appSource("Views/Settings/BackendSettingsRemoteAccessSection.swift")
+
+        XCTAssertTrue(settingsSource.contains("BackendSettingsRemoteAccessSection()"))
+        XCTAssertTrue(remoteAccessSource.contains("Section(\"Remote Access\")"))
+        XCTAssertTrue(remoteAccessSource.contains("Pair a Device"))
+        XCTAssertTrue(remoteAccessSource.contains("Preparing pairing QR"))
+        XCTAssertTrue(remoteAccessSource.contains("Advanced / Debug"))
+        XCTAssertTrue(remoteAccessSource.contains("Pairing QR code"))
+        XCTAssertTrue(remoteAccessSource.contains("Text(pairingCode.code)"))
+        XCTAssertTrue(remoteAccessSource.contains("Expires \\(pairingCode.expiresAt.formatted"))
+        XCTAssertTrue(remoteAccessSource.contains("activePairedDevices(from: pairedDevices)"))
+        XCTAssertFalse(remoteAccessSource.contains("Show Pairing QR"))
+        XCTAssertFalse(remoteAccessSource.contains("Generate Pairing QR"))
+        XCTAssertFalse(remoteAccessSource.contains(".sheet(isPresented:"))
+        XCTAssertFalse(remoteAccessSource.contains("QRCodeScannerSheet"))
+    }
+
+    func testNotesLiveInDocumentInspectorAndStandaloneBrowserRetired() throws {
+        // Notes moved into the per-document inspector (Notes tab → DocumentNotesTab,
+        // #1500). The standalone library-wide browser sheet and its Data-menu entry
+        // are retired.
+        let menuSource = try Self.appSource("FicheroApp.swift")
+        let appStateSource = try Self.appSource("App/AppState.swift")
+        let windowSource = try Self.appSource("App/LibraryWindow.swift")
+        let inspectorSource = try Self.appSource("Views/Library/DocumentInspector.swift")
+
+        // The Notes tab routes to the per-document notes view.
+        XCTAssertTrue(inspectorSource.contains("DocumentNotesTab(document: doc)"))
+
+        // The standalone browser sheet, its menu entry, and its driver are gone.
+        XCTAssertFalse(appStateSource.contains("showNotesBrowser"))
+        XCTAssertFalse(menuSource.contains("Notes Browser…"))
+        XCTAssertFalse(menuSource.contains("showNotesBrowser"))
+        XCTAssertFalse(windowSource.contains("NotesBrowserView()"))
+        XCTAssertFalse(windowSource.contains("showNotesBrowser"))
     }
 
     // MARK: - ActivityChildType

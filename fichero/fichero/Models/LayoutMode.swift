@@ -41,7 +41,8 @@ enum LayoutMode: String, CaseIterable, Identifiable {
 ///
 /// The three panes are independent user choices: Library/List, document canvas,
 /// and reading/WebKit. Hiding the Library pane must not collapse the canvas or
-/// reading pane into a different layout.
+/// reading pane into a different layout. When the available width is too small,
+/// the plan drops the reading pane first, then the canvas.
 struct WidescreenPanePlan: Equatable {
     let showsLibraryPane: Bool
     let showsCanvasPane: Bool
@@ -55,16 +56,81 @@ struct WidescreenPanePlan: Equatable {
         showsCanvasPane && showsReadingPane
     }
 
+    var minimumWidth: Double {
+        var minimumWidth = 0.0
+        if showsLibraryPane {
+            minimumWidth += ContentView.contentListMinWidth
+        }
+        if showsCanvasPane {
+            minimumWidth += max(ContentView.pdfCanvasMinWidth, 300)
+        }
+        if showsReadingPane {
+            minimumWidth += ContentView.readingPaneMinWidth
+        }
+        return showsLibraryPane ? max(minimumWidth, ContentView.contentListMinWidth) : minimumWidth
+    }
+
+    func collapsed(toFit availableWidth: Double) -> WidescreenPanePlan {
+        if !showsLibraryPane {
+            if showsCanvasPane {
+                return showsReadingPane && availableWidth < minimumWidth
+                    ? WidescreenPanePlan(
+                        showsLibraryPane: false,
+                        showsCanvasPane: true,
+                        showsReadingPane: false
+                    )
+                    : self
+            }
+
+            if showsReadingPane {
+                return self
+            }
+
+            return self
+        }
+
+        var plan = self
+        while plan.minimumWidth > availableWidth {
+            if plan.showsReadingPane {
+                plan = WidescreenPanePlan(
+                    showsLibraryPane: plan.showsLibraryPane,
+                    showsCanvasPane: plan.showsCanvasPane,
+                    showsReadingPane: false
+                )
+                continue
+            }
+
+            if plan.showsCanvasPane {
+                plan = WidescreenPanePlan(
+                    showsLibraryPane: plan.showsLibraryPane,
+                    showsCanvasPane: false,
+                    showsReadingPane: false
+                )
+                continue
+            }
+
+            break
+        }
+        return plan
+    }
+
     static func make(
         showDocumentGrid: Bool,
         showDocumentCanvas: Bool,
-        showReadingPane: Bool
+        showReadingPane: Bool,
+        availableWidth: Double? = nil
     ) -> WidescreenPanePlan {
-        WidescreenPanePlan(
+        // Zero is a real collapse input here; it must still flow through the
+        // collapse policy so the plan can shed panes at the edge case.
+        let plan = WidescreenPanePlan(
             showsLibraryPane: showDocumentGrid,
             showsCanvasPane: showDocumentCanvas,
             showsReadingPane: showReadingPane
         )
+        guard let availableWidth else {
+            return plan
+        }
+        return plan.collapsed(toFit: availableWidth)
     }
 }
 
@@ -147,6 +213,20 @@ struct CanvasDocumentPolicy {
         }
         if let inspectorDocument, isCanvasPreviewable(inspectorDocument) {
             return inspectorDocument
+        }
+        return nil
+    }
+}
+
+/// Maps spatial scene node ids back to library document ids.
+struct SpatialDocumentSelection {
+    static func documentId(forNodeId nodeId: String?) -> String? {
+        guard let nodeId, !nodeId.isEmpty else { return nil }
+        if nodeId.hasPrefix("doc-") {
+            return String(nodeId.dropFirst("doc-".count))
+        }
+        if nodeId.hasPrefix("doc:") {
+            return String(nodeId.dropFirst("doc:".count))
         }
         return nil
     }

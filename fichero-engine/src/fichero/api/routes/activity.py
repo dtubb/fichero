@@ -20,7 +20,6 @@ from typing import Any, Optional
 from fastapi import (
     APIRouter,
     Depends,
-    Header,
     HTTPException,
     Query,
     WebSocket,
@@ -29,7 +28,8 @@ from fastapi import (
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from fichero.api.main import get_library_database
+from fichero.api.library_header import require_library_path
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database, db_manager
 from fichero.workflows.activity import (
     Activity,
@@ -308,13 +308,26 @@ async def stream_activities(
 @router.websocket("/ws")
 async def websocket_activity_stream(
     websocket: WebSocket,
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ):
     """
     WebSocket endpoint for real-time activity streaming.
 
     Clients can send filter updates and receive activity events.
     """
+    # WebSockets do not run the HTTP auth middleware in TestClient in the same
+    # shape as normal routes, so gate before attaching to a library stream.
+    from fichero import authz
+
+    try:
+        authz.assert_can_read(
+            getattr(websocket.state, "user", None),
+            x_fichero_library_path,
+        )
+    except authz.AuthorizationError:
+        await websocket.close(code=1008)
+        return
+
     await websocket.accept()
 
     # Get database for library
@@ -391,7 +404,7 @@ async def get_batch_activity(
 
 @router.delete("/cleanup")
 async def cleanup_old_activities(
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     days: int = Query(
         30, ge=1, le=365, description="Delete activities older than N days"
     ),

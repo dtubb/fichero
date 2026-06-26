@@ -1,4 +1,8 @@
+#if canImport(AppKit)
 import AppKit
+#elseif canImport(UIKit)
+import UIKit
+#endif
 import SwiftUI
 
 // swiftlint:disable file_length
@@ -28,8 +32,9 @@ struct ImageEditorView: View {
     var selectedDocumentIDs: Set<String> = []
 
     @EnvironmentObject private var apiClient: APIClient
-    @EnvironmentObject private var documentStore: DocumentStore
-    @StateObject private var model = ImageEditorModel()
+    @EnvironmentObject private var storageService: StorageServiceGenerated
+    @Environment(DocumentStore.self) private var documentStore: DocumentStore
+    @State private var model = ImageEditorModel()
 
     /// Document currently loaded in the editor. Seeded from `document` and
     /// updated by prev/next so the canvas follows even when the host doesn't
@@ -47,8 +52,7 @@ struct ImageEditorView: View {
     @State private var compareMode: CompareMode = .single
     @State private var compareSplit: CGFloat = 0.5
 
-    /// Creates region (bbox) annotations from the marquee selection (#1276).
-    @StateObject private var annotationService = AnnotationService()
+    @Environment(AnnotationStore.self) private var annotationStore
 
     /// Editable docs in the current multi-selection (for batch-apply).
     private var selectedEditableDocs: [Document] {
@@ -87,6 +91,12 @@ struct ImageEditorView: View {
                 documentId: document.id,
                 page: currentPage(for: document)
             )
+            // Invalidate the storage-display cache after every successful edit so
+            // StorageDisplayImageCanvas re-fetches edited bytes when exiting edit
+            // mode (#2459 / #2469).
+            model.onEditApplied = { [storageService] id in
+                storageService.invalidateImageCache(for: id)
+            }
         }
         .onChange(of: model.chain.operations.count) { _, _ in
             // An op changed the rendered image — a stale region would mismap.
@@ -138,6 +148,9 @@ private extension ImageEditorView {
                 }
                 toolButton("rotate.right", help: "Rotate right 90°") {
                     Task { await model.rotate(by: -90) }
+                }
+                toolButton("crop.rotate", help: "Straighten — auto-detect document skew") {
+                    Task { await model.straighten() }
                 }
 
                 // Enhance with slider popover
@@ -206,7 +219,7 @@ private extension ImageEditorView {
         .padding(.horizontal, 12)
         // Single source of truth for top-toolbar height so the image-edit
         // toolbar lines up with every other pane mini-toolbar (#1449/#1460).
-        .frame(height: MiniToolbar<EmptyView>.standardHeight)
+        .frame(height: MiniToolbar<EmptyView, EmptyView>.standardHeight)
         .background(Color(.windowBackgroundColor))
     }
 
@@ -274,6 +287,13 @@ private extension ImageEditorView {
                     }
                 }
             }
+            Button("Straighten") {
+                Task {
+                    await model.batchApply(documentIds: selectedEditableDocs.map(\.id)) { service, id in
+                        try await service.straighten(documentId: id)
+                    }
+                }
+            }
             Button("Auto-Enhance") {
                 Task {
                     await model.batchApply(documentIds: selectedEditableDocs.map(\.id)) { service, id in
@@ -328,8 +348,8 @@ private extension ImageEditorView {
             Double(selection.width),
             Double(selection.height)
         ]
-        let created = await annotationService.addNote(
-            documentId: activeDocument.id,
+        let created = await annotationStore.addNote(
+            scope: .document(activeDocument.id),
             text: "",
             bbox: bbox,
             kind: .highlight
@@ -431,7 +451,7 @@ private extension ImageEditorView {
                         let split = max(0, min(1, compareSplit))
                         ZStack(alignment: .topLeading) {
                             // Edited underneath — full size (revealed on the right).
-                            Image(nsImage: edited.image)
+                            Image(platformImage: edited.image)
                                 .resizable()
                                 .interpolation(.high)
                                 .aspectRatio(contentMode: .fit)
@@ -439,7 +459,7 @@ private extension ImageEditorView {
                             // Original on top — clipped to the left split portion,
                             // so left = Before (original), right = After (edited)
                             // and the labels below read correctly (#1538).
-                            Image(nsImage: original.image)
+                            Image(platformImage: original.image)
                                 .resizable()
                                 .interpolation(.high)
                                 .aspectRatio(contentMode: .fit)
@@ -520,10 +540,10 @@ private extension ImageEditorView {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: NSColor(red: 253 / 255, green: 253 / 255, blue: 253 / 255, alpha: 1)))
+        .background(Color(red: 253/255, green: 253/255, blue: 253/255, opacity: 1))
     }
 
-    private func comparePane(image: NSImage, pixelSize: CGSize, title: String) -> some View {
+    private func comparePane(image: PlatformImage, pixelSize: CGSize, title: String) -> some View {
         VStack(spacing: 6) {
             Text(title)
                 .font(.caption)
@@ -534,7 +554,7 @@ private extension ImageEditorView {
                     in: CGSize(width: geo.size.width - 12, height: geo.size.height - 12)
                 )
                 let frame = fitted.offsetBy(dx: 6, dy: 6)
-                Image(nsImage: image)
+                Image(platformImage: image)
                     .resizable()
                     .interpolation(.high)
                     .aspectRatio(contentMode: .fit)

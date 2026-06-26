@@ -30,13 +30,14 @@ class WorkflowExecutionService: ObservableObject {
         self.client = FicheroClient(baseURL: host, libraryPath: libraryPath)
     }
 
+    init(ficheroClient: FicheroClient) {
+        self.client = ficheroClient
+    }
+
     /// Update the library path (called when library changes)
     func setLibraryPath(_ path: String?) {
         client.currentLibraryPath = path
     }
-
-    /// Library header for the library-scoped workflow-execution endpoints.
-    private var libraryHeaders: String { client.currentLibraryPath ?? "" }
 
     /// Map a generated execution-status payload onto the app model (1:1 fields).
     private func mapThread(_ response: Components.Schemas.ExecutionStatusResponse) -> ExecutionThread {
@@ -54,8 +55,29 @@ class WorkflowExecutionService: ObservableObject {
     /// (e.g. the 202 "accepted" handshake state) collapse to `.running`, which
     /// preserves a valid case rather than failing — the prior URLSession path
     /// decoded the same field straight into this enum.
+    static func mapStatus(_ raw: String?) -> ExecutionStatus {
+        switch raw?.lowercased() {
+        case "paused":
+            return .paused
+        case "completed", "complete", "success", "succeeded":
+            return .completed
+        case "failed":
+            return .failed
+        case "error":
+            return .error
+        case "cancelled", "canceled":
+            return .cancelled
+        case "stopped", "stop_requested":
+            return .stopped
+        case "deleted":
+            return .deleted
+        default:
+            return .running
+        }
+    }
+
     private func mapStatus(_ raw: String?) -> ExecutionStatus {
-        ExecutionStatus(rawValue: raw ?? "") ?? .running
+        Self.mapStatus(raw)
     }
 
     /// Build the OpenAPI free-form object container from a JSON-compatible dict,
@@ -68,13 +90,15 @@ class WorkflowExecutionService: ObservableObject {
     // MARK: - Execute Workflow
 
     /// Execute a workflow with optional interrupt points
-    func executeWorkflow(
+    func executeAccepted(
         workflowId: String,
         inputs: [String: Any] = [:],
         threadId: String? = nil,
         interruptBefore: [String] = [],
-        interruptAfter: [String] = []
-    ) async throws -> ExecutionThread {
+        interruptAfter: [String] = [],
+        providerOverride: String? = nil,
+        modelOverride: String? = nil
+    ) async throws -> ExecuteAcceptedResponse {
         let inputsPayload = Components.Schemas.ExecuteWorkflowRequest.InputsPayload(
             additionalProperties: try objectContainer(fromJSON: inputs)
         )
@@ -83,33 +107,29 @@ class WorkflowExecutionService: ObservableObject {
             inputs: inputsPayload,
             threadId: threadId,
             interruptBefore: interruptBefore,
-            interruptAfter: interruptAfter
+            interruptAfter: interruptAfter,
+            providerOverride: (providerOverride?.isEmpty == false) ? providerOverride : nil,
+            modelOverride: (modelOverride?.isEmpty == false) ? modelOverride : nil
         )
 
         isExecuting = true
         defer { isExecuting = false }
 
         let response = try await client.api.executeWorkflowApiWorkflowExecutionExecutePost(
-            headers: .init(xFicheroLibraryPath: libraryHeaders),
             body: .json(request)
         )
 
         switch response {
         case .accepted(let accepted):
-            // 202: the run was accepted; map the handshake payload onto the
-            // app thread model (no checkpoint/error yet at acceptance time).
             let payload = try accepted.body.json
-            let thread = ExecutionThread(
+            logger.info("Executed workflow \(workflowId), thread: \(payload.threadId)")
+            return ExecuteAcceptedResponse(
                 threadId: payload.threadId,
                 workflowId: payload.workflowId,
                 workflowName: payload.workflowName,
-                status: mapStatus(payload.status),
-                checkpointId: nil,
-                error: nil
+                status: payload.status ?? "accepted",
+                streamUrl: payload.streamUrl
             )
-            currentThreadStatus = thread
-            logger.info("Executed workflow \(workflowId), thread: \(thread.threadId)")
-            return thread
         case .unprocessableContent:
             logger.error("Execute workflow failed: validation error")
             throw WorkflowExecutionError.serverError(422, "Validation error")
@@ -117,6 +137,32 @@ class WorkflowExecutionService: ObservableObject {
             logger.error("Execute workflow failed: \(statusCode)")
             throw WorkflowExecutionError.serverError(statusCode, "Execute workflow failed")
         }
+    }
+
+    func executeWorkflow(
+        workflowId: String,
+        inputs: [String: Any] = [:],
+        threadId: String? = nil,
+        interruptBefore: [String] = [],
+        interruptAfter: [String] = []
+    ) async throws -> ExecutionThread {
+        let payload = try await executeAccepted(
+            workflowId: workflowId,
+            inputs: inputs,
+            threadId: threadId,
+            interruptBefore: interruptBefore,
+            interruptAfter: interruptAfter
+        )
+        let thread = ExecutionThread(
+            threadId: payload.threadId,
+            workflowId: payload.workflowId,
+            workflowName: payload.workflowName,
+            status: mapStatus(payload.status),
+            checkpointId: nil,
+            error: nil
+        )
+        currentThreadStatus = thread
+        return thread
     }
 
     // MARK: - Resume Workflow
@@ -138,7 +184,6 @@ class WorkflowExecutionService: ObservableObject {
 
         let response = try await client.api.resumeWorkflowApiWorkflowExecutionThreadsThreadIdResumePost(
             path: .init(threadId: threadId),
-            headers: .init(xFicheroLibraryPath: libraryHeaders),
             body: body
         )
 
@@ -163,7 +208,6 @@ class WorkflowExecutionService: ObservableObject {
     func getThreadStatus(threadId: String) async throws -> ExecutionThread {
         let response = try await client.api.getThreadStatusApiWorkflowExecutionThreadsThreadIdStatusGet(
             path: .init(threadId: threadId),
-            headers: .init(xFicheroLibraryPath: libraryHeaders)
         )
 
         switch response {
@@ -186,7 +230,6 @@ class WorkflowExecutionService: ObservableObject {
     func listThreads(limit: Int = 100) async throws -> [ExecutionThread] {
         let response = try await client.api.listThreadsApiWorkflowExecutionThreadsGet(
             query: .init(limit: limit),
-            headers: .init(xFicheroLibraryPath: libraryHeaders)
         )
 
         switch response {
@@ -210,7 +253,6 @@ class WorkflowExecutionService: ObservableObject {
     func deleteThread(threadId: String) async throws {
         let response = try await client.api.deleteThreadApiWorkflowExecutionThreadsThreadIdDelete(
             path: .init(threadId: threadId),
-            headers: .init(xFicheroLibraryPath: libraryHeaders)
         )
 
         switch response {
@@ -235,8 +277,7 @@ class WorkflowExecutionService: ObservableObject {
         // pause/cancel are app-wide (operate on a thread by id, no library
         // header in their OpenAPI signature) — unlike the other thread ops.
         let response = try await client.api.pauseWorkflowApiWorkflowExecutionThreadsThreadIdPausePost(
-            path: .init(threadId: threadId),
-            headers: .init()
+            path: .init(threadId: threadId)
         )
 
         switch response {
@@ -251,8 +292,7 @@ class WorkflowExecutionService: ObservableObject {
 
     func cancelWorkflow(threadId: String) async throws {
         let response = try await client.api.cancelWorkflowApiWorkflowExecutionThreadsThreadIdCancelPost(
-            path: .init(threadId: threadId),
-            headers: .init()
+            path: .init(threadId: threadId)
         )
 
         switch response {
@@ -263,6 +303,10 @@ class WorkflowExecutionService: ObservableObject {
         default:
             throw WorkflowExecutionError.serverError(422, "Cancel workflow failed")
         }
+    }
+
+    func stopWorkflow(threadId: String) async throws {
+        try await cancelWorkflow(threadId: threadId)
     }
 }
 
@@ -296,7 +340,11 @@ enum ExecutionStatus: String, Codable {
     case running
     case paused
     case completed
+    case error
     case failed
+    case cancelled
+    case stopped
+    case deleted
 }
 
 // The thread-list response is now the generated `Components.Schemas.ThreadListResponse`

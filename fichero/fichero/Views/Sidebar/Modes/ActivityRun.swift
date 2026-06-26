@@ -38,6 +38,7 @@ struct ActivityRun: Identifiable {
 
 enum ActivityRunStatus {
     case running
+    case paused
     case completed
     case failed
     case cancelled
@@ -45,6 +46,7 @@ enum ActivityRunStatus {
     var icon: String {
         switch self {
         case .running: return "play.circle.fill"
+        case .paused: return "pause.circle.fill"
         case .completed: return "checkmark.circle.fill"
         case .failed: return "xmark.circle.fill"
         case .cancelled: return "stop.circle.fill"
@@ -54,6 +56,7 @@ enum ActivityRunStatus {
     var color: Color {
         switch self {
         case .running: return .blue
+        case .paused: return .orange
         case .completed: return .green
         case .failed: return .red
         case .cancelled: return .orange
@@ -63,6 +66,7 @@ enum ActivityRunStatus {
     func toStatusType() -> SelectedActivityRun.ActivityRunStatusType {
         switch self {
         case .running: return .running
+        case .paused: return .paused
         case .completed: return .completed
         case .failed: return .failed
         case .cancelled: return .cancelled

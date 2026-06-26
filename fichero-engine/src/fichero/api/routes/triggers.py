@@ -11,10 +11,11 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from fichero.db import Database, db_manager
+from fichero.api.main import get_library_database
+from fichero.db import Database
 from fichero.workflows.file_watcher import (
     FileWatcherManager,
     FileTrigger,
@@ -173,22 +174,6 @@ class TriggerExecutionResponse(BaseModel):
 
 # Per-library file watcher instances
 _watchers: dict[str, FileWatcherManager] = {}
-
-
-async def get_library_database(
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
-) -> Database:
-    """Get database for current library."""
-    if not x_fichero_library_path:
-        raise HTTPException(
-            status_code=400, detail="Missing X-Fichero-Library-Path header"
-        )
-    try:
-        return db_manager.get_database(x_fichero_library_path)
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to access library database: {str(e)}"
-        )
 
 
 async def get_file_watcher(

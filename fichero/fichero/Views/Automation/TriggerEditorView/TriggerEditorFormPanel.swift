@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Left-panel form for TriggerEditorView
 struct TriggerEditorFormPanel: View {
-    @EnvironmentObject var workflowStore: WorkflowStore
+    @Environment(WorkflowStore.self) var workflowStore
 
     // Basic info
     @Binding var name: String

@@ -18,6 +18,15 @@ extension ChatInspector {
                 }
 
                 Spacer()
+
+                if showsTouchScopeActions, pendingSuggestedDocumentCount > 0 {
+                    Button {
+                        addSuggestedDocumentsToScope()
+                    } label: {
+                        Label("Add to Chat", systemImage: "plus.circle")
+                    }
+                    .buttonStyle(.bordered)
+                }
             }
             .padding(.horizontal)
             .padding(.vertical, 6)
@@ -49,11 +58,20 @@ extension ChatInspector {
                 .font(.subheadline)
                 .foregroundColor(.secondary)
 
-            Text("Search above or drag documents from Library to focus your chat.")
+            Text(emptyStateInstructionText)
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
+
+            if showsTouchScopeActions, pendingSuggestedDocumentCount > 0 {
+                Button {
+                    addSuggestedDocumentsToScope()
+                } label: {
+                    Label("Add Current Selection to Chat", systemImage: "plus.circle.fill")
+                }
+                .buttonStyle(.borderedProminent)
+            }
 
             Divider()
                 .padding(.vertical, 8)
@@ -91,6 +109,13 @@ extension ChatInspector {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
+    }
+
+    private var emptyStateInstructionText: String {
+        if showsTouchScopeActions {
+            return "Search above or tap Add Current Selection to focus your chat."
+        }
+        return "Search above or drag documents from Library to focus your chat."
     }
 
     var loadingView: some View {

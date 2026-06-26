@@ -11,13 +11,16 @@ enum WorkflowStreamEvent: Equatable {
     // Parallel execution events
     case parallelStart(threadId: String, nodeId: String, fileTotal: Int)
     case fileStart(threadId: String, nodeId: String, filePath: String, fileIndex: Int, fileTotal: Int,
-                   progress: Double)
+                   progress: Double, documentId: String?, pageId: String?, displayName: String?, sequence: Int?)
     case fileComplete(threadId: String, nodeId: String, filePath: String, fileIndex: Int, fileTotal: Int,
-                      progress: Double, cached: Bool)
-    case fileError(threadId: String, nodeId: String, filePath: String, error: String, progress: Double)
+                      progress: Double, cached: Bool, documentId: String?, pageId: String?, displayName: String?,
+                      sequence: Int?)
+    case fileError(threadId: String, nodeId: String, filePath: String, error: String, progress: Double,
+                   documentId: String?, pageId: String?, displayName: String?, sequence: Int?)
     case parallelComplete(threadId: String, nodeId: String, successCount: Int, errorCount: Int, total: Int)
     case complete(threadId: String, checkpointId: String?, finalState: [String: Any]?)
     case pause(threadId: String, checkpointId: String?, currentState: [String: Any]?)
+    case cancelled(threadId: String)
     case error(threadId: String, error: String)
     case systemicError(threadId: String, error: String, errorCount: Int, totalCount: Int)
     case log(threadId: String, line: String)
@@ -34,14 +37,14 @@ enum WorkflowStreamEvent: Equatable {
             return lhsThread == rhsThread && lhsNode == rhsNode
         case (.parallelStart(let lhsThread, let lhsNode, _), .parallelStart(let rhsThread, let rhsNode, _)):
             return lhsThread == rhsThread && lhsNode == rhsNode
-        case (.fileStart(let lhsThread, let lhsNode, _, _, _, _),
-              .fileStart(let rhsThread, let rhsNode, _, _, _, _)):
+        case (.fileStart(let lhsThread, let lhsNode, _, _, _, _, _, _, _, _),
+              .fileStart(let rhsThread, let rhsNode, _, _, _, _, _, _, _, _)):
             return lhsThread == rhsThread && lhsNode == rhsNode
-        case (.fileComplete(let lhsThread, let lhsNode, _, _, _, _, _),
-              .fileComplete(let rhsThread, let rhsNode, _, _, _, _, _)):
+        case (.fileComplete(let lhsThread, let lhsNode, _, _, _, _, _, _, _, _, _),
+              .fileComplete(let rhsThread, let rhsNode, _, _, _, _, _, _, _, _, _)):
             return lhsThread == rhsThread && lhsNode == rhsNode
-        case (.fileError(let lhsThread, let lhsNode, _, _, _),
-              .fileError(let rhsThread, let rhsNode, _, _, _)):
+        case (.fileError(let lhsThread, let lhsNode, _, _, _, _, _, _, _),
+              .fileError(let rhsThread, let rhsNode, _, _, _, _, _, _, _)):
             return lhsThread == rhsThread && lhsNode == rhsNode
         case (.parallelComplete(let lhsThread, let lhsNode, _, _, _),
               .parallelComplete(let rhsThread, let rhsNode, _, _, _)):
@@ -49,6 +52,8 @@ enum WorkflowStreamEvent: Equatable {
         case (.complete(let lhsThread, _, _), .complete(let rhsThread, _, _)):
             return lhsThread == rhsThread
         case (.pause(let lhsThread, _, _), .pause(let rhsThread, _, _)):
+            return lhsThread == rhsThread
+        case (.cancelled(let lhsThread), .cancelled(let rhsThread)):
             return lhsThread == rhsThread
         case (.error(let lhsThread, let lhsError), .error(let rhsThread, let rhsError)):
             return lhsThread == rhsThread && lhsError == rhsError
@@ -92,6 +97,10 @@ struct SSEEventData: Codable {
     let fileIndex: Int?
     let fileTotal: Int?
     let progress: Double?
+    let documentId: String?
+    let pageId: String?
+    let displayName: String?
+    let sequence: Int?
 
     enum CodingKeys: String, CodingKey {
         case event
@@ -104,6 +113,71 @@ struct SSEEventData: Codable {
         case fileIndex = "file_index"
         case fileTotal = "file_total"
         case progress
+        case documentId = "document_id"
+        case pageId = "page_id"
+        case displayName = "display_name"
+        case sequence
+    }
+}
+
+struct FileProgressIdentity: Equatable {
+    let filePath: String
+    let documentId: String?
+    let pageId: String?
+    let displayName: String?
+    let sequence: Int?
+
+    var stableId: String {
+        pageId ?? documentId ?? filePath
+    }
+
+    var leafDocumentId: String? {
+        pageId ?? documentId
+    }
+
+    var resolvedDisplayName: String {
+        if let displayName, !displayName.isEmpty {
+            return displayName
+        }
+        if let sequence {
+            return "Page \(sequence)"
+        }
+        return (filePath as NSString).lastPathComponent
+    }
+}
+
+extension WorkflowStreamEvent {
+    var fileProgressIdentity: FileProgressIdentity? {
+        switch self {
+        case .fileStart(_, _, let filePath, _, _, _, let documentId, let pageId, let displayName, let sequence):
+            return FileProgressIdentity(
+                filePath: filePath,
+                documentId: documentId,
+                pageId: pageId,
+                displayName: displayName,
+                sequence: sequence
+            )
+        case .fileComplete(
+            _, _, let filePath, _, _, _, _, let documentId, let pageId, let displayName, let sequence
+        ):
+            return FileProgressIdentity(
+                filePath: filePath,
+                documentId: documentId,
+                pageId: pageId,
+                displayName: displayName,
+                sequence: sequence
+            )
+        case .fileError(_, _, let filePath, _, _, let documentId, let pageId, let displayName, let sequence):
+            return FileProgressIdentity(
+                filePath: filePath,
+                documentId: documentId,
+                pageId: pageId,
+                displayName: displayName,
+                sequence: sequence
+            )
+        default:
+            return nil
+        }
     }
 }
 

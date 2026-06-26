@@ -10,7 +10,11 @@ struct ActivityProgressView: View {
     let selectedRun: SelectedActivityRun
     let liveExecution: WorkflowExecution?
     @EnvironmentObject var apiClient: APIClient
-    @EnvironmentObject var documentStore: DocumentStore
+    @Environment(DocumentStore.self) var documentStore: DocumentStore
+
+    /// Shared live-execution store (#2546). Optional so the view never crashes
+    /// where the store isn't injected (e.g. previews).
+    @Environment(WorkflowExecutionStore.self) var executionStore: WorkflowExecutionStore?
 
     @State var progressTimeline: ProgressTimeline?
     @State var isLoadingTimeline = false

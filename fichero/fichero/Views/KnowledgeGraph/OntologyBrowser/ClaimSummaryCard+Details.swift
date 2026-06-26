@@ -1,80 +1,17 @@
 import FicheroAPIClient
 import SwiftUI
 
+private struct ClaimDeleteActionParams: Encodable {
+    let claimId: String
+
+    enum CodingKeys: String, CodingKey {
+        case claimId = "claim_id"
+    }
+}
+
 // MARK: - ClaimSummaryCard Detail Views + Actions
 
 extension ClaimSummaryCard {
-    struct ProvenanceBadge: Equatable {
-        let label: String
-        let tint: Color
-    }
-
-    static func provenanceBadges(for claim: Components.Schemas.KnowledgeClaim) -> [ProvenanceBadge] {
-        let metadata = claim.metadata?.additionalProperties.value ?? [:]
-        var badges: [ProvenanceBadge] = []
-
-        let createdByRaw = claim.createdBy?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        if let createdByRaw, !createdByRaw.isEmpty {
-            if ["human", "user", "manual", "researcher", "editor", "curator", "cli"]
-                .contains(createdByRaw) {
-                badges.append(ProvenanceBadge(label: "✏️ Human", tint: .orange))
-            } else if createdByRaw.contains("extract")
-                        || createdByRaw.contains("agent")
-                        || createdByRaw.contains("llm")
-                        || createdByRaw.contains("ai") {
-                badges.append(ProvenanceBadge(label: "AI", tint: .purple))
-            }
-        }
-
-        let quotationKindRaw = (
-            metadata["quotation_kind"] as? String
-            ?? metadata["quotationKind"] as? String
-        )?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if let quotationKindRaw, !quotationKindRaw.isEmpty {
-            let label: String
-            switch quotationKindRaw {
-            case "verbatim": label = "Verbatim"
-            case "paraphrase": label = "Paraphrase"
-            case "summary": label = "Summary"
-            default: label = quotationKindRaw.replacingOccurrences(of: "_", with: " ").capitalized
-            }
-            badges.append(ProvenanceBadge(label: label, tint: .indigo))
-        }
-
-        let confidenceSourceRaw = (
-            claim.confidenceSource
-            ?? metadata["confidence_source"] as? String
-            ?? metadata["confidenceSource"] as? String
-        )?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if let confidenceSourceRaw, !confidenceSourceRaw.isEmpty {
-            let label: String
-            switch confidenceSourceRaw {
-            case "llm_logprob": label = "LLM"
-            case "heuristic": label = "Heuristic"
-            case "human_review": label = "Human-reviewed"
-            case "corroboration": label = "Corroborated"
-            case "default": label = "Default"
-            default: label = confidenceSourceRaw.replacingOccurrences(of: "_", with: " ").capitalized
-            }
-            badges.append(ProvenanceBadge(label: label, tint: .teal))
-        }
-
-        let corroborationCount = (
-            metadata["corroboration_count"] as? Int
-            ?? Int(metadata["corroboration_count"] as? String ?? "")
-            ?? metadata["corroborationCount"] as? Int
-            ?? Int(metadata["corroborationCount"] as? String ?? "")
-        )
-        if let corroborationCount, corroborationCount > 0 {
-            let label = "\(corroborationCount)x corroborated"
-            badges.append(ProvenanceBadge(label: label, tint: .green))
-        }
-
-        return badges
-    }
-
     @ViewBuilder
     var provenanceBadges: some View {
         let badges = Self.provenanceBadges(for: claim)
@@ -136,11 +73,13 @@ extension ClaimSummaryCard {
             }
             .buttonStyle(.plain)
             .onHover { isHovering in
+                #if os(macOS)
                 if isHovering {
                     NSCursor.pointingHand.set()
                 } else {
                     NSCursor.arrow.set()
                 }
+                #endif
             }
             .help("Open the source document — \(docName)\(pageLabel.map { ", page \($0)" } ?? "")")
         }
@@ -315,7 +254,7 @@ extension ClaimSummaryCard {
         for claim: Components.Schemas.KnowledgeClaim
     ) -> [String: Any]? {
         openClaimSourceUserInfo(
-            documentId: claim.sourceDocumentId,
+            documentId: claim.sourceDocumentId ?? "",
             pageLabel: claim.sourcePageLabel,
             charStart: claim.sourceCharStart,
             charEnd: claim.sourceCharEnd,
@@ -325,7 +264,7 @@ extension ClaimSummaryCard {
     }
 
     static func postOpenClaimSource(for claim: Components.Schemas.KnowledgeClaim) {
-        let docId = claim.sourceDocumentId
+        let docId = claim.sourceDocumentId ?? ""
         guard !docId.isEmpty,
               LibraryManager.shared.globalLibrary?
                 .documentStore
@@ -349,65 +288,41 @@ extension ClaimSummaryCard {
     }
 
     func deleteClaim() {
-        guard let claimId = claim.id,
-              let library = LibraryManager.shared.globalLibrary else { return }
+        guard let claimId = claim.id else { return }
+        let libraryId = LibraryManager.shared.currentLibraryId ?? LibraryManager.globalLibraryId
+        guard let library = LibraryManager.shared.getLibrary(id: libraryId) else { return }
         Task {
             do {
-                try await library.entityService.deleteClaim(claimId)
-                NotificationCenter.default.post(name: .ficheroClaimDeleted, object: claimId)
-            } catch {
-                NotificationCenter.default.post(
-                    name: .ficheroClaimDeleted,
-                    object: nil,
-                    userInfo: ["error": error.localizedDescription]
+                let result = try await library.actionsService.invokeAction(
+                    name: "claim.delete",
+                    params: ClaimDeleteActionParams(claimId: claimId)
                 )
+                LastAction.shared.record(auditId: result.auditId, actionName: "claim.delete")
+            } catch {
+                mutationError = error.localizedDescription
             }
         }
     }
 
     /// PATCH the epistemic_status field on this claim. (#901)
     func updateStatus(_ status: Components.Schemas.EpistemicStatus) async {
-        guard let claimId = claim.id,
-              let library = LibraryManager.shared.globalLibrary else { return }
+        guard let claimId = claim.id else { return }
         do {
-            let updated = try await library.entityService.patchClaim(
-                claimId,
-                epistemicStatus: status
-            )
-            NotificationCenter.default.post(
-                name: .ficheroClaimUpdated,
-                object: updated.id,
-                userInfo: ["claim": updated]
-            )
+            // Store-routed PATCH; `claim.updated` from the change-stream
+            // refreshes the bound surfaces (#1862).
+            _ = try await claimStore.patch(claimId: claimId, epistemicStatus: status)
         } catch {
-            NotificationCenter.default.post(
-                name: .ficheroClaimDeleted,
-                object: nil,
-                userInfo: ["error": error.localizedDescription]
-            )
+            mutationError = error.localizedDescription
         }
     }
 
     /// PATCH the curation_state field on this claim. (#901)
     func updateCuration(_ state: Components.Schemas.ClaimCurationState) async {
-        guard let claimId = claim.id,
-              let library = LibraryManager.shared.globalLibrary else { return }
+        guard let claimId = claim.id else { return }
         do {
-            let updated = try await library.entityService.patchClaim(
-                claimId,
-                curationState: state
-            )
-            NotificationCenter.default.post(
-                name: .ficheroClaimUpdated,
-                object: updated.id,
-                userInfo: ["claim": updated]
-            )
+            _ = try await claimStore.patch(claimId: claimId, curationState: state)
         } catch {
-            NotificationCenter.default.post(
-                name: .ficheroClaimDeleted,
-                object: nil,
-                userInfo: ["error": error.localizedDescription]
-            )
+            mutationError = error.localizedDescription
         }
     }
 }

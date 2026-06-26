@@ -20,7 +20,7 @@ struct ChatMessagesList: View {
                     bubbleView
                 case .table:
                     tableView
-                case .map, .realitykit:
+                case .map, .realitykit, .spatial, .workspace:
                     mapView
                 }
             }

@@ -1,8 +1,8 @@
-import Foundation
 import Combine
-import OSLog
 import FicheroAPIClient
+import Foundation
 import OpenAPIRuntime
+import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "WorkflowService")
 
@@ -114,7 +114,6 @@ class WorkflowServiceGenerated: ObservableObject {
         let response = try await client.api.createNodeApiWorkflowsToolsToolNameCreateNodePost(.init(
             path: .init(toolName: toolName),
             query: .init(positionX: positionX, positionY: positionY),
-            headers: .init()
         ))
         switch response {
         case .ok(let okResponse):
@@ -132,7 +131,6 @@ class WorkflowServiceGenerated: ObservableObject {
         logger.info("createWorkflow: libraryPath=\(libraryPath), name=\(workflow.name)")
         let request = try convertToGeneratedWorkflowDef(workflow)
         let response = try await client.api.createWorkflowApiWorkflowsPost(.init(
-            headers: .init(xFicheroLibraryPath: libraryPath),
             body: .json(request)
         ))
         switch response {
@@ -154,7 +152,6 @@ class WorkflowServiceGenerated: ObservableObject {
         logger.info("listWorkflows called with libraryPath: \(libraryPath)")
         let response = try await client.api.listWorkflowsApiWorkflowsGet(.init(
             query: .init(folderPath: folderPath),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         ))
         switch response {
         case .ok(let okResponse):
@@ -174,7 +171,6 @@ class WorkflowServiceGenerated: ObservableObject {
     func getWorkflow(_ id: String) async throws -> WorkflowDefinition {
         let response = try await client.api.getWorkflowApiWorkflowsWorkflowIdGet(.init(
             path: .init(workflowId: id),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         ))
         switch response {
         case .ok(let okResponse):
@@ -190,7 +186,6 @@ class WorkflowServiceGenerated: ObservableObject {
         let request = try convertToGeneratedWorkflowDef(workflow)
         let response = try await client.api.updateWorkflowApiWorkflowsWorkflowIdPut(.init(
             path: .init(workflowId: id),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(request)
         ))
         switch response {
@@ -207,7 +202,6 @@ class WorkflowServiceGenerated: ObservableObject {
         logger.info("deleteWorkflow: id=\(id), libraryPath=\(libraryPath)")
         let response = try await client.api.deleteWorkflowApiWorkflowsWorkflowIdDelete(.init(
             path: .init(workflowId: id),
-            headers: .init(xFicheroLibraryPath: libraryPath)
         ))
         switch response {
         case .ok:
@@ -223,7 +217,6 @@ class WorkflowServiceGenerated: ObservableObject {
     func duplicateWorkflow(_ id: String) async throws -> WorkflowResponse {
         let response = try await client.api.duplicateWorkflowApiWorkflowsWorkflowIdDuplicatePost(.init(
             path: .init(workflowId: id),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         ))
         switch response {
         case .ok(let okResponse):
@@ -242,7 +235,6 @@ class WorkflowServiceGenerated: ObservableObject {
         let body = Components.Schemas.WorkflowPatchRequest(name: newName)
         let response = try await client.api.patchWorkflowApiWorkflowsWorkflowIdPatch(.init(
             path: .init(workflowId: id),
-            headers: .init(xFicheroLibraryPath: libraryPath),
             body: .json(body)
         ))
         switch response {
@@ -272,7 +264,6 @@ class WorkflowServiceGenerated: ObservableObject {
         )
         let response = try await client.api.patchWorkflowApiWorkflowsWorkflowIdPatch(.init(
             path: .init(workflowId: id),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(body)
         ))
         switch response {
@@ -292,7 +283,6 @@ class WorkflowServiceGenerated: ObservableObject {
     func reorderWorkflows(_ workflowIds: [String], folderPath: String = "/") async throws {
         let response = try await client.api.reorderWorkflowsApiWorkflowsReorderPost(.init(
             query: .init(folderPath: folderPath),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(workflowIds)
         ))
         switch response {
@@ -307,7 +297,6 @@ class WorkflowServiceGenerated: ObservableObject {
     func exportWorkflow(_ id: String) async throws -> [String: AnyCodable] {
         let response = try await client.api.exportWorkflowApiWorkflowsWorkflowIdExportGet(.init(
             path: .init(workflowId: id),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         ))
         switch response {
         case .ok(let okResponse):
@@ -342,7 +331,6 @@ class WorkflowServiceGenerated: ObservableObject {
 
         let response = try await client.api.importWorkflowApiWorkflowsImportPost(.init(
             query: .init(name: name.isEmpty ? nil : name, description: description.isEmpty ? nil : description),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(bodyPayload)
         ))
 
@@ -356,13 +344,36 @@ class WorkflowServiceGenerated: ObservableObject {
         }
     }
 
+    /// Fetch the rendered LangGraph diagram for a workflow as a `PlatformImage`.
+    ///
+    /// The backend's `visualization.png` route returns raw PNG bytes, but the
+    /// OpenAPI schema mis-declares the 200 body as `application/json`, so the
+    /// generated client can't model it. This performs the authenticated binary
+    /// GET itself (same `addEngineAuth` + `URLSession` pattern as
+    /// `StorageServiceGenerated`), keeping the diagram view free of hand-built
+    /// URLs and raw `URLSession` (#1893). Returns `nil` on any non-200.
+    func fetchDiagramImage(workflowId: String) async throws -> PlatformImage? {
+        let url = client.baseURL
+            .appendingPathComponent("api/workflow-execution/workflows")
+            .appendingPathComponent(workflowId)
+            .appendingPathComponent("visualization.png")
+        var request = URLRequest(url: url)
+        request.addEngineAuth(libraryPath: client.currentLibraryPath)
+
+        let session = RemoteCertificatePinning.configuredSession()
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            logger.warning("fetchDiagramImage: non-200 for workflow \(workflowId)")
+            return nil
+        }
+        return PlatformImage(data: data)
+    }
+
     /// Reinstall default workflows from backend presets (Transcribe, Catalogue).
     /// Deletes existing presets and re-seeds so updated JSON reaches the library.
     func reinstallDefaults() async throws {
         // Library-scoped op (#1714): the header is required by the generated signature.
-        let response = try await client.api.reinstallDefaultWorkflowsApiWorkflowsReinstallDefaultsPost(.init(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
-        ))
+        let response = try await client.api.reinstallDefaultWorkflowsApiWorkflowsReinstallDefaultsPost(.init())
         switch response {
         case .ok:
             return
@@ -494,12 +505,14 @@ extension WorkflowServiceGenerated {
             if let anim = edge.animated { dict["animated"] = AnyCodable(anim) }
             return dict
         }
-        // Extract is_system via JSON round-trip since generated client lags schema changes
+        // Extract is_system + untested via JSON round-trip since the generated
+        // client can lag schema changes (both are derived backend response fields).
         var isSystem = false
+        var isUntested = false
         if let data = try? JSONEncoder().encode(workflow),
-           let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let systemFlag = dict["is_system"] as? Bool {
-            isSystem = systemFlag
+           let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            isSystem = (dict["is_system"] as? Bool) ?? false
+            isUntested = (dict["untested"] as? Bool) ?? false
         }
         return WorkflowResponse(
             id: workflow.id,
@@ -511,7 +524,8 @@ extension WorkflowServiceGenerated {
             edges: edgeDicts,
             folderPath: workflow.folderPath,
             sortOrder: workflow.sortOrder,
-            isSystem: isSystem
+            isSystem: isSystem,
+            isUntested: isUntested
         )
     }
 

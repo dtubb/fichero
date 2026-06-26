@@ -18,6 +18,9 @@ from fichero.knowledge_models import (
 
 
 SPARQL_URL = "/api/kg/sparql"
+SPARQL_QUERY_URL = "/api/kg/query/sparql"
+SPARQL_EXAMPLES_URL = "/api/kg/query/examples"
+RDF_EXPORT_URL = "/api/kg/export/rdf"
 
 
 def _make_person(eid: str, name: str) -> KnowledgeEntity:
@@ -123,3 +126,40 @@ class TestSparqlReadOnly:
         })
         assert r.status_code == 400
         assert "SPARQL error" in r.json()["detail"]
+
+    def test_canonical_query_route_matches_legacy_route(self, client, db):
+        db.save(_make_person("e-a", "Alice"))
+
+        payload = {
+            "query": (
+                "PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> "
+                "SELECT ?label WHERE { ?s rdfs:label ?label } "
+                "ORDER BY ?label"
+            ),
+        }
+
+        legacy = client.post(SPARQL_URL, json=payload)
+        canonical = client.post(SPARQL_QUERY_URL, json=payload)
+
+        assert legacy.status_code == 200
+        assert canonical.status_code == 200
+        assert canonical.json()["rows"] == legacy.json()["rows"]
+
+    def test_examples_endpoint_lists_seed_queries(self, client):
+        r = client.get(SPARQL_EXAMPLES_URL)
+
+        assert r.status_code == 200
+        data = r.json()
+        example_ids = [example["id"] for example in data["examples"]]
+        assert "people-labels" in example_ids
+        assert "claims-with-source" in example_ids
+
+    def test_rdf_export_returns_serialized_graph(self, client, db):
+        db.save(_make_person("e-a", "Alice"))
+
+        r = client.get(f"{RDF_EXPORT_URL}?format=turtle")
+
+        assert r.status_code == 200
+        assert "text/turtle" in r.headers["content-type"]
+        assert r.headers["content-disposition"].endswith('knowledge-graph.ttl"')
+        assert "Alice" in r.text

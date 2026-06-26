@@ -47,11 +47,16 @@ public struct LibraryPathMiddleware: ClientMiddleware {
     /// - `/registry` — the known-library registry is GLOBAL (one registry of all
     ///   `.fichero` packages), not scoped to any one library (#1661).
     public static func isAppWidePath(_ path: String) -> Bool {
-        let isHealth = path.contains("/health")
-        let isAppWideProvider = path.contains("/providers") && !path.contains("/providers/refs")
-        let isSettings = path.contains("/settings")
-        let isRegistry = path.contains("/registry")
+        let isHealth = matchesRootPath(path, allowedPath: "/api/health")
+        let isAppWideProvider = matchesRootPath(path, allowedPath: "/api/providers")
+            && !matchesRootPath(path, allowedPath: "/api/providers/refs")
+        let isSettings = matchesRootPath(path, allowedPath: "/api/settings")
+        let isRegistry = matchesRootPath(path, allowedPath: "/api/registry")
         return isHealth || isAppWideProvider || isSettings || isRegistry
+    }
+
+    private static func matchesRootPath(_ path: String, allowedPath: String) -> Bool {
+        path == allowedPath || path.hasPrefix("\(allowedPath)/")
     }
 
     public func intercept(

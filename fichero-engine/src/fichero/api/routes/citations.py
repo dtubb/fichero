@@ -10,10 +10,13 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel
 
-from fichero.api.main import get_library_database
+from fichero.api.auth import request_actor
+from fichero.api.change_stream import emit_change
+from fichero.api.library_header import optional_library_path
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.knowledge_models import DocumentCitation
 from fichero.models import CitationListResponse, Document
@@ -41,7 +44,13 @@ class CitationCreateRequest(BaseModel):
 )
 async def create_citation(
     request: CitationCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None,
+        alias="X-Fichero-Origin-Window",
+    ),
+    actor: str = Depends(request_actor),
 ) -> DocumentCitation:
     if db.get(Document, request.source_document_id) is None:
         raise HTTPException(
@@ -56,6 +65,15 @@ async def create_citation(
         )
     citation = DocumentCitation(**request.model_dump())
     db.save(citation)
+    emit_change(
+        x_fichero_library_path or str(db.path.parent),
+        type="citation.created",
+        citation_ids=[citation.id],
+        document_ids=[citation.source_document_id],
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
     return citation
 
 
@@ -94,8 +112,7 @@ async def outbound(
     db: Database = Depends(get_library_database),
 ) -> CitationListResponse:
     items = [
-        c for c in db.query(DocumentCitation)
-        if c.source_document_id == document_id
+        c for c in db.query(DocumentCitation) if c.source_document_id == document_id
     ]
 
     return CitationListResponse(items=items, count=len(items))
@@ -111,8 +128,7 @@ async def inbound(
     db: Database = Depends(get_library_database),
 ) -> CitationListResponse:
     items = [
-        c for c in db.query(DocumentCitation)
-        if c.target_document_id == document_id
+        c for c in db.query(DocumentCitation) if c.target_document_id == document_id
     ]
 
     return CitationListResponse(items=items, count=len(items))
@@ -131,7 +147,13 @@ class CitationPatchRequest(BaseModel):
 async def patch_citation(
     citation_id: str,
     request: CitationPatchRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None,
+        alias="X-Fichero-Origin-Window",
+    ),
+    actor: str = Depends(request_actor),
 ) -> DocumentCitation:
     citation = db.get(DocumentCitation, citation_id)
     if citation is None:
@@ -139,15 +161,41 @@ async def patch_citation(
     for field, value in request.model_dump(exclude_unset=True).items():
         setattr(citation, field, value)
     db.save(citation)
+    emit_change(
+        x_fichero_library_path or str(db.path.parent),
+        type="citation.updated",
+        citation_ids=[citation.id],
+        document_ids=[citation.source_document_id],
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
     return citation
 
 
 @router.delete("/{citation_id}", status_code=204)
 async def delete_citation(
     citation_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None,
+        alias="X-Fichero-Origin-Window",
+    ),
+    actor: str = Depends(request_actor),
 ) -> None:
     citation = db.get(DocumentCitation, citation_id)
     if citation is None:
         raise HTTPException(404, f"Citation not found: {citation_id}")
+    library_path = x_fichero_library_path or str(db.path.parent)
+    document_id = citation.source_document_id
     db.delete(citation)
+    emit_change(
+        library_path,
+        type="citation.deleted",
+        citation_ids=[citation_id],
+        document_ids=[document_id] if document_id else [],
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )

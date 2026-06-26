@@ -1,3 +1,4 @@
+#if canImport(AppKit)
 import AppKit
 
 // This class requires a large body due to complex AppKit integration
@@ -380,3 +381,36 @@ class TrackingImageView: NSImageView {
     }
     // swiftlint:enable function_body_length
 }
+#elseif canImport(UIKit)
+import UIKit
+
+/// iOS stub for the AppKit cursor-tracking image view.
+/// The loupe is currently non-functional on iOS; this keeps the API surface
+/// identical so `ImageWithCursorTracking` compiles and can fill in behavior
+/// in a follow-up without touching macOS.
+class TrackingImageView: UIImageView {
+    var onCursorMoved: ((CGPoint) -> Void)?
+    var onLoupeMagnificationChanged: ((CGFloat) -> Void)?
+    var onLoupeSizeChanged: ((CGFloat) -> Void)?
+    var loupeEnabled: Bool = false {
+        didSet { setNeedsDisplay() }
+    }
+    var loupeLocked: Bool = false
+    var loupePosition: CGPoint?
+    var loupeViewPosition: CGPoint?
+    var loupeSize: CGFloat = 150 {
+        didSet { if loupePosition != nil { setNeedsDisplay() } }
+    }
+    var loupeMagnification: CGFloat = 3.0 {
+        didSet { if loupePosition != nil { setNeedsDisplay() } }
+    }
+
+    func showLoupeAtCenter() {
+        loupePosition = CGPoint(x: bounds.midX, y: bounds.midY)
+        loupeViewPosition = loupePosition
+        setNeedsDisplay()
+    }
+}
+
+#endif
+

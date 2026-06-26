@@ -405,3 +405,323 @@ class TestPropagateToPageChildren:
             )
 
         assert page.page_content == "Second page text"
+
+    @pytest.mark.asyncio
+    async def test_returns_created_artifact_ids_for_page_children(self, llm_config):  # noqa: E501
+        """The helper should return the per-page artifact IDs it created."""
+        from fichero.workflows.tools.vision_base import _propagate_to_page_children
+
+        page1 = MagicMock()
+        page1.sequence = 1
+        page1.id = "page-1"
+        page1.metadata = {}
+        page2 = MagicMock()
+        page2.sequence = 2
+        page2.id = "page-2"
+        page2.metadata = {}
+
+        mock_db = MagicMock()
+        mock_db.query.return_value = [page1, page2]
+
+        saved_artifacts = []
+
+        def _save(obj):
+            if getattr(obj, "artifact_type", None) == "transcription":
+                saved_artifacts.append(obj)
+
+        mock_db.save.side_effect = _save
+
+        with patch("fichero.db.db_manager") as mock_manager:
+            mock_manager.get_database.return_value = mock_db
+
+            artifact_ids = await _propagate_to_page_children(
+                "parent_pdf_id",
+                ["Text from page 1", "Text from page 2"],
+                "/lib.fichero",
+                artifact_type="transcription",
+                llm_config=llm_config,
+            )
+
+        assert [art.document_id for art in saved_artifacts] == ["page-1", "page-2"]
+        assert artifact_ids == [art.id for art in saved_artifacts]
+
+
+# =============================================================================
+# Fix 4: per-page fan-out save routing (#2395/#2396)
+# =============================================================================
+
+class TestPerPageFanOutSaveRouting:
+    """
+    process_vision must save to the focused page child's ID (not parent) and
+    must NOT call _propagate_to_page_children when processing a single page
+    in per-page fan-out mode (requested_page_index is not None).
+
+    Regression: before the fix, per_page_texts=[page_text] was truthy, so
+    _whole_pdf_parent was set and _propagate_to_page_children was called with
+    the parent PDF id + a 1-element list, always writing to page child #1
+    regardless of which page was actually being processed. (#2395/#2396)
+    """
+
+    @pytest.mark.asyncio
+    async def test_per_page_fanout_saves_to_page_child_not_parent(self):
+        """
+        Regression: processing page 2 of a born-digital PDF in per-page fan-out
+        must call save_artifact with document_id=page2_id, not parent_pdf_id.
+
+        RED on old code (where _whole_pdf_parent was set even when
+        requested_page_index was not None).
+        """
+        from unittest.mock import AsyncMock, patch
+
+        page2_doc = {
+            "id": "page-2-id",
+            "path": "/lib/doc.pdf",
+            "sequence": 2,
+            "parent_id": "parent-pdf-id",
+            "page_content": None,
+            "metadata": {},
+        }
+        files = ["/lib/doc.pdf"]
+        documents = [page2_doc]
+
+        # born-digital PDF with 3 pages
+        pdf_layer_texts = ["Page 1 text.", "Page 2 text.", "Page 3 text."]
+
+        from fichero.llm import LLMConfig
+        llm_cfg = LLMConfig(provider="apple", model="apple-vision")
+
+        from fichero.workflows.tools.vision_base import VisionToolConfig
+        tool_cfg = VisionToolConfig(
+            artifact_type="transcription",
+            update_page_content=True,
+            trigger_embedding=False,
+            supports_apple_vision=True,
+        )
+
+        saved_document_ids: list[str] = []
+        propagate_calls: list = []
+
+        async def fake_save_artifact(file_path, content, document_id, **_kwargs):
+            saved_document_ids.append(document_id)
+            return "art-" + (document_id or "none")
+
+        async def fake_propagate(parent_id, page_texts, library_path, **_kwargs):
+            propagate_calls.append(parent_id)
+            return []
+
+        mock_live_doc = MagicMock()
+        mock_live_doc.metadata = {}
+        mock_db = MagicMock()
+        mock_db.get.return_value = mock_live_doc
+
+        with (
+            patch(
+                "fichero.workflows.tools.vision_base._try_pdf_text_layer",
+                return_value=pdf_layer_texts,
+            ),
+            patch(
+                "fichero.workflows.tools.vision_base.save_artifact",
+                new=AsyncMock(side_effect=fake_save_artifact),
+            ),
+            patch(
+                "fichero.workflows.tools.vision_base._propagate_to_page_children",
+                new=AsyncMock(side_effect=fake_propagate),
+            ),
+            patch(
+                "fichero.workflows.tools.vision_base._build_page_records_for_file",
+                return_value=[],
+            ),
+            patch("fichero.db.db_manager") as mock_mgr,
+        ):
+            mock_mgr.get_database.return_value = mock_db
+
+            from fichero.workflows.tools.vision_base import process_vision
+
+            await process_vision(
+                files=files,
+                documents=documents,
+                prompt="Transcribe this.",
+                llm_config=llm_cfg,
+                library_path="/lib.fichero",
+                task_id=None,
+                tool_config=tool_cfg,
+                vision_mode="apple",
+                save_to_db=True,
+            )
+
+        # Must NOT have called _propagate_to_page_children (#2395 regression)
+        assert propagate_calls == [], (
+            f"_propagate_to_page_children was called in per-page fan-out mode: {propagate_calls}"
+        )
+        # Must have saved to the page child's own ID
+        assert "page-2-id" in saved_document_ids, (
+            f"Expected save to page-2-id, got: {saved_document_ids}"
+        )
+        # Must NOT have saved to the parent PDF's ID
+        assert "parent-pdf-id" not in saved_document_ids, (
+            f"Saved to parent PDF id instead of page child: {saved_document_ids}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_whole_pdf_path_still_propagates_all_pages(self):
+        """
+        When processing the whole PDF (no per-page fan-out, requested_page_index=None),
+        _propagate_to_page_children must still be called to write all pages.
+        """
+        from unittest.mock import AsyncMock, patch
+
+        parent_doc = {
+            "id": "parent-pdf-id",
+            "path": "/lib/doc.pdf",
+            "sequence": None,
+            "parent_id": None,
+            "page_content": None,
+            "metadata": {},
+        }
+        files = ["/lib/doc.pdf"]
+        documents = [parent_doc]
+
+        pdf_layer_texts = ["Page 1 text.", "Page 2 text.", "Page 3 text."]
+
+        from fichero.llm import LLMConfig
+        llm_cfg = LLMConfig(provider="apple", model="apple-vision")
+
+        from fichero.workflows.tools.vision_base import VisionToolConfig
+        tool_cfg = VisionToolConfig(
+            artifact_type="transcription",
+            update_page_content=True,
+            trigger_embedding=False,
+            supports_apple_vision=True,
+        )
+
+        propagate_calls: list = []
+
+        async def fake_propagate(parent_id, page_texts, library_path, **_kwargs):
+            propagate_calls.append((parent_id, page_texts))
+            return ["art-1", "art-2", "art-3"]
+
+        mock_live_doc = MagicMock()
+        mock_live_doc.metadata = {}
+        mock_db = MagicMock()
+        mock_db.get.return_value = mock_live_doc
+
+        with (
+            patch(
+                "fichero.workflows.tools.vision_base._try_pdf_text_layer",
+                return_value=pdf_layer_texts,
+            ),
+            patch(
+                "fichero.workflows.tools.vision_base._propagate_to_page_children",
+                new=AsyncMock(side_effect=fake_propagate),
+            ),
+            patch(
+                "fichero.workflows.tools.vision_base._build_page_records_for_file",
+                return_value=[],
+            ),
+            patch("fichero.db.db_manager") as mock_mgr,
+        ):
+            mock_mgr.get_database.return_value = mock_db
+
+            from fichero.workflows.tools.vision_base import process_vision
+
+            await process_vision(
+                files=files,
+                documents=documents,
+                prompt="Transcribe this.",
+                llm_config=llm_cfg,
+                library_path="/lib.fichero",
+                task_id=None,
+                tool_config=tool_cfg,
+                vision_mode="apple",
+                save_to_db=True,
+            )
+
+        # Must have called _propagate_to_page_children with all 3 pages
+        assert len(propagate_calls) == 1, (
+            f"Expected 1 propagate call, got {len(propagate_calls)}"
+        )
+        parent_id_arg, page_texts_arg = propagate_calls[0]
+        assert parent_id_arg == "parent-pdf-id"
+        assert page_texts_arg == pdf_layer_texts
+
+    @pytest.mark.asyncio
+    async def test_siblings_untouched_when_page2_transcribed(self):
+        """
+        #2396: transcribing page 2 of a 3-page PDF must not affect pages 1 or 3.
+
+        Simulates per-page fan-out: documents=[page2_child], born-digital PDF.
+        Checks that save_artifact is called exactly once for page-2-id and
+        never for page-1-id or page-3-id.
+        """
+        from unittest.mock import AsyncMock, patch
+
+        page2_doc = {
+            "id": "page-2-id",
+            "path": "/lib/doc.pdf",
+            "sequence": 2,
+            "parent_id": "parent-pdf-id",
+            "page_content": None,
+            "metadata": {},
+        }
+
+        from fichero.llm import LLMConfig
+        llm_cfg = LLMConfig(provider="apple", model="apple-vision")
+        from fichero.workflows.tools.vision_base import VisionToolConfig
+        tool_cfg = VisionToolConfig(
+            artifact_type="transcription",
+            update_page_content=True,
+            trigger_embedding=False,
+            supports_apple_vision=True,
+        )
+
+        saved_calls: list[str] = []
+
+        async def fake_save_artifact(file_path, content, document_id, **_kwargs):
+            saved_calls.append(document_id)
+            return "art-" + (document_id or "none")
+
+        mock_live_doc = MagicMock()
+        mock_live_doc.metadata = {}
+        mock_db = MagicMock()
+        mock_db.get.return_value = mock_live_doc
+
+        with (
+            patch(
+                "fichero.workflows.tools.vision_base._try_pdf_text_layer",
+                return_value=["Page 1 text.", "Page 2 text.", "Page 3 text."],
+            ),
+            patch(
+                "fichero.workflows.tools.vision_base.save_artifact",
+                new=AsyncMock(side_effect=fake_save_artifact),
+            ),
+            patch(
+                "fichero.workflows.tools.vision_base._propagate_to_page_children",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch(
+                "fichero.workflows.tools.vision_base._build_page_records_for_file",
+                return_value=[],
+            ),
+            patch("fichero.db.db_manager") as mock_mgr,
+        ):
+            mock_mgr.get_database.return_value = mock_db
+
+            from fichero.workflows.tools.vision_base import process_vision
+
+            await process_vision(
+                files=["/lib/doc.pdf"],
+                documents=[page2_doc],
+                prompt="Transcribe.",
+                llm_config=llm_cfg,
+                library_path="/lib.fichero",
+                task_id=None,
+                tool_config=tool_cfg,
+                vision_mode="apple",
+                save_to_db=True,
+            )
+
+        assert saved_calls == ["page-2-id"], (
+            f"Expected only page-2-id, got: {saved_calls}"
+        )
+        assert "page-1-id" not in saved_calls
+        assert "page-3-id" not in saved_calls

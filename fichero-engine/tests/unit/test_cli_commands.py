@@ -123,6 +123,121 @@ class FakeClient:
             stream_url="/api/workflow-execution/stream/t-1",
         )
 
+    def compare_models(self, *, prompt, models, system_prompt=None, timeout_seconds=120):
+        self.calls.append(("compare_models", prompt, models, system_prompt, timeout_seconds))
+        return {
+            "prompt": prompt,
+            "models_compared": [f"{item['provider']}/{item['model']}" for item in models],
+            "results": [
+                {
+                    "provider": models[0]["provider"],
+                    "model": models[0]["model"],
+                    "response": "best model output",
+                    "latency_ms": 11.0,
+                    "input_tokens": 10,
+                    "output_tokens": 20,
+                    "cost_usd": 0.0100,
+                    "error": None,
+                    "timestamp": "2026-05-15T00:00:00",
+                },
+                {
+                    "provider": models[-1]["provider"],
+                    "model": models[-1]["model"],
+                    "response": "cheapest model output",
+                    "latency_ms": 19.0,
+                    "input_tokens": 10,
+                    "output_tokens": 20,
+                    "cost_usd": 0.0020,
+                    "error": None,
+                    "timestamp": "2026-05-15T00:00:00",
+                },
+            ],
+            "fastest_model": f"{models[0]['provider']}/{models[0]['model']}",
+            "cheapest_model": f"{models[-1]['provider']}/{models[-1]['model']}",
+            "total_cost_usd": 0.0120,
+            "total_latency_ms": 30.0,
+            "comparison_id": "cmp-cli-models",
+            "timestamp": "2026-05-15T00:00:00",
+        }
+
+    def compare_vision(self, *, images, models, prompt, detail="auto", timeout_seconds=120):
+        self.calls.append(("compare_vision", images, models, prompt, detail, timeout_seconds))
+        return {
+            "prompt": prompt,
+            "models_compared": [f"{item['provider']}/{item['model']}" for item in models],
+            "results": [
+                {
+                    "provider": models[0]["provider"],
+                    "model": models[0]["model"],
+                    "response": "vision output",
+                    "latency_ms": 12.0,
+                    "input_tokens": 1000,
+                    "output_tokens": 20,
+                    "cost_usd": 0.0200,
+                    "error": None,
+                    "timestamp": "2026-05-15T00:00:00",
+                }
+            ],
+            "fastest_model": f"{models[0]['provider']}/{models[0]['model']}",
+            "cheapest_model": f"{models[0]['provider']}/{models[0]['model']}",
+            "total_cost_usd": 0.0200,
+            "total_latency_ms": 12.0,
+            "comparison_id": "cmp-cli-vision",
+            "timestamp": "2026-05-15T00:00:00",
+        }
+
+    def compare_tool(self, *, tool_name, inputs, models, tool_config=None, timeout_seconds=120):
+        self.calls.append(("compare_tool", tool_name, inputs, models, tool_config, timeout_seconds))
+        return {
+            "prompt": f"[Tool: {tool_name}]",
+            "models_compared": [f"{item['provider']}/{item['model']}" for item in models],
+            "results": [
+                {
+                    "provider": models[0]["provider"],
+                    "model": models[0]["model"],
+                    "response": "tool output",
+                    "latency_ms": 21.0,
+                    "input_tokens": 10,
+                    "output_tokens": 15,
+                    "cost_usd": 0.0030,
+                    "error": None,
+                    "timestamp": "2026-05-15T00:00:00",
+                }
+            ],
+            "fastest_model": f"{models[0]['provider']}/{models[0]['model']}",
+            "cheapest_model": f"{models[0]['provider']}/{models[0]['model']}",
+            "total_cost_usd": 0.0030,
+            "total_latency_ms": 21.0,
+            "comparison_id": "cmp-cli-tool",
+            "timestamp": "2026-05-15T00:00:00",
+        }
+
+    def compare_workflow(self, *, workflow_id, doc_id, models, inputs=None, timeout_seconds=300):
+        self.calls.append(("compare_workflow", workflow_id, doc_id, models, inputs, timeout_seconds))
+        return {
+            "prompt": f"[Workflow: {workflow_id}]",
+            "models_compared": [f"{item['provider']}/{item['model']}" for item in models],
+            "results": [
+                {
+                    "provider": models[0]["provider"],
+                    "model": models[0]["model"],
+                    "response": "workflow output",
+                    "latency_ms": 55.0,
+                    "input_tokens": 20,
+                    "output_tokens": 30,
+                    "cost_usd": 0.0150,
+                    "error": None,
+                    "timestamp": "2026-05-15T00:00:00",
+                }
+            ],
+            "fastest_model": f"{models[0]['provider']}/{models[0]['model']}",
+            "cheapest_model": f"{models[0]['provider']}/{models[0]['model']}",
+            "total_cost_usd": 0.0150,
+            "total_latency_ms": 55.0,
+            "comparison_id": "cmp-cli-workflow",
+            "timestamp": "2026-05-15T00:00:00",
+        }
+
     def translate_document(self, doc_id, *, target_lang="en", source_lang="auto"):
         self.calls.append(("translate_document", doc_id, target_lang, source_lang))
         return ExecuteAcceptedResponse(
@@ -709,6 +824,83 @@ def test_workflow_run_accepts_id_directly():
     assert result.exit_code == 0
     run_call = next(c for c in _last_client().calls if c[0] == "run_workflow")
     assert run_call[1] == "wf-2"
+
+
+def test_compare_models_command_renders_table():
+    result = runner.invoke(
+        cli.app,
+        ["compare", "models", "--prompt", "hello", "--models", "openai/gpt-4o,google/gemini-2.5-flash"],
+    )
+    assert result.exit_code == 0
+    assert "cmp-cli-models" in result.output
+    assert "[fastest]" in result.output
+    assert "[cheapest]" in result.output
+    call = next(c for c in _last_client().calls if c[0] == "compare_models")
+    assert call[1] == "hello"
+
+
+def test_compare_vision_command_base64_encodes_image(tmp_path):
+    image = tmp_path / "page.png"
+    image.write_bytes(b"png-bytes")
+    result = runner.invoke(
+        cli.app,
+        [
+            "compare",
+            "vision",
+            "--image",
+            str(image),
+            "--models",
+            "openai/gpt-4o",
+        ],
+    )
+    assert result.exit_code == 0
+    call = next(c for c in _last_client().calls if c[0] == "compare_vision")
+    assert call[1][0].startswith("data:image/png;base64,")
+
+
+def test_compare_tool_command_reads_json_file(tmp_path):
+    payload = tmp_path / "inputs.json"
+    payload.write_text(json.dumps({"text": "hola"}), encoding="utf-8")
+    result = runner.invoke(
+        cli.app,
+        [
+            "compare",
+            "tool",
+            "--tool",
+            "translate",
+            "--inputs-json",
+            str(payload),
+            "--models",
+            "openai/gpt-4o",
+        ],
+    )
+    assert result.exit_code == 0
+    call = next(c for c in _last_client().calls if c[0] == "compare_tool")
+    assert call[1] == "translate"
+    assert call[2] == {"text": "hola"}
+
+
+def test_compare_workflow_command_supports_json_output():
+    result = runner.invoke(
+        cli.app,
+        [
+            "compare",
+            "workflow",
+            "--workflow",
+            "wf-1",
+            "--doc",
+            "doc-7",
+            "--models",
+            "openai/gpt-4o",
+            "--json",
+        ],
+    )
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["comparison_id"] == "cmp-cli-workflow"
+    call = next(c for c in _last_client().calls if c[0] == "compare_workflow")
+    assert call[1] == "wf-1"
+    assert call[2] == "doc-7"
 
 
 def test_workflow_run_wait_tolerates_404_status_endpoint(monkeypatch):

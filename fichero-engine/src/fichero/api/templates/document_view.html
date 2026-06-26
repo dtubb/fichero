@@ -270,6 +270,157 @@
             font: 500 12px/1.5 var(--font-system);
             margin-bottom: 10px;
         }
+
+        .timeline-list,
+        .map-shell {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .timeline-meta,
+        .map-meta {
+            color: var(--muted);
+            font: 500 12px/1.5 var(--font-system);
+        }
+
+        .timeline-list-items {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .timeline-item {
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: var(--panel);
+            padding: 10px 12px;
+            cursor: pointer;
+        }
+
+        .timeline-item.active {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+        }
+
+        .timeline-item-header {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .timeline-item-title {
+            font: 700 13px/1.4 var(--font-system);
+        }
+
+        .timeline-item-date {
+            color: var(--muted);
+            font: 600 11px/1.4 var(--font-mono);
+            white-space: nowrap;
+        }
+
+        .timeline-item-body {
+            margin-top: 6px;
+            color: var(--text);
+            font: 400 12px/1.55 var(--font-system);
+        }
+
+        .timeline-item-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .timeline-tag {
+            border-radius: 999px;
+            background: rgba(0, 0, 0, 0.06);
+            color: var(--muted);
+            font: 600 10px/1.2 var(--font-system);
+            padding: 4px 8px;
+        }
+
+        .map-shell {
+            min-height: calc(100vh - 24px);
+        }
+
+        .map-viewport {
+            position: relative;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background:
+                linear-gradient(180deg, rgba(13, 107, 111, 0.08), rgba(13, 107, 111, 0.02)),
+                repeating-linear-gradient(
+                    0deg,
+                    transparent 0,
+                    transparent 51px,
+                    rgba(64, 53, 39, 0.06) 52px
+                ),
+                repeating-linear-gradient(
+                    90deg,
+                    transparent 0,
+                    transparent 71px,
+                    rgba(64, 53, 39, 0.06) 72px
+                ),
+                var(--bg);
+            min-height: 420px;
+            overflow: hidden;
+        }
+
+        .map-viewport svg {
+            min-height: 420px;
+        }
+
+        .map-caption {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            display: inline-flex;
+            flex-direction: column;
+            gap: 3px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.78);
+            padding: 8px 10px;
+            color: var(--text);
+            font: 600 11px/1.4 var(--font-system);
+            backdrop-filter: blur(6px);
+        }
+
+        .map-caption span:last-child {
+            color: var(--muted);
+            font-weight: 500;
+        }
+
+        .map-place-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 8px;
+        }
+
+        .map-place-card {
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: var(--panel);
+            padding: 10px;
+            cursor: pointer;
+        }
+
+        .map-place-card.active {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+        }
+
+        .map-place-name {
+            font: 700 13px/1.35 var(--font-system);
+        }
+
+        .map-place-detail {
+            margin-top: 4px;
+            color: var(--muted);
+            font: 500 11px/1.5 var(--font-system);
+        }
     </style>
 </head>
 <body>
@@ -278,11 +429,15 @@
         <button type="button" data-tab="transcript" class="active">Transcript</button>
         <button type="button" data-tab="digest">Digest</button>
         <button type="button" data-tab="graph">Graph</button>
+        <button type="button" data-tab="timeline">Timeline</button>
+        <button type="button" data-tab="map">Map</button>
     </nav>
     <main class="content">
         <section id="transcript-panel" class="panel"></section>
         <section id="digest-panel" class="panel hidden"></section>
         <section id="graph-panel" class="panel hidden"></section>
+        <section id="timeline-panel" class="panel hidden"></section>
+        <section id="map-panel" class="panel hidden"></section>
     </main>
 </div>
 
@@ -297,6 +452,28 @@ const state = {
     activeEntityId: null,
     activePage: null,
     showAllClaims: false,
+};
+
+const DEMO_PLACE_LOOKUP = {
+    andagoya: { lat: 5.093, lon: -76.695, label: "Andagoya, Chocó, Colombia" },
+    "la cumbre": { lat: 3.648, lon: -76.568, label: "La Cumbre, Valle del Cauca, Colombia" },
+    "buenos aires": { lat: 2.914, lon: -76.672, label: "Buenos Aires, Cauca, Colombia" },
+    bogota: { lat: 4.711, lon: -74.072, label: "Bogotá, Colombia" },
+    "bogotá": { lat: 4.711, lon: -74.072, label: "Bogotá, Colombia" },
+    choco: { lat: 5.7, lon: -76.7, label: "Chocó, Colombia" },
+    "chocó": { lat: 5.7, lon: -76.7, label: "Chocó, Colombia" },
+    quibdo: { lat: 5.6947, lon: -76.6611, label: "Quibdó, Chocó, Colombia" },
+    "quibdó": { lat: 5.6947, lon: -76.6611, label: "Quibdó, Chocó, Colombia" },
+    istmina: { lat: 5.1611, lon: -76.6839, label: "Istmina, Chocó, Colombia" },
+    popayan: { lat: 2.4448, lon: -76.6147, label: "Popayán, Cauca, Colombia" },
+    "popayán": { lat: 2.4448, lon: -76.6147, label: "Popayán, Cauca, Colombia" },
+};
+
+const COLOMBIA_BOUNDS = {
+    north: 13.6,
+    south: -4.3,
+    west: -79.2,
+    east: -66.7,
 };
 
 function sourceHeaders() {
@@ -315,6 +492,76 @@ function notify(kind, payload) {
     if (handler) {
         handler.postMessage({ kind, ...payload });
     }
+}
+
+function normalisePlaceKey(text) {
+    return String(text || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function parseFlexibleDate(raw) {
+    const text = String(raw || "").trim();
+    if (!text || text.toLowerCase() === "unknown") return null;
+    if (/^\d{4}-\d{2}-\d{2}(t.*)?$/i.test(text) || /^\d{4}-\d{2}$/i.test(text) || /^\d{4}$/i.test(text)) {
+        const isoLike = text.length === 4 ? `${text}-01-01` : (text.length === 7 ? `${text}-01` : text);
+        const date = new Date(isoLike);
+        return Number.isNaN(date.getTime()) ? null : date;
+    }
+    const withoutWeekday = text.replace(/^[A-Za-z]+,\s*/, "");
+    const parsed = new Date(withoutWeekday);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function displayDateRange(start, end, fallbackLabel) {
+    if (fallbackLabel) return fallbackLabel;
+    if (!start) return "Undated";
+    const startLabel = start.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    if (!end || start.getTime() === end.getTime()) return startLabel;
+    const endLabel = end.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    return `${startLabel} to ${endLabel}`;
+}
+
+function bestDateValue(values, fallbackStart, fallbackEnd) {
+    for (const value of values || []) {
+        const start = parseFlexibleDate(value.start || value.label);
+        const end = parseFlexibleDate(value.end || value.start || value.label);
+        if (start) {
+            return { start, end: end || start, label: value.label || null, basis: value.basis || "asserted" };
+        }
+    }
+    const parsedStart = parseFlexibleDate(fallbackStart);
+    if (!parsedStart) return null;
+    return {
+        start: parsedStart,
+        end: parseFlexibleDate(fallbackEnd) || parsedStart,
+        label: null,
+        basis: "inferred",
+    };
+}
+
+function inferGeoContext() {
+    const haystack = [
+        documentData.name,
+        documentData.page_content,
+        ...entities.map((entity) => entity.canonical_name),
+        ...claims.flatMap((claim) => [claim.claim_location, claim.subject_canonical, claim.object_phrase]),
+    ].join(" ").toLowerCase();
+    const colombiaSignals = ["colombia", "chocó", "choco", "andagoya", "bogotá", "bogota", "quibdó", "quibdo", "istmina", "popayán", "popayan"];
+    const inferredCountry = colombiaSignals.some((signal) => haystack.includes(signal)) ? "Colombia" : "Unknown";
+    return {
+        country: inferredCountry,
+        bounds: inferredCountry === "Colombia" ? COLOMBIA_BOUNDS : {
+            north: 15,
+            south: -15,
+            west: -90,
+            east: -60,
+        },
+    };
 }
 
 function claimSummary(claim) {
@@ -676,7 +923,7 @@ function renderGraph() {
             });
             if (window.ficheroToken && sourceHeaders()["X-Fichero-Library-Path"]) {
                 try {
-                    await fetch(`http://localhost:8765/api/kg/graph/neighborhood/${entityId}`, {
+                    await fetch(`/api/kg/graph/neighborhood/${entityId}`, {
                         headers: sourceHeaders(),
                     });
                 } catch (_error) {
@@ -696,14 +943,228 @@ function bindGraphScopeToggle(panel) {
     });
 }
 
+function timelineItems() {
+    const eventItems = entities
+        .filter((entity) => entity.entity_type === "event")
+        .map((entity) => {
+            const range = bestDateValue(entity.date_values, null, null);
+            if (!range) return null;
+            return {
+                id: `entity-${entity.id}`,
+                itemType: "entity",
+                entityId: entity.id,
+                claimId: null,
+                title: entity.canonical_name,
+                body: entity.description || "Event entity",
+                start: range.start,
+                end: range.end,
+                dateLabel: displayDateRange(range.start, range.end, range.label),
+                basis: range.basis,
+                tags: ["Event"],
+            };
+        })
+        .filter(Boolean);
+
+    const claimItems = claims
+        .map((claim) => {
+            const range = bestDateValue(claim.date_values, claim.time_start, claim.time_end);
+            if (!range) return null;
+            return {
+                id: `claim-${claim.id}`,
+                itemType: "claim",
+                entityId: claim.subject_entity_id || claim.entity_ids?.[0] || null,
+                claimId: claim.id,
+                title: claimSummary(claim),
+                body: claim.source_excerpt || claim.text,
+                start: range.start,
+                end: range.end,
+                dateLabel: displayDateRange(range.start, range.end, range.label),
+                basis: range.basis,
+                tags: ["Claim"].concat(claim.subject_canonical ? [claim.subject_canonical] : []),
+            };
+        })
+        .filter(Boolean);
+
+    return [...eventItems, ...claimItems].sort((lhs, rhs) => lhs.start - rhs.start);
+}
+
+function renderTimeline() {
+    const panel = document.getElementById("timeline-panel");
+    const items = timelineItems();
+    if (items.length === 0) {
+        panel.innerHTML = `<div class="empty">No dated events or claims are available for this document yet.</div>`;
+        return;
+    }
+
+    panel.innerHTML = `
+        <div class="timeline-list">
+            <div class="timeline-meta">${items.length} chronological item${items.length === 1 ? "" : "s"} from event entities and dated claims.</div>
+            <div class="timeline-list-items">
+                ${items.map((item) => `
+                    <article class="timeline-item ${state.activeClaimId === item.claimId || state.activeEntityId === item.entityId ? "active" : ""}" data-timeline-id="${item.id}">
+                        <div class="timeline-item-header">
+                            <div class="timeline-item-title">${escapeHtml(item.title)}</div>
+                            <div class="timeline-item-date">${escapeHtml(item.dateLabel)}</div>
+                        </div>
+                        <div class="timeline-item-body">${escapeHtml(item.body || "")}</div>
+                        <div class="timeline-item-tags">
+                            ${item.tags.map((tag) => `<span class="timeline-tag">${escapeHtml(tag)}</span>`).join("")}
+                            <span class="timeline-tag">${item.basis === "inferred" ? "Inferred" : "Asserted"}</span>
+                        </div>
+                    </article>
+                `).join("")}
+            </div>
+        </div>
+    `;
+
+    panel.querySelectorAll(".timeline-item").forEach((element) => {
+        element.addEventListener("click", () => {
+            const item = items.find((entry) => entry.id === element.dataset.timelineId);
+            if (!item) return;
+            state.activeEntityId = item.entityId;
+            state.activeClaimId = item.claimId;
+            if (item.claimId) {
+                const claim = claims.find((entry) => entry.id === item.claimId);
+                notify("claimSelected", {
+                    claimId: item.claimId,
+                    sourceDocumentId: claim?.source_document_id || documentData.id,
+                    pageNumber: claim?.page_number || null,
+                    pageLabel: claim?.source_page_label || null,
+                });
+            } else if (item.entityId) {
+                notify("entitySelected", {
+                    entityId: item.entityId,
+                    sourceDocumentId: documentData.id,
+                });
+            }
+            renderTimeline();
+            updateTranscriptHighlight();
+            updateGraphActiveNode();
+            renderMap();
+        });
+    });
+}
+
+function resolvePlaceEntity(entity, inferredCountry) {
+    for (const place of entity.place_values || []) {
+        if (place.lat != null && place.lon != null) {
+            return {
+                entityId: entity.id,
+                name: entity.canonical_name,
+                label: place.label || entity.canonical_name,
+                lat: place.lat,
+                lon: place.lon,
+                basis: place.basis || "asserted",
+                detail: place.label || "Entity place evidence",
+            };
+        }
+    }
+
+    const candidates = [entity.canonical_name, ...(entity.aliases || [])];
+    for (const candidate of candidates) {
+        const lookup = DEMO_PLACE_LOOKUP[normalisePlaceKey(candidate)];
+        if (lookup) {
+            return {
+                entityId: entity.id,
+                name: entity.canonical_name,
+                label: lookup.label,
+                lat: lookup.lat,
+                lon: lookup.lon,
+                basis: inferredCountry === "Colombia" ? "inferred" : "asserted",
+                detail: "Resolved by Colombia-biased demo lookup",
+            };
+        }
+    }
+    return null;
+}
+
+function projectPoint(lat, lon, width, height, padding, bounds) {
+    const usableWidth = width - padding * 2;
+    const usableHeight = height - padding * 2;
+    const x = padding + ((lon - bounds.west) / (bounds.east - bounds.west)) * usableWidth;
+    const y = padding + ((bounds.north - lat) / (bounds.north - bounds.south)) * usableHeight;
+    return { x, y };
+}
+
+function renderMap() {
+    const panel = document.getElementById("map-panel");
+    const geoContext = inferGeoContext();
+    const resolved = entities
+        .filter((entity) => entity.entity_type === "location")
+        .map((entity) => resolvePlaceEntity(entity, geoContext.country))
+        .filter(Boolean);
+    const unresolvedCount = entities.filter((entity) => entity.entity_type === "location").length - resolved.length;
+
+    if (resolved.length === 0) {
+        panel.innerHTML = `<div class="empty">No place entities could be resolved to map coordinates for this document yet.</div>`;
+        return;
+    }
+
+    const width = 900;
+    const height = 500;
+    const padding = 54;
+
+    panel.innerHTML = `
+        <div class="map-shell">
+            <div class="map-meta">${resolved.length} mapped place entit${resolved.length === 1 ? "y" : "ies"} · ${unresolvedCount} unresolved.</div>
+            <div class="map-viewport">
+                <div class="map-caption">
+                    <span>${escapeHtml(geoContext.country === "Colombia" ? "Colombia-focused extent" : "Document-focused extent")}</span>
+                    <span>${escapeHtml(geoContext.country === "Colombia" ? "Fallback lookup is biased to Colombia for this diary demo." : "Exact basemap geocoding is still a TODO(demo).")}</span>
+                </div>
+                <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Resolved places for this document">
+                    <rect x="${padding}" y="${padding}" width="${width - padding * 2}" height="${height - padding * 2}" rx="18" ry="18" fill="rgba(13, 107, 111, 0.04)" stroke="rgba(64, 53, 39, 0.12)"></rect>
+                    ${resolved.map((place) => {
+                        const point = projectPoint(place.lat, place.lon, width, height, padding, geoContext.bounds);
+                        const active = state.activeEntityId === place.entityId;
+                        const fill = place.basis === "inferred" ? "rgba(13, 107, 111, 0.22)" : "rgba(13, 107, 111, 0.9)";
+                        const stroke = active ? "var(--claim)" : "var(--accent)";
+                        return `
+                            <g class="map-marker" data-entity-id="${escapeHtml(place.entityId)}">
+                                <circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="${active ? 9 : 7}" fill="${fill}" stroke="${stroke}" stroke-width="${active ? 3 : 2}"></circle>
+                                <text x="${(point.x + 12).toFixed(1)}" y="${(point.y + 4).toFixed(1)}" font-size="12" font-weight="600" fill="var(--text)">${escapeHtml(place.name)}</text>
+                            </g>
+                        `;
+                    }).join("")}
+                </svg>
+            </div>
+            <div class="map-place-list">
+                ${resolved.map((place) => `
+                    <article class="map-place-card ${state.activeEntityId === place.entityId ? "active" : ""}" data-entity-id="${escapeHtml(place.entityId)}">
+                        <div class="map-place-name">${escapeHtml(place.name)}</div>
+                        <div class="map-place-detail">${escapeHtml(place.label)}</div>
+                        <div class="map-place-detail">${escapeHtml(`${place.lat.toFixed(3)}, ${place.lon.toFixed(3)} · ${place.basis === "inferred" ? "Inferred" : "Asserted"}`)}</div>
+                    </article>
+                `).join("")}
+            </div>
+        </div>
+    `;
+
+    panel.querySelectorAll("[data-entity-id]").forEach((element) => {
+        element.addEventListener("click", () => {
+            const entityId = element.dataset.entityId;
+            state.activeEntityId = entityId;
+            notify("entitySelected", {
+                entityId,
+                sourceDocumentId: documentData.id,
+            });
+            renderMap();
+            renderTimeline();
+            updateGraphActiveNode();
+        });
+    });
+}
+
 function renderAll() {
     renderTranscript();
     renderDigest();
     renderGraph();
+    renderTimeline();
+    renderMap();
     document.querySelectorAll(".tabs button").forEach((button) => {
         button.classList.toggle("active", button.dataset.tab === state.tab);
     });
-    ["transcript", "digest", "graph"].forEach((tab) => {
+    ["transcript", "digest", "graph", "timeline", "map"].forEach((tab) => {
         document.getElementById(`${tab}-panel`).classList.toggle("hidden", tab !== state.tab);
     });
 }
@@ -723,7 +1184,7 @@ function applyTabVisibility() {
     document.querySelectorAll(".tabs button").forEach((button) => {
         button.classList.toggle("active", button.dataset.tab === state.tab);
     });
-    ["transcript", "digest", "graph"].forEach((tab) => {
+    ["transcript", "digest", "graph", "timeline", "map"].forEach((tab) => {
         document.getElementById(`${tab}-panel`).classList.toggle("hidden", tab !== state.tab);
     });
 }
@@ -793,25 +1254,35 @@ document.querySelectorAll(".tabs button").forEach((button) => {
         applyTabVisibility();
         if (state.tab === "graph") {
             requestAnimationFrame(renderGraph);
+        } else if (state.tab === "map") {
+            requestAnimationFrame(renderMap);
         }
     });
 });
 
 let graphResizeTimer = null;
 window.addEventListener("resize", () => {
-    if (state.tab !== "graph") return;
+    if (state.tab !== "graph" && state.tab !== "map") return;
     window.clearTimeout(graphResizeTimer);
-    graphResizeTimer = window.setTimeout(renderGraph, 80);
+    graphResizeTimer = window.setTimeout(() => {
+        if (state.tab === "graph") {
+            renderGraph();
+        } else if (state.tab === "map") {
+            renderMap();
+        }
+    }, 80);
 });
 
 window.fichero = {
     // Switch visible tab without re-rendering content panels.
     showTab(tab) {
-        if (!["transcript", "digest", "graph"].includes(tab)) return;
+        if (!["transcript", "digest", "graph", "timeline", "map"].includes(tab)) return;
         state.tab = tab;
         applyTabVisibility();
         if (tab === "graph") {
             requestAnimationFrame(renderGraph);
+        } else if (tab === "map") {
+            requestAnimationFrame(renderMap);
         }
     },
 
@@ -835,6 +1306,8 @@ window.fichero = {
         });
         updateTranscriptHighlight();
         updateGraphActiveNode();
+        renderTimeline();
+        renderMap();
     },
 
     // Re-scope the graph to the active page unless the user asks for all claims.
@@ -872,6 +1345,8 @@ window.fichero = {
             updateTranscriptHighlight();
         }
         updateGraphActiveNode();
+        renderTimeline();
+        renderMap();
     },
 };
 

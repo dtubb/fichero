@@ -12,7 +12,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.knowledge_models import (
     InclusionScopeType,
@@ -34,7 +34,7 @@ class InclusionUpsertRequest(BaseModel):
 @router.post("", response_model=KnowledgeGraphInclusion)
 async def upsert_inclusion(
     request: InclusionUpsertRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> KnowledgeGraphInclusion:
     """Upsert an inclusion rule. Most-recent row wins per (scope, target)."""
     existing = db.query(

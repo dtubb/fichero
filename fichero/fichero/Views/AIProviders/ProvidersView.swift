@@ -18,7 +18,7 @@ struct ProvidersView: View {
     private var listColumnWidth: Double = 280
 
     var body: some View {
-        HSplitView {
+        PlatformHSplitView {
             VStack(alignment: .leading, spacing: 0) {
                 List(selection: $selectedProvider) {
                     ForEach(sortedProviders) { provider in

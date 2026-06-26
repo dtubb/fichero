@@ -1,7 +1,10 @@
+// swiftlint:disable file_length
+#if canImport(AppKit)
 import AppKit
+#endif
 import SwiftUI
 
-// swiftlint:disable:next type_body_length
+// swiftlint:disable type_body_length
 struct FirstRunWindow: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
@@ -14,6 +17,7 @@ struct FirstRunWindow: View {
     @State private var openRouterKey = ""
     @State private var isSaving = false
     @State private var errorMessage: String?
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         HStack(spacing: 0) {
@@ -57,7 +61,7 @@ struct FirstRunWindow: View {
         }
         .padding(20)
         .frame(width: 220)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(Color(platformColor: .controlBackgroundColor))
     }
 
     @ViewBuilder
@@ -114,18 +118,13 @@ struct FirstRunWindow: View {
                         }
                     ),
                     footer: {
-                        HStack(spacing: 10) {
-                            Button {
-                                openExistingLibraryPanel()
-                            } label: {
-                                Label("Open Existing", systemImage: "folder")
-                            }
-                            if let selectedLibraryName {
-                                Label(selectedLibraryName, systemImage: "checkmark.circle.fill")
-                                    .foregroundStyle(.green)
-                                    .lineLimit(1)
-                            }
-                        }
+                        LibrarySetupActionsRow(
+                            primaryTitle: "Open Existing",
+                            primaryIcon: "folder",
+                            primaryAction: openExistingLibraryPanel,
+                            selectedLabel: selectedLibraryName
+                        )
+                        .buttonStyle(.bordered)
                     }
                 )
             }
@@ -173,16 +172,15 @@ struct FirstRunWindow: View {
             }
         case .cloud:
             stepPage(
-                title: "Cloud LLM",
-                subtitle: "Optional OpenRouter setup for the $medium fallback tier.",
+                title: "Use the cheapest model that works",
+                subtitle: "Add a cloud fallback only if local providers are not enough.",
                 systemImage: "cloud"
             ) {
                 firstRunCard(
                     FirstRunCardConfig(
                         icon: "cloud",
-                        title: "Add a capable fallback",
-                        body: "OpenRouter is optional. Configure it now to handle structured extraction "
-                            + "when local providers are unavailable.",
+                        title: "Use the cheapest model that works",
+                        body: "OpenRouter is optional. Add it now if you need cloud models for tasks your local providers cannot handle.",
                         primaryTitle: openRouterKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                             ? "Finish Without Cloud"
                             : "Save and Finish",
@@ -210,7 +208,7 @@ struct FirstRunWindow: View {
         VStack(alignment: .leading, spacing: 20) {
             HStack(spacing: 12) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 28))
+                    .font(.title2)
                     .foregroundStyle(Color.accentColor)
                     .frame(width: 42, height: 42)
                 VStack(alignment: .leading, spacing: 3) {
@@ -249,7 +247,7 @@ struct FirstRunWindow: View {
     private func firstRunCard<Footer: View>(_ config: FirstRunCardConfig, @ViewBuilder footer: () -> Footer) -> some View {
         VStack(alignment: .leading, spacing: 18) {
             Image(systemName: config.icon)
-                .font(.system(size: 36, weight: .semibold))
+                .font(.largeTitle.weight(.semibold))
                 .foregroundStyle(Color.accentColor)
                 .frame(width: 64, height: 64)
                 .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
@@ -275,7 +273,7 @@ struct FirstRunWindow: View {
         }
         .padding(22)
         .frame(maxWidth: .infinity, minHeight: 280, alignment: .leading)
-        .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
+        .background(Color(platformColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
         .overlay {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Color.primary.opacity(0.08), lineWidth: 1)
@@ -299,6 +297,7 @@ struct FirstRunWindow: View {
     }
 
     private func openExistingLibraryPanel() {
+        #if os(macOS)
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
@@ -307,9 +306,14 @@ struct FirstRunWindow: View {
         if panel.runModal() == .OK, let url = panel.url {
             openLibrary(url)
         }
+        #else
+        // iOS: onboarding uses document picker or a placeholder; no-op for now.
+        documentsPermission = false
+        #endif
     }
 
     private func requestDocumentsAccess() {
+        #if os(macOS)
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
@@ -317,11 +321,15 @@ struct FirstRunWindow: View {
         if panel.runModal() == .OK {
             documentsPermission = true
         }
+        #else
+        // iOS: document picker / sandbox access would go here.
+        documentsPermission = true
+        #endif
     }
 
     private func openSettingsPane(_ rawURL: String) {
         guard let url = URL(string: rawURL) else { return }
-        NSWorkspace.shared.open(url)
+        openURL(url)
     }
 
     private func saveAndFinish() async {
@@ -350,6 +358,29 @@ struct FirstRunWindow: View {
         dismiss()
     }
 }
+
+struct LibrarySetupActionsRow: View {
+    let primaryTitle: String
+    let primaryIcon: String
+    let primaryAction: () -> Void
+    let selectedLabel: String?
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button(action: primaryAction) {
+                Label(primaryTitle, systemImage: primaryIcon)
+            }
+
+            if let selectedLabel {
+                Label(selectedLabel, systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .lineLimit(1)
+            }
+        }
+    }
+}
+
+// swiftlint:enable type_body_length
 
 private struct FirstRunCardConfig {
     let icon: String

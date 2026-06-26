@@ -19,6 +19,7 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from fichero.workflows.types import State, PortDef, DataType
 from fichero.workflows.registry import register_tool, get_tool
 from fichero.llm import get_langchain_model, LLMConfig
+from fichero.prompts import compose_system_prompt
 from fichero.workflows.tools.agent import _wrap_workflow_tool
 
 logger = logging.getLogger(__name__)
@@ -212,7 +213,12 @@ async def supervisor_agent(
         ) -> dict:
             """Get supervisor's delegation decision."""
             messages = [
-                SystemMessage(content=formatted_prompt),
+                SystemMessage(
+                    content=compose_system_prompt(
+                        role="agent",
+                        extra=formatted_prompt,
+                    )
+                ),
             ]
 
             # Add context if provided
@@ -276,6 +282,10 @@ async def supervisor_agent(
                 "system_prompt",
                 f"You are the {worker_config['name']} agent. {worker_config.get('description', '')}",
             )
+            worker_system_prompt = compose_system_prompt(
+                role="agent",
+                extra=worker_prompt,
+            )
 
             worker_model = get_langchain_model(llm_config)
             worker_graph = create_react_agent(
@@ -283,7 +293,7 @@ async def supervisor_agent(
                 tools=worker_tools,
             )
 
-            messages = [SystemMessage(content=worker_prompt)]
+            messages = [SystemMessage(content=worker_system_prompt)]
             if ctx:
                 ctx_str = "\n".join(f"{k}: {v}" for k, v in ctx.items())
                 messages.append(SystemMessage(content=f"Context:\n{ctx_str}"))
@@ -425,7 +435,10 @@ async def supervisor_agent(
             # Get supervisor to synthesize final result
             final_messages = [
                 SystemMessage(
-                    content="Synthesize the worker results into a final comprehensive response."
+                    content=compose_system_prompt(
+                        role="agent",
+                        extra="Synthesize the worker results into a final comprehensive response.",
+                    )
                 ),
                 HumanMessage(
                     content=f"Original task: {task}\n\nWorker results:\n{results_summary}"
@@ -623,7 +636,10 @@ Available agents to hand off to:
             system_prompt = current_agent.get(
                 "system_prompt", f"You are the {current_agent['name']} agent."
             )
-            full_prompt = f"{system_prompt}\n{handoff_instructions}"
+            full_prompt = compose_system_prompt(
+                role="agent",
+                extra=f"{system_prompt}\n{handoff_instructions}".strip(),
+            )
 
             # Create and run agent
             model = get_langchain_model(llm_config)
@@ -855,6 +871,10 @@ async def agent_coordinator(
             system_prompt = agent_config.get(
                 "system_prompt", f"You are agent {agent_config['name']}."
             )
+            effective_system_prompt = compose_system_prompt(
+                role="agent",
+                extra=system_prompt,
+            )
 
             model = get_langchain_model(llm_config)
             agent_graph = create_react_agent(
@@ -862,7 +882,7 @@ async def agent_coordinator(
                 tools=agent_tools,
             )
 
-            messages = [SystemMessage(content=system_prompt)]
+            messages = [SystemMessage(content=effective_system_prompt)]
             if context:
                 ctx_str = (
                     "\n".join(f"{k}: {v}" for k, v in context.items())

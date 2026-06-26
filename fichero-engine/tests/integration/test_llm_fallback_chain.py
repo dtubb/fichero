@@ -124,6 +124,7 @@ class TestChatWithFallbackChain:
                    new=AsyncMock(return_value=proc)), \
              patch("fichero.llm.resolve_model_alias",
                    return_value=("anthropic", "claude-sonnet-4-6")), \
+             patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=True), \
              patch("fichero.llm.get_langchain_model", return_value=cloud):
             result = await chat_with_fallback(
                 "hola, esto es un prompt en español",
@@ -150,6 +151,7 @@ class TestChatWithFallbackChain:
                    new=AsyncMock(return_value=proc)), \
              patch("fichero.llm.resolve_model_alias",
                    return_value=("openai", "gpt-5")), \
+             patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=True), \
              patch("fichero.llm.get_langchain_model", return_value=cloud):
             result = await chat_with_fallback("text", config=apple_cfg)
 
@@ -173,6 +175,7 @@ class TestChatWithFallbackChain:
                    new=AsyncMock(return_value=proc)), \
              patch("fichero.llm.resolve_model_alias",
                    return_value=("openai", "gpt-5")), \
+             patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=True), \
              patch("fichero.llm.get_langchain_model", return_value=cloud), \
              caplog.at_level(logging.WARNING, logger="fichero.llm"):
             await chat_with_fallback("text", config=apple_cfg)
@@ -240,6 +243,7 @@ class TestChatWithFallbackChain:
                    new=AsyncMock(return_value=proc)), \
              patch("fichero.llm.resolve_model_alias",
                    return_value=("openai", "gpt-5")), \
+             patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=True), \
              patch("fichero.llm.get_langchain_model", return_value=cloud):
             result = await chat_with_fallback("text", config=apple_cfg)
 
@@ -280,6 +284,7 @@ class TestChatWithFallbackChain:
                    new=AsyncMock(return_value=proc)), \
              patch("fichero.llm.resolve_model_alias",
                    return_value=("openai", "gpt-5")), \
+             patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=True), \
              patch("fichero.llm.get_langchain_model", return_value=cloud):
             with collect_usage() as bucket:
                 await chat_with_fallback("text", config=apple_cfg)

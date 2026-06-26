@@ -13,8 +13,9 @@ import asyncio
 import json
 import logging
 import uuid
+from collections import OrderedDict
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Optional
 
@@ -30,6 +31,19 @@ from fichero.workflows.batch import BatchManager
 from fichero.workflows.workflow_store import WorkflowStore
 
 logger = logging.getLogger(__name__)
+MAX_SCHEDULE_CACHE_SIZE = 512
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _ensure_aware_utc(value: Optional[datetime]) -> Optional[datetime]:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 class ScheduleType(str, Enum):
@@ -77,8 +91,8 @@ class Schedule:
     config: ScheduleConfig
     status: ScheduleStatus
     inputs: dict[str, Any] = field(default_factory=dict)
-    created_at: datetime = field(default_factory=datetime.now)
-    updated_at: datetime = field(default_factory=datetime.now)
+    created_at: datetime = field(default_factory=_utcnow)
+    updated_at: datetime = field(default_factory=_utcnow)
     last_run_at: Optional[datetime] = None
     next_run_at: Optional[datetime] = None
     run_count: int = 0
@@ -140,11 +154,29 @@ class WorkflowScheduler:
             job_defaults=job_defaults,
         )
 
-        self._schedules: dict[str, Schedule] = {}
+        self._schedules: OrderedDict[str, Schedule] = OrderedDict()
+        self._bg_tasks: set[asyncio.Task] = set()
         self._init_database()
+
+    def _remember_schedule(self, schedule: Schedule) -> None:
+        self._schedules[schedule.schedule_id] = schedule
+        self._schedules.move_to_end(schedule.schedule_id)
+        while len(self._schedules) > MAX_SCHEDULE_CACHE_SIZE:
+            self._schedules.popitem(last=False)
+
+    def _track_background_task(self, task: asyncio.Task) -> asyncio.Task:
+        self._bg_tasks.add(task)
+        task.add_done_callback(self._bg_tasks.discard)
+        return task
 
     def _init_database(self) -> None:
         """Initialize database tables for schedule tracking."""
+        # ponytail: not a managed shared conn (#2508). Every method here opens a
+        # FRESH ``conn = duckdb.connect(self.db_path)`` per operation and closes
+        # it — a connection-per-operation pattern, not the package's managed
+        # Database connection. Database._lock and the locked execute() helpers do
+        # not apply. Folding the scheduler onto the shared Database is a separate
+        # architectural call (lead review).
         conn = duckdb.connect(self.db_path)
         try:
             conn.execute("""
@@ -229,7 +261,7 @@ class WorkflowScheduler:
 
         for row in rows:
             schedule = self._row_to_schedule(row)
-            self._schedules[schedule.schedule_id] = schedule
+            self._remember_schedule(schedule)
             self._register_job(schedule)
 
         logger.info(f"Loaded {len(rows)} active schedules")
@@ -289,12 +321,12 @@ class WorkflowScheduler:
             Created Schedule object
         """
         # Validate workflow exists
-        workflow = await self.workflow_store.get(workflow_id)
+        workflow = self.workflow_store.get(workflow_id)
         if not workflow:
             raise ValueError(f"Workflow {workflow_id} not found")
 
         schedule_id = str(uuid.uuid4())
-        now = datetime.now()
+        now = _utcnow()
 
         schedule = Schedule(
             schedule_id=schedule_id,
@@ -321,7 +353,7 @@ class WorkflowScheduler:
         # Register with APScheduler
         self._register_job(schedule)
 
-        self._schedules[schedule_id] = schedule
+        self._remember_schedule(schedule)
         logger.info(f"Created schedule {schedule_id}: {name}")
 
         return schedule
@@ -341,14 +373,14 @@ class WorkflowScheduler:
             return IntervalTrigger(
                 seconds=config.interval_seconds,
                 timezone=config.timezone,
-                start_date=config.start_date,
-                end_date=config.end_date,
+                start_date=_ensure_aware_utc(config.start_date),
+                end_date=_ensure_aware_utc(config.end_date),
             )
         elif config.schedule_type == ScheduleType.ONCE:
             if not config.run_at:
                 raise ValueError("Run datetime required for one-time schedule")
             return DateTrigger(
-                run_date=config.run_at,
+                run_date=_ensure_aware_utc(config.run_at),
                 timezone=config.timezone,
             )
         else:
@@ -398,7 +430,7 @@ class WorkflowScheduler:
         run = ScheduleRun(
             run_id=str(uuid.uuid4()),
             schedule_id=schedule_id,
-            started_at=datetime.now(),
+            started_at=_utcnow(),
         )
         await self._save_run(run)
 
@@ -413,7 +445,9 @@ class WorkflowScheduler:
                 run.batch_id = batch.batch_id
 
                 # Execute batch (fire and forget for scheduler)
-                asyncio.create_task(self._run_batch(batch.batch_id, run))
+                self._track_background_task(
+                    asyncio.create_task(self._run_batch(batch.batch_id, run))
+                )
             else:
                 # Single workflow execution
                 await self._run_single(schedule, run)
@@ -425,31 +459,31 @@ class WorkflowScheduler:
             # Update next run time
             job = self._scheduler.get_job(schedule_id)
             if job:
-                schedule.next_run_at = job.next_run_time
+                schedule.next_run_at = getattr(job, "next_run_time", None)
 
             # Mark one-time schedules as completed
             if schedule.config.schedule_type == ScheduleType.ONCE:
                 schedule.status = ScheduleStatus.COMPLETED
 
-            schedule.updated_at = datetime.now()
+            schedule.updated_at = _utcnow()
             await self._save_schedule(schedule)
 
         except Exception as e:
             logger.exception(f"Schedule {schedule_id} execution failed: {e}")
             run.status = "failed"
             run.error = str(e)
-            run.completed_at = datetime.now()
+            run.completed_at = _utcnow()
             await self._save_run(run)
 
             schedule.error_message = str(e)
-            schedule.updated_at = datetime.now()
+            schedule.updated_at = _utcnow()
             await self._save_schedule(schedule)
 
     async def _run_single(self, schedule: Schedule, run: ScheduleRun) -> None:
         """Run a single workflow execution."""
         from fichero.workflows.builder import execute_workflow
 
-        workflow = await self.workflow_store.get(schedule.workflow_id)
+        workflow = self.workflow_store.get(schedule.workflow_id)
         if not workflow:
             raise ValueError(f"Workflow {schedule.workflow_id} not found")
 
@@ -462,7 +496,7 @@ class WorkflowScheduler:
         # Update run record
         run.status = "completed" if not result.get("error") else "failed"
         run.error = result.get("error")
-        run.completed_at = datetime.now()
+        run.completed_at = _utcnow()
         await self._save_run(run)
 
     async def _run_batch(self, batch_id: str, run: ScheduleRun) -> None:
@@ -480,14 +514,14 @@ class WorkflowScheduler:
 
             # Batch completed
             run.status = "completed"
-            run.completed_at = datetime.now()
+            run.completed_at = _utcnow()
             await self._save_run(run)
 
         except Exception as e:
             logger.exception(f"Batch {batch_id} failed: {e}")
             run.status = "failed"
             run.error = str(e)
-            run.completed_at = datetime.now()
+            run.completed_at = _utcnow()
             await self._save_run(run)
 
     async def _save_schedule(self, schedule: Schedule) -> None:
@@ -569,6 +603,7 @@ class WorkflowScheduler:
     async def get_schedule(self, schedule_id: str) -> Optional[Schedule]:
         """Get schedule by ID."""
         if schedule_id in self._schedules:
+            self._schedules.move_to_end(schedule_id)
             return self._schedules[schedule_id]
 
         def _load():
@@ -584,7 +619,7 @@ class WorkflowScheduler:
         row = await asyncio.to_thread(_load)
         if row:
             schedule = self._row_to_schedule(row)
-            self._schedules[schedule_id] = schedule
+            self._remember_schedule(schedule)
             return schedule
         return None
 
@@ -635,7 +670,7 @@ class WorkflowScheduler:
 
         # Update status
         schedule.status = ScheduleStatus.PAUSED
-        schedule.updated_at = datetime.now()
+        schedule.updated_at = _utcnow()
         await self._save_schedule(schedule)
 
         logger.info(f"Paused schedule {schedule_id}")
@@ -655,12 +690,12 @@ class WorkflowScheduler:
 
         # Update status
         schedule.status = ScheduleStatus.ACTIVE
-        schedule.updated_at = datetime.now()
+        schedule.updated_at = _utcnow()
 
         # Update next run time
         job = self._scheduler.get_job(schedule_id)
         if job:
-            schedule.next_run_at = job.next_run_time
+            schedule.next_run_at = getattr(job, "next_run_time", None)
 
         await self._save_schedule(schedule)
 
@@ -683,7 +718,7 @@ class WorkflowScheduler:
 
         # If workflow_id changed, validate new workflow exists
         if schedule.workflow_id != existing.workflow_id:
-            workflow = await self.workflow_store.get(schedule.workflow_id)
+            workflow = self.workflow_store.get(schedule.workflow_id)
             if not workflow:
                 raise ValueError(f"Workflow {schedule.workflow_id} not found")
 
@@ -708,13 +743,13 @@ class WorkflowScheduler:
             # Update next run time
             job = self._scheduler.get_job(schedule.schedule_id)
             if job:
-                schedule.next_run_at = job.next_run_time
+                schedule.next_run_at = getattr(job, "next_run_time", None)
 
         # Save to database
         await self._save_schedule(schedule)
 
         # Update cache
-        self._schedules[schedule.schedule_id] = schedule
+        self._remember_schedule(schedule)
 
         logger.info(f"Updated schedule {schedule.schedule_id}")
         return schedule
@@ -797,12 +832,14 @@ class WorkflowScheduler:
         run = ScheduleRun(
             run_id=str(uuid.uuid4()),
             schedule_id=schedule_id,
-            started_at=datetime.now(),
+            started_at=_utcnow(),
         )
         await self._save_run(run)
 
         # Execute in background
-        asyncio.create_task(self._execute_manual_run(schedule, run))
+        self._track_background_task(
+            asyncio.create_task(self._execute_manual_run(schedule, run))
+        )
 
         return run
 
@@ -823,14 +860,14 @@ class WorkflowScheduler:
             # Update schedule stats (but not next_run_at for manual triggers)
             schedule.last_run_at = run.started_at
             schedule.run_count += 1
-            schedule.updated_at = datetime.now()
+            schedule.updated_at = _utcnow()
             await self._save_schedule(schedule)
 
         except Exception as e:
             logger.exception(f"Manual run for {schedule.schedule_id} failed: {e}")
             run.status = "failed"
             run.error = str(e)
-            run.completed_at = datetime.now()
+            run.completed_at = _utcnow()
             await self._save_run(run)
 
 

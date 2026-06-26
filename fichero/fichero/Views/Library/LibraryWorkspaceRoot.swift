@@ -1,0 +1,235 @@
+import SwiftUI
+#if canImport(UIKit) && !os(macOS)
+import UIKit
+#if canImport(VisionKit) && !os(visionOS)
+import VisionKit
+#endif
+#endif
+
+enum LibraryWorkspaceSelection {
+    @MainActor
+    static func activeLibrary(
+        currentLibraryId: UUID?,
+        windowLibraryId: UUID,
+        libraryManager: LibraryManager
+    ) -> LibraryManager.LibraryReference? {
+        if let currentLibraryId,
+           let library = libraryManager.getLibrary(id: currentLibraryId) {
+            return library
+        }
+
+        if let library = libraryManager.getLibrary(id: windowLibraryId) {
+            return library
+        }
+
+        return libraryManager.globalLibrary
+    }
+
+    @MainActor
+    static func documentURL(for libraryURL: URL, libraryManager: LibraryManager) -> URL? {
+        libraryManager.isTemporaryLibrary(libraryURL) ? nil : libraryURL
+    }
+}
+
+/// Shared library/document host used by every Fichero app entry surface.
+/// macOS wraps it in `LibraryWindow` for window chrome and commands; iPhone,
+/// iPad, and visionOS embed the same workspace directly.
+struct LibraryWorkspaceRoot: View {
+    @EnvironmentObject private var libraryManager: LibraryManager
+    #if canImport(UIKit) && !os(macOS)
+    @EnvironmentObject private var captureQueue: MobileCaptureQueueStore
+    @State private var showingCaptureQueue = false
+    @State private var capturePickerSource: CaptureSource?
+    #if canImport(VisionKit) && !os(visionOS)
+    @State private var showingDirectDocumentScanner = false
+    #endif
+    #endif
+
+    let library: LibraryManager.LibraryReference
+    let windowState: WindowState
+    let executionObserver: WorkflowExecutionObserver
+
+    var body: some View {
+        AdaptiveAppleShellHost {
+            DocumentTabView(
+                libraryId: library.id,
+                document: Binding(
+                    get: { library.document },
+                    set: { library.document = $0 }
+                ),
+                documentURL: LibraryWorkspaceSelection.documentURL(for: library.url, libraryManager: libraryManager)
+            )
+            .environmentObject(windowState)
+            .environment(library.documentStore)
+            .environmentObject(library.savedSearchServiceGenerated)
+            .environmentObject(library.searchService)
+            .environmentObject(library.conversationServiceGenerated)
+            .environmentObject(library.chatServiceGenerated)
+            .environment(library.workflowStore)
+            .environmentObject(library.workflowServiceGenerated)
+            .environmentObject(library.workflowStreamService)
+            .environmentObject(library.importService)
+            .environmentObject(library.documentServiceGenerated)
+            .environmentObject(library.storageService)
+            .environmentObject(library.providerService)
+            .environmentObject(library.modelService)
+            .environmentObject(library.artifactService)
+            .environmentObject(library.entityService)
+            .environmentObject(library.kgCurationService)
+            .environmentObject(library.researchService)
+            .environment(executionObserver)
+            .environment(library.entityStore)
+            .environment(library.claimStore)
+            .environment(library.noteStore)
+            .environment(library.annotationStore)
+            .environment(library.actionStore)
+            .environment(library.activityStore)
+            .environment(library.workflowExecutionStore)
+            .environment(library.auditStore)
+            .environment(library.researchStore)
+            .environment(library.searchStore)
+            .environment(library.artifactStore)
+            .environment(library.citationStore)
+            .environment(library.referenceStore)
+            .environment(library.interpretationStore)
+            .environment(library.changeStream)
+            .task(id: library.id) {
+                if windowState.libraryId != library.id {
+                    windowState.libraryId = library.id
+                }
+                library.changeStream.start()
+                library.activityStore.start()
+            }
+        }
+        #if canImport(UIKit) && !os(macOS)
+        .toolbar {
+            // Library switcher (#2394) — the registry of libraries the paired Mac
+            // has, surfaced first so a phone can open more than the default library.
+            // `.topBarLeading` is unavailable on tvOS, so guard it there.
+            #if !os(tvOS)
+            ToolbarItem(placement: .topBarLeading) {
+                IOSLibraryPickerMenu()
+            }
+            #endif
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    #if os(tvOS)
+                    Text("Capture is unavailable on Apple TV.")
+                    #elseif os(visionOS)
+                    Button { capturePickerSource = .library } label: {
+                        Label("Choose from Library", systemImage: "photo.on.rectangle")
+                    }
+                    #else
+                    Button {
+                        if supportsDocumentScanner {
+                            showingDirectDocumentScanner = true
+                        } else {
+                            capturePickerSource = .camera
+                        }
+                    } label: {
+                        Label("Scan Document", systemImage: "doc.viewfinder")
+                    }
+                    Button { capturePickerSource = .library } label: {
+                        Label("Choose from Library", systemImage: "photo.on.rectangle")
+                    }
+                    #endif
+                    Divider()
+                    Button { showingCaptureQueue = true } label: {
+                        let label = captureQueue.pendingCount > 0
+                            ? "Queue (\(captureQueue.pendingCount))"
+                            : "Capture Queue"
+                        Label(label, systemImage: "tray.and.arrow.up")
+                    }
+                } label: {
+                    Label("Capture", systemImage: "camera")
+                }
+                .help("Capture or import a document into this library")
+            }
+        }
+        .sheet(isPresented: $showingCaptureQueue) {
+            MobileCaptureQueueView(
+                queue: captureQueue,
+                retryPendingUploads: {
+                    await captureQueue.resumePendingUploads(
+                        using: MobileCaptureBackendUploadClient(
+                            libraryManager: libraryManager,
+                            targetLibraryId: library.id
+                        ),
+                        retryInterruptedUploads: true
+                    )
+                }
+            )
+        }
+        #if !os(tvOS)
+        .sheet(item: $capturePickerSource) { source in
+            MobileCaptureImagePicker(
+                sourceType: source.sourceType,
+                onImage: { image in handleCapturedImage(image, source: source) },
+                onCancel: { capturePickerSource = nil }
+            )
+        }
+        #endif
+        #if canImport(VisionKit) && !os(visionOS)
+        .fullScreenCover(isPresented: $showingDirectDocumentScanner) {
+            MobileDocumentScanner(
+                onImages: handleScannedDocumentImages,
+                onCancel: { showingDirectDocumentScanner = false }
+            )
+        }
+        #endif
+        #endif
+    }
+
+    // MARK: — Capture helpers (iOS/iPadOS only)
+
+    #if canImport(UIKit) && !os(macOS)
+    private var supportsDocumentScanner: Bool {
+        #if canImport(VisionKit) && !os(visionOS)
+        return VNDocumentCameraViewController.isSupported
+        #else
+        return false
+        #endif
+    }
+
+    private func handleCapturedImage(_ image: UIImage, source: CaptureSource) {
+        capturePickerSource = nil
+        let imageData = image.jpegData(compressionQuality: 0.9)
+        let fallbackData = imageData ?? image.pngData()
+        guard let data = fallbackData else { return }
+        let catalog = MobileCaptureCatalogFields(sourceArchiveHint: source.defaultSourceHint)
+        guard (try? captureQueue.enqueueCapturedImage(
+            data,
+            catalog: catalog,
+            fileExtension: imageData == nil ? "png" : "jpg"
+        )) != nil else { return }
+        startUploadToActiveLibrary()
+    }
+
+    private func handleScannedDocumentImages(_ images: [UIImage]) {
+        #if canImport(VisionKit) && !os(visionOS)
+        showingDirectDocumentScanner = false
+        #endif
+        let catalog = MobileCaptureCatalogFields(sourceArchiveHint: "document-camera")
+        for image in images {
+            let imageData = image.jpegData(compressionQuality: 0.9)
+            guard let data = imageData ?? image.pngData() else { continue }
+            _ = try? captureQueue.enqueueCapturedImage(
+                data,
+                catalog: catalog,
+                fileExtension: imageData == nil ? "png" : "jpg"
+            )
+        }
+        startUploadToActiveLibrary()
+    }
+
+    private func startUploadToActiveLibrary() {
+        let client = MobileCaptureBackendUploadClient(
+            libraryManager: libraryManager,
+            targetLibraryId: library.id
+        )
+        Task {
+            await captureQueue.resumePendingUploads(using: client)
+        }
+    }
+    #endif
+}

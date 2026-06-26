@@ -14,10 +14,45 @@ Key concepts:
 
 from __future__ import annotations
 
+import json
 import uuid
 from enum import Enum
 from typing import TypedDict, Any, Literal, Annotated
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+_STATE_OUTPUT_MAX_BYTES = 8 * 1024 * 1024
+
+
+def compact_output_for_state(value: Any) -> Any:
+    """Drop redundant per-file payloads before they accumulate in State.
+
+    Downstream nodes read the combined ``text`` / ``records`` outputs, not the
+    full per-file ``texts`` / ``results`` / ``values`` arrays. Keep counts so
+    callers can still report fan-out cardinality without retaining every branch
+    payload in memory or checkpoints.
+    """
+    if not isinstance(value, dict):
+        return value
+
+    compact = dict(value)
+    if isinstance(compact.get("texts"), list):
+        compact["text_count"] = len(compact["texts"])
+        compact.pop("texts", None)
+    if isinstance(compact.get("results"), list):
+        compact["result_count"] = len(compact["results"])
+        compact.pop("results", None)
+    if isinstance(compact.get("values"), list):
+        compact["value_count"] = len(compact["values"])
+        compact.pop("values", None)
+
+    size = len(json.dumps(compact, ensure_ascii=False))
+    if size > _STATE_OUTPUT_MAX_BYTES:
+        raise ValueError(
+            "Workflow State output exceeded the capped serialized size "
+            f"({size} > {_STATE_OUTPUT_MAX_BYTES} bytes)"
+        )
+    return compact
 
 
 def _merge_parallel_results(
@@ -55,7 +90,12 @@ def _merge_outputs(
     if new is None:
         return existing
     result = dict(existing)
-    result.update(new)
+    result.update(
+        {
+            node_id: compact_output_for_state(node_output)
+            for node_id, node_output in new.items()
+        }
+    )
     return result
 
 
@@ -228,6 +268,12 @@ class State(TypedDict):
     # Execution metadata
     task_id: str  # Unique execution ID
     workflow_id: str  # Workflow definition ID
+    parent_task_id: str  # Parent run id when this is a child workflow
+    parent_workflow_id: str  # Parent workflow id when this is a child workflow
+    parent_node_id: str  # Parent sub_workflow node id
+    lineage_path: str  # Ordered parent/node/child path for nested runs
+    sub_workflow_depth: int  # Nested sub-workflow depth
+    sub_workflows: dict[str, Any]  # Test/runtime injection map for child workflows
 
     # Library context (required for source tools)
     library_path: str  # Path to .fichero library package
@@ -445,6 +491,52 @@ class EdgeDef(BaseModel):
     animated: bool = False  # Show animated flow
     label: str | None = None  # Label on edge (None for none)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_edge_field_drift(cls, data: Any) -> Any:
+        """Normalize legacy/alternate edge field spellings onto the canonical
+        names BEFORE field validation runs.
+
+        The canonical edge fields are ``source`` / ``target`` (node IDs) and
+        ``source_port`` / ``target_port`` (port IDs). Older persisted workflows
+        and some payloads used ``source_node_id`` / ``target_node_id`` and
+        ``source_port_id`` / ``target_port_id``. Accept either spelling on input
+        and collapse it onto the canonical field so a single shape is stored and
+        read everywhere (#2537). The canonical key always wins when both are
+        present; the ``*_id`` alias is consumed so it can't linger as stray
+        extra data.
+        """
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)  # never mutate the caller's dict
+        for canonical, legacy in (
+            ("source", "source_node_id"),
+            ("target", "target_node_id"),
+            ("source_port", "source_port_id"),
+            ("target_port", "target_port_id"),
+        ):
+            if legacy in data:
+                legacy_value = data.pop(legacy)
+                # Only adopt the legacy value when the canonical field is absent
+                # or empty — the canonical spelling is authoritative.
+                if not data.get(canonical):
+                    data[canonical] = legacy_value
+        return data
+
+    @model_validator(mode="after")
+    def _validate_endpoints(self) -> "EdgeDef":
+        if not self.source:
+            raise ValueError("EdgeDef.source is required")
+        if self.route_map is not None:
+            if not self.route_key:
+                raise ValueError("EdgeDef.route_key is required for route_map edges")
+            if not self.route_map:
+                raise ValueError("EdgeDef.route_map cannot be empty")
+            return self
+        if not self.target:
+            raise ValueError("EdgeDef.target is required for non-route_map edges")
+        return self
+
 
 class WorkflowDef(BaseModel):
     """Complete workflow definition.
@@ -576,6 +668,11 @@ class ToolDef(BaseModel):
 
     # Sort order for UI
     sort_order: int = 100  # Lower = higher in list
+
+    # Trust signal: has this tool been validated end-to-end? Defaults to False
+    # so every tool reads as UNTESTED unless explicitly marked. Only the HTR
+    # transcription chain is tested=True today.
+    tested: bool = False
 
     def get_prompt(self, config: dict[str, Any] | None = None) -> str | None:
         """Get the prompt for this tool, optionally customized by config.

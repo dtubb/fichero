@@ -1,6 +1,5 @@
 import OSLog
 import SwiftUI
-import UniformTypeIdentifiers
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "ChatView")
 
@@ -48,24 +47,18 @@ extension ChatView {
 extension ChatView {
     func handleDrop(providers: [NSItemProvider]) -> Bool {
         for provider in providers {
-            // Try to get document ID from drag
-            if provider.hasItemConformingToTypeIdentifier(UTType.text.identifier) {
-                provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { data, _ in
-                    if let data = data as? Data, let docId = String(data: data, encoding: .utf8) {
-                        Task { @MainActor in
-                            selectedDocuments.insert(docId)
-                            logger.info("Added document via drop: \(docId)")
-                        }
-                    }
+            guard let typeIdentifier = ChatDocumentDropPayload.firstSupportedTypeIdentifier(in: provider) else {
+                continue
+            }
+
+            provider.loadItem(forTypeIdentifier: typeIdentifier, options: nil) { item, _ in
+                guard let docId = ChatDocumentDropPayload.documentID(from: item) else {
+                    return
                 }
-            } else if provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
-                provider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { data, _ in
-                    if let data = data as? Data, let docId = String(data: data, encoding: .utf8) {
-                        Task { @MainActor in
-                            selectedDocuments.insert(docId)
-                            logger.info("Added document via drop: \(docId)")
-                        }
-                    }
+
+                Task { @MainActor in
+                    selectedDocuments.insert(docId)
+                    logger.info("Added document via drop: \(docId)")
                 }
             }
         }
@@ -78,6 +71,7 @@ extension ChatView {
 extension ChatView {
     func startNewChat() {
         currentConversation = Conversation()
+        backendConversationId = nil
         selectedDocuments.removeAll()
         inputText = ""
         errorMessage = nil
@@ -98,10 +92,12 @@ extension ChatView {
             do {
                 logger.info("Sending message: \(query)")
 
-                // Call the RAG API
+                // Call the RAG API — pass backendConversationId (nil for first
+                // message). The backend creates the conversation on first POST
+                // and returns its ID; passing a client-generated UUID returns 404.
                 let response = try await chatService.chat(
                     message: query,
-                    conversationId: currentConversation.id,
+                    conversationId: backendConversationId,
                     documentIds: selectedDocuments.isEmpty ? nil : Array(selectedDocuments),
                     includeSources: true,
                     maxSources: 5,
@@ -122,6 +118,7 @@ extension ChatView {
                 )
 
                 await MainActor.run {
+                    backendConversationId = response.conversationId
                     currentConversation.messages.append(assistantMessage)
                     isLoading = false
                     // Notify that conversation was updated (for sidebar refresh)

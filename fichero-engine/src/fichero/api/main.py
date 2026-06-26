@@ -15,6 +15,8 @@ Environment Variables:
     TOKENIZERS_PARALLELISM: Set to "false" to disable tokenizer parallelism (avoids fork warnings)
 """
 
+import hashlib
+import hmac
 import os
 import sys
 import warnings
@@ -58,9 +60,20 @@ from typing import Sequence
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
+from fichero.api.library_header import optional_library_path, require_library_path
 from fichero.db import Database, db_manager
+from fichero.discovery import start_bonjour_advertiser
+from fichero.models import (
+    EmbeddingStatsResponse,
+    HealthResponse,
+    LibraryStatsResponse,
+)
 from fichero.paths import migrate_legacy_engine_state
 from fichero.remote_backend import build_remote_backend_status
+from fichero.storage import (
+    start_periodic_snapshot_task,
+    stop_periodic_snapshot_task,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -298,6 +311,7 @@ def _ensure_default_ai_defaults(app_db, apple_provider_id: str) -> None:
       - text / small / large → apple-intelligence
       - medium               → openrouter/openai/gpt-4o-mini
       - vision               → apple-vision
+      - vision aliases       → apple-vision
       - audio                → apple-speech
 
     Only writes a key when it is currently unset; user configuration is
@@ -316,6 +330,12 @@ def _ensure_default_ai_defaults(app_db, apple_provider_id: str) -> None:
         ("default_large_model", "apple-intelligence"),
         ("default_vision_provider", apple_type),
         ("default_vision_model", "apple-vision"),
+        ("default_vision_small_provider", apple_type),
+        ("default_vision_small_model", "apple-vision"),
+        ("default_vision_medium_provider", apple_type),
+        ("default_vision_medium_model", "apple-vision"),
+        ("default_vision_large_provider", apple_type),
+        ("default_vision_large_model", "apple-vision"),
         ("default_audio_provider", apple_type),
         ("default_audio_model", "apple-speech"),
     ]
@@ -381,7 +401,7 @@ def _collapse_duplicate_providers() -> None:
                 app_db.reparent_model(model_id, canonical_id)
             for dup in duplicates:
                 app_db.delete_provider(dup.id)
-            app_db.conn.commit()
+            app_db.commit()
             logger.info(
                 "Collapsed %d duplicate %s providers named %r into %s (reparented %d models)",
                 len(duplicates),
@@ -399,15 +419,21 @@ def _prewarm_embeddings() -> None:
     try:
         from fastembed import TextEmbedding
 
-        # Use the embedder's own canonical default (single source of truth) so
-        # pre-warm always loads the same model the real embedder uses (#1524).
-        from fichero.db_embeddings import DEFAULT_MODEL
+        # Use the embedder's own configured embedding space (single source of
+        # truth) so pre-warm always loads the same model the real embedder uses.
+        from fichero.db_embeddings import (
+            DEFAULT_MODEL,
+            _configured_embedding_space,
+            _register_fastembed_model_for_space,
+        )
         from fichero.local_models import MODELS_BASE
 
         # Guard against an unsupported model name (e.g. a stale setting, or a
         # default that fastembed dropped support for): fall back to the
         # canonical default rather than failing the whole pre-warm (#1524).
-        model_name = DEFAULT_MODEL
+        space = _configured_embedding_space()
+        _register_fastembed_model_for_space(space)
+        model_name = space.fastembed_model_name
         try:
             supported = {m["model"] for m in TextEmbedding.list_supported_models()}
             if model_name not in supported:
@@ -421,6 +447,8 @@ def _prewarm_embeddings() -> None:
         except Exception:  # noqa: BLE001 — never let the guard block pre-warm
             pass
 
+        from fichero.db_embeddings import _get_shared_embedder
+
         cache_dir = MODELS_BASE / "embeddings"
         cache_dir.mkdir(parents=True, exist_ok=True)
         logger.info("Pre-warming embeddings model: %s", model_name)
@@ -430,10 +458,76 @@ def _prewarm_embeddings() -> None:
             warnings.filterwarnings(
                 "ignore", message=".*multilingual-e5-large.*pooling.*"
             )
-            TextEmbedding(model_name=model_name, cache_dir=str(cache_dir))
+            # Route through _get_shared_embedder so the model lands in
+            # _EMBEDDER_CACHE — not a discarded local instance. Any
+            # subsequent _ensure_embedder() call on a Database is then a
+            # dict lookup rather than a 500 MB reload (#1918).
+            _get_shared_embedder(model_name, str(cache_dir))
         logger.info("Embeddings model ready")
     except Exception as exc:
         logger.warning("Embeddings pre-warm failed (will retry on first use): %s", exc)
+
+
+def prefetch_library_caches(package_path: Path) -> dict:
+    """Warm per-library caches so the first user request is fast (#1918).
+
+    Specifically:
+    - Calls ``db._ensure_embedder()`` — which is now a near-zero-cost
+      dict lookup when ``_prewarm_embeddings`` already ran.
+    - Opens each LanceDB vector table via ``count_rows()`` to pull its
+      memory-mapped pages into the OS page cache before a user issues the
+      first semantic search.
+
+    Never raises — all failures are logged as warnings so startup is not
+    blocked by a missing or empty library.
+    """
+    from fichero.db_embeddings import (
+        EMBEDDINGS_TABLE,
+        KG_CLAIM_EMBEDDINGS_TABLE,
+        KG_ENTITY_EMBEDDINGS_TABLE,
+    )
+
+    stats: dict = {
+        "package_path": str(package_path),
+        "embedder_warmed": False,
+        "lance_tables_opened": 0,
+    }
+
+    try:
+        db = db_manager.get_database(package_path)
+    except Exception as exc:
+        logger.warning(
+            "prefetch_library_caches: could not open db for %s: %s",
+            package_path,
+            exc,
+        )
+        return stats
+
+    # Warm embedder (no-op when _prewarm_embeddings already populated cache).
+    try:
+        db._ensure_embedder()
+        stats["embedder_warmed"] = True
+    except Exception as exc:
+        logger.warning(
+            "prefetch_library_caches: embedder warm failed for %s: %s",
+            package_path,
+            exc,
+        )
+
+    # Pull LanceDB vector-table metadata into the OS page cache.
+    for table_name in (
+        EMBEDDINGS_TABLE,
+        KG_ENTITY_EMBEDDINGS_TABLE,
+        KG_CLAIM_EMBEDDINGS_TABLE,
+    ):
+        try:
+            if table_name in db._lance_tables():
+                db.lance.open_table(table_name).count_rows()
+                stats["lance_tables_opened"] += 1
+        except Exception:
+            pass
+
+    return stats
 
 
 def _discover_known_library_paths() -> list[str]:
@@ -467,7 +561,13 @@ async def _recover_stale_runs_on_startup(
             db_path = package_path / "fichero.duckdb"
             if not db_path.exists():
                 continue
-            recovered = await ActivityStore(str(db_path)).recover_stale_runs()
+            # At startup there are zero live workers (the process just
+            # started), so ALL 'running' rows are stale — use max_age_hours=0
+            # to catch even recently-started threads that were interrupted by
+            # the restart. (#2223)
+            recovered = await ActivityStore(str(db_path)).recover_stale_runs(
+                max_age_hours=0
+            )
             recovered_total += recovered
             if recovered:
                 logger.info(
@@ -564,21 +664,51 @@ async def lifespan(app: FastAPI):
     # from the pre-fix POST /providers behaviour (#704).
     _collapse_duplicate_providers()
 
+    # Pairing codes are process-local; warn if a non-standard launcher exposes
+    # a detectable multi-worker configuration.
+    pairing.warn_pairing_single_process_invariant()
+
     # Recover stale workflow runs left in 'running' by prior crashes/restarts (#1350).
     await _recover_stale_runs_on_startup()
 
-    # Pre-warm embeddings model in background — avoids 2+ GB download on first search
+    # Pre-warm embeddings model and per-library caches in background (#1918).
+    # _prewarm_embeddings now populates _EMBEDDER_CACHE (not a discarded instance)
+    # so the subsequent prefetch_library_caches calls are near-zero-cost embedder
+    # warm + cheap LanceDB count_rows() per known library.
     loop = asyncio.get_event_loop()
-    loop.run_in_executor(None, _prewarm_embeddings)
+
+    def _prewarm_and_prefetch() -> None:
+        _prewarm_embeddings()
+        for lib_path in _discover_known_library_paths():
+            try:
+                stats = prefetch_library_caches(Path(lib_path))
+                logger.info(
+                    "prefetch_library_caches: %s — embedder_warmed=%s lance_tables=%d",
+                    lib_path,
+                    stats["embedder_warmed"],
+                    stats["lance_tables_opened"],
+                )
+            except Exception as exc:
+                logger.warning(
+                    "prefetch_library_caches failed for %s: %s", lib_path, exc
+                )
+
+    loop.run_in_executor(None, _prewarm_and_prefetch)
 
     # Watch FICHERO_PARENT_PID (set by EmbeddedBackendService on spawn).
     # If the Swift app dies without a chance to call .stop() (e.g. SIGKILL,
     # crash, force-quit), this self-terminates the engine so it doesn't
     # become an orphan holding port 8765.
     parent_watcher = asyncio.create_task(_watch_parent_process())
+    periodic_snapshot_task = start_periodic_snapshot_task()
+    bonjour_advertiser = start_bonjour_advertiser(log=logger)
+    app.state.bonjour_advertiser = bonjour_advertiser
 
     yield
     parent_watcher.cancel()
+    await stop_periodic_snapshot_task(periodic_snapshot_task)
+    if bonjour_advertiser is not None:
+        bonjour_advertiser.stop()
     # Shutdown: close all database connections
     logger.info("Fichero API shutting down...")
     db_manager.close_all()
@@ -651,7 +781,7 @@ app.add_middleware(
 @app.middleware("http")
 async def validate_library_path_header(request: Request, call_next):
     """Validate library header early, even when dependencies are overridden in tests."""
-    library_path = request.headers.get("X-Fichero-Library-Path")
+    library_path = optional_library_path(request)
     if library_path and not _is_allowed_library_path(library_path):
         from fastapi.responses import JSONResponse
 
@@ -662,6 +792,35 @@ async def validate_library_path_header(request: Request, call_next):
             },
         )
     return await call_next(request)
+
+
+def _configured_library_allowed_roots() -> list[Path]:
+    """Extra server-side library roots for remote/Linux engines.
+
+    FICHERO_LIBRARY_ALLOWED_ROOTS accepts an os.pathsep-separated list and also
+    tolerates commas/newlines for deployment systems that make pathsep awkward.
+    The filesystem root is ignored: library access must always be scoped.
+    """
+    raw = os.environ.get("FICHERO_LIBRARY_ALLOWED_ROOTS", "")
+    if not raw.strip():
+        return []
+
+    parts = raw.replace("\n", os.pathsep).replace(",", os.pathsep).split(os.pathsep)
+    roots: list[Path] = []
+    for part in parts:
+        value = part.strip()
+        if not value:
+            continue
+        root = Path(value).expanduser()
+        try:
+            resolved = root.resolve()
+        except Exception:
+            continue
+        if resolved == Path(resolved.anchor):
+            logger.warning("Ignoring unsafe FICHERO_LIBRARY_ALLOWED_ROOTS entry: %s", value)
+            continue
+        roots.append(resolved)
+    return roots
 
 
 def _is_allowed_library_path(library_path: str) -> bool:
@@ -678,6 +837,7 @@ def _is_allowed_library_path(library_path: str) -> bool:
       iCloud-synced Documents/Desktop physically live here
     - test temp dirs under /var/folders and /private/var/folders (macOS)
     - /tmp and /private/tmp — Linux CI and macOS sandbox pytest tmp_path
+    - FICHERO_LIBRARY_ALLOWED_ROOTS entries for remote/server deployments
 
     Symlink tolerance: when "Desktop & Documents in iCloud" is ON, ~/Documents
     is a symlink into ~/Library/Mobile Documents/com~apple~CloudDocs/Documents.
@@ -713,6 +873,7 @@ def _is_allowed_library_path(library_path: str) -> bool:
         Path("/private/var/folders"),
         Path("/tmp"),
         Path("/private/tmp"),
+        *_configured_library_allowed_roots(),
     ]
 
     candidates = [resolved, expanded]
@@ -724,7 +885,8 @@ def _is_allowed_library_path(library_path: str) -> bool:
 
 
 async def get_library_database(
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    request: Request,
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> Database:
     """FastAPI dependency to get the database for the current library package.
 
@@ -740,6 +902,33 @@ async def get_library_database(
     Raises:
         HTTPException: If library path header is missing or invalid
     """
+    return _get_library_database_for_access(
+        request,
+        x_fichero_library_path,
+        write=False,
+    )
+
+
+async def get_library_database_for_write(
+    request: Request,
+    x_fichero_library_path: str = Depends(require_library_path),
+) -> Database:
+    """FastAPI dependency to get the database for mutating library routes."""
+    # TODO(#1848): non-registry mutating routes are now AUTHZ-gated, but most
+    # still do not write ActionAudit rows; track under the audited-action-layer epic.
+    return _get_library_database_for_access(
+        request,
+        x_fichero_library_path,
+        write=True,
+    )
+
+
+def _get_library_database_for_access(
+    request: Request,
+    x_fichero_library_path: str,
+    *,
+    write: bool,
+) -> Database:
     if not x_fichero_library_path:
         raise HTTPException(
             status_code=400,
@@ -752,6 +941,13 @@ async def get_library_database(
             detail="Library path is not in an allowed location or not a .fichero package.",
         )
 
+    _bootstrap_legacy_library_owner_if_needed(request, x_fichero_library_path)
+
+    if write:
+        assert_library_write_authorized(request, x_fichero_library_path)
+    else:
+        assert_library_read_authorized(request, x_fichero_library_path)
+
     try:
         db = db_manager.get_database(x_fichero_library_path)
         logger.debug(f"Using database for library: {x_fichero_library_path}")
@@ -763,11 +959,111 @@ async def get_library_database(
         )
 
 
+def _bootstrap_legacy_library_owner_if_needed(
+    request: Request,
+    library_path: str,
+) -> None:
+    """Backfill owner ACL rows for legacy libraries on first trusted owner access.
+
+    Older libraries predate multi-user ACL rows. Once remote pairing enables
+    ``FICHERO_MULTIUSER``, those libraries should still open for the Mac owner
+    and for owner-paired devices. We only bootstrap when:
+
+    - multi-user auth is enabled,
+    - the library currently has no ACL role rows,
+    - and the caller is a trusted owner (session/device owner user or the
+      loopback bootstrap path with exactly one active owner).
+    """
+    from fichero import authz
+    from fichero.app_db import get_app_db
+
+    if not authz.multiuser_enabled():
+        return
+
+    normalized_path = authz.normalize_library_path(library_path)
+    if normalized_path is None:
+        return
+
+    app_db = get_app_db()
+    if app_db.list_library_roles(normalized_path):
+        return
+
+    owner_user = getattr(getattr(request, "state", None), "user", None)
+    if owner_user is not None and not getattr(owner_user, "is_owner", False):
+        owner_user = None
+
+    if owner_user is None and getattr(getattr(request, "state", None), "bootstrap_auth", False):
+        owners = [
+            candidate
+            for candidate in app_db.list_users()
+            if candidate.is_owner and candidate.active
+        ]
+        if len(owners) == 1:
+            owner_user = owners[0]
+
+    if owner_user is None:
+        return
+
+    if authz.ensure_owner_role(owner_user, normalized_path):
+        logger.info("Bootstrapped legacy library owner for %s", normalized_path)
+
+
+def assert_library_read_authorized(
+    request: Request,
+    library_path: str,
+    target_id: str | None = None,
+) -> None:
+    """Authorize a user-initiated request before touching a library path."""
+    from fichero import authz
+
+    if getattr(getattr(request, "state", None), "bootstrap_auth", False):
+        return
+
+    try:
+        authz.assert_can_read(
+            getattr(getattr(request, "state", None), "user", None),
+            library_path,
+            target_id
+            if target_id is not None
+            else authz.target_id_from_request(request),
+        )
+    except authz.AuthorizationError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+
+def assert_library_write_authorized(
+    request: Request,
+    library_path: str,
+    target_id: str | None = None,
+) -> None:
+    """Authorize a user-initiated mutation before touching a library DB."""
+    from fichero import authz
+
+    if getattr(getattr(request, "state", None), "bootstrap_auth", False):
+        return
+
+    try:
+        authz.assert_can_write(
+            getattr(getattr(request, "state", None), "user", None),
+            library_path,
+            target_id
+            if target_id is not None
+            else authz.target_id_from_request(request),
+        )
+    except authz.AuthorizationError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+
 # Health check endpoint
-@app.get("/api/health")
+@app.get("/api/health", response_model=HealthResponse)
 async def health_check(
-    x_fichero_library_path: str | None = Header(None, alias="X-Fichero-Library-Path"),
-):
+    request: Request,
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_client_nonce: str | None = Header(
+        None, alias="X-Fichero-Client-Nonce"
+    ),
+    nonce: str | None = None,
+) -> HealthResponse:
     """Health check endpoint.
 
     If library path is provided, returns stats for that library.
@@ -776,48 +1072,90 @@ async def health_check(
     from fichero.models import Document
 
     if x_fichero_library_path:
+        if not _is_allowed_library_path(x_fichero_library_path):
+            raise HTTPException(
+                status_code=403,
+                detail="Library path is not in an allowed location or not a .fichero package.",
+            )
+        assert_library_read_authorized(request, x_fichero_library_path)
         # Library-specific health check
         try:
             db = db_manager.get_database(x_fichero_library_path)
-            doc_count = db.count(Document)
-            return {
-                "status": "healthy",
-                "library_path": x_fichero_library_path,
-                "database": str(db.path),
-                "document_count": doc_count,
-            }
+            doc_count = sum(
+                1
+                for doc in db.all(Document)
+                if getattr(doc, "deleted_at", None) is None
+            )
+            return _with_server_proof(
+                HealthResponse(
+                    status="healthy",
+                    library_path=x_fichero_library_path,
+                    database=str(db.path),
+                    document_count=doc_count,
+                ),
+                nonce or x_fichero_client_nonce,
+            )
         except Exception as e:
-            return {
-                "status": "unhealthy",
-                "library_path": x_fichero_library_path,
-                "error": str(e),
-            }
+            return _with_server_proof(
+                HealthResponse(
+                    status="unhealthy",
+                    library_path=x_fichero_library_path,
+                    error=str(e),
+                ),
+                nonce or x_fichero_client_nonce,
+            )
     else:
         # General backend health
-        return {
-            "status": "healthy",
-            "backend_version": "0.1.0",
-            "active_libraries": db_manager.active_count,
-            "remote_backend": build_remote_backend_status().as_dict(),
-        }
+        return _with_server_proof(
+            HealthResponse(
+                status="healthy",
+                backend_version="0.1.0",
+                active_libraries=db_manager.active_count,
+                remote_backend=build_remote_backend_status().as_dict(),
+            ),
+            nonce or x_fichero_client_nonce,
+        )
 
 
-@app.get("/api/stats")
+def _with_server_proof(response: HealthResponse, nonce: str | None) -> HealthResponse:
+    """Attach HMAC(server bootstrap secret, nonce) when the client asks."""
+    if not nonce:
+        return response
+    secret = globals().get("_api_token")
+    if not isinstance(secret, str) or not secret:
+        return response
+    response.server_proof = hmac.new(
+        secret.encode("utf-8"),
+        nonce.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return response
+
+
+@app.get("/api/stats", response_model=LibraryStatsResponse)
 async def get_stats(db: Database = Depends(get_library_database)):
     """Get library statistics for the current library."""
     from fichero.models import Document, Artifact
 
-    return {
-        "documents": db.count(Document),
-        "artifacts": db.count(Artifact),
-        "embedding_stats": db.embedding_stats(),
-    }
+    return LibraryStatsResponse(
+        documents=sum(
+            1
+            for doc in db.all(Document)
+            if getattr(doc, "deleted_at", None) is None
+        ),
+        artifacts=db.count(Artifact),
+        embedding_stats=EmbeddingStatsResponse(**db.embedding_stats()),
+    )
 
 
 # Include route modules
 from fichero.api.routes import (  # noqa: E402
     actions,
+    actions_registry,
     activity,
+    agent_memory,
+    authz,
+    auth_accounts,
     annotations,
     artifacts,
     batch,
@@ -844,8 +1182,10 @@ from fichero.api.routes import (  # noqa: E402
     integrations,
     kg_claim_analysis,
     kg_claim_search,
+    kg_curation_rules,
     kg_entity_curation,
     kg_graph,
+    changes,
     kg_inclusion,
     kg_mutations,
     kg_render,
@@ -857,11 +1197,14 @@ from fichero.api.routes import (  # noqa: E402
     kg_sparql,
     kg_triangulation,
     library,
+    library_links,
     library_entity_types,
     library_registry,
+    local_inference,
     local_models,
     mcp_servers,
     mcp_tools,
+    pairing,
     migrations,
     mind_palace,
     mindpalace_render,
@@ -892,6 +1235,15 @@ RouteSpec = tuple[object, str, list[str]]
 
 _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (activity.router, "/api", ["activity"]),
+    (agent_memory.router, "/api", ["agent-memory"]),
+    (authz.router, "/api", ["authz"]),
+    (auth_accounts.auth_router, "/api", ["auth"]),
+    (auth_accounts.users_router, "/api", ["users"]),
+    (pairing.router, "/api", ["pairing"]),
+    # /api/changes/stream — per-library change-event SSE; foundation of the
+    # observable data layer (#1863). Core tier: the SwiftUI stores subscribe
+    # unconditionally.
+    (changes.router, "/api", ["changes"]),
     (annotations.router, "/api", ["annotations"]),
     (notes.router, "/api", ["notes"]),
     (projects.router, "/api", ["projects"]),
@@ -902,6 +1254,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (citations.router, "/api", ["citations"]),
     (classifications.router, "/api", ["classifications"]),
     (claim_links.router, "/api", ["claim-links"]),
+    (library_links.router, "/api", ["library-links"]),
     (claims.router, "/api", ["claims"]),
     (documents.router, "/api/documents", ["documents"]),
     (references.router, "/api", ["references"]),
@@ -945,6 +1298,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # Renamed from review_queue 2026-05-15 — the file is unrelated to the
     # entity-pair review queue in kg_review.py.
     (claim_curation.router, "/api", ["claim-curation"]),
+    (claim_curation.kg_claims_router, "/api", ["knowledge-graph"]),
     (storage.router, "/api/storage", ["storage"]),
     (tasks.router, "/api/tasks", ["tasks"]),
     (workflow_execution.router, "/api/workflow-execution", ["workflow-execution"]),
@@ -962,6 +1316,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (kg_graph.router, "/api", ["knowledge-graph"]),
     (kg_render.router, "/api", ["knowledge-graph"]),
     (kg_render.bio_router, "/api", ["knowledge-graph"]),
+    (kg_entity_curation.kg_entities_router, "/api", ["knowledge-graph"]),
     (kg_pykeen.router, "/api", ["knowledge-graph"]),
     (kg_predictions.router, "/api", ["knowledge-graph"]),
     (kg_review.router, "/api", ["knowledge-graph"]),
@@ -972,6 +1327,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (citation_rendering.router, "/api", ["citation-rendering"]),
     (kg_claim_search.router, "/api", ["knowledge-graph"]),
     (kg_claim_analysis.router, "/api", ["knowledge-graph"]),
+    (kg_curation_rules.router, "/api", ["knowledge-graph"]),
     (kg_entity_curation.router, "/api", ["knowledge-graph"]),
     (kg_sparql.router, "/api", ["knowledge-graph"]),
     (kg_inclusion.router, "/api", ["knowledge-graph"]),
@@ -997,8 +1353,13 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (mindpalace_render.router, "/api", ["mind-palace"]),
     (research_agents.router, "/api/research", ["research"]),
     (iiif.router, "/api/iiif", ["iiif"]),
+    # Action layer registry (EPIC #1848 keystone #2013). Registered BEFORE
+    # actions.router so its static /actions/{invoke,registry,audit/...} paths win
+    # over the Action Library's /actions/{action_id} dynamic segment.
+    (actions_registry.router, "/api", ["actions"]),
     (actions.router, "/api", ["actions"]),
     (integrations.router, "/api", ["integrations"]),
+    (local_inference.router, "/api", ["local-inference"]),
     (local_models.router, "/api", ["local-models"]),
     (mcp_servers.router, "/api", ["mcp-servers"]),
     (orchestration.router, "", ["orchestration"]),

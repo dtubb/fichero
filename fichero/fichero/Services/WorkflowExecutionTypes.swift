@@ -10,7 +10,7 @@ struct WorkflowExecution: Identifiable {
     let startTime: Date
     var status: WorkflowStatus
     var nodeStates: [String: NodeExecutionState]  // keyed by node ID
-    var documentProgress: [String: DocumentProgress]  // keyed by file path
+    var documentProgress: [String: DocumentProgress]  // keyed by stable document/page identity
     var currentFilePath: String?
     var currentNodeId: String?
     var currentNodeName: String?

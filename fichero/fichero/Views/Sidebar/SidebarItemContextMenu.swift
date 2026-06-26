@@ -10,8 +10,8 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Sidebar
 /// Actions are disabled based on item capabilities (see `SidebarItem.ItemType` extensions).
 struct SidebarItemContextMenu: View {
     let item: SidebarItem
-    @ObservedObject var renameState: RenameStateManager
-    @ObservedObject var deleteState: DeleteStateManager
+    @Bindable var renameState: RenameStateManager
+    @Bindable var deleteState: DeleteStateManager
 
     // Optional callbacks for automation actions
     var onPause: (() -> Void)?

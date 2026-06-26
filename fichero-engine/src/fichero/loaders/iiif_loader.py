@@ -8,17 +8,47 @@ Downloads images from IIIF Image API endpoints.
 import logging
 from io import BytesIO
 from pathlib import Path
+from urllib.parse import urljoin
 
 from PIL import Image
 
 from typing import TYPE_CHECKING
 
 from fichero.loaders.base import MediaContent, MediaLoader
+from fichero.url_security import is_safe_url
 
 if TYPE_CHECKING:
     import aiohttp
 
 logger = logging.getLogger(__name__)
+
+_MAX_REDIRECTS = 5
+
+
+async def _validate_url(url: str) -> None:
+    is_safe, error = await is_safe_url(url)
+    if not is_safe:
+        raise ValueError(f"IIIF URL not allowed: {error}")
+
+
+async def _get_safe(
+    session: "aiohttp.ClientSession",
+    url: str,
+    *,
+    max_redirects: int = _MAX_REDIRECTS,
+):
+    current_url = url
+    for _ in range(max_redirects + 1):
+        await _validate_url(current_url)
+        resp = await session.get(current_url, allow_redirects=False)
+        if resp.status not in (301, 302, 303, 307, 308):
+            return resp
+        location = resp.headers.get("location")
+        resp.release()
+        if not location:
+            return resp
+        current_url = urljoin(str(resp.url), location)
+    raise ValueError(f"IIIF redirect limit exceeded ({max_redirects})")
 
 
 class IIIFLoader(MediaLoader):
@@ -67,11 +97,12 @@ class IIIFLoader(MediaLoader):
         manifest_url = str(source)
 
         try:
+            await _validate_url(manifest_url)
             async with aiohttp.ClientSession(
                 timeout=aiohttp.ClientTimeout(total=self.timeout)
             ) as session:
                 # Fetch manifest
-                async with session.get(manifest_url) as resp:
+                async with await _get_safe(session, manifest_url) as resp:
                     resp.raise_for_status()
                     manifest = await resp.json()
 
@@ -215,7 +246,7 @@ class IIIFLoader(MediaLoader):
         self, session: "aiohttp.ClientSession", url: str
     ) -> Image.Image:
         """Download image from URL."""
-        async with session.get(url) as resp:
+        async with await _get_safe(session, url) as resp:
             resp.raise_for_status()
             data = await resp.read()
             return Image.open(BytesIO(data))

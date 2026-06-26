@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 import OSLog
 
@@ -126,9 +127,6 @@ extension DocumentStore {
         // Update local state
         updateLocal(updated)
 
-        // Force @Published trigger by creating new array reference
-        collections = collections.map { $0 }
-
         // Publish change
         publish(.documentsUpdated(collections))
 
@@ -254,7 +252,8 @@ extension DocumentStore {
 
         request.httpBody = body
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let session = RemoteCertificatePinning.configuredSession()
+        let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw DocumentStoreError.invalidResponse
@@ -303,9 +302,6 @@ extension DocumentStore {
         // Update in-place (updates the document in collections, cache, etc.)
         updateLocal(updated)
 
-        // Force @Published trigger by creating new array reference
-        // This ensures SwiftUI detects the change even for folder-to-folder moves
-        collections = collections.map { $0 }
         logger.info("Moved document: \(updated.name) to parent: \(parentId ?? "root")")
 
         // Publish change - this triggers PassthroughSubject for any subscribers
@@ -362,7 +358,6 @@ extension DocumentStore {
                 }
             }
         }
-        collections = collections.map { $0 }
         Task {
             do {
                 try await reorderDocuments(orderedIds)

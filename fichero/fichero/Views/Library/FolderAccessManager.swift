@@ -1,4 +1,6 @@
+#if canImport(AppKit)
 import AppKit
+#endif
 import OSLog
 import SwiftUI
 
@@ -6,13 +8,17 @@ import SwiftUI
 ///
 /// This class handles macOS security-scoped bookmarks to persist folder access permissions
 /// across app launches. Required for accessing files outside the app's sandbox.
+
+#if os(macOS)
+
 @MainActor
-class FolderAccessManager: ObservableObject {
+@Observable
+class FolderAccessManager {
     static let shared = FolderAccessManager()
 
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "FolderAccess")
     private let bookmarksKey = "FolderAccessBookmarks"
-    @Published private(set) var accessedFolders: [URL] = []
+    private(set) var accessedFolders: [URL] = []
 
     private init() {
         restoreBookmarks()
@@ -180,3 +186,44 @@ class FolderAccessManager: ObservableObject {
         UserDefaults.standard.removeObject(forKey: bookmarksKey)
     }
 }
+
+#else
+
+// iOS stub: folder bookmarks are not used the same way in the app sandbox;
+// call sites still compile and any access check falls back to readability.
+@MainActor
+@Observable
+class FolderAccessManager {
+    static let shared = FolderAccessManager()
+
+    private let logger = Logger(subsystem: "app.fichero.fichero", category: "FolderAccess")
+    private let bookmarksKey = "FolderAccessBookmarks"
+    private(set) var accessedFolders: [URL] = []
+
+    private init() {}
+
+    func hasAccess(to path: String) -> Bool {
+        FileManager.default.isReadableFile(atPath: path)
+    }
+
+    func requestFolderAccess(suggestedPath: String? = nil, completion: @escaping (Bool) -> Void) {
+        // iOS: no folder picker fallback; caller should use document picker.
+        logger.info("requestFolderAccess is a no-op on iOS")
+        completion(false)
+    }
+
+    func saveBookmark(for url: URL) {
+        logger.debug("Bookmark persistence is macOS-only; ignoring on iOS for: \(url.path)")
+    }
+
+    func saveBookmarkIfDirectory(_ url: URL) {
+        // iOS: importing through document picker already grants access.
+    }
+
+    func clearAllAccess() {
+        accessedFolders.removeAll()
+        UserDefaults.standard.removeObject(forKey: bookmarksKey)
+    }
+}
+
+#endif

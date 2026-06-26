@@ -1,803 +1,344 @@
-// swiftlint:disable file_length
 import FicheroAPIClient
-import OSLog
 import SwiftUI
 
-private let relatedClaimsLogger = Logger(
-    subsystem: "app.fichero.fichero",
-    category: "RelatedClaimsPanel"
-)
-
-/// Info tab content for DocumentInspector
+/// Info tab — two-step progressive disclosure: attribute name + summary, select to reveal detail / edit.
 struct DocumentInspectorInfoTab: View {
     let document: Document
 
+    @EnvironmentObject var libraryManager: LibraryManager
+    @EnvironmentObject var windowState: WindowState
+    @Environment(DocumentStore.self) private var documentStore: DocumentStore
+    @State var isUpdatingExclude = false
+    @State var excludeFromProcessingOverride: Bool?
+    @State var libraryAuthzSnapshot: Components.Schemas.LibraryAuthzSnapshot?
+    @State var libraryAuthzError: String?
+    @State var isLoadingLibraryAuthz = false
+    @State private var selectedAttribute: InfoAttribute?
+
+    var isExcludedFromProcessing: Bool {
+        excludeFromProcessingOverride ?? document.excludeFromProcessing
+    }
+
     var body: some View {
+        // NOTE: this view is hosted inside a parent `ScrollView` (see
+        // `DocumentInspector.infoTab(for:)`). A SwiftUI `List` collapses to
+        // zero height inside a `ScrollView`, which is why only the header used
+        // to render and the whole attribute body was invisible (#2107). We
+        // keep the exact same `InfoAttributeRow` progressive-disclosure UI but
+        // lay the sections out with plain stacks so they survive the enclosing
+        // scroll view. Selection is driven by a tap on each row rather than
+        // `List(selection:)`.
         VStack(alignment: .center, spacing: 0) {
             headerSection
                 .padding(.bottom, 8)
 
-            Form {
-                Section("Status") {
-                    LabeledContent("State") {
-                        HStack(spacing: 6) {
-                            StatusBadge(status: document.status)
-                            if document.status == .processing {
-                                ProgressView().scaleEffect(0.7)
-                            }
-                        }
-                    }
-                    LabeledContent("Created") {
-                        Text(document.createdAt, style: .date)
-                    }
-                    LabeledContent("Modified") {
-                        Text(document.updatedAt, style: .relative)
-                    }
-                }
-
-                Section("Class") {
-                    DocumentPrototypePicker(
-                        documentId: document.id,
-                        initialKey: document.prototypeKey
-                    )
-                }
+            VStack(alignment: .leading, spacing: 16) {
+                statusSection
+                classSection
+                sharingSection
 
                 // Workspace curated items + per-item node class (#1570 Phase 1).
-                // Only shown for workspace folders — folded into the existing
-                // inspector Form as one more Section (conservative placement).
                 if document.isWorkspace {
-                    Section("Curated Items") {
+                    infoSection("Curated Items") {
                         WorkspaceCuratedItemsSection(folderId: document.id)
                     }
                 }
 
-                Section("File") {
-                    LabeledContent("Kind") {
-                        Text(document.docType.rawValue.capitalized)
-                    }
-                    if let fileType = document.fileType {
-                        LabeledContent("Type") {
-                            Text(fileType.rawValue.capitalized)
-                        }
-                    }
-                    if let fileSize = document.metadata["File_Size"]?.value as? Int {
-                        LabeledContent("Size") {
-                            Text(ByteCountFormatter.string(fromByteCount: Int64(fileSize), countStyle: .file))
-                        }
-                    }
-                }
+                fileSection
+                contentSection
 
-                Section("Related Claims") {
+                infoSection("Related Claims") {
                     RelatedClaimsPanel(documentId: document.id)
                 }
 
-                Section("Citations") {
-                    CitationGraphPanel(documentId: document.id)
-                }
+                // Citations + Bibliography moved to dedicated inspector tabs
+                // (#2004 / #2005) — List + detachable detail, replacing the
+                // stacked CitationGraphPanel / DocumentBibliographyPanel that
+                // were cramped inside this Info list.
 
-                Section("Bibliography") {
-                    DocumentBibliographyPanel(documentId: document.id)
-                }
-
-                Section("Workflow History") {
+                infoSection("Workflow History") {
                     WorkflowProvenancePanel(documentId: document.id)
                 }
             }
-            .formStyle(.grouped)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .onChange(of: document.id) { _, _ in
+            excludeFromProcessingOverride = nil
+            selectedAttribute = nil
+        }
+        .task(id: authzLoadKey) {
+            await loadLibraryAuthzSnapshot()
         }
     }
 
-    // MARK: - Header Section
+    // MARK: - Sections
 
-    private var headerSection: some View {
-        VStack(alignment: .center, spacing: 10) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(.windowBackgroundColor))
-                    .frame(width: 80, height: 100)
-
-                LibraryImageView(documentId: document.id, imageType: .thumbnail)
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 80, height: 100)
-                    .clipped()
-            }
-            .frame(width: 80, height: 100)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-
-            Text(document.name)
-                .font(.headline)
-                .multilineTextAlignment(.center)
-                .lineLimit(3)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 8)
-    }
-}
-
-// MARK: - RelatedClaimsPanel (#959 KG-RAG)
-
-/// Inspector panel that surfaces claims from across the library
-/// semantically similar to claims extracted from the current document.
-/// Uses `EntityServiceGenerated.findSimilarClaims` per doc-claim, dedups
-/// by claim id, ranks by similarity, caps at 10.
-///
-/// Empty state means either (a) the doc has no extracted claims yet, or
-/// (b) claims haven't been embedded — run "Embed claims" from the
-/// Ontology Browser Tools menu.
-struct RelatedClaimsPanel: View {
-    let documentId: String
-
-    @State private var related: [EntityServiceGenerated.SimilarClaim] = []
-    @State private var sourceDocNames: [String: String] = [:]
-    @State private var isLoading = false
-    @State private var errorMessage: String?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if let errorMessage {
-                Text(errorMessage)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else if isLoading && related.isEmpty {
+    @ViewBuilder
+    private var statusSection: some View {
+        infoSection("Status") {
+            attributeRow(
+                name: "State",
+                summary: document.status.rawValue.capitalized,
+                attribute: .state
+            ) {
                 HStack(spacing: 6) {
-                    ProgressView().scaleEffect(0.6)
-                    Text("Searching…").font(.caption).foregroundStyle(.secondary)
-                }
-            } else if related.isEmpty {
-                Text("No related claims")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                LazyVStack(alignment: .leading, spacing: 6) {
-                    ForEach(related) { row(for: $0) }
+                    StatusBadge(status: document.status)
+                    if document.status == .processing {
+                        ProgressView().scaleEffect(0.7)
+                    }
                 }
             }
+
+            attributeRow(
+                name: "Ingest Mode",
+                summary: document.ingestMode.rawValue.capitalized,
+                attribute: .ingestMode
+            ) {
+                Text(document.ingestMode.rawValue.capitalized)
+                    .foregroundStyle(.secondary)
+            }
+
+            attributeRow(
+                name: "Created",
+                summary: document.createdAt.formatted(date: .abbreviated, time: .omitted),
+                attribute: .created
+            ) {
+                Text(document.createdAt, format: .dateTime)
+                    .foregroundStyle(.secondary)
+            }
+
+            attributeRow(
+                name: "Modified",
+                summary: document.updatedAt.formatted(.relative(presentation: .named)),
+                attribute: .modified
+            ) {
+                Text(document.updatedAt, format: .dateTime)
+                    .foregroundStyle(.secondary)
+            }
         }
-        .task(id: documentId) { await load() }
     }
 
     @ViewBuilder
-    private func row(for claim: EntityServiceGenerated.SimilarClaim) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(claim.text)
-                .font(.caption)
-                .foregroundStyle(.primary)
-                .lineLimit(3)
-                .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 6) {
-                if let docId = claim.sourceDocumentId,
-                   let name = sourceDocNames[docId], !name.isEmpty {
-                    Text(name)
-                        .font(.caption2)
-                        .italic()
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                Spacer(minLength: 4)
-                Text(String(format: "%.2f", max(0, min(1, claim.similarityScore))))
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(.tertiary)
-            }
-        }
-        .padding(.vertical, 2)
-    }
-
-    @MainActor
-    private func load() async {
-        guard let library = LibraryManager.shared.globalLibrary else {
-            related = []
-            return
-        }
-        isLoading = true
-        errorMessage = nil
-        defer { isLoading = false }
-
-        do {
-            // 1) Fetch this doc's own claims.
-            let myClaims = try await library.entityService.listClaims(
-                sourceDocumentId: documentId,
-                limit: 100
-            )
-            guard !myClaims.isEmpty else {
-                related = []
-                return
-            }
-
-            // 2) For each (up to 20), fetch top-3 similar; dedup by claim id;
-            // keep the highest similarity per id; exclude self-doc; top 10.
-            var aggregated: [String: EntityServiceGenerated.SimilarClaim] = [:]
-            for claim in myClaims.prefix(20) {
-                guard let cid = claim.id else { continue }
-                let similar = try await library.entityService.findSimilarClaims(
-                    claimId: cid,
-                    limit: 3
+    private var classSection: some View {
+        infoSection("Class") {
+            attributeRow(
+                name: "Class",
+                summary: document.prototypeKey ?? "Default",
+                attribute: .documentClass
+            ) {
+                DocumentPrototypePicker(
+                    documentId: document.id,
+                    initialKey: document.prototypeKey
                 )
-                for sim in similar where sim.sourceDocumentId != documentId {
-                    if let existing = aggregated[sim.id] {
-                        if sim.similarityScore > existing.similarityScore {
-                            aggregated[sim.id] = sim
-                        }
-                    } else {
-                        aggregated[sim.id] = sim
-                    }
-                }
-            }
-            let top = aggregated.values
-                .sorted { $0.similarityScore > $1.similarityScore }
-                .prefix(10)
-            let result = Array(top)
-            resolveSourceDocNames(for: Set(result.compactMap { $0.sourceDocumentId }))
-            related = result
-        } catch {
-            relatedClaimsLogger.error("Related claims fetch failed: \(error.localizedDescription)")
-            errorMessage = "Couldn't load related claims."
-            related = []
-        }
-    }
-
-    private func resolveSourceDocNames(for ids: Set<String>) {
-        guard let library = LibraryManager.shared.globalLibrary,
-              !ids.isEmpty
-        else { return }
-        var resolved: [String: String] = [:]
-        for id in ids {
-            if let doc = library.documentStore.currentDocuments.first(where: { $0.id == id }) {
-                resolved[id] = doc.name
-            }
-        }
-        sourceDocNames = resolved
-    }
-}
-
-// MARK: - CitationGraphPanel (#974 prep)
-
-/// Inspector panel that surfaces citations to/from this document, backed
-/// by `/api/citations/graph/document/{id}/{inbound,outbound}`.
-/// "Inbound" = docs that cite this one; "Outbound" = docs this one cites.
-/// Rows render the citation text + page label (when present) + a small
-/// italic resolved doc name for outbound, source-doc name for inbound.
-struct CitationGraphPanel: View {
-    let documentId: String
-
-    @State private var inbound: [Components.Schemas.DocumentCitation] = []
-    @State private var outbound: [Components.Schemas.DocumentCitation] = []
-    @State private var citationUsages: [EntityCitationUsage] = []
-    @State private var isLoading = false
-    @State private var errorMessage: String?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let errorMessage {
-                Text(errorMessage)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else if isLoading && inbound.isEmpty && outbound.isEmpty {
-                HStack(spacing: 6) {
-                    ProgressView().scaleEffect(0.6)
-                    Text("Loading…").font(.caption).foregroundStyle(.secondary)
-                }
-            } else if inbound.isEmpty && outbound.isEmpty {
-                Text("No citations recorded")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                if !outbound.isEmpty {
-                    citationGroup(
-                        title: "Cites \(outbound.count)",
-                        items: outbound,
-                        nameFor: { $0.targetDocumentId }
-                    )
-                }
-                if !inbound.isEmpty {
-                    citationGroup(
-                        title: "Cited by \(inbound.count)",
-                        items: inbound,
-                        nameFor: { _ in nil }
-                    )
-                }
-            }
-        }
-        .task(id: documentId) { await load() }
-    }
-
-    @ViewBuilder
-    private func citationGroup(
-        title: String,
-        items: [Components.Schemas.DocumentCitation],
-        nameFor: (Components.Schemas.DocumentCitation) -> String?
-    ) -> some View {
-        Text(title)
-            .font(.caption.bold())
-            .foregroundStyle(.secondary)
-        LazyVStack(alignment: .leading, spacing: 4) {
-            ForEach(items, id: \.id) { item in
-                citationRow(item)
             }
         }
     }
 
     @ViewBuilder
-    private func citationRow(_ item: Components.Schemas.DocumentCitation) -> some View {
-        let usages = usageItems(for: item)
-        VStack(alignment: .leading, spacing: 2) {
-            Text(item.targetCitationText)
-                .font(.caption)
-                .foregroundStyle(.primary)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 6) {
-                if let page = item.pageLabel, !page.isEmpty {
-                    Text("p. \(page)")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
-                if let detector = item.detector, !detector.isEmpty {
-                    Text(detector)
-                        .font(.caption2)
-                        .italic()
-                        .foregroundStyle(.tertiary)
-                }
-                Spacer(minLength: 4)
-                if let confidence = item.confidence {
-                    Text(String(format: "%.2f", confidence))
-                        .font(.caption2.monospacedDigit())
-                        .foregroundStyle(.tertiary)
-                }
-            }
-            if !usages.isEmpty {
-                Text("\(usages.count) supported claim\(usages.count == 1 ? "" : "s")")
-                    .font(.caption2)
+    private var fileSection: some View {
+        infoSection("File") {
+            attributeRow(
+                name: "Kind",
+                summary: document.docType.rawValue.capitalized,
+                attribute: .kind
+            ) {
+                Text(document.docType.rawValue.capitalized)
                     .foregroundStyle(.secondary)
-                if let claimText = usages.first?.claim?.text, !claimText.isEmpty {
-                    Text(claimText)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
             }
-        }
-        .padding(.vertical, 2)
-    }
 
-    private func usageItems(
-        for citation: Components.Schemas.DocumentCitation
-    ) -> [EntityCitationUsage] {
-        guard let citationId = citation.id else { return [] }
-        return citationUsages.filter { $0.citation.id == citationId }
-    }
-
-    @MainActor
-    private func load() async {
-        guard let library = LibraryManager.shared.globalLibrary else { return }
-        isLoading = true
-        errorMessage = nil
-        defer { isLoading = false }
-        do {
-            async let inboundTask = library.entityService.inboundCitations(forDocumentId: documentId)
-            async let outboundTask = library.entityService.outboundCitations(forDocumentId: documentId)
-            async let usageTask = library.entityService.citationUsages(
-                sourceDocumentId: documentId
-            )
-            let (inb, out, usages) = try await (inboundTask, outboundTask, usageTask)
-            inbound = inb
-            outbound = out
-            citationUsages = usages
-        } catch {
-            relatedClaimsLogger.error("Citations fetch failed: \(error.localizedDescription)")
-            errorMessage = "Couldn't load citations."
-            inbound = []
-            outbound = []
-            citationUsages = []
-        }
-    }
-}
-
-// MARK: - DocumentBibliographyPanel (#1434)
-
-/// Extracted bibliography panel — scholarly references extracted from
-/// within the document, backed by `GET /api/documents/{id}/citations`.
-/// Distinct from CitationGraphPanel (doc-to-doc links in the knowledge
-/// graph); this shows the bibliography inside the document itself.
-struct DocumentBibliographyPanel: View {
-    let documentId: String
-
-    @State private var references: [Components.Schemas.Reference] = []
-    @State private var selfRef: Components.Schemas.Reference?
-    @State private var isLoading = false
-    @State private var loadError: String?
-    @State private var copiedAll = false
-
-    private var allBibtex: String {
-        let parts = ([selfRef].compactMap { $0 } + references)
-            .compactMap { $0.bibtex }
-            .filter { !$0.isEmpty }
-        return parts.joined(separator: "\n\n")
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if isLoading && references.isEmpty && loadError == nil {
-                HStack(spacing: 6) {
-                    ProgressView().scaleEffect(0.6)
-                    Text("Loading…").font(.caption).foregroundStyle(.secondary)
-                }
-            } else if let err = loadError {
-                HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.caption).foregroundStyle(.orange)
-                    Text(err)
-                        .font(.caption).foregroundStyle(.secondary)
-                    Spacer(minLength: 0)
-                    Button("Retry") { Task { await load() } }
-                        .font(.caption2).buttonStyle(.borderless)
-                }
-            } else if references.isEmpty && selfRef == nil {
-                Text("No bibliography extracted yet — run a workflow that includes citation extraction to populate this section.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                if !allBibtex.isEmpty {
-                    HStack {
-                        Spacer()
-                        Button {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(allBibtex, forType: .string)
-                            copiedAll = true
-                        } label: {
-                            Label(
-                                copiedAll ? "Copied!" : "Copy all BibTeX",
-                                systemImage: copiedAll ? "checkmark" : "doc.on.doc"
-                            )
-                            .font(.caption2)
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.secondary)
-                        .onChange(of: copiedAll) { _, newValue in
-                            if newValue {
-                                Task {
-                                    try? await Task.sleep(for: .seconds(1.5))
-                                    copiedAll = false
-                                }
-                            }
-                        }
-                    }
-                }
-                if let selfRef {
-                    referenceRow(selfRef, isSelf: true)
-                    if !references.isEmpty { Divider() }
-                }
-                LazyVStack(alignment: .leading, spacing: 6) {
-                    ForEach(references, id: \.id) { ref in
-                        referenceRow(ref, isSelf: false)
-                    }
-                }
-            }
-        }
-        .task(id: documentId) { await load() }
-    }
-
-    @ViewBuilder
-    private func referenceRow(_ ref: Components.Schemas.Reference, isSelf: Bool) -> some View {
-        ReferenceRowView(ref: ref, isSelf: isSelf)
-    }
-
-    private func load() async {
-        guard let library = LibraryManager.shared.globalLibrary else { return }
-        isLoading = true
-        loadError = nil
-        defer { isLoading = false }
-        do {
-            let resp = try await library.entityService.listDocumentCitations(documentId: documentId)
-            selfRef = resp._self
-            references = resp.references
-        } catch {
-            loadError = error.localizedDescription
-        }
-    }
-}
-
-private struct ReferenceRowView: View {
-    let ref: Components.Schemas.Reference
-    let isSelf: Bool
-
-    @State private var isExpanded = false
-    @State private var copied = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                if isSelf {
-                    Image(systemName: "doc.text")
-                        .font(.caption2)
+            if let fileType = document.fileType {
+                attributeRow(
+                    name: "Type",
+                    summary: fileType.rawValue.capitalized,
+                    attribute: .fileType
+                ) {
+                    Text(fileType.rawValue.capitalized)
                         .foregroundStyle(.secondary)
                 }
-                Text(refTitle)
-                    .font(.caption)
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 4)
-                if let bibtex = ref.bibtex, !bibtex.isEmpty {
-                    Button {
-                        if isExpanded {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(bibtex, forType: .string)
-                            copied = true
-                        } else {
-                            isExpanded = true
-                        }
-                    } label: {
-                        Image(systemName: copied ? "checkmark" : (isExpanded ? "doc.on.doc" : "chevron.down"))
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help(isExpanded ? "Copy BibTeX" : "Show BibTeX")
-                    .onChange(of: copied) { _, newValue in
-                        if newValue {
-                            Task {
-                                try? await Task.sleep(for: .seconds(1.5))
-                                copied = false
-                            }
-                        }
-                    }
+            }
+
+            if let format = stringMetadata("mime_type") ?? stringMetadata("format") {
+                attributeRow(name: "Format", summary: format, attribute: .format) {
+                    Text(format).foregroundStyle(.secondary)
                 }
             }
-            HStack(spacing: 6) {
-                if let authors = ref.authors, !authors.isEmpty {
-                    Text(authors.prefix(2).joined(separator: ", "))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                if let year = ref.year {
-                    Text(String(year))
-                        .font(.caption2.monospacedDigit())
-                        .foregroundStyle(.tertiary)
-                }
-                if let doi = ref.doi, !doi.isEmpty {
-                    Text("DOI")
-                        .font(.caption2)
-                        .foregroundStyle(Color.accentColor)
-                        .help(doi)
-                }
-                Spacer(minLength: 4)
-                if let journal = ref.journalOrBook {
-                    Text(journal)
-                        .font(.caption2)
-                        .italic()
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
+
+            if let fileSize = intMetadata("file_size") {
+                let formatted = ByteCountFormatter.string(fromByteCount: Int64(fileSize), countStyle: .file)
+                attributeRow(name: "Size", summary: formatted, attribute: .fileSize) {
+                    Text(formatted).foregroundStyle(.secondary)
                 }
             }
-            if isExpanded, let bibtex = ref.bibtex, !bibtex.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    Text(bibtex)
-                        .font(.system(.caption2, design: .monospaced))
+
+            if let path = document.path {
+                attributeRow(name: "Path", summary: path, attribute: .path) {
+                    Text(path)
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)
-                        .padding(6)
-                        .background(Color(.textBackgroundColor).opacity(0.6))
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                }
-                .frame(maxHeight: 80)
-            }
-        }
-        .padding(.vertical, 2)
-    }
-
-    private var refTitle: String {
-        if let title = ref.title, !title.isEmpty { return title }
-        if let bib = ref.bibtex, !bib.isEmpty { return String(bib.prefix(60)) + "…" }
-        return "Untitled"
-    }
-}
-
-// MARK: - WorkflowProvenancePanel (#1434)
-
-/// Shows which workflow runs touched this document, backed by
-/// `GET /api/documents/{id}/workflow-runs`. Lets the user see
-/// which AI pipeline produced the document's entities and artifacts.
-struct WorkflowProvenancePanel: View {
-    let documentId: String
-
-    @State private var runs: [Components.Schemas.WorkflowRunProvenanceResponse] = []
-    @State private var isLoading = false
-    @State private var loadError: String?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if isLoading && runs.isEmpty && loadError == nil {
-                HStack(spacing: 6) {
-                    ProgressView().scaleEffect(0.6)
-                    Text("Loading…").font(.caption).foregroundStyle(.secondary)
-                }
-            } else if let err = loadError {
-                HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.caption).foregroundStyle(.orange)
-                    Text(err)
-                        .font(.caption).foregroundStyle(.secondary)
-                    Spacer(minLength: 0)
-                    Button("Retry") { Task { await load() } }
-                        .font(.caption2).buttonStyle(.borderless)
-                }
-            } else if runs.isEmpty {
-                Text("No workflow runs recorded yet")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                LazyVStack(alignment: .leading, spacing: 6) {
-                    ForEach(runs, id: \.workflowId) { run in
-                        provenanceRow(run)
-                    }
                 }
             }
         }
-        .task(id: documentId) { await load() }
     }
 
+    /// Format-specific structural facts — page count for PDFs, pixel
+    /// dimensions for images. Only renders when at least one value exists.
     @ViewBuilder
-    private func provenanceRow(_ run: Components.Schemas.WorkflowRunProvenanceResponse) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "gearshape.2")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .frame(width: 14)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(run.workflowName ?? run.workflowId)
-                    .font(.caption)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                HStack(spacing: 4) {
-                    if let model = run.model, !model.isEmpty {
-                        Text(model)
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(1)
-                    }
-                    if let started = run.startedAt, !started.isEmpty {
-                        Text(relativeDate(started))
-                            .font(.caption2.monospacedDigit())
-                            .foregroundStyle(.tertiary)
+    private var contentSection: some View {
+        let pageCount = intMetadata("page_count")
+        let width = intMetadata("width")
+        let height = intMetadata("height")
+
+        if pageCount != nil || (width != nil && height != nil) {
+            infoSection("Content") {
+                if let pageCount {
+                    let summary = "\(pageCount) page\(pageCount == 1 ? "" : "s")"
+                    attributeRow(name: "Pages", summary: summary, attribute: .pageCount) {
+                        Text(summary).foregroundStyle(.secondary)
                     }
                 }
+
+                if let width, let height {
+                    let summary = "\(width) × \(height) px"
+                    attributeRow(name: "Dimensions", summary: summary, attribute: .dimensions) {
+                        Text(summary).foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Section + row builders
+
+    /// A titled section: small caps header + the same row stack the inspector
+    /// already uses. Replaces `List`'s `Section` so the body renders inside the
+    /// enclosing `ScrollView`.
+    @ViewBuilder
+    func infoSection<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+            content()
+        }
+    }
+
+    /// Wraps the existing `InfoAttributeRow` with tap-to-select behaviour,
+    /// replacing the `List(selection:)` driver that no longer applies.
+    @ViewBuilder
+    private func attributeRow<Detail: View>(
+        name: String,
+        summary: String,
+        attribute: InfoAttribute,
+        @ViewBuilder detail: @escaping () -> Detail
+    ) -> some View {
+        InfoAttributeRow(
+            name: name,
+            summary: summary,
+            isSelected: selectedAttribute == attribute,
+            detail: detail
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            selectedAttribute = (selectedAttribute == attribute) ? nil : attribute
+        }
+    }
+
+    // MARK: - Metadata helpers
+
+    /// Reads an integer from `source_metadata`, tolerating values the backend
+    /// may serialise as Double or numeric String.
+    private func intMetadata(_ key: String) -> Int? {
+        guard let value = document.metadata[key]?.value else { return nil }
+        if let int = value as? Int { return int }
+        if let double = value as? Double { return Int(double) }
+        if let string = value as? String { return Int(string) }
+        return nil
+    }
+
+    /// Reads a non-empty string from `source_metadata`.
+    private func stringMetadata(_ key: String) -> String? {
+        guard let string = document.metadata[key]?.value as? String,
+              !string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return nil }
+        return string
+    }
+
+    @MainActor
+    func toggleExcludeFromProcessing() async {
+        guard let library = currentLibrary else { return }
+
+        isUpdatingExclude = true
+        defer { isUpdatingExclude = false }
+
+        do {
+            let refreshed = try await library.documentServiceGenerated.batchExclude(
+                documentIds: [document.id],
+                excluded: !isExcludedFromProcessing
+            )
+            for updated in refreshed {
+                documentStore.refreshLocalContent(updated)
+                if updated.id == document.id {
+                    excludeFromProcessingOverride = updated.excludeFromProcessing
+                }
+            }
+        } catch {
+            documentStore.error = error
+        }
+    }
+
+    var currentLibrary: LibraryManager.LibraryReference? {
+        if let library = libraryManager.getLibrary(id: windowState.libraryId) {
+            return library
+        }
+        return libraryManager.globalLibrary
+    }
+}
+
+// MARK: - Supporting types
+
+private enum InfoAttribute: Hashable {
+    case state, ingestMode, created, modified
+    case kind, fileType, format, fileSize, path
+    case pageCount, dimensions
+    case documentClass
+}
+
+private struct InfoAttributeRow<Detail: View>: View {
+    let name: String
+    let summary: String
+    let isSelected: Bool
+    private let detail: () -> Detail
+
+    init(name: String, summary: String, isSelected: Bool, @ViewBuilder detail: @escaping () -> Detail) {
+        self.name = name
+        self.summary = summary
+        self.isSelected = isSelected
+        self.detail = detail
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: isSelected ? 6 : 0) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(name)
+                    .fontWeight(.medium)
+                Spacer()
+                if !isSelected {
+                    Text(summary)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            if isSelected {
+                detail()
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
             }
         }
         .padding(.vertical, 2)
-    }
-
-    private func relativeDate(_ iso: String) -> String {
-        let fmt = ISO8601DateFormatter()
-        fmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        guard let date = fmt.date(from: iso) else { return iso }
-        let rel = RelativeDateTimeFormatter()
-        rel.unitsStyle = .abbreviated
-        return rel.localizedString(for: date, relativeTo: Date())
-    }
-
-    private func load() async {
-        guard let library = LibraryManager.shared.globalLibrary else { return }
-        isLoading = true
-        loadError = nil
-        defer { isLoading = false }
-        do {
-            runs = try await library.entityService.listDocumentWorkflowRuns(documentId: documentId)
-        } catch {
-            loadError = error.localizedDescription
-        }
-    }
-}
-
-// MARK: - Document prototype / class picker (#1377)
-
-struct DocumentPrototypePicker: View {
-    let documentId: String
-    let initialKey: String?
-
-    @State private var selectedKey: String?
-    @State private var prototypes: [Components.Schemas.ClassificationValue] = []
-    @State private var isAssigning = false
-
-    var body: some View {
-        LabeledContent("Prototype") {
-            if prototypes.isEmpty && !isAssigning {
-                Text("No types defined")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .help("Define document prototypes in Settings → Classification to classify documents here")
-            } else {
-                Menu {
-                    Button("None") {
-                        Task { await assign(nil) }
-                    }
-                    Divider()
-                    ForEach(prototypes, id: \.key) { proto in
-                        Button {
-                            Task { await assign(proto.key) }
-                        } label: {
-                            Label {
-                                Text(proto.label)
-                            } icon: {
-                                if selectedKey == proto.key {
-                                    Image(systemName: "checkmark")
-                                }
-                            }
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        if isAssigning {
-                            ProgressView().scaleEffect(0.6).frame(width: 12, height: 12)
-                        }
-                        if let key = selectedKey,
-                           let proto = prototypes.first(where: { $0.key == key }) {
-                            PrototypeBadge(proto: proto)
-                        } else {
-                            Text("None")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Image(systemName: "chevron.up.chevron.down")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .buttonStyle(.plain)
-                .help("Assign a document prototype (class) to this file")
-            }
-        }
-        .task {
-            selectedKey = initialKey
-            if let svc = LibraryManager.shared.globalLibrary?.entityService {
-                prototypes = (try? await svc.listDocumentPrototypes()) ?? []
-            }
-        }
-    }
-
-    private func assign(_ key: String?) async {
-        guard let svc = LibraryManager.shared.globalLibrary?.entityService else { return }
-        isAssigning = true
-        defer { isAssigning = false }
-        if let key {
-            _ = try? await svc.assignDocumentPrototype(documentId: documentId, prototypeKey: key)
-        }
-        selectedKey = key
-    }
-}
-
-// Promoted from `private` so the workspace NodeClassPicker (#1570) can reuse
-// the SAME hex parser — no second copy.
-extension Color {
-    init?(hex: String) {
-        let stripped = hex.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "#", with: "")
-        guard stripped.count == 6, let value = UInt64(stripped, radix: 16) else { return nil }
-        let red = Double((value >> 16) & 0xFF) / 255
-        let green = Double((value >> 8) & 0xFF) / 255
-        let blue = Double(value & 0xFF) / 255
-        self.init(red: red, green: green, blue: blue)
-    }
-}
-
-// Promoted from `private` so the workspace NodeClassPicker (#1570) reuses the
-// SAME coloured-capsule chip — no parallel badge view.
-struct PrototypeBadge: View {
-    let proto: Components.Schemas.ClassificationValue
-
-    var body: some View {
-        Text(proto.label)
-            .font(.caption)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(badgeColor.opacity(0.18))
-            .foregroundStyle(badgeColor)
-            .clipShape(Capsule())
-    }
-
-    private var badgeColor: Color {
-        guard let hex = proto.color, !hex.isEmpty else { return .accentColor }
-        return Color(hex: hex) ?? .accentColor
+        .animation(.easeInOut(duration: 0.15), value: isSelected)
     }
 }

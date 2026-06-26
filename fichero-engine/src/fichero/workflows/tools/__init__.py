@@ -45,6 +45,7 @@ from fichero.workflows.tools import table_extract
 from fichero.workflows.tools import handwriting
 from fichero.workflows.tools import style
 from fichero.workflows.tools import similarity
+from fichero.workflows.tools import organize_same_documents  # noqa: F401  (#2284 slice 2)
 from fichero.workflows.tools import rotate_images  # noqa: F401  (#1387)
 from fichero.workflows.tools import prepare_images  # noqa: F401  (#1390)
 from fichero.workflows.tools import enhance_images  # noqa: F401  (#1388)
@@ -79,6 +80,11 @@ from fichero.workflows.tools import book_structure
 from fichero.workflows.tools import detect_structure
 from fichero.workflows.tools import citations_extract
 from fichero.workflows.tools import cleanup  # per-section page/folder canonical cleanup
+from fichero.workflows.tools import import_artifacts  # noqa: F401  (#1757 step 1)
+from fichero.workflows.tools import extract_entities_only  # noqa: F401  (#1757 step 2)
+from fichero.workflows.tools import extract_svo_only  # noqa: F401  (#1757 step 3)
+from fichero.workflows.tools import merge_dedup_only  # noqa: F401  (#1757 step 4)
+from fichero.workflows.tools import kg_persist_finalize  # noqa: F401  (#1757 step 5)
 
 # Audio tools (use shared audio_base)
 from fichero.workflows.tools import audio_transcribe
@@ -97,6 +103,7 @@ from fichero.workflows.tools import research
 
 # Transform tools (fan-in, reshape, cleanup)
 from fichero.workflows.tools import aggregate
+from fichero.workflows.tools import sub_workflow  # noqa: F401  (#2201)
 from fichero.workflows.tools import ocr_cleanup  # noqa: F401  (#925)
 from fichero.workflows.tools import text_reflow  # noqa: F401  (#1260)
 from fichero.workflows.tools import book_index  # noqa: F401  (#1278)
@@ -104,6 +111,7 @@ from fichero.workflows.tools import split_chapters  # noqa: F401  (#1315)
 
 # Output tools
 from fichero.workflows.tools import write_file
+from fichero.workflows.tools import export_documents  # noqa: F401
 
 __all__ = [
     # Source
@@ -131,6 +139,7 @@ __all__ = [
     "handwriting",
     "style",
     "similarity",
+    "organize_same_documents",
     "rotate_images",
     "prepare_images",
     "enhance_images",
@@ -164,6 +173,11 @@ __all__ = [
     "detect_structure",
     "citations_extract",
     "cleanup",
+    "import_artifacts",
+    "extract_entities_only",
+    "extract_svo_only",
+    "merge_dedup_only",
+    "kg_persist_finalize",
     # Audio
     "audio_transcribe",
     # Video
@@ -177,10 +191,12 @@ __all__ = [
     "research",
     # Transform
     "aggregate",
+    "sub_workflow",
     "ocr_cleanup",
     "text_reflow",
     "book_index",
     "split_chapters",
     # Output
     "write_file",
+    "export_documents",
 ]

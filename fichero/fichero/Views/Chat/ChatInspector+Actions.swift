@@ -1,7 +1,17 @@
 import SwiftUI
-import UniformTypeIdentifiers
 
 extension ChatInspector {
+    func addSuggestedDocumentsToScope() {
+        guard !suggestedDocumentIDs.isEmpty else { return }
+
+        if let onAddSuggestedDocuments {
+            onAddSuggestedDocuments()
+            return
+        }
+
+        selectedDocuments = mergedSuggestedDocuments
+    }
+
     func removeSelectedFromScope() {
         for id in listSelection {
             selectedDocuments.remove(id)
@@ -35,23 +45,18 @@ extension ChatInspector {
 
     func handleDrop(providers: [NSItemProvider]) -> Bool {
         for provider in providers {
-            if provider.hasItemConformingToTypeIdentifier(UTType.text.identifier) {
-                provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { data, _ in
-                    if let data = data as? Data, let docId = String(data: data, encoding: .utf8) {
-                        Task { @MainActor in
-                            selectedDocuments.insert(docId)
-                            chatInspectorLogger.info("Added document via drop: \(docId)")
-                        }
-                    }
+            guard let typeIdentifier = ChatDocumentDropPayload.firstSupportedTypeIdentifier(in: provider) else {
+                continue
+            }
+
+            provider.loadItem(forTypeIdentifier: typeIdentifier, options: nil) { item, _ in
+                guard let docId = ChatDocumentDropPayload.documentID(from: item) else {
+                    return
                 }
-            } else if provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
-                provider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { data, _ in
-                    if let data = data as? Data, let docId = String(data: data, encoding: .utf8) {
-                        Task { @MainActor in
-                            selectedDocuments.insert(docId)
-                            chatInspectorLogger.info("Added document via drop: \(docId)")
-                        }
-                    }
+
+                Task { @MainActor in
+                    selectedDocuments.insert(docId)
+                    chatInspectorLogger.info("Added document via drop: \(docId)")
                 }
             }
         }

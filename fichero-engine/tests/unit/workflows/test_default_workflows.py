@@ -14,6 +14,8 @@ from fichero.workflows.default_workflows import (
     _load_preset_files,
     seed_default_workflows,
 )
+from fichero.workflows.types import WorkflowDef
+from fichero.workflows.validation import validate_workflow_preflight
 
 
 class TestLoadPresetFiles:
@@ -81,21 +83,15 @@ class TestLoadPresetFiles:
         assert data_feeders, "no edge feeds catalogue.data"
         assert {e["source"] for e in data_feeders} == {"merge_extracts"}
 
-    def test_catalogue_each_preset_is_configured_for_folder_fan_out(self):
-        """Catalogue Each should stay wired as the bulk fan-out preset."""
+    def test_legacy_catalogue_duplicate_presets_do_not_ship(self):
         presets = {p["name"]: p for p in _load_preset_files()}
-        catalogue_each = presets["Catalogue Each"]
-
-        assert catalogue_each.get("is_template") is True
-        assert catalogue_each.get("is_system") is True
-        assert catalogue_each.get("folder_path") == "/Catalogue"
-        assert catalogue_each.get("config", {}).get("fan_out_enabled") is True
-        assert "fan_out" in catalogue_each.get("tags", [])
-
-        node_tools = {n["tool"] for n in catalogue_each["nodes"]}
-        assert "folder" in node_tools
-        assert "transcribe" in node_tools
-        assert "catalogue" in node_tools
+        removed = {
+            "Catalogue Each",
+            "Catalogue Stage 1 - Transcribe Pages",
+            "Catalogue Stage 2 - Extract Entities + KG",
+            "Catalogue Stage 3 - Catalogue Artifacts",
+        }
+        assert not (removed & set(presets))
 
     def test_default_templates_have_folder_path_groups(self):
         """Templates ship with `folder_path` values so the Run Workflow
@@ -119,7 +115,9 @@ class TestLoadPresetFiles:
         assert "extract_all" in node_tools, (
             "Catalogue preset must use the combined extract_all tool"
         )
-        assert "kg_writer" in node_tools, "Catalogue preset must include kg_writer"
+        assert "kg_writer" not in node_tools, (
+            "Catalogue preset must persist KG inline, not via kg_writer"
+        )
         for cleaner in (
             "people_folder_cleanup",
             "places_folder_cleanup",
@@ -134,7 +132,7 @@ class TestLoadPresetFiles:
         extract_all_node = next(
             n for n in presets["Catalogue"]["nodes"] if n["tool"] == "extract_all"
         )
-        assert extract_all_node["config"].get("persist_kg") is False
+        assert extract_all_node["config"].get("persist_kg") is True
         # Per-type extractors and per-page cleanups dropped for speed.
         for dropped in (
             "people_extract", "places_extract", "organizations_extract",
@@ -146,13 +144,9 @@ class TestLoadPresetFiles:
             assert dropped not in node_tools, (
                 f"Catalogue preset should no longer use {dropped!r}"
             )
-        kg_writer_id = _node_id(presets["Catalogue"], "kg_writer")
         extract_id = _node_id(presets["Catalogue"], "extract_all")
-        assert any(
-            e["source"] == extract_id
-            and e["target"] == kg_writer_id
-            and e["source_port"] == "kg_payload"
-            and e["target_port"] == "kg_payload"
+        assert not any(
+            e["source"] == extract_id and e["source_port"] == "kg_payload"
             for e in presets["Catalogue"]["edges"]
         )
 
@@ -166,22 +160,18 @@ class TestLoadPresetFiles:
         }
         assert not (archive_specific & node_tools)
 
-    def test_ner_per_page_local_has_explicit_kg_writer(self):
+    def test_ner_per_page_local_persists_kg_inline(self):
         presets = {p["name"]: p for p in _load_preset_files()}
         preset = presets["NER per-page (local)"]
         node_tools = {n["tool"] for n in preset["nodes"]}
-        assert "kg_writer" in node_tools
+        assert "kg_writer" not in node_tools
         extract_all_node = next(
             n for n in preset["nodes"] if n["tool"] == "extract_all"
         )
-        assert extract_all_node["config"].get("persist_kg") is False
+        assert extract_all_node["config"].get("persist_kg") is True
         extract_id = _node_id(preset, "extract_all")
-        kg_writer_id = _node_id(preset, "kg_writer")
-        assert any(
-            e["source"] == extract_id
-            and e["target"] == kg_writer_id
-            and e["source_port"] == "kg_payload"
-            and e["target_port"] == "kg_payload"
+        assert not any(
+            e["source"] == extract_id and e["source_port"] == "kg_payload"
             for e in preset["edges"]
         )
 
@@ -190,59 +180,127 @@ class TestLoadPresetFiles:
         remains unchanged while users can run transcription and entity/KG
         stages independently (#1669)."""
         presets = {p["name"]: p for p in _load_preset_files()}
-        stage1 = presets["Catalogue Stage 1 - Transcribe Pages"]
-        stage2 = presets["Catalogue Stage 2 - Extract Entities + KG"]
-        stage3 = presets["Catalogue Stage 3 - Catalogue Artifacts"]
+        stage0 = presets["1 · Import → Artifacts"]
+        stage0b = presets["2 · Extract Entities"]
+        stage0c = presets["3 · Extract SVO → Claims"]
+        stage0d = presets["4 · Merge / Dedup"]
+        stage0e = presets["5 · KG Persist / Finalize"]
+        full_pipeline = presets["Catalogue Full Pipeline"]
 
-        for preset in (stage1, stage2, stage3):
+        for preset in (
+            stage0, stage0b, stage0c, stage0d, stage0e, full_pipeline
+        ):
             assert preset.get("is_template") is True
             assert preset.get("is_system") is True
             assert preset.get("folder_path") == "/Catalogue"
             assert "stage" in preset.get("tags", [])
             assert "reviewable" in preset.get("tags", [])
 
-        stage1_tools = {n["tool"] for n in stage1["nodes"]}
-        assert stage1_tools == {"files", "transcribe"}
-        transcribe_node = next(n for n in stage1["nodes"] if n["tool"] == "transcribe")
-        assert transcribe_node["config"].get("update_page_content") is True
-        assert "provider_name" not in transcribe_node["config"], (
-            "transcribe stage must use the vision default, not the text $small alias"
+        stage0_tools = {n["tool"] for n in stage0["nodes"]}
+        assert stage0_tools == {"files", "import_artifacts"}
+        assert "import" in stage0.get("tags", [])
+        import_node = next(n for n in stage0["nodes"] if n["tool"] == "import_artifacts")
+        assert import_node["config"] == {}
+        files_id = _node_id(stage0, "files")
+        import_id = _node_id(stage0, "import_artifacts")
+        assert any(
+            e["source"] == files_id
+            and e["target"] == import_id
+            and e["source_port"] == "documents"
+            and e["target_port"] == "documents"
+            for e in stage0["edges"]
+        ), "stage 0 must feed selected documents into import_artifacts"
+
+        stage0b_tools = {n["tool"] for n in stage0b["nodes"]}
+        assert stage0b_tools == {"files", "extract_entities_only"}
+        extract_entities_node = next(
+            n for n in stage0b["nodes"] if n["tool"] == "extract_entities_only"
         )
+        assert extract_entities_node["config"].get("provider_name") == "$small"
 
-        stage2_tools = {n["tool"] for n in stage2["nodes"]}
-        assert stage2_tools == {"files", "aggregate", "extract_all", "kg_writer"}
-        extract_node = next(n for n in stage2["nodes"] if n["tool"] == "extract_all")
-        assert extract_node["config"].get("provider_name") == "$small"
-        assert extract_node["config"].get("persist_kg") is False
-
-        extract_id = _node_id(stage2, "extract_all")
-        kg_writer_id = _node_id(stage2, "kg_writer")
+        stage0c_tools = {n["tool"] for n in stage0c["nodes"]}
+        assert stage0c_tools == {"files", "extract_svo_only"}
+        assert "claims" in stage0c.get("tags", [])
+        extract_svo_node = next(
+            n for n in stage0c["nodes"] if n["tool"] == "extract_svo_only"
+        )
+        assert extract_svo_node["config"].get("provider_name") == "$small"
+        files_id = _node_id(stage0c, "files")
+        extract_svo_id = _node_id(stage0c, "extract_svo_only")
         assert any(
-            e["source"] == extract_id
-            and e["target"] == kg_writer_id
-            and e["source_port"] == "kg_payload"
-            and e["target_port"] == "kg_payload"
-            for e in stage2["edges"]
-        ), "stage 2 must persist KG via the explicit kg_writer stage"
+            e["source"] == files_id
+            and e["target"] == extract_svo_id
+            and e["source_port"] == "documents"
+            and e["target_port"] == "documents"
+            for e in stage0c["edges"]
+        ), "stage 3 must feed selected documents into extract_svo_only"
 
-        stage3_tools = {n["tool"] for n in stage3["nodes"]}
-        assert stage3_tools == {"files", "aggregate", "catalogue"}
-        catalogue_node = next(n for n in stage3["nodes"] if n["tool"] == "catalogue")
-        assert catalogue_node["config"].get("provider_name") == "$small"
-        assert catalogue_node["config"].get("output_language") == "auto"
-
-        aggregate_id = _node_id(stage3, "aggregate")
-        catalogue_id = _node_id(stage3, "catalogue")
+        stage0d_tools = {n["tool"] for n in stage0d["nodes"]}
+        assert stage0d_tools == {"files", "merge_dedup_only"}
+        assert "merge" in stage0d.get("tags", [])
+        assert "dedup" in stage0d.get("tags", [])
+        merge_dedup_id = _node_id(stage0d, "merge_dedup_only")
+        files_id = _node_id(stage0d, "files")
         assert any(
-            e["source"] == aggregate_id
-            and e["target"] == catalogue_id
-            and e["source_port"] == "text"
-            and e["target_port"] == "text"
-            for e in stage3["edges"]
-        ), "stage 3 must feed page text into catalogue without re-running extraction"
+            e["source"] == files_id
+            and e["target"] == merge_dedup_id
+            and e["source_port"] == "documents"
+            and e["target_port"] == "documents"
+            for e in stage0d["edges"]
+        ), "stage 4 must feed selected documents into merge_dedup_only"
 
-        assert "extract_all" not in stage3_tools
-        assert "kg_writer" not in stage3_tools
+        stage0e_tools = {n["tool"] for n in stage0e["nodes"]}
+        assert stage0e_tools == {"files", "kg_persist_finalize"}
+        assert "kg" in stage0e.get("tags", [])
+        assert "finalize" in stage0e.get("tags", [])
+        kg_finalize_id = _node_id(stage0e, "kg_persist_finalize")
+        files_id = _node_id(stage0e, "files")
+        assert any(
+            e["source"] == files_id
+            and e["target"] == kg_finalize_id
+            and e["source_port"] == "documents"
+            and e["target_port"] == "documents"
+            for e in stage0e["edges"]
+        ), "stage 5 must feed selected documents into kg_persist_finalize"
+
+        full_tools = [n["tool"] for n in full_pipeline["nodes"]]
+        assert full_tools == [
+            "files",
+            "import_artifacts",
+            "extract_entities_only",
+            "extract_svo_only",
+            "merge_dedup_only",
+            "kg_persist_finalize",
+        ]
+        full_nodes = {node["tool"]: node["id"] for node in full_pipeline["nodes"]}
+        expected_barriers = [
+            ("import_artifacts", "extract_entities_only"),
+            ("extract_entities_only", "extract_svo_only"),
+            ("extract_svo_only", "merge_dedup_only"),
+            ("merge_dedup_only", "kg_persist_finalize"),
+        ]
+        for source_tool, target_tool in expected_barriers:
+            assert any(
+                e["source"] == full_nodes[source_tool]
+                and e["target"] == full_nodes[target_tool]
+                and e["source_port"] == "summary"
+                and e["target_port"] == "barrier"
+                for e in full_pipeline["edges"]
+            ), f"full pipeline must serialize {source_tool} -> {target_tool}"
+        for target_tool in (
+            "import_artifacts",
+            "extract_entities_only",
+            "extract_svo_only",
+            "merge_dedup_only",
+            "kg_persist_finalize",
+        ):
+            assert any(
+                e["source"] == full_nodes["files"]
+                and e["target"] == full_nodes[target_tool]
+                and e["source_port"] == "documents"
+                and e["target_port"] == "documents"
+                for e in full_pipeline["edges"]
+            ), f"full pipeline must feed documents into {target_tool}"
 
     def test_catalogue_small_uses_dollar_small_throughout(self):
         """Every LLM-using node in the default Catalogue preset references
@@ -274,33 +332,46 @@ class TestLoadPresetFiles:
                     "default — aliasing it to $small breaks Apple Vision OCR"
                 )
 
-    def test_spanish_paleography_extract_uses_dollar_large(self):
-        """Paleography baseline preset is transcription-first only."""
-        presets = {p["name"]: p for p in _load_preset_files()}
-        paleography = presets["Spanish Paleography (18th–19th C.)"]
-        extract_nodes = [n for n in paleography["nodes"] if n["tool"] == "extract_all"]
-        assert not extract_nodes
+    def test_retired_duplicate_presets_do_not_ship(self):
+        """Retired duplicate presets must not appear in shipped JSON (#2251).
 
-    def test_spanish_paleography_wires_extract_from_transcribe(self):
-        """Spanish paleography baseline keeps transcribe-only wiring."""
+        'Spanish Paleography (18th–19th C.)' merged into 'Transcribe Paleography'
+        (language=auto).  The two multipass/v2 Spanish Script variants collapsed
+        into a single 'Transcribe Spanish Script (19th-20th C.)' + its child.
+        """
         presets = {p["name"]: p for p in _load_preset_files()}
-        paleography = presets["Spanish Paleography (18th–19th C.)"]
-        node_tools = {n["tool"] for n in paleography["nodes"]}
-        assert "transcribe_review" not in node_tools
-        assert "extract_all" not in node_tools
-        transcribe_node = next(n for n in paleography["nodes"] if n["tool"] == "transcribe")
-        assert "provider_name" not in transcribe_node.get("config", {}), (
-            "paleography transcribe must use vision defaults (no hard-coded "
-            "provider alias) so Settings controls model selection"
+        retired = {
+            "Spanish Paleography (18th–19th C.)",
+            "Transcribe Spanish Script (19th-20th C., Multi-Pass)",
+            "Transcribe Spanish Script v2 (19th-20th C., Sub-Workflow)",
+        }
+        shipped = retired & set(presets)
+        assert not shipped, f"retired presets still in resources/: {shipped}"
+
+    def test_transcribe_paleography_uses_auto_language_on_pass1(self):
+        """Transcribe Paleography Pass 1 must use language='auto' so it handles
+        any language (Spanish, Latin, etc.) without the caller choosing (#2251).
+        The old 'Spanish Paleography (18th–19th C.)' preset was language='es'
+        and has been retired in favour of this unified, language-neutral preset."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        paleography = presets["Transcribe Paleography"]
+
+        transcribe_node = next(
+            n for n in paleography["nodes"] if n["tool"] == "transcribe"
+        )
+        assert transcribe_node["config"].get("language") == "auto", (
+            "Transcribe Paleography Pass 1 must use language='auto' so it "
+            "handles any script language without the caller selecting one"
         )
 
-    def test_spanish_paleography_files_to_transcribe_uses_documents_port(self):
+    def test_transcribe_paleography_is_two_pass_with_review(self):
+        """Transcribe Paleography must keep its two-pass (draft + review) wiring."""
         presets = {p["name"]: p for p in _load_preset_files()}
-        paleography = presets["Spanish Paleography (18th–19th C.)"]
-        edges = paleography["edges"]
-        file_edge = next(e for e in edges if e["id"] == "edge-files-transcribe")
-        assert file_edge["source_port"] == "files"
-        assert file_edge["target_port"] == "files"
+        paleography = presets["Transcribe Paleography"]
+        node_tools = {n["tool"] for n in paleography["nodes"]}
+        assert "transcribe" in node_tools
+        assert "transcribe_review" in node_tools
+        assert "extract_all" not in node_tools
 
     def test_transcribe_presets_query_reference_corpus_on_pass_two(self):
         """The shipped transcription presets feed Pass 1 into corpus search.
@@ -315,6 +386,12 @@ class TestLoadPresetFiles:
                 "Transcribe Paleography",
                 "transcribe",
                 "transcribe_review",
+                "reference-search",
+            ),
+            (
+                "Spanish Script v2 Child Passes (19th-20th C.)",
+                "transcribe-draft",
+                "transcribe-review-medium",
                 "reference-search",
             ),
             ("Transcribe (Auto-Detect)", "transcribe-htr", "review-htr", "reference-search-htr"),
@@ -347,6 +424,120 @@ class TestLoadPresetFiles:
             assert search_to_review["source_port"] == "documents"
             assert search_to_review["target_port"] == "metadata"
 
+    def test_spanish_script_subworkflow_ships_in_transcribe_folder(self):
+        """After rationalization (#2251), the sole user-facing Spanish Script preset
+        is 'Transcribe Spanish Script (19th-20th C.)' (renamed from v2 sub-workflow).
+        It must ship alongside its child component."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+
+        parent = presets["Transcribe Spanish Script (19th-20th C.)"]
+        child = presets["Spanish Script v2 Child Passes (19th-20th C.)"]
+
+        for preset in (child, parent):
+            assert preset.get("is_template") is True
+            assert preset.get("is_system") is True
+            assert preset.get("folder_path") == "/Transcribe"
+            assert "sub-workflow" in preset.get("tags", [])
+
+        # "v2" tag dropped from parent — only child keeps it via legacy
+        assert "v2" not in parent.get("tags", [])
+        # Preset version bumped on rename
+        assert parent.get("config", {}).get("preset_version") == 2
+
+    def test_spanish_script_v2_child_uses_distinct_vision_tiers(self):
+        presets = {p["name"]: p for p in _load_preset_files()}
+        child = presets["Spanish Script v2 Child Passes (19th-20th C.)"]
+        node_by_id = {node["id"]: node for node in child["nodes"]}
+
+        assert node_by_id["transcribe-draft"]["config"]["provider_name"] == "$vision_small"
+        assert (
+            node_by_id["transcribe-review-medium"]["config"]["provider_name"]
+            == "$vision_medium"
+        )
+        assert (
+            node_by_id["transcribe-final-large"]["config"]["provider_name"]
+            == "$vision_large"
+        )
+        # files + documents both forwarded from the sub-workflow inputs so each
+        # PAGE gets its own per-page transcription artifact (#2523), not the
+        # parent PDF. Mirrors the gold-standard HTR documents-port wiring.
+        assert node_by_id["transcribe-draft"]["inputs"] == {
+            "files": "$.inputs.files",
+            "documents": "$.inputs.documents",
+        }
+        assert node_by_id["transcribe-review-medium"]["inputs"] == {
+            "files": "$.inputs.files",
+            "documents": "$.inputs.documents",
+        }
+        assert node_by_id["transcribe-final-large"]["inputs"] == {
+            "files": "$.inputs.files",
+            "documents": "$.inputs.documents",
+        }
+
+        assert node_by_id["transcribe-final-large"]["config"]["update_page_content"] is True
+        assert node_by_id["transcribe-review-medium"]["config"]["update_page_content"] is False
+
+    def test_spanish_script_v2_parent_composes_child_with_typed_contract(self):
+        presets = {p["name"]: p for p in _load_preset_files()}
+        child = WorkflowDef(**presets["Spanish Script v2 Child Passes (19th-20th C.)"])
+        parent_data = presets["Transcribe Spanish Script (19th-20th C.)"]
+        parent = WorkflowDef(**parent_data)
+
+        node_by_id = {node["id"]: node for node in parent_data["nodes"]}
+        sub_node = node_by_id["spanish-script-v2"]
+        config = sub_node["config"]
+
+        assert sub_node["tool"] == "sub_workflow"
+        assert config["workflow_ref"] == child.name
+        assert config["input_contract"] == [
+            {
+                "id": "files",
+                "data_type": "files",
+                "required": True,
+                "description": "Selected page image paths to transcribe.",
+            },
+            {
+                "id": "documents",
+                "data_type": "any",
+                "required": False,
+                "description": (
+                    "Per-page document metadata (index-aligned with files) so "
+                    "each page gets its own transcription artifact instead of "
+                    "the parent PDF."
+                ),
+            },
+        ]
+        # The parent must forward the selected documents into the sub-workflow
+        # so the per-page fix (#2523) survives the sub-workflow boundary.
+        assert any(
+            edge["source"] == "files-source"
+            and edge["target"] == "spanish-script-v2"
+            and edge["source_port"] == "documents"
+            and edge["target_port"] == "documents"
+            for edge in parent_data["edges"]
+        )
+        assert config["output_contract"] == [
+            {
+                "id": "text",
+                "data_type": "text",
+                "required": True,
+                "description": "Final reconciled transcription text.",
+            }
+        ]
+        assert config["output_mapping"] == {
+            "text": "$.nodes.transcribe-final-large.text"
+        }
+        assert any(
+            edge["source"] == "files-source"
+            and edge["target"] == "spanish-script-v2"
+            and edge["source_port"] == "files"
+            and edge["target_port"] == "files"
+            for edge in parent_data["edges"]
+        )
+        assert validate_workflow_preflight(
+            parent,
+            workflow_resolver=lambda ref: child if ref == child.name else None,
+        ) == []
 
     def test_catalogue_inputs_route_via_transcribe_not_user_aggregate(self):
         """Catalogue + extract_all + merge_extracts read directly from
@@ -781,6 +972,69 @@ class TestLoadPresetFiles:
         assert prepare_node["config"].get("autocontrast") is True
         assert prepare_node["config"].get("pdf_dpi") == 300
 
+    def test_capture_ocr_transcribe_preset_wiring(self):
+        """Capture OCR + Transcribe should preserve original document linkage
+        while staging OCR-friendly derived images for capture uploads (#2356)."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        assert "Capture OCR + Transcribe" in presets, "capture OCR preset must ship"
+        preset = presets["Capture OCR + Transcribe"]
+
+        assert preset.get("is_template") is True
+        assert preset.get("is_system") is True
+        assert preset.get("folder_path") == "/Transcribe"
+        assert preset.get("format") == "nodes"
+
+        node_tools = {n["tool"] for n in preset["nodes"]}
+        for tool in ("files", "prepare_images", "enhance_images", "transcribe"):
+            assert tool in node_tools, f"preset missing {tool!r} node"
+
+        files_id = _node_id(preset, "files")
+        prepare_id = _node_id(preset, "prepare_images")
+        enhance_id = _node_id(preset, "enhance_images")
+        transcribe_id = _node_id(preset, "transcribe")
+
+        assert any(
+            e["source"] == files_id
+            and e["target"] == prepare_id
+            and e["source_port"] == "files"
+            and e["target_port"] == "files"
+            for e in preset["edges"]
+        ), "files must flow into prepare_images"
+        assert any(
+            e["source"] == files_id
+            and e["target"] == prepare_id
+            and e["source_port"] == "documents"
+            and e["target_port"] == "documents"
+            for e in preset["edges"]
+        ), "documents must flow into prepare_images"
+        assert any(
+            e["source"] == prepare_id
+            and e["target"] == enhance_id
+            and e["source_port"] == "output_files"
+            and e["target_port"] == "files"
+            for e in preset["edges"]
+        ), "prepared derived files must flow into enhance_images"
+        assert any(
+            e["source"] == files_id
+            and e["target"] == transcribe_id
+            and e["source_port"] == "documents"
+            and e["target_port"] == "documents"
+            for e in preset["edges"]
+        ), "original documents must flow into transcribe for page-content persistence"
+        assert any(
+            e["source"] == enhance_id
+            and e["target"] == transcribe_id
+            and e["source_port"] == "output_files"
+            and e["target_port"] == "files"
+            for e in preset["edges"]
+        ), "enhanced derived files must flow into transcribe"
+
+        transcribe_node = next(n for n in preset["nodes"] if n["tool"] == "transcribe")
+        assert transcribe_node["config"].get("vision_mode") == "auto"
+        assert transcribe_node["config"].get("language") == "auto"
+        assert transcribe_node["config"].get("update_page_content") is True
+        assert transcribe_node["config"].get("save_to_db") is True
+
     def test_clean_up_text_preset_wiring(self):
         """Clean Up Text preset: files → transcribe → clean_text.
 
@@ -1058,6 +1312,30 @@ class TestSeedDefaultWorkflows:
         assert "Catalogue" in saved_names
         assert seeded == len(saved_names)
 
+    def test_removed_legacy_catalogue_stage_presets_are_pruned_on_normal_seed(self):
+        from fichero.models import Workflow
+
+        db = MagicMock()
+        legacy_names = [
+            "Catalogue Each",
+            "Catalogue Stage 1 - Transcribe Pages",
+            "Catalogue Stage 2 - Extract Entities + KG",
+            "Catalogue Stage 3 - Catalogue Artifacts",
+        ]
+        legacy = []
+        for name in legacy_names:
+            workflow = Workflow(name=name)
+            workflow.is_template = True
+            legacy.append(workflow)
+        db.all.return_value = legacy
+        db.save = MagicMock()
+        db.delete = MagicMock()
+
+        seed_default_workflows(db)
+
+        deleted_names = [call.args[0].name for call in db.delete.call_args_list]
+        assert set(legacy_names).issubset(set(deleted_names))
+
     def test_db_failure_during_list_returns_zero_without_raising(self):
         db = MagicMock()
         db.all.side_effect = RuntimeError("query failed")
@@ -1111,3 +1389,224 @@ class TestSeedDefaultWorkflows:
         # copy still exists — seeding would create a duplicate name.
         saved_names = [call.args[0].name for call in db.save.call_args_list]
         assert "Catalogue" not in saved_names
+
+
+class TestTranscriptionPresetConvention:
+    """Contract tests for the vision_mode / language / description convention
+    across all shipped transcription presets (#2252).
+
+    Convention:
+      - Every draft `transcribe` node must set vision_mode="auto" and
+        language="auto" so the user's configured vision backend (Apple Vision
+        or LLM) is used, and the model detects the document language.
+      - `transcribe_review` nodes always use vision_mode="llm" (structured
+        LLM reasoning required for review) — exempt from this check.
+      - Documented exceptions (see EXCEPTIONS below) may deviate for a
+        specific technical reason stated in the JSON description.
+      - Every preset description must start with "Use this when:" to help
+        users pick the right preset.
+    """
+
+    # (preset_name, node_id) pairs that are intentional exceptions to the
+    # vision_mode="auto" / language="auto" convention, with their reason.
+    EXCEPTIONS: dict[tuple[str, str], str] = {
+        # Archaic scripts (cortesana, procesal, visigótica, etc.) use letterforms
+        # that Apple Vision cannot decode. LLM vision is required for the draft pass.
+        ("Transcribe Paleography", "transcribe"): "archaic scripts require LLM vision",
+        # Spanish Script child: vision tier aliases ($vision_small/$vision_medium/
+        # $vision_large) already select the model explicitly; language="es" narrows
+        # the model's orthography conventions to 19th-20th C. Spanish notarial script.
+        (
+            "Spanish Script v2 Child Passes (19th-20th C.)",
+            "transcribe-draft",
+        ): "language-specific ES preset with explicit tier aliases",
+    }
+
+    def _all_preset_dicts(self) -> list[dict]:
+        return _load_preset_files()
+
+    def test_all_transcription_preset_descriptions_start_with_use_this_when(self):
+        """Presets in /Transcribe that are primarily transcription presets (i.e.
+        contain a transcribe or transcribe_review node) must start their
+        description with 'Use this when' so users can pick the right preset.
+        Non-transcription utility presets in /Transcribe (e.g. Prepare Images
+        for OCR) and presets in other folders that incidentally contain a
+        transcribe node (Catalogue, Translate, etc.) are exempt."""
+        bad = []
+        for preset in self._all_preset_dicts():
+            if not preset.get("folder_path", "").startswith("/Transcribe"):
+                continue
+            has_transcribe_node = any(
+                n.get("tool") in ("transcribe", "transcribe_review")
+                for n in preset.get("nodes", [])
+            )
+            if not has_transcribe_node:
+                continue
+            desc = preset.get("description", "")
+            if not desc.startswith("Use this when"):
+                bad.append((preset["name"], repr(desc[:60])))
+        assert not bad, (
+            "Transcription presets in /Transcribe must have descriptions starting "
+            f"with 'Use this when'. Violations: {bad}"
+        )
+
+    def test_draft_transcribe_nodes_use_auto_vision_mode_and_language(self):
+        """All draft `transcribe` (not `transcribe_review`) nodes must set
+        vision_mode='auto' and language='auto', unless listed in EXCEPTIONS."""
+        violations = []
+        for preset in self._all_preset_dicts():
+            preset_name = preset["name"]
+            for node in preset.get("nodes", []):
+                if node.get("tool") != "transcribe":
+                    continue
+                node_id = node.get("id", "")
+                cfg = node.get("config", {})
+                vm = cfg.get("vision_mode")
+                lang = cfg.get("language")
+
+                # vision_mode is optional (defaults to "auto" at runtime), but
+                # when it IS set it must be "auto" unless excepted.
+                key = (preset_name, node_id)
+                if key in self.EXCEPTIONS:
+                    continue
+
+                if vm is not None and vm != "auto":
+                    violations.append(
+                        f"{preset_name}[{node_id}]: vision_mode={vm!r} "
+                        f"(expected 'auto'; add to EXCEPTIONS if intentional)"
+                    )
+                if lang is not None and lang != "auto":
+                    violations.append(
+                        f"{preset_name}[{node_id}]: language={lang!r} "
+                        f"(expected 'auto'; add to EXCEPTIONS if intentional)"
+                    )
+
+        assert not violations, (
+            "Draft transcribe nodes must use vision_mode='auto' and "
+            "language='auto'. Violations:\n" + "\n".join(violations)
+        )
+
+    def test_exceptions_are_still_present_in_shipped_presets(self):
+        """Guard: if an exception entry is removed from the JSON presets the
+        allowlist becomes stale.  Fail so the entry is cleaned up."""
+        all_nodes_by_key: set[tuple[str, str]] = set()
+        for preset in self._all_preset_dicts():
+            preset_name = preset["name"]
+            for node in preset.get("nodes", []):
+                if node.get("tool") == "transcribe":
+                    all_nodes_by_key.add((preset_name, node.get("id", "")))
+
+        stale = [k for k in self.EXCEPTIONS if k not in all_nodes_by_key]
+        assert not stale, (
+            "These EXCEPTIONS entries no longer match any shipped transcribe "
+            f"node — remove them from TestTranscriptionPresetConvention.EXCEPTIONS: "
+            f"{stale}"
+        )
+
+    def test_every_transcribe_node_receives_source_documents(self):
+        """Permanent per-page guard (#2523).
+
+        EVERY shipped `transcribe` / `transcribe_review` node must receive the
+        source's per-page `documents` so each PAGE is transcribed onto its own
+        per-page artifact instead of the whole parent PDF. The files source
+        emits a per-page, index-aligned (files, documents) pair; the transcribe
+        tool reads `inputs["documents"]` to anchor each transcription to the
+        right page document. Without that wiring the workflow silently OCRs the
+        parent PDF and the per-page fix is lost.
+
+        Two equivalent wiring mechanisms are accepted, matching how each preset
+        already routes its `files`:
+          (a) a graph EDGE into the node's `documents` input port
+              (source_port/target_port == "documents"), used by the gold-
+              standard HTR/Paleography/cloud/manuscript/typescript presets and
+              the catalogue/clean-up/translate family; or
+          (b) a static INPUT mapping `inputs["documents"]` resolving a source's
+              documents output, used by the routed Auto-Detect preset and the
+              Spanish Script sub-workflow child (which pull files the same way).
+
+        If you add a new transcription preset, wire its documents port the same
+        way you wire files — this test fails until you do.
+        """
+        missing: list[str] = []
+        for preset in self._all_preset_dicts():
+            edges = preset.get("edges", [])
+            for node in preset.get("nodes", []):
+                if node.get("tool") not in ("transcribe", "transcribe_review"):
+                    continue
+                node_id = node.get("id", "")
+                has_edge = any(
+                    e.get("target") == node_id
+                    and e.get("target_port") == "documents"
+                    for e in edges
+                )
+                has_input = "documents" in (node.get("inputs") or {})
+                if not (has_edge or has_input):
+                    missing.append(f"{preset['name']}[{node_id}]")
+        assert not missing, (
+            "These transcribe/transcribe_review nodes do not receive the "
+            "source `documents` port, so they will transcribe the parent PDF "
+            "instead of each page (#2523). Wire documents into each (an edge "
+            "into the documents port, or inputs['documents']):\n"
+            + "\n".join(missing)
+        )
+
+    def test_spanish_script_child_forwards_documents_contract(self):
+        """The Spanish Script sub-workflow must carry `documents` across the
+        sub-workflow boundary (#2523): the child declares a `documents` input
+        contract and forwards it to every pass, and the parent declares the
+        matching contract entry plus the files-source → sub_workflow documents
+        edge. Without all four, per-page documents never reach the child and
+        the sub-workflow transcribes the parent PDF."""
+        presets = {p["name"]: p for p in self._all_preset_dicts()}
+
+        child = presets["Spanish Script v2 Child Passes (19th-20th C.)"]
+        child_contract_ids = {
+            entry["id"] for entry in child["config"]["input_contract"]
+        }
+        assert "documents" in child_contract_ids, (
+            "child must declare a `documents` input contract"
+        )
+        for node in child["nodes"]:
+            if node.get("tool") in ("transcribe", "transcribe_review"):
+                assert (
+                    node.get("inputs", {}).get("documents")
+                    == "$.inputs.documents"
+                ), f"child node {node['id']} must forward documents"
+
+        parent = presets["Transcribe Spanish Script (19th-20th C.)"]
+        sub_node = next(
+            n for n in parent["nodes"] if n["tool"] == "sub_workflow"
+        )
+        parent_contract_ids = {
+            entry["id"] for entry in sub_node["config"]["input_contract"]
+        }
+        assert "documents" in parent_contract_ids, (
+            "parent sub_workflow node must declare a `documents` input contract"
+        )
+        assert any(
+            e["source"] == "files-source"
+            and e["target"] == sub_node["id"]
+            and e["source_port"] == "documents"
+            and e["target_port"] == "documents"
+            for e in parent["edges"]
+        ), "parent must feed files-source documents into the sub_workflow node"
+
+    def test_transcribe_review_nodes_always_use_llm_vision_mode(self):
+        """Review nodes (tool='transcribe_review') must always use
+        vision_mode='llm' — structured review reasoning requires LLM."""
+        violations = []
+        for preset in self._all_preset_dicts():
+            for node in preset.get("nodes", []):
+                if node.get("tool") != "transcribe_review":
+                    continue
+                cfg = node.get("config", {})
+                vm = cfg.get("vision_mode")
+                if vm is not None and vm != "llm":
+                    violations.append(
+                        f"{preset['name']}[{node.get('id')}]: "
+                        f"transcribe_review vision_mode={vm!r} (must be 'llm')"
+                    )
+        assert not violations, (
+            "transcribe_review nodes must set vision_mode='llm'. "
+            f"Violations: {violations}"
+        )

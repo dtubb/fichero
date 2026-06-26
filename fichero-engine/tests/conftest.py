@@ -23,6 +23,13 @@ os.environ.setdefault("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
 # every prior route test predates the auth feature and asserts on
 # response shape, not auth.
 os.environ.setdefault("FICHERO_DISABLE_AUTH", "1")
+# Local CI may run with a fastembed build whose Python TextEmbedding catalog
+# does not include the production default BAAI/bge-m3 yet. Real-model tests use
+# the prior supported model unless a verifier explicitly overrides it.
+os.environ.setdefault("FICHERO_EMBED_MODEL", "intfloat/multilingual-e5-large")
+# #2235: fail loudly if any unregistered type crosses the LangGraph msgpack
+# boundary (today just warns; future versions will hard-block).
+os.environ.setdefault("LANGGRAPH_STRICT_MSGPACK", "true")
 
 # Tests that create bare TestClient(app) (e.g. test_api_providers.py:16,
 # test_providers.py's per-class fixtures) bypass the conftest `client` /
@@ -33,6 +40,7 @@ os.environ.setdefault("FICHERO_DISABLE_AUTH", "1")
 # so app_db_path resolves under a per-process tmp dir.
 import tempfile as _tempfile
 import pathlib as _pathlib
+from urllib.parse import quote
 
 def _make_test_base_path() -> _pathlib.Path:
     """Create a per-process base path for test-only app storage.
@@ -245,7 +253,7 @@ def client(test_package, app_db):
     Also overrides the app database dependency to use the test app_db
     and the library database dependency to use the test package db.
     """
-    from fichero.api.main import get_library_database
+    from fichero.api.main import get_library_database, get_library_database_for_write
     from fichero.api.routes.entities import _digest_library_database
     from fichero.api.routes.providers import get_app_database
 
@@ -255,11 +263,12 @@ def client(test_package, app_db):
         lambda: db_manager.get_database(test_package)
     )
     app.dependency_overrides[get_library_database] = lambda: db_manager.get_database(test_package)
+    app.dependency_overrides[get_library_database_for_write] = lambda: db_manager.get_database(test_package)
 
     # Create client with default headers
     client = TestClient(
         app,
-        headers={"X-Fichero-Library-Path": str(test_package)}
+        headers={"X-Fichero-Library-Path": quote(str(test_package), safe="/")}
     )
 
     yield client

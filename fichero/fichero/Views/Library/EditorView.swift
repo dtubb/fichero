@@ -1,9 +1,6 @@
-import PDFKit
-import Quartz
 import SwiftUI
 
 // Document preview/editor view
-// swiftlint:disable:next type_body_length
 struct EditorView: View {
     let document: Document?
     var showHeader: Bool = true
@@ -17,13 +14,12 @@ struct EditorView: View {
     /// Current multi-file selection — drives batch-apply in the image editor (#1265).
     var selectedDocumentIDs: Set<String> = []
 
-    @EnvironmentObject private var documentStore: DocumentStore
-
     /// Whether the canvas is showing the editing surface (tools) rather than
     /// the plain zoom/loupe preview. Off by default so chrome stays minimal
     /// until the user opts into editing (#1453). Reset whenever the document
     /// changes so a new selection always opens in view mode.
     @State private var isEditing = false
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         Group {
@@ -66,16 +62,21 @@ struct EditorView: View {
 
             Spacer()
 
-            // Actions
+            // Actions — "Reveal in Finder" only makes sense when the engine
+            // is on this Mac; hide it entirely for remote engines (#1881).
             HStack(spacing: 12) {
-                Button(
-                    action: { openInFinder(doc) },
-                    label: {
-                        Image(systemName: "folder")
-                    }
-                )
-                .buttonStyle(.plain)
-                .help("Reveal in Finder")
+                #if os(macOS)
+                if EngineConfig.engineIsLocal {
+                    Button(
+                        action: { openInFinder(doc) },
+                        label: {
+                            Image(systemName: "folder")
+                        }
+                    )
+                    .buttonStyle(.plain)
+                    .help("Reveal in Finder")
+                }
+                #endif
 
                 Button(
                     action: { openWithDefault(doc) },
@@ -93,40 +94,9 @@ struct EditorView: View {
 
     // MARK: - Preview Content
 
-    /// Resolve the parent PDF's on-disk path for a page-child document.
-    /// Checks metadata["pdf_path"] first (set when ingest knows the path
-    /// upfront), then the selected collection, then currentDocuments —
-    /// mirrors LibraryListRow.resolvedParentPDFPath. (#890)
-    private func resolvedParentPDFPath(for doc: Document) -> String? {
-        let metadataPath = doc.metadata["pdf_path"]?.value as? String
-        if let metadataPath, !metadataPath.isEmpty,
-           !metadataPath.contains("/fichero-drop-"),
-           FileManager.default.fileExists(atPath: metadataPath) {
-            return metadataPath
-        }
-        let parentId = doc.metadata["pdf_parent_id"]?.value as? String ?? doc.parentId
-        if let parentId {
-            if let selected = documentStore.selectedCollection,
-               selected.id == parentId,
-               let selectedPath = selected.path,
-               !selectedPath.isEmpty {
-                return selectedPath
-            }
-            if let parent = documentStore.currentDocuments.first(where: { $0.id == parentId }),
-               let parentPath = parent.path,
-               !parentPath.isEmpty {
-                return parentPath
-            }
-        }
-        return metadataPath
-    }
-
     enum PreviewRoute: Equatable {
         case container
-        case pagePDF(path: String, pageIndex: Int)
         case storageDisplay(documentId: String)
-        case pdf(path: String)
-        case imageFile(path: String, documentId: String)
         case imageEditor(documentId: String)
         case quickLook
 
@@ -138,92 +108,75 @@ struct EditorView: View {
         }
     }
 
-    static func canDecodeLocalImagePath(_ path: String) -> Bool {
-        (path as NSString).isAbsolutePath
-            && FileManager.default.fileExists(atPath: path)
+    private static var supportsImageEditingPreview: Bool {
+        #if os(macOS)
+        true
+        #else
+        false
+        #endif
     }
 
-    static func previewRoute(for doc: Document, parentPDFPath: String?, isEditing: Bool) -> PreviewRoute {
+    static func previewRoute(for doc: Document, isEditing: Bool) -> PreviewRoute {
         if doc.docType == .folder {
             return folderPreviewRoute(for: doc, isEditing: isEditing)
         }
         if doc.docType == .page {
-            return pagePreviewRoute(for: doc, parentPDFPath: parentPDFPath, isEditing: isEditing)
+            return pagePreviewRoute(for: doc, isEditing: isEditing)
         }
-        if doc.fileType == .pdf, let path = doc.path, !path.isEmpty {
-            return .pdf(path: path)
-        }
-        if doc.fileType == .image, let path = doc.path, !path.isEmpty {
-            if isEditing {
-                return .imageEditor(documentId: doc.id)
-            }
-            if canDecodeLocalImagePath(path) {
-                return .imageFile(path: path, documentId: doc.id)
-            }
+        if doc.fileType == .pdf {
             return .storageDisplay(documentId: doc.id)
         }
         if doc.fileType == .image {
-            return isEditing ? .imageEditor(documentId: doc.id) : .storageDisplay(documentId: doc.id)
+            if isEditing && supportsImageEditingPreview {
+                return .imageEditor(documentId: doc.id)
+            }
+            return .storageDisplay(documentId: doc.id)
         }
         return .quickLook
     }
 
     private static func folderPreviewRoute(for doc: Document, isEditing: Bool) -> PreviewRoute {
         if doc.fileType == .image {
-            return isEditing ? .imageEditor(documentId: doc.id) : .storageDisplay(documentId: doc.id)
+            if isEditing && supportsImageEditingPreview {
+                return .imageEditor(documentId: doc.id)
+            }
+            return .storageDisplay(documentId: doc.id)
         }
-        if doc.fileType == .pdf, let path = doc.path, !path.isEmpty {
-            return .pdf(path: path)
+        if doc.fileType == .pdf {
+            return .storageDisplay(documentId: doc.id)
         }
         return .container
     }
 
     private static func pagePreviewRoute(
         for doc: Document,
-        parentPDFPath: String?,
         isEditing: Bool
     ) -> PreviewRoute {
         if isEditing {
             return .imageEditor(documentId: doc.id)
-        }
-        if doc.fileType != .image,
-           let parentPDFPath,
-           let pageIndex = doc.sequence,
-           !parentPDFPath.isEmpty {
-            return .pagePDF(path: parentPDFPath, pageIndex: max(0, pageIndex - 1))
         }
         return .storageDisplay(documentId: doc.id)
     }
 
     @ViewBuilder
     private func previewContent(_ doc: Document) -> some View {
-        switch Self.previewRoute(for: doc, parentPDFPath: resolvedParentPDFPath(for: doc), isEditing: isEditing) {
+        switch Self.previewRoute(for: doc, isEditing: isEditing) {
         case .container:
             containerPlaceholder(doc)
-        case .pagePDF(let path, let pageIndex):
-            DocumentCanvas(
-                content: .pdf(path: path, pageIndex: pageIndex),
-                onPageIndexChange: onPDFPageIndexChange
-            )
         case .storageDisplay(let documentId):
-            ZStack(alignment: .topTrailing) {
-                DocumentCanvas(content: .imageStorageDisplay(documentId: documentId))
-                editModeToggle
-            }
-        case .pdf(let path):
-            // Top-level PDF file — single-page view, starts at page 0 (#595).
-            PDFPageWithToolbar(
-                path: path,
-                pageIndex: 0,
-                onPageIndexChange: onPDFPageIndexChange
+            let supportsFolderNav = doc.fileType == .image || doc.docType == .page
+            // Image editing is only meaningful for image-backed previews. Passing
+            // the `isEditing` binding into the canvas surfaces the edit control in
+            // the unified bottom reader toolbar (greyed for PDFs) instead of a
+            // floating toggle that overlapped the split control (#2421). On PDFs
+            // and non-mac platforms the binding is nil, so the tool greys out.
+            let isImageEditable = (doc.fileType == .image || doc.docType == .page)
+                && Self.supportsImageEditingPreview
+            DocumentCanvas(
+                content: .imageStorageDisplay(documentId: documentId),
+                onNavigateToDocument: supportsFolderNav ? onNavigateToDocument : nil,
+                isEditing: isImageEditable ? $isEditing : nil
             )
-        case .imageFile(let path, let documentId):
-            ZStack(alignment: .topTrailing) {
-                DocumentCanvas(
-                    content: .imageFile(url: URL(fileURLWithPath: path), documentId: documentId)
-                )
-                editModeToggle
-            }
         case .imageEditor:
             ImageEditorView(
                 document: doc,
@@ -239,38 +192,16 @@ struct EditorView: View {
         ContentUnavailableView(
             doc.name,
             systemImage: doc.docType.icon,
-            description: Text("Select an image or PDF page to preview it here.")
+            description: Text("No selection")
         )
     }
 
     // MARK: - Edit-mode Toggle
-
-    /// Far-corner toggle that flips the image canvas between view and edit
-    /// mode. Floats at the top-trailing edge so it is visible whether or not
-    /// the document header is shown (the reading surface hides the header). (#1453)
-    private var editModeToggle: some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.15)) {
-                isEditing.toggle()
-            }
-        } label: {
-            // Plain icon button matching the canvas toolbar convention (the
-            // PDF loupe toggle): a filled/outline `pencil.circle` pair shows the
-            // selected state via accent tint instead of a grey filled circle, at
-            // the same default icon size as its neighbours. (#1528)
-            Image(systemName: isEditing ? "pencil.circle.fill" : "pencil.circle")
-        }
-        .buttonStyle(.plain)
-        .foregroundColor(isEditing ? .accentColor : .primary)
-        .help(isEditing ? "Done — return to viewing" : "Edit image (crop, rotate, enhance, remove background)")
-        .accessibilityIdentifier("canvasEditModeToggle")
-        // Center within the canvas toolbar's standard band and inset from the
-        // trailing edge so the edit icon sits on the same baseline as the zoom /
-        // loupe icons in the mini-toolbar, instead of floating slightly high
-        // with its own padding (#1556).
-        .frame(height: MiniToolbar<EmptyView>.standardHeight, alignment: .center)
-        .padding(.trailing, 12)
-    }
+    //
+    // The edit toggle moved out of this floating overlay and into the unified
+    // bottom reader toolbar (`ReaderToolbar`), driven by the `isEditing` binding
+    // threaded through `DocumentCanvas`. This removed the overlap with the split
+    // control (#2421). See `previewContent(_:)` `.storageDisplay`.
 
     // MARK: - Text Preview
 
@@ -287,7 +218,7 @@ struct EditorView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .background(Color(nsColor: NSColor(red: 253/255, green: 253/255, blue: 253/255, alpha: 1)))
+        .background(Color(red: 253/255, green: 253/255, blue: 253/255, opacity: 1))
     }
 
     // MARK: - Generic Preview
@@ -320,7 +251,7 @@ struct EditorView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxHeight: 200)
-                .background(Color(nsColor: NSColor(red: 253/255, green: 253/255, blue: 253/255, alpha: 1)))
+                .background(Color(red: 253/255, green: 253/255, blue: 253/255, opacity: 1))
                 .cornerRadius(8)
                 .padding(.horizontal)
             }
@@ -332,33 +263,26 @@ struct EditorView: View {
     // MARK: - Empty State
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "doc.text.magnifyingglass")
-                .font(.system(size: 48))
-                .foregroundColor(.secondary)
-
-            Text("No Document Selected")
-                .font(.headline)
-
-            Text("Double-click a document to preview")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        Text("No selection")
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Actions
 
+    #if os(macOS)
     private func openInFinder(_ doc: Document) {
         guard let path = doc.path else { return }
         let url = URL(fileURLWithPath: path)
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }
+    #endif
 
     private func openWithDefault(_ doc: Document) {
         guard let path = doc.path else { return }
         let url = URL(fileURLWithPath: path)
-        NSWorkspace.shared.open(url)
+        openURL(url)
     }
 }
 

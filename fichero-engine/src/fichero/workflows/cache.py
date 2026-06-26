@@ -55,7 +55,21 @@ CACHEABLE_TOOLS = {
     # guards against caching an empty/garbage extraction.
     "extract_all",
     "analyze",
+    # Non-parallel (sequential) LLM nodes in the Catalogue preset (#2246).
+    # These run once across the full file batch rather than per-file, so
+    # they use compute_batch_cache_key instead of compute_cache_key.  The
+    # side-effect reasoning is identical: persisted DB writes from the
+    # original run remain valid on a cache hit.
+    "catalogue",
+    "citations_extract",
 }
+
+# Tools that run as non-parallel (sequential) nodes in workflows like
+# Catalogue. Their batch cache key covers the full input-files list rather
+# than a single file path.  Dynamically-named cleanup tools
+# (*_folder_cleanup, *_page_cleanup) are matched by suffix in
+# is_sequentially_cacheable() rather than enumerated here.
+CACHEABLE_SEQUENTIAL_TOOLS = CACHEABLE_TOOLS
 
 
 class NodeCache:
@@ -88,6 +102,14 @@ class NodeCache:
             db_path: Path to the library's DuckDB file
         """
         self.db_path = Path(db_path)
+        # ponytail: not a managed shared conn (#2508). This is NodeCache's OWN
+        # raw duckdb connection to the library file — it is NOT the package's
+        # managed Database connection, so it is not guarded by Database._lock
+        # and the locked execute()/execute_fetchall() helpers do not apply.
+        # Within one process duckdb shares the underlying instance across
+        # connect() calls, so writes here are visible to the managed Database
+        # via MVCC. Folding NodeCache onto the shared Database (pass a Database
+        # instead of db_path) is a separate architectural decision (lead review).
         self.conn = duckdb.connect(str(self.db_path))
         self._ensure_schema()
 
@@ -378,6 +400,69 @@ def _get_file_identity(file_path: str) -> str:
     except OSError:
         # File doesn't exist or can't be accessed
         return f"{file_path}:unknown"
+
+
+def compute_batch_cache_key(
+    workflow_id: str,
+    node_id: str,
+    tool: str,
+    config: dict[str, Any],
+    provider: str,
+    model: str,
+    file_paths: list[str],
+) -> str:
+    """Compute cache key for a non-parallel (sequential) node execution.
+
+    Identical semantics to ``compute_cache_key`` but operates on a list of
+    files instead of a single file.  The file list is sorted and each
+    member's path+mtime+size identity is hashed together so any change to
+    any input file produces a new key (#2246).
+
+    Args:
+        workflow_id: Workflow ID
+        node_id: Node ID within workflow
+        tool: Tool name (extract_all, catalogue, *_folder_cleanup, …)
+        config: Node configuration dict
+        provider: LLM provider name
+        model: LLM model name
+        file_paths: List of absolute paths to all input files for this node.
+
+    Returns:
+        32-character hex cache key
+    """
+    # Build a stable batch identity: sort paths so order doesn't matter.
+    identities = sorted(_get_file_identity(p) for p in file_paths)
+    batch_str = "|".join(identities)
+    batch_hash = hashlib.sha256(batch_str.encode()).hexdigest()[:16]
+
+    config_str = json.dumps(config, sort_keys=True, default=str)
+
+    key_parts = "|".join(
+        [
+            workflow_id,
+            node_id,
+            tool,
+            config_str,
+            provider or "",
+            model or "",
+            batch_hash,
+        ]
+    )
+
+    return hashlib.sha256(key_parts.encode()).hexdigest()[:32]
+
+
+def is_sequentially_cacheable(tool: str) -> bool:
+    """Return True if ``tool`` should be cached in the non-parallel node path.
+
+    Covers all tools in CACHEABLE_SEQUENTIAL_TOOLS plus the dynamically-
+    named cleanup variants (*_folder_cleanup, *_page_cleanup).
+    """
+    return (
+        tool in CACHEABLE_SEQUENTIAL_TOOLS
+        or tool.endswith("_folder_cleanup")
+        or tool.endswith("_page_cleanup")
+    )
 
 
 # Global cache instance (initialized per-library)

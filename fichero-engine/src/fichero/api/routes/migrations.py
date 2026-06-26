@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 from fichero.db import Database
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.migrations import MigrationRunner
 
 router = APIRouter(prefix="/migrations", tags=["migrations"])
@@ -216,7 +216,7 @@ async def list_migrations(
 @router.post("/run", response_model=MigrationStatusResponse)
 async def run_migration(
     request: MigrationRunRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> MigrationStatusResponse:
     """Run a migration with optional dry-run mode.
 
@@ -260,7 +260,7 @@ async def run_migration(
 @router.post("/validate", response_model=MigrationValidationResponse)
 async def validate_migration(
     request: MigrationValidationRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> MigrationValidationResponse:
     """Validate if a migration can run safely on the current data.
 
@@ -310,7 +310,7 @@ async def get_migration_status(
 @router.post("/rollback", response_model=RollbackResponse)
 async def rollback_migration(
     request: RollbackRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> RollbackResponse:
     """Rollback a migration using its audit ID.
 

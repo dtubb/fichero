@@ -1,4 +1,5 @@
 // swiftlint:disable file_length
+import FicheroAPIClient
 import SwiftUI
 
 // MARK: - Mail-Style Row (like Apple Mail)
@@ -14,17 +15,10 @@ struct MailStyleRow: View {
     var visibleEntityTypes: Set<String> = ["people", "places", "organizations", "dates", "events", "keywords"]
     var onTagTap: (String) -> Void = { _ in }
 
-    @EnvironmentObject private var documentStore: DocumentStore
-
     // Compact leading thumbnail so the title/text gets the row's width
     // (Mail-style — the icon was previously 40×50 and crowded the title). (#1459)
     private static let thumbWidth: CGFloat = 28
     private static let thumbHeight: CGFloat = 36
-
-    fileprivate static func canDecodeLocalImagePath(_ path: String) -> Bool {
-        (path as NSString).isAbsolutePath
-            && FileManager.default.fileExists(atPath: path)
-    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -60,7 +54,10 @@ struct MailStyleRow: View {
                             .foregroundColor(.accentColor)
                     }
 
-                    Text(document.name)
+                    // PDF page rows show their page number (prefer an
+                    // extracted page_label once #2080 lands), not the
+                    // internal id/filename. Non-page docs keep their name. (#2053)
+                    Text(document.pageThumbnailLabel ?? document.name)
                         .font(.headline)
                         .lineLimit(3)
                         .truncationMode(.middle)
@@ -134,38 +131,6 @@ struct MailStyleRow: View {
         }
     }
 
-    /// Page-child docs store the parent PDF path in `metadata.pdf_path`.
-    /// For dropped imports that path may be a temp dir macOS already
-    /// GC'd, so fall back to the parent doc's current `path` resolved
-    /// via `pdf_parent_id` — mirrors DocumentThumbnailView.resolvedParentPDFPath.
-    private func resolvedParentPDFPath(for doc: Document) -> String? {
-        let metadataPath = doc.metadata["pdf_path"]?.value as? String
-        if let metadataPath, !metadataPath.isEmpty,
-           !metadataPath.contains("/fichero-drop-"),
-           FileManager.default.fileExists(atPath: metadataPath) {
-            return metadataPath
-        }
-        // The parent PDF is the selectedCollection when we're viewing its
-        // page children — currentDocuments is the *children* list, so the
-        // parent isn't in it. Check selectedCollection first, then fall
-        // back to currentDocuments (covers other lookup paths). (#890)
-        let parentId = doc.metadata["pdf_parent_id"]?.value as? String ?? doc.parentId
-        if let parentId {
-            if let selected = documentStore.selectedCollection,
-               selected.id == parentId,
-               let selectedPath = selected.path,
-               !selectedPath.isEmpty {
-                return selectedPath
-            }
-            if let parent = documentStore.currentDocuments.first(where: { $0.id == parentId }),
-               let parentPath = parent.path,
-               !parentPath.isEmpty {
-                return parentPath
-            }
-        }
-        return metadataPath
-    }
-
     @ViewBuilder
     private var rowThumbnail: some View {
         let size = CGSize(width: Self.thumbWidth, height: Self.thumbHeight)
@@ -177,36 +142,17 @@ struct MailStyleRow: View {
                 Image(systemName: "folder.fill")
                     .font(.system(size: 20))
                     .foregroundColor(.accentColor)
-            } else if document.fileType == .pdf,
-                      let path = document.path,
-                      !path.isEmpty {
-                PDFThumbnailView(path: path, size: size)
+            } else if document.fileType == .image {
+                LibraryImageView(documentId: document.id, imageType: .thumbnail)
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: size.width, height: size.height)
                     .clipped()
-            } else if document.docType == .page,
-                      document.fileType != .image,
-                      let pdfPath = resolvedParentPDFPath(for: document),
-                      !pdfPath.isEmpty {
-                let pageIndex = max(0, (document.sequence ?? 1) - 1)
-                PDFThumbnailView(
-                    path: pdfPath, size: size, pageIndex: pageIndex
-                )
-                .clipped()
-            } else if document.fileType == .image,
-                      let path = document.path, !path.isEmpty {
-                // Decode off the main thread (cached) — avoids scroll jank from
-                // synchronous NSImage(contentsOfFile:) in body (#1509). Still
-                // skips the OCR-text TextPreviewThumbnail branch for images (#1458).
-                if Self.canDecodeLocalImagePath(path) {
-                    LocalImageThumbnailView(path: path, documentId: document.id)
-                        .frame(width: size.width, height: size.height)
-                        .clipped()
-                } else {
-                    LibraryImageView(documentId: document.id, imageType: .thumbnail)
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: size.width, height: size.height)
-                        .clipped()
-                }
-            } else if let preview = document.pageContent, !preview.isEmpty {
+            } else if document.docType != .page, document.fileType != .pdf, let preview = document.pageContent, !preview.isEmpty {
+                // Text-preview thumbnail (#625) is only for genuinely text
+                // documents (JSON/plain text) with no page image. A PDF page
+                // ALWAYS shows its rendered page image via the storage
+                // endpoint below — never a rendering of its extracted text,
+                // even though the page also carries `pageContent`. (#2052)
                 TextPreviewThumbnail(text: preview)
                     .frame(width: size.width, height: size.height)
                     .clipped()
@@ -269,43 +215,6 @@ struct DocumentThumbnailView: View {
     let document: Document
     let isSelected: Bool
     var scale: CGFloat = 1.0
-    @EnvironmentObject private var documentStore: DocumentStore
-
-    /// Page-child docs store the original drop's PDF path in
-    /// `metadata.pdf_path`. For dropped imports, that path is a temp dir
-    /// (`/private/var/folders/.../T/fichero-drop-XXX/...`) which macOS
-    /// garbage-collects, leaving a dead path. (#703 — grid filled with
-    /// placeholder icons.) Try the metadata path first; if it's gone or
-    /// looks like a temp drop dir, fall back to the parent PDF doc's
-    /// current `path` resolved via `pdf_parent_id` — checking
-    /// `selectedCollection` first because that's where the parent PDF
-    /// lives when we're viewing its children (currentDocuments is the
-    /// children list, not a peer of the parent). (#927 mirrors the
-    /// MailStyleRow fix from #890.)
-    fileprivate func resolvedParentPDFPath(for doc: Document) -> String? {
-        let metadataPath = doc.metadata["pdf_path"]?.value as? String
-        if let metadataPath, !metadataPath.isEmpty,
-           !metadataPath.contains("/fichero-drop-"),
-           FileManager.default.fileExists(atPath: metadataPath) {
-            return metadataPath
-        }
-        let parentId = doc.metadata["pdf_parent_id"]?.value as? String ?? doc.parentId
-        if let parentId {
-            if let selected = documentStore.selectedCollection,
-               selected.id == parentId,
-               let selectedPath = selected.path,
-               !selectedPath.isEmpty {
-                return selectedPath
-            }
-            if let parent = documentStore.currentDocuments.first(where: { $0.id == parentId }),
-               let parentPath = parent.path,
-               !parentPath.isEmpty {
-                return parentPath
-            }
-        }
-        return metadataPath
-    }
-
     var body: some View {
         VStack(spacing: 6) {
             ZStack {
@@ -318,41 +227,20 @@ struct DocumentThumbnailView: View {
                     .aspectRatio(3.0 / 4.0, contentMode: .fit)
 
                 // Show folder icon for folders, thumbnail for files.
-                // For PDFs + PDF page children, render locally via PDFKit.
                 if document.docType == .folder {
                     Image(systemName: "folder.fill")
                         .font(.system(size: 48 * scale))
                         .foregroundColor(.accentColor)
-                } else if document.fileType == .pdf, let path = document.path, !path.isEmpty {
-                    PDFThumbnailView(path: path, size: CGSize(width: 240, height: 320))
+                } else if document.fileType == .image {
+                    LibraryImageView(documentId: document.id, imageType: .thumbnail)
+                        .aspectRatio(contentMode: .fill)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .clipped()
-                } else if document.docType == .page,
-                          document.fileType != .image,
-                          let pdfPath = resolvedParentPDFPath(for: document),
-                          !pdfPath.isEmpty {
-                    let pageIndex = max(0, (document.sequence ?? 1) - 1)
-                    PDFThumbnailView(
-                        path: pdfPath,
-                        size: CGSize(width: 240, height: 320),
-                        pageIndex: pageIndex
-                    )
-                    .clipped()
-                } else if document.fileType == .image,
-                          let path = document.path, !path.isEmpty {
-                    // Decode off the main thread (cached) — avoids scroll jank
-                    // from synchronous NSImage(contentsOfFile:) in body (#1509).
-                    // Still skips the OCR-text TextPreviewThumbnail branch (#1458).
-                    if MailStyleRow.canDecodeLocalImagePath(path) {
-                        LocalImageThumbnailView(path: path, documentId: document.id)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .clipped()
-                    } else {
-                        LibraryImageView(documentId: document.id, imageType: .thumbnail)
-                            .aspectRatio(contentMode: .fill)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .clipped()
-                    }
-                } else if let preview = document.pageContent, !preview.isEmpty {
+                } else if document.docType != .page, document.fileType != .pdf, let preview = document.pageContent, !preview.isEmpty {
+                    // Text-preview thumbnail (#625) is only for genuinely text
+                    // documents (JSON/plain text) with no page image. A PDF page
+                    // ALWAYS renders its page image via the storage endpoint
+                    // below — never its extracted `pageContent` text. (#2052)
                     TextPreviewThumbnail(text: preview)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .clipped()
@@ -392,7 +280,11 @@ struct DocumentThumbnailView: View {
                     .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
             )
 
-            Text(document.name)
+            // PDF page children label by page number (prefer extracted
+            // page_label once #2080 lands), never their internal id/filename.
+            // `pageThumbnailLabel` is nil for non-page docs, so top-level
+            // documents keep their name. (#2053)
+            Text(document.pageThumbnailLabel ?? document.name)
                 .font(.caption)
                 .lineLimit(2)
                 .truncationMode(.middle)
@@ -429,6 +321,77 @@ struct DocumentThumbnailView: View {
     }
 }
 
+struct EntityThumbnailKindStyle {
+    let label: String
+    let systemName: String
+    let tint: Color
+}
+
+struct EntityThumbnailView: View {
+    let entity: Components.Schemas.KnowledgeEntity
+    let isSelected: Bool
+    let secondaryText: String
+    let kindStyle: EntityThumbnailKindStyle
+    var scale: CGFloat = 1.0
+
+    var body: some View {
+        VStack(spacing: 6) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color(.windowBackgroundColor))
+                    .aspectRatio(3.0 / 4.0, contentMode: .fit)
+
+                VStack(spacing: 10) {
+                    ZStack {
+                        Circle()
+                            .fill(kindStyle.tint.opacity(0.16))
+                            .frame(width: 50 * scale, height: 50 * scale)
+
+                        Image(systemName: kindStyle.systemName)
+                            .font(.system(size: 24 * scale, weight: .semibold))
+                            .foregroundStyle(kindStyle.tint)
+                    }
+
+                    Text(kindStyle.label.uppercased())
+                        .font(.system(size: 9 * scale, weight: .semibold))
+                        .tracking(0.6)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 8)
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
+            )
+
+            VStack(spacing: 2) {
+                Text(entity.canonicalName)
+                    .font(.caption)
+                    .lineLimit(2)
+                    .truncationMode(.tail)
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(isSelected ? .accentColor : .primary)
+
+                Text(secondaryText)
+                    .font(.caption2)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(width: 100 * scale)
+        .padding(6)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
+        )
+    }
+}
+
 // MARK: - TextPreviewThumbnail
 
 /// Monospaced text thumbnail for JSON/text documents when no image thumbnail exists (#625).
@@ -460,3 +423,4 @@ struct TextPreviewThumbnail: View {
             .allowsHitTesting(false)
     }
 }
+// swiftlint:enable file_length

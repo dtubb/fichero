@@ -45,9 +45,11 @@ from fichero.llm import (
     chat_structured_with_fallback,
 )
 from fichero.models import Artifact
+from fichero.workflows.tools._workflow_change_emit import emit_workflow_artifact_changes
 from fichero.workflows.registry import register_tool
 from fichero.workflows.tools.catalogue import _resolve_write_target
 from fichero.workflows.tools.llm_base import (
+    ArtifactLookupError,
     BASE_CONFIG_SCHEMA,
     BASE_OUTPUT_PORTS,
     find_existing_artifact,
@@ -160,6 +162,8 @@ _SECTIONS: list[dict[str, Any]] = [
             "f'{name} {verb} {object}.' — name is the implicit subject, "
             "do NOT repeat it inside verb or object. "
             "Always include prepositions in multi-word verbs. "
+            "If a mention is obscured, do not guess it; preserve any "
+            "[ilegible] / [uncertain] markers exactly as written. "
             "Examples: name='Eugenio Córdoba', verb='served as', "
             "object='the alcalde of Popayán'; or verb='entered into', "
             "object='partnership with the mining company'. Aliases are spelling "
@@ -216,7 +220,8 @@ _SECTIONS: list[dict[str, Any]] = [
             "in Title Case (preserve original spelling and accents). "
             "'alternative_spellings' = spelling variants in the text. "
             "Predicate split into 'verb' + 'object'. Always include prepositions "
-            "in multi-word verbs. Examples: "
+            "in multi-word verbs. Preserve any [ilegible] / [uncertain] "
+            "markers exactly as written. Examples: "
             "name='Imprenta Oficial', verb='published', "
             "object='the official gazette of the Republic'; "
             "or name='Banking Authority', verb='entered into', object='agreements with the Crown'; "
@@ -401,7 +406,8 @@ _SECTIONS: list[dict[str, Any]] = [
             "'verb' = the attribution verb (said, argued, wrote, testified, reported, "
             "declared, stated, asked). "
             "'object' = the verbatim quoted text exactly as it appears in the source "
-            "— preserve original punctuation, spelling, and accents. Do NOT "
+            "— preserve original punctuation, spelling, accents, and any "
+            "[ilegible] / [uncertain] markers exactly as written. Do NOT "
             "paraphrase or summarise the quote. "
             "'source_text' = the shortest surrounding sentence or phrase that "
             "contains both the quote and its attribution, to anchor it in context. "
@@ -914,8 +920,9 @@ def _build_section_prompt(section: dict[str, Any], output_language: str) -> str:
         f"- Write all prose in {output_language}.\n"
         f"- For 'source_text', copy the exact sentence (or shortest "
         f"  paragraph) where the claim appears, verbatim — preserve "
-        f"  original spelling, accents, and punctuation. Do NOT "
-        f"  paraphrase or translate this field.\n"
+        f"  original spelling, accents, punctuation, and any "
+        f"  [ilegible] / [uncertain] markers exactly as written. Do NOT "
+        f"  paraphrase, translate, resolve, or delete this field.\n"
         f"- For 'epistemic_status', tag tentative / confirmed / "
         f"  rejected based on how firmly the source asserts the claim.\n"
         f"- For 'claim_type', tag fact / analysis / interpretation / "
@@ -1158,14 +1165,29 @@ async def _run_extractor(
             if not pid:
                 every_page_cached = False
                 break
-            cached = find_existing_artifact(
-                document_id=pid,
-                file_path=None,
-                artifact_type=section["artifact"],
-                library_path=library_path,
-                provider=getattr(llm_config, "provider", None),
-                model=getattr(llm_config, "model", None),
-            )
+            try:
+                cached = find_existing_artifact(
+                    document_id=pid,
+                    file_path=None,
+                    artifact_type=section["artifact"],
+                    library_path=library_path,
+                    provider=getattr(llm_config, "provider", None),
+                    model=getattr(llm_config, "model", None),
+                )
+            except ArtifactLookupError as exc:
+                # Cache read FAILED — we do not know if a page artifact exists.
+                # Don't treat that as a hit OR a clean miss: log loud and force
+                # the full re-extract path (visible re-run, never a silent
+                # cache decision on an unknown). (#2511)
+                logger.error(
+                    "%s: per-page cache check FAILED for page %s — re-extracting "
+                    "all pages (not assuming cache state): %s",
+                    section["name"],
+                    pid,
+                    exc,
+                )
+                every_page_cached = False
+                break
             if cached and cached.content:
                 if isinstance(cached.data, dict):
                     all_cached_items.extend(cached.data.get("items") or [])
@@ -1186,14 +1208,27 @@ async def _run_extractor(
 
     # Container-level cache (legacy / no records flow).
     if not is_per_page and container and library_path:
-        cached = find_existing_artifact(
-            document_id=container.id,
-            file_path=None,
-            artifact_type=section["artifact"],
-            library_path=library_path,
-            provider=getattr(llm_config, "provider", None),
-            model=getattr(llm_config, "model", None),
-        )
+        try:
+            cached = find_existing_artifact(
+                document_id=container.id,
+                file_path=None,
+                artifact_type=section["artifact"],
+                library_path=library_path,
+                provider=getattr(llm_config, "provider", None),
+                model=getattr(llm_config, "model", None),
+            )
+        except ArtifactLookupError as exc:
+            # Cache read FAILED — re-run rather than silently treat as a miss
+            # (which would hide the fault) or a hit (which we cannot prove).
+            # (#2511)
+            logger.error(
+                "%s: cache check FAILED for %s — re-extracting (not assuming "
+                "cache state): %s",
+                section["name"],
+                container.id,
+                exc,
+            )
+            cached = None
         if cached and cached.content:
             logger.info(
                 f"{section['name']}: cache hit on {section['artifact']} for "
@@ -1377,6 +1412,8 @@ async def _run_extractor(
     items: list[Any] = [item for chunk_items in chunk_results for item in chunk_items]
 
     markdown = _render_section_markdown(section, items)
+    created_artifact_ids: list[str] = []
+    artifact_document_ids: set[str] = set()
 
     # Dual write: KG rows (with per-page provenance) + markdown artifact.
     #
@@ -1451,6 +1488,8 @@ async def _run_extractor(
                         run_id=state.get("task_id"),
                     )
                     db.save(page_artifact)
+                    created_artifact_ids.append(page_artifact.id)
+                    artifact_document_ids.add(page_doc_id)
                 # Bump container updated_at so the folder inspector refreshes.
                 container.updated_at = datetime.now()
                 db.save(container)
@@ -1470,6 +1509,8 @@ async def _run_extractor(
                     run_id=state.get("task_id"),
                 )
                 db.save(artifact)
+                created_artifact_ids.append(artifact.id)
+                artifact_document_ids.add(container.id)
                 container.updated_at = datetime.now()
                 db.save(container)
                 logger.info(
@@ -1497,6 +1538,13 @@ async def _run_extractor(
         result["error"] = (
             f"{section['display']}: {len(chunk_errors)}/{len(chunks)} "
             f"LLM calls failed — {actionable}"
+        )
+
+    if created_artifact_ids and container and library_path:
+        emit_workflow_artifact_changes(
+            str(db.path.parent),
+            artifact_ids=created_artifact_ids,
+            document_ids=artifact_document_ids,
         )
     return result
 
@@ -1928,14 +1976,16 @@ def _write_citation_usage_rows(
             model=model,
             speaker_name=speaker_name,
             confidence_origin="llm",
+            claim_recorded_at=(source_doc.metadata or {}).get("date") if source_doc else None,
         )
-        citation.metadata["claim_id"] = claim_id
-        db.save(citation)
-        claim = db.get(KnowledgeClaim, claim_id)
-        if claim is not None:
-            claim.predicate_canonical = predicate_canonical
-            db.save(claim)
-        written += 1
+        if claim_id is not None:
+            citation.metadata["claim_id"] = claim_id
+            db.save(citation)
+            claim = db.get(KnowledgeClaim, claim_id)
+            if claim is not None:
+                claim.predicate_canonical = predicate_canonical
+                db.save(claim)
+            written += 1
 
     logger.info(
         "_write_citation_usage_rows: %s on %s — items_in=%d usages_written=%d",
@@ -1956,7 +2006,7 @@ def _write_kg_rows(
     provider: str | None = None,
     model: str | None = None,
     grounding_text: str | None = None,
-) -> None:
+) -> tuple[list[str], list[str]]:
     """Persist extractor items as KnowledgeEntity + KnowledgeClaim rows.
 
     Sections with ``entity_type`` set produce one entity per item (upsert
@@ -1985,9 +2035,14 @@ def _write_kg_rows(
             provider=provider,
             model=model,
         )
-        return
+        return [], []
 
-    from fichero.knowledge_models import ClaimType, EpistemicStatus, EntityType
+    from fichero.knowledge_models import (
+        ClaimType,
+        EntityType,
+        EpistemicStatus,
+        KnowledgeClaim,
+    )
     from fichero.workflows.tools._entity_writer import upsert_entity, save_claim
     from fichero.kg._common import slug_verb
 
@@ -2046,6 +2101,7 @@ def _write_kg_rows(
     # bibliography pipeline ships richer speaker-role tagging via #924.
     from fichero.models import Document as DocumentModel
     container_doc = db.get(DocumentModel, container_id)
+    doc_date: str | None = (container_doc.metadata or {}).get("date") if container_doc else None
     author_label: str | None = None
     if container_doc and container_doc.source_metadata:
         authors = container_doc.source_metadata.get("authors") or []
@@ -2228,6 +2284,9 @@ def _write_kg_rows(
     items_in = len(items)
     entities_written = 0
     claims_written = 0
+    written_entity_ids: list[str] = []
+    written_claim_ids: list[str] = []
+    claims_to_embed: list[KnowledgeClaim] = []
     # #1017 layer 2: collect boundary-invariant violations so silent
     # drops (anchorless items, degenerate descriptions) surface in the
     # activity log instead of just shrinking the items_in→written gap.
@@ -2434,7 +2493,7 @@ def _write_kg_rows(
             mentioned = _scan_for_mentioned_entities(
                 scan_text, alias_pairs, exclude=set()
             )
-            save_claim(
+            claim_id = save_claim(
                 db,
                 text=claim_text,
                 source_document_id=container_id,
@@ -2474,8 +2533,14 @@ def _write_kg_rows(
                 confidence_origin=(
                     "heuristic" if svo_synthesised else "llm"
                 ),
+                claim_recorded_at=doc_date,
             )
-            claims_written += 1
+            if claim_id is not None:
+                claims_written += 1
+                written_claim_ids.append(claim_id)
+                claim = db.get(KnowledgeClaim, claim_id)
+                if claim is not None:
+                    claims_to_embed.append(claim)
             continue
 
         # Entity-bearing section.
@@ -2495,7 +2560,7 @@ def _write_kg_rows(
                     alias_pairs,
                     exclude=set(),
                 )
-                save_claim(
+                claim_id = save_claim(
                     db,
                     text=claim_text,
                     source_document_id=container_id,
@@ -2520,8 +2585,14 @@ def _write_kg_rows(
                     confidence=claim_confidence,
                     source_language=detected_language,
                     confidence_origin=("heuristic" if svo_synthesised else "llm"),
+                    claim_recorded_at=doc_date,
                 )
-                claims_written += 1
+                if claim_id is not None:
+                    claims_written += 1
+                    written_claim_ids.append(claim_id)
+                    claim = db.get(KnowledgeClaim, claim_id)
+                    if claim is not None:
+                        claims_to_embed.append(claim)
             continue
         aliases = (
             item.get("alternative_spellings")
@@ -2565,6 +2636,9 @@ def _write_kg_rows(
             # scope the entity to the page it was extracted from.
             source_document_id=container_id,
         )
+        if entity_id is None:
+            continue
+        written_entity_ids.append(entity_id)
         # #1119 — reverse alias scan over claim text + predicate + excerpt.
         # Subject entity is already in entity_ids; the scan extends with
         # any OTHER known entities mentioned. Example: "Chocó is part of
@@ -2576,7 +2650,7 @@ def _write_kg_rows(
         mentioned = _scan_for_mentioned_entities(
             scan_text, alias_pairs, exclude={entity_id}
         )
-        save_claim(
+        claim_id = save_claim(
             db,
             text=claim_text,
             source_document_id=container_id,
@@ -2615,9 +2689,18 @@ def _write_kg_rows(
             confidence_origin=(
                 "heuristic" if svo_synthesised else "llm"
             ),
+            claim_recorded_at=doc_date,
         )
         entities_written += 1
-        claims_written += 1
+        if claim_id is not None:
+            claims_written += 1
+            written_claim_ids.append(claim_id)
+            claim = db.get(KnowledgeClaim, claim_id)
+            if claim is not None:
+                claims_to_embed.append(claim)
+
+    if claims_to_embed:
+        db.schedule_claim_embeddings(claims_to_embed)
 
     # #1003: structured per-page summary. If items_in > 0 but
     # entities_written + claims_written == 0, a page's items were all
@@ -2638,6 +2721,7 @@ def _write_kg_rows(
             f"{page_label or 'whole-doc'} on {container_id} — "
             f"invariant violations: {summarize_violations(invariant_violations)}"
         )
+    return written_entity_ids, written_claim_ids
 
 
 # =============================================================================

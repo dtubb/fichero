@@ -243,6 +243,37 @@ class TestUpsertEntity:
         assert r.json()["canonical_name"] == "New Name"
         assert r.json()["id"] == entity.id
 
+    def test_garbage_name_timestamp_rejected(self, client):
+        """Timestamp-shaped names like '12:10' contain no letters and must be rejected."""
+        r = client.post("/api/entities", json={
+            "canonical_name": "12:10",
+            "entity_type": "other",
+        })
+        assert r.status_code == 422
+
+    def test_garbage_name_pure_numeric_rejected(self, client):
+        r = client.post("/api/entities", json={
+            "canonical_name": "99999",
+            "entity_type": "other",
+        })
+        assert r.status_code == 422
+
+    def test_garbage_name_single_char_rejected(self, client):
+        r = client.post("/api/entities", json={
+            "canonical_name": "x",
+            "entity_type": "other",
+        })
+        assert r.status_code == 422
+
+    def test_clean_name_with_letters_accepted(self, client):
+        """Names that contain letters (even mixed with digits) are accepted."""
+        r = client.post("/api/entities", json={
+            "canonical_name": "Section 12",
+            "entity_type": "concept",
+        })
+        assert r.status_code == 200
+        assert r.json()["canonical_name"] == "Section 12"
+
 
 # ---------------------------------------------------------------------------
 # GET /api/entities/{entity_id}

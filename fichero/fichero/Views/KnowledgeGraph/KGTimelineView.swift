@@ -99,30 +99,23 @@ struct KGTimelineView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "calendar.badge.clock")
-                .font(.system(size: 28))
-                .foregroundStyle(.secondary)
-            Text("No dated claims")
-                .font(.subheadline)
+        ContentUnavailableView {
+            Label("No dated claims", systemImage: "calendar.badge.clock")
+        } description: {
             Text(claims.isEmpty
                     ? "Claims will appear here once extraction has run"
                     : "Claims need a start date (timeStart) to plot on the timeline")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
     }
 
     private func errorState(_ message: String) -> some View {
-        VStack(spacing: 8) {
-            Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange)
-            Text(message).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
+        ContentUnavailableView {
+            Label("Couldn't load timeline", systemImage: "exclamationmark.triangle")
+        } description: {
+            Text(message)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
     }
 
     // MARK: - Chart

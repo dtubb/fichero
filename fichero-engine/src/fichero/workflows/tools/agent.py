@@ -16,8 +16,13 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from fichero.workflows.types import State, PortDef, DataType
 from fichero.workflows.registry import register_tool, get_tool
 from fichero.llm import get_langchain_model, LLMConfig
+from fichero.prompts import compose_system_prompt
 
 logger = logging.getLogger(__name__)
+
+_DEFAULT_AGENT_SYSTEM_PROMPT = (
+    "You are a helpful AI assistant. Use the available tools to accomplish the task."
+)
 
 
 @register_tool(
@@ -79,7 +84,7 @@ logger = logging.getLogger(__name__)
         },
         "system_prompt": {
             "type": "string",
-            "default": "You are a helpful AI assistant. Use the available tools to accomplish the task.",
+            "default": _DEFAULT_AGENT_SYSTEM_PROMPT,
             "description": "System prompt for the agent",
         },
         "max_iterations": {
@@ -118,7 +123,7 @@ async def react_agent(
     tool_names = inputs.get("tools", [])
     system_prompt = inputs.get(
         "system_prompt",
-        "You are a helpful AI assistant. Use the available tools to accomplish the task.",
+        _DEFAULT_AGENT_SYSTEM_PROMPT,
     )
     max_iterations = inputs.get("max_iterations", 10)
 
@@ -149,7 +154,11 @@ async def react_agent(
         model = get_langchain_model(llm_config)
 
         # Build message list
-        messages = []
+        effective_system_prompt = compose_system_prompt(
+            role="agent",
+            extra=system_prompt,
+        )
+        messages = [SystemMessage(content=effective_system_prompt)]
 
         # Add context if provided
         if context:
@@ -161,18 +170,6 @@ async def react_agent(
 
         # Add user task
         messages.append(HumanMessage(content=task))
-
-        # Create ReAct agent
-        # Note: create_react_agent doesn't support state_modifier in current version
-        # System prompt needs to be added to messages instead
-        if (
-            system_prompt
-            and system_prompt
-            != "You are a helpful AI assistant. Use the available tools to accomplish the task."
-        ):
-            # Prepend custom system prompt to messages
-            messages.insert(0, SystemMessage(content=system_prompt))
-
         agent_graph = create_react_agent(
             model=model,
             tools=agent_tools if agent_tools else [],

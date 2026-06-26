@@ -3,10 +3,13 @@
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
-from fichero.api.main import get_library_database
+from fichero.api.library_header import require_library_path
+from fichero.api.auth import request_actor
+from fichero.api.change_stream import emit_change
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.research_models import (
     ChecklistItem,
@@ -41,7 +44,12 @@ class SearchSourceCreateRequest(BaseModel):
 @router.post("/sources", response_model=SearchSource)
 async def create_search_source(
     request: SearchSourceCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> SearchSource:
     source = SearchSource(
         project_id=request.project_id,
@@ -55,6 +63,14 @@ async def create_search_source(
         metadata=request.metadata,
     )
     db.save(source)
+    emit_change(
+        x_fichero_library_path,
+        type="note.updated",
+        actor=actor,
+        run_id=None,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
     return source
 
 
@@ -97,7 +113,12 @@ class NoteUpdateRequest(BaseModel):
 @router.post("/notes", response_model=ResearchNote)
 async def create_note(
     request: NoteCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> ResearchNote:
     note = ResearchNote(
         project_id=request.project_id,
@@ -112,6 +133,13 @@ async def create_note(
         metadata=request.metadata,
     )
     db.save(note)
+    emit_change(
+        x_fichero_library_path,
+        type="note.created",
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
     return note
 
 
@@ -143,7 +171,12 @@ async def get_note(
 async def update_note(
     note_id: str,
     request: NoteUpdateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> ResearchNote:
     note = db.get(ResearchNote, note_id)
     if not note:
@@ -162,6 +195,13 @@ async def update_note(
         note.metadata = request.metadata
     note.updated_at = datetime.now()
     db.save(note)
+    emit_change(
+        x_fichero_library_path,
+        type="note.updated",
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
     return note
 
 
@@ -188,7 +228,12 @@ class ChecklistItemToggleRequest(BaseModel):
 @router.post("/checklists", response_model=ResearchChecklist)
 async def create_checklist(
     request: ChecklistCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> ResearchChecklist:
     checklist = ResearchChecklist(
         project_id=request.project_id,
@@ -200,10 +245,20 @@ async def create_checklist(
         metadata=request.metadata,
     )
     db.save(checklist)
+    emit_change(
+        x_fichero_library_path,
+        type="note.updated",
+        actor=actor,
+        run_id=None,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
     return checklist
 
 
-@router.get("/projects/{project_id}/checklists", response_model=ResearchNotesListResponse)
+@router.get(
+    "/projects/{project_id}/checklists", response_model=ResearchNotesListResponse
+)
 async def list_checklists(
     project_id: str,
     db: Database = Depends(get_library_database),
@@ -219,7 +274,12 @@ async def toggle_checklist_item(
     checklist_id: str,
     item_id: str,
     request: ChecklistItemToggleRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> ResearchChecklist:
     checklist = db.get(ResearchChecklist, checklist_id)
     if not checklist:
@@ -236,4 +296,12 @@ async def toggle_checklist_item(
             break
     checklist.updated_at = datetime.now()
     db.save(checklist)
+    emit_change(
+        x_fichero_library_path,
+        type="note.updated",
+        actor=actor,
+        run_id=None,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
     return checklist

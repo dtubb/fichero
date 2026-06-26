@@ -18,10 +18,14 @@ struct ToolBlockView: View {
                 .font(.caption2)
                 .lineLimit(1)
                 .foregroundColor(.primary)
+
+            if !tool.tested {
+                untestedBadge
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
-        .background(isHovering ? Color(.selectedControlColor) : Color(.controlBackgroundColor))
+        .background(isHovering ? Color(platformColor: .platformSelectedControl) : Color(.controlBackgroundColor))
         .cornerRadius(6)
         .onHover { hovering in
             isHovering = hovering
@@ -29,7 +33,16 @@ struct ToolBlockView: View {
         .onTapGesture {
             onTap?()
         }
-        .help(tool.description)
+        .help(tool.tested ? tool.description : "\(tool.description)\n\nUntested — this tool has not been validated end-to-end.")
+    }
+
+    /// Small "Untested" tag shown on tools that haven't been validated end-to-end.
+    private var untestedBadge: some View {
+        Label("Untested", systemImage: "exclamationmark.triangle")
+            .font(.caption2)
+            .labelStyle(.titleAndIcon)
+            .foregroundColor(.secondary)
+            .lineLimit(1)
     }
 
     /// Convert color string from API to SwiftUI Color
@@ -73,7 +86,7 @@ struct MCPToolBlockView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
-        .background(isHovering ? Color(.selectedControlColor) : Color(.controlBackgroundColor))
+        .background(isHovering ? Color(platformColor: .platformSelectedControl) : Color(.controlBackgroundColor))
         .cornerRadius(6)
         .onHover { hovering in
             isHovering = hovering

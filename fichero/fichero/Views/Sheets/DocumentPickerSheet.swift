@@ -1,10 +1,13 @@
+import OSLog
 import SwiftUI
+
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "DocumentPickerSheet")
 
 /// Sheet for picking documents to run a workflow on
 struct DocumentPickerSheet: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var libraryManager: LibraryManager
-    @EnvironmentObject var documentStore: DocumentStore
+    @Environment(DocumentStore.self) var documentStore: DocumentStore
 
     let workflowId: String
     let workflowName: String
@@ -66,7 +69,7 @@ struct DocumentPickerSheet: View {
                 }
             }
             .padding()
-            .background(Color(nsColor: .controlBackgroundColor))
+            .background(Color(platformColor: .controlBackgroundColor))
 
             Divider()
 
@@ -144,7 +147,7 @@ struct DocumentPickerSheet: View {
     @MainActor
     private func runBatchWorkflow(workflowId: String, documents: [Document]) async {
         guard let library = libraryManager.globalLibrary else {
-            print("Error: No global library available")
+            logger.error("No global library available; cannot create batch")
             return
         }
 
@@ -160,11 +163,11 @@ struct DocumentPickerSheet: View {
                 items: items,
                 maxConcurrent: 5
             )
-            print("Created batch: \(batch.batchId) with \(documents.count) items")
+            logger.info("Created batch: \(batch.batchId, privacy: .public) with \(documents.count) items")
             // swiftlint:disable:next todo
             // TODO: Navigate to batches sidebar and execute batch with SSE streaming
         } catch {
-            print("Error creating batch: \(error.localizedDescription)")
+            logger.error("Error creating batch: \(error.localizedDescription, privacy: .public)")
         }
     }
 }
@@ -265,7 +268,7 @@ private struct DocumentPickerRow: View {
         workflowName: "Extract Text"
     )
     .environmentObject(LibraryManager.shared)
-    .environmentObject(DocumentStore(
+    .environment(DocumentStore(
         apiClient: LibraryManager.shared.globalLibrary!.apiClient
     ))
 }

@@ -1,0 +1,51 @@
+{
+  "name": "2 · Extract Entities",
+  "description": "Step 2 of the discrete import-artifacts pipeline. Reuse the transcription artifacts from step 1 to extract and persist entity rows only. Safe to re-run: entity upserts reuse existing rows and accumulate per-page provenance without duplicates.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Catalogue",
+  "tags": [
+    "preset",
+    "catalogue",
+    "stage",
+    "entities",
+    "reviewable"
+  ],
+  "config": {
+    "preset_version": 1,
+    "stage": "extract_entities"
+  },
+  "nodes": [
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Files",
+      "position_x": 80,
+      "position_y": 220,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "extract-entities",
+      "tool": "extract_entities_only",
+      "label": "Extract entities",
+      "position_x": 320,
+      "position_y": 220,
+      "inputs": {},
+      "config": {
+        "output_language": "auto",
+        "provider_name": "$small"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-files-extract-entities-documents",
+      "source": "files-source",
+      "target": "extract-entities",
+      "source_port": "documents",
+      "target_port": "documents"
+    }
+  ]
+}

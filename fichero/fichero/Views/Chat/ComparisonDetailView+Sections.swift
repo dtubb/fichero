@@ -116,7 +116,7 @@ extension ComparisonDetailView {
                 .font(.body)
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(nsColor: .textBackgroundColor))
+                .background(Color(platformColor: .textBackgroundColor))
                 .cornerRadius(8)
                 .textSelection(.enabled)
         }
@@ -179,7 +179,7 @@ extension ComparisonDetailView {
                 .fontWeight(.medium)
         }
         .padding(12)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(Color(platformColor: .controlBackgroundColor))
         .cornerRadius(8)
     }
 
@@ -277,7 +277,7 @@ extension ComparisonDetailView {
             }
         }
         .padding(16)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(Color(platformColor: .controlBackgroundColor))
         .cornerRadius(12)
     }
 

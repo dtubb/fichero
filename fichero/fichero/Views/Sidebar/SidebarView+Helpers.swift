@@ -3,9 +3,25 @@ import SwiftUI
 // MARK: - Helpers
 
 extension SidebarView {
+    func sidebarLibrarySelectionId(_ libraryId: UUID) -> String {
+        "library:\(libraryId.uuidString)"
+    }
+
+    func selectedLibraryId(from selectionId: String) -> UUID? {
+        guard selectionId.hasPrefix("library:") else { return nil }
+        let rawId = String(selectionId.dropFirst("library:".count))
+        return UUID(uuidString: rawId)
+    }
+
     /// All cached items combined (for recursive searches)
     var allCachedItems: [SidebarItem] {
         cachedLibraryHeaders
+    }
+
+    var filteredLibraryHeaders: [SidebarItem] {
+        let query = sidebarFilterText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return cachedLibraryHeaders }
+        return cachedLibraryHeaders.compactMap { filteredSidebarItem($0, query: query) }
     }
 
     /// Derive the selected SidebarItem from the ID
@@ -45,5 +61,16 @@ extension SidebarView {
             }
         }
         return nil
+    }
+
+    func filteredSidebarItem(_ item: SidebarItem, query: String) -> SidebarItem? {
+        if item.name.localizedCaseInsensitiveContains(query) {
+            return item
+        }
+        let children = item.children?.compactMap { filteredSidebarItem($0, query: query) }
+        guard let children, !children.isEmpty else { return nil }
+        var copy = item
+        copy.children = children
+        return copy
     }
 }

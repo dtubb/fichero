@@ -1,5 +1,7 @@
 import OSLog
 import SwiftUI
+import UniformTypeIdentifiers
+// swiftlint:disable file_length
 
 // MARK: - ContentView Actions Extension
 // Agent: ActionsAgent
@@ -14,13 +16,65 @@ extension Notification.Name {
     static let scrollToPage = Notification.Name("scrollToPage")
 }
 
+enum ChatScopeBuilder {
+    static func currentScopeDocumentIds(
+        browserSelection: Set<String>,
+        currentDocuments: [Document],
+        detailDocument: Document?
+    ) -> [String] {
+        let selectedIds = currentDocuments
+            .filter { browserSelection.contains($0.id) && $0.docType != .folder }
+            .map(\.id)
+        if !selectedIds.isEmpty {
+            return selectedIds
+        }
+
+        if let detailDocument, detailDocument.docType != .folder {
+            return [detailDocument.id]
+        }
+
+        return currentDocuments
+            .filter { $0.docType != .folder }
+            .map(\.id)
+    }
+}
+
+struct ChatWithDocsRoute: Equatable {
+    let selectedDocumentIds: Set<String>
+    let sidebarMode: SidebarMode
+    let viewMode: AppViewMode
+}
+
+enum ChatWithDocsRouter {
+    static func mainChatRoute(documentIds: [String]) -> ChatWithDocsRoute {
+        ChatWithDocsRoute(
+            selectedDocumentIds: Set(documentIds),
+            sidebarMode: .chat,
+            viewMode: .chat(nil)
+        )
+    }
+}
+
 extension ContentView {
 
     // MARK: - Document and Navigation Helpers
 
     /// Select a document by ID
     func selectDocument(withId documentId: String) {
-        if let doc = documentStore.currentDocuments.first(where: { $0.id == documentId }) {
+        guard let doc = documentStore.currentDocuments.first(where: { $0.id == documentId }) else { return }
+        // Image prev/next (and any other id-based navigation) flows through
+        // here. If a Page Content editor has an in-flight edit, persist it via
+        // the store-owned save BEFORE the focused document changes, otherwise
+        // the edit is discarded when the editor reseeds to the new doc (#2476).
+        // Only defer when an editor is actually registered so ordinary
+        // selection stays synchronous.
+        if documentStore.activePageEditFlush != nil {
+            Task { @MainActor in
+                await documentStore.flushActivePageEdit()
+                detailDocument = doc
+                browserSelection = [documentId]
+            }
+        } else {
             detailDocument = doc
             browserSelection = [documentId]
         }
@@ -134,6 +188,9 @@ extension ContentView {
         guard currentLayoutMode != .none else { return false }
         switch viewMode {
         case .library:
+            if isEntityLibrarySelection {
+                return false
+            }
             // Stable layout (default): a folder keeps the same panes as a file,
             // so selecting different items never reflows the window (#1452). The
             // legacy behaviour — folder collapses the preview so the grid takes
@@ -158,7 +215,7 @@ extension ContentView {
             break
 
         case .collectionSelected(let collection):
-            selectedSidebarItemId = "doc:\(collection.id)"
+            sidebarSelectionState.selectedItemId = "doc:\(collection.id)"
 
         case .documentsUpdated:
             break
@@ -177,15 +234,32 @@ extension ContentView {
     // MARK: - UI Actions
 
     func toggleSidebar() {
+        if horizontalSizeClass == .compact || shouldUseRuntimeSidebarCollapse {
+            return
+        }
         withAnimation {
             showSidebar.toggle()
             updateColumnVisibility()
         }
     }
 
+    func handleWindowWidthChange(_ newWidth: Double) {
+        guard newWidth > 0 else { return }
+        if abs(measuredWindowWidth - newWidth) < 0.5 {
+            return
+        }
+        measuredWindowWidth = newWidth
+        updateColumnVisibility()
+    }
+
     func updateColumnVisibility() {
-        withAnimation {
-            // 2-column layout: sidebar + detail (inspector is a panel inside detail).
+        if horizontalSizeClass == .compact {
+            return
+        }
+        // No animation — instant sidebar show/hide (#2309).
+        if shouldUseRuntimeSidebarCollapse {
+            columnVisibility = .detailOnly
+        } else {
             columnVisibility = showSidebar ? .all : .detailOnly
         }
     }
@@ -239,7 +313,7 @@ extension ContentView {
                     sortOrder: saved.sortOrder
                 )
 
-                selectedSidebarItemId = "search:\(saved.id)"
+                sidebarSelectionState.selectedItemId = "search:\(saved.id)"
                 sidebarMode = .search
                 viewMode = .search(search)
             } catch {
@@ -258,19 +332,75 @@ extension ContentView {
         case .icon: .icons
         case .list: .list
         case .table: .table
-        case .map, .realitykit: .map
+        case .map, .realitykit, .spatial, .workspace: .map
         }
-        saveDisplayMode(effectiveMode, for: selectedSidebarItemId)
+        saveDisplayMode(effectiveMode, for: sidebarSelectionState.selectedItemId)
         // Promote to the global default so a fresh window / new folder
         // / new launch all start in this mode. Per-folder overrides
         // (saveDisplayMode above) still win when present. (#943)
         defaultLibraryViewDisplayMode = effectiveMode
     }
 
+    func updateLayoutMode(_ requestedMode: LayoutMode) {
+        guard availableLayoutModes.contains(requestedMode) else { return }
+
+        let previewMode: PreviewMode = switch requestedMode {
+        case .none: .none
+        case .standard: .standard
+        case .widescreen: .widescreen
+        }
+
+        viewSettings.previewMode = normalizedPreviewMode(previewMode)
+        currentLayoutMode = requestedMode
+
+        if requestedMode == .widescreen,
+           !showDocumentGrid,
+           !showDocumentCanvas,
+           !showReadingPane {
+            showDocumentCanvas = true
+        }
+    }
+
+    func setCanvasPaneVisible(_ isVisible: Bool) {
+        if isVisible {
+            currentLayoutMode = .widescreen
+            viewSettings.previewMode = .widescreen
+        }
+        showDocumentCanvas = isVisible
+    }
+
+    func setReadingPaneVisible(_ isVisible: Bool) {
+        if isVisible {
+            currentLayoutMode = .widescreen
+            viewSettings.previewMode = .widescreen
+        }
+        showReadingPane = isVisible
+    }
+
+    func openChatWithCurrentScope() {
+        // Follow-up (#1723): keep this discoverable sidebar entry, but promote the
+        // scoped-docs chat into a first-class inspector pane/tab once the
+        // library inspector gets a stable chat slot.
+        let scopedIds = ChatScopeBuilder.currentScopeDocumentIds(
+            browserSelection: browserSelection,
+            currentDocuments: documentStore.currentDocuments,
+            detailDocument: detailDocument
+        )
+        let route = ChatWithDocsRouter.mainChatRoute(documentIds: scopedIds)
+        chatSelectedDocuments = route.selectedDocumentIds
+        sidebarMode = route.sidebarMode
+        viewMode = route.viewMode
+    }
+
     // MARK: - File Import
 
     func handleFileDrop(urls: [URL]) {
         logger.info("Files dropped: \(urls.map { $0.lastPathComponent })")
+
+        let droppedURLs = classifyDroppedURLs(urls)
+        openDroppedLibraries(droppedURLs.libraryURLs)
+
+        guard !droppedURLs.importURLs.isEmpty else { return }
 
         var targetParentId: String?
         if case .library(let doc) = viewMode {
@@ -302,14 +432,14 @@ extension ContentView {
 
             do {
                 _ = try await library.importService.importFiles(
-                    urls,
+                    droppedURLs.importURLs,
                     mode: .copy,
                     parentId: targetParentId
                 ) { current, total in
                     importProgress = "Importing \(current) of \(total)..."
                 }
                 await library.documentStore.refresh()
-                logger.info("Successfully imported \(urls.count) dropped item(s)")
+                logger.info("Successfully imported \(droppedURLs.importURLs.count) dropped item(s)")
             } catch {
                 logger.error("Failed dropped import: \(String(describing: error))")
                 importError = "Import failed: \(error.localizedDescription)"
@@ -326,7 +456,14 @@ extension ContentView {
         }
     }
 
-    // MARK: - Sibling Document Navigation (#593)
+    // MARK: - Sibling Document Navigation (#593 / #2420)
+
+    /// Returns the sibling set used for prev/next navigation. When the current
+    /// document is an image or page, navigation is scoped to image/page siblings
+    /// only; otherwise all folder siblings are navigable.
+    private func navigableSiblings(for document: Document) -> [Document] {
+        navigableFolderSiblings(for: document, in: documentStore.currentDocuments)
+    }
 
     /// Move detailDocument + browserSelection to the previous sibling in the
     /// current folder's sort order. Wraps with a small easeInOut animation so
@@ -334,7 +471,7 @@ extension ContentView {
     /// of a hard cut.
     func navigateSiblingPrevious() {
         guard let current = detailDocument else { return }
-        let docs = documentStore.currentDocuments
+        let docs = navigableSiblings(for: current)
         guard let idx = docs.firstIndex(where: { $0.id == current.id }), idx > 0 else { return }
         let target = docs[idx - 1]
         withAnimation(.easeInOut(duration: 0.2)) {
@@ -346,7 +483,7 @@ extension ContentView {
     /// Move to the next sibling. Symmetric to navigateSiblingPrevious.
     func navigateSiblingNext() {
         guard let current = detailDocument else { return }
-        let docs = documentStore.currentDocuments
+        let docs = navigableSiblings(for: current)
         guard let idx = docs.firstIndex(where: { $0.id == current.id }), idx < docs.count - 1 else { return }
         let target = docs[idx + 1]
         withAnimation(.easeInOut(duration: 0.2)) {
@@ -354,4 +491,51 @@ extension ContentView {
             browserSelection = [target.id]
         }
     }
+
+    private func classifyDroppedURLs(_ urls: [URL]) -> (libraryURLs: [URL], importURLs: [URL]) {
+        var libraryURLs: [URL] = []
+        var importURLs: [URL] = []
+
+        for url in urls {
+            if url.isFicheroLibraryPackage {
+                libraryURLs.append(url.standardizedFileURL)
+            } else {
+                importURLs.append(url)
+            }
+        }
+
+        return (libraryURLs, importURLs)
+    }
+
+    private func openDroppedLibraries(_ urls: [URL]) {
+        for libraryURL in urls {
+            LibraryWindowOpener.openOrFocusLibrary(at: libraryURL, using: openWindow)
+        }
+    }
+}
+
+private extension URL {
+    var isFicheroLibraryPackage: Bool {
+        guard pathExtension.localizedCaseInsensitiveCompare("fichero") == .orderedSame else {
+            return false
+        }
+
+        let resourceValues = try? resourceValues(forKeys: [.contentTypeKey, .isDirectoryKey])
+        if let contentType = resourceValues?.contentType,
+           contentType.conforms(to: .ficheroSession) {
+            return true
+        }
+
+        return resourceValues?.isDirectory == true
+    }
+}
+
+/// Returns the sibling set used for prev/next navigation. When `document` is an
+/// image or page, navigation is scoped to image/page siblings only; otherwise all
+/// folder siblings are navigable. Extracted so the filtering rule is unit-testable.
+func navigableFolderSiblings(for document: Document, in documents: [Document]) -> [Document] {
+    if document.fileType == .image || document.docType == .page {
+        return documents.filter { $0.fileType == .image || $0.docType == .page }
+    }
+    return documents
 }

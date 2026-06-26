@@ -14,7 +14,7 @@ final class EditorViewDisplayRoutingTests: XCTestCase {
             sequence: 1
         )
 
-        let route = EditorView.previewRoute(for: doc, parentPDFPath: nil, isEditing: false)
+        let route = EditorView.previewRoute(for: doc, isEditing: false)
 
         XCTAssertEqual(route, .storageDisplay(documentId: "page-1"))
         XCTAssertFalse(route.usesImageEditingPreviewForViewing)
@@ -31,16 +31,12 @@ final class EditorViewDisplayRoutingTests: XCTestCase {
             sequence: 7
         )
 
-        let route = EditorView.previewRoute(
-            for: doc,
-            parentPDFPath: "/tmp/source.pdf",
-            isEditing: false
-        )
+        let route = EditorView.previewRoute(for: doc, isEditing: false)
 
         XCTAssertEqual(route, .storageDisplay(documentId: "image-page-1"))
     }
 
-    func testPDFBackedPageRoutesToPDFPageWhenParentPDFExists() {
+    func testPDFBackedPageRoutesToStorageDisplay() {
         let doc = Document(
             id: "pdf-page-1",
             parentId: "pdf-1",
@@ -51,13 +47,9 @@ final class EditorViewDisplayRoutingTests: XCTestCase {
             sequence: 7
         )
 
-        let route = EditorView.previewRoute(
-            for: doc,
-            parentPDFPath: "/tmp/source.pdf",
-            isEditing: false
-        )
+        let route = EditorView.previewRoute(for: doc, isEditing: false)
 
-        XCTAssertEqual(route, .pagePDF(path: "/tmp/source.pdf", pageIndex: 6))
+        XCTAssertEqual(route, .storageDisplay(documentId: "pdf-page-1"))
     }
 
     func testPlainFolderRoutesToContainerPlaceholder() {
@@ -68,7 +60,7 @@ final class EditorViewDisplayRoutingTests: XCTestCase {
             name: "Folder"
         )
 
-        let route = EditorView.previewRoute(for: doc, parentPDFPath: nil, isEditing: false)
+        let route = EditorView.previewRoute(for: doc, isEditing: false)
 
         XCTAssertEqual(route, .container)
     }
@@ -82,7 +74,7 @@ final class EditorViewDisplayRoutingTests: XCTestCase {
             path: "files/source.jpg"
         )
 
-        let route = EditorView.previewRoute(for: doc, parentPDFPath: nil, isEditing: false)
+        let route = EditorView.previewRoute(for: doc, isEditing: false)
 
         XCTAssertEqual(route, .storageDisplay(documentId: "split-source-1"))
     }
@@ -96,7 +88,7 @@ final class EditorViewDisplayRoutingTests: XCTestCase {
             path: nil
         )
 
-        let route = EditorView.previewRoute(for: doc, parentPDFPath: nil, isEditing: false)
+        let route = EditorView.previewRoute(for: doc, isEditing: false)
 
         XCTAssertEqual(route, .storageDisplay(documentId: "image-1"))
         XCTAssertFalse(route.usesImageEditingPreviewForViewing)
@@ -111,7 +103,7 @@ final class EditorViewDisplayRoutingTests: XCTestCase {
             path: "files/marshall/page-1.jpg"
         )
 
-        let route = EditorView.previewRoute(for: doc, parentPDFPath: nil, isEditing: false)
+        let route = EditorView.previewRoute(for: doc, isEditing: false)
 
         XCTAssertEqual(route, .storageDisplay(documentId: "image-1"))
         XCTAssertFalse(route.usesImageEditingPreviewForViewing)
@@ -126,11 +118,16 @@ final class EditorViewDisplayRoutingTests: XCTestCase {
             path: nil
         )
 
-        let viewingRoute = EditorView.previewRoute(for: doc, parentPDFPath: nil, isEditing: false)
-        let editingRoute = EditorView.previewRoute(for: doc, parentPDFPath: nil, isEditing: true)
+        let viewingRoute = EditorView.previewRoute(for: doc, isEditing: false)
+        let editingRoute = EditorView.previewRoute(for: doc, isEditing: true)
 
         XCTAssertEqual(viewingRoute, .storageDisplay(documentId: "image-1"))
+        #if os(macOS)
         XCTAssertEqual(editingRoute, .imageEditor(documentId: "image-1"))
         XCTAssertTrue(editingRoute.usesImageEditingPreviewForViewing)
+        #else
+        XCTAssertEqual(editingRoute, .storageDisplay(documentId: "image-1"))
+        XCTAssertFalse(editingRoute.usesImageEditingPreviewForViewing)
+        #endif
     }
 }

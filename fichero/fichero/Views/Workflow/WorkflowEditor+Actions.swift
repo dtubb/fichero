@@ -14,20 +14,15 @@ extension WorkflowEditor {
     // swiftlint:disable:next function_body_length cyclomatic_complexity
     func runWorkflow() {
         isRunning = true
-        showOutputLog = true
-
-        // Initialize execution state (will be updated from observer)
-        executionState = WorkflowExecutionState(
-            status: .running,
-            documentProgress: []
-        )
 
         // Register immediately so Activity tab shows "Starting…" before first SSE event
+        var executionThreadId = "starting:\(UUID().uuidString)"
         executionObserver.startExecution(
             workflowId: editingWorkflow.id,
             name: editingWorkflow.name,
-            threadId: "starting"
+            threadId: executionThreadId
         )
+        openWindow(id: "activity-monitor")
 
         actionsLogger.info("Run workflow: \(editingWorkflow.name)")
 
@@ -90,25 +85,35 @@ extension WorkflowEditor {
                 let response = try await workflowStreamService.execute(
                     workflowId: workflowId,
                     inputs: ["selected_doc_ids": selectedIds],
+                    onAccepted: { acceptedResponse in
+                        let threadId = acceptedResponse.threadId
+                        executionObserver.promoteExecution(
+                            from: executionThreadId,
+                            to: threadId,
+                            onCancel: { [weak workflowStreamService] in
+                                Task { @MainActor in
+                                    try? await workflowStreamService?.stopWorkflow(threadId: threadId)
+                                }
+                            }
+                        )
+                        executionThreadId = threadId
+                    },
                     onEvent: { [weak documentStore] event in
                         // Debug: Log every event (using info level for visibility)
                         let eventDesc = String(String(describing: event).prefix(100))
                         actionsLogger.info("[SSE] Event: \(eventDesc)")
 
                         // Update global observer (single source of truth for all UI)
-                        executionObserver.handleEvent(event, for: workflowId)
+                        executionObserver.handleEvent(event, forThreadId: executionThreadId)
 
                         // Debug: Log document progress count
-                        if let exec = executionObserver.activeExecutions[workflowId] {
+                        if let exec = executionObserver.activeExecutions[executionThreadId] {
                             let docCount = exec.documentProgress.count
                             let nodeStateCount = exec.nodeStates.count
                             actionsLogger.info(
                                 "[SSE] Document count: \(docCount), nodeStates: \(nodeStateCount)"
                             )
                         }
-
-                        // Update executionState from observer (for output log)
-                        executionState = executionObserver.getExecutionState(for: workflowId)
 
                         // Update document processing status in library view
                         updateDocumentStatus(for: event, documentStore: documentStore)
@@ -125,25 +130,13 @@ extension WorkflowEditor {
 
                 actionsLogger.info("[SSE] Workflow started with thread: \(response.threadId)")
 
-                // Update the execution record with real threadId + cancel handler
-                let threadId = response.threadId
-                executionObserver.updateThreadId(
-                    threadId,
-                    onCancel: { [weak workflowStreamService] in
-                        Task { @MainActor in
-                            try? await workflowStreamService?.stopWorkflow(threadId: threadId)
-                        }
-                    },
-                    for: workflowId
-                )
-
                 // Wait for stream to complete (poll observer state)
                 while !streamCompleted {
                     try await Task.sleep(for: .milliseconds(100))
                     // Check if we're cancelled
                     if Task.isCancelled { break }
                     // Also check observer for completion
-                    if let exec = executionObserver.activeExecutions[workflowId],
+                    if let exec = executionObserver.activeExecutions[executionThreadId],
                        !exec.isRunning {
                         streamCompleted = true
                     }
@@ -151,7 +144,7 @@ extension WorkflowEditor {
 
                 // Determine final status from observer
                 actionsLogger.info("[SSE] Stream ended, checking final state for workflowId: \(workflowId)")
-                if let exec = executionObserver.activeExecutions[workflowId] {
+                if let exec = executionObserver.activeExecutions[executionThreadId] {
                     let docCount = exec.documentProgress.count
                     let workflowError = exec.workflowError ?? "none"
                     actionsLogger.info(
@@ -168,7 +161,7 @@ extension WorkflowEditor {
                 }
 
                 let finalStatus: WorkflowStatus
-                if let execution = executionObserver.activeExecutions[workflowId] {
+                if let execution = executionObserver.activeExecutions[executionThreadId] {
                     if execution.workflowError != nil {
                         finalStatus = .failed
                         actionsLogger.error("Workflow failed: \(execution.workflowError ?? "Unknown error")")
@@ -182,31 +175,14 @@ extension WorkflowEditor {
                     finalStatus = .completed
                 }
 
-                // Final update of execution state from observer (with document progress)
-                if var finalState = executionObserver.getExecutionState(for: workflowId) {
-                    finalState.status = finalStatus
-                    let statusStr = String(describing: finalStatus)
-                    let docCount = finalState.documentProgress.count
-                    let finalError = finalState.error ?? "none"
-                    actionsLogger.info(
-                        "[SSE] Final state: \(docCount) docs, status: \(statusStr), error: \(finalError)"
-                    )
-                    executionState = finalState
-                } else {
-                    actionsLogger.warning("[SSE] No final state from observer, keeping current executionState")
-                    executionState?.status = finalStatus
-                }
-
                 // End tracking in global observer
-                executionObserver.endExecution(workflowId: workflowId, status: finalStatus)
+                executionObserver.endExecution(threadId: executionThreadId, status: finalStatus)
 
             } catch {
                 actionsLogger.error("Failed to execute workflow: \(error.localizedDescription)")
-                executionState?.status = .failed
-                executionState?.error = error.localizedDescription
 
                 // End tracking with failed status
-                executionObserver.endExecution(workflowId: editingWorkflow.id, status: .failed)
+                executionObserver.endExecution(threadId: executionThreadId, status: .failed)
             }
 
             isRunning = false
@@ -218,16 +194,22 @@ extension WorkflowEditor {
         guard let documentStore = documentStore else { return }
 
         switch event {
-        case .fileStart(_, _, let filePath, _, _, _):
-            documentStore.updateProcessingStatus(forPath: filePath, status: .processing)
+        case .fileStart:
+            if let identity = event.fileProgressIdentity {
+                documentStore.updateProcessingStatus(for: identity, status: .processing)
+            }
 
-        case .fileComplete(_, _, let filePath, _, _, _, _):
+        case .fileComplete:
             // Defer the green checkmark — reduce-phase nodes may still
             // be touching this page (#948).
-            documentStore.recordFanoutComplete(forPath: filePath)
+            if let identity = event.fileProgressIdentity {
+                documentStore.recordFanoutComplete(for: identity)
+            }
 
-        case .fileError(_, _, let filePath, _, _):
-            documentStore.updateProcessingStatus(forPath: filePath, status: .failed)
+        case .fileError:
+            if let identity = event.fileProgressIdentity {
+                documentStore.updateProcessingStatus(for: identity, status: .failed)
+            }
 
         case .complete:
             documentStore.flushPendingFanoutCompletions(status: .completed)

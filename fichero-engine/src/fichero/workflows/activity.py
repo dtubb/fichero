@@ -314,6 +314,46 @@ class ActivityTracker:
             metadata={"workflow_name": workflow_name, **metadata},
         )
 
+    def workflow_resumed(
+        self,
+        workflow_id: str,
+        thread_id: str,
+        workflow_name: Optional[str] = None,
+        **metadata,
+    ) -> Activity:
+        """Log workflow resumed event."""
+        return self.log(
+            type=ActivityType.WORKFLOW_RESUMED,
+            message=(
+                f"Workflow '{workflow_name}' resumed"
+                if workflow_name
+                else "Workflow resumed"
+            ),
+            workflow_id=workflow_id,
+            thread_id=thread_id,
+            metadata={"workflow_name": workflow_name, **metadata},
+        )
+
+    def workflow_deleted(
+        self,
+        workflow_id: str,
+        thread_id: str,
+        workflow_name: Optional[str] = None,
+        **metadata,
+    ) -> Activity:
+        """Log workflow run history deletion."""
+        return self.log(
+            type=ActivityType.WORKFLOW_DELETED,
+            message=(
+                f"Workflow run '{workflow_name}' deleted"
+                if workflow_name
+                else "Workflow run deleted"
+            ),
+            workflow_id=workflow_id,
+            thread_id=thread_id,
+            metadata={"workflow_name": workflow_name, **metadata},
+        )
+
     def node_started(
         self,
         workflow_id: str,

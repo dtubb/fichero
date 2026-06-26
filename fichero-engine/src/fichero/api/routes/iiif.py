@@ -19,6 +19,9 @@ from PIL import Image
 from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.models import Document, FileType
+from fichero.path_security import allowed_source_roots, resolve_under_allowed_roots
+from fichero.storage import get_display, get_thumbnail, resolve_source
+from fichero.storage import settings as storage_settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/iiif", tags=["iiif"])
@@ -93,26 +96,24 @@ class IIIFManifest(BaseModel):
 # =============================================================================
 
 
-def _get_image_path(doc: Document) -> Path | None:
+def _get_image_path(
+    doc: Document, library_root: Path | None = None
+) -> Path | None:
     """Get the image file path for a document."""
     if doc.file_type not in (FileType.image, FileType.pdf) and not doc.path:
         return None
 
-    # Try display image first, then thumbnail, then original
-    paths_to_try = []
-
-    if hasattr(doc, "display_image_path") and doc.display_image_path:
-        paths_to_try.append(Path(doc.display_image_path))
-    if hasattr(doc, "thumbnail_path") and doc.thumbnail_path:
-        paths_to_try.append(Path(doc.thumbnail_path))
-    if doc.path:
-        paths_to_try.append(Path(doc.path))
-
-    for path in paths_to_try:
-        if path.exists():
-            return path
-
-    return None
+    candidate = (
+        get_display(doc, package_path=library_root)
+        or get_thumbnail(doc, package_path=library_root)
+        or resolve_source(doc, library_root=library_root)
+    )
+    if candidate is None:
+        return None
+    return resolve_under_allowed_roots(
+        candidate,
+        allowed_source_roots(library_root, storage_base=storage_settings.base_path),
+    )
 
 
 def _get_image_dimensions(image_path: Path) -> tuple[int, int]:
@@ -123,6 +124,13 @@ def _get_image_dimensions(image_path: Path) -> tuple[int, int]:
     except Exception as exc:
         logger.error(f"Failed to get image dimensions: {exc}")
         return (1024, 1024)  # Default fallback
+
+
+def _document_or_404(db: Database, document_id: str) -> Document:
+    doc = db.get(Document, document_id)
+    if doc is None or getattr(doc, "deleted_at", None) is not None:
+        raise HTTPException(status_code=404, detail=f"Document not found: {document_id}")
+    return doc
 
 
 def _serve_iiif_image(
@@ -228,11 +236,9 @@ async def get_image_info(
     db: Database = Depends(get_library_database),
 ) -> ImageInfoResponse:
     """Get IIIF image information."""
-    doc = db.get(Document, identifier)
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document not found: {identifier}")
+    doc = _document_or_404(db, identifier)
 
-    image_path = _get_image_path(doc)
+    image_path = _get_image_path(doc, db.path.parent)
     if not image_path:
         raise HTTPException(
             status_code=404, detail=f"No image available for document: {identifier}"
@@ -283,11 +289,9 @@ async def serve_iiif_image(
     db: Database = Depends(get_library_database),
 ) -> Response:
     """Serve IIIF image tile/region."""
-    doc = db.get(Document, identifier)
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document not found: {identifier}")
+    doc = _document_or_404(db, identifier)
 
-    image_path = _get_image_path(doc)
+    image_path = _get_image_path(doc, db.path.parent)
     if not image_path:
         raise HTTPException(
             status_code=404, detail=f"No image available for document: {identifier}"
@@ -311,11 +315,9 @@ async def get_iiif_manifest(
     db: Database = Depends(get_library_database),
 ) -> IIIFManifest:
     """Get IIIF manifest for document."""
-    doc = db.get(Document, document_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document not found: {document_id}")
+    doc = _document_or_404(db, document_id)
 
-    image_path = _get_image_path(doc)
+    image_path = _get_image_path(doc, db.path.parent)
     if not image_path:
         raise HTTPException(
             status_code=404, detail=f"No image available for document: {document_id}"
@@ -384,11 +386,9 @@ async def get_document_image(
     db: Database = Depends(get_library_database),
 ) -> Response:
     """Get document image with optional resize."""
-    doc = db.get(Document, document_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document not found: {document_id}")
+    doc = _document_or_404(db, document_id)
 
-    image_path = _get_image_path(doc)
+    image_path = _get_image_path(doc, db.path.parent)
     if not image_path:
         raise HTTPException(
             status_code=404, detail=f"No image available for document: {document_id}"

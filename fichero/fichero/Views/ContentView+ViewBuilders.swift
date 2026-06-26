@@ -1,4 +1,196 @@
 import SwiftUI
+// swiftlint:disable file_length
+
+// MARK: - ReadingPaneView
+
+/// Self-contained knowledge/WebKit reading surface with its own pin state.
+/// Extracting this to a separate View (rather than inline in widescreenReadingPane)
+/// gives each SplittablePane instance its own independent @State, so left and
+/// right split panes can be pinned/unpinned independently.
+private struct ReadingPaneView: View {
+    // Live values forwarded from ContentView; overridden by pin state when locked.
+    let liveDocument: Document?
+    let liveActivePageNumber: Int?
+    let livePageCount: Int?
+    let scrollSync: DocumentScrollSyncState
+    let onPageSelected: (Int) -> Void
+    /// Called when the user taps the × button. Omit to hide the button.
+    var onClose: (() -> Void)?
+
+    @EnvironmentObject private var apiClient: APIClient
+    @Environment(KGFocusState.self) private var kgFocusState
+    @EnvironmentObject private var claimFocusState: ClaimFocusState
+    @Environment(\.splitAxisActions) private var splitAxisActions
+
+    @State private var isPinned = false
+    @State private var pinnedDocument: Document?
+    @State private var pinnedActivePageNumber: Int?
+    @State private var pinnedPageCount: Int?
+    @State private var webZoom: Double = 1.0
+    @State private var activeTab: KGSurfaceTab = .transcript
+
+    private var effectiveDocument: Document? { isPinned ? pinnedDocument : liveDocument }
+    private var effectivePageNumber: Int? { isPinned ? pinnedActivePageNumber : liveActivePageNumber }
+    private var effectivePageCount: Int? { isPinned ? pinnedPageCount : livePageCount }
+
+    /// X button: collapses the active split when inside one,
+    /// otherwise calls onClose to hide the whole reading pane.
+    private func closePane() {
+        if let actions = splitAxisActions {
+            // H-split is more local; collapse it before the V-split.
+            if actions.hasHorizontal { actions.onToggleHorizontal(); return }
+            if actions.hasVertical { actions.onToggleVertical(); return }
+        }
+        onClose?()
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Layout: [× close] [icon] [title] [spacer] | [split buttons] [pin]
+            MiniToolbar(content: {
+                // × close: collapses split when inside one, hides whole pane otherwise.
+                let isInSplit = splitAxisActions.map { $0.hasVertical || $0.hasHorizontal } ?? false
+                if onClose != nil || isInSplit {
+                    Button {
+                        closePane()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help(isInSplit ? "Close this split" : "Close reading pane")
+
+                    Divider().frame(height: 16)
+                }
+
+                Image(systemName: "text.book.closed")
+                    .imageScale(.small)
+                    .foregroundStyle(.secondary)
+                Text(effectiveDocument?.name ?? "Views")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                // The view switcher (Transcript/Digest/Graph/Claims/Timeline/
+                // Map) is NOT a row of icons in this mini-toolbar anymore
+                // (#2432). The mini-toolbar carries reader ACTIONS only (zoom).
+                // Representation switching lives in the main window toolbar /
+                // View menu, driven by the `documentRepresentation` focused
+                // value that `DocumentKGSurface` publishes — `activeTab` below
+                // is updated through that path.
+
+                Spacer(minLength: 0)
+
+                ViewThatFits(in: .horizontal) {
+                    zoomControls
+                    zoomMenu
+                }
+
+                Spacer(minLength: 0)
+            }, trailing: {
+                // Pin — far right, after split buttons.
+                Divider().frame(height: 16)
+
+                Button {
+                    if isPinned {
+                        isPinned = false
+                    } else {
+                        pinnedDocument = liveDocument
+                        pinnedActivePageNumber = liveActivePageNumber
+                        pinnedPageCount = livePageCount
+                        isPinned = true
+                    }
+                } label: {
+                    Image(systemName: isPinned ? "pin.fill" : "pin")
+                        .font(.system(size: 11))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(isPinned ? Color.accentColor : Color.secondary)
+                .help(isPinned ? "Unpin — follow current selection" : "Pin to current document")
+            })
+
+            surfaceView
+
+            PaneFilterBar { Spacer(minLength: 0) }
+        }
+    }
+
+    @ViewBuilder
+    private var zoomControls: some View {
+        Button { webZoom = max(0.5, webZoom - 0.1) } label: {
+            Image(systemName: "minus.magnifyingglass")
+        }
+        .buttonStyle(.plain)
+        .help("Zoom Out")
+
+        Text("\(Int(webZoom * 100))%")
+            .font(.caption)
+            .monospacedDigit()
+            .frame(width: 44)
+
+        Button { webZoom = min(3.0, webZoom + 0.1) } label: {
+            Image(systemName: "plus.magnifyingglass")
+        }
+        .buttonStyle(.plain)
+        .help("Zoom In")
+
+        Button { webZoom = 1.0 } label: {
+            Image(systemName: "1.square")
+        }
+        .buttonStyle(.plain)
+        .help("Reset Zoom")
+    }
+
+    @ViewBuilder
+    private var zoomMenu: some View {
+        Menu {
+            Button("Zoom Out") {
+                webZoom = max(0.5, webZoom - 0.1)
+            }
+            Button("Zoom In") {
+                webZoom = min(3.0, webZoom + 0.1)
+            }
+            Button("Reset Zoom") {
+                webZoom = 1.0
+            }
+        } label: {
+            Label("Zoom", systemImage: "magnifyingglass")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+    }
+
+    @ViewBuilder
+    private var surfaceView: some View {
+        if let doc = effectiveDocument,
+           let libraryPath = apiClient.currentLibraryPath, !libraryPath.isEmpty {
+            let kgDocId = (doc.docType == .page && doc.parentId != nil) ? doc.parentId! : doc.id
+            DocumentKGSurface(
+                documentId: kgDocId,
+                documentScope: doc.docType == .page ? .page : .folder,
+                libraryPath: libraryPath,
+                selectedEntityId: kgFocusState.focusedEntityId,
+                selectedClaimId: kgFocusState.focusedClaimId ?? claimFocusState.selectedClaimId,
+                activePageNumber: effectivePageNumber,
+                pageCount: effectivePageCount,
+                onPageSelected: isPinned ? { _ in } : onPageSelected,
+                scrollSync: scrollSync,
+                zoom: webZoom,
+                externalActiveTab: activeTab,
+                onTabSelected: { activeTab = $0 }
+            )
+        } else {
+            Text("No selection")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.textBackgroundColor))
+        }
+    }
+}
 
 // MARK: - ContentView View Builders Extension
 // Agent: ViewBuilderAgent
@@ -32,13 +224,13 @@ extension ContentView {
         SidebarView(
             sidebarMode: $sidebarMode,
             viewMode: $viewMode,
-            selectedItemId: $selectedSidebarItemId,
+            selectionState: sidebarSelectionState,
             libraryManager: LibraryManager.shared,
             itemRegistry: itemRegistry,
             apiClient: apiClient,
             windowPersistenceId: sidebarWindowPersistenceId,
-            onCreateChatWithDocuments: { documentIds in
-                chatSelectedDocuments = Set(documentIds)
+            onOpenChatWithCurrentScope: {
+                openChatWithCurrentScope()
             }
         )
         .environmentObject(savedSearchService)
@@ -51,152 +243,68 @@ extension ContentView {
         .focusable()
         .focused($focusedPane, equals: .sidebar)
         .focusEffectDisabled()
+        // Track the column's live rendered width so each mode's @AppStorage
+        // ideal is updated when the user drags the divider. The GeometryReader
+        // fires on every layout pass — guard with a min-delta to avoid writing
+        // on every pixel during animation.
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onChange(of: geo.size.width) { _, newWidth in
+                        guard newWidth > 0, abs(newWidth - sidebarWidth) > 2 else { return }
+                        sidebarWidth = newWidth
+                    }
+            }
+        )
         // min: 180 lets the sidebar collapse tight enough that the mode
         // icons dominate the column with minimal wasted space (#615).
         // Was 250 — felt bloated on small screens.
-        .navigationSplitViewColumnWidth(min: 180, ideal: sidebarWidth, max: 360)
+        //
+        .navigationSplitViewColumnWidth(
+            min: ContentView.sidebarMinWidth,
+            ideal: sidebarWidth,
+            max: 600
+        )
         .focusedSceneValue(\.sidebarMode, $sidebarMode)
         // NOTE: \.showInspector is published from the detail column in
         // ContentView.navigationSplitColumn (always present), NOT here — the
         // sidebar leaves the hierarchy when collapsed, which disabled ⌘⌥I
         // and the View-menu toggle while the sidebar was hidden (#1513).
-        .focusedSceneValue(\.navigateToParentAction, navigateToParent)
+        .focusedSceneValue(\.navigateToParentAction, FocusedLibraryAction(isEnabled: true, run: navigateToParent))
     }
 
     // MARK: - Center Content (with Layout Modes)
 
-    var showModeRail: Bool {
-        return (sidebarMode == .library || sidebarMode == .search)
-            && showViewModePicker
-            && availableViewDisplayModes.count > 1
-    }
-
-    /// Horizontal mode strip — Xcode-style pill-segmented picker inside a
-    /// MiniToolbar wrapper so the bar's height matches the preview and
-    /// inspector toolbars across the window. Single rounded-capsule
-    /// background hosts all icons; the selected one is filled with the
-    /// accent. Daniel asked for this 'tab-like' look explicitly.
-    @ViewBuilder
-    var horizontalModeStrip: some View {
-        if showModeRail {
-            // Same button style as the DocumentInspector tab bar (full-height
-            // hit area, centered icon, rounded-rect selection highlight),
-            // centered as a group — so the list mode rail, knowledge surface,
-            // and inspector tabs all read identically. (was capsule pills;
-            // Daniel preferred the inspector look, 2026-05-26.)
-            MiniToolbar {
-                Spacer(minLength: 0)
-                ForEach(availableViewDisplayModes) { mode in
-                    modeRailButton(mode)
-                }
-                Spacer(minLength: 0)
-                // Sort + Filter live here — at the Library view's top-right,
-                // next to the display-mode buttons — instead of the global
-                // window toolbar (#1477).
-                librarySortFilterControls
-            }
-            // XCUITest hook for the view-mode rail (#1230).
-            .accessibilityIdentifier("viewModeRail")
-        }
-    }
-
-    /// Sort menu + inline-filter toggle for the Library mode rail. Library only
-    /// (search/workflows don't carry these). Drives the shared LibraryToolbarState
-    /// so the controls and the LibraryView stay in sync (#1477).
-    @ViewBuilder
-    private var librarySortFilterControls: some View {
-        if sidebarMode == .library {
-            Menu {
-                ForEach(LibrarySortField.allCases) { field in
-                    Button {
-                        libraryToolbarState.sortFieldRaw = field.rawValue
-                    } label: {
-                        Label(field.rawValue, systemImage: field.icon)
-                        if libraryToolbarState.sortField == field {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
-                Divider()
-                Button {
-                    libraryToolbarState.sortAscending = true
-                } label: {
-                    Text("Ascending")
-                    if libraryToolbarState.sortAscending { Image(systemName: "checkmark") }
-                }
-                Button {
-                    libraryToolbarState.sortAscending = false
-                } label: {
-                    Text("Descending")
-                    if !libraryToolbarState.sortAscending { Image(systemName: "checkmark") }
-                }
-            } label: {
-                Image(systemName: "arrow.up.arrow.down")
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .help("Sort \(libraryToolbarState.sortField.rawValue), \(libraryToolbarState.sortAscending ? "ascending" : "descending")")
-            .accessibilityIdentifier("librarySortMenu")
-
-            if featureManager.isLibraryFilterToolbarEnabled {
-                Button {
-                    libraryToolbarState.showFilterBar.toggle()
-                } label: {
-                    Image(systemName: "line.3.horizontal.decrease.circle")
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(libraryToolbarState.showFilterBar ? Color.accentColor : Color.secondary)
-                .help("Filter (⌘F)")
-                .accessibilityIdentifier("libraryFilterButton")
-            }
-        }
-    }
-
-    /// One mode-rail tab button, styled like the DocumentInspector tab bar.
-    /// Extracted from `horizontalModeStrip` because the inline ForEach body
-    /// tripped the SwiftUI type-checker's complexity limit.
-    @ViewBuilder
-    private func modeRailButton(_ mode: ViewDisplayMode) -> some View {
-        let isSelected = viewDisplayMode == mode
-        Button {
-            updateViewDisplayMode(mode)
-        } label: {
-            Image(systemName: mode.icon)
-                .font(.system(size: 16, weight: .regular))
-                .frame(width: 40)
-                .frame(maxHeight: .infinity)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
-        )
-        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-        .help("\(mode.label) view — \(mode.description.lowercased())")
-        // Stable per-mode XCUITest hook, e.g. "viewMode-Table" (#1230) — keeps
-        // rawValue so the renamed "Column" label doesn't break the test hook.
-        .accessibilityIdentifier("viewMode-\(mode.rawValue)")
-    }
-
+    // The library/search view-mode icon rail (`horizontalModeStrip`) that used
+    // to sit at the top of the content column was removed (#2032): presentation
+    // controls live in the View menu (ViewMenuCommands.LibraryLayoutSection,
+    // ⌘1–4), not in a floating in-content icon bar. The mode-switch state is
+    // unchanged — the View menu still drives `viewSettings.libraryLayout`.
     @ViewBuilder
     var contentWithOptionalModeRail: some View {
-        if showModeRail {
-            VStack(spacing: 0) {
-                horizontalModeStrip
-                Divider()
-                contentView
-            }
-        } else {
-            contentView
-        }
+        contentView
+            // Publish viewDisplayMode + available modes so the View menu's
+            // SpatialViewSection can read/write them via @FocusedValue.
+            // (#2032 regression: the old icon rail was the only entry point
+            // for .realitykit/.spatial; this restores menu-driven access.)
+            .focusedSceneValue(\.libraryDisplayMode, $viewDisplayMode)
+            .focusedSceneValue(\.availableLibraryDisplayModes, availableViewDisplayModes)
     }
 
     @ViewBuilder
     var centerContent: some View {
-        // Non-library/search modes (activity, workflows, chat, etc.) never use the
-        // preview split — they own the full content area themselves.
-        if !showsPreviewPane {
+        // COMPACT (iPhone/iOS) — Overcast-style forward navigation (#2551).
+        // The library/search LIST is the root of a NavigationStack; tapping a
+        // leaf document PUSHES the reader (the SAME EditorView the regular
+        // content pane shows in its preview slot) with a Back button to return.
+        // The macOS/iPad-regular split path is the `else` chain below and is
+        // UNCHANGED — `usesCompactReaderFlow` is compile-time `false` on macOS
+        // (shouldUseCompactNavigationFlow) and only ever true at compact width.
+        if usesCompactReaderFlow {
+            compactLibraryReaderStack
+        } else if !showsPreviewPane {
+            // Non-library/search modes (activity, workflows, chat, etc.) never use
+            // the preview split — they own the full content area themselves.
             contentWithOptionalModeRail
                 .overlay { paneFocusIndicator(for: .content) }
                 .frame(maxWidth: .infinity)
@@ -224,7 +332,7 @@ extension ContentView {
 
                 case .standard:
                     if showDocumentGrid {
-                        VSplitView {
+                        PlatformVSplitView {
                             contentWithOptionalModeRail
                                 .overlay { paneFocusIndicator(for: .content) }
                                 .frame(minHeight: 150, idealHeight: 180)
@@ -245,23 +353,28 @@ extension ContentView {
                     // independently toggleable per-window (#1448). Hiding the
                     // Library pane must not collapse the reading workspace into
                     // a different single-preview layout.
-                    let panePlan = WidescreenPanePlan.make(
-                        showDocumentGrid: showDocumentGrid,
-                        showDocumentCanvas: showDocumentCanvas,
-                        showReadingPane: showReadingPane
-                    )
+                    let panePlan = adaptiveWidescreenPanePlan
                     HStack(spacing: 0) {
                         if panePlan.showsLibraryPane {
                             // When both reading panes are hidden the list takes the
                             // whole width instead of staying a fixed column with a
                             // blank grey area beside it (#1516). list-only is a valid
                             // state — the library list is the always-present spine.
-                            contentWithOptionalModeRail
-                                .overlay { paneFocusIndicator(for: .content) }
-                                .frame(
-                                    width: (panePlan.showsCanvasPane || panePlan.showsReadingPane)
-                                        ? clampedWidescreenContentPaneWidth : .infinity
-                                )
+                            // list-only is full-width. `width: .infinity` is an invalid
+                            // frame dimension (SwiftUI logs "Invalid frame dimension
+                            // (negative or non-finite)" #2006) — flex with maxWidth
+                            // instead, and pin a fixed width only when a reading pane
+                            // shares the row.
+                            let widescreenContentFixedWidth: CGFloat? =
+                                (panePlan.showsCanvasPane || panePlan.showsReadingPane)
+                                    ? clampedWidescreenContentPaneWidth : nil
+                            // Splittable (h/v) Library list pane — #2276.
+                            adaptiveSplittablePane(storageKey: "library") {
+                                contentWithOptionalModeRail
+                            }
+                            .overlay { paneFocusIndicator(for: .content) }
+                            .frame(width: widescreenContentFixedWidth)
+                            .frame(maxWidth: widescreenContentFixedWidth == nil ? .infinity : nil)
                         }
 
                         if panePlan.showsLibraryDivider {
@@ -279,8 +392,8 @@ extension ContentView {
                             if panePlan.showsCanvasReadingDivider {
                                 ResizableDivider(
                                     width: $pageContentPaneWidth,
-                                    minWidth: 220,
-                                    maxWidth: 540,
+                                    minWidth: ContentView.readingPaneMinWidth,
+                                    maxWidth: 900,
                                     edge: .trailing
                                 )
                                 widescreenReadingPane
@@ -298,22 +411,176 @@ extension ContentView {
         }
     }
 
+    @ViewBuilder
+    var detailShellColumn: some View {
+        VStack(spacing: 0) {
+            detailTabStrip
+            detailLocationPathBar
+            Divider()
+            centerContent
+            detailStatusPathBar
+        }
+        .background(Color(platformColor: .textBackgroundColor))
+    }
+
+    private var detailTabStrip: some View {
+        HStack(spacing: 8) {
+            Label {
+                Text(toolbarTitle)
+                    .font(.subheadline)
+                    .lineLimit(1)
+            } icon: {
+                Image(systemName: toolbarIcon)
+            }
+            .labelStyle(.titleAndIcon)
+
+            Spacer(minLength: 8)
+
+            Button {
+                WindowOpener.open(libraryId: windowState.libraryId, asTab: true, using: openWindow)
+            } label: {
+                Image(systemName: "plus")
+            }
+            .buttonStyle(.borderless)
+            .controlSize(.small)
+            .help("Open current library in new tab")
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 32)
+        .background(.bar)
+    }
+
+    private var detailStatusPathBar: some View {
+        VStack(spacing: 0) {
+            Divider()
+            HStack(spacing: 8) {
+                Text(selectionStatusText)
+                    .font(.caption)
+                    .lineLimit(1)
+                Text(selectionPathText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 24)
+            .background(.bar)
+        }
+    }
+
+    private var detailLocationPathBar: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
+                .foregroundStyle(.secondary)
+            Text(selectionPathText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 22)
+        .background(.bar)
+        .accessibilityIdentifier("detailLocationPathBar")
+    }
+
+    // MARK: - Compact (iPhone) forward navigation (#2551)
+
+    /// True only on COMPACT width for the library/search modes that own the
+    /// list → reader pipeline (#2551). macOS/iPad-regular return `false` (the
+    /// split layout is used instead, untouched). The entities browser is
+    /// excluded — it drives the KG focus state, not a document reader.
+    private var usesCompactReaderFlow: Bool {
+        guard Self.shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) else {
+            return false
+        }
+        switch viewMode {
+        case .library:
+            return !isEntityLibrarySelection
+        case .search:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Compact-only push trigger (#2551). Resolves to a LEAF document — never a
+    /// folder, so tapping a folder still drills in place rather than pushing a
+    /// reader screen for a container. Falls back to the current selection when
+    /// no promoted `detailDocument` exists, so the push works in every compact
+    /// layout mode (the .none/.standard promote policy is regular-width only).
+    /// Setting `nil` (Back button / back-swipe) returns to the list and clears
+    /// the selection.
+    private var compactReaderDocument: Binding<Document?> {
+        Binding(
+            get: {
+                let candidate = detailDocument
+                    ?? browserSelection.first.flatMap { id in
+                        documentStore.currentDocuments.first(where: { $0.id == id })
+                    }
+                guard let doc = candidate, doc.docType != .folder else { return nil }
+                return doc
+            },
+            set: { newValue in
+                if newValue == nil {
+                    detailDocument = nil
+                    browserSelection = []
+                }
+            }
+        )
+    }
+
+    /// Compact (iPhone) library/search reader stack (#2551). The list is the
+    /// root; selecting a leaf document pushes the reader — the SAME `previewView`
+    /// EditorView the regular content pane shows in its preview slot, so there is
+    /// no parallel reader. `NavigationStack` supplies the Back affordance.
+    @ViewBuilder
+    private var compactLibraryReaderStack: some View {
+        NavigationStack {
+            contentWithOptionalModeRail
+                .overlay { paneFocusIndicator(for: .content) }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .navigationDestination(item: compactReaderDocument) { doc in
+                    previewView
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .navigationTitle(doc.name)
+                        // ponytail: full edge-swipe paging between pipeline stages
+                        // is deferred. Back (NavigationStack) returns to the list,
+                        // and EditorView already hosts SwipeSiblingNavigator for
+                        // two/three-finger sibling paging. Add explicit
+                        // stage-to-stage swiping later if Daniel wants it. (#2551)
+                }
+        }
+    }
+
     /// The document-canvas pane of the widescreen reading layout — a PDF page
     /// viewer when a PDF is active, otherwise the image/preview editor. Carries
     /// its own flexible width so it fills whatever the list/reading panes leave.
     /// Extracted so the canvas can be conditionally shown/hidden (#1448).
     @ViewBuilder
     var widescreenCanvasPane: some View {
-        if let pdfPath = detailPDFPath {
+        // Splittable (h/v) image / canvas viewer — #2276.
+        adaptiveSplittablePane(storageKey: "canvas") {
+            widescreenCanvasPaneContent
+        }
+    }
+
+    @ViewBuilder
+    private var widescreenCanvasPaneContent: some View {
+        if let pdfDocumentId = detailPDFDocumentId {
             PDFPageWithToolbar(
-                path: pdfPath,
+                documentId: pdfDocumentId,
                 pageIndex: selectedPageIndex,
                 onPageIndexChange: { index in
                     guard documentScrollSync.beginDriving(.pdf) else { return }
                     syncGridSelectionToPDFPage(index: index)
-                }
+                },
+                documentTitle: detailDocument?.name,
+                onClose: { showDocumentCanvas = false }
             )
             .overlay { paneFocusIndicator(for: .preview) }
+            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview })
             .frame(minWidth: ContentView.pdfCanvasMinWidth, maxWidth: .infinity)
         } else {
             let canvasDocument = CanvasDocumentPolicy.documentForCanvas(
@@ -334,6 +601,7 @@ extension ContentView {
                 selectedDocumentIDs: browserSelection
             )
             .overlay { paneFocusIndicator(for: .preview) }
+            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview })
             .frame(maxWidth: .infinity)
         }
     }
@@ -342,15 +610,34 @@ extension ContentView {
     /// Extracted so it can be conditionally shown/hidden per-window (#1448).
     @ViewBuilder
     var widescreenReadingPane: some View {
-        knowledgeSurface(
-            for: detailDocument,
-            activePageNumber: detailPDFPath == nil ? nil : selectedPageIndex + 1,
-            pageCount: pdfDocPages.isEmpty ? nil : pdfDocPages.count,
-            scrollSync: documentScrollSync,
-            onPageSelected: { index in
-                syncGridSelectionToPDFPage(index: index)
+        // Each SplittablePane instance renders ReadingPaneView independently,
+        // giving left and right split panes their own @State (including pin).
+        adaptiveSplittablePane(storageKey: "reading") {
+            ReadingPaneView(
+                liveDocument: detailDocument,
+                liveActivePageNumber: detailPDFDocumentId == nil ? nil : selectedPageIndex + 1,
+                livePageCount: pdfDocPages.isEmpty ? nil : pdfDocPages.count,
+                scrollSync: documentScrollSync,
+                onPageSelected: { index in syncGridSelectionToPDFPage(index: index) },
+                onClose: { showReadingPane = false }
+            )
+        }
+        .overlay { paneFocusIndicator(for: .reading) }
+        .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .reading })
+    }
+
+    @ViewBuilder
+    private func adaptiveSplittablePane<Content: View>(
+        storageKey: String,
+        @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
+        if shouldUseSplittablePane {
+            SplittablePane(storageKey: storageKey) {
+                content()
             }
-        )
+        } else {
+            content()
+        }
     }
 
     // MARK: - Preview View
@@ -367,44 +654,51 @@ extension ContentView {
             // causing the LazyVGrid sibling to re-layout / first-click
             // flash (#788).
             VStack(spacing: 0) {
-                // Top-left × button to hide the preview pane — matches
-                // the inspector's close-on-the-corner convention. Daniel:
-                // 'we also want a close x in the preview toolbar so that
-                // we can hide the preview … in the top left.'
-                MiniToolbar {
-                    Button {
-                        viewSettings.previewMode = .none
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Hide preview")
-                    Spacer(minLength: 0)
-                }
-
                 let previewDocument = CanvasDocumentPolicy.documentForCanvas(
                     selectedDocumentIds: browserSelection,
                     documents: documentStore.currentDocuments,
                     detailDocument: detailDocument,
                     inspectorDocument: inspectorDocument
                 )
-                EditorView(
-                    document: previewDocument,
-                    onPDFPageIndexChange: { index in
-                        syncGridSelectionToPDFPage(index: index)
-                    }
-                )
-                .id("editor.library")
-                .background(
-                    // Two/three-finger trackpad swipe → previous/next sibling
-                    // (#593). Lives behind the editor so it sees the swipe
-                    // without intercepting clicks/scrolls.
-                    SwipeSiblingNavigator(
-                        onNavigatePrevious: navigateSiblingPrevious,
-                        onNavigateNext: navigateSiblingNext
+                if let pdfDocumentId = detailPDFDocumentId {
+                    PDFReadingView(
+                        document: pageFocusDocument ?? detailDocument,
+                        pdfDocumentId: pdfDocumentId,
+                        pageIndex: selectedPageIndex,
+                        contentWidth: $pageContentPaneWidth,
+                        onPageIndexChange: { index in
+                            guard documentScrollSync.beginDriving(.pdf) else { return }
+                            syncGridSelectionToPDFPage(index: index)
+                        }
                     )
-                )
+                    .id("reader.pdf")
+                    .background(
+                        // Two/three-finger trackpad swipe → previous/next sibling
+                        // (#593). Lives behind the reader so it sees the swipe
+                        // without intercepting clicks/scrolls.
+                        SwipeSiblingNavigator(
+                            onNavigatePrevious: navigateSiblingPrevious,
+                            onNavigateNext: navigateSiblingNext
+                        )
+                    )
+                } else {
+                    EditorView(
+                        document: previewDocument,
+                        onPDFPageIndexChange: { index in
+                            syncGridSelectionToPDFPage(index: index)
+                        }
+                    )
+                    .id("editor.library")
+                    .background(
+                        // Two/three-finger trackpad swipe → previous/next sibling
+                        // (#593). Lives behind the editor so it sees the swipe
+                        // without intercepting clicks/scrolls.
+                        SwipeSiblingNavigator(
+                            onNavigatePrevious: navigateSiblingPrevious,
+                            onNavigateNext: navigateSiblingNext
+                        )
+                    )
+                }
             }
 
         case .chat, .comparison:
@@ -413,7 +707,7 @@ extension ContentView {
         case .workflow, .chain:
             EmptyView()
 
-        case .batches, .batch, .automation, .schedule, .trigger, .activity, .mindPalace:
+        case .batches, .batch, .automation, .schedule, .trigger, .activity:
             EmptyView()
         }
     }
@@ -435,7 +729,22 @@ extension ContentView {
             )
 
         case .chat, .comparison:
-            ChatInspector(selectedDocuments: $chatSelectedDocuments)
+            ChatInspector(
+                selectedDocuments: $chatSelectedDocuments,
+                suggestedDocumentIDs: ChatScopeBuilder.currentScopeDocumentIds(
+                    browserSelection: browserSelection,
+                    currentDocuments: documentStore.currentDocuments,
+                    detailDocument: detailDocument
+                ),
+                onAddSuggestedDocuments: {
+                    let scopedIds = ChatScopeBuilder.currentScopeDocumentIds(
+                        browserSelection: browserSelection,
+                        currentDocuments: documentStore.currentDocuments,
+                        detailDocument: detailDocument
+                    )
+                    chatSelectedDocuments = chatSelectedDocuments.union(scopedIds)
+                }
+            )
 
         case .workflow:
             WorkflowInspector(
@@ -453,7 +762,7 @@ extension ContentView {
                 }
             )
 
-        case .batches, .batch, .automation, .schedule, .trigger, .activity, .mindPalace:
+        case .batches, .batch, .automation, .schedule, .trigger, .activity:
             VStack(alignment: .leading, spacing: 8) {
                 Text("Inspector")
                     .font(.headline)
@@ -472,6 +781,8 @@ extension ContentView {
         inspectorView
             // Focus tracking without .focusable() — avoids swallowing first click
             .overlay { paneFocusIndicator(for: .inspector) }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(.bar)
     }
 
     // MARK: - Breadcrumb

@@ -1,6 +1,16 @@
 import FicheroAPIClient
 import SwiftUI
 
+private struct ClaimPatchActionParams: Encodable {
+    let claimId: String
+    let patch: Components.Schemas.ClaimPatchRequest
+
+    enum CodingKeys: String, CodingKey {
+        case claimId = "claim_id"
+        case patch
+    }
+}
+
 /// Sheet for editing the text, type, and epistemic status of a claim (#1135).
 /// Calls PATCH /api/claims/{id} on save.
 struct EditClaimSheet: View {
@@ -8,6 +18,7 @@ struct EditClaimSheet: View {
     let onSave: (Components.Schemas.KnowledgeClaim) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var windowState: WindowState
     @State private var text: String
     @State private var subject: String
     @State private var predicate: String
@@ -105,24 +116,26 @@ struct EditClaimSheet: View {
 
     private func save() {
         guard let claimId = claim.id,
-              let library = LibraryManager.shared.globalLibrary else { return }
+              let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) else { return }
         isSaving = true
         errorText = nil
         Task {
             do {
                 let typeEnum = Components.Schemas.ClaimType(rawValue: claimType)
                 let statusEnum = Components.Schemas.EpistemicStatus(rawValue: epistemicStatus)
-                let updated = try await library.entityService.patchClaim(
-                    claimId,
-                    text: text.trimmingCharacters(in: .whitespacesAndNewlines),
-                    subjectCanonical: trimmedOrNil(subject),
-                    predicateVerb: trimmedOrNil(predicate),
-                    objectPhrase: trimmedOrNil(object),
-                    sourcePageLabel: trimmedOrNil(sourcePageLabel),
-                    claimType: typeEnum,
-                    epistemicStatus: statusEnum
+                var patch = Components.Schemas.ClaimPatchRequest()
+                patch.text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                patch.subjectCanonical = trimmedOrNil(subject)
+                patch.predicateVerb = trimmedOrNil(predicate)
+                patch.objectPhrase = trimmedOrNil(object)
+                patch.sourcePageLabel = trimmedOrNil(sourcePageLabel)
+                patch.claimType = typeEnum
+                patch.epistemicStatus = statusEnum
+                let result = try await library.actionsService.invokeAction(
+                    name: "claim.patch",
+                    params: ClaimPatchActionParams(claimId: claimId, patch: patch)
                 )
-                onSave(updated)
+                LastAction.shared.record(auditId: result.auditId, actionName: "claim.patch")
                 dismiss()
             } catch {
                 errorText = error.localizedDescription
@@ -142,6 +155,7 @@ struct InlineClaimEditor: View {
     let onCancel: () -> Void
     let onSave: (Components.Schemas.KnowledgeClaim) -> Void
 
+    @EnvironmentObject private var windowState: WindowState
     @State private var subject: String
     @State private var predicate: String
     @State private var object: String
@@ -208,21 +222,24 @@ struct InlineClaimEditor: View {
 
     private func save() {
         guard let claimId = claim.id,
-              let library = LibraryManager.shared.globalLibrary else { return }
+              let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) else { return }
         isSaving = true
         errorText = nil
         Task {
             do {
-                let updated = try await library.entityService.patchClaim(
-                    claimId,
-                    subjectCanonical: trimmedOrNil(subject),
-                    predicateVerb: trimmedOrNil(predicate),
-                    objectPhrase: trimmedOrNil(object),
-                    sourcePageLabel: trimmedOrNil(sourcePageLabel),
-                    claimType: Components.Schemas.ClaimType(rawValue: claimType),
-                    epistemicStatus: Components.Schemas.EpistemicStatus(rawValue: epistemicStatus)
+                var patch = Components.Schemas.ClaimPatchRequest()
+                patch.subjectCanonical = trimmedOrNil(subject)
+                patch.predicateVerb = trimmedOrNil(predicate)
+                patch.objectPhrase = trimmedOrNil(object)
+                patch.sourcePageLabel = trimmedOrNil(sourcePageLabel)
+                patch.claimType = Components.Schemas.ClaimType(rawValue: claimType)
+                patch.epistemicStatus = Components.Schemas.EpistemicStatus(rawValue: epistemicStatus)
+                let result = try await library.actionsService.invokeAction(
+                    name: "claim.patch",
+                    params: ClaimPatchActionParams(claimId: claimId, patch: patch)
                 )
-                onSave(updated)
+                LastAction.shared.record(auditId: result.auditId, actionName: "claim.patch")
+                onSave(claim)
             } catch {
                 errorText = error.localizedDescription
                 isSaving = false

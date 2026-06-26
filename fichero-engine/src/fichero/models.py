@@ -28,12 +28,15 @@ Usage:
     db.delete(doc)
 """
 
-from pydantic import BaseModel, Field, ConfigDict, computed_field
+from pydantic import BaseModel, Field, ConfigDict, computed_field, field_validator
 from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 import base64
+
+# Typed OCR/transcription geometry saved on artifacts.
+from fichero.ocr_geometry import OCRGeometryResult
 
 # Import ProviderType from providers module (single source of truth)
 from fichero.providers import ProviderType
@@ -44,6 +47,7 @@ from fichero.knowledge_models import (
     DocumentCitation,
     KnowledgeClaim,
     KnowledgeEntity,
+    LibraryItemLink,
 )
 
 # Forward refs — routes import from this file, so we can't import back. The
@@ -167,6 +171,7 @@ class Document(BaseModel):
     parent_id: str | None = None
 
     # Type
+    node_kind: str | None = "document"
     doc_type: DocType = DocType.file
     file_type: FileType | None = None
 
@@ -175,7 +180,8 @@ class Document(BaseModel):
     path: str | None = None  # File path (local or in library)
 
     # For pages/chunks
-    sequence: int | None = None  # Page number or order
+    sequence: int | None = None  # Raw 1-based page/image order
+    page_label: str | None = None  # Document's own numbering; distinct from sequence
     bbox: tuple[int, int, int, int] | None = None  # x, y, width, height
     prototype_key: str | None = None  # user-assigned document prototype/class key
 
@@ -269,10 +275,19 @@ class Document(BaseModel):
     is_read: bool = False
     is_starred: bool = False
     is_flagged: bool = False
+    exclude_from_processing: bool = Field(
+        default=False,
+        description=(
+            "True when import/workflow processing should skip this document. "
+            "Used by curation to keep selected rows out of downstream passes."
+        ),
+    )
 
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
+    deleted_at: datetime | None = None
+    deleted_by: str | None = None
 
     # User-defined order within parent folder. Set by /documents/reorder;
     # consumed by `SidebarItemBuilder.childOrder` Swift-side (lower =
@@ -288,6 +303,16 @@ class Document(BaseModel):
     # a folder (#1096). Catalogue tool groups documents by case_id and emits
     # one artifact per case instead of per folder.
     case_id: str | None = None
+
+    # Canvas position for a node in the library (#2589). Stored as first-class
+    # columns so the position rides on the document and survives list/get
+    # responses and updates.
+    position_x: float | None = None
+    position_y: float | None = None
+    position_z: float | None = None
+    rotation_z: float | None = None
+    scale: float | None = None
+    z_index: int = 0
 
     # =========================================================================
     # Typed accessors for common metadata
@@ -523,6 +548,7 @@ class Artifact(BaseModel):
     # Content (one or both)
     content: str | None = None  # Text output
     data: dict[str, Any] | None = None  # Structured output
+    ocr_geometry: OCRGeometryResult | None = None  # Typed OCR/transcription boxes
 
     # Provenance
     source_document_id: str | None = None  # Source document this was extracted from (for page docs, parent PDF)
@@ -606,10 +632,13 @@ class Workflow(BaseModel):
     # Visual workflow nodes and edges
     nodes: list[dict[str, Any]] = Field(default_factory=list)
     edges: list[dict[str, Any]] = Field(default_factory=list)
+    # Stored shape is the registry-stripped NodeDef / canonical EdgeDef dict.
     # Node example:
     # {"id": "node1", "tool": "transcribe", "label": "Transcribe", "position_x": 100, "position_y": 200, ...}
-    # Edge example:
-    # {"source_node_id": "node1", "source_port_id": "output", "target_node_id": "node2", "target_port_id": "input"}
+    # Edge example (canonical field names):
+    # {"source": "node1", "source_port": "output", "target": "node2", "target_port": "input"}
+    # Legacy ``source_node_id`` / ``source_port_id`` spellings are accepted on
+    # input and normalized to the canonical names by the validators below.
 
     # Default config for steps/nodes
     config: dict[str, Any] = Field(default_factory=dict)
@@ -621,6 +650,89 @@ class Workflow(BaseModel):
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
+
+    @field_validator("nodes", mode="before")
+    @classmethod
+    def _validate_nodes(cls, v: Any) -> list[dict[str, Any]]:
+        """Validate + normalize persisted nodes at the storage boundary (#2537).
+
+        The persisted ``nodes`` column was previously ``list[dict]`` that nothing
+        type-checked, so a malformed node (missing ``tool``, wrong field types)
+        surfaced as a runtime KeyError/None deep in the graph builder instead of
+        a clean validation error at save/load time.
+
+        Each node is round-tripped through the typed ``NodeDef`` so malformed
+        nodes raise a Pydantic ``ValidationError`` *here*. The stored shape stays
+        a minimal dict via ``model_dump_for_storage()`` — ports are stripped and
+        re-hydrated from the tool registry on read (``enrich_node_with_ports``),
+        so persisted JSON stays small and the running graph is unaffected.
+        """
+        from pydantic import ValidationError
+        from fichero.workflows.types import NodeDef
+
+        if v is None:
+            return []
+        if not isinstance(v, list):
+            raise ValueError("Workflow.nodes must be a list")
+
+        out: list[dict[str, Any]] = []
+        for idx, item in enumerate(v):
+            if isinstance(item, NodeDef):
+                node = item
+            elif isinstance(item, dict):
+                try:
+                    node = NodeDef.model_validate(item)
+                except ValidationError as exc:
+                    raise ValueError(
+                        f"invalid workflow node at index {idx}: {exc}"
+                    ) from exc
+            else:
+                raise ValueError(
+                    f"workflow node at index {idx} must be a dict or NodeDef, "
+                    f"got {type(item).__name__}"
+                )
+            out.append(node.model_dump_for_storage())
+        return out
+
+    @field_validator("edges", mode="before")
+    @classmethod
+    def _validate_edges(cls, v: Any) -> list[dict[str, Any]]:
+        """Validate + normalize persisted edges at the storage boundary (#2537).
+
+        Each edge is round-tripped through the typed ``EdgeDef`` so a malformed
+        edge raises a Pydantic ``ValidationError`` at save/load time rather than
+        a runtime KeyError during graph construction. ``EdgeDef`` also resolves
+        the ``source_port`` vs ``source_port_id`` (and ``source`` vs
+        ``source_node_id``) drift: legacy spellings on already-stored workflows
+        are accepted and normalized onto the canonical field, so existing
+        libraries keep loading without a migration.
+        """
+        from pydantic import ValidationError
+        from fichero.workflows.types import EdgeDef
+
+        if v is None:
+            return []
+        if not isinstance(v, list):
+            raise ValueError("Workflow.edges must be a list")
+
+        out: list[dict[str, Any]] = []
+        for idx, item in enumerate(v):
+            if isinstance(item, EdgeDef):
+                edge = item
+            elif isinstance(item, dict):
+                try:
+                    edge = EdgeDef.model_validate(item)
+                except ValidationError as exc:
+                    raise ValueError(
+                        f"invalid workflow edge at index {idx}: {exc}"
+                    ) from exc
+            else:
+                raise ValueError(
+                    f"workflow edge at index {idx} must be a dict or EdgeDef, "
+                    f"got {type(item).__name__}"
+                )
+            out.append(edge.model_dump())
+        return out
 
 
 # =============================================================================
@@ -770,6 +882,44 @@ class DocumentNote(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.now)
 
 
+class AgentNoteSourceAnchor(BaseModel):
+    """User-visible provenance anchor for AI working-memory notes (#2152)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    document_id: str | None = None
+    page_id: str | None = None
+    expediente: str | None = None
+    page_label: str | None = None
+    char_start: int | None = None
+    char_end: int | None = None
+
+
+class AgentNoteActor(BaseModel):
+    """Who wrote the agent note — explicit, transparent attribution (#2152)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    actor_id: str
+    model_name: str | None = None
+    run_id: str | None = None
+
+
+class AgentNote(BaseModel):
+    """Per-library AI working-memory note with provenance and attribution."""
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    body: str
+    source_anchor: AgentNoteSourceAnchor
+    actor: AgentNoteActor
+    kind: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+
 class ImageEditChain(BaseModel):
     """Ordered non-destructive edit operations for a document image."""
 
@@ -814,6 +964,82 @@ class Event(BaseModel):
     run_id: str | None = None
 
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+# =============================================================================
+# Account - App-Wide User/Session Storage
+# =============================================================================
+
+
+class AccountUser(BaseModel):
+    """App-wide user account stored in the global app database."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(default_factory=_new_id)
+    username: str
+    display_name: str
+    password_hash: str
+    is_owner: bool = False
+    active: bool = True
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class AccountSession(BaseModel):
+    """App-wide session record stored in the global app database."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(default_factory=_new_id)
+    user_id: str
+    token_hash: str
+    device_label: str = ""
+    created_at: datetime = Field(default_factory=datetime.now)
+    last_seen_at: datetime = Field(default_factory=datetime.now)
+    expires_at: datetime
+    revoked: bool = False
+
+
+class Device(BaseModel):
+    """App-wide paired device credential stored in the global app database."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(default_factory=_new_id)
+    name: str
+    user_id: str
+    token_hash: str
+    created_at: datetime = Field(default_factory=datetime.now)
+    last_seen: datetime = Field(default_factory=datetime.now)
+    expires_at: datetime
+    revoked: bool = False
+
+
+class LibraryRole(BaseModel):
+    """Per-user role for one library, stored in the global app database."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(default_factory=_new_id)
+    user_id: str
+    library_path: str
+    role: str
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+
+class LibraryAclOverride(BaseModel):
+    """Per-user grant/deny override for a library subtree."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(default_factory=_new_id)
+    user_id: str
+    library_path: str
+    target_id: str
+    effect: str
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
 
 
 # =============================================================================
@@ -1069,6 +1295,7 @@ class LibrarySnapshot(BaseModel):
     snapshot_path: str  # Absolute path to snapshot directory
     duckdb_path: str  # Relative path to .duckdb.export Parquet files
     lance_path: str  # Relative path to LanceDB copy
+    offsite_path: str | None = None  # Absolute path to offsite snapshot copy
     file_count: int = 0  # Number of files in snapshot
     duckdb_size_bytes: int = 0  # Size of DuckDB Parquet export
     lance_size_bytes: int = 0  # Size of LanceDB vector copy
@@ -1124,6 +1351,58 @@ class HealthResponse(BaseModel):
     library_path: str | None = None
     database: str | None = None
     document_count: int | None = None
+    error: str | None = None
+    backend_version: str | None = None
+    active_libraries: int | None = None
+    remote_backend: dict[str, Any] | None = None
+    server_proof: str | None = None
+
+
+class EmbeddingStatsResponse(BaseModel):
+    """Response from ``GET /api/search/stats`` and embedded library stats."""
+
+    indexed_count: int
+    table_exists: bool
+    entity_indexed_count: int = 0
+    entity_table_exists: bool = False
+    claim_indexed_count: int = 0
+    claim_table_exists: bool = False
+
+
+class LibraryStatsResponse(BaseModel):
+    """Response from ``GET /api/stats`` for the active library."""
+
+    documents: int
+    artifacts: int
+    embedding_stats: EmbeddingStatsResponse
+
+
+class LibraryAuthzSnapshot(BaseModel):
+    """Response from ``GET /api/authz/library`` for the active library."""
+
+    library_path: str
+    multiuser_enabled: bool
+    can_manage_roles: bool
+    current_user_id: str | None = None
+    current_user_role: str | None = None
+    target_id: str | None = None
+    target_can_read: bool
+    target_can_write: bool
+    roles: list[LibraryRole] = Field(default_factory=list)
+
+
+class ReinstallDefaultWorkflowsResponse(BaseModel):
+    """Response from ``POST /api/workflows/reinstall-defaults``."""
+
+    seeded: int
+    status: str
+
+
+class AppleIntelligenceProbeResponse(BaseModel):
+    """Result of probing whether Apple Intelligence is usable on this Mac."""
+
+    available: bool
+    reason: str | None = None
 
 
 class EntityContextResponse(BaseModel):
@@ -1163,12 +1442,78 @@ class KnownLibrary(BaseModel):
     added_at: datetime = Field(default_factory=datetime.now)
     last_accessed: datetime = Field(default_factory=datetime.now)
 
+    # Backup configuration. Interval <= 0 keeps scheduled snapshots disabled,
+    # preserving current behavior until a library explicitly opts in.
+    snapshot_interval_seconds: float = 0.0
+    snapshot_retention_count: int = 10
+    snapshot_offsite_path: str | None = None
+
 
 class LibraryRegistryResponse(BaseModel):
     """Response from GET /api/registry — list all known libraries."""
 
     libraries: list[KnownLibrary]
     count: int
+
+
+class ActionCategoriesResponse(BaseModel):
+    """Response from GET /api/actions/categories."""
+
+    categories: list[str]
+
+
+class ActionSuccessResponse(BaseModel):
+    """Boolean success envelope for action mutations."""
+
+    success: bool
+
+
+class ActionJsonResponse(BaseModel):
+    """Response from GET /api/actions/{action_id}/export."""
+
+    json_data: str
+
+
+class LocalModelInfoResponse(BaseModel):
+    """A locally-managed AI model (Whisper, embeddings)."""
+
+    model_id: str
+    model_type: str
+    display_name: str
+    size_bytes: int
+    is_downloaded: bool
+    expected_size_mb: int
+    path: str | None
+    metadata: dict[str, Any]
+
+
+class LocalModelListResponse(BaseModel):
+    """List of local models."""
+
+    models: list[LocalModelInfoResponse]
+
+
+class DiskUsageResponse(BaseModel):
+    """Disk usage broken down by model type."""
+
+    whisper: int
+    embeddings: int
+    total: int
+
+
+class DownloadStartedResponse(BaseModel):
+    """Confirmation that a model download has been queued."""
+
+    status: str
+    model_type: str
+    model_id: str
+
+
+class DeleteModelResponse(BaseModel):
+    """Result of a model deletion."""
+
+    status: str
+    freed_bytes: int
 
 
 # =============================================================================
@@ -1208,6 +1553,13 @@ class ClaimLinkListResponse(BaseModel):
     """Standardized envelope for claim links list endpoints."""
 
     items: list[Any]  # Typically KnowledgeClaimLink or KnowledgeClaim
+    count: int
+
+
+class LibraryItemLinkListResponse(BaseModel):
+    """Standardized envelope for generic library-item link list endpoints."""
+
+    items: list[LibraryItemLink]
     count: int
 
 
@@ -1352,6 +1704,13 @@ class MindPalaceListResponse(BaseModel):
     count: int
 
 
+class AgentNoteListResponse(BaseModel):
+    """Standardized envelope for agent-memory note endpoints."""
+
+    items: list[Any]  # Typically AgentNote
+    count: int
+
+
 class NoteListResponse(BaseModel):
     """Standardized envelope for GET /api/notes list endpoints."""
 
@@ -1489,6 +1848,89 @@ class HermesSuggestionListResponse(BaseModel):
 
 
 # =============================================================================
+# Action layer audit (EPIC #1848 / #2013)
+# =============================================================================
+
+
+class ActionAudit(BaseModel):
+    """Immutable audit row for one registered-action invocation.
+
+    Written by ``ActionRegistry.invoke`` (the single mutation choke point) for
+    EVERY action that runs through it. Generalizes the entity-specific
+    ``EntityMergeAudit``: ``before``/``after`` are JSON-able domain-object
+    snapshots and ARE the undo payload — ``invert(before, after)`` derives the
+    inverse action from them (see ``fichero.actions.registry``).
+
+    0.0.x no-migration: the table (``actionaudits``) is picked up automatically
+    by ``Database._ensure_table`` the first time an ``ActionAudit`` is saved on a
+    fresh DB; ``_ensure_table``'s ADD COLUMN reconciliation covers existing DBs.
+
+    Reuses the provenance/run-id conventions (#1832): ``run_id`` ties an action
+    to the AI run that triggered it; ``created_at`` mirrors the other audit
+    models' ``default_factory=datetime.now``.
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    action_name: str = Field(description="Registered action name, '<domain>.<verb>'")
+    actor: str = Field(default="system", description="ui | chat | workflow | import | system | device id")
+    target_ids: list[str] = Field(
+        default_factory=list,
+        description="Primary domain-object ids this action touched.",
+    )
+    params: dict = Field(
+        default_factory=dict,
+        description="Validated action params (model_dump) as invoked.",
+    )
+    before: dict | None = Field(
+        default=None,
+        description="JSON-able snapshot of touched objects before execute (undo payload).",
+    )
+    after: dict | None = Field(
+        default=None,
+        description="JSON-able snapshot/result handles after execute (undo payload).",
+    )
+    run_id: str | None = Field(
+        default=None,
+        description="AI run id if this action ran as part of an agent batch (#1832).",
+    )
+    created_at: datetime = Field(default_factory=datetime.now)
+    chain_seq: int | None = Field(
+        default=None,
+        description=(
+            "Monotonic append order for this database's audit chain. "
+            "Assigned under the database lock when the row is written."
+        ),
+    )
+    undone: bool = Field(
+        default=False,
+        description="True once this action has been reversed via its inverse.",
+    )
+    inverse_of: str | None = Field(
+        default=None,
+        description=(
+            "If this action was invoked AS the inverse of another action (i.e. by "
+            "the undo endpoint), the id of that ORIGINAL audit row. This is what "
+            "makes generalized redo possible: undoing an inverse audit replays the "
+            "original forward action's name + params (see fichero.actions.registry "
+            "and POST /api/actions/audit/{id}/undo). None for ordinary forward actions."
+        ),
+    )
+    prev_hash: str | None = Field(
+        default=None,
+        description="Previous ActionAudit row_hash in this database's append-only chain.",
+    )
+    row_hash: str = Field(
+        default="",
+        description=(
+            "SHA-256 over immutable creation fields plus prev_hash; empty only on "
+            "legacy rows created before the tamper-evident chain existed."
+        ),
+    )
+
+
+# =============================================================================
 # Convenience exports
 # =============================================================================
 
@@ -1519,10 +1961,23 @@ __all__ = [
     "LibraryCreateRequest",
     "LibraryCreateResponse",
     "HealthResponse",
+    "EmbeddingStatsResponse",
+    "LibraryStatsResponse",
+    "LibraryAuthzSnapshot",
+    "ReinstallDefaultWorkflowsResponse",
+    "AppleIntelligenceProbeResponse",
     "EntityContextResponse",
     # Known library registry (#1131)
     "KnownLibrary",
     "LibraryRegistryResponse",
+    "ActionCategoriesResponse",
+    "ActionSuccessResponse",
+    "ActionJsonResponse",
+    "LocalModelInfoResponse",
+    "LocalModelListResponse",
+    "DiskUsageResponse",
+    "DownloadStartedResponse",
+    "DeleteModelResponse",
     # List envelope response models (#1075)
     "ActionListResponse",
     "ActivityListResponse",
@@ -1539,6 +1994,10 @@ __all__ = [
     "IntegrationListResponse",
     "KGInclusionListResponse",
     "KGPredictionListResponse",
+    "AgentNote",
+    "AgentNoteActor",
+    "AgentNoteListResponse",
+    "AgentNoteSourceAnchor",
     "ContradictionEvidence",
     "ContradictionListResponse",
     "MCPServerListResponse",
@@ -1550,4 +2009,9 @@ __all__ = [
     "ScheduleListResponse",
     "SourceListResponse",
     "TriggerListResponse",
+    "AccountUser",
+    "AccountSession",
+    "Device",
+    "LibraryRole",
+    "LibraryAclOverride",
 ]

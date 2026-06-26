@@ -23,6 +23,7 @@ Inheritance model:
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import json
 import logging
@@ -34,7 +35,9 @@ from typing import Any, TYPE_CHECKING
 if TYPE_CHECKING:
     from fichero.llm import LLMConfig
 
+from fichero.ocr_geometry import OCRGeometryResult
 from fichero.workflows.types import PortDef, DataType
+from fichero.workflows.tools._doc_lookup import find_document_by_path
 from fichero.workflows.tools.llm_prompting import (  # noqa: F401 (re-exported)
     apply_reference_matching,
     build_context_section,
@@ -46,6 +49,20 @@ from fichero.workflows.tools.llm_prompting import (  # noqa: F401 (re-exported)
 )
 
 logger = logging.getLogger(__name__)
+
+
+class ArtifactLookupError(Exception):
+    """The artifact result-cache lookup could not run to completion.
+
+    Raised by find_existing_artifact when the underlying DB read itself
+    errors (transient cross-connection read race, DuckDB hiccup, …) — as
+    opposed to running cleanly and finding nothing. The distinction matters:
+    a clean "found nothing" is a real cache MISS and returns None, but a
+    failed lookup must NOT be silently reported as a miss, because that
+    re-runs the full paid vision/LLM call while hiding the fault (#2511).
+    Callers catch this, log loudly that they could not consult the cache,
+    and proceed to re-run (the lesser, visible evil) rather than crash.
+    """
 
 
 # =============================================================================
@@ -384,17 +401,27 @@ def find_existing_artifact(
 
         db = db_manager.get_database(library_path)
 
-        doc = None
+        # Resolve the document id to dedup against. Artifacts are keyed by
+        # document_id, so when the caller passes an explicit id we look up
+        # artifacts directly — no need to fetch the Document row, which can
+        # transiently miss during the concurrent per-page fan-out (each thread
+        # has its own DuckDB connection; MVCC snapshot skew) and would make us
+        # wrongly create a duplicate. Only fall back to file_path when no
+        # document_id was given; resolving a missing explicit id via file_path
+        # would silently return the parent PDF for page-child ids (#2430).
+        resolved_doc_id = None
         if document_id:
-            doc = db.get(_Document, document_id)
-        if not doc and file_path:
+            resolved_doc_id = document_id
+        elif file_path:
             docs = db.query(_Document, path=file_path)
             if docs:
-                doc = docs[0]
-        if not doc:
+                resolved_doc_id = docs[0].id
+        if not resolved_doc_id:
             return None
 
-        artifacts = list(db.query(_Artifact, document_id=doc.id, artifact_type=artifact_type))
+        artifacts = list(
+            db.query(_Artifact, document_id=resolved_doc_id, artifact_type=artifact_type)
+        )
         if provider is not None:
             artifacts = [a for a in artifacts if getattr(a, "provider", None) == provider]
         if model is not None:
@@ -406,8 +433,15 @@ def find_existing_artifact(
         artifacts.sort(key=lambda a: getattr(a, "created_at", 0) or 0, reverse=True)
         return artifacts[0]
     except Exception as exc:
-        logger.warning(f"find_existing_artifact failed: {exc}")
-        return None
+        # A clean "found nothing" already returned None above. Reaching here
+        # means the DB read itself FAILED (db.get/db.query raised) — we do NOT
+        # know whether a cached artifact exists. Reporting that as a miss
+        # (return None) would silently re-run the full paid call while hiding
+        # the fault. Surface it loudly as a distinct error so the caller can
+        # log "could not check cache" and decide to re-run, never pretend-miss
+        # (#2511, no silent fallback).
+        logger.error(f"find_existing_artifact lookup FAILED (not a miss): {exc}")
+        raise ArtifactLookupError(str(exc)) from exc
 
 
 # =============================================================================
@@ -425,8 +459,10 @@ async def save_artifact(
     task_id: str | None,
     tool_config: LLMToolConfig,
     *,
+    ocr_geometry: OCRGeometryResult | None = None,
     metadata_field: str | None = None,
     custom_metadata: dict | None = None,
+    document: object | None = None,
 ) -> str | None:
     """Save LLM result to database.
 
@@ -450,42 +486,113 @@ async def save_artifact(
     if not library_path:
         return None
 
-    artifact_id: str | None = None
-    doc = None
+    # Validate a pass-through document dict UP FRONT, outside the catch-all
+    # `try` below. That try is meant to absorb DB-write failures (artifact
+    # insert / page_content promotion) and report them as a miss; if a caller
+    # passes a malformed/partial dict, model_validate's ValidationError must
+    # surface LOUD, not be swallowed as a silent None artifact loss. A None
+    # document is fine (falls through to db.get); only a non-None dict that
+    # fails validation must fail here. (#2513, no silent fallback)
+    from fichero.models import Document
 
+    if isinstance(document, dict):
+        doc = Document.model_validate(document)
+    else:
+        doc = document
+
+    # Offload the synchronous DB-write + embed sequence off the event loop in a
+    # SINGLE thread hop. The shared Database connection is guarded by a
+    # re-entrant threading.RLock, so running this on a threadpool thread is safe
+    # (the lock serializes one-at-a-time access) and is consistent with the
+    # FastAPI-threadpool design the lock was built for. Doing this here is what
+    # lets per-file concurrency actually overlap — previously db.save / db.embed
+    # ran ON the loop and pinned it, so nothing else could make progress while a
+    # save was in flight (#2540). Behaviour is identical: same rows, same
+    # per-page contract, same fail-loud return-None / raise semantics, all of
+    # which live verbatim inside _save_artifact_sync.
+    return await asyncio.to_thread(
+        _save_artifact_sync,
+        doc,
+        document_id,
+        file_path,
+        content,
+        data,
+        library_path,
+        llm_config,
+        task_id,
+        tool_config,
+        metadata_field,
+        custom_metadata,
+        ocr_geometry,
+    )
+
+
+def _save_artifact_sync(
+    doc: object | None,
+    document_id: str | None,
+    file_path: str | None,
+    content: str,
+    data: dict | None,
+    library_path: str,
+    llm_config: LLMConfig,
+    task_id: str | None,
+    tool_config: LLMToolConfig,
+    metadata_field: str | None,
+    custom_metadata: dict | None,
+    ocr_geometry: OCRGeometryResult | None,
+) -> str | None:
+    """Synchronous DB-write + embed core of :func:`save_artifact`.
+
+    Runs OFF the event loop via ``asyncio.to_thread`` (see caller). All the
+    blocking work — ``db.save`` (artifact + doc), ``db.embed`` (ONNX inference),
+    and metadata decoration — happens here on a threadpool thread. The shared
+    Database connection's re-entrant RLock serializes concurrent threads, so
+    this is safe. The per-page contract (#2430/#2523) and fail-loud /
+    return-None / raise semantics are unchanged from the original inline body.
+    """
+    from fichero.models import Artifact, Status
+
+    artifact_id: str | None = None
     try:
         from fichero.db import db_manager
-        from fichero.models import Document, Artifact, Status
+        from fichero.models import Document
 
         db = db_manager.get_database(library_path)
 
-        # Find document
-        if document_id:
+        if doc is None and document_id:
             doc = db.get(Document, document_id)
-        if not doc and file_path:
-            docs = db.query(Document, path=file_path)
-            if docs:
-                doc = docs[0]
+        # Only use file_path fallback when no document_id was given — if an
+        # explicit id was provided but not found, silently resolving to whatever
+        # file_path maps to (e.g. the parent PDF) would write the artifact to
+        # the wrong document (#2430 per-page fan-out regression).
+        if not doc and file_path and not document_id:
+            doc = find_document_by_path(db, Document, file_path)
 
-        if not doc:
+        # The per-page fan-out passes the page-child document through
+        # (document=) so we never re-fetch it by id across threads — that is
+        # what eliminates the #2430 race. If we STILL have no document here it
+        # genuinely cannot be resolved; do NOT fabricate an artifact keyed on an
+        # unverified id (that would orphan it, or — via the removed file_path
+        # fallback — mis-route to the parent PDF). Fail loud + return None so
+        # the miss is visible, never a silent substitute. (#2430)
+        if doc is None:
             logger.warning(
-                "Document not found for artifact save: id=%s path=%s",
+                "Document not found for artifact save: id=%s path=%s — "
+                "skipping (no silent orphan / parent reroute)",
                 document_id,
                 file_path,
             )
             return None
-
-        # Ensure metadata is a mutable dict (NULL in DB parses as None)
-        if not isinstance(doc.metadata, dict):
-            doc.metadata = {}
+        resolved_doc_id = doc.id
 
         # Create Artifact
         artifact = Artifact(
-            document_id=doc.id,
-            source_document_id=doc.id,
+            document_id=resolved_doc_id,
+            source_document_id=resolved_doc_id,
             artifact_type=tool_config.artifact_type,
             content=content,
             data=data,
+            ocr_geometry=ocr_geometry,
             provider=llm_config.provider if hasattr(llm_config, "provider") else None,
             model=llm_config.model if hasattr(llm_config, "model") else None,
             run_id=task_id,
@@ -501,35 +608,70 @@ async def save_artifact(
         # or other tool that produced this artifact should leave the text
         # alone. The artifact is still saved so the result is discoverable
         # on the Artifacts tab — just not promoted over the user's edit.
-        # See issue #672.
-        user_edited = (
-            isinstance(doc.metadata, dict)
-            and doc.metadata.get("page_content_user_edited_at")
-        )
-        if tool_config.update_page_content and not user_edited:
-            doc.page_content = content
-            # In-progress, NOT completed: a content-producing node may be one
-            # of several pipeline steps. The workflow boundary owns the flip to
-            # completed once the whole run finishes, so the green check no
-            # longer appears after just the first step (#1282). See
-            # fichero.workflows.completion.complete_run_documents.
-            doc.status = Status.processing
-            doc.updated_at = datetime.now()
-            db.save(doc)
-
-            if tool_config.trigger_embedding:
-                db.embed(doc)
-                logger.info(f"Updated page_content and embedding for {doc.id}")
-        elif tool_config.update_page_content and user_edited:
-            logger.info(
-                f"Preserved user-edited page_content on {doc.id}; "
-                f"artifact {artifact_id} saved but not promoted."
+        # See issue #672. Guarded on `doc is not None`: when the row wasn't
+        # visible on this connection (concurrent fan-out, #2430) the artifact
+        # above is still saved on the right page; only this doc-side update,
+        # which needs the live row, is deferred to a later/visible pass.
+        if doc is not None:
+            # Ensure metadata is a mutable dict (NULL in DB parses as None)
+            if not isinstance(doc.metadata, dict):
+                doc.metadata = {}
+            user_edited = (
+                isinstance(doc.metadata, dict)
+                and doc.metadata.get("page_content_user_edited_at")
             )
+            if tool_config.update_page_content and not user_edited:
+                doc.page_content = content
+                # In-progress, NOT completed: a content-producing node may be
+                # one of several pipeline steps. The workflow boundary owns the
+                # flip to completed once the whole run finishes, so the green
+                # check no longer appears after just the first step (#1282). See
+                # fichero.workflows.completion.complete_run_documents.
+                doc.status = Status.processing
+                doc.updated_at = datetime.now()
+                db.save(doc)
+
+                if tool_config.trigger_embedding:
+                    # Embedding is a best-effort TAIL: the artifact and the
+                    # promoted page_content are already durably saved above, so
+                    # the result is not lost. A failed embed must NOT fail the
+                    # whole save (that would mask a successful write and report
+                    # false failure) — but it must be LOUD, never silently
+                    # swallowed, so a missing/stale vector is diagnosable
+                    # (#2510, no silent fallback).
+                    try:
+                        db.embed(doc)
+                        logger.info(f"Updated page_content and embedding for {doc.id}")
+                    except Exception as embed_exc:
+                        logger.error(
+                            "Embedding FAILED for %s after artifact + "
+                            "page_content saved — save still SUCCEEDED "
+                            "(best-effort embed tail): %s",
+                            doc.id,
+                            embed_exc,
+                        )
+            elif tool_config.update_page_content and user_edited:
+                logger.info(
+                    f"Preserved user-edited page_content on {doc.id}; "
+                    f"artifact {artifact_id} saved but not promoted."
+                )
 
     except Exception as e:
-        logger.error(f"Failed to save artifact: {e}")
-        # Return artifact_id if the write succeeded before the exception
-        return artifact_id
+        # Reaching here means a CORE write failed: the artifact insert (step 1)
+        # or the page_content promotion (step 2, db.save(doc)). The best-effort
+        # embed tail (step 3) is caught above and never lands here. Returning
+        # artifact_id now would record FALSE SUCCESS — the doc content was not
+        # promoted, nothing was rolled back, and the caller would believe the
+        # operation completed (#2510). Surface the failure instead so the caller
+        # (per-file loop / workflow node) records a real error and can retry.
+        #
+        # NOTE: without a Database transaction boundary (#2508) the step-1
+        # artifact row may already be committed when step 2 fails; we cannot
+        # atomically roll it back here. Making artifact+doc writes truly atomic
+        # is the systemic #2508 work — this fix only stops the false-success
+        # report, which is the minimal no-silent-fallback change.
+        logger.error(f"Failed to save artifact (core write, surfacing): {e}")
+        raise
 
     # Metadata decoration is non-fatal — keep it isolated so it can never
     # hide a successful artifact + page_content save.
@@ -548,6 +690,51 @@ async def save_artifact(
         logger.warning(f"Metadata decoration failed for artifact {artifact_id}: {meta_e}")
 
     return artifact_id
+
+
+async def save_file_artifact(
+    file_path: str | None,
+    content: str,
+    document_id: str | None,
+    library_path: str,
+    llm_config: LLMConfig,
+    task_id: str | None,
+    tool_config: LLMToolConfig,
+    *,
+    ocr_geometry: OCRGeometryResult | None = None,
+    metadata_field: str | None = None,
+    custom_metadata: dict | None = None,
+    document: object | None = None,
+) -> str | None:
+    """File-oriented entry point to ``save_artifact`` for media/file tools.
+
+    This is the SINGLE shared wrapper that the per-media-family tools (vision,
+    audio, video) and file-keyed text tools (extract) all use. It exists so the
+    per-page save contract — an explicit ``document_id`` means NO ``file_path``
+    fallback; a genuine lookup miss FAILS LOUD (returns None, never reroutes to
+    the parent PDF, #2430/#2523); the ``document=`` pass-through dodges the
+    cross-thread re-fetch race — is enforced in exactly ONE place
+    (``save_artifact`` above) and is never re-derived per family.
+
+    The only family-specific convention it encodes is that file/media artifacts
+    carry no structured ``data`` (hardcoded ``data=None``); everything else is a
+    straight pass-through. ``file_path`` is listed first because callers key on
+    the source path, but every call site uses keyword arguments.
+    """
+    return await save_artifact(
+        document_id=document_id,
+        file_path=file_path,
+        content=content,
+        data=None,
+        ocr_geometry=ocr_geometry,
+        library_path=library_path,
+        llm_config=llm_config,
+        task_id=task_id,
+        tool_config=tool_config,
+        metadata_field=metadata_field,
+        custom_metadata=custom_metadata,
+        document=document,
+    )
 
 
 async def save_to_file(

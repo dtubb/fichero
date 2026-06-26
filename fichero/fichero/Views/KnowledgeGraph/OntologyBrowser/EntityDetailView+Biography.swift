@@ -1,105 +1,166 @@
 import FicheroAPIClient
+import Foundation
 import SwiftUI
 
-// MARK: - Biography
+// MARK: - Mentions
 
 extension EntityDetailView {
-    var biographySection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+    struct MentionSummary: Identifiable, Equatable {
+        let id: String
+        let claim: Components.Schemas.KnowledgeClaim
+        let dateLabel: String?
+        let pageLabel: String?
+
+        var lineLabel: String {
+            let parts = [dateLabel, pageLabel]
+                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            return parts.isEmpty ? "Mentioned in source" : parts.joined(separator: " · ")
+        }
+    }
+
+    var mentionsSection: some View {
+        let mentions = Self.mentionSummaries(from: filteredClaims, documents: sourceDocumentsById)
+        return VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Biography")
+                Text("Mentions")
                     .font(.subheadline)
                     .fontWeight(.semibold)
                 Spacer()
-                Text("Reconstructed from claims")
+                Text("\(mentions.count)")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
-            biographyComposedText
-                .font(.body)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if mentions.isEmpty {
+                Text("No source mentions available")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(mentions) { mention in
+                        Button {
+                            onNavigateToSource?(mention.claim)
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "arrow.right.to.line")
+                                    .font(.caption)
+                                    .foregroundStyle(Color.accentColor)
+                                Text(mention.lineLabel)
+                                    .font(.callout)
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Jump the reading view to this source page")
+                    }
+                }
+            }
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.controlBackgroundColor))
+        .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
-    /// Build the prose paragraph. Iterates filteredClaims that have an
-    /// SVO triple in metadata, substitutes a pronoun after the first
-    /// subject mention, appends an italic doc-name citation per
-    /// sentence. Returns Text(verbatim) so we keep AttributedString
-    /// styling for the verb (italic) + citation (italic secondary).
-    var biographyComposedText: Text {
-        let pronoun = entityPronoun
-        var first = true
-        var composed = Text("")
-        for claim in filteredClaims {
-            guard let svo = svoOf(claim) else { continue }
-            let subject = first ? svo.subject : pronoun
-            first = false
-            let docName = LibraryManager.shared.globalLibrary?
-                .documentStore
-                .currentDocuments
-                .first(where: { $0.id == claim.sourceDocumentId })?
-                .name
-            let citation: String = {
-                let parts = [docName, claim.sourcePageLabel.flatMap { "p. \($0)" }]
-                    .compactMap { $0 }
-                return parts.isEmpty ? "" : " [\(parts.joined(separator: ", "))]"
-            }()
-            composed = composed
-                + Text(subject)
-                + Text(" \(svo.verb) ").italic().foregroundColor(.accentColor)
-                + Text(svo.object)
-                + Text(citation)
-                .font(.caption2)
-                .italic()
-                .foregroundColor(.secondary)
-                + Text(". ")
-        }
-        if first {
-            return Text("No subject-verb-object claims to compose a biography from.")
-                .foregroundColor(.secondary)
-                .italic()
-        }
-        return composed
+    var sourceDocumentsById: [String: Document] {
+        Dictionary(
+            uniqueKeysWithValues: (
+                LibraryManager.shared.globalLibrary?
+                    .documentStore
+                    .currentDocuments
+                    .map { ($0.id, $0) }
+            ) ?? []
+        )
     }
 
-    struct SVOTriple {
-        let subject: String
-        let verb: String
-        let object: String
+    static func mentionSummaries(
+        from claims: [Components.Schemas.KnowledgeClaim],
+        documents: [String: Document]
+    ) -> [MentionSummary] {
+        var mentions: [MentionSummary] = []
+        var seenIds: Set<String> = []
+
+        for claim in claims {
+            let documentId = (claim.sourceDocumentId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !documentId.isEmpty else { continue }
+            let pageLabel = normalizedPageLabel(for: claim, document: documents[documentId])
+            let key = [documentId, pageLabel ?? ""].joined(separator: "::")
+            guard seenIds.insert(key).inserted else { continue }
+            mentions.append(
+                MentionSummary(
+                    id: key,
+                    claim: claim,
+                    dateLabel: mentionDateLabel(for: claim, document: documents[documentId]),
+                    pageLabel: pageLabel
+                )
+            )
+        }
+
+        return mentions
     }
 
-    /// Returns the SVO triple from claim metadata, or nil if the claim
-    /// has no SVO (legacy or empty-content). Mirrors the helper on
-    /// ClaimSummaryCard.
-    func svoOf(
-        _ claim: Components.Schemas.KnowledgeClaim
-    ) -> SVOTriple? {
-        let subject = (claim.subjectCanonical ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let verb = (claim.predicateVerb ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let object = (claim.objectPhrase ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        if !subject.isEmpty, !verb.isEmpty, !object.isEmpty {
-            return SVOTriple(subject: subject, verb: verb, object: object)
+    static func mentionDateLabel(
+        for claim: Components.Schemas.KnowledgeClaim,
+        document: Document?
+    ) -> String? {
+        let claimCandidates = [
+            claim.timeStart.flatMap(formattedMentionDate),
+            normalizedLabel(claim.temporalContext)
+        ]
+        for candidate in claimCandidates {
+            if let candidate { return candidate }
         }
-        guard let dict = claim.metadata?.additionalProperties.value else { return nil }
-        let metadataSubject = (dict["subject"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let metadataVerb = (dict["verb"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let metadataObject = (dict["object"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !metadataSubject.isEmpty, !metadataVerb.isEmpty, !metadataObject.isEmpty else { return nil }
-        return SVOTriple(subject: metadataSubject, verb: metadataVerb, object: metadataObject)
+
+        guard let document else { return nil }
+        let metadata = document.metadata
+        let documentCandidates = [
+            metadata["event_date"]?.value as? String,
+            metadata["eventDate"]?.value as? String,
+            metadata["date"]?.value as? String,
+            metadata["display_date"]?.value as? String,
+            metadata["displayDate"]?.value as? String
+        ]
+
+        for candidate in documentCandidates {
+            if let formatted = formattedMentionDate(candidate) ?? normalizedLabel(candidate) {
+                return formatted
+            }
+        }
+
+        return nil
     }
 
-    /// Pronoun to use after the first mention. Defaults to "they" for
-    /// neutrality on Person; "it" for non-persons.
-    var entityPronoun: String {
-        guard let type = entity.entityType else { return "it" }
-        switch type {
-        case .person: return "they"
-        default: return "it"
+    static func normalizedPageLabel(
+        for claim: Components.Schemas.KnowledgeClaim,
+        document: Document?
+    ) -> String? {
+        if let label = normalizedLabel(claim.sourcePageLabel) {
+            return label.lowercased().hasPrefix("p.") ? label : "p. \(label)"
         }
+        if let sequence = document?.sequence {
+            return "p. \(sequence)"
+        }
+        return nil
+    }
+
+    static func formattedMentionDate(_ raw: String?) -> String? {
+        guard let date = KGTemporal.parseFlexibleDate(raw) else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.dateFormat = "EEEE, MMMM d, yyyy"
+        return formatter.string(from: date)
+    }
+
+    static func normalizedLabel(_ raw: String?) -> String? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else { return nil }
+        if trimmed.lowercased() == "unknown" {
+            return nil
+        }
+        return trimmed
     }
 }

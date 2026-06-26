@@ -79,15 +79,12 @@ extension Notification.Name {
         "ficheroEntitySearchRequested"
     )
 
-    /// Posted after a claim is deleted from the KG UI (right-click →
-    /// Delete claim). KnowledgeGraphInspectorSection listens and removes
-    /// the row without a full reload. object = claim id String.
-    static let ficheroClaimDeleted = Notification.Name("ficheroClaimDeleted")
-
-    /// Posted after a claim is edited via EditClaimSheet (#1135).
-    /// KnowledgeGraphInspectorSection listens and updates the in-memory list.
-    /// userInfo["claim"] = updated KnowledgeClaim.
-    static let ficheroClaimUpdated = Notification.Name("ficheroClaimUpdated")
+    // The claim/entity *data-mutation* notifications (`.ficheroClaimDeleted`,
+    // `.ficheroClaimUpdated`, `.ficheroEntityUpdated`) were retired in #1862.
+    // Claim/entity mutations now flow through ClaimStore/EntityStore and the
+    // per-library change-stream (#1863), which fans `claim.*`/`entity.*` events
+    // to every window's stores. Only *navigation* signals remain — those are
+    // not data mutations and stay out of the change-stream (spec §4.3).
 
     /// Posted when the user taps a source-doc citation on a claim card
     /// (the small arrow in EntityKindRow). ContentView listens and either

@@ -2,7 +2,6 @@
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from langchain_core.messages import AIMessage
 
 from fichero.workflows.model_comparison import (
     ModelResult,
@@ -101,6 +100,16 @@ class TestEstimateCost:
     def test_estimate_cost_local_model(self):
         """Test local models are free."""
         cost = estimate_cost("llama3.2", 10000, 5000)
+        assert cost == 0.0
+
+    def test_estimate_cost_gemini_25_flash(self):
+        """Test newer Gemini pricing is recognized."""
+        cost = estimate_cost("gemini-2.5-flash", 1000, 500)
+        assert cost > 0
+
+    def test_estimate_cost_apple_is_free(self):
+        """Test Apple/local models are treated as free."""
+        cost = estimate_cost("apple", 10000, 5000)
         assert cost == 0.0
 
 
@@ -219,6 +228,107 @@ class TestModelComparisonEngine:
             assert len(result.results) == 1
             assert "API Error" in result.results[0].error
 
+    @pytest.mark.asyncio
+    async def test_compare_vision_awaits_async_vision(self):
+        """Regression: compare_vision must AWAIT the async ``vision`` coroutine.
+
+        Previously ``_run_vision_model`` wrapped the async ``vision`` in
+        ``asyncio.to_thread`` which only built the coroutine without awaiting it,
+        so every model failed with "object of type 'coroutine' has no len()".
+        """
+        async_vision = AsyncMock(return_value="Numero 2. En la ciudad de Novita...")
+
+        with patch("fichero.workflows.model_comparison.vision", async_vision):
+            engine = ModelComparisonEngine()
+            result = await engine.compare_vision(
+                images=["data:image/png;base64,AAAA"],
+                prompt="Transcribe",
+                models=[ModelSpec(provider="openai", model="gpt-4o")],
+            )
+
+        assert len(result.results) == 1
+        assert result.results[0].error is None
+        assert result.results[0].response.startswith("Numero 2.")
+        assert result.fastest_model == "openai/gpt-4o"
+        async_vision.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_compare_workflow_fans_out_and_aggregates_cost(self):
+        engine = ModelComparisonEngine()
+        workflow = MagicMock()
+        workflow.id = "wf-1"
+        workflow.name = "Transcribe"
+        workflow.nodes = [MagicMock(tool="transcribe")]
+        workflow_variant = MagicMock()
+
+        state_one = {
+            "completed_nodes": ["node-1"],
+            "outputs": {"node-1": {"text": "First model output"}},
+        }
+        state_two = {
+            "completed_nodes": ["node-1"],
+            "outputs": {"node-1": {"text": "Second model output is longer"}},
+        }
+
+        execute_mock = AsyncMock(side_effect=[state_one, state_two])
+        with patch.object(
+            engine,
+            "_workflow_with_model_override",
+            return_value=workflow_variant,
+        ), patch.object(
+            engine,
+            "_execute_workflow_variant",
+            execute_mock,
+        ):
+            result = await engine.compare_workflow(
+                workflow=workflow,
+                inputs={"selected_doc_ids": ["doc-1"]},
+                models=[
+                    ModelSpec(provider="openai", model="gpt-4o"),
+                    ModelSpec(provider="google", model="gemini-2.5-flash"),
+                ],
+                library_path="/tmp/test.fichero",
+            )
+
+        assert len(result.results) == 2
+        assert result.total_cost_usd == sum(item.cost_usd for item in result.results)
+        assert result.total_latency_ms == sum(item.latency_ms for item in result.results)
+        assert result.fastest_model in {"openai/gpt-4o", "google/gemini-2.5-flash"}
+        assert result.cheapest_model in {"openai/gpt-4o", "google/gemini-2.5-flash"}
+        assert result.results[0].response == "First model output"
+        assert result.results[1].response == "Second model output is longer"
+        assert execute_mock.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_compare_workflow_returns_error_result_for_failed_variant(self):
+        engine = ModelComparisonEngine()
+        workflow = MagicMock()
+        workflow.id = "wf-1"
+        workflow.name = "Translate"
+        workflow.nodes = [MagicMock(tool="translate")]
+        workflow_variant = MagicMock()
+
+        with patch.object(
+            engine,
+            "_workflow_with_model_override",
+            return_value=workflow_variant,
+        ), patch.object(
+            engine,
+            "_execute_workflow_variant",
+            AsyncMock(side_effect=RuntimeError("boom")),
+        ):
+            result = await engine.compare_workflow(
+                workflow=workflow,
+                inputs={"selected_doc_ids": ["doc-9"]},
+                models=[ModelSpec(provider="openai", model="gpt-4o")],
+                library_path="/tmp/test.fichero",
+            )
+
+        assert len(result.results) == 1
+        assert result.results[0].error == "boom"
+        assert result.fastest_model is None
+        assert result.cheapest_model is None
+
     def test_get_history(self):
         """Test getting comparison history."""
         engine = ModelComparisonEngine()
@@ -261,6 +371,159 @@ class TestModelComparisonEngine:
 
         result = engine.get_comparison("nonexistent")
         assert result is None
+
+    # ------------------------------------------------------------------
+    # #2211: _execute_workflow_variant must resolve .fichero dir → .duckdb file
+    # ------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_execute_workflow_variant_resolves_fichero_dir_to_duckdb(self, tmp_path):
+        """Passing a .fichero DIRECTORY as library_path must NOT reach create_compiled_app
+        as-is — it must be resolved to the fichero.duckdb file inside the bundle (#2211).
+
+        Before the fix: db_path=library_path (a directory) was passed directly, which
+        caused duckdb.connect() to raise "IOException: Is a directory" and every
+        compare-workflow variant returned error=str(exc) instead of running.
+        """
+        import pathlib
+
+        bundle = tmp_path / "MyLib.fichero"
+        bundle.mkdir()
+
+        captured_db_paths = []
+
+        mock_app = MagicMock()
+        mock_app.ainvoke = AsyncMock(return_value={"outputs": {}, "completed_nodes": []})
+        mock_checkpointer = MagicMock()
+
+        def fake_create_compiled_app(workflow_def, *, db_path, **_kwargs):
+            captured_db_paths.append(pathlib.Path(str(db_path)))
+            return mock_app, mock_checkpointer
+
+        engine = ModelComparisonEngine()
+        workflow_variant = MagicMock()
+        workflow_variant.id = "wf-test"
+
+        with patch(
+            "fichero.workflows.model_comparison.create_compiled_app",
+            side_effect=fake_create_compiled_app,
+        ):
+            await engine._execute_workflow_variant(
+                workflow_variant=workflow_variant,
+                inputs={"selected_doc_ids": []},
+                library_path=str(bundle),
+                timeout_seconds=10,
+            )
+
+        assert len(captured_db_paths) == 1, "create_compiled_app should be called once"
+        resolved = captured_db_paths[0]
+        assert not resolved.is_dir(), "db_path must not be a directory"
+        assert resolved.name == "fichero.duckdb", (
+            f"Expected fichero.duckdb, got {resolved.name}"
+        )
+        assert resolved.parent == bundle, "db_path must be inside the .fichero bundle"
+
+    @pytest.mark.asyncio
+    async def test_execute_workflow_variant_plain_file_path_unchanged(self, tmp_path):
+        """When library_path is already a .duckdb file (not a bundle dir), it passes through
+        unchanged — the fix must not affect non-bundle paths (#2211 guard)."""
+        import pathlib
+
+        db_file = tmp_path / "fichero.duckdb"
+        db_file.touch()
+
+        captured_db_paths = []
+
+        mock_app = MagicMock()
+        mock_app.ainvoke = AsyncMock(return_value={"outputs": {}, "completed_nodes": []})
+
+        def fake_create_compiled_app(workflow_def, *, db_path, **_kwargs):
+            captured_db_paths.append(pathlib.Path(str(db_path)))
+            return mock_app, MagicMock()
+
+        engine = ModelComparisonEngine()
+        workflow_variant = MagicMock()
+        workflow_variant.id = "wf-test-2"
+
+        with patch(
+            "fichero.workflows.model_comparison.create_compiled_app",
+            side_effect=fake_create_compiled_app,
+        ):
+            await engine._execute_workflow_variant(
+                workflow_variant=workflow_variant,
+                inputs={"selected_doc_ids": []},
+                library_path=str(db_file),
+                timeout_seconds=10,
+            )
+
+        assert captured_db_paths[0] == pathlib.Path(str(db_file))
+
+    # ------------------------------------------------------------------
+    # #2212: empty / failed vision calls must NOT count as successful
+    # ------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_compare_vision_empty_response_is_error(self):
+        """vision() returning '' must produce an error result, not a success.
+
+        Before #2212 the empty string passed the len() check and the result had
+        error=None, making it a "successful" comparison despite no useful output.
+        """
+        async_vision = AsyncMock(return_value="")
+
+        with patch("fichero.workflows.model_comparison.vision", async_vision):
+            engine = ModelComparisonEngine()
+            result = await engine.compare_vision(
+                images=["data:image/png;base64,AAAA"],
+                prompt="Describe",
+                models=[ModelSpec(provider="openai", model="gpt-4o")],
+            )
+
+        assert len(result.results) == 1
+        r = result.results[0]
+        assert r.error is not None, "Empty vision response must surface as an error"
+        assert "empty" in r.error.lower()
+        # An empty-response failure must not appear in successful_results,
+        # so fastest/cheapest model should be None.
+        assert result.fastest_model is None
+        assert result.cheapest_model is None
+
+    @pytest.mark.asyncio
+    async def test_compare_vision_none_response_is_error(self):
+        """vision() returning None must also produce an error result (#2212)."""
+        async_vision = AsyncMock(return_value=None)
+
+        with patch("fichero.workflows.model_comparison.vision", async_vision):
+            engine = ModelComparisonEngine()
+            result = await engine.compare_vision(
+                images=["data:image/png;base64,AAAA"],
+                prompt="Describe",
+                models=[ModelSpec(provider="openai", model="gpt-4o")],
+            )
+
+        assert len(result.results) == 1
+        r = result.results[0]
+        assert r.error is not None, "None vision response must surface as an error"
+        assert result.fastest_model is None
+
+    @pytest.mark.asyncio
+    async def test_compare_vision_successful_result_not_affected(self):
+        """A real non-empty response must still be counted as successful (#2212)."""
+        async_vision = AsyncMock(return_value="The image shows a cathedral facade.")
+
+        with patch("fichero.workflows.model_comparison.vision", async_vision):
+            engine = ModelComparisonEngine()
+            result = await engine.compare_vision(
+                images=["data:image/png;base64,AAAA"],
+                prompt="Describe",
+                models=[ModelSpec(provider="openai", model="gpt-4o")],
+            )
+
+        assert len(result.results) == 1
+        r = result.results[0]
+        assert r.error is None
+        assert r.response == "The image shows a cathedral facade."
+        assert result.fastest_model == "openai/gpt-4o"
 
 
 class TestModelComparisonTool:

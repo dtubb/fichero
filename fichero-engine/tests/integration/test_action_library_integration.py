@@ -50,6 +50,13 @@ def check_response_ok(response, skip_on_error=True):
     return 200 <= response.status_code < 300
 
 
+def response_items(payload):
+    """Normalise list endpoints that now return the unified envelope."""
+    if isinstance(payload, dict):
+        return payload.get("items", [])
+    return payload
+
+
 # =============================================================================
 # Fixtures
 # =============================================================================
@@ -58,6 +65,18 @@ def check_response_ok(response, skip_on_error=True):
 def api_client():
     """Create an HTTP client for API tests."""
     return httpx.Client(base_url=BASE_URL, timeout=30.0, headers=DEFAULT_HEADERS)
+
+
+@pytest.fixture(autouse=True)
+def require_live_backend():
+    """Skip cleanly when the dev backend is not reachable."""
+    try:
+        with httpx.Client(base_url=BASE_URL, timeout=2.0, headers=DEFAULT_HEADERS) as client:
+            response = client.get("/health")
+        if response.status_code != 200:
+            pytest.skip(f"Backend unavailable at {BASE_URL} (status {response.status_code})")
+    except httpx.HTTPError as exc:
+        pytest.skip(f"Backend unavailable at {BASE_URL}: {exc}")
 
 
 @pytest.fixture
@@ -91,44 +110,44 @@ class TestActionListing:
         """Test listing all actions."""
         response = api_client.get("/actions")
         check_response_ok(response)
-        data = response.json()
-        assert isinstance(data, list)
+        items = response_items(response.json())
+        assert isinstance(items, list)
 
     def test_list_builtin_actions(self, api_client):
         """Test listing built-in actions only."""
         response = api_client.get("/actions/builtin")
         check_response_ok(response)
-        data = response.json()
-        assert isinstance(data, list)
+        items = response_items(response.json())
+        assert isinstance(items, list)
         # All returned actions should be builtin
-        for action in data:
+        for action in items:
             assert action.get("is_builtin", False)
 
     def test_list_custom_actions(self, api_client):
         """Test listing custom actions only."""
         response = api_client.get("/actions/custom")
         check_response_ok(response)
-        data = response.json()
-        assert isinstance(data, list)
+        items = response_items(response.json())
+        assert isinstance(items, list)
         # All returned actions should NOT be builtin
-        for action in data:
+        for action in items:
             assert not action.get("is_builtin", True)
 
     def test_list_recent_actions(self, api_client):
         """Test listing recently used actions."""
         response = api_client.get("/actions/recent?limit=5")
         check_response_ok(response)
-        data = response.json()
-        assert isinstance(data, list)
-        assert len(data) <= 5
+        items = response_items(response.json())
+        assert isinstance(items, list)
+        assert len(items) <= 5
 
     def test_list_popular_actions(self, api_client):
         """Test listing most frequently used actions."""
         response = api_client.get("/actions/popular?limit=5")
         check_response_ok(response)
-        data = response.json()
-        assert isinstance(data, list)
-        assert len(data) <= 5
+        items = response_items(response.json())
+        assert isinstance(items, list)
+        assert len(items) <= 5
 
     def test_list_categories(self, api_client):
         """Test listing action categories."""
@@ -152,8 +171,8 @@ class TestActionListing:
         # List actions in first category
         response = api_client.get(f"/actions/category/{categories[0]}")
         check_response_ok(response)
-        data = response.json()
-        assert isinstance(data, list)
+        items = response_items(response.json())
+        assert isinstance(items, list)
 
 
 # =============================================================================
@@ -167,8 +186,8 @@ class TestActionSearch:
         """Test searching actions by text query."""
         response = api_client.get("/actions/search?query=test")
         check_response_ok(response)
-        data = response.json()
-        assert isinstance(data, list)
+        items = response_items(response.json())
+        assert isinstance(items, list)
 
     def test_search_by_category(self, api_client):
         """Test searching actions by category."""
@@ -183,22 +202,22 @@ class TestActionSearch:
 
         response = api_client.get(f"/actions/search?category={categories[0]}")
         check_response_ok(response)
-        data = response.json()
-        assert isinstance(data, list)
+        items = response_items(response.json())
+        assert isinstance(items, list)
 
     def test_search_by_tags(self, api_client):
         """Test searching actions by tags."""
         response = api_client.get("/actions/search?tags=transform")
         check_response_ok(response)
-        data = response.json()
-        assert isinstance(data, list)
+        items = response_items(response.json())
+        assert isinstance(items, list)
 
     def test_search_combined_criteria(self, api_client):
         """Test searching with multiple criteria."""
         response = api_client.get("/actions/search?query=image&category=vision")
         check_response_ok(response)
-        data = response.json()
-        assert isinstance(data, list)
+        items = response_items(response.json())
+        assert isinstance(items, list)
 
 
 # =============================================================================
@@ -301,7 +320,7 @@ class TestActionCRUD:
         if not check_response_ok(response, skip_on_error=False):
             pytest.skip("Cannot get builtin actions")
 
-        actions = response.json()
+        actions = response_items(response.json())
         if not actions:
             pytest.skip("No built-in actions available")
 
@@ -321,7 +340,7 @@ class TestActionCRUD:
         if not check_response_ok(response, skip_on_error=False):
             pytest.skip("Cannot get builtin actions")
 
-        actions = response.json()
+        actions = response_items(response.json())
         if not actions:
             pytest.skip("No built-in actions available")
 
@@ -540,7 +559,7 @@ class TestEndToEnd:
                 api_client.post(f"/actions/{action_id}/use")
 
             # Check in popular list
-            popular_response = api_client.get("/actions/popular?limit=50")
+            api_client.get("/actions/popular?limit=50")
             # May or may not be popular depending on other actions
 
             # Update

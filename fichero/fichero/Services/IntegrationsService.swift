@@ -10,7 +10,7 @@ import OSLog
 /// Integrations endpoints are **app-level** (they target external desktop apps,
 /// not a particular `.fichero` library) and the former URLSession path sent only
 /// the engine Bearer token with no library header — so this mirrors
-/// `ModelComparisonService`, using the localhost client purely to carry auth.
+/// `ModelComparisonService`, using the configured engine client purely to carry auth.
 ///
 /// The `+AppSpecific` extension lives in a separate file but is the *same* type:
 /// both halves share this `client` and the mapping helpers below, so there is a
@@ -18,6 +18,7 @@ import OSLog
 @MainActor
 final class IntegrationsService: ObservableObject {
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "IntegrationsService")
+    private nonisolated(unsafe) var hostChangeObservation: NSObjectProtocol?
 
     @Published var integrations: [AppIntegration] = []
     @Published var isLoading = false
@@ -26,8 +27,27 @@ final class IntegrationsService: ObservableObject {
     /// App-wide client (auth only, no library scope) — see type doc.
     let client: FicheroClient
 
-    init(client: FicheroClient = .localhost) {
+    init(client: FicheroClient = FicheroClient(baseURL: EngineConfig.host)) {
         self.client = client
+        hostChangeObservation = NotificationCenter.default.addObserver(
+            forName: EngineConfig.engineHostDidChangeNotification,
+            object: nil,
+            queue: nil
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.reconfigureBackendHost()
+            }
+        }
+    }
+
+    deinit {
+        if let hostChangeObservation {
+            NotificationCenter.default.removeObserver(hostChangeObservation)
+        }
+    }
+
+    func reconfigureBackendHost() {
+        client.reconfigure(baseURL: EngineConfig.host)
     }
 
     // MARK: - Response Mapping Helpers

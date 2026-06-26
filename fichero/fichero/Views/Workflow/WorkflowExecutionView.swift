@@ -5,8 +5,8 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Workflo
 
 /// View for monitoring workflow execution threads
 struct WorkflowExecutionView: View {
-    @EnvironmentObject var apiClient: APIClient
-    @StateObject private var executionService = WorkflowExecutionService()
+    @Environment(WorkflowStore.self) private var workflowStore
+    @State private var threads: [ExecutionThread] = []
     @State private var selectedThread: ExecutionThread?
     @State private var isLoading = false
 
@@ -14,8 +14,6 @@ struct WorkflowExecutionView: View {
         threadList
             .task {
                 guard !Task.isCancelled else { return }
-                // Set library path on execution service
-                executionService.setLibraryPath(apiClient.currentLibraryPath)
                 await loadThreads()
             }
             .refreshable {
@@ -24,8 +22,10 @@ struct WorkflowExecutionView: View {
             .sheet(item: $selectedThread) { thread in
                 ThreadDetailSheet(
                     thread: thread,
-                    executionService: executionService,
-                    onRefresh: { await refreshThread(thread.threadId) }
+                    onRefresh: {
+                        await refreshThread(thread.threadId)
+                        await loadThreads()
+                    }
                 )
             }
     }
@@ -33,17 +33,17 @@ struct WorkflowExecutionView: View {
     @ViewBuilder
     private var threadList: some View {
         Group {
-            if isLoading && executionService.threads.isEmpty {
+            if isLoading && threads.isEmpty {
                 ProgressView("Loading threads...")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if executionService.threads.isEmpty {
+            } else if threads.isEmpty {
                 ContentUnavailableView(
                     "No Execution Threads",
                     systemImage: "play.circle",
                     description: Text("Run a workflow to see execution threads here")
                 )
             } else {
-                List(executionService.threads) { thread in
+                List(threads) { thread in
                     ThreadRow(thread: thread)
                         .contentShape(Rectangle())
                         .onTapGesture(count: 2) {
@@ -90,7 +90,7 @@ struct WorkflowExecutionView: View {
         defer { isLoading = false }
 
         do {
-            _ = try await executionService.listThreads()
+            threads = try await workflowStore.listExecutionThreads()
         } catch {
             logger.error("Failed to load threads: \(String(describing: error))")
         }
@@ -98,7 +98,7 @@ struct WorkflowExecutionView: View {
 
     private func refreshThread(_ threadId: String) async {
         do {
-            let updated = try await executionService.getThreadStatus(threadId: threadId)
+            let updated = try await workflowStore.getExecutionStatus(threadId)
             selectedThread = updated
         } catch {
             logger.error("Failed to refresh thread: \(String(describing: error))")
@@ -107,7 +107,7 @@ struct WorkflowExecutionView: View {
 
     private func resumeThread(_ threadId: String) async {
         do {
-            let updated = try await executionService.resumeWorkflow(threadId: threadId)
+            let updated = try await workflowStore.resumeExecution(threadId)
             selectedThread = updated
             await loadThreads()
         } catch {
@@ -117,10 +117,11 @@ struct WorkflowExecutionView: View {
 
     private func deleteThread(_ threadId: String) async {
         do {
-            try await executionService.deleteThread(threadId: threadId)
+            try await workflowStore.deleteExecutionThread(threadId)
             if selectedThread?.threadId == threadId {
                 selectedThread = nil
             }
+            await loadThreads()
         } catch {
             logger.error("Failed to delete thread: \(String(describing: error))")
         }
@@ -166,8 +167,10 @@ struct ThreadRow: View {
             return "pause.circle.fill"
         case .completed:
             return "checkmark.circle.fill"
-        case .failed:
+        case .error, .failed:
             return "exclamationmark.circle.fill"
+        case .cancelled, .stopped, .deleted:
+            return "stop.circle.fill"
         }
     }
 
@@ -179,8 +182,10 @@ struct ThreadRow: View {
             return .orange
         case .completed:
             return .green
-        case .failed:
+        case .error, .failed:
             return .red
+        case .cancelled, .stopped, .deleted:
+            return .orange
         }
     }
 }
@@ -188,7 +193,6 @@ struct ThreadRow: View {
 /// Sheet wrapper for thread details
 struct ThreadDetailSheet: View {
     let thread: ExecutionThread
-    let executionService: WorkflowExecutionService
     let onRefresh: () async -> Void
     @Environment(\.dismiss) private var dismiss
 
@@ -196,7 +200,6 @@ struct ThreadDetailSheet: View {
         NavigationStack {
             ThreadDetailContent(
                 thread: thread,
-                executionService: executionService,
                 onRefresh: onRefresh
             )
             .toolbar {
@@ -212,8 +215,8 @@ struct ThreadDetailSheet: View {
 /// Detail view content for a single execution thread
 struct ThreadDetailContent: View {
     let thread: ExecutionThread
-    let executionService: WorkflowExecutionService
     let onRefresh: () async -> Void
+    @Environment(WorkflowStore.self) private var workflowStore
 
     var body: some View {
         ScrollView {
@@ -259,7 +262,7 @@ struct ThreadDetailContent: View {
                 if thread.status == .paused {
                     Button {
                         Task {
-                            _ = try? await executionService.resumeWorkflow(threadId: thread.threadId)
+                            _ = try? await workflowStore.resumeExecution(thread.threadId)
                             await onRefresh()
                         }
                     } label: {
@@ -300,8 +303,10 @@ struct ThreadDetailContent: View {
             return (.orange, "pause.circle.fill")
         case .completed:
             return (.green, "checkmark.circle.fill")
-        case .failed:
+        case .error, .failed:
             return (.red, "exclamationmark.circle.fill")
+        case .cancelled, .stopped, .deleted:
+            return (.orange, "stop.circle.fill")
         }
     }
 }
@@ -325,5 +330,7 @@ struct DetailRow: View {
 }
 
 #Preview {
+    let library = LibraryManager.shared.globalLibrary!
     WorkflowExecutionView()
+        .environment(library.workflowStore)
 }

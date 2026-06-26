@@ -81,7 +81,7 @@ def _snake_to_lower_camel(value: str) -> str:
     return parts[0].lower() + "".join(p[:1].upper() + p[1:] for p in parts[1:])
 
 
-def _operation_tokens(operation_id: str) -> set[str]:
+def _operation_tokens(operation_id: str, path: str | None = None) -> set[str]:
     """Potential handwritten method-name tokens for an OpenAPI operation.
 
     - raw operationId from openapi
@@ -90,7 +90,16 @@ def _operation_tokens(operation_id: str) -> set[str]:
     """
     op = operation_id.strip()
     snake = re.sub(r"[^A-Za-z0-9]+", "_", op).strip("_").lower()
-    return {op, snake, _snake_to_lower_camel(snake)}
+    tokens = {op, snake, _snake_to_lower_camel(snake)}
+
+    if path and "_api_" in snake:
+        prefix, route_tail = snake.split("_api_", 1)
+        method = route_tail.rsplit("_", 1)[-1]
+        path_snake = re.sub(r"[^A-Za-z0-9]+", "_", path).strip("_").lower()
+        stable = f"{prefix}_{path_snake}_{method}"
+        tokens.update({stable, _snake_to_lower_camel(stable)})
+
+    return tokens
 
 
 def endpoint_specs(openapi_data: dict[str, Any]) -> list[dict[str, Any]]:
@@ -122,7 +131,7 @@ def _is_path_wired(path: str, operations: list[dict[str, str]], src: str) -> boo
 
     for op in operations:
         op_id = op.get("operationId") or ""
-        for token in _operation_tokens(op_id):
+        for token in _operation_tokens(op_id, path):
             if not token:
                 continue
             if re.search(rf"\b{re.escape(token)}\b", src):

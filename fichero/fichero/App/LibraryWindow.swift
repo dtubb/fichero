@@ -1,9 +1,15 @@
+// swiftlint:disable file_length
+#if canImport(AppKit)
 import AppKit
+#endif
 import OSLog
 import SwiftUI
 
+#if os(macOS)
+
 // MARK: - LibraryWindow
 
+// swiftlint:disable type_body_length
 /// Main window view - simplified to just track one library per window
 struct LibraryWindow: View {
     @EnvironmentObject var libraryManager: LibraryManager
@@ -15,55 +21,68 @@ struct LibraryWindow: View {
     // App-wide workflow execution observer (uses @Observable, not ObservableObject)
     @State private var executionObserver = WorkflowExecutionObserver()
 
+    // Observed so the first-run sheet binding is reactive to completion.
+    @ObservedObject private var featureManager = FeatureManager.shared
+
     @State private var hasInitialized = false
     @State private var showingFileImporter = false
+    @State private var hostWindow: NSWindow?
     @SceneStorage("libraryWindow.libraryId") private var persistedLibraryId: String?
+
+    // #2273 per-window state keys (sidebar selection + active lens). ContentView
+    // owns the canonical read/write; LibraryWindow mirrors them so it can
+    //   (a) SEED a freshly duplicated window from a WindowSeed *before* the
+    //       content mounts (ContentView.restorePersistedState reads them on
+    //       appear), and
+    //   (b) READ the live selection/lens when building a WindowSeed for the
+    //       Duplicate Window command (#2262).
+    @SceneStorage("selectedSidebarItem") private var sceneSelectedItemId: String?
+    @SceneStorage("viewModeType") private var sceneViewModeType: String = "library"
+    @SceneStorage("viewModeItemId") private var sceneViewModeItemId: String?
 
     @Environment(\.openWindow) private var openWindow
 
+    /// Seed handed to a window opened via `openWindow(value: WindowSeed)`
+    /// (Duplicate Window, #2262). `nil` for the primary / File ▸ New Window
+    /// path, which keeps its existing pending-library + restore behavior.
+    private let seed: WindowSeed?
+
     let libraryWindowLogger = Logger(subsystem: "app.fichero.fichero", category: "LibraryWindow")
 
-    init() {
+    init(seed: WindowSeed? = nil) {
+        self.seed = seed
         _windowState = StateObject(wrappedValue: WindowState(libraryId: UUID()))
     }
 
-    var body: some View {
+    // Extracted from `body` so the ~40-modifier per-library environment chain
+    // type-checks as its own expression — keeping it inline with the window's
+    // sheet/onChange/focusedSceneValue chain overran the Swift type-checker's
+    // budget once the #2262 Duplicate-Window plumbing was added.
+    @ViewBuilder
+    private var libraryWindowContent: some View {
         Group {
             if let library = windowState.library {
-                DocumentTabView(
-                    libraryId: library.id,
-                    document: Binding(
-                        get: { library.document },
-                        set: { library.document = $0 }
-                    ),
-                    documentURL: libraryManager.isTemporaryLibrary(library.url) ? nil : library.url
+                LibraryWorkspaceRoot(
+                    library: library,
+                    windowState: windowState,
+                    executionObserver: executionObserver
                 )
-                // Note: Removed .id(library.id) to prevent sidebar flash when switching libraries
-                // Environment objects update automatically when windowState.libraryId changes
-                .environmentObject(windowState)
-                // Inject all library services (one instance per library, shared across tabs)
-                .environmentObject(library.documentStore)
-                .environmentObject(library.savedSearchServiceGenerated)
-                .environmentObject(library.searchService)
-                .environmentObject(library.conversationServiceGenerated)
-                .environmentObject(library.chatServiceGenerated)
-                .environmentObject(library.workflowStore)
-                .environmentObject(library.workflowServiceGenerated)
-                .environmentObject(library.workflowStreamService)
-                .environmentObject(library.importService)
-                .environmentObject(library.documentServiceGenerated)
-                .environmentObject(library.storageService)
-                .environmentObject(library.providerService)
-                .environmentObject(library.modelService)
-                .environmentObject(library.artifactService)
-                .environmentObject(library.entityService)
-                .environmentObject(library.researchService)
-                .environment(executionObserver)
             } else {
-                // Welcome screen - no library open yet
-                WelcomeView(onCreateLibrary: createNewLibrary, onOpenLibrary: { showingFileImporter = true })
+                // No library open yet — returning users see a simple create/open prompt.
+                // First-run users are handled by the FirstRunWindow sheet below.
+                noLibraryView
             }
         }
+    }
+
+    // Window chrome (accessor, file importer, scene-value command wiring, titles)
+    // split out so neither this nor the sheet chain below overruns the type-checker.
+    private var libraryWindowChrome: some View {
+        libraryWindowContent
+        .background(WindowAccessor { window in
+            hostWindow = window
+            syncHostWindowMetadata()
+        })
         .fileImporter(
             isPresented: $showingFileImporter,
             allowedContentTypes: [.package],
@@ -71,22 +90,27 @@ struct LibraryWindow: View {
         ) { result in
             handleFileImport(result)
         }
-        .focusedValue(\.openLibraryAction) { showingFileImporter = true }
-        .focusedValue(\.newWindowAction) { handleNewWindow() }
-        .focusedValue(\.newLibraryAction) { handleNewLibrary() }
-        .focusedValue(\.saveLibraryAction) { handleSaveLibrary() }
+        // Scene-scoped so the File-menu commands resolve whenever this window
+        // is key — not only while a descendant view holds keyboard focus.
+        // Plain `.focusedValue` left ⌘N / "New Library…" disabled until some
+        // inner control happened to be focused (#2042). Matches the rest of the
+        // app's menu plumbing (sidebarMode, showInspector, librarySelectAll…).
+        .focusedSceneValue(\.openLibraryAction, FocusedLibraryAction(isEnabled: true, run: { showingFileImporter = true }))
+        .focusedSceneValue(\.newWindowAction, FocusedLibraryAction(isEnabled: true, run: { handleNewWindow() }))
+        .focusedSceneValue(\.duplicateWindowAction, duplicateWindowAction)
+        .focusedSceneValue(\.newLibraryAction, FocusedLibraryAction(isEnabled: true, run: { handleNewLibrary() }))
+        .focusedSceneValue(\.saveLibraryAction, FocusedLibraryAction(isEnabled: true, run: { handleSaveLibrary() }))
+        .focusedSceneValue(\.closeLibraryAction, closeLibraryAction)
         // Keep titlebar chrome minimal; ContentView manages in-window context.
         .navigationTitle("")
         .navigationSubtitle("")
-        // App-level sheets (providers, MCP servers) - must be here to work when no library is open
-        .sheet(isPresented: Binding(
-            get: { appState.showProvidersSettings },
-            set: { appState.showProvidersSettings = $0 }
-        )) {
-            ProvidersSettingsSheet()
-                .environmentObject(appState)
-                .environmentObject(appState.providerService)
-        }
+    }
+
+    // App-level sheet presenters, split out from the onChange chain in `body`.
+    private var libraryWindowSheets: some View {
+        libraryWindowChrome
+        // App-level sheets must be here to work when no library is open.
+        // AI providers/models now live inside the native Settings window (#2586).
         .sheet(isPresented: Binding(
             get: { appState.showAddProvider },
             set: { appState.showAddProvider = $0 }
@@ -108,13 +132,8 @@ struct LibraryWindow: View {
                 .environmentObject(appState)
                 .environmentObject(appState.mcpService)
         }
-        // Standalone notes browser (#1500)
-        .sheet(isPresented: Binding(
-            get: { appState.showNotesBrowser },
-            set: { appState.showNotesBrowser = $0 }
-        )) {
-            NotesBrowserView()
-        }
+        // Notes now live per-document in the inspector's Notes tab
+        // (DocumentNotesTab, #1500) — the standalone browser sheet is retired.
         // Integrations sheets
         .sheet(isPresented: Binding(
             get: { appState.showFolderWatchers },
@@ -146,20 +165,47 @@ struct LibraryWindow: View {
                 icon: "gearshape.2"
             )
         }
+        // First-run onboarding (#1947 — sole first-run path, replaces ContentView sheet).
+        // Triggers as soon as the backend is reachable; stays until the user
+        // clicks Finish (which sets featureManager.firstRunCompleted = true).
+        // The sheet persists while the user progresses through Library / Permissions /
+        // Cloud steps even after a library is assigned (windowState.library != nil).
+        .sheet(isPresented: Binding(
+            get: { appState.isBackendRunning && !featureManager.firstRunCompleted },
+            set: { if !$0 { featureManager.firstRunCompleted = true } }
+        )) {
+            FirstRunWindow()
+                .environmentObject(appState)
+        }
+    }
+
+    var body: some View {
+        libraryWindowSheets
         // React to currentLibraryId changes (from Finder open, etc.)
         // Safari model: switch current window to the new library
         .onChange(of: libraryManager.currentLibraryId) { _, newId in
             guard let id = newId,
                   libraryManager.getLibrary(id: id) != nil else { return }
 
-            // Switch this window to the new library
-            windowState.libraryId = id
+            // Switch this window to the new library. Route through assignLibrary
+            // so the scene's @SceneStorage("libraryWindow.libraryId") stays in
+            // sync — otherwise a window that switched library via Finder open /
+            // Open Recent would restore the STALE library on relaunch (#2273).
+            guard windowState.libraryId != id else { return }
+            assignLibrary(id: id)
             libraryWindowLogger.info("Switched to library: \(id)")
+        }
+        .onChange(of: windowState.libraryId) { _, _ in
+            syncHostWindowMetadata()
+        }
+        .onChange(of: windowState.library?.url) { _, _ in
+            syncHostWindowMetadata()
         }
         .onAppear {
             guard !hasInitialized else { return }
             hasInitialized = true
             initializeWindow()
+            syncHostWindowMetadata()
         }
     }
 
@@ -170,6 +216,28 @@ struct LibraryWindow: View {
             initializeWindow - openLibraries=\(libraryManager.openLibraries.count), \
             currentLibraryId=\(libraryManager.currentLibraryId?.uuidString ?? "nil")
             """)
+
+        // Priority 0: a WindowSeed (Duplicate Window, #2262) clones an existing
+        // window's library + selection + active lens. Write the #2273
+        // scene-storage keys BEFORE the library mounts so ContentView restores
+        // into the cloned state, then assign the seeded library via the shared
+        // assignLibrary path (which also persists it for next launch).
+        if let seed, let resolvedId = resolveSeedLibrary(seed) {
+            sceneSelectedItemId = seed.selectedItemId
+            sceneViewModeType = seed.viewModeType ?? "library"
+            sceneViewModeItemId = seed.viewModeItemId
+            assignLibrary(id: resolvedId)
+            libraryWindowLogger.info("Seeded duplicated window from library: \(resolvedId)")
+            return
+        }
+
+        if let pendingId = libraryManager.pendingWindowLibraryIds.first,
+           libraryManager.getLibrary(id: pendingId) != nil {
+            libraryWindowLogger.info("Consuming pendingWindowLibraryId: \(pendingId)")
+            libraryManager.pendingWindowLibraryIds.removeFirst()
+            assignLibrary(id: pendingId)
+            return
+        }
 
         // Priority 0: Restore the library this scene was showing last time.
         if let persistedLibraryId,
@@ -230,6 +298,43 @@ struct LibraryWindow: View {
         openWindow(id: "main")
     }
 
+    /// Resolve the library a WindowSeed refers to: prefer the already-open
+    /// library by id (the Duplicate Window case — same process, same library),
+    /// falling back to re-opening it from its on-disk path if a restored seed
+    /// outlived the source library being closed.
+    private func resolveSeedLibrary(_ seed: WindowSeed) -> UUID? {
+        if let id = UUID(uuidString: seed.libraryId),
+           libraryManager.getLibrary(id: id) != nil {
+            return id
+        }
+        if let path = seed.libraryPath {
+            return libraryManager.openLibrary(at: URL(fileURLWithPath: path), makeCurrent: false).id
+        }
+        return nil
+    }
+
+    /// Duplicate Window (#2262): clone THIS window's library + selection + lens
+    /// into a brand-new window. Reads the live #2273 scene-storage state and
+    /// hands it to the value-seeded `WindowGroup(for: WindowSeed.self)` via
+    /// `openWindow(value:)`. `nil` when no library is open (menu item disabled).
+    private var duplicateWindowAction: FocusedLibraryAction? {
+        guard windowState.library != nil else { return nil }
+        return FocusedLibraryAction(isEnabled: true, run: { handleDuplicateWindow() })
+    }
+
+    private func handleDuplicateWindow() {
+        guard let library = windowState.library else { return }
+        let seed = WindowSeed(
+            libraryId: library.id.uuidString,
+            libraryPath: libraryManager.isTemporaryLibrary(library.url) ? nil : library.url.path,
+            selectedItemId: sceneSelectedItemId,
+            viewModeType: sceneViewModeType,
+            viewModeItemId: sceneViewModeItemId
+        )
+        openWindow(value: seed)
+        libraryWindowLogger.info("Duplicated window for library: \(library.id)")
+    }
+
     private func handleNewLibrary() {
         let savePanel = NSSavePanel()
         savePanel.allowedContentTypes = [.package]
@@ -244,12 +349,15 @@ struct LibraryWindow: View {
                 ? url
                 : url.appendingPathExtension("fichero")
 
-            // Create unsaved library, immediately save to chosen location, keep in current window.
+            // Create unsaved library, immediately save to chosen location, then
+            // open it in a NEW window (New Library… is distinct from New Window,
+            // which reuses the current library). Reuses the same pending-library
+            // → openWindow("main") affordance as every other open-in-new-window
+            // path (WindowOpener), so the fresh scene picks the library up on init.
             let newLibrary = libraryManager.createNewLibrary()
             do {
                 try libraryManager.saveLibrary(newLibrary.id, to: finalURL)
-                assignLibrary(id: newLibrary.id)
-                libraryManager.currentLibraryId = newLibrary.id
+                WindowOpener.open(libraryId: newLibrary.id, asTab: false, using: openWindow)
                 libraryWindowLogger.info("Created and saved new library: \(finalURL.lastPathComponent)")
             } catch {
                 libraryWindowLogger.error("Failed to create new library: \(error.localizedDescription)")
@@ -277,4 +385,90 @@ struct LibraryWindow: View {
             }
         }
     }
+
+    private var closeLibraryAction: FocusedLibraryAction? {
+        guard let library = windowState.library,
+              library.id != LibraryManager.globalLibraryId else {
+            return nil
+        }
+
+        return FocusedLibraryAction(isEnabled: true, run: {
+            closeLibraryFromCurrentWindow(library)
+        })
+    }
+
+    private func closeLibraryFromCurrentWindow(_ library: LibraryManager.LibraryReference) {
+        let wasCurrent = windowState.libraryId == library.id
+        libraryManager.closeAndUnregisterLibrary(library.id)
+        if wasCurrent {
+            windowState.libraryId = LibraryManager.globalLibraryId
+            persistedLibraryId = LibraryManager.globalLibraryId.uuidString
+        }
+    }
+
+    private func syncHostWindowMetadata() {
+        hostWindow?.representedURL = windowState.library?.url
+    }
 }
+// swiftlint:enable type_body_length
+
+// MARK: - Empty state (no library open, first-run already completed)
+
+private extension LibraryWindow {
+    /// Returning-user empty state: shown when no library is open and the
+    /// first-run wizard has already been completed.  First-time users see
+    /// the FirstRunWindow sheet instead (which handles library creation).
+    var noLibraryView: some View {
+        VStack(spacing: 24) {
+            Image(systemName: "doc.richtext")
+                .font(.largeTitle.weight(.semibold))
+                .foregroundColor(.accentColor)
+
+            Text("Fichero")
+                .font(.largeTitle)
+                .fontWeight(.semibold)
+
+            Text("Create a new library or open an existing one to get started.")
+                .font(.body)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+
+            HStack(spacing: 16) {
+                LibrarySetupActionsRow(
+                    primaryTitle: "New Library",
+                    primaryIcon: "plus",
+                    primaryAction: createNewLibrary,
+                    selectedLabel: nil
+                )
+                .buttonStyle(.borderedProminent)
+
+                Button { showingFileImporter = true } label: {
+                    Label("Open Library", systemImage: "folder")
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(40)
+    }
+}
+
+private struct WindowAccessor: NSViewRepresentable {
+    let onResolve: (NSWindow?) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            onResolve(view.window)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            onResolve(nsView.window)
+        }
+    }
+}
+
+#endif

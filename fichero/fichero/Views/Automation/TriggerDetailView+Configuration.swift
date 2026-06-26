@@ -47,7 +47,7 @@ extension TriggerDetailView {
                             Spacer()
                         }
                         .padding(6)
-                        .background(Color(nsColor: .controlBackgroundColor))
+                        .background(Color(platformColor: .controlBackgroundColor))
                         .cornerRadius(6)
                     }
                 }

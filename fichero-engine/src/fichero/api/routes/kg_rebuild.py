@@ -13,7 +13,7 @@ import logging
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database_for_write
 from fichero.db import Database
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ class KGResetResponse(BaseModel):
     ),
 )
 async def reset_kg(
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> KGResetResponse:
     """Delete all KG rows (entities, claims, links)."""
     from fichero.knowledge_models import KnowledgeEntity, KnowledgeClaim, KnowledgeClaimLink
@@ -75,7 +75,8 @@ class RebuildResponse(BaseModel):
     """Stats describing what got refreshed."""
     entities: int
     claims: int
-    vector_indexed: int
+    entity_vectors_indexed: int
+    claim_vectors_indexed: int
     triples_written: int
 
 
@@ -93,7 +94,7 @@ class RebuildResponse(BaseModel):
 )
 async def rebuild_kg(
     request: RebuildRequest | None = None,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> RebuildResponse:
     """Backfill the KG derived stores from canonical DuckDB rows."""
     from fichero.kg.rebuild import rebuild_kg as do_rebuild

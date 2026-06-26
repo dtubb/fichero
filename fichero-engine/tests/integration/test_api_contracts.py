@@ -85,7 +85,7 @@ class TestOpenAPISchemaValidity:
                         missing_ids.append(f"{method.upper()} {path}")
 
         if missing_ids:
-            pytest.fail(f"Missing operationId:\n" + "\n".join(missing_ids[:10]))
+            pytest.fail("Missing operationId:\n" + "\n".join(missing_ids[:10]))
 
 
 class TestAPIConventions:
@@ -106,7 +106,7 @@ class TestAPIConventions:
 
         if camel_case_params:
             pytest.fail(
-                f"Query params should use snake_case:\n" +
+                "Query params should use snake_case:\n" +
                 "\n".join(camel_case_params[:10])
             )
 
@@ -142,13 +142,13 @@ class TestCriticalEndpoints:
     def test_workflows_list_endpoint(self, client):
         """Workflows list endpoint must exist."""
         response = client.get("/api/workflows")
-        # 200 or 422 (missing library header) are both valid
-        assert response.status_code in [200, 422]
+        # 200 or 400 (missing schema-hidden library header) are both valid.
+        assert response.status_code in [200, 400]
 
     def test_documents_list_endpoint(self, client):
         """Documents list endpoint must exist."""
         response = client.get("/api/documents")
-        assert response.status_code in [200, 422]
+        assert response.status_code in [200, 400]
 
     def test_search_endpoint(self, client):
         """Search endpoint must accept POST."""

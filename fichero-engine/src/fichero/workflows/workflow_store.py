@@ -73,6 +73,8 @@ class WorkflowStore:
         """
         workflow.updated_at = datetime.now()
         self.db.save(workflow)
+        if self.db.get(Workflow, workflow.id) is None:
+            raise RuntimeError(f"Workflow save did not persist row: {workflow.id}")
         logger.info(f"Saved workflow: {workflow.name} ({workflow.id})")
 
     def get(self, workflow_id: str) -> Workflow | None:

@@ -1,7 +1,6 @@
 import Combine
 import FicheroAPIClient
 import Foundation
-import OpenAPIRuntime
 import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "WorkflowStreamService")
@@ -11,15 +10,33 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Workflo
 /// Service for streaming workflow execution events via SSE
 ///
 /// This service is callback-only - it does NOT store events.
-/// All event state is managed by WorkflowExecutionObserver (single source of truth).
+/// Live event state is reduced by the caller into the thread-keyed execution state.
 @MainActor
 class WorkflowStreamService: ObservableObject {
-    private let api: APIClient
-
-    /// Generated client for the plain-JSON REST calls (execute / stop / resume).
-    /// The SSE byte-stream in `subscribeToStream` stays on `api` (raw URLSession) —
-    /// the generated client can't surface a streaming body (#1714).
+    /// Single source for BOTH the generated REST calls (execute / stop / resume)
+    /// AND the SSE byte-stream's host, library path, auth and certificate pinning.
+    ///
+    /// The stream stays on a raw byte sequence (not the generated
+    /// `streamWorkflowEvents…` operation) because that operation buffers its body
+    /// via `getResponseBodyAsJSON` — the OpenAPI schema declares the 200 as
+    /// `application/json`, not a streaming `text/event-stream` body — so it can
+    /// never surface an infinite SSE `HTTPBody` (#1714 / #1943 / #2538).
+    ///
+    /// But the raw path now derives its host (`client.baseURL`), library path
+    /// (`client.currentLibraryPath`), auth (`addEngineAuth`, the same on-disk
+    /// token `AuthTokenMiddleware` reads) and certificate pinning
+    /// (`RemoteCertificatePinning.configuredSession()`, the same factory
+    /// `FicheroClient.makeTransport` uses) from THIS one client — the same one the
+    /// generated calls use. That removes the second `FicheroClient` instance the
+    /// stream used to read from (via `APIClient`), so the streaming transport can
+    /// no longer drift from the generated transport (the #2376 regression).
     private let client: FicheroClient
+    private let executionService: WorkflowExecutionService
+
+    /// Certificate-pinned URLSession reused across stream subscriptions.
+    /// URLSession.bytes(for:) only invokes the delegate challenge handler
+    /// when the session is retained at the class level, not as a per-call local.
+    private let urlSession: URLSession = RemoteCertificatePinning.configuredSession()
 
     /// Current streaming status
     @Published var isStreaming = false
@@ -35,24 +52,13 @@ class WorkflowStreamService: ObservableObject {
 
     private var streamTask: Task<Void, Never>?
 
-    init(apiClient: APIClient, ficheroClient: FicheroClient) {
-        self.api = apiClient
+    init(ficheroClient: FicheroClient) {
         self.client = ficheroClient
+        self.executionService = WorkflowExecutionService(ficheroClient: ficheroClient)
     }
 
     deinit {
         streamTask?.cancel()
-    }
-
-    /// Library header for the library-scoped execution endpoints. Sourced from the
-    /// `APIClient` so it tracks the same per-window library path the SSE path uses.
-    private var libraryHeader: String { api.currentLibraryPath ?? "" }
-
-    /// Build the OpenAPI free-form object container from a JSON-compatible dict,
-    /// round-tripping through JSONSerialization to match the previous encoding.
-    private func objectContainer(fromJSON dict: [String: Any]) throws -> OpenAPIRuntime.OpenAPIObjectContainer {
-        let data = try JSONSerialization.data(withJSONObject: dict)
-        return try JSONDecoder().decode(OpenAPIRuntime.OpenAPIObjectContainer.self, from: data)
     }
 
     // MARK: - Public Methods
@@ -74,6 +80,7 @@ class WorkflowStreamService: ObservableObject {
         inputs: [String: Any] = [:],
         providerOverride: String? = nil,
         modelOverride: String? = nil,
+        onAccepted: ((ExecuteAcceptedResponse) -> Void)? = nil,
         onEvent: ((WorkflowStreamEvent) -> Void)? = nil
     ) async throws -> ExecuteAcceptedResponse {
         // Cancel any existing stream
@@ -82,45 +89,18 @@ class WorkflowStreamService: ObservableObject {
         hadError = false
         isStreaming = true
 
-        // Step 1: POST to /execute to start the workflow (generated client, #1714).
-        let request = Components.Schemas.ExecuteWorkflowRequest(
-            workflowId: workflowId,
-            inputs: .init(additionalProperties: try objectContainer(fromJSON: inputs)),
-            checkpointNs: "",
-            interruptBefore: [],
-            interruptAfter: [],
-            providerOverride: (providerOverride?.isEmpty == false) ? providerOverride : nil,
-            modelOverride: (modelOverride?.isEmpty == false) ? modelOverride : nil
-        )
-
         logger.info("Starting workflow execution: \(workflowId)")
-
-        let executeResponse = try await client.api.executeWorkflowApiWorkflowExecutionExecutePost(.init(
-            headers: .init(xFicheroLibraryPath: libraryHeader),
-            body: .json(request)
-        ))
-
-        // The backend contract is 202 Accepted; map the handshake payload onto the
-        // app model (carries thread_id + stream_url). Other statuses surface as errors.
-        let acceptedResponse: ExecuteAcceptedResponse
-        switch executeResponse {
-        case .accepted(let accepted):
-            let payload = try accepted.body.json
-            acceptedResponse = ExecuteAcceptedResponse(
-                threadId: payload.threadId,
-                workflowId: payload.workflowId,
-                workflowName: payload.workflowName,
-                status: payload.status ?? "accepted",
-                streamUrl: payload.streamUrl
-            )
-        case .unprocessableContent:
-            throw WorkflowStreamError.httpError(statusCode: 422)
-        case .undocumented(let statusCode, _):
-            throw WorkflowStreamError.httpError(statusCode: statusCode)
-        }
+        let acceptedResponse = try await executionService.executeAccepted(
+            workflowId: workflowId,
+            inputs: inputs,
+            providerOverride: providerOverride,
+            modelOverride: modelOverride
+        )
 
         currentThreadId = acceptedResponse.threadId
         logger.info("Workflow execution started, thread: \(acceptedResponse.threadId)")
+
+        onAccepted?(acceptedResponse)
 
         // Step 2: Connect to the stream URL in a separate task
         streamTask = Task { [weak self] in
@@ -133,28 +113,47 @@ class WorkflowStreamService: ObservableObject {
         return acceptedResponse
     }
 
+    /// Subscribe to the live SSE stream for an already-running thread, without
+    /// re-POSTing `/execute`. This is the entry point the Activity monitor uses
+    /// (`WorkflowExecutionStore`, #2546): a run may have been started in another
+    /// window / the Workflow editor, so the only handle we have is its
+    /// `threadId`. The byte stream is built from the SAME `FicheroClient` and the
+    /// SAME live endpoint (`/api/workflow-execution/stream/{threadId}`) that
+    /// `execute(...)` connects to — there is one streaming code path, not two.
+    func subscribe(threadId: String, onEvent: @escaping (WorkflowStreamEvent) -> Void) {
+        streamTask?.cancel()
+        error = nil
+        hadError = false
+        isStreaming = true
+        currentThreadId = threadId
+
+        streamTask = Task { [weak self] in
+            await self?.subscribeToStream(threadId: threadId, onEvent: onEvent)
+        }
+    }
+
     // Subscribe to SSE events for a running workflow thread
     // swiftlint:disable:next function_body_length cyclomatic_complexity
     private func subscribeToStream(
         threadId: String,
         onEvent: ((WorkflowStreamEvent) -> Void)?
     ) async {
-        guard let streamUrl = URL(string: "\(api.baseURL)/workflow-execution/stream/\(threadId)") else {
-            await MainActor.run {
-                self.error = "Invalid stream URL"
-                self.isStreaming = false
-            }
-            return
-        }
-
-        var request = URLRequest(url: streamUrl)
-        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-        request.addEngineAuth(libraryPath: api.currentLibraryPath)
+        // Build the stream URL from the SAME FicheroClient the execute/stop/resume
+        // calls use. `client.baseURL` is the host root; the OpenAPI `/api` prefix
+        // is appended here to match the generated operation paths. Deriving the
+        // host, library path, auth and pinning from this one client keeps the raw
+        // byte stream from drifting off the generated transport (#2376 / #2538).
+        let request = engineEventStreamRequest(
+            baseURL: client.apiBaseURL,
+            pathComponents: ["workflow-execution", "stream", threadId],
+            libraryPath: client.currentLibraryPath
+        )
+        let streamUrl = request.url!
 
         logger.info("Subscribing to event stream: \(streamUrl)")
 
         do {
-            let (bytes, response) = try await URLSession.shared.bytes(for: request)
+            let (bytes, response) = try await urlSession.bytes(for: request)
 
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw WorkflowStreamError.invalidResponse
@@ -230,34 +229,15 @@ class WorkflowStreamService: ObservableObject {
         logger.info("SSE stream cancelled")
     }
 
-    /// Stop a running workflow by deleting its thread
+    /// Stop a running workflow by requesting cancellation
     /// - Parameter threadId: The thread ID to stop
     func stopWorkflow(threadId: String) async throws {
         // First cancel the local stream
         cancelStream()
 
         logger.info("Stopping workflow thread: \(threadId)")
-
-        // Then delete the thread on the backend (generated client, #1714).
-        let response = try await client.api.deleteThreadApiWorkflowExecutionThreadsThreadIdDelete(.init(
-            path: .init(threadId: threadId),
-            headers: .init(xFicheroLibraryPath: libraryHeader)
-        ))
-
-        // 200 = deleted, 404 = already gone (both OK). 404 arrives as `.undocumented`
-        // since the generated contract only documents 200/422.
-        switch response {
-        case .ok:
-            logger.info("Workflow thread stopped: \(threadId)")
-        case .undocumented(let statusCode, _):
-            if statusCode == 404 {
-                logger.info("Workflow thread already gone: \(threadId)")
-            } else {
-                throw WorkflowStreamError.httpError(statusCode: statusCode)
-            }
-        case .unprocessableContent:
-            throw WorkflowStreamError.httpError(statusCode: 422)
-        }
+        try await executionService.stopWorkflow(threadId: threadId)
+        logger.info("Workflow thread stopped: \(threadId)")
     }
 
     /// Resume a paused workflow
@@ -265,21 +245,7 @@ class WorkflowStreamService: ObservableObject {
     func resumeWorkflow(threadId: String, onEvent: ((WorkflowStreamEvent) -> Void)? = nil) async throws {
         logger.info("Resuming workflow thread: \(threadId)")
 
-        // Resume the thread (generated client, #1714). No inputs → no body, matching
-        // the previous empty-body POST. The SSE resubscribe below stays raw URLSession.
-        let response = try await client.api.resumeWorkflowApiWorkflowExecutionThreadsThreadIdResumePost(.init(
-            path: .init(threadId: threadId),
-            headers: .init(xFicheroLibraryPath: libraryHeader)
-        ))
-
-        switch response {
-        case .ok:
-            break
-        case .unprocessableContent:
-            throw WorkflowStreamError.httpError(statusCode: 422)
-        case .undocumented(let statusCode, _):
-            throw WorkflowStreamError.httpError(statusCode: statusCode)
-        }
+        try await executionService.resumeWorkflow(threadId: threadId)
 
         // Resubscribe to the stream
         isStreaming = true

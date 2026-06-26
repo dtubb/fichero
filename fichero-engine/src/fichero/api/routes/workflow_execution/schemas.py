@@ -85,6 +85,10 @@ class SSEEvent(BaseModel):
     file_index: int | None = None
     file_total: int | None = None
     progress: float | None = None  # 0.0 to 1.0
+    document_id: str | None = None
+    page_id: str | None = None
+    display_name: str | None = None
+    sequence: int | None = None
 
 
 def format_sse(event: SSEEvent) -> str:

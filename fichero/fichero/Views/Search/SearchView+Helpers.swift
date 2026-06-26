@@ -1,20 +1,85 @@
+import FicheroAPIClient
 import OSLog
 import SwiftUI
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "SearchView")
 
+enum SearchScope: String, CaseIterable, Identifiable, Codable {
+    case content
+    case entities
+    case claims
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .content:
+            "Content"
+        case .entities:
+            "Entities"
+        case .claims:
+            "Claims"
+        }
+    }
+
+    var helpText: String {
+        switch self {
+        case .content:
+            "Search document text"
+        case .entities:
+            "Search extracted entities"
+        case .claims:
+            "Search extracted claims"
+        }
+    }
+}
+
+struct SearchScopeSelection: Equatable {
+    private(set) var scopes: Set<SearchScope>
+
+    static let all = SearchScopeSelection(scopes: Set(SearchScope.allCases))
+
+    init(scopes: Set<SearchScope>) {
+        self.scopes = scopes.isEmpty ? Set(SearchScope.allCases) : scopes
+    }
+
+    func contains(_ scope: SearchScope) -> Bool {
+        scopes.contains(scope)
+    }
+
+    mutating func toggle(_ scope: SearchScope) {
+        if scopes.contains(scope) {
+            guard scopes.count > 1 else { return }
+            scopes.remove(scope)
+        } else {
+            scopes.insert(scope)
+        }
+    }
+
+    var apiIncludes: [Components.Schemas.SearchInclude] {
+        SearchScope.allCases.compactMap { scope in
+            guard scopes.contains(scope) else { return nil }
+            return Components.Schemas.SearchInclude(rawValue: scope.rawValue)
+        }
+    }
+}
+
 /// Helper methods for SearchView
 extension SearchView {
     func clearFilters() {
         queryText = ""
-        searchResults = []
-        searchError = nil
+        // onChange(of: queryText) fires and delegates to store via performSearch(query:"")
     }
 
     func loadDocument(_ id: String) {
         Task {
             do {
-                var doc: Document = try await apiClient.get("/documents/\(id)")
+                guard let library = libraryManager.getLibrary(id: windowState.libraryId) else {
+                    logger.error("No active library while loading search result document")
+                    return
+                }
+
+                var doc = try await library.documentServiceGenerated.getDocument(id)
                 // Page-child docs have no path of their own — the preview
                 // needs the parent PDF's on-disk path. EditorView resolves
                 // it via documentStore.currentDocuments, but in the search
@@ -24,7 +89,7 @@ extension SearchView {
                 if doc.docType == .page || (doc.path == nil && doc.parentId != nil) {
                     let parentId = doc.parentId ?? (doc.metadata["pdf_parent_id"]?.value as? String)
                     if let parentId {
-                        if let parent: Document = try? await apiClient.get("/documents/\(parentId)"),
+                        if let parent = try? await library.documentServiceGenerated.getDocument(parentId),
                            let parentPath = parent.path, !parentPath.isEmpty {
                             doc.metadata["pdf_path"] = AnyCodable(parentPath)
                             doc.metadata["pdf_parent_id"] = AnyCodable(parentId)
@@ -68,112 +133,51 @@ extension SearchView {
         }
     }
 
-    /// Refresh the indexed-doc count from /api/search/stats so the empty
-    /// state can surface "Index Library" / "X indexed" messaging. Cheap;
-    /// runs on appear and after reindex completion. (#481)
-    @MainActor
-    func loadIndexStats() async {
-        do {
-            let stats = try await searchService.stats()
-            indexedCount = stats.indexedCount
-        } catch {
-            logger.debug("Search stats fetch failed: \(error.localizedDescription)")
-        }
-    }
-
-    /// Trigger a background reindex of the active library. The backend
-    /// endpoint returns immediately; we poll /stats every 3 s while
-    /// indexedCount climbs, until two consecutive polls return the same
-    /// value (settled). (#481)
+    /// Trigger a background reindex and, once settled, re-run the active query.
     @MainActor
     func reindexLibrary() async {
-        guard !isReindexing else { return }
-        isReindexing = true
-        defer { isReindexing = false }
-        do {
-            _ = try await searchService.reindexAll()
-        } catch {
-            logger.error("Reindex kickoff failed: \(error.localizedDescription)")
-            return
-        }
-        // Poll stats. Stop when count stops climbing for two consecutive
-        // polls (i.e. it's settled), or after a generous 5-min cap.
-        var previous: Int = -1
-        var stableTicks = 0
-        let maxTicks = 100  // 5 minutes at 3 s
-        for _ in 0..<maxTicks {
-            try? await Task.sleep(nanoseconds: 3_000_000_000)
-            do {
-                let stats = try await searchService.stats()
-                indexedCount = stats.indexedCount
-                if stats.indexedCount == previous {
-                    stableTicks += 1
-                    if stableTicks >= 2 { break }
-                } else {
-                    stableTicks = 0
-                    previous = stats.indexedCount
-                }
-            } catch {
-                logger.debug("Index poll failed: \(error.localizedDescription)")
-            }
-        }
-        // Re-run the user's query if they have one — search now has data.
+        await searchStore.reindexLibrary()
         if !queryText.trimmingCharacters(in: .whitespaces).isEmpty {
             performSearch()
         }
     }
 
+    /// Dispatch a search via the store. Keeps `displayMode` sync and
+    /// records the query in @SceneStorage history.
     func performSearch() {
         guard !queryText.trimmingCharacters(in: .whitespaces).isEmpty else {
-            searchResults = []
-            searchStats = nil
-            searchError = nil
+            Task { await searchStore.performSearch(query: "") }
             return
         }
 
-        logger.info("Starting enhanced search for: \(queryText)")
-        isSearching = true
-        searchError = nil
+        logger.info("Starting search for: \(queryText)")
+        if displayMode != .list {
+            displayMode = .list
+        }
 
         Task {
-            do {
-                logger.info("Calling searchService.search with enhanced parameters...")
-
-                let response = try await searchService.searchCompatible(
-                    query: queryText,
-                    limit: 50,
-                    minScore: 0.0,  // Backend defaults; UI shows everything ≥ floor.
-                    searchType: "hybrid",
-                    filters: nil,
-                    sortBy: sortBy,
-                    sortOrder: sortDirection,
-                    offset: 0,
-                    useFuzzyMatch: false,
-                    highlightResults: true
-                )
-
-                logger.info("Got \(response.count) results (total: \(response.totalResults))")
-                await MainActor.run {
-                    searchResults = response.results
-                    searchStats = response
-                    isSearching = false
-                    // Record the query in @SceneStorage history once it
-                    // returned a real result set; suppress 'recents'
-                    // pollution when the user is just typing fragments.
-                    if !response.results.isEmpty {
-                        recordRecentSearch(queryText)
-                    }
-                }
-            } catch {
-                logger.error("Search error: \(String(describing: error))")
-                await MainActor.run {
-                    searchError = error.localizedDescription
-                    searchResults = []
-                    searchStats = nil
-                    isSearching = false
-                }
+            await searchStore.performSearch(
+                query: queryText,
+                include: searchScopeSelection.apiIncludes,
+                sortBy: sortBy,
+                sortOrder: sortDirection
+            )
+            if !searchStore.results.isEmpty {
+                recordRecentSearch(queryText)
             }
         }
     }
 
+    func openExcerpt(_ result: SearchResult) {
+        guard let info = SearchResultRowFromAPI.navigationUserInfo(for: result) else {
+            loadDocument(result.documentId)
+            return
+        }
+
+        NotificationCenter.default.post(
+            name: .ficheroOpenClaimSource,
+            object: nil,
+            userInfo: info
+        )
+    }
 }

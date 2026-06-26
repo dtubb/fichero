@@ -8,6 +8,11 @@ struct ChatView: View {
     let displayMode: ViewDisplayMode  // Universal view mode from toolbar
 
     @State var currentConversation: Conversation
+    // Tracks the backend-confirmed conversation ID. Nil until the first
+    // successful response — the backend creates the conversation on first POST
+    // and returns its ID. We must NOT send a client-generated UUID as
+    // conversation_id or the backend returns 404.
+    @State var backendConversationId: String?
     @State var inputText: String = ""
     @State var isLoading: Bool = false
     @State var errorMessage: String?

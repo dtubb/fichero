@@ -1,18 +1,22 @@
-import PDFKit
 import SwiftUI
+#if os(macOS)
+import PDFKit
+#endif
 
 /// Magnifier loupe overlay for PDF pages.
 ///
 /// Renders a circular magnified region at the cursor position using a cached
 /// page thumbnail rendered via PDFKit. Takes a PDF path + page index rather
 /// than a live PDFView reference to keep SwiftUI ownership clear.
+#if os(macOS)
 struct PDFLoupeOverlay: NSViewRepresentable {
-    let pdfPath: String
+    let documentId: String
     let pageIndex: Int
     /// Normalized 0–1 in AppKit coordinates (y = 0 at bottom of view).
     let cursorPosition: CGPoint
     let magnification: CGFloat
     let loupeSize: CGFloat
+    @EnvironmentObject private var storageService: StorageServiceGenerated
 
     func makeNSView(context: Context) -> PDFLoupeNSView {
         let view = PDFLoupeNSView()
@@ -21,12 +25,12 @@ struct PDFLoupeOverlay: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: PDFLoupeNSView, context: Context) {
-        nsView.pdfPath = pdfPath
+        nsView.documentId = documentId
         nsView.pageIndex = pageIndex
         nsView.cursorPosition = cursorPosition
         nsView.magnification = magnification
         nsView.loupeSize = loupeSize
-        nsView.refreshPageImageIfNeeded()
+        nsView.refreshPageImageIfNeeded(storageService: storageService)
         nsView.needsDisplay = true
     }
 }
@@ -34,7 +38,7 @@ struct PDFLoupeOverlay: NSViewRepresentable {
 // MARK: - PDFLoupeNSView
 
 final class PDFLoupeNSView: NSView {
-    var pdfPath: String = ""
+    var documentId: String = ""
     var pageIndex: Int = 0
     var cursorPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)
     var magnification: CGFloat = 3.0
@@ -42,20 +46,50 @@ final class PDFLoupeNSView: NSView {
 
     private var cachedPageImage: NSImage?
     private var cachedKey: String = ""
+    private var loadTask: Task<Void, Never>?
 
-    /// Re-renders the page thumbnail only when path or page index changes.
-    func refreshPageImageIfNeeded() {
-        let key = "\(pdfPath):\(pageIndex)"
+    deinit {
+        loadTask?.cancel()
+    }
+
+    /// Re-renders the page thumbnail only when document or page index changes.
+    func refreshPageImageIfNeeded(storageService: StorageServiceGenerated) {
+        let key = "\(documentId):\(pageIndex)"
         guard key != cachedKey else { return }
         cachedKey = key
         cachedPageImage = nil
-        guard !pdfPath.isEmpty,
-              let doc = PDFDocument(url: URL(fileURLWithPath: pdfPath)),
-              pageIndex >= 0, pageIndex < doc.pageCount,
-              let page = doc.page(at: pageIndex) else { return }
-        let pageRect = page.bounds(for: .mediaBox)
-        let renderSize = CGSize(width: pageRect.width * 2.0, height: pageRect.height * 2.0)
-        cachedPageImage = page.thumbnail(of: renderSize, for: .mediaBox)
+        loadTask?.cancel()
+        guard !documentId.isEmpty else { return }
+        let documentId = documentId
+        let pageIndex = pageIndex
+        loadTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let data = try await storageService.getSourceData(documentId)
+                let image = await Self.renderPageImage(data: data, pageIndex: pageIndex)
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    self.cachedPageImage = image
+                    self.needsDisplay = true
+                }
+            } catch {
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    self.needsDisplay = true
+                }
+            }
+        }
+    }
+
+    private static func renderPageImage(data: Data, pageIndex: Int) async -> NSImage? {
+        await Task.detached(priority: .userInitiated) {
+            guard let doc = PDFDocument(data: data),
+                  pageIndex >= 0, pageIndex < doc.pageCount,
+                  let page = doc.page(at: pageIndex) else { return nil }
+            let pageRect = page.bounds(for: .mediaBox)
+            let renderSize = CGSize(width: pageRect.width * 2.0, height: pageRect.height * 2.0)
+            return page.thumbnail(of: renderSize, for: .mediaBox)
+        }.value
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -114,3 +148,18 @@ final class PDFLoupeNSView: NSView {
         crosshairPath.stroke()
     }
 }
+#endif
+
+/// iOS placeholder — the macOS PDF loupe uses NSViewRepresentable;
+/// an iPad-native loupe belongs in the iPad UI pass.
+#if !os(macOS)
+struct PDFLoupeOverlay: View {
+    let documentId: String
+    let pageIndex: Int
+    let cursorPosition: CGPoint
+    let magnification: CGFloat
+    let loupeSize: CGFloat
+
+    var body: some View { Color.clear }
+}
+#endif

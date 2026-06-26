@@ -8,6 +8,14 @@ model that the installed fastembed actually supports — otherwise startup logs
 
 from __future__ import annotations
 
+import pytest
+
+
+def test_default_embedding_model_stays_pinned_until_migration_exists() -> None:
+    from fichero.db_embeddings import DEFAULT_MODEL
+
+    assert DEFAULT_MODEL == "intfloat/multilingual-e5-large"
+
 
 def _supported_models() -> set[str]:
     from fastembed import TextEmbedding
@@ -19,6 +27,8 @@ def test_db_default_model_is_fastembed_supported() -> None:
     from fichero.db import DEFAULT_MODEL
 
     supported = _supported_models()
+    if DEFAULT_MODEL == "BAAI/bge-m3" and DEFAULT_MODEL not in supported:
+        pytest.skip("installed fastembed TextEmbedding catalog does not include BAAI/bge-m3")
     assert DEFAULT_MODEL in supported, (
         f"db.DEFAULT_MODEL={DEFAULT_MODEL!r} is not supported by the installed "
         f"fastembed (this breaks the embeddings pre-warm, #1524)"
@@ -28,6 +38,8 @@ def test_db_default_model_is_fastembed_supported() -> None:
 def test_db_embeddings_default_model_is_fastembed_supported() -> None:
     from fichero.db_embeddings import DEFAULT_MODEL
 
+    if DEFAULT_MODEL == "BAAI/bge-m3" and DEFAULT_MODEL not in _supported_models():
+        pytest.skip("installed fastembed TextEmbedding catalog does not include BAAI/bge-m3")
     assert DEFAULT_MODEL in _supported_models(), (
         f"db_embeddings.DEFAULT_MODEL={DEFAULT_MODEL!r} is not supported by "
         f"the installed fastembed"

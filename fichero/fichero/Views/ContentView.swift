@@ -7,7 +7,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Content
 
 /// Identifies which main pane has keyboard focus for Tab cycling
 enum PaneFocus: Hashable {
-    case sidebar, content, preview, inspector
+    case sidebar, content, preview, reading, inspector
 }
 
 // Main content view with three-column navigation
@@ -21,39 +21,55 @@ enum PaneFocus: Hashable {
 // - ContentView+Persistence: State serialization for @SceneStorage
 // swiftlint:disable:next type_body_length
 struct ContentView: View {
-    static let inspectorMinWidth: Double = 250
-    static let inspectorMaxWidth: Double = 1000
+    #if os(macOS)
+    static let defaultColumnVisibility: NavigationSplitViewVisibility = .all
+    static let defaultColumnVisibilityRaw: Int = 2 // .all
+    #else
+    static let defaultColumnVisibility: NavigationSplitViewVisibility = .detailOnly
+    static let defaultColumnVisibilityRaw: Int = 1 // .detailOnly
+    #endif
+    /// Column the split view roots at when collapsed on compact width
+    /// (#2329/#2334). `.detail` lands compact width on the library/search
+    /// workspace so iPhone starts in the one-view-at-a-time flow instead of
+    /// the folder tree.
+    static let defaultPreferredCompactColumn: NavigationSplitViewColumn = .detail
+    static let sidebarMinWidth: Double = 160
+    static let inspectorMinWidth: Double = 220
+    static let inspectorMaxWidth: Double = 420
     static let contentMinWidth: Double = 520
     static let contentMaxWidth: Double = 2200
     /// Minimum width of the widescreen content-list pane. Clamped to the
     /// view-mode icon rail width so the rail and list rows (thumbnail + text)
-    /// can't be dragged narrow enough to clip (#1243). #1477 added the Sort
-    /// menu + Filter button to that same rail, so the floor was widened to
-    /// keep them from clipping at the trailing edge. Rail: 4 mode icons × 40pt
-    /// + Sort + Filter + MiniToolbar padding (12×2) + spacing ≈ 300.
-    static let contentListMinWidth: Double = 300
+    /// can't be dragged narrow enough to clip (#1243). The sort/filter tools
+    /// now overflow into a trailing menu when the rail gets tight (#1733), so
+    /// the list can shrink far enough to let the adaptive thumbnail grid fall
+    /// to a single column again (#1734).
+    nonisolated static let contentListMinWidth: Double = 220
     /// Minimum width of the flexible PDF canvas pane so its mini-toolbar
     /// (zoom −/%/+, fit, actual-size, magnifier, loupe + two dividers) never
     /// clips when the reading-surface dividers are dragged inward. The
     /// resizable neighbours are already clamped by their ResizableDividers;
     /// this guards the one `.frame(maxWidth: .infinity)` pane that otherwise
     /// has no floor. (#1454)
-    static let pdfCanvasMinWidth: Double = 360
+    nonisolated static let pdfCanvasMinWidth: Double = 360
+    nonisolated static let readingPaneMinWidth: Double = 220
 
     // MARK: - Environment
 
     @EnvironmentObject var viewSettings: ViewSettings
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var apiClient: APIClient
-    @EnvironmentObject var documentStore: DocumentStore
+    @Environment(DocumentStore.self) var documentStore: DocumentStore
     @EnvironmentObject var conversationService: ConversationServiceGenerated
     @EnvironmentObject var importService: ImportServiceGenerated
     @EnvironmentObject var windowState: WindowState
-    @EnvironmentObject var workflowStore: WorkflowStore
+    @Environment(WorkflowStore.self) var workflowStore
     @EnvironmentObject var savedSearchService: SavedSearchServiceGenerated
     @EnvironmentObject var workflowStreamService: WorkflowStreamService
     @Environment(WorkflowExecutionObserver.self) var executionObserver
     @Environment(KGFocusState.self) var kgFocusState
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    @Environment(\.openWindow) var openWindow
     @EnvironmentObject var claimFocusState: ClaimFocusState
     @EnvironmentObject var researchService: ResearchService
 
@@ -62,21 +78,30 @@ struct ContentView: View {
     // Runtime state - full objects for use in views
     @State var viewMode: AppViewMode = .library(nil)
     @State var detailDocument: Document?
+    @State private var focusedDocument = FocusedDocument.shared
     /// The page document currently in view, updated only by scroll/page-flip
     /// events. Drives the inspector without re-rooting the WebKit pane (#1463).
     @State var pageFocusDocument: Document?
-    @State var columnVisibility: NavigationSplitViewVisibility = .all
+    @State var columnVisibility: NavigationSplitViewVisibility = ContentView.defaultColumnVisibility
+    /// Which column the split view roots at when it COLLAPSES to a stack on
+    /// compact width (#2329/#2334). `.detail` lands a phone on the document
+    /// list/reader, with the sidebar (folder tree + library picker) one
+    /// swipe-back away. Inert at regular width / macOS, where the split never
+    /// collapses. SwiftUI mutates this as the user navigates the stack.
+    @State var preferredCompactColumn: NavigationSplitViewColumn = ContentView.defaultPreferredCompactColumn
     @State var browserSelection: Set<String> = []
+    @State var sidebarSelectionState = SidebarSelectionState()
 
     // Persisted state (@SceneStorage) - synced via .onAppear and .onChange
     @SceneStorage("selectedSidebarItem") var selectedSidebarItemId: String?
-    @SceneStorage("columnVisibilityRaw") var columnVisibilityRaw: Int = 2 // 2 = .all
+    @SceneStorage("columnVisibilityRaw") var columnVisibilityRaw: Int = ContentView.defaultColumnVisibilityRaw
     @SceneStorage("browserSelectionData") var browserSelectionData: Data = Data()
     @SceneStorage("viewModeType") var storedViewModeType: String = "library"
     @SceneStorage("viewModeItemId") var storedViewModeItemId: String?
 
     // Workflow state
     @State var editingWorkflow: Workflow = Workflow(name: "New Workflow", description: "")
+    @State private var workflowReloadTask: Task<Void, Never>?
 
     // Chat state (shared between ChatView and ChatInspectorView)
     @State var chatSelectedDocuments: Set<String> = []
@@ -110,6 +135,7 @@ struct ContentView: View {
     // sidebar/inspector toggles), so selection never remounts or hides panes.
     @SceneStorage("showDocumentCanvas") var showDocumentCanvas: Bool = true
     @SceneStorage("showReadingPane") var showReadingPane: Bool = true
+    @State var measuredWindowWidth: Double = 0
     // When false (default), selecting a different item NEVER changes which
     // panes are visible — a folder shows the same panes as a PDF. The visible
     // pane set is the user's choice (the toggles above). Opt in to the old
@@ -132,7 +158,7 @@ struct ContentView: View {
 
     @StateObject var itemRegistry = ItemTypeRegistry()
     @StateObject var performanceService = PerformanceService()
-    @StateObject var documentScrollSync = DocumentScrollSyncState()
+    @State var documentScrollSync = DocumentScrollSyncState()
     @State var toolbarSearchText: String = ""
     @State var navigationHistory = AppNavigationHistory()
     @State var isRestoringNavigationHistory = false
@@ -144,6 +170,15 @@ struct ContentView: View {
 
     // Pane focus state for Tab cycling
     @FocusState var focusedPane: PaneFocus?
+
+    // NOTE: the toolbar's contextual Delete button was removed. Reading
+    // `@FocusedValue(\.libraryDeleteSelection)` HERE (ContentView hosts
+    // LibraryView in its detail column) closed an infinite invalidation loop:
+    // LibraryView re-allocates that NON-Equatable closure every body pass →
+    // republishes the focused value → invalidates this reader → re-renders the
+    // detail column → LibraryView body again → ~97% CPU at idle. Re-add Delete
+    // to the toolbar only via a STABLE/Equatable focused value (Binding<Bool> or
+    // an Equatable action wrapper), never a fresh closure. (#2032 / frame ①)
 
     // Drag and drop state
     @State var isDropTargeted = false
@@ -188,10 +223,12 @@ struct ContentView: View {
                         }
                         .keyboardShortcut("r", modifiers: [.command])
 
+                        #if canImport(AppKit)
                         Button("Quit") {
                             NSApplication.shared.terminate(nil)
                         }
                         .keyboardShortcut("q", modifiers: [.command])
+                        #endif
                     }
                     .padding(.top, 10)
                 }
@@ -237,14 +274,6 @@ struct ContentView: View {
             }
             return .ignored
         }
-        .sheet(isPresented: Binding(
-            get: { appState.isBackendRunning && !featureManager.firstRunCompleted },
-            set: { if !$0 { featureManager.firstRunCompleted = true } }
-        )) {
-            FirstRunWindow()
-                .environmentObject(appState)
-                .environmentObject(apiClient)
-        }
         .alert(item: $errorService.currentAlert) { errorModel in
             let message = errorModel.recoverySuggestion != nil ?
                 "\(errorModel.message)\n\n\(errorModel.recoverySuggestion!)" :
@@ -270,10 +299,16 @@ struct ContentView: View {
     /// Main app content (when backend is connected)
     @ViewBuilder
     private var mainContentView: some View {
-        // Inspector is a window-level sibling of NavigationSplitView so it
-        // persists across all view modes (#1199). The HStack wrapper keeps the
-        // inspector column stable while NavigationSplitView handles sidebar +
-        // content navigation entirely within its detail column.
+        let inspectorIsPresented = Binding(
+            get: { effectiveShowInspectorSidebar },
+            set: { showInspectorSidebar = $0 }
+        )
+        // Inspector is a NATIVE SwiftUI `.inspector()` column attached to the
+        // NavigationSplitView, so it persists across all view modes (#1199) AND
+        // the unified window toolbar/title spans it correctly — trailing toolbar
+        // items sit above the inspector instead of the toolbar overrunning it
+        // (#2033). It replaced the former window-level HStack sibling, which
+        // macOS painted the toolbar across (the bug Daniel saw).
         //
         // The split-view column itself carries a very long chained-modifier
         // list (toolbar + ~16 .onChange/.onReceive handlers). To keep any single
@@ -281,19 +316,45 @@ struct ContentView: View {
         // budget, that chain is broken across two intermediate properties:
         // `navigationSplitColumn` (NavigationSplitView + first half of modifiers)
         // and `decoratedNavigationSplitColumn` (the remaining modifiers).
-        HStack(spacing: 0) {
-            decoratedNavigationSplitColumn
-
-            if showInspectorSidebar {
-                ResizableDivider(
-                    width: $inspectorWidth,
-                    minWidth: ContentView.inspectorMinWidth,
-                    maxWidth: ContentView.inspectorMaxWidth
-                )
-                detailView
-                    .frame(width: CGFloat(inspectorWidth))
+        decoratedNavigationSplitColumn
+            .adaptiveInspector(placement: inspectorPlacement, isPresented: inspectorIsPresented) {
+                inspectorContainerView
             }
-        } // end HStack — inspector is window-level, not inside NavigationSplitView (#1199)
+            // Measure the real container width before the outer min-width
+            // clamp, otherwise the reader only ever sees the framed width.
+            .background(windowWidthReader)
+            .frame(
+                minWidth: CGFloat(shellWindowMinWidth),
+                maxWidth: .infinity,
+                maxHeight: .infinity
+            )
+            .popover(
+                item: $detailDocument,
+                attachmentAnchor: .rect(.bounds),
+                arrowEdge: .trailing
+            ) { document in
+                VStack(spacing: 0) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "doc.text.magnifyingglass")
+                            .foregroundStyle(.secondary)
+                        Text(document.name)
+                            .font(.headline)
+                            .lineLimit(1)
+                        Spacer(minLength: 0)
+                        DetachInspectorButton(isEnabled: true) {
+                            focusedDocument.select(document, libraryId: windowState.libraryId)
+                            openWindow(id: "document-detail")
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .frame(height: MiniToolbar<EmptyView, EmptyView>.standardHeight)
+
+                    Divider()
+
+                    DocumentInspector(document: document)
+                }
+                .frame(minWidth: 360, minHeight: 420)
+            }
 
         // Listen for claim selection from inspector and sync to other panes
         .onReceive(NotificationCenter.default.publisher(for: .claimSelectedInInspector)) { notification in
@@ -303,31 +364,73 @@ struct ContentView: View {
         }
     }
 
+    @ViewBuilder
+    private var windowWidthReader: some View {
+        GeometryReader { geo in
+            Color.clear
+                .onAppear {
+                    handleWindowWidthChange(geo.size.width)
+                }
+                .onChange(of: geo.size.width) { _, newWidth in
+                    handleWindowWidthChange(newWidth)
+                }
+        }
+    }
+
+    /// The NavigationSplitView detail column (centerContent + its modifiers).
+    /// Extracted from `navigationSplitColumn` so neither `some View` expression
+    /// exceeds the Swift type-checker's complexity budget (#"unable to type-check
+    /// this expression in reasonable time").
+    @ViewBuilder
+    private var detailColumn: some View {
+        detailShellColumn
+            .toolbar { detailToolbarContent }
+            // The detail column carries only a MODEST hard floor — the
+            // always-present library-list spine width — NOT the full
+            // per-layout `paneAwareDetailMinWidth`. The full content
+            // reservation lives on the window-min frame in `mainContentView`
+            // (sidebar + detail). Pinning the FULL detail min here made
+            // NavigationSplitView sacrifice the SIDEBAR (whose column min
+            // yields first under pressure) whenever the window narrowed below
+            // sidebar+detail — the sidebar collapsed/disappeared. With a small
+            // floor the sidebar always keeps its `.navigationSplitViewColumnWidth`
+            // min and the CONTENT shrinks/scrolls instead (frame ① bug-fix).
+            .frame(minWidth: CGFloat(ContentView.contentListMinWidth), maxWidth: .infinity)
+            // Publish the per-window inspector binding from the detail
+            // column (always present) rather than the sidebar, which leaves
+            // the hierarchy when collapsed and made ⌘⌥I no-op (#1513/#1451).
+            .focusedSceneValue(\.showInspector, $showInspectorSidebar)
+            // Publish the reading-surface pane toggles so the View menu can
+            // mirror the toolbar buttons for each pane (#1215).
+            .focusedSceneValue(\.showDocumentGrid, $showDocumentGrid)
+            .focusedSceneValue(\.showDocumentCanvas, $showDocumentCanvas)
+            .focusedSceneValue(\.showReadingPane, $showReadingPane)
+            .focusedSceneValue(
+                \.navigationUndoAction,
+                FocusedLibraryAction(isEnabled: navigationHistory.canGoBack, run: navigateBack)
+            )
+    }
+
     /// NavigationSplitView + the FIRST half of its modifier chain.
     /// Split out of `mainContentView` so no single `some View` expression
     /// exceeds the Swift type-checker's complexity budget (#"unable to
     /// type-check this expression in reasonable time").
     @ViewBuilder
     private var navigationSplitColumn: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
+        NavigationSplitView(
+            columnVisibility: $columnVisibility,
+            preferredCompactColumn: $preferredCompactColumn
+        ) {
             sidebarContent
         } detail: {
-            centerContent
-                .frame(minWidth: CGFloat(ContentView.contentMinWidth), maxWidth: .infinity)
-                // Publish the per-window inspector binding from the detail
-                // column (always present) rather than the sidebar, which leaves
-                // the hierarchy when collapsed and made ⌘⌥I no-op (#1513/#1451).
-                .focusedSceneValue(\.showInspector, $showInspectorSidebar)
-                // Publish the reading-surface pane toggles so the View menu can
-                // mirror the toolbar buttons for each pane (#1215).
-                .focusedSceneValue(\.showDocumentGrid, $showDocumentGrid)
-                .focusedSceneValue(\.showDocumentCanvas, $showDocumentCanvas)
-                .focusedSceneValue(\.showReadingPane, $showReadingPane)
+            detailColumn
         }
-        // Avoid duplicate generic per-column title pills in macOS split view.
         .navigationTitle(toolbarTitle)
-        .toolbar(removing: .sidebarToggle)
-        .onAppear { handleOnAppear() }
+        .modifier(NavigationSubtitleCompat(subtitle: breadcrumbSubtitle))
+        .onAppear {
+            handleOnAppear()
+            syncFocusedDocumentSelection(detailDocument)
+        }
         .onChange(of: documentStore.collections) { old, new in
             handleCollectionsChange(old: old, new: new)
         }
@@ -358,7 +461,8 @@ struct ContentView: View {
     @ViewBuilder
     private var decoratedNavigationSplitColumn: some View {
         navigationSplitColumn
-            .onChange(of: selectedSidebarItemId) { _, newFolderId in
+            .onChange(of: sidebarSelectionState.selectedItemId) { _, newFolderId in
+                selectedSidebarItemId = newFolderId
                 handleSidebarSelectionChange(newFolderId)
             }
             .onChange(of: sidebarMode) { _, _ in
@@ -374,11 +478,14 @@ struct ContentView: View {
                 handleBrowserSelectionChange(newSelection)
             }
             .onChange(of: detailDocument) { _, newDoc in
+                syncFocusedDocumentSelection(newDoc)
                 handleDetailDocumentChange(newDoc)
             }
+            #if canImport(AppKit)
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
                 handleWillTerminate()
             }
+            #endif
             .onReceive(NotificationCenter.default.publisher(for: .ficheroEntitySearchRequested)) { note in
                 handleEntitySearchRequested(note)
             }
@@ -393,6 +500,14 @@ struct ContentView: View {
             }
             .onChange(of: viewDisplayMode) { _, newMode in
                 handleViewDisplayModeChange(newMode)
+            }
+            .onChange(of: workflowStore.changeToken) { _, _ in
+                workflowReloadTask?.cancel()
+                workflowReloadTask = Task {
+                    try? await Task.sleep(for: .milliseconds(300))
+                    guard !Task.isCancelled else { return }
+                    await workflowStore.loadWorkflows()
+                }
             }
             .modifier(
                 MainContentModifiers(
@@ -417,35 +532,116 @@ struct ContentView: View {
                 )
             )
     }
+
+    /// Detail-column toolbar content split out to keep the `NavigationSplitView`
+    /// detail closure small enough for the Swift type-checker.
+    @ToolbarContentBuilder
+    private var detailToolbarContent: some ToolbarContent {
+        contentPaneToolbarContent
+        // Inspector toggle in the content section. .automatic on the detail
+        // column view lands in the content-column toolbar section (#2309).
+        trailingToolbarContent
+        // Centred context label. .principal on the detail column centres
+        // within the content section — visually near window centre at
+        // typical sidebar widths (#2309).
+        principalToolbarContent
+    }
+
+    @ViewBuilder
+    private var inspectorContainerView: some View {
+        if usesDockedInspector {
+            #if os(visionOS)
+            detailView
+                // Inspector toggle in the INSPECTOR SECTION (far right).
+                // Attaching to the inspector panel content (rather than the
+                // detail column) places the button in the trailing inspector
+                // section of the unified toolbar instead of the content
+                // section. NavigationSplitView does not auto-remove column
+                // toolbar contributions when a column is hidden, so the
+                // toggle remains visible even when the inspector is closed
+                // — same mechanism as the sidebar-section buttons (#2309).
+                .toolbar {
+                    if showInspectorToggle {
+                        ToolbarItem(placement: .primaryAction) {
+                            inspectorToggleButton
+                        }
+                    }
+                }
+            #else
+            detailView
+                // Inspector toggle in the INSPECTOR SECTION (far right).
+                // Attaching to the inspector panel content (rather than the
+                // detail column) places the button in the trailing inspector
+                // section of the unified NSToolbar instead of the content
+                // section. NavigationSplitView does not auto-remove column
+                // toolbar contributions when a column is hidden, so the
+                // toggle remains visible even when the inspector is closed
+                // — same mechanism as the sidebar-section buttons (#2309).
+                .toolbar {
+                    if showInspectorToggle {
+                        ToolbarItem(placement: .primaryAction) {
+                            inspectorToggleButton
+                        }
+                    }
+                }
+                .inspectorColumnWidth(
+                    min: CGFloat(ContentView.inspectorMinWidth),
+                    ideal: 300,
+                    max: CGFloat(ContentView.inspectorMaxWidth)
+                )
+            #endif
+        } else {
+            // Compact width (iPhone): the adaptive presenter routes the
+            // inspector into the collapsed navigation stack, so it pushes from
+            // the right and participates in back-swipe / back-button history.
+            // This branch supplies ONLY the inspector content; the presenter
+            // owns the stack-vs-docked choice outside this builder.
+            detailView
+        }
+    }
 }
 
 // MARK: - Toolbar Content
 
 extension ContentView {
+    @ViewBuilder
+    func toolbarToggleIcon(_ systemName: String, isActive: Bool) -> some View {
+        Image(systemName: systemName)
+            .symbolVariant(isActive ? .fill : .none)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 3)
+            .background(
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(isActive ? Color.primary.opacity(0.1) : Color.clear)
+            )
+    }
+
+    // MARK: Zoned toolbar (Mail-style)
+    //
+    // The window toolbar is organised into ACTION zones separated by flexible
+    // spacers, modelled on Apple Mail (#2032). Presentation controls ("how it's
+    // shown" — layout/view-mode pickers, library/canvas/reading pane toggles)
+    // do NOT live here; they are in the View menu (ViewMenuCommands:
+    // LibraryLayoutSection / PreviewModeSection / PaneVisibilitySection). The
+    // main toolbar is verbs only.
+    //
+    // `mainToolbarContent` is a thin dispatcher to three bounded
+    // `@ToolbarContentBuilder` sub-properties so no single builder grows large
+    // enough to risk a type-check timeout.
     @ToolbarContentBuilder
     var mainToolbarContent: some ToolbarContent {
-        // Mode icon + title in toolbar center — updates on every sidebar/view-mode change (#323).
-        // @ToolbarContentBuilder has no view-chain budget limit, so Label compiles cleanly here.
-        ToolbarItem(placement: .principal) {
-            Label(toolbarTitle, systemImage: toolbarIcon)
-                .labelStyle(.titleAndIcon)
-                .font(.headline)
-        }
+        // LEADING zone — back/forward history (content-column toolbar).
+        leadingToolbarContent
+    }
 
+    /// LEADING zone: back/forward history navigation in the content-column toolbar.
+    @ToolbarContentBuilder
+    private var leadingToolbarContent: some ToolbarContent {
         ToolbarItemGroup(placement: .navigation) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    showSidebar.toggle()
-                }
-            } label: {
-                Image(systemName: "sidebar.left")
-            }
-            .help(showSidebar ? "Hide Sidebar" : "Show Sidebar")
-
             Button {
                 navigateBack()
             } label: {
-                Image(systemName: "chevron.backward")
+                Label("Back", systemImage: "chevron.backward")
             }
             .help("Back (⌘[)")
             .keyboardShortcut("[", modifiers: [.command])
@@ -454,295 +650,185 @@ extension ContentView {
             Button {
                 navigateForward()
             } label: {
-                Image(systemName: "chevron.forward")
+                Label("Forward", systemImage: "chevron.forward")
             }
             .help("Forward (⌘])")
             .keyboardShortcut("]", modifiers: [.command])
             .disabled(!navigationHistory.canGoForward)
         }
+    }
 
-        // Left side: Layout picker, View mode picker, Plus button
-        // Conditional based on sidebar mode
-        if showNavigationToolbar {
-            ToolbarItemGroup(placement: .navigation) {
-                // Layout mode picker (None/Standard/Widescreen) - only for modes with preview.
-                // Disabled when a folder is the active detail: centerContent forces layout
-                // to .none for folders (per #749), so any picker change is a silent no-op.
-                // Greyed out makes the dead-state obvious to the user (#787).
-                if showLayoutPicker {
-                    Picker("Layout", selection: $currentLayoutMode) {
-                        ForEach(availableLayoutModes) { mode in
-                            Label(mode.rawValue, systemImage: mode.icon)
-                                .labelStyle(.iconOnly)
-                                .tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .help("Layout: \(currentLayoutMode.rawValue)")
-                    .onChange(of: currentLayoutMode) { _, newMode in
-                        withAnimation {
-                            // Sync toolbar with View menu previewMode
-                            let requestedMode: PreviewMode = switch newMode {
-                            case .none: .none
-                            case .standard: .standard
-                            case .widescreen: .widescreen
-                            }
-                            viewSettings.previewMode = normalizedPreviewMode(requestedMode)
-                        }
-                    }
-                }
-
-                // View display mode picker (icon/list/table/map) — only when the
-                // current mode supports multiple presentations and more than one
-                // option is available. Syncs with viewSettings.libraryLayout so
-                // the View menu checkmark stays in sync (#1215).
-                //
-                // De-duplicated (#1446): in Library/Search the same control is
-                // already rendered as the in-content mode rail (horizontalModeStrip),
-                // so suppress the toolbar copy there. The toolbar picker remains the
-                // sole view-mode control for modes that have no mode rail (e.g.
-                // Workflows), where `showModeRail` is false.
-                if showViewModePicker && availableViewDisplayModes.count > 1 && !showModeRail {
-                    Picker("View", selection: $viewDisplayMode) {
-                        ForEach(availableViewDisplayModes) { mode in
-                            Label(mode.label, systemImage: mode.icon)
-                                .labelStyle(.iconOnly)
-                                .tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .help("View: \(viewDisplayMode.label)")
-                }
-
-                // Add menu (Plus button)
-                AddItemMenu(registry: itemRegistry, style: .button)
-                    .help("Add new item (⌘N)")
-
-                if featureManager.isWorkflowsEnabled && featureManager.isWorkflowRunOnSelectionEnabled {
-                    // Snapshot selection at Menu-render time so Button actions use
-                    // these captured IDs even if focus shifts after the menu opens.
-                    // Exclude folder docs — passing a folder ID to the backend expands
-                    // it to all children, which is the "On Collection" path, not "On Selection".
-                    // In search mode, currentDocuments may be empty (search uses a
-                    // separate result set), so a raw browserSelection passes through
-                    // unchanged — search results are file docs by construction, not
-                    // folders, so the folder-exclusion guard is unnecessary there.
-                    let isSearchMode: Bool = {
-                        if case .search = viewMode { return true }
-                        return false
-                    }()
-                    let capturedSelectionIds: [String] = !browserSelection.isEmpty
-                        ? (isSearchMode
-                            ? Array(browserSelection)
-                            : browserSelection.filter { id in
-                                documentStore.currentDocuments.first { $0.id == id }?.docType != .folder
-                            })
-                        : (detailDocument.flatMap { $0.docType == .folder ? nil : [$0.id] } ?? [])
-                    let collectionFiles = documentStore.currentDocuments.filter { $0.docType == .file }
-                    let hasCollection = !collectionFiles.isEmpty
-                    let sortedWorkflows = workflowStore.workflows.sorted {
-                        $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-                    }
-                    Menu {
-                        if workflowStore.workflows.isEmpty {
-                            Text("No workflows available")
-                        } else {
-                            if !capturedSelectionIds.isEmpty {
-                                Section("On Selection") {
-                                    ForEach(sortedWorkflows, id: \.id) { workflow in
-                                        Menu(workflow.name) {
-                                            Button("Default") {
-                                                runWorkflowOnSelection(
-                                                    workflowId: workflow.id,
-                                                    preselectedIds: capturedSelectionIds
-                                                )
-                                            }
-                                            ForEach(workflowRunProviderCache.providers.filter { $0.available }) { provider in
-                                                if provider.models.isEmpty {
-                                                    Button(provider.name) {
-                                                        runWorkflowOnSelection(
-                                                            workflowId: workflow.id,
-                                                            preselectedIds: capturedSelectionIds,
-                                                            providerOverride: provider.id
-                                                        )
-                                                    }
-                                                } else {
-                                                    Menu(provider.name) {
-                                                        ForEach(provider.models, id: \.self) { model in
-                                                            Button(model) {
-                                                                runWorkflowOnSelection(
-                                                                    workflowId: workflow.id,
-                                                                    preselectedIds: capturedSelectionIds,
-                                                                    providerOverride: provider.id,
-                                                                    modelOverride: model
-                                                                )
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            if hasCollection {
-                                Section("On Collection (\(collectionFiles.count))") {
-                                    ForEach(sortedWorkflows, id: \.id) { workflow in
-                                        Menu(workflow.name) {
-                                            Button("Default") {
-                                                runWorkflowOnCollection(workflowId: workflow.id)
-                                            }
-                                            ForEach(workflowRunProviderCache.providers.filter { $0.available }) { provider in
-                                                if provider.models.isEmpty {
-                                                    Button(provider.name) {
-                                                        runWorkflowOnCollection(
-                                                            workflowId: workflow.id,
-                                                            providerOverride: provider.id
-                                                        )
-                                                    }
-                                                } else {
-                                                    Menu(provider.name) {
-                                                        ForEach(provider.models, id: \.self) { model in
-                                                            Button(model) {
-                                                                runWorkflowOnCollection(
-                                                                    workflowId: workflow.id,
-                                                                    providerOverride: provider.id,
-                                                                    modelOverride: model
-                                                                )
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            if capturedSelectionIds.isEmpty && !hasCollection {
-                                Text("Select a document or open a collection")
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    } label: {
-                        Label("Run Workflow", systemImage: "play.square.stack")
-                    }
-                    .onAppear {
-                        Task { @MainActor in
-                            await workflowRunProviderCache.ensureLoaded(
-                                chatService: LibraryManager.shared.globalLibrary?.chatServiceGenerated
-                            )
-                        }
-                    }
-                    .help("Run Workflow on Selection or Collection")
-                    .disabled(
-                        workflowStore.workflows.isEmpty
-                        || (capturedSelectionIds.isEmpty && !hasCollection)
-                    )
-                }
+    /// TRAILING zone: activity status (#2309).
+    /// The inspector toggle moved to the `.inspector()` panel's toolbar so
+    /// macOS places it in the inspector section (far right) rather than the
+    /// content section (see `mainContentView`).
+    @ToolbarContentBuilder
+    private var trailingToolbarContent: some ToolbarContent {
+        #if !os(macOS)
+        if showInspectorToggle && !usesDockedInspector {
+            ToolbarItem(placement: .topBarTrailing) {
+                inspectorToggleButton
             }
         }
+        #endif
 
-        // Search entry point lives in the system .searchable modifier
-        // applied to mainContentView (below). On macOS that renders as
-        // a Finder-style magnifying-glass that expands to a search
-        // field — placed by the system to the right of the trailing
-        // toolbar items. We keep it system-rendered (one consistent
-        // bar) instead of having a custom .principal field competing
-        // with SearchView's own .searchable.
-
-        // Library pane toggle — hides/shows the icon-grid/list middle column.
-        // In widescreen this does not change the canvas/reading pane set.
+        // Activity / error status — sits between the title and the inspector section.
         ToolbarItem(placement: .automatic) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    showDocumentGrid.toggle()
+            HStack(spacing: 6) {
+                if isImporting {
+                    ProgressView()
+                        .controlSize(.small)
+                        .help(importProgress ?? "Importing…")
                 }
-            } label: {
-                Image(systemName: showDocumentGrid ? "rectangle.split.2x1" : "rectangle")
+                if importError != nil {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundStyle(.red)
+                        .help(importError ?? "Import error")
+                        .onTapGesture { importError = nil }
+                }
             }
-            .help(showDocumentGrid ? "Hide Library Pane (⌘⇧G)" : "Show Library Pane (⌘⇧G)")
-            .keyboardShortcut("g", modifiers: [.command, .shift])
         }
 
-        // Per-window show/hide for the document canvas and the reading/WebKit
-        // pane (#1448). Keep these controls present throughout Library/Search,
-        // even when the current layout is None/Standard, so panes are a stable
-        // user choice rather than selection/layout side effects.
+        #if !os(macOS)
+        ToolbarItem(placement: .primaryAction) {
+            platformViewMenuButton
+        }
+        #endif
+    }
+
+    @ToolbarContentBuilder
+    private var contentPaneToolbarContent: some ToolbarContent {
         if supportsReadingWorkspace {
-            ToolbarItem(placement: .automatic) {
+            ToolbarItemGroup(placement: .automatic) {
                 Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        let next = ReadingWorkspacePaneTogglePolicy.toggledPane(
-                            layoutMode: currentLayoutMode,
-                            paneFlag: showDocumentCanvas
-                        )
-                        currentLayoutMode = next.layoutMode
-                        showDocumentCanvas = next.paneVisible
-                        viewSettings.previewMode = normalizedPreviewMode(.widescreen)
-                    }
+                    showDocumentGrid.toggle()
                 } label: {
-                    Image(systemName: "doc.richtext")
+                    Label("Library Pane", systemImage: showDocumentGrid ? "sidebar.left" : "sidebar.left")
                 }
-                .help(
-                    ReadingWorkspacePaneTogglePolicy.isPaneVisible(
-                        layoutMode: currentLayoutMode,
-                        paneFlag: showDocumentCanvas
-                    )
-                        ? "Hide Document Canvas"
-                        : "Show Document Canvas"
-                )
-            }
+                .help(showDocumentGrid ? "Hide library pane" : "Show library pane")
 
-            ToolbarItem(placement: .automatic) {
                 Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        let next = ReadingWorkspacePaneTogglePolicy.toggledPane(
-                            layoutMode: currentLayoutMode,
-                            paneFlag: showReadingPane
-                        )
-                        currentLayoutMode = next.layoutMode
-                        showReadingPane = next.paneVisible
-                        viewSettings.previewMode = normalizedPreviewMode(.widescreen)
-                    }
+                    setCanvasPaneVisible(!showDocumentCanvas)
                 } label: {
-                    Image(systemName: "text.book.closed")
+                    Label("Preview Pane", systemImage: showDocumentCanvas ? "rectangle.center.inset.filled" : "rectangle")
                 }
-                .help(
-                    ReadingWorkspacePaneTogglePolicy.isPaneVisible(
-                        layoutMode: currentLayoutMode,
-                        paneFlag: showReadingPane
-                    )
-                        ? "Hide Reading Pane"
-                        : "Show Reading Pane"
-                )
+                .help(showDocumentCanvas ? "Hide preview pane" : "Show preview pane")
+
+                Button {
+                    setReadingPaneVisible(!showReadingPane)
+                } label: {
+                    Label("Reading Pane", systemImage: showReadingPane ? "text.book.closed.fill" : "text.book.closed")
+                }
+                .help(showReadingPane ? "Hide reading pane" : "Show reading pane")
             }
         }
+    }
 
-        // Inspector toggle at the trailing edge of the toolbar — the
-        // Finder/Notes/Xcode convention (#1229 part 1). Uses
-        // `sidebar.right` to match the View-menu InspectorButton; the
-        // old `info.circle` collided with the inspector's own Info-tab
-        // icon and read as "info" rather than "inspector".
-        // The ⌘⌥I shortcut is owned by the View-menu command
-        // (ViewMenuCommands.InspectorButton) — not re-bound here to
-        // avoid a duplicate key binding.
-        // NOTE: a true window-corner placement (flush with the window's
-        // trailing edge, over the inspector pane) is deferred — the
-        // inspector is a window-level HStack sibling of
-        // NavigationSplitView (#1199), so the unified toolbar can't span
-        // it without the #1199 window-layout rework.
-        if showInspectorToggle {
-            ToolbarItem(placement: .automatic) {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        showInspectorSidebar.toggle()
-                    }
-                } label: {
-                    Image(systemName: "sidebar.right")
-                }
-                .help(showInspectorSidebar ? "Hide Inspector (⌘⌥I)" : "Show Inspector (⌘⌥I)")
+    #if !os(macOS)
+    @ViewBuilder
+    private var platformViewMenuButton: some View {
+        Menu {
+            ViewMenuCommands()
+                .environmentObject(viewSettings)
+        } label: {
+            Label("View", systemImage: "rectangle.split.3x1")
+        }
+        .help("Choose visible panes and document views")
+    }
+    #endif
+
+    private var inspectorToggleButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                showInspectorSidebar.toggle()
+            }
+        } label: {
+            Label {
+                Text("Inspector")
+            } icon: {
+                toolbarToggleIcon("sidebar.right", isActive: showInspectorSidebar)
             }
         }
+        .help(showInspectorSidebar ? "Hide Inspector (⌘⌥I)" : "Show Inspector (⌘⌥I)")
+    }
+
+    /// PRINCIPAL zone: breadcrumb lozenge + scoped search (#2309/#2039).
+    /// Layout: [Library Name] > [item icon + title] [search current content]
+    /// The whole breadcrumb sits in a subtle rounded-rect lozenge with
+    /// extra horizontal padding so it reads as a single interactive label.
+    @ToolbarContentBuilder
+    private var principalToolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .principal) {
+            let libraryName: String? = {
+                guard case .library(let doc) = viewMode, doc != nil else { return nil }
+                return LibraryManager.shared.getLibrary(id: windowState.libraryId)?.displayName
+            }()
+
+            HStack(spacing: 4) {
+                HStack(spacing: 4) {
+                    if let libraryName {
+                        HStack(spacing: 3) {
+                            Image(systemName: "books.vertical")
+                                .imageScale(.small)
+                            Text(libraryName)
+                                .font(.subheadline)
+                        }
+                        .foregroundStyle(.secondary)
+
+                        Image(systemName: "chevron.right")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+
+                    HStack(spacing: 3) {
+                        Image(systemName: toolbarIcon)
+                            .imageScale(.small)
+                        Text(toolbarTitle)
+                            .font(.headline)
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(.primary)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.primary.opacity(0.06))
+                )
+
+                TextField("Search \(toolbarTitle)", text: $toolbarSearchText)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 220)
+                    .onSubmit {
+                        runToolbarSearch(toolbarSearchText)
+                    }
+                    .help("Search current content")
+            }
+        }
+    }
+
+    private func syncFocusedDocumentSelection(_ document: Document?) {
+        if let document {
+            focusedDocument.select(document, libraryId: windowState.libraryId)
+        } else {
+            focusedDocument.clear()
+        }
+    }
+}
+
+// MARK: - Platform compat
+
+/// `.navigationSubtitle` is unavailable in visionOS. This applies it on the
+/// platforms that support it (macOS/iOS) and is a no-op on visionOS, so the
+/// window-title breadcrumb (#2425) compiles for every target.
+private struct NavigationSubtitleCompat: ViewModifier {
+    let subtitle: String
+    func body(content: Content) -> some View {
+        #if os(visionOS)
+        content
+        #else
+        content.navigationSubtitle(subtitle)
+        #endif
     }
 }
 

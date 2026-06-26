@@ -60,8 +60,17 @@ def _build_prompt(detail_level: str, focus: str) -> str:
     """Build the description prompt."""
     detail_instructions = {
         "brief": "Provide a brief, one-sentence description.",
-        "detailed": "Provide a detailed description covering main elements, composition, and context.",
-        "comprehensive": "Provide a comprehensive description including all visible elements, their relationships, colors, textures, lighting, and any text or symbols.",
+        "detailed": (
+            "Provide a detailed visual description covering what is depicted, "
+            "layout, figures, handwriting versus print, condition, composition, "
+            "and context."
+        ),
+        "comprehensive": (
+            "Provide a comprehensive visual description including all visible "
+            "elements, their relationships, layout, figures, handwriting versus "
+            "print, physical condition, colors, textures, lighting, and any text "
+            "or symbols."
+        ),
     }
 
     prompt = f"""Describe this image.
@@ -139,7 +148,7 @@ async def describe(
         task_id=state.get("task_id"),
         tool_config=TOOL_CONFIG,
         # Vision-specific
-        vision_mode="llm",  # Describe always uses LLM
+        vision_mode=inputs.get("vision_mode", "llm"),
         max_image_dimension=inputs.get("max_image_dimension", 2048),
         # Inherited from BASE_CONFIG
         temperature=inputs.get("temperature"),

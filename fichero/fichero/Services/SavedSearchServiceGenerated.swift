@@ -40,7 +40,6 @@ class SavedSearchServiceGenerated: ObservableObject {
         )
 
         let response = try await client.api.saveSearchApiSearchSavedPost(.init(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(request)
         ))
 
@@ -54,9 +53,7 @@ class SavedSearchServiceGenerated: ObservableObject {
 
     /// List all saved searches.
     func listSavedSearches() async throws -> [SavedSearchAPI] {
-        let response = try await client.api.listSavedSearchesApiSearchSavedGet(.init(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
-        ))
+        let response = try await client.api.listSavedSearchesApiSearchSavedGet(.init())
 
         switch response {
         case .ok(let okResponse):
@@ -71,7 +68,6 @@ class SavedSearchServiceGenerated: ObservableObject {
     func deleteSavedSearch(_ id: String) async throws {
         let response = try await client.api.deleteSavedSearchApiSearchSavedSearchIdDelete(.init(
             path: .init(searchId: id),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         ))
 
         switch response {
@@ -88,7 +84,6 @@ class SavedSearchServiceGenerated: ObservableObject {
     func duplicateSavedSearch(_ id: String) async throws -> SavedSearchAPI {
         let response = try await client.api.duplicateSavedSearchApiSearchSavedSearchIdDuplicatePost(.init(
             path: .init(searchId: id),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         ))
 
         switch response {
@@ -138,7 +133,6 @@ class SavedSearchServiceGenerated: ObservableObject {
 
         let response = try await client.api.updateSavedSearchApiSearchSavedSearchIdPut(.init(
             path: .init(searchId: id),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(request)
         ))
 
@@ -173,7 +167,6 @@ class SavedSearchServiceGenerated: ObservableObject {
         // Note: The generated API expects just an array of search IDs as the body
         let response = try await client.api.reorderSavedSearchesApiSearchSavedReorderPost(.init(
             query: .init(folderPath: folderPath),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(searchIds)
         ))
 

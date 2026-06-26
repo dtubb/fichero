@@ -164,15 +164,51 @@ final class DocumentModelTests: XCTestCase {
         XCTAssertTrue(decoded.value is NSNull)
     }
 
+    // MARK: - Sibling Image Navigation (#2420)
+
+    func testNavigableSiblingsIncludesOnlyImagesAndPagesWhenCurrentIsImage() {
+        let image1 = makeDocument(id: "img-1", fileType: .image)
+        let image2 = makeDocument(id: "img-2", fileType: .image)
+        let pdf = makeDocument(id: "pdf-1", fileType: .pdf)
+        let text = makeDocument(id: "txt-1", fileType: .text)
+        let siblings = navigableFolderSiblings(for: image1, in: [image1, pdf, image2, text])
+        XCTAssertEqual(siblings.map(\.id), ["img-1", "img-2"])
+    }
+
+    func testNavigableSiblingsIncludesOnlyImagesAndPagesWhenCurrentIsPage() {
+        let page1 = makeDocument(id: "page-1", docType: .page)
+        let page2 = makeDocument(id: "page-2", docType: .page)
+        let pdf = makeDocument(id: "pdf-1", fileType: .pdf)
+        let siblings = navigableFolderSiblings(for: page1, in: [pdf, page1, page2])
+        XCTAssertEqual(siblings.map(\.id), ["page-1", "page-2"])
+    }
+
+    func testNavigableSiblingsIncludesAllDocumentsWhenCurrentIsNotImageOrPage() {
+        let pdf = makeDocument(id: "pdf-1", fileType: .pdf)
+        let image = makeDocument(id: "img-1", fileType: .image)
+        let text = makeDocument(id: "txt-1", fileType: .text)
+        let siblings = navigableFolderSiblings(for: pdf, in: [pdf, image, text])
+        XCTAssertEqual(siblings.map(\.id), ["pdf-1", "img-1", "txt-1"])
+    }
+
+    func testNavigableSiblingsPreservesDisplayOrder() {
+        let image1 = makeDocument(id: "img-1", fileType: .image)
+        let image2 = makeDocument(id: "img-2", fileType: .image)
+        let image3 = makeDocument(id: "img-3", fileType: .image)
+        let siblings = navigableFolderSiblings(for: image2, in: [image1, image2, image3])
+        XCTAssertEqual(siblings.map(\.id), ["img-1", "img-2", "img-3"])
+    }
+
     // MARK: - Helper
 
     private func makeDocument(
+        id: String = "test-id",
         docType: DocType = .file,
         fileType: FileType? = nil,
         metadata: [String: AnyCodable] = [:]
     ) -> Document {
         Document(
-            id: "test-id",
+            id: id,
             parentId: nil,
             docType: docType,
             fileType: fileType,

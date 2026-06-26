@@ -39,14 +39,20 @@ import asyncio
 import base64
 import contextlib
 import contextvars
+import hashlib
+import inspect
+import json
 import logging
 import os
 import re
 import threading
-from collections.abc import Iterator
+import weakref
+from collections import OrderedDict
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import AsyncIterator, Any, Literal as _Literal
 
+from langchain_core.language_models.chat_models import BaseChatModel
 from pydantic import BaseModel
 
 from fichero.llm_models import (  # noqa: F401 (re-exported)
@@ -77,6 +83,95 @@ logger = logging.getLogger(__name__)
 _usage_collector: contextvars.ContextVar[list[dict[str, Any]] | None] = (
     contextvars.ContextVar("fichero_llm_usage", default=None)
 )
+
+_DEFAULT_MAX_INFLIGHT_LLM = 6
+_LANGCHAIN_MODEL_CACHE_SIZE = 16
+
+_REMOTE_LLM_SEMAPHORE: asyncio.Semaphore | None = None
+_REMOTE_LLM_SEMAPHORE_LIMIT: int | None = None
+_REMOTE_LLM_SEMAPHORE_LOCK = threading.Lock()
+
+_ModelCacheKey = tuple[
+    str,
+    str,
+    float,
+    int,
+    int,
+    str,
+    str,
+    str,
+    str,
+    str,
+]
+_LANGCHAIN_MODEL_CACHE: weakref.WeakKeyDictionary[
+    Any, OrderedDict[_ModelCacheKey, Any]
+] = weakref.WeakKeyDictionary()
+_LANGCHAIN_MODEL_CACHE_NO_LOOP: OrderedDict[_ModelCacheKey, Any] = OrderedDict()
+_LANGCHAIN_MODEL_CACHE_LOCK = threading.Lock()
+
+# Process-level cache of RESOLVED provider API keys (#2545, M1 — 100k-image
+# hardening). The resolved key is part of the model-cache key, so it is looked
+# up BEFORE every model-cache lookup; at 100k images × N LLM nodes that is
+# hundreds of thousands of synchronous Keychain round-trips. We cache the
+# resolved value keyed on the exact `provider` string passed to get_api_key()
+# (the only input it takes — see get_api_key). Different providers never collide
+# because they get distinct dict keys. We cache None too, so a genuinely missing
+# key is not re-read on every call; callers MUST clear the cache when a
+# credential is created/rotated/deleted (see clear_api_key_cache).
+# Ceiling: one entry per provider string seen — bounded by the provider set, so
+# no eviction/TTL machinery is warranted beyond the existing lock.
+_API_KEY_CACHE: dict[str, str | None] = {}
+_API_KEY_CACHE_LOCK = threading.Lock()
+
+
+def clear_api_key_cache(provider: str | None = None) -> None:
+    """Invalidate the resolved-API-key cache.
+
+    Call whenever a provider credential is created, updated, rotated, or
+    deleted so the next resolution re-reads the Keychain/env instead of serving
+    a stale key. Pass ``provider`` to clear just that entry, or omit to clear
+    everything.
+
+    TODO(#2545): hook this into the provider-key write paths that own those
+    files — ``fichero/api/routes/provider_keys.py`` (``set_api_key`` /
+    ``delete_api_key`` actions, ~L97/L114) and
+    ``fichero/api/routes/providers.py`` (~L296/L548/L550) — so rotations bust
+    the cache automatically. This lane may not edit those files (other lanes
+    own them); until then those write paths must call this function.
+    """
+    with _API_KEY_CACHE_LOCK:
+        if provider is None:
+            _API_KEY_CACHE.clear()
+        else:
+            _API_KEY_CACHE.pop(provider, None)
+
+# Content-addressed result cache for vision (and future LLM) calls (#2224).
+# Keyed by SHA-256 of (provider, model, prompt, per-image content hashes).
+# Caps at 1 000 entries with FIFO eviction. Thread-safe via a lock.
+_LLM_RESULT_CACHE: dict[str, str] = {}
+_LLM_RESULT_CACHE_LOCK = threading.Lock()
+_LLM_RESULT_CACHE_MAX = 1000
+
+
+def _vision_cache_key(config: "LLMConfig", prompt: str, images: list[str]) -> str:
+    """Return a stable SHA-256 cache key for a vision call.
+
+    Base64 data URIs are digested by payload only so the key stays short
+    regardless of image size; URLs are used verbatim (already compact).
+    """
+    def _img_digest(img: str) -> str:
+        if img.startswith("data:"):
+            payload = img.split(",", 1)[-1]
+            return hashlib.sha256(payload.encode()).hexdigest()[:16]
+        return img
+
+    key_obj = {
+        "provider": config.provider,
+        "model": config.model,
+        "prompt": prompt,
+        "images": [_img_digest(img) for img in images],
+    }
+    return hashlib.sha256(json.dumps(key_obj, sort_keys=True).encode()).hexdigest()
 
 
 @contextlib.contextmanager
@@ -236,7 +331,20 @@ class LLMConfig:
 # =============================================================================
 
 
-_MODEL_ALIASES = {"$small", "$medium", "$large"}
+_TEXT_MODEL_ALIASES = {"$small", "$medium", "$large"}
+_VISION_MODEL_ALIASES = {"$vision_small", "$vision_medium", "$vision_large"}
+_MODEL_ALIASES = _TEXT_MODEL_ALIASES | _VISION_MODEL_ALIASES
+_MODEL_PROFILE_PREFIXES = ("$profile:", "profile:")
+
+
+def extract_model_profile_reference(value: str | None) -> str | None:
+    """Extract a model profile id/name from a provider-style reference."""
+    raw = (value or "").strip()
+    for prefix in _MODEL_PROFILE_PREFIXES:
+        if raw.startswith(prefix):
+            ref = raw[len(prefix):].strip()
+            return ref or None
+    return None
 
 
 class AppleUnavailableError(RuntimeError):
@@ -337,6 +445,44 @@ class ProviderQuotaError(RuntimeError):
         )
 
 
+class LocalOnlyViolationError(RuntimeError):
+    """Raised when local-only mode would otherwise call a remote provider."""
+
+    def __init__(self, provider: str, *, model: str | None = None, kind: str = "llm"):
+        self.provider = provider
+        self.model = model
+        self.kind = kind
+        model_label = f"/{model}" if model else ""
+        super().__init__(
+            "Local-only AI mode is enabled; refusing "
+            f"{kind} call to remote provider {provider}{model_label}. "
+            "Choose an on-device/local provider or disable FICHERO_LOCAL_ONLY."
+        )
+
+
+class LLMBatchItemError(RuntimeError):
+    """One item inside a batched LLM call failed."""
+
+    def __init__(
+        self,
+        index: int,
+        *,
+        provider: str,
+        model: str,
+        kind: str,
+        cause: BaseException,
+    ) -> None:
+        self.index = index
+        self.provider = provider
+        self.model = model
+        self.kind = kind
+        self.cause = cause
+        super().__init__(
+            f"{kind} batch item {index} failed for {provider}/{model}: "
+            f"{type(cause).__name__}: {cause}"
+        )
+
+
 _PROVIDER_QUOTA_HITS: set[str] = set()
 _PROVIDER_QUOTA_HITS_LOCK = threading.Lock()
 
@@ -430,6 +576,23 @@ def _is_provider_quota_error(exc: BaseException) -> tuple[bool, int | None, str]
     message = _extract_exc_message(exc)
     lower = message.lower()
 
+    # Context-length errors can match broad quota phrases (e.g. "limit exceeded")
+    # but are NOT billing failures — the caller should retry with a shorter prompt
+    # or a model with a bigger context window, not skip the provider entirely.
+    context_length_keywords = (
+        "context length",
+        "context_length",
+        "maximum context",
+        "context window",
+        "token limit",
+        "maximum length",
+        "tokens in the input",
+        "too long for",
+        "max_tokens",
+    )
+    if any(token in lower for token in context_length_keywords):
+        return False, status_code, message
+
     quota_keywords = (
         "insufficient_quota",
         "insufficient quota",
@@ -467,8 +630,20 @@ def _raise_provider_quota_error(
     ) from exc
 
 
-def resolve_model_alias(provider: str, model: str) -> tuple[str, str]:
-    """Resolve $small / $medium / $large aliases against app-level settings.
+def _alias_tier(raw_alias: str) -> str:
+    tier = raw_alias[1:]
+    if tier.startswith("vision_"):
+        return tier
+    return tier
+
+
+def resolve_model_alias(
+    provider: str,
+    model: str,
+    *,
+    required_capability: str | None = None,
+) -> tuple[str, str]:
+    """Resolve configured model aliases against app-level settings.
 
     Returns the input pair unchanged when not an alias. Raises ValueError
     with an actionable message when the alias is used but the matching
@@ -483,6 +658,20 @@ def resolve_model_alias(provider: str, model: str) -> tuple[str, str]:
     if raw not in _MODEL_ALIASES:
         return (provider, model)
 
+    capability = (required_capability or "").strip().lower()
+    if raw in _TEXT_MODEL_ALIASES and capability == "vision":
+        raise ValueError(
+            f"{raw} is a text-tier model alias and cannot be used for vision "
+            "workflow nodes. Use $vision_small, $vision_medium, or "
+            "$vision_large, or choose a concrete vision-capable provider/model."
+        )
+    if raw in _VISION_MODEL_ALIASES and capability and capability != "vision":
+        raise ValueError(
+            f"{raw} is a vision-tier model alias and cannot be used for "
+            f"{capability} workflow nodes. Use $small, $medium, or $large "
+            "for text nodes, or choose a concrete capable provider/model."
+        )
+
     env_provider = os.environ.get(f"FICHERO_{raw[1:].upper()}_PROVIDER")
     env_model = os.environ.get(f"FICHERO_{raw[1:].upper()}_MODEL")
     if env_provider and env_model:
@@ -490,17 +679,175 @@ def resolve_model_alias(provider: str, model: str) -> tuple[str, str]:
 
     from fichero.app_db import get_app_db
     db = get_app_db()
-    tier = raw[1:]
+    tier = _alias_tier(raw)
     resolved_provider = db.get_setting(f"default_{tier}_provider")
     resolved_model = db.get_setting(f"default_{tier}_model")
 
     if not resolved_provider or not resolved_model:
+        label = tier.replace("_", " ")
         raise ValueError(
-            f"Workflow node uses {raw} but no default {tier} model is "
-            f"configured. Set one in Settings → AI Defaults → "
-            f"Default {tier} model."
+            f"Workflow node uses {raw} but no Default {label} model is "
+            "configured. Set one in Settings → AI Defaults."
         )
     return (resolved_provider, resolved_model)
+
+
+def _model_has_capability(
+    provider: str,
+    model: str,
+    required_capability: str,
+) -> bool | None:
+    """Return model capability support when saved model metadata exists.
+
+    ``None`` means no saved metadata was found, so callers should fall back to
+    provider-level capability metadata.
+    """
+    try:
+        from fichero.app_db import get_app_db
+
+        db = get_app_db()
+        provider_key = (provider or "").strip().lower()
+        model_key = (model or "").strip()
+        for saved_provider in db.list_providers():
+            provider_type = getattr(saved_provider, "provider_type", "")
+            provider_type_value = getattr(provider_type, "value", str(provider_type))
+            if str(provider_type_value).strip().lower() != provider_key:
+                continue
+            for saved_model in db.list_models(saved_provider.id):
+                if getattr(saved_model, "model_id", "") != model_key:
+                    continue
+                capabilities = [
+                    str(cap).strip().lower()
+                    for cap in (getattr(saved_model, "capabilities", None) or [])
+                ]
+                if not capabilities:
+                    return None
+                if required_capability in {"llm", "text"}:
+                    return "text" in capabilities or "llm" in capabilities
+                return required_capability in capabilities
+    except Exception as exc:
+        logger.debug("Model capability lookup failed for %s/%s: %s", provider, model, exc)
+    return None
+
+
+def validate_model_capability(
+    provider: str,
+    model: str,
+    *,
+    required_capability: str | None,
+) -> None:
+    """Validate concrete provider/model metadata for a required capability."""
+    capability = (required_capability or "").strip().lower()
+    if not capability:
+        return
+
+    if capability == "vision":
+        from fichero.providers import get_provider_info
+
+        provider_info = get_provider_info((provider or "").strip().lower())
+        if provider_info and not provider_info.supports_vision:
+            raise ValueError(
+                f"Provider {provider} does not support vision. Choose a "
+                "vision-capable provider/model for this workflow node."
+            )
+
+    model_support = _model_has_capability(provider, model, capability)
+    if model_support is False:
+        label = "text" if capability in {"llm", "text"} else capability
+        raise ValueError(
+            f"Model {provider}/{model} is not marked as {label}-capable. "
+            f"Choose a {label}-capable model for this workflow node."
+        )
+
+
+def _profile_role_matches_capability(profile_role: str, capability: str | None) -> bool:
+    role = (profile_role or "").strip().lower()
+    required = (capability or "").strip().lower()
+    if role == "general" or not required:
+        return True
+    if required == "llm":
+        required = "text"
+    return role == required
+
+
+def resolve_model_profile_for_capability(
+    profile_ref: str,
+    *,
+    base_config: LLMConfig | None = None,
+    required_capability: str | None,
+) -> LLMConfig:
+    """Resolve a named profile and enforce role/capability/privacy policy."""
+    from fichero.app_db import get_app_db
+    from fichero.model_profiles import (
+        ModelProfileNotFoundError,
+        enforce_model_profile_privacy,
+        llm_config_from_profile,
+    )
+
+    ref = (profile_ref or "").strip()
+    embedded_ref = extract_model_profile_reference(ref)
+    if embedded_ref:
+        ref = embedded_ref
+    if not ref:
+        raise ModelProfileNotFoundError(profile_ref)
+
+    db = get_app_db()
+    profile = db.get_model_profile(ref) or db.get_model_profile_by_name(ref)
+    if profile is None:
+        raise ModelProfileNotFoundError(ref)
+    if not _profile_role_matches_capability(profile.role.value, required_capability):
+        required = (required_capability or "text").strip().lower()
+        if required == "llm":
+            required = "text"
+        raise ValueError(
+            f"Model profile '{profile.name}' is role '{profile.role.value}' "
+            f"and cannot be used for {required} workflow nodes."
+        )
+
+    enforce_model_profile_privacy(profile)
+    validate_model_capability(
+        profile.provider,
+        profile.model,
+        required_capability=required_capability,
+    )
+    return llm_config_from_profile(profile, base_config=base_config)
+
+
+def resolve_model_alias_for_capability(
+    provider: str,
+    model: str,
+    *,
+    required_capability: str | None,
+) -> tuple[str, str]:
+    """Resolve aliases, then enforce provider/model capability metadata."""
+    resolver = resolve_model_alias
+    try:
+        parameters = inspect.signature(resolver).parameters
+    except (TypeError, ValueError):
+        parameters = {}
+    supports_capability_kw = "required_capability" in parameters or any(
+        param.kind == inspect.Parameter.VAR_KEYWORD
+        for param in parameters.values()
+    )
+    if supports_capability_kw:
+        resolved_provider, resolved_model = resolver(
+            provider,
+            model,
+            required_capability=required_capability,
+        )
+    else:
+        resolved_provider, resolved_model = resolver(provider, model)
+    validate_model_capability(
+        resolved_provider,
+        resolved_model,
+        required_capability=required_capability,
+    )
+    return (resolved_provider, resolved_model)
+
+
+def enforce_local_only_provider(provider: str, model: str, *, kind: str) -> None:
+    """Apply the local-only policy to a concrete provider/model pair."""
+    _enforce_local_only_provider(LLMConfig(provider=provider, model=model), kind=kind)
 
 
 def _resolve_tier_transport_settings(tier: str) -> tuple[str | None, str | None]:
@@ -531,6 +878,68 @@ def _build_fallback_config(config: LLMConfig, tier: str = "large") -> LLMConfig:
     )
 
 
+def _fallback_tier_order() -> tuple[str, ...]:
+    """Ordered fallback tiers after Apple. Defaults to $medium -> $large."""
+    raw = os.environ.get("FICHERO_AI_FALLBACK_TIERS")
+    if raw is None:
+        return ("medium", "large")
+
+    tiers: list[str] = []
+    for item in raw.split(","):
+        tier = item.strip().lower().lstrip("$")
+        if not tier:
+            continue
+        if tier not in {"medium", "large"}:
+            raise ValueError(
+                f"Invalid fallback tier {item!r}; expected comma-separated medium/large."
+            )
+        if tier not in tiers:
+            tiers.append(tier)
+    return tuple(tiers) or ("medium", "large")
+
+
+def _iter_fallback_configs(
+    config: LLMConfig,
+    *,
+    original_config: LLMConfig,
+    error_name: str,
+    kind: str,
+) -> Iterator[tuple[str, LLMConfig, bool]]:
+    """Yield usable fallback configs in ordered tier order."""
+    for tier in _fallback_tier_order():
+        try:
+            fallback_config = _build_fallback_config(config, tier)
+        except ValueError:
+            logger.warning(
+                "%s but no $%s fallback configured; continuing fallback chain.",
+                error_name,
+                tier,
+            )
+            continue
+
+        if (
+            fallback_config.provider == original_config.provider
+            and fallback_config.model == original_config.model
+        ):
+            continue
+
+        fallback_is_local = _is_local_or_builtin_provider(fallback_config.provider)
+        _enforce_local_only_provider(fallback_config, kind=f"{kind} ${tier} fallback")
+        if not _paid_remote_fallbacks_enabled() and not fallback_is_local:
+            logger.warning(
+                "Skipping $%s %s fallback %s/%s because paid remote fallbacks "
+                "are disabled by default. Configure a local provider or set "
+                "FICHERO_ALLOW_PAID_AI_FALLBACKS=1.",
+                tier,
+                kind,
+                fallback_config.provider,
+                fallback_config.model,
+            )
+            continue
+
+        yield tier, fallback_config, fallback_is_local
+
+
 def _paid_remote_fallbacks_enabled() -> bool:
     """Whether Apple structured fallback may use paid remote providers."""
     raw = os.environ.get("FICHERO_ALLOW_PAID_AI_FALLBACKS")
@@ -549,11 +958,37 @@ def _paid_remote_fallbacks_enabled() -> bool:
     return str(setting).strip().lower() in {"1", "true", "yes", "on"}
 
 
+def is_local_only() -> bool:
+    """Whether LLM calls must stay on local / built-in providers only."""
+    raw = os.environ.get("FICHERO_LOCAL_ONLY")
+    if raw is not None:
+        return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+    try:
+        from fichero.app_db import get_app_db
+
+        setting = get_app_db().get_setting("local_only_ai")
+    except Exception:
+        setting = None
+
+    if setting is None:
+        return False
+    return str(setting).strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _is_local_or_builtin_provider(provider: str) -> bool:
     from fichero.providers import get_provider_info
 
     info = get_provider_info((provider or "").strip().lower())
     return bool(info and (info.is_local or info.is_builtin))
+
+
+def _enforce_local_only_provider(config: LLMConfig, *, kind: str) -> None:
+    if not is_local_only():
+        return
+    if _is_local_or_builtin_provider(config.provider):
+        return
+    raise LocalOnlyViolationError(config.provider, model=config.model, kind=kind)
 
 
 # =============================================================================
@@ -574,6 +1009,22 @@ def get_api_key(provider: str) -> str | None:
     Returns:
         API key or None if not found
     """
+    # Process-level cache (#2545): avoid a synchronous Keychain round-trip on
+    # every call. Cached by `provider` — the only input that determines the
+    # result. Bust via clear_api_key_cache() when a credential changes.
+    with _API_KEY_CACHE_LOCK:
+        if provider in _API_KEY_CACHE:
+            return _API_KEY_CACHE[provider]
+
+    resolved = _read_api_key_uncached(provider)
+
+    with _API_KEY_CACHE_LOCK:
+        _API_KEY_CACHE[provider] = resolved
+    return resolved
+
+
+def _read_api_key_uncached(provider: str) -> str | None:
+    """Resolve an API key from the Keychain then env, without caching."""
     from fichero.providers import get_provider_info
 
     # Try keychain first
@@ -599,6 +1050,245 @@ def _resolve_api_key(config: LLMConfig) -> str | None:
     if config.api_key:
         return config.api_key
     return get_api_key(config.provider)
+
+
+def _model_cache_extra_identity(config: LLMConfig) -> tuple[str, str]:
+    """Return provider-specific constructor fields that affect model identity."""
+    provider = (config.provider or "").strip().lower()
+    if provider == "bedrock":
+        return (str(config.extra.get("region", "us-east-1")), "")
+    if provider == "azure":
+        return ("", str(config.extra.get("api_version", "2024-02-01")))
+    return ("", "")
+
+
+def _langchain_model_cache_key(
+    config: LLMConfig,
+    *,
+    api_key_identity: str,
+) -> _ModelCacheKey:
+    provider = (config.provider or "").strip().lower()
+    base_url = (config.api_base or "").strip()
+    reasoning_effort = (config.reasoning_effort or "").strip().lower()
+    extra_a, extra_b = _model_cache_extra_identity(config)
+    return (
+        provider,
+        config.model,
+        float(config.temperature),
+        int(config.max_tokens),
+        int(config.timeout),
+        base_url,
+        api_key_identity,
+        reasoning_effort,
+        extra_a,
+        extra_b,
+    )
+
+
+def _max_inflight_llm() -> int:
+    raw = os.environ.get("FICHERO_MAX_INFLIGHT_LLM")
+    if raw is None:
+        return _DEFAULT_MAX_INFLIGHT_LLM
+    try:
+        parsed = int(raw.strip())
+    except ValueError:
+        logger.warning(
+            "Invalid FICHERO_MAX_INFLIGHT_LLM=%r; using default %d",
+            raw,
+            _DEFAULT_MAX_INFLIGHT_LLM,
+        )
+        return _DEFAULT_MAX_INFLIGHT_LLM
+    return parsed if parsed > 0 else _DEFAULT_MAX_INFLIGHT_LLM
+
+
+def _get_remote_llm_semaphore() -> asyncio.Semaphore:
+    global _REMOTE_LLM_SEMAPHORE, _REMOTE_LLM_SEMAPHORE_LIMIT
+
+    limit = _max_inflight_llm()
+    semaphore = _REMOTE_LLM_SEMAPHORE
+    if semaphore is not None and _REMOTE_LLM_SEMAPHORE_LIMIT == limit:
+        return semaphore
+
+    with _REMOTE_LLM_SEMAPHORE_LOCK:
+        semaphore = _REMOTE_LLM_SEMAPHORE
+        if semaphore is not None and _REMOTE_LLM_SEMAPHORE_LIMIT == limit:
+            return semaphore
+        semaphore = asyncio.Semaphore(limit)
+        _REMOTE_LLM_SEMAPHORE = semaphore
+        _REMOTE_LLM_SEMAPHORE_LIMIT = limit
+        return semaphore
+
+
+@contextlib.asynccontextmanager
+async def _remote_llm_call_slot(config: LLMConfig) -> AsyncIterator[None]:
+    """Throttle remote LLM calls without touching local / built-in providers."""
+    if _is_local_or_builtin_provider(config.provider):
+        yield
+        return
+
+    async with _get_remote_llm_semaphore():
+        yield
+
+
+@contextlib.asynccontextmanager
+async def _remote_llm_batch_slots(
+    config: LLMConfig,
+    count: int,
+) -> AsyncIterator[None]:
+    """Reserve up to ``count`` remote-call slots for one abatch chunk."""
+    if _is_local_or_builtin_provider(config.provider):
+        yield
+        return
+
+    semaphore = _get_remote_llm_semaphore()
+    permits = max(1, count)
+    for _ in range(permits):
+        await semaphore.acquire()
+    try:
+        yield
+    finally:
+        for _ in range(permits):
+            semaphore.release()
+
+
+def _batch_max_concurrency(config: LLMConfig) -> int | None:
+    if _is_local_or_builtin_provider(config.provider):
+        return None
+    return _max_inflight_llm()
+
+
+def _coerce_batch_item_exception(
+    config: LLMConfig,
+    exc: BaseException,
+) -> BaseException:
+    try:
+        _raise_provider_quota_error(config, exc)
+    except ProviderQuotaError as quota_exc:
+        return quota_exc
+    return exc
+
+
+def _record_batch_usage(
+    responses: list[Any],
+    config: LLMConfig,
+    *,
+    kind: str,
+) -> None:
+    for response in responses:
+        usage = getattr(response, "usage_metadata", None)
+        if isinstance(usage, dict) and usage:
+            _record_usage(
+                config.provider,
+                config.model,
+                kind,
+                input_tokens=usage.get("input_tokens"),
+                output_tokens=usage.get("output_tokens"),
+                total_tokens=usage.get("total_tokens"),
+            )
+
+
+async def _call_model_abatch(
+    model: Any,
+    inputs: list[Any],
+    config: LLMConfig,
+) -> list[Any]:
+    batch_config = None
+    max_concurrency = _batch_max_concurrency(config)
+    if max_concurrency is not None:
+        batch_config = {"max_concurrency": max_concurrency}
+
+    kwargs: dict[str, Any] = {}
+    if batch_config is not None:
+        kwargs["config"] = batch_config
+
+    try:
+        return await model.abatch(inputs, return_exceptions=True, **kwargs)
+    except TypeError as exc:
+        if "return_exceptions" not in str(exc):
+            raise
+        return await model.abatch(inputs, **kwargs)
+
+
+async def _run_abatch_chunks(
+    model: Any,
+    inputs: list[Any],
+    config: LLMConfig,
+) -> list[Any]:
+    if not inputs:
+        return []
+
+    max_concurrency = _batch_max_concurrency(config) or len(inputs)
+    results: list[Any] = []
+    for start in range(0, len(inputs), max_concurrency):
+        chunk = inputs[start:start + max_concurrency]
+        async with _remote_llm_batch_slots(config, len(chunk)):
+            chunk_results = await _call_model_abatch(model, chunk, config)
+        results.extend(chunk_results)
+    return results
+
+
+async def _bounded_batch_fallback(
+    limit: int,
+    factories: list[Callable[[], Any]],
+) -> list[Any]:
+    semaphore = asyncio.Semaphore(limit)
+
+    async def _run(factory: Callable[[], Any]) -> Any:
+        async with semaphore:
+            try:
+                return await factory()
+            except Exception as exc:
+                return exc
+
+    return await asyncio.gather(*(_run(factory) for factory in factories))
+
+
+def _normalize_batch_chat_prompt(
+    prompt: str | list[dict[str, Any]],
+    *,
+    system: str | None,
+) -> list[Any]:
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    if isinstance(prompt, str):
+        messages = []
+        if system:
+            messages.append(SystemMessage(content=system))
+        messages.append(HumanMessage(content=prompt))
+        return messages
+    return _convert_to_langchain_messages(prompt)
+
+
+def _normalize_batch_chat_result(
+    result: Any,
+    index: int,
+    config: LLMConfig,
+) -> str | LLMBatchItemError:
+    if isinstance(result, BaseException):
+        return LLMBatchItemError(
+            index,
+            provider=config.provider,
+            model=config.model,
+            kind="chat",
+            cause=_coerce_batch_item_exception(config, result),
+        )
+    return _strip_outer_code_fences(result.content)
+
+
+def _normalize_batch_vision_result(
+    result: Any,
+    index: int,
+    config: LLMConfig,
+) -> str | LLMBatchItemError:
+    if isinstance(result, BaseException):
+        return LLMBatchItemError(
+            index,
+            provider=config.provider,
+            model=config.model,
+            kind="vision",
+            cause=_coerce_batch_item_exception(config, result),
+        )
+    return _strip_outer_code_fences(result.content)
 
 
 # =============================================================================
@@ -630,6 +1320,8 @@ async def chat(
         Response string, or async generator if streaming
     """
     from langchain_core.messages import HumanMessage, SystemMessage
+
+    _enforce_local_only_provider(config, kind="chat")
 
     # Apple Intelligence (Foundation Models) lives outside LangChain — Swift-
     # native API requires the fm-bridge subprocess. Route before LangChain
@@ -676,7 +1368,7 @@ async def chat(
         messages = _convert_to_langchain_messages(prompt)
 
     if stream:
-        return _stream_chat_langchain(model, messages)
+        return _stream_chat_langchain(model, messages, config)
     else:
         # Hard wall-clock timeout (#844 robustness). LangChain accepts a
         # `timeout` kwarg per provider but enforcement varies — some
@@ -687,9 +1379,10 @@ async def chat(
         # callers can route around.
         budget = _compute_timeout(config, "langchain")
         try:
-            response = await asyncio.wait_for(
-                model.ainvoke(messages), timeout=budget,
-            )
+            async with _remote_llm_call_slot(config):
+                response = await asyncio.wait_for(
+                    model.ainvoke(messages), timeout=budget,
+                )
         except asyncio.TimeoutError as exc:
             raise RuntimeError(
                 f"LangChain {config.provider}/{config.model} chat exceeded "
@@ -712,15 +1405,73 @@ async def chat(
         return _strip_outer_code_fences(response.content)
 
 
+async def chat_batch(
+    prompts: list[str | list[dict[str, Any]]],
+    config: LLMConfig,
+    *,
+    system: str | None = None,
+    permissive_guardrails: bool = False,
+    use_case: str | None = None,
+) -> list[str | LLMBatchItemError]:
+    """Send multiple chat prompts with per-item error isolation."""
+    _enforce_local_only_provider(config, kind="chat")
+
+    if not prompts:
+        return []
+
+    if config.provider in {"apple", "mock"}:
+        limit = _batch_max_concurrency(config) or _DEFAULT_MAX_INFLIGHT_LLM
+        results = await _bounded_batch_fallback(
+            limit,
+            [
+                lambda prompt=prompt: chat(
+                    prompt,
+                    config,
+                    system=system,
+                    permissive_guardrails=permissive_guardrails,
+                    use_case=use_case,
+                )
+                for prompt in prompts
+            ],
+        )
+        return [
+            result
+            if isinstance(result, str)
+            else LLMBatchItemError(
+                index,
+                provider=config.provider,
+                model=config.model,
+                kind="chat",
+                cause=_coerce_batch_item_exception(config, result),
+            )
+            for index, result in enumerate(results)
+        ]
+
+    model = get_langchain_model(config)
+    messages_batch = [
+        _normalize_batch_chat_prompt(prompt, system=system)
+        for prompt in prompts
+    ]
+    results = await _run_abatch_chunks(model, messages_batch, config)
+    _record_batch_usage(
+        [result for result in results if not isinstance(result, BaseException)],
+        config,
+        kind="chat",
+    )
+    return [
+        _normalize_batch_chat_result(result, index, config)
+        for index, result in enumerate(results)
+    ]
+
+
 async def chat_with_fallback(
     prompt: str | list[dict[str, Any]],
     config: LLMConfig,
     system: str | None = None,
     permissive_guardrails: bool = False,
 ) -> str:
-    """Like chat(), but falls back to the user's $large model when Apple
-    Intelligence can't service the request — currently for guardrail
-    refusals (#838) and unsupported-locale rejections (#868).
+    """Like chat(), but falls back through the ordered tier chain when Apple
+    Intelligence can't service the request.
 
     Apple's safety filter is tuned for consumer use cases and refuses
     scholarly text containing literary profanity, drug references,
@@ -736,8 +1487,8 @@ async def chat_with_fallback(
     are using direct chat() and accept the responsibility of catching
     AppleUnavailableError subclasses themselves.
 
-    Returns the response string. Raises the original error when fallback
-    is unavailable (no $large configured) or also fails.
+    Returns the response string. Raises when every configured fallback tier
+    is unavailable or fails.
     """
     try:
         return await chat(
@@ -745,43 +1496,45 @@ async def chat_with_fallback(
             permissive_guardrails=permissive_guardrails,
         )
     except AppleUnavailableError as apple_exc:
-        # Only Apple Intelligence raises this — try $large if configured.
-        # Catches GuardrailViolationError, UnsupportedLocaleError, and any
-        # future "Apple can't proceed" subclass uniformly.
-        try:
-            large_config = _build_fallback_config(config, "large")
-        except ValueError:
-            # No $large configured — surface the original error so the
-            # caller knows it was Apple's refusal, not a missing key.
-            logger.warning(
-                "%s but no $large fallback configured; set Settings → "
-                "AI Defaults → Default large model to enable.",
-                type(apple_exc).__name__,
+        last_failure: Exception | None = None
+        attempted = False
+        for tier, fallback_config, fallback_is_local in _iter_fallback_configs(
+            config,
+            original_config=config,
+            error_name=type(apple_exc).__name__,
+            kind="chat",
+        ):
+            attempted = True
+            cost_note = (
+                "an on-device model — no API cost"
+                if fallback_is_local
+                else "a PAID remote model — this request now incurs cost"
             )
-            raise apple_exc
+            logger.warning(
+                "Apple Intelligence unavailable (%s); falling back to %s: "
+                "$%s = %s/%s.",
+                type(apple_exc).__name__,
+                cost_note,
+                tier,
+                fallback_config.provider,
+                fallback_config.model,
+            )
+            try:
+                result = await chat(prompt, fallback_config, system=system)
+            except (AppleUnavailableError, ProviderQuotaError) as exc:
+                last_failure = exc
+                continue
+            logger.info(
+                "Fallback to $%s %s/%s succeeded.",
+                tier,
+                fallback_config.provider,
+                fallback_config.model,
+            )
+            return result
 
-        # #1001: warning, not info — falling back is an offline-mode
-        # regression, and to a cloud provider it's also a billing event.
-        # #1560: local (omlx/ollama/lmstudio) AND builtin (apple) providers
-        # run on-device for free, so don't mislabel them as PAID.
-        _cost_note = (
-            "an on-device model — no API cost"
-            if _is_local_or_builtin_provider(large_config.provider)
-            else "a PAID remote model — this request now incurs cost"
-        )
-        logger.warning(
-            "Apple Intelligence unavailable (%s); falling back to %s: "
-            "$large = %s/%s.",
-            type(apple_exc).__name__, _cost_note,
-            large_config.provider, large_config.model,
-        )
-        # Permissive guardrails is Apple-only and has no effect here.
-        result = await chat(prompt, large_config, system=system)
-        logger.info(
-            "Fallback to %s/%s succeeded.",
-            large_config.provider, large_config.model,
-        )
-        return result
+        if attempted and last_failure is not None:
+            raise last_failure
+        raise apple_exc
 
 
 async def _translate_with_deepl(
@@ -880,30 +1633,7 @@ async def _apple_intelligence_chat(
     from pathlib import Path
     import asyncio
 
-    # Flatten messages list into a single prompt + optional system
-    # instructions. Apple Intelligence's session API doesn't model OpenAI's
-    # multi-turn message list directly; we collapse to user prompt + system.
-    if isinstance(prompt, str):
-        user_text = prompt
-        instructions = system or ""
-    else:
-        instructions = system or ""
-        user_parts: list[str] = []
-        for msg in prompt:
-            role = msg.get("role", "user")
-            content = msg.get("content", "")
-            if isinstance(content, list):
-                # Multimodal content list — flatten the text parts only;
-                # Apple Intelligence is text-only (no vision in this bridge).
-                content = " ".join(
-                    p.get("text", "") if isinstance(p, dict) else str(p)
-                    for p in content
-                )
-            if role == "system" and not instructions:
-                instructions = str(content)
-            else:
-                user_parts.append(str(content))
-        user_text = "\n\n".join(user_parts)
+    user_text, instructions = _collapse_apple_prompt(prompt, system)
 
     # Locate fm-bridge. Lives in src/fichero/resources/bin/fm-bridge as
     # part of the Python package — briefcase auto-bundles anything under
@@ -1225,11 +1955,16 @@ async def _apple_vision_dispatch(
                 pass
 
 
-async def _stream_chat_langchain(model, messages: list) -> AsyncIterator[str]:
+async def _stream_chat_langchain(
+    model: Any,
+    messages: list,
+    config: LLMConfig,
+) -> AsyncIterator[str]:
     """Stream chat response using LangChain."""
-    async for chunk in model.astream(messages):
-        if chunk.content:
-            yield chunk.content
+    async with _remote_llm_call_slot(config):
+        async for chunk in model.astream(messages):
+            if chunk.content:
+                yield chunk.content
 
 
 def _convert_to_langchain_messages(messages: list[dict]) -> list:
@@ -1249,6 +1984,164 @@ def _convert_to_langchain_messages(messages: list[dict]) -> list:
             result.append(HumanMessage(content=content))
 
     return result
+
+
+def _langchain_messages_to_openai_messages(messages: list[Any]) -> list[dict[str, Any]]:
+    """Convert LangChain message objects into the OpenAI-style dicts our Apple path already accepts."""
+    from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+
+    result: list[dict[str, Any]] = []
+    for msg in messages:
+        if isinstance(msg, SystemMessage):
+            role = "system"
+        elif isinstance(msg, AIMessage):
+            role = "assistant"
+        elif isinstance(msg, HumanMessage):
+            role = "user"
+        else:
+            role = getattr(msg, "type", "user") or "user"
+        result.append({"role": role, "content": getattr(msg, "content", "")})
+    return result
+
+
+def _collapse_apple_prompt(
+    prompt: str | list[dict[str, Any]],
+    system: str | None,
+) -> tuple[str, str]:
+    """Flatten OpenAI-style messages into the user+instructions pair fm-bridge expects."""
+    if isinstance(prompt, str):
+        return prompt, system or ""
+
+    instructions = system or ""
+    user_parts: list[str] = []
+    for msg in prompt:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+        if isinstance(content, list):
+            content = " ".join(
+                p.get("text", "") if isinstance(p, dict) else str(p)
+                for p in content
+            )
+        if role == "system" and not instructions:
+            instructions = str(content)
+        else:
+            user_parts.append(str(content))
+    return "\n\n".join(user_parts), instructions
+
+
+class _AppleStructuredRunnable:
+    """Minimal LangChain-compatible structured wrapper over chat_structured()."""
+
+    def __init__(
+        self,
+        model: "ChatAppleIntelligence",
+        schema: type[BaseModel],
+        *,
+        include_raw: bool,
+    ) -> None:
+        self._model = model
+        self._schema = schema
+        self._include_raw = include_raw
+
+    async def ainvoke(self, input_data: Any, config: Any = None, **kwargs: Any) -> Any:
+        from langchain_core.messages import AIMessage
+
+        prompt, system = self._model._structured_prompt_and_system(input_data)
+        parsed = await chat_structured(
+            prompt,
+            self._schema,
+            self._model.config,
+            system=system,
+        )
+        if not self._include_raw:
+            return parsed
+        raw = AIMessage(content=parsed.model_dump_json())
+        return {"raw": raw, "parsed": parsed, "parsing_error": None}
+
+    def invoke(self, input_data: Any, config: Any = None, **kwargs: Any) -> Any:
+        return asyncio.run(self.ainvoke(input_data, config=config, **kwargs))
+
+
+class ChatAppleIntelligence(BaseChatModel):
+    config: LLMConfig
+    bound_tools: tuple[Any, ...] = ()
+    tool_choice: str | None = None
+
+    @property
+    def _llm_type(self) -> str:
+        return "apple_intelligence"
+
+    @property
+    def _identifying_params(self) -> dict[str, Any]:
+        return {
+            "provider": self.config.provider,
+            "model": self.config.model,
+            "temperature": self.config.temperature,
+            "max_tokens": self.config.max_tokens,
+        }
+
+    def bind_tools(
+        self,
+        tools: list[Any],
+        *,
+        tool_choice: str | None = None,
+        **kwargs: Any,
+    ) -> "ChatAppleIntelligence":
+        # ponytail: interface-preserving no-op until fm-bridge exposes native tool-call envelopes.
+        return self.model_copy(update={"bound_tools": tuple(tools), "tool_choice": tool_choice})
+
+    def with_structured_output(
+        self,
+        schema: dict[str, Any] | type,
+        *,
+        include_raw: bool = False,
+        **kwargs: Any,
+    ) -> _AppleStructuredRunnable:
+        if not isinstance(schema, type) or not issubclass(schema, BaseModel):
+            raise ValueError(
+                "Apple Intelligence structured output currently requires a Pydantic model class."
+            )
+        return _AppleStructuredRunnable(self, schema, include_raw=include_raw)
+
+    def _structured_prompt_and_system(self, input_data: Any) -> tuple[str, str | None]:
+        if isinstance(input_data, str):
+            return input_data, None
+        if not isinstance(input_data, list):
+            raise TypeError(f"Unsupported Apple structured input: {type(input_data)!r}")
+        prompt, system = _collapse_apple_prompt(
+            _langchain_messages_to_openai_messages(input_data),
+            None,
+        )
+        return prompt, system or None
+
+    async def _agenerate(
+        self,
+        messages: list[Any],
+        stop: list[str] | None = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> Any:
+        from langchain_core.messages import AIMessage
+        from langchain_core.outputs import ChatGeneration, ChatResult
+
+        response_text = await chat(
+            _langchain_messages_to_openai_messages(messages),
+            self.config,
+        )
+        return ChatResult(
+            generations=[ChatGeneration(message=AIMessage(content=response_text))]
+        )
+
+    def _generate(
+        self,
+        messages: list[Any],
+        stop: list[str] | None = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> Any:
+        return asyncio.run(
+            self._agenerate(messages, stop=stop, run_manager=run_manager, **kwargs)
+        )
 
 
 # =============================================================================
@@ -1273,6 +2166,8 @@ async def vision(
     """
     from langchain_core.messages import HumanMessage
 
+    _enforce_local_only_provider(config, kind="vision")
+
     # Apple provider unified dispatch — Apple has no LangChain integration,
     # so we route by model BEFORE falling through to LangChain. Three Apple
     # models exist (per the bundled provider seed):
@@ -1286,6 +2181,12 @@ async def vision(
     if config.provider == "apple":
         return await _apple_vision_dispatch(images, prompt, config)
 
+    # Content-addressed cache (#2224) — skip remote call for identical inputs.
+    _cache_key = _vision_cache_key(config, prompt, images)
+    with _LLM_RESULT_CACHE_LOCK:
+        if _cache_key in _LLM_RESULT_CACHE:
+            return _LLM_RESULT_CACHE[_cache_key]
+
     # Get LangChain model
     model = get_langchain_model(config)
 
@@ -1297,9 +2198,93 @@ async def vision(
     # Create multimodal message
     message = HumanMessage(content=content)
 
-    # Call model
-    response = await model.ainvoke([message])
-    return _strip_outer_code_fences(response.content)
+    # Hard wall-clock timeout (#2228, mirrors chat() #844 robustness). Some
+    # vision providers ignore the LangChain `timeout` kwarg under keepalive.
+    budget = _compute_timeout(config, "langchain")
+    try:
+        async with _remote_llm_call_slot(config):
+            response = await asyncio.wait_for(
+                model.ainvoke([message]), timeout=budget,
+            )
+    except asyncio.TimeoutError as exc:
+        raise RuntimeError(
+            f"LangChain {config.provider}/{config.model} vision exceeded "
+            f"{budget}s — provider hang"
+        ) from exc
+    except Exception as exc:
+        _raise_provider_quota_error(config, exc)
+        raise
+    usage = getattr(response, "usage_metadata", None)
+    if isinstance(usage, dict) and usage:
+        _record_usage(
+            config.provider, config.model, "vision",
+            input_tokens=usage.get("input_tokens"),
+            output_tokens=usage.get("output_tokens"),
+            total_tokens=usage.get("total_tokens"),
+        )
+    result = _strip_outer_code_fences(response.content)
+
+    with _LLM_RESULT_CACHE_LOCK:
+        if len(_LLM_RESULT_CACHE) >= _LLM_RESULT_CACHE_MAX:
+            oldest = next(iter(_LLM_RESULT_CACHE))
+            del _LLM_RESULT_CACHE[oldest]
+        _LLM_RESULT_CACHE[_cache_key] = result
+    return result
+
+
+async def vision_batch(
+    image_lists: list[list[str]],
+    prompt: str,
+    config: LLMConfig,
+) -> list[str | LLMBatchItemError]:
+    """Analyze multiple image groups with per-item error isolation."""
+    from langchain_core.messages import HumanMessage
+
+    _enforce_local_only_provider(config, kind="vision")
+
+    if not image_lists:
+        return []
+
+    if config.provider == "apple":
+        limit = _batch_max_concurrency(config) or _DEFAULT_MAX_INFLIGHT_LLM
+        results = await _bounded_batch_fallback(
+            limit,
+            [
+                lambda images=images: vision(images, prompt, config)
+                for images in image_lists
+            ],
+        )
+        return [
+            result
+            if isinstance(result, str)
+            else LLMBatchItemError(
+                index,
+                provider=config.provider,
+                model=config.model,
+                kind="vision",
+                cause=_coerce_batch_item_exception(config, result),
+            )
+            for index, result in enumerate(results)
+        ]
+
+    model = get_langchain_model(config)
+    messages_batch = []
+    for images in image_lists:
+        content = [{"type": "text", "text": prompt}]
+        for img in images:
+            content.append({"type": "image_url", "image_url": {"url": img}})
+        messages_batch.append([HumanMessage(content=content)])
+
+    results = await _run_abatch_chunks(model, messages_batch, config)
+    _record_batch_usage(
+        [result for result in results if not isinstance(result, BaseException)],
+        config,
+        kind="vision",
+    )
+    return [
+        _normalize_batch_vision_result(result, index, config)
+        for index, result in enumerate(results)
+    ]
 
 
 # =============================================================================
@@ -1456,68 +2441,70 @@ async def vision_inference_api(
     logger.info(f"HF Inference API call: {model} ({len(image_bytes)} bytes)")
 
     try:
-        async with aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=timeout)
-        ) as session:
-            # For vision models, we need to send the image as part of the request
-            # The exact format depends on the model, but for most vision models:
-            # - Use multipart/form-data with image and text
-            data = aiohttp.FormData()
-            data.add_field("inputs", prompt)
-            data.add_field("file", image_bytes, content_type="image/jpeg")
+        remote_config = LLMConfig(provider="huggingface", model=model, api_key=api_key)
+        async with _remote_llm_call_slot(remote_config):
+            async with aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=timeout)
+            ) as session:
+                # For vision models, we need to send the image as part of the request
+                # The exact format depends on the model, but for most vision models:
+                # - Use multipart/form-data with image and text
+                data = aiohttp.FormData()
+                data.add_field("inputs", prompt)
+                data.add_field("file", image_bytes, content_type="image/jpeg")
 
-            async with session.post(url, headers=headers, data=data) as response:
-                if response.status == 200:
-                    result = await response.json()
+                async with session.post(url, headers=headers, data=data) as response:
+                    if response.status == 200:
+                        result = await response.json()
 
-                    # Response format varies by model type
-                    # Text generation models return: [{"generated_text": "..."}]
-                    # Some vision models return: {"text": "..."}
-                    if isinstance(result, list) and result:
-                        text = result[0].get("generated_text", "")
-                    elif isinstance(result, dict):
-                        text = result.get("text", result.get("generated_text", ""))
+                        # Response format varies by model type
+                        # Text generation models return: [{"generated_text": "..."}]
+                        # Some vision models return: {"text": "..."}
+                        if isinstance(result, list) and result:
+                            text = result[0].get("generated_text", "")
+                        elif isinstance(result, dict):
+                            text = result.get("text", result.get("generated_text", ""))
+                        else:
+                            text = str(result)
+
+                        logger.info(f"HF API response: {len(text)} chars")
+                        return text
+
+                    elif response.status == 503:
+                        # Model is loading
+                        error_data = await response.json()
+                        estimated_time = error_data.get("estimated_time", 20)
+                        raise RuntimeError(
+                            f"Model is loading. Estimated time: {estimated_time}s. "
+                            "Please try again in a moment."
+                        )
+
+                    elif response.status == 413:
+                        # Request too large (image too big)
+                        raise ValueError(
+                            f"Image too large ({len(image_bytes)} bytes). "
+                            "Try reducing the max_image_dimension setting."
+                        )
+
+                    elif response.status == 429:
+                        # Rate limit exceeded
+                        raise RuntimeError(
+                            "Hugging Face API rate limit exceeded. "
+                            "Please wait a moment and try again, or upgrade your API plan."
+                        )
+
+                    elif response.status == 400:
+                        # Bad request (often means model doesn't support this input)
+                        error_data = await response.json()
+                        error_msg = error_data.get("error", "Unknown error")
+                        raise ValueError(f"Model API error: {error_msg}")
+
                     else:
-                        text = str(result)
-
-                    logger.info(f"HF API response: {len(text)} chars")
-                    return text
-
-                elif response.status == 503:
-                    # Model is loading
-                    error_data = await response.json()
-                    estimated_time = error_data.get("estimated_time", 20)
-                    raise RuntimeError(
-                        f"Model is loading. Estimated time: {estimated_time}s. "
-                        "Please try again in a moment."
-                    )
-
-                elif response.status == 413:
-                    # Request too large (image too big)
-                    raise ValueError(
-                        f"Image too large ({len(image_bytes)} bytes). "
-                        "Try reducing the max_image_dimension setting."
-                    )
-
-                elif response.status == 429:
-                    # Rate limit exceeded
-                    raise RuntimeError(
-                        "Hugging Face API rate limit exceeded. "
-                        "Please wait a moment and try again, or upgrade your API plan."
-                    )
-
-                elif response.status == 400:
-                    # Bad request (often means model doesn't support this input)
-                    error_data = await response.json()
-                    error_msg = error_data.get("error", "Unknown error")
-                    raise ValueError(f"Model API error: {error_msg}")
-
-                else:
-                    # Other error
-                    error_text = await response.text()
-                    raise RuntimeError(
-                        f"HF Inference API error (status {response.status}): {error_text}"
-                    )
+                        # Other error
+                        error_text = await response.text()
+                        raise RuntimeError(
+                            f"HF Inference API error (status {response.status}): {error_text}"
+                        )
 
     except aiohttp.ClientError as e:
         raise RuntimeError(f"Network error calling HF Inference API: {e}")
@@ -1561,7 +2548,8 @@ async def chat_with_tools(
 
     # Call model with tools
     try:
-        response = await model_with_tools.ainvoke(messages)
+        async with _remote_llm_call_slot(config):
+            response = await model_with_tools.ainvoke(messages)
     except Exception as exc:
         _raise_provider_quota_error(config, exc)
         raise
@@ -1607,7 +2595,8 @@ async def structured_output(
 
     # Call model
     try:
-        result = await structured_model.ainvoke([HumanMessage(content=prompt)])
+        async with _remote_llm_call_slot(config):
+            result = await structured_model.ainvoke([HumanMessage(content=prompt)])
     except Exception as exc:
         _raise_provider_quota_error(config, exc)
         raise
@@ -1653,6 +2642,8 @@ async def chat_structured(
     extract_all + cleanup, where the model emitted free-form text we
     asked nicely to be JSON, then parsed and prayed.
     """
+    _enforce_local_only_provider(config, kind="structured chat")
+
     if config.provider == "apple":
         return await _apple_intelligence_structured(
             prompt, schema, config, system,
@@ -1680,6 +2671,35 @@ async def chat_structured(
     method: str | None
     if config.provider.lower() in {"omlx", "lmstudio", "ollama"}:
         method = None
+    elif (
+        config.provider.lower() == "openrouter"
+        or "openrouter" in (config.api_base or "").lower()
+    ):
+        # OpenRouter forwards Claude/etc. to backends (e.g. Amazon Bedrock).
+        # The two non-tool-calling paths both fail here:
+        #   - json_schema (strict response_format) → Bedrock-Claude returns an
+        #     EMPTY body → "expected value at line 1 column 1".
+        #   - json_mode (response_format={"type":"json_object"}) → the OpenAI
+        #     route 400s ("'messages' must contain the word 'json' …") because
+        #     LangChain doesn't inject the literal token, and Bedrock under-
+        #     fills nested sections.
+        # The robust path is function_calling — every OpenRouter-routed model
+        # supports tool-calling — but LangChain pairs it with
+        # parallel_tool_calls=False, whose Bedrock translation
+        # (tool_choice.disable_parallel_tool_use) is rejected as an extraneous
+        # key. We strip that param at the request layer in get_langchain_model
+        # (`_openrouter_strip_parallel_tool_use`) so function_calling works on
+        # BOTH the OpenAI and Bedrock-Claude routes. (#1802)
+        method = "function_calling"
+    elif config.provider.lower() == "openai":
+        # OpenAI's response_format=json_schema linter rejects schemas with an
+        # open map (our `additional_entities: dict[str, list[str]]`) even with
+        # strict=False — "Invalid schema for response_format … 'required' must
+        # include every key". function_calling binds the SAME pydantic schema as
+        # a tool, whose argument-schema validation is lenient (open maps allowed)
+        # and which OpenAI-direct accepts without the parallel_tool_calls issue
+        # that only bites OpenRouter→Bedrock. (#1803)
+        method = "function_calling"
     else:
         # Profile-driven method selection (#844 item 7). LangChain ≥1.1
         # exposes `model.profile` — a dict of capability flags powered by
@@ -1703,6 +2723,14 @@ async def chat_structured(
     structured_kwargs: dict[str, Any] = {"include_raw": True}
     if method is not None:
         structured_kwargs["method"] = method
+    # OpenAI's `json_schema` method defaults to strict=True, which validates the
+    # emitted JSON-schema rigidly and 400s on schemas it considers malformed
+    # (e.g. our open `additional_entities` map, or a `required` array that
+    # doesn't list every property) — "Invalid schema for response_format".
+    # strict=False keeps LangChain's structured coercion (output still parsed
+    # into the pydantic model) without OpenAI's strict-schema gate. (#1803)
+    if method == "json_schema":
+        structured_kwargs["strict"] = False
     structured_model = model.with_structured_output(schema, **structured_kwargs)
 
     messages: list[Any] = []
@@ -1714,9 +2742,10 @@ async def chat_structured(
     # asyncio.wait_for is the backstop.
     budget = _compute_timeout(config, "langchain")
     try:
-        result = await asyncio.wait_for(
-            structured_model.ainvoke(messages), timeout=budget,
-        )
+        async with _remote_llm_call_slot(config):
+            result = await asyncio.wait_for(
+                structured_model.ainvoke(messages), timeout=budget,
+            )
     except asyncio.TimeoutError as exc:
         raise RuntimeError(
             f"LangChain {config.provider}/{config.model} structured call "
@@ -1845,58 +2874,25 @@ async def chat_structured_with_fallback(
             except AppleUnavailableError as compact_retry_exc:
                 apple_exc = compact_retry_exc
 
-        last_config_error: ValueError | None = None
-        for tier in ("medium", "large"):
-            try:
-                fallback_config = _build_fallback_config(config, tier)
-            except ValueError as exc:
-                last_config_error = exc
-                logger.warning(
-                    "Structured-call %s but no $%s fallback configured; "
-                    "continuing fallback chain.",
-                    type(apple_exc).__name__,
-                    tier,
-                )
-                continue
-
-            if (
-                fallback_config.provider == config.provider
-                and fallback_config.model == config.model
-            ):
-                # Alias resolves to the same model we just tried — no point
-                # retrying that tier. Try the next tier before surfacing.
-                continue
-
-            if (
-                not _paid_remote_fallbacks_enabled()
-                and not _is_local_or_builtin_provider(fallback_config.provider)
-            ):
-                logger.warning(
-                    "Skipping $%s structured fallback %s/%s because paid "
-                    "remote fallbacks are disabled by default. Configure "
-                    "a local provider or set "
-                    "FICHERO_ALLOW_PAID_AI_FALLBACKS=1.",
-                    tier,
-                    fallback_config.provider,
-                    fallback_config.model,
-                )
-                continue
-
-            # #1001/#1308: structured extractor fallback may become a billing
-            # event. $medium is intentionally a capable cloud model by
-            # default; local providers (omlx/ollama/lmstudio) remain free.
-            # #1560: builtin (apple) providers are also on-device/free —
-            # don't mislabel them as PAID.
-            _cost_note = (
+        last_failure: Exception | None = None
+        attempted = False
+        for tier, fallback_config, fallback_is_local in _iter_fallback_configs(
+            config,
+            original_config=config,
+            error_name=type(apple_exc).__name__,
+            kind="structured",
+        ):
+            attempted = True
+            cost_note = (
                 "an on-device model — no API cost"
-                if _is_local_or_builtin_provider(fallback_config.provider)
+                if fallback_is_local
                 else "a PAID remote model — this request now incurs cost"
             )
             logger.warning(
                 "Apple Intelligence unavailable for structured call (%s); "
                 "falling back to %s: $%s = %s/%s.",
                 type(apple_exc).__name__,
-                _cost_note,
+                cost_note,
                 tier,
                 fallback_config.provider,
                 fallback_config.model,
@@ -1907,16 +2903,8 @@ async def chat_structured_with_fallback(
                 result = await chat_structured(
                     prompt, schema, fallback_config, system=system
                 )
-            except ProviderQuotaError:
-                if tier == "medium":
-                    logger.warning(
-                        "$medium structured fallback hit provider quota; "
-                        "trying $large."
-                    )
-                    continue
-                raise
-            except AppleUnavailableError:
-                # A misconfigured tier can point back to Apple; try the next tier.
+            except (ProviderQuotaError, AppleUnavailableError) as exc:
+                last_failure = exc
                 continue
             logger.info(
                 "Structured fallback to $%s %s/%s succeeded.",
@@ -1926,12 +2914,8 @@ async def chat_structured_with_fallback(
             )
             return result
 
-        if last_config_error is not None:
-            logger.warning(
-                "Structured-call %s but no usable $medium or $large fallback "
-                "configured; set Settings → AI Defaults.",
-                type(apple_exc).__name__,
-            )
+        if attempted and last_failure is not None:
+            raise last_failure
         raise apple_exc
 
 
@@ -2442,8 +3426,137 @@ _OPENAI_COMPATIBLE_BASE_URLS: dict[str, str] = {
 # so ChatOpenAI's required-key check doesn't reject empty.
 _KEYLESS_OPENAI_COMPATIBLE: set[str] = {"ollama", "lmstudio", "omlx"}
 
+# Sentinel for dict.pop "was-present" detection without colliding on a
+# legitimately-stored None value.
+_MISSING = object()
 
-def get_langchain_model(config: LLMConfig) -> Any:
+
+async def _openrouter_strip_parallel_tool_use(request: Any) -> None:
+    """httpx request hook: drop the `parallel_tool_calls` field (and the
+    nested `tool_choice.disable_parallel_tool_use` key) from OpenRouter
+    chat-completion bodies before they leave the box.
+
+    Why: LangChain's `with_structured_output(method="function_calling")`
+    path sets `parallel_tool_calls=False` so the model returns exactly one
+    tool call. OpenAI-direct accepts this, but OpenRouter forwards Claude
+    to Amazon Bedrock, whose schema validator hard-400s on the resulting
+    `tool_choice` extension key `disable_parallel_tool_use` —
+    "extraneous key [disable_parallel_tool_use] is not permitted" — failing
+    every structured call (#1802). We already bind exactly one schema tool,
+    so single-tool behaviour is the effective default; dropping the hint is
+    lossless and keeps the reliable tool-calling path instead of degrading
+    to json_mode (which OpenAI routes reject for lacking the literal word
+    "json") or strict json_schema (which Bedrock-Claude answers with an
+    empty body).
+
+    Security: rewrites only the request *body* shape — never touches
+    headers' auth, TLS, or the URL — and logs nothing (no payloads, no
+    keys). Non-JSON bodies and bodies without the offending key pass
+    through untouched.
+    """
+    import json as _json
+
+    ctype = request.headers.get("content-type", "")
+    if not ctype.startswith("application/json"):
+        return
+    try:
+        body = _json.loads(request.content.decode())
+    except Exception:
+        # Streaming/multipart or anything we can't parse — leave it alone.
+        return
+    if not isinstance(body, dict):
+        return
+
+    changed = body.pop("parallel_tool_calls", _MISSING) is not _MISSING
+    tool_choice = body.get("tool_choice")
+    if isinstance(tool_choice, dict):
+        if tool_choice.pop("disable_parallel_tool_use", _MISSING) is not _MISSING:
+            changed = True
+    if not changed:
+        return
+
+    import httpx
+
+    new_content = _json.dumps(body).encode()
+    request.stream = httpx.ByteStream(new_content)
+    request._content = new_content
+    request.headers["content-length"] = str(len(new_content))
+
+
+_HTTPX_ASYNC_CLIENT_CACHE: weakref.WeakKeyDictionary[
+    Any, dict[tuple[str, str, str, str], Any]
+] = weakref.WeakKeyDictionary()
+_HTTPX_ASYNC_CLIENT_CACHE_NO_LOOP: dict[tuple[str, str, str, str], Any] = {}
+_HTTPX_ASYNC_CLIENT_CACHE_LOCK = threading.Lock()
+
+
+def _get_shared_httpx_async_client(
+    *,
+    provider: str,
+    base_url: str,
+    model_name: str,
+    api_key: str | None,
+) -> Any:
+    """Return a process-global ``httpx.AsyncClient`` for one client identity.
+
+    The transport client is cached per event loop because httpx async clients
+    are loop-affine. Within a loop, calls that share the same provider /
+    endpoint / model / API key identity reuse one connection pool.
+    """
+    import httpx
+
+    cache_key = (provider, base_url, model_name, api_key or "")
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop is None:
+        cached_client = _HTTPX_ASYNC_CLIENT_CACHE_NO_LOOP.get(cache_key)
+        if cached_client is not None:
+            return cached_client
+
+        with _HTTPX_ASYNC_CLIENT_CACHE_LOCK:
+            cached_client = _HTTPX_ASYNC_CLIENT_CACHE_NO_LOOP.get(cache_key)
+            if cached_client is not None:
+                return cached_client
+
+            client_kwargs: dict[str, Any] = {}
+            if provider == "openrouter":
+                client_kwargs["event_hooks"] = {
+                    "request": [_openrouter_strip_parallel_tool_use],
+                }
+            cached_client = httpx.AsyncClient(**client_kwargs)
+            _HTTPX_ASYNC_CLIENT_CACHE_NO_LOOP[cache_key] = cached_client
+            return cached_client
+
+    cached_by_loop = _HTTPX_ASYNC_CLIENT_CACHE.get(loop)
+    if cached_by_loop is not None:
+        cached_client = cached_by_loop.get(cache_key)
+        if cached_client is not None:
+            return cached_client
+
+    with _HTTPX_ASYNC_CLIENT_CACHE_LOCK:
+        cached_by_loop = _HTTPX_ASYNC_CLIENT_CACHE.get(loop)
+        if cached_by_loop is None:
+            cached_by_loop = {}
+            _HTTPX_ASYNC_CLIENT_CACHE[loop] = cached_by_loop
+
+        cached_client = cached_by_loop.get(cache_key)
+        if cached_client is not None:
+            return cached_client
+
+        client_kwargs: dict[str, Any] = {}
+        if provider == "openrouter":
+            client_kwargs["event_hooks"] = {
+                "request": [_openrouter_strip_parallel_tool_use],
+            }
+        cached_client = httpx.AsyncClient(**client_kwargs)
+        cached_by_loop[cache_key] = cached_client
+        return cached_client
+
+
+def _build_langchain_model(config: LLMConfig) -> Any:
     """Create a LangChain ChatModel from Fichero LLMConfig.
 
     Architecture (#844):
@@ -2464,8 +3577,8 @@ def get_langchain_model(config: LLMConfig) -> Any:
       truth — adding a new provider is a one-line change.
     - Azure OpenAI → AzureChatOpenAI (different param shape).
     - AWS Bedrock → ChatBedrock (different package).
-    - apple → NotImplementedError (Apple Intelligence has no LangChain
-      wrapper; chat()/chat_structured() route to fm-bridge directly).
+    - apple → ChatAppleIntelligence, a thin BaseChatModel adapter over
+      the existing fm-bridge chat()/chat_structured() helpers.
 
     `max_retries=10` (LangChain default is 6) is set on every model so
     transient OpenRouter / Anthropic blips recover silently with
@@ -2552,16 +3665,27 @@ def get_langchain_model(config: LLMConfig) -> Any:
     if provider == "openrouter":
         from langchain_openai import ChatOpenAI
 
+        base_url = config.api_base or "https://openrouter.ai/api/v1"
         kwargs = dict(common_params)
         if reasoning_on:
             # OpenRouter normalizes reasoning across underlying providers
             # via the `reasoning` extra_body field — works for Claude
             # (thinking) and gpt-5/o-series (reasoning_effort) alike.
             kwargs["extra_body"] = {"reasoning": {"effort": effort}}
+        # Strip `parallel_tool_calls` / `disable_parallel_tool_use` from the
+        # outgoing body so function_calling structured output survives the
+        # OpenRouter→Bedrock-Claude route (#1802). See
+        # `_openrouter_strip_parallel_tool_use`.
         return ChatOpenAI(
             model=model_name,
             api_key=api_key,
-            base_url=config.api_base or "https://openrouter.ai/api/v1",
+            base_url=base_url,
+            http_async_client=_get_shared_httpx_async_client(
+                provider=provider,
+                base_url=base_url,
+                model_name=model_name,
+                api_key=api_key,
+            ),
             **kwargs,
         )
 
@@ -2570,13 +3694,20 @@ def get_langchain_model(config: LLMConfig) -> Any:
     if provider in _OPENAI_COMPATIBLE_BASE_URLS:
         from langchain_openai import ChatOpenAI
 
+        base_url = config.api_base or _OPENAI_COMPATIBLE_BASE_URLS[provider]
         effective_key = api_key
         if provider in _KEYLESS_OPENAI_COMPATIBLE and not effective_key:
             effective_key = provider  # placeholder — local servers ignore it
         return ChatOpenAI(
             model=model_name,
             api_key=effective_key,
-            base_url=config.api_base or _OPENAI_COMPATIBLE_BASE_URLS[provider],
+            base_url=base_url,
+            http_async_client=_get_shared_httpx_async_client(
+                provider=provider,
+                base_url=base_url,
+                model_name=model_name,
+                api_key=effective_key,
+            ),
             **common_params,
         )
 
@@ -2584,27 +3715,23 @@ def get_langchain_model(config: LLMConfig) -> Any:
     if provider == "azure":
         from langchain_openai import AzureChatOpenAI
 
+        base_url = config.api_base or ""
         return AzureChatOpenAI(
             model=model_name,
             api_key=api_key,
             azure_endpoint=config.api_base,
             api_version=config.extra.get("api_version", "2024-02-01"),
+            http_async_client=_get_shared_httpx_async_client(
+                provider=provider,
+                base_url=base_url,
+                model_name=model_name,
+                api_key=api_key,
+            ),
             **common_params,
         )
 
     if provider == "apple":
-        # Apple Intelligence has no LangChain ChatModel — Foundation
-        # Models is Swift-only and not @objc-exposed. Workflow tools
-        # should call chat() / chat_structured() which route to
-        # fm-bridge directly. This branch only fires from direct
-        # get_langchain_model callers (multi_agent, agent) — surface a
-        # clear error so the caller knows the path doesn't exist.
-        raise NotImplementedError(
-            "Apple Intelligence has no LangChain ChatModel wrapper yet. "
-            "Use llm.chat() / llm.chat_structured() (which route to "
-            "fm-bridge) or pick a different provider for multi_agent / "
-            "agent tools."
-        )
+        return ChatAppleIntelligence(config=config)
 
     if not provider:
         raise ValueError(
@@ -2619,6 +3746,53 @@ def get_langchain_model(config: LLMConfig) -> Any:
     )
 
 
+def _cache_langchain_model(
+    cache: OrderedDict[_ModelCacheKey, Any],
+    cache_key: _ModelCacheKey,
+    config: LLMConfig,
+) -> Any:
+    cached_model = cache.get(cache_key)
+    if cached_model is not None:
+        cache.move_to_end(cache_key)
+        return cached_model
+
+    cached_model = _build_langchain_model(config)
+    cache[cache_key] = cached_model
+    cache.move_to_end(cache_key)
+    while len(cache) > _LANGCHAIN_MODEL_CACHE_SIZE:
+        cache.popitem(last=False)
+    return cached_model
+
+
+def get_langchain_model(config: LLMConfig) -> Any:
+    """Return a cached LangChain ChatModel for one config identity."""
+    api_key_identity = _resolve_api_key(config) or ""
+    cache_key = _langchain_model_cache_key(
+        config,
+        api_key_identity=api_key_identity,
+    )
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop is None:
+        with _LANGCHAIN_MODEL_CACHE_LOCK:
+            return _cache_langchain_model(
+                _LANGCHAIN_MODEL_CACHE_NO_LOOP,
+                cache_key,
+                config,
+            )
+
+    with _LANGCHAIN_MODEL_CACHE_LOCK:
+        cached_by_loop = _LANGCHAIN_MODEL_CACHE.get(loop)
+        if cached_by_loop is None:
+            cached_by_loop = OrderedDict()
+            _LANGCHAIN_MODEL_CACHE[loop] = cached_by_loop
+        return _cache_langchain_model(cached_by_loop, cache_key, config)
+
+
 # =============================================================================
 # Exports
 # =============================================================================
@@ -2626,10 +3800,15 @@ def get_langchain_model(config: LLMConfig) -> Any:
 __all__ = [
     # Config
     "LLMConfig",
+    "LLMBatchItemError",
+    "LocalOnlyViolationError",
+    "is_local_only",
     # Chat
     "chat",
+    "chat_batch",
     # Vision
     "vision",
+    "vision_batch",
     # Embeddings
     "embed",
     "aembed",
@@ -2646,6 +3825,7 @@ __all__ = [
     "list_models_for_provider",
     # Key resolution
     "get_api_key",
+    "clear_api_key_cache",
     # LangChain
     "get_langchain_model",
 ]

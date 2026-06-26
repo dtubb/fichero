@@ -1,4 +1,3 @@
-import AppKit
 import OSLog
 import SwiftUI
 
@@ -42,7 +41,7 @@ struct ResearchBrowserPane: View {
                 .font(.system(size: 12))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(Color(NSColor.controlBackgroundColor))
+                .background(Color(platformColor: .controlBackgroundColor))
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .onSubmit { navigate() }
 

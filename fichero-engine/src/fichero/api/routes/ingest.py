@@ -4,15 +4,17 @@ Ingest Routes
 File and folder ingestion endpoints.
 """
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Header
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel
 
-from fichero.api.main import get_library_database, db_manager
+from fichero.api.library_header import require_library_path
+from fichero.api.main import get_library_database_for_write, db_manager
 from fichero.db import Database
 from fichero.models import Document
 
@@ -72,32 +74,31 @@ class IngestTaskStatus(BaseModel):
     document_ids: list[str] = []
 
 
-# Routes
+# Shared mutation logic (the proven algorithm wrapped by both the route and the
+# audited action — iterate-not-replace, EPIC #1848 / #2014). Validation raises
+# HTTPException(400) before any ingest work; ingest failures wrap to 500 — the
+# exact behavior the routes had before the extraction.
 
 
-@router.post("/file")
-async def ingest_file(
+def import_file_impl(
+    db: Database,
     request: IngestFileRequest,
-    db: Database = Depends(get_library_database),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    package_path: Path,
 ) -> Document:
-    """
-    Ingest a single file into the library.
+    """Validate + ingest a single file. Returns the created Document.
 
-    Returns the created Document immediately.
+    Extracted verbatim from the ``POST /file`` route so the route handler and
+    the ``import.file`` action drive the SAME code.
     """
     from fichero.ingest import ingest_file as do_ingest, IngestMode
 
     path = Path(request.path)
     if not path.exists():
         raise HTTPException(status_code=400, detail=f"File not found: {request.path}")
-
     if not path.is_file():
         raise HTTPException(status_code=400, detail=f"Not a file: {request.path}")
 
     mode = IngestMode.COPY if request.copy_mode else IngestMode.LINK
-    package_path = Path(x_fichero_library_path)
-
     try:
         doc = do_ingest(
             path,
@@ -110,24 +111,79 @@ async def ingest_file(
         )
         logger.info(f"Ingested file: {path.name} -> {doc.id}")
         return doc
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Ingest failed: {path}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+def import_folder_impl(
+    db: Database,
+    request: IngestFolderRequest,
+    package_path: Path,
+    on_progress=None,
+) -> list[Document]:
+    """Validate + synchronously ingest a folder. Returns the created Documents.
+
+    The ``POST /folder`` route runs this in a BackgroundTask (returning a
+    task_id); the ``import.folder`` action runs it synchronously so it can audit
+    the created doc ids. Both share this one validated ingest.
+    """
+    from fichero.ingest import ingest_folder as do_ingest, IngestMode
+
+    path = Path(request.path)
+    if not path.exists():
+        raise HTTPException(status_code=400, detail=f"Path not found: {request.path}")
+    if not path.is_dir():
+        raise HTTPException(status_code=400, detail=f"Not a directory: {request.path}")
+
+    mode = IngestMode.COPY if request.copy_mode else IngestMode.LINK
+    return do_ingest(
+        path,
+        mode=mode,
+        parent_id=request.parent_id,
+        recursive=request.recursive,
+        extract_text=request.extract_text,
+        auto_embed=request.auto_embed,
+        on_progress=on_progress,
+        db=db,
+        package_path=package_path,
+    )
+
+
+# Routes
+
+
+@router.post("/file")
+async def ingest_file(
+    request: IngestFileRequest,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+) -> Document:
+    """
+    Ingest a single file into the library.
+
+    Returns the created Document immediately.
+    """
+    return await asyncio.to_thread(
+        import_file_impl, db, request, Path(x_fichero_library_path)
+    )
 
 
 @router.post("/folder")
 async def ingest_folder(
     request: IngestFolderRequest,
     background_tasks: BackgroundTasks,
-    db: Database = Depends(get_library_database),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> IngestTaskResponse:
     """
     Ingest a folder into the library.
 
     Returns immediately with a task_id. Use /status/{task_id} to check progress.
     """
-    from fichero.ingest import ingest_folder as do_ingest, IngestMode, count_files
+    from fichero.ingest import count_files
 
     path = Path(request.path)
     if not path.exists():
@@ -153,7 +209,6 @@ async def ingest_folder(
 
     # Background ingest (capture db and package_path for use in background task)
     def do_background_ingest():
-        mode = IngestMode.COPY if request.copy_mode else IngestMode.LINK
         # Use a fresh database handle for the background thread instead of
         # reusing the request-scoped object. This avoids stale/contended
         # connection state on long-running folder ingests (#1216).
@@ -165,16 +220,10 @@ async def ingest_folder(
 
         try:
             _tasks[task_id]["status"] = "running"
-            docs = do_ingest(
-                path,
-                mode=mode,
-                parent_id=request.parent_id,
-                recursive=request.recursive,
-                extract_text=request.extract_text,
-                auto_embed=request.auto_embed,
-                on_progress=on_progress,
-                db=bg_db,
-                package_path=package_path,
+            # Route through the shared impl so the background task and the
+            # audited ``import.folder`` action ingest via the SAME code path.
+            docs = import_folder_impl(
+                bg_db, request, package_path, on_progress=on_progress
             )
             _tasks[task_id]["status"] = "completed"
             _tasks[task_id]["progress"] = 1.0
@@ -214,22 +263,12 @@ class XlsxIngestResponse(BaseModel):
     dry_run: bool
 
 
-@router.post("/xlsx")
-async def ingest_xlsx(
-    request: XlsxIngestRequest,
-    db: Database = Depends(get_library_database),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
-) -> XlsxIngestResponse:
-    """
-    Read an .xlsx spreadsheet and return its rows as structured records.
+def import_xlsx_impl(db: Database, request: XlsxIngestRequest) -> XlsxIngestResponse:
+    """Read an .xlsx spreadsheet; on ``dry_run=False`` create one Document per row.
 
-    Each data row becomes a dict keyed by column header (or by *column_map*
-    when supplied).  Columns without a mapping go into ``_unmapped``.
-
-    With ``dry_run=true`` (default) the records are returned for inspection
-    and nothing is written to the library.  With ``dry_run=false``, one
-    Document is created per row; the ``name`` field (or the first mapped
-    field) is used as the document name.
+    Extracted from the ``POST /xlsx`` route so the route and the ``import.xlsx``
+    action share the SAME parse-and-create logic. A ``dry_run`` call mutates
+    nothing — it only returns the parsed records for inspection.
     """
     from fichero.loaders.xlsx_reader import read_xlsx_records
     from fichero.models import DocType, FileType, Status
@@ -295,6 +334,26 @@ async def ingest_xlsx(
     )
 
 
+@router.post("/xlsx")
+async def ingest_xlsx(
+    request: XlsxIngestRequest,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+) -> XlsxIngestResponse:
+    """
+    Read an .xlsx spreadsheet and return its rows as structured records.
+
+    Each data row becomes a dict keyed by column header (or by *column_map*
+    when supplied).  Columns without a mapping go into ``_unmapped``.
+
+    With ``dry_run=true`` (default) the records are returned for inspection
+    and nothing is written to the library.  With ``dry_run=false``, one
+    Document is created per row; the ``name`` field (or the first mapped
+    field) is used as the document name.
+    """
+    return import_xlsx_impl(db, request)
+
+
 @router.get("/status/{task_id}")
 async def get_ingest_status(task_id: str) -> IngestTaskStatus:
     """Get status of an ingest task."""
@@ -312,3 +371,108 @@ async def get_ingest_status(task_id: str) -> IngestTaskStatus:
         error=task.get("error"),
         document_ids=task.get("document_ids", []),
     )
+
+
+# ---------------------------------------------------------------------------
+# Action layer registration (EPIC #1848 / #2014) — IMPORT domain
+# ---------------------------------------------------------------------------
+#
+# Each action WRAPS the proven ``import_*_impl`` above (iterate-not-replace) and
+# routes through ``registry.invoke`` — the single audited write path that writes
+# the generic ActionAudit + emits the change event. The typed routes above are
+# untouched and stay green; the actions are the *additional* uniform path that
+# chat tools / App Intents / tests drive via ``POST /api/actions/invoke``.
+#
+# Undo semantics:
+#   * import.file  — creates ONE document, so it inverts to ``document.delete``
+#     (the document-domain action) just like ``document.create``. Reversible.
+#   * import.folder / import.xlsx — create MANY documents (and, for a folder,
+#     possibly a synthesized collection root). There is no single existing
+#     action that deletes the whole set, and a folder ingested under an existing
+#     parent has no root to cascade-delete, so these are ``undoable=False`` —
+#     the audit still records the created ids for forensics / manual cleanup.
+
+from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
+
+
+def _invert_import_to_delete(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Inverse for single-document imports: delete the created document.
+
+    Mirrors ``document.create``'s inverse — the created id lives in ``after``.
+    """
+    if not after:
+        return None
+    document_id = after.get("document_id")
+    if not document_id:
+        return None
+    return ("document.delete", {"doc_id": document_id})
+
+
+@action(
+    "import.file",
+    IngestFileRequest,
+    domains=["document"],
+    undoable=True,
+    invert=_invert_import_to_delete,
+)
+def _action_import_file(
+    db: Database, params: IngestFileRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    package_path = Path(ctx.library_path) if ctx.library_path else Path(db.path).parent
+    doc = import_file_impl(db, params, package_path)
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=[doc.id],
+        after={"document_id": doc.id},
+        emit_type="document.created",
+        document_ids=[doc.id],
+    )
+    return doc.model_dump(mode="json"), spec
+
+
+@action(
+    "import.folder",
+    IngestFolderRequest,
+    domains=["document"],
+    undoable=False,
+)
+def _action_import_folder(
+    db: Database, params: IngestFolderRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    # The route ingests in a BackgroundTask; the action ingests SYNCHRONOUSLY so
+    # the audit can record the created doc ids in ``after``.
+    package_path = Path(ctx.library_path) if ctx.library_path else Path(db.path).parent
+    docs = import_folder_impl(db, params, package_path)
+    doc_ids = [d.id for d in docs]
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=doc_ids,
+        after={"document_ids": doc_ids},
+        emit_type="document.created" if doc_ids else None,
+        document_ids=doc_ids,
+    )
+    return {"document_ids": doc_ids, "count": len(doc_ids)}, spec
+
+
+@action(
+    "import.xlsx",
+    XlsxIngestRequest,
+    domains=["document"],
+    undoable=False,
+)
+def _action_import_xlsx(
+    db: Database, params: XlsxIngestRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    response = import_xlsx_impl(db, params)
+    doc_ids = list(response.document_ids)
+    # A dry_run mutates nothing → no created ids, no change event.
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=doc_ids,
+        after={"document_ids": doc_ids} if doc_ids else None,
+        emit_type="document.created" if doc_ids else None,
+        document_ids=doc_ids,
+    )
+    return response.model_dump(mode="json"), spec

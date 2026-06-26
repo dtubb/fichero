@@ -2,8 +2,9 @@
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime
 
+from fichero.workflows.builder import build_graph
+from fichero.workflows.executor import WorkflowExecutor
 from fichero.workflows.chaining import (
     WorkflowChain,
     ChainStep,
@@ -18,6 +19,8 @@ from fichero.workflows.chaining import (
     apply_transform,
     evaluate_condition,
 )
+from fichero.workflows.runtime import build_initial_state
+from fichero.workflows.types import WorkflowDef, NodeDef, EdgeDef
 
 
 # =============================================================================
@@ -344,6 +347,23 @@ class TestChainExecutor:
         """Create a mock workflow loader."""
         return lambda wf_id: mock_workflow if wf_id == "wf-test" else None
 
+    def test_workflow_executor_initial_state_exposes_selection_inputs(
+        self, mock_workflow
+    ):
+        """Legacy executor state must expose selection fields at top level."""
+        with patch("fichero.workflows.executor.build_graph", return_value=MagicMock()):
+            executor = WorkflowExecutor(mock_workflow)
+
+        state = executor._create_initial_state(
+            {
+                "selected_doc_ids": ["doc-1"],
+                "library_path": "/tmp/test.fichero",
+            }
+        )
+
+        assert state["selected_doc_ids"] == ["doc-1"]
+        assert state["library_path"] == "/tmp/test.fichero"
+
     @pytest.mark.asyncio
     async def test_execute_single_step_chain(self, mock_loader, mock_workflow):
         """Test executing a chain with single step."""
@@ -372,6 +392,43 @@ class TestChainExecutor:
             assert result.status == ChainStepStatus.COMPLETED
             assert len(result.step_results) == 1
             assert result.step_results[0].status == ChainStepStatus.COMPLETED
+
+    @pytest.mark.asyncio
+    async def test_execute_first_step_preserves_initial_selection_inputs(
+        self, mock_loader, mock_workflow
+    ):
+        """First chain step must receive library selection context."""
+        chain = WorkflowChain(
+            name="Selection Chain",
+            steps=[ChainStep(id="step1", workflow_id="wf-test")],
+        )
+        captured: dict = {}
+
+        async def mock_execute(*args, **kwargs):
+            captured.update(kwargs)
+            return {
+                "outputs": {"result": {"text": "done"}},
+                "output_files": [],
+                "error": None,
+            }
+
+        with patch("fichero.execution.chaining.WorkflowExecutor") as MockExecutor:
+            mock_executor = MagicMock()
+            mock_executor.execute = mock_execute
+            MockExecutor.return_value = mock_executor
+
+            executor = ChainExecutor(workflow_loader=mock_loader)
+            result = await executor.execute(
+                chain,
+                initial_inputs={
+                    "selected_doc_ids": ["doc-1"],
+                    "library_path": "/tmp/test.fichero",
+                },
+            )
+
+        assert result.status == ChainStepStatus.COMPLETED
+        assert captured["inputs"]["selected_doc_ids"] == ["doc-1"]
+        assert captured["inputs"]["library_path"] == "/tmp/test.fichero"
 
     @pytest.mark.asyncio
     async def test_execute_multi_step_chain(self, mock_loader, mock_workflow):
@@ -529,3 +586,103 @@ class TestChainExecutor:
             event_types = [e.event_type.value for e in events]
             assert "chain_started" in event_types
             assert "chain_completed" in event_types
+
+
+# =============================================================================
+# Workflow Runtime Regression
+# =============================================================================
+
+@pytest.mark.asyncio
+async def test_reference_search_unavailable_is_empty_safe_for_transcribe_review(
+    monkeypatch,
+):
+    """Optional reference search must not abort two-pass transcription workflows."""
+
+    from fichero.workflows.tools.sources import search_tool
+
+    captured: dict = {}
+
+    async def transcribe_tool(inputs, state, llm_config):
+        return {"text": "draft paleography transcription"}
+
+    async def review_tool(inputs, state, llm_config):
+        captured["context"] = inputs.get("context")
+        captured["metadata"] = inputs.get("metadata")
+        return {
+            "text": "reviewed transcription",
+            "metadata_count": len(inputs.get("metadata") or []),
+        }
+
+    monkeypatch.setattr(
+        "fichero.workflows.builder.get_tool",
+        lambda tool_name: {
+            "transcribe": transcribe_tool,
+            "search": search_tool,
+            "transcribe_review": review_tool,
+        }.get(tool_name),
+    )
+
+    class MissingReferenceIndexRetriever:
+        def __init__(self, db):
+            self.db = db
+
+        def retrieve(self, **kwargs):
+            raise RuntimeError(
+                "Catalog Error: Table with name embeddings does not exist"
+            )
+
+    workflow = WorkflowDef(
+        id="wf-reference-search-optional",
+        name="Reference Search Optional",
+        nodes=[
+            NodeDef(id="transcribe", tool="transcribe", config={}),
+            NodeDef(id="reference-search", tool="search", config={}),
+            NodeDef(id="review", tool="transcribe_review", config={}),
+        ],
+        edges=[
+            EdgeDef(
+                source="transcribe",
+                target="reference-search",
+                source_port="text",
+                target_port="query",
+            ),
+            EdgeDef(
+                source="transcribe",
+                target="review",
+                source_port="text",
+                target_port="context",
+            ),
+            EdgeDef(
+                source="reference-search",
+                target="review",
+                source_port="documents",
+                target_port="metadata",
+            ),
+        ],
+    )
+
+    with (
+        patch("fichero.workflows.tools.sources.db_manager") as mock_manager,
+        patch(
+            "fichero.workflows.tools.sources.GraphAwareRetriever",
+            MissingReferenceIndexRetriever,
+        ),
+    ):
+        mock_manager.get_database.return_value = MagicMock()
+        initial_state = build_initial_state({}, library_path="/tmp/test.fichero")
+        initial_state["workflow_id"] = workflow.id
+        final_state = await build_graph(workflow, enable_parallel=False).ainvoke(
+            initial_state
+        )
+
+    assert final_state.get("error") is None
+    assert captured["context"] == "draft paleography transcription"
+    assert captured["metadata"] == []
+    assert final_state["outputs"]["reference-search"]["documents"] == []
+    assert final_state["outputs"]["reference-search"]["count"] == 0
+    assert final_state["outputs"]["review"]["metadata_count"] == 0
+    assert set(final_state.get("completed_nodes") or []) == {
+        "transcribe",
+        "reference-search",
+        "review",
+    }

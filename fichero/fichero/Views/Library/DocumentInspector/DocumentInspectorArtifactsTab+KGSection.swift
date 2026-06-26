@@ -1,5 +1,16 @@
+#if canImport(AppKit)
+import AppKit
+#endif
 import FicheroAPIClient
+import OSLog
 import SwiftUI
+
+// swiftlint:disable file_length
+
+private let inspectorClaimsLogger = Logger(
+    subsystem: "app.fichero.fichero",
+    category: "KnowledgeGraphInspectorSection"
+)
 
 // Inspector section that shows knowledge-graph entities and claims for
 // the currently selected document. Reads from `/api/claims` filtered
@@ -12,8 +23,10 @@ import SwiftUI
 // swiftlint:disable:next type_body_length
 struct KnowledgeGraphInspectorSection: View {
     let documentId: String
+    let documentScope: InspectorClaimDocumentScope
     let entityService: EntityServiceGenerated
     let artifactService: ArtifactServiceGenerated
+    let kgCurationService: KGCurationServiceGenerated
     /// Called when the user clicks the source-page arrow on an entity row.
     /// Receives the source page document id; ContentView decides how to
     /// navigate (typically: select the parent file in the grid). Optional
@@ -22,7 +35,21 @@ struct KnowledgeGraphInspectorSection: View {
     /// Called when the user clicks on a claim to select it for highlighting
     var onClaimSelect: ((String, String?, String?, String?, Int?, Int?) -> Void)?
 
-    @StateObject private var loadState = KnowledgeGraphInspectorLoadState()
+    @Environment(KGFocusState.self) private var kgFocusState
+    /// Observable claim store (#1862) — its `changeToken` bumps on every
+    /// `claim.*` change event from the per-library change-stream, driving this
+    /// section's resync. Replaces the retired `.ficheroClaim*` NotificationCenter
+    /// bus; the inspector still owns its grouped KG read (iterate, never replace).
+    @Environment(ClaimStore.self) private var claimStore
+    @State private var loadState = KnowledgeGraphInspectorLoadState()
+    @State private var claimSelection: Set<String> = []
+    @State private var claimSelectionAnchor: String?
+    @State private var isApplyingBulkAction = false
+    @State private var isPruningTrivialClaims = false
+    @State private var pendingMergePlan: InspectorClaimBulkSelection.MergePlan?
+    @State private var pendingDeleteConfirmation: PendingClaimDeleteConfirmation?
+    @State private var claimActionMessage: String?
+    @State private var pendingPruneConfirmation: PendingPruneConfirmation?
     private var claims: [Components.Schemas.KnowledgeClaim] {
         get { loadState.claims }
         nonmutating set { loadState.claims = newValue }
@@ -39,8 +66,6 @@ struct KnowledgeGraphInspectorSection: View {
         get { loadState.loadError }
         nonmutating set { loadState.loadError = newValue }
     }
-    @EnvironmentObject private var claimFocusState: ClaimFocusState
-
     /// Comma-joined raw values of EntityKinds the user has hidden from the
     /// KG list. Persisted across launches so the filter survives restarts.
     /// Default: all kinds visible.
@@ -66,6 +91,21 @@ struct KnowledgeGraphInspectorSection: View {
         )
     }
 
+    private var documentScopeLabel: String {
+        documentScope.label
+    }
+
+    private var isMutatingClaims: Bool {
+        isApplyingBulkAction || isPruningTrivialClaims
+    }
+
+    private var claimsById: [String: Components.Schemas.KnowledgeClaim] {
+        Dictionary(uniqueKeysWithValues: claims.compactMap { claim in
+            guard let id = claim.id else { return nil }
+            return (id, claim)
+        })
+    }
+
     private func setHidden(_ kind: EntityKind, hidden: Bool) {
         var set = hiddenKinds
         if hidden { set.insert(kind) } else { set.remove(kind) }
@@ -73,26 +113,20 @@ struct KnowledgeGraphInspectorSection: View {
     }
 
     private var grouped: [(EntityKind, [GroupedItem])] {
-        var claimById: [String: Components.Schemas.KnowledgeClaim] = [:]
-        for claim in claims {
-            if let id = claim.id {
-                claimById[id] = claim
-            }
-        }
         let hidden = hiddenKinds
         return canonicalGroups.compactMap { group -> (EntityKind, [GroupedItem])? in
             guard let kind = EntityKind(groupKind: group.kind), !hidden.contains(kind) else { return nil }
             var items: [GroupedItem] = []
             for item in group.items {
                 guard let firstClaimId = item.claimIds.first else { continue }
-                let firstClaim = claimById[firstClaimId]
+                let firstClaim = claimsById[firstClaimId]
                 let primaryContext = (item.description ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 let excerpt = (item.sourceExcerpt ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 let context = !primaryContext.isEmpty
                     ? primaryContext
                     : (!excerpt.isEmpty ? excerpt : (firstClaim?.text ?? item.canonicalName))
                 let extraClaims: [GroupedItem.ExtraClaim] = item.claimIds.dropFirst().compactMap { claimId in
-                    let claim = claimById[claimId]
+                    let claim = claimsById[claimId]
                     return GroupedItem.ExtraClaim(
                         claimId: claimId,
                         context: claim?.text ?? context,
@@ -124,6 +158,21 @@ struct KnowledgeGraphInspectorSection: View {
                 return leftConfidence > rightConfidence
             }
             return (kind, sorted)
+        }
+    }
+
+    private var orderedClaimIds: [String] {
+        grouped.flatMap { _, items in
+            items.flatMap { item in
+                [item.claimId] + item.extraClaims.map(\.claimId)
+            }
+        }
+    }
+
+    private var selectedClaims: [Components.Schemas.KnowledgeClaim] {
+        orderedClaimIds.compactMap { claimId in
+            guard claimSelection.contains(claimId) else { return nil }
+            return claimsById[claimId]
         }
     }
 
@@ -191,6 +240,14 @@ struct KnowledgeGraphInspectorSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             sectionHeader
+            if claimSelection.count > 1 {
+                claimBulkActionBar
+            }
+            if let claimActionMessage {
+                Text(claimActionMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             if isLoading {
                 ProgressView().padding(.vertical, 8)
@@ -209,6 +266,15 @@ struct KnowledgeGraphInspectorSection: View {
                     EntityKindBlock(
                         kind: kind,
                         items: items,
+                        claimById: claimsById,
+                        selectedClaimIds: claimSelection,
+                        claimScopeLabel: documentScopeLabel,
+                        claimContextMenuTarget: contextMenuTargetClaims(for:),
+                        onClaimTap: handleClaimTap(_:),
+                        applyClaimBulkAction: applyBulkAction,
+                        requestClaimMergeAction: requestMergeAction(for:),
+                        requestClaimDeleteAction: requestDeleteAction(for:),
+                        requestPruneTrivialAction: requestPruneTrivialAction,
                         onNavigateToSource: onNavigateToSource,
                         onClaimSelect: onClaimSelect
                     )
@@ -226,6 +292,86 @@ struct KnowledgeGraphInspectorSection: View {
             )
         }
         .task(id: documentId) { await loadStatements() }
+        // Resync when any claim mutates anywhere — ClaimStore bumps its
+        // `changeToken` on each `claim.*` change event fanned from the
+        // per-library change-stream (#1862/#1863), retiring the inspector's
+        // `.ficheroClaim*` NotificationCenter dependency.
+        .onChange(of: claimStore.changeToken) {
+            Task { await loadStatements() }
+        }
+        .alert(
+            pendingMergePlan.map {
+                "Merge \($0.claimCount) claims into \"\($0.survivorName)\"?"
+            } ?? "Merge claims?",
+            isPresented: Binding(
+                get: { pendingMergePlan != nil },
+                set: { if !$0 { pendingMergePlan = nil } }
+            ),
+            presenting: pendingMergePlan
+        ) { plan in
+            Button("Merge") {
+                Task { await applyMerge(plan) }
+            }
+            Button("Cancel", role: .cancel) {
+                pendingMergePlan = nil
+            }
+        } message: { plan in
+            Text("This keeps \(plan.survivorName) as the canonical claim and folds the others into it.")
+        }
+        .alert(
+            pendingDeleteConfirmation?.title ?? "Delete claim?",
+            isPresented: Binding(
+                get: { pendingDeleteConfirmation != nil },
+                set: { if !$0 { pendingDeleteConfirmation = nil } }
+            ),
+            presenting: pendingDeleteConfirmation
+        ) { pending in
+            Button("Delete", role: .destructive) {
+                Task { await applyDelete(pending) }
+            }
+            Button("Cancel", role: .cancel) {
+                pendingDeleteConfirmation = nil
+            }
+        } message: { pending in
+            Text(pending.message)
+        }
+        .alert(
+            pendingPruneConfirmation?.title ?? "Prune trivial claims?",
+            isPresented: Binding(
+                get: { pendingPruneConfirmation != nil },
+                set: { if !$0 { pendingPruneConfirmation = nil } }
+            ),
+            presenting: pendingPruneConfirmation
+        ) { pending in
+            Button("Prune", role: .destructive) {
+                Task { await applyPruneTrivialClaims(scope: pending.scope) }
+            }
+            Button("Cancel", role: .cancel) {
+                pendingPruneConfirmation = nil
+            }
+        } message: { pending in
+            Text(pending.message)
+        }
+    }
+
+    private var claimBulkActionBar: some View {
+        HStack(spacing: 8) {
+            Text("\(claimSelection.count) selected")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+            claimBulkActionMenu(title: "Approve", systemImage: "checkmark.circle", action: .approve)
+            claimBulkActionMenu(title: "Reject", systemImage: "xmark.circle", action: .reject)
+            claimBulkActionMenu(title: "Suppress", systemImage: "eye.slash", action: .suppress)
+            claimMergeActionMenu(targetClaims: selectedClaims, menuTitle: "Merge")
+            deleteActionButton(targetClaims: selectedClaims)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.secondary.opacity(0.08))
+        )
     }
 
     private var sectionHeader: some View {
@@ -234,6 +380,10 @@ struct KnowledgeGraphInspectorSection: View {
         // is now just the filter + view-mode + reload controls, right-aligned.
         HStack(spacing: 8) {
             Spacer()
+            Menu("Prune trivial") {
+                pruneTrivialScopeButtons()
+            }
+            .disabled(isMutatingClaims)
             // Filter Menu — Tinderbox-style "displayed attributes" picker.
             // Each entity kind has its own checkbox; persistence lives in
             // @AppStorage so the choice survives restarts and applies to
@@ -292,6 +442,147 @@ struct KnowledgeGraphInspectorSection: View {
         .foregroundStyle(.primary)
     }
 
+    private func claimBulkActionMenu(
+        title: String,
+        systemImage: String,
+        action: InspectorClaimBulkAction
+    ) -> some View {
+        Menu {
+            claimBulkScopeButtons(action: action, targetClaims: selectedClaims)
+        } label: {
+            Label(title, systemImage: systemImage)
+        }
+        .menuStyle(.borderlessButton)
+        .disabled(isMutatingClaims || selectedClaims.isEmpty)
+    }
+
+    private func claimMergeActionMenu(
+        targetClaims: [Components.Schemas.KnowledgeClaim],
+        menuTitle: String
+    ) -> some View {
+        let mergePlan = InspectorClaimBulkSelection.mergePlan(for: targetClaims)
+        return Menu {
+            if let mergePlan {
+                Button("Into \"\(mergePlan.survivorName)\"") {
+                    pendingMergePlan = mergePlan
+                }
+            } else {
+                Button("Requires 2+ live claims") {}
+                    .disabled(true)
+            }
+        } label: {
+            Label(menuTitle, systemImage: "arrow.triangle.merge")
+        }
+        .menuStyle(.borderlessButton)
+        .disabled(isMutatingClaims || mergePlan == nil)
+    }
+
+    private func deleteActionButton(
+        targetClaims: [Components.Schemas.KnowledgeClaim]
+    ) -> some View {
+        Button(role: .destructive) {
+            requestDeleteAction(for: targetClaims)
+        } label: {
+            Label("Delete", systemImage: "trash")
+        }
+        .buttonStyle(.borderless)
+        .disabled(isMutatingClaims || targetClaims.isEmpty)
+    }
+
+    @ViewBuilder
+    private func claimBulkScopeButtons(
+        action: InspectorClaimBulkAction,
+        targetClaims: [Components.Schemas.KnowledgeClaim]
+    ) -> some View {
+        Button(documentScopeLabel) {
+            Task {
+                await applyBulkAction(
+                    action,
+                    scope: .pageOrFolderOnly,
+                    targetClaims: targetClaims
+                )
+            }
+        }
+        Button("Library-wide") {
+            Task {
+                await applyBulkAction(
+                    action,
+                    scope: .libraryWide,
+                    targetClaims: targetClaims
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func pruneTrivialScopeButtons() -> some View {
+        Button(documentScopeLabel) {
+            requestPruneTrivialAction(.pageOrFolderOnly)
+        }
+        Button("Library-wide") {
+            requestPruneTrivialAction(.libraryWide)
+        }
+    }
+
+    private func contextMenuTargetClaims(
+        for claim: Components.Schemas.KnowledgeClaim
+    ) -> [Components.Schemas.KnowledgeClaim] {
+        guard let claimId = claim.id else { return [claim] }
+        if claimSelection.contains(claimId) {
+            return selectedClaims
+        }
+        return [claim]
+    }
+
+    private func requestDeleteAction(for targetClaims: [Components.Schemas.KnowledgeClaim]) {
+        pendingDeleteConfirmation = PendingClaimDeleteConfirmation(claims: targetClaims)
+    }
+
+    private func handleClaimTap(_ claim: Components.Schemas.KnowledgeClaim) {
+        guard let claimId = claim.id else {
+            focusClaim(claim)
+            return
+        }
+
+        let modifiers: InspectorEntitySelectionModifiers = {
+            #if os(macOS)
+            return InspectorEntitySelectionModifiers(nsEventFlags: NSEvent.modifierFlags)
+            #else
+            return InspectorEntitySelectionModifiers()
+            #endif
+        }()
+        let reduced = InspectorEntityBulkSelection.reduceTap(
+            tappedId: claimId,
+            orderedIds: orderedClaimIds,
+            selection: claimSelection,
+            anchor: claimSelectionAnchor,
+            modifiers: modifiers
+        )
+        claimSelection = reduced.selection
+        claimSelectionAnchor = reduced.anchor
+
+        guard modifiers.isEmpty else { return }
+        focusClaim(claim)
+    }
+
+    private func focusClaim(_ claim: Components.Schemas.KnowledgeClaim) {
+        guard let claimId = claim.id else { return }
+        kgFocusState.focusClaim(
+            claimId: claimId,
+            entityId: claim.subjectEntityId,
+            sourceDocumentId: claim.sourceDocumentId,
+            sourcePageLabel: claim.sourcePageLabel
+        )
+        onClaimSelect?(
+            claimId,
+            claim.sourceExcerpt,
+            claim.sourceDocumentId,
+            claim.sourcePageLabel,
+            nil,
+            nil
+        )
+    }
+
     private func loadStatements() async {
         isLoading = true
         loadError = nil
@@ -304,12 +595,209 @@ struct KnowledgeGraphInspectorSection: View {
             )
             claims = response.claims
             canonicalGroups = response.groups
+            syncSelectionToLoadedClaims()
         } catch is CancellationError {
             // Task superseded by a newer page selection — not a load failure.
         } catch {
             loadError = "Couldn't load: \(error.localizedDescription)"
             claims = []
             canonicalGroups = []
+            claimSelection = []
+            claimSelectionAnchor = nil
+        }
+    }
+
+    private func syncSelectionToLoadedClaims() {
+        let validIds = Set(orderedClaimIds)
+        claimSelection = claimSelection.intersection(validIds)
+        if let claimSelectionAnchor, !validIds.contains(claimSelectionAnchor) {
+            self.claimSelectionAnchor = nil
+        }
+    }
+
+    private func applyBulkAction(
+        _ action: InspectorClaimBulkAction,
+        scope: InspectorEntityBulkActionScope,
+        targetClaims: [Components.Schemas.KnowledgeClaim]
+    ) async {
+        let claimIds = targetClaims.compactMap(\.id)
+        let missingIdCount = targetClaims.count - claimIds.count
+        guard !claimIds.isEmpty || (action == .suppress && scope == .libraryWide) else {
+            claimActionMessage = "Selected claims are missing IDs, so \(action.verb.lowercased()) was skipped."
+            return
+        }
+
+        isApplyingBulkAction = true
+        claimActionMessage = nil
+        defer { isApplyingBulkAction = false }
+
+        do {
+            let suppressRules = action == .suppress && scope == .libraryWide
+                ? InspectorClaimBulkSelection.libraryWideSuppressRules(for: targetClaims)
+                : []
+
+            if !claimIds.isEmpty {
+                _ = try await kgCurationService.batchSetClaimCurationState(
+                    claimIds: claimIds,
+                    curationState: action.curationState
+                )
+            }
+
+            if action == .suppress, scope == .libraryWide, !suppressRules.isEmpty {
+                _ = try await kgCurationService.batchCreateClaimRules(suppressRules)
+            }
+
+            await loadStatements()
+            claimSelection = []
+            claimSelectionAnchor = nil
+
+            if claimIds.isEmpty && suppressRules.isEmpty {
+                // Nothing was actually applied — don't report a false success.
+                claimActionMessage = missingIdCount > 0
+                    ? "Selected claims are missing IDs, so \(action.verb.lowercased()) was skipped."
+                    : "Nothing to \(action.verb.lowercased())."
+            } else {
+                var message = "\(action.verb) \(claimIds.count) claim"
+                message += claimIds.count == 1 ? "" : "s"
+                if action == .suppress, scope == .libraryWide {
+                    message += " and wrote \(suppressRules.count) suppress rule"
+                    message += suppressRules.count == 1 ? "" : "s"
+                }
+                if missingIdCount > 0 {
+                    message += "; skipped \(missingIdCount) without IDs"
+                }
+                claimActionMessage = message
+            }
+        } catch {
+            claimActionMessage = "Couldn't \(action.verb.lowercased()) claims: \(error.localizedDescription)"
+        }
+    }
+
+    private func requestMergeAction(for targetClaims: [Components.Schemas.KnowledgeClaim]) {
+        pendingMergePlan = InspectorClaimBulkSelection.mergePlan(for: targetClaims)
+    }
+
+    private func applyDelete(_ pending: PendingClaimDeleteConfirmation) async {
+        let claimIds = pending.claims.compactMap(\.id)
+        let missingIdCount = pending.claims.count - claimIds.count
+        guard !claimIds.isEmpty else {
+            claimActionMessage = "Selected claims are missing IDs, so delete was skipped."
+            pendingDeleteConfirmation = nil
+            return
+        }
+
+        isApplyingBulkAction = true
+        claimActionMessage = nil
+        pendingDeleteConfirmation = nil
+        defer { isApplyingBulkAction = false }
+
+        do {
+            for claimId in claimIds {
+                try await entityService.deleteClaim(claimId)
+            }
+            await loadStatements()
+            claimSelection = []
+            claimSelectionAnchor = nil
+
+            var message = "Deleted \(claimIds.count) claim"
+            message += claimIds.count == 1 ? "" : "s"
+            if missingIdCount > 0 {
+                message += "; skipped \(missingIdCount) without IDs"
+            }
+            claimActionMessage = message
+        } catch {
+            inspectorClaimsLogger.error(
+                "Claim delete failed for \(documentId, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+            claimActionMessage = "Couldn't delete claims: \(error.localizedDescription)"
+        }
+    }
+
+    // swiftlint:disable:next todo
+    // TODO(#1689): claim unmerge UI
+    private func applyMerge(_ plan: InspectorClaimBulkSelection.MergePlan) async {
+        isApplyingBulkAction = true
+        claimActionMessage = nil
+        pendingMergePlan = nil
+        defer { isApplyingBulkAction = false }
+
+        do {
+            _ = try await kgCurationService.mergeClaims(
+                survivorId: plan.survivorId,
+                absorbedIds: plan.absorbedClaimIds
+            )
+            await loadStatements()
+            claimSelection = []
+            claimSelectionAnchor = nil
+            claimActionMessage = "Merged \(plan.claimCount) claims."
+        } catch {
+            inspectorClaimsLogger.error(
+                "Claim merge failed for \(documentId, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+            claimActionMessage = "Couldn't merge claims: \(error.localizedDescription)"
+        }
+    }
+
+    private func requestPruneTrivialAction(_ scope: InspectorEntityBulkActionScope) {
+        pendingPruneConfirmation = PendingPruneConfirmation(
+            scope: pruneScope(for: scope),
+            title: pruneConfirmationTitle(for: scope),
+            message: pruneConfirmationMessage(for: scope)
+        )
+    }
+
+    private func pruneScope(
+        for scope: InspectorEntityBulkActionScope
+    ) -> KGCurationServiceGenerated.PruneTrivialScope {
+        switch scope {
+        case .pageOrFolderOnly:
+            return documentScope.pruneScope(documentId: documentId)
+        case .libraryWide:
+            return .libraryWide
+        }
+    }
+
+    private func pruneConfirmationTitle(for scope: InspectorEntityBulkActionScope) -> String {
+        switch scope {
+        case .pageOrFolderOnly:
+            return "Prune trivially-true claims in \(documentScope.confirmationTarget)?"
+        case .libraryWide:
+            return "Prune trivially-true claims across the whole library?"
+        }
+    }
+
+    private func pruneConfirmationMessage(for scope: InspectorEntityBulkActionScope) -> String {
+        switch scope {
+        case .pageOrFolderOnly:
+            return "This updates claim curation state for the current scope and refreshes the inspector list."
+        case .libraryWide:
+            return "This scans the whole library, updates matching claims, and may write a persistent suppress is-a copulas rule."
+        }
+    }
+
+    private func applyPruneTrivialClaims(
+        scope: KGCurationServiceGenerated.PruneTrivialScope
+    ) async {
+        isPruningTrivialClaims = true
+        claimActionMessage = nil
+        defer {
+            isPruningTrivialClaims = false
+            pendingPruneConfirmation = nil
+        }
+
+        do {
+            let response = try await kgCurationService.pruneTrivialClaims(scope: scope)
+            await loadStatements()
+            claimSelection = []
+            claimSelectionAnchor = nil
+
+            var message = "Pruned \(response.suppressedCount) trivial claim"
+            if response.suppressedCount != 1 {
+                message += "s"
+            }
+            claimActionMessage = message
+        } catch {
+            claimActionMessage = "Couldn't prune trivial claims: \(error.localizedDescription)"
         }
     }
 }
@@ -333,3 +821,213 @@ extension KnowledgeGraphInspectorSection {
         csv.split(separator: ",").contains(Substring(kind.rawValue))
     }
 }
+
+enum InspectorClaimDocumentScope {
+    case page
+    case folder
+
+    var label: String {
+        switch self {
+        case .page:
+            return "This page only"
+        case .folder:
+            return "This folder only"
+        }
+    }
+
+    var confirmationTarget: String {
+        switch self {
+        case .page:
+            return "this page"
+        case .folder:
+            return "this folder"
+        }
+    }
+
+    func pruneScope(documentId: String) -> KGCurationServiceGenerated.PruneTrivialScope {
+        switch self {
+        case .page:
+            return .document(documentId: documentId)
+        case .folder:
+            return .folder(folderId: documentId)
+        }
+    }
+}
+
+struct PendingPruneConfirmation: Identifiable {
+    let id = UUID()
+    let scope: KGCurationServiceGenerated.PruneTrivialScope
+    let title: String
+    let message: String
+}
+
+struct PendingClaimDeleteConfirmation: Identifiable {
+    let claims: [Components.Schemas.KnowledgeClaim]
+
+    var id: String {
+        claims.compactMap(\.id).sorted().joined(separator: "|")
+    }
+
+    var title: String {
+        if claims.count == 1, let claim = claims.first {
+            return "Delete \"\(claim.displayMergeName)\"?"
+        }
+        return "Delete \(claims.count) claims?"
+    }
+
+    var message: String {
+        if claims.count == 1 {
+            return "This removes the claim from the knowledge graph. Related entities stay in place."
+        }
+        return "This removes the selected claims from the knowledge graph. Related entities stay in place."
+    }
+}
+
+enum InspectorClaimBulkAction: Equatable {
+    case approve
+    case reject
+    case suppress
+
+    var verb: String {
+        switch self {
+        case .approve: return "Approved"
+        case .reject: return "Rejected"
+        case .suppress: return "Suppressed"
+        }
+    }
+
+    var curationState: Components.Schemas.ClaimCurationState {
+        switch self {
+        case .approve: return .curated
+        case .reject, .suppress: return .rejected
+        }
+    }
+}
+
+struct InspectorClaimBulkSelection {
+    struct MergePlan: Equatable, Identifiable {
+        let survivorId: String
+        let absorbedClaimIds: [String]
+        let survivorName: String
+        let claimCount: Int
+
+        var id: String {
+            "\(survivorId):\(absorbedClaimIds.sorted().joined(separator: ","))"
+        }
+    }
+
+    static func libraryWideSuppressRules(
+        for claims: [Components.Schemas.KnowledgeClaim]
+    ) -> [Components.Schemas.ClaimRuleCreateRequest] {
+        var seen = Set<String>()
+        return claims.compactMap { claim in
+            let subject = claim.subjectCanonical?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let predicate = claim.predicateVerb?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let object = claim.objectPhrase?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedSubject = (subject?.isEmpty == false) ? subject : nil
+            let normalizedPredicate = (predicate?.isEmpty == false) ? predicate : nil
+            let normalizedObject = (object?.isEmpty == false) ? object : nil
+            guard normalizedSubject != nil || normalizedPredicate != nil || normalizedObject != nil else {
+                return nil
+            }
+
+            let dedupeKey = [
+                normalizedSubject?.lowercased() ?? "",
+                normalizedPredicate?.lowercased() ?? "",
+                normalizedObject?.lowercased() ?? ""
+            ].joined(separator: "|")
+            guard seen.insert(dedupeKey).inserted else { return nil }
+
+            // Follow-up (#1763): prune-trivial when the selection is entirely is-a/copula claims.
+            return Components.Schemas.ClaimRuleCreateRequest(
+                action: .disable,
+                matchPredicateVerb: normalizedPredicate,
+                matchSubjectName: normalizedSubject,
+                matchObjectPhrase: normalizedObject,
+                suppressIsACopulas: false,
+                reason: "Bulk suppress from inspector",
+                createdBy: "human"
+            )
+        }
+    }
+
+    static func mergePlan(
+        for claims: [Components.Schemas.KnowledgeClaim]
+    ) -> MergePlan? {
+        guard claims.count > 1,
+              claims.allSatisfy({ $0.mergedIntoId == nil }),
+              let survivor = mergeSurvivor(in: claims),
+              let survivorId = survivor.id
+        else {
+            return nil
+        }
+
+        let claimIds = claims.compactMap(\.id)
+        guard claimIds.count == claims.count else { return nil }
+
+        let absorbedClaimIds = claimIds.filter { $0 != survivorId }
+        guard !absorbedClaimIds.isEmpty else { return nil }
+
+        return MergePlan(
+            survivorId: survivorId,
+            absorbedClaimIds: absorbedClaimIds,
+            survivorName: survivor.displayMergeName,
+            claimCount: claims.count
+        )
+    }
+
+    static func mergeSurvivor(
+        in claims: [Components.Schemas.KnowledgeClaim]
+    ) -> Components.Schemas.KnowledgeClaim? {
+        claims.sorted { lhs, rhs in
+            let lhsCorroboration = lhs.corroborationCount ?? 0
+            let rhsCorroboration = rhs.corroborationCount ?? 0
+            if lhsCorroboration != rhsCorroboration {
+                return lhsCorroboration > rhsCorroboration
+            }
+
+            let lhsWeighted = lhs.weightedCorroborationCount ?? 0
+            let rhsWeighted = rhs.weightedCorroborationCount ?? 0
+            if lhsWeighted != rhsWeighted {
+                return lhsWeighted > rhsWeighted
+            }
+
+            let lhsSupport = lhs.sourceSupports?.count ?? 0
+            let rhsSupport = rhs.sourceSupports?.count ?? 0
+            if lhsSupport != rhsSupport {
+                return lhsSupport > rhsSupport
+            }
+
+            let lhsName = lhs.displayMergeName
+            let rhsName = rhs.displayMergeName
+            if lhsName.count != rhsName.count {
+                return lhsName.count > rhsName.count
+            }
+
+            let lexical = lhsName.localizedCaseInsensitiveCompare(rhsName)
+            if lexical != .orderedSame {
+                return lexical == .orderedAscending
+            }
+            return (lhs.id ?? "") < (rhs.id ?? "")
+        }.first
+    }
+}
+
+private extension Components.Schemas.KnowledgeClaim {
+    var displayMergeName: String {
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !text.isEmpty {
+            return text
+        }
+
+        let pieces = [subjectCanonical, predicateVerb, objectPhrase]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        if !pieces.isEmpty {
+            return pieces.joined(separator: " ")
+        }
+
+        return id ?? "Untitled claim"
+    }
+}
+// swiftlint:enable file_length

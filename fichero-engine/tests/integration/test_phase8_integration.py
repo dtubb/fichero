@@ -8,10 +8,8 @@ Tests for:
 """
 
 import asyncio
-import json
 import pytest
 import httpx
-from typing import AsyncGenerator
 
 # Base URL for API tests
 BASE_URL = "http://127.0.0.1:8765/api"
@@ -25,6 +23,18 @@ BASE_URL = "http://127.0.0.1:8765/api"
 def api_client():
     """Create an HTTP client for API tests."""
     return httpx.Client(base_url=BASE_URL, timeout=30.0)
+
+
+@pytest.fixture(autouse=True)
+def require_live_backend():
+    """Skip cleanly when the dev backend is not reachable."""
+    try:
+        with httpx.Client(base_url=BASE_URL, timeout=2.0) as client:
+            response = client.get("/health")
+        if response.status_code != 200:
+            pytest.skip(f"Backend unavailable at {BASE_URL} (status {response.status_code})")
+    except httpx.HTTPError as exc:
+        pytest.skip(f"Backend unavailable at {BASE_URL}: {exc}")
 
 
 @pytest.fixture

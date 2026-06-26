@@ -13,7 +13,7 @@ import pytest
 from typer.testing import CliRunner
 
 from fichero import __main__ as cli
-from fichero.models import KnownLibrary, LibraryRegistryResponse
+from fichero.models import KnownLibrary, LibraryRegistryResponse, LibrarySnapshot
 
 runner = CliRunner()
 
@@ -79,6 +79,54 @@ class RegistryFakeClient:
     def create_library(self, path: str):
         self.calls.append(("create_library", path))
         return {"created": True, "path": path, "tables_initialized": True}
+
+    def create_library_snapshot(
+        self,
+        path: str,
+        *,
+        reason: str = "",
+        initiator: str = "user",
+    ) -> LibrarySnapshot:
+        self.calls.append(("create_library_snapshot", path, reason, initiator))
+        return LibrarySnapshot(
+            id="snap-1",
+            library_path=path,
+            library_name=Path(path).stem,
+            reason=reason,
+            snapshot_path="/tmp/snap-1",
+            duckdb_path="Test/snap-1/duckdb_file",
+            lance_path="Test/snap-1/vectors_copy",
+            duckdb_size_bytes=123,
+            lance_size_bytes=456,
+        )
+
+    def list_library_snapshots(
+        self,
+        *,
+        library_name: str | None = None,
+        include_expired: bool = False,
+    ) -> dict:
+        self.calls.append(("list_library_snapshots", library_name, include_expired))
+        return {
+            "snapshots": [
+                {
+                    "id": "snap-1",
+                    "library_name": library_name or "Test",
+                    "reason": "manual checkpoint",
+                }
+            ],
+            "total": 1,
+        }
+
+    def restore_library_snapshot(self, snapshot_id: str) -> dict:
+        self.calls.append(("restore_library_snapshot", snapshot_id))
+        return {
+            "snapshot_id": snapshot_id,
+            "library_path": "/Users/daniel/Documents/Test.fichero",
+            "duckdb_restored_path": "/Users/daniel/Documents/Test.fichero/fichero.duckdb",
+            "lance_restored_path": "/Users/daniel/Documents/Test.fichero/vectors",
+            "note": "restored",
+        }
 
 
 def _last_client() -> RegistryFakeClient:
@@ -165,6 +213,54 @@ def test_library_create():
     assert any(c[0] == "create_library" for c in calls)
     assert any(c[0] == "add_known_library" for c in calls)
     assert "Created and registered:" in result.output
+
+
+def test_library_snapshot_uses_global_library_path():
+    """Snapshot creates a point-in-time snapshot for the active library."""
+    result = runner.invoke(
+        cli.app,
+        [
+            "--library",
+            "/Users/daniel/Documents/Test.fichero",
+            "library",
+            "snapshot",
+            "--reason",
+            "before migration",
+        ],
+    )
+    assert result.exit_code == 0
+    assert (
+        "create_library_snapshot",
+        "/Users/daniel/Documents/Test.fichero",
+        "before migration",
+        "user",
+    ) in _last_client().calls
+    assert "snap-1" in result.output
+
+
+def test_library_snapshots_lists_snapshots():
+    """Snapshots lists available library snapshots."""
+    result = runner.invoke(
+        cli.app,
+        ["library", "snapshots", "--library-name", "Test"],
+    )
+    assert result.exit_code == 0
+    assert ("list_library_snapshots", "Test", False) in _last_client().calls
+    assert "snap-1" in result.output
+
+
+def test_library_restore_requires_confirmation():
+    """Restore aborts when confirmation is declined."""
+    result = runner.invoke(cli.app, ["library", "restore", "snap-1"], input="n\n")
+    assert result.exit_code == 1
+
+
+def test_library_restore_yes():
+    """Restore calls the backend when confirmed by flag."""
+    result = runner.invoke(cli.app, ["library", "restore", "snap-1", "--yes"])
+    assert result.exit_code == 0
+    assert ("restore_library_snapshot", "snap-1") in _last_client().calls
+    assert "snap-1" in result.output
 
 
 # -- library delete --

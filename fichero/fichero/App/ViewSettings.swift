@@ -23,7 +23,6 @@ enum SidebarMode: String, CaseIterable {
     case workflows    // 4: Workflow definitions
     case automation   // 5: Schedules + triggers
     case activity       // 6: All workflow runs (running + completed + failed) with logs/errors
-    case mindPalace     // 7: Spatial 3D-2D space — rooms of archival material
     case research       // 8: Research projects + workspace
     case knowledgeGraph // 9: Entity / ontology browser (#498)
 
@@ -37,7 +36,6 @@ enum SidebarMode: String, CaseIterable {
         case .research: "flask"
         case .automation: "gearshape.2"
         case .activity: "clock"
-        case .mindPalace: "cube.transparent"
         case .knowledgeGraph: "point.3.connected.trianglepath.dotted"
         }
     }
@@ -52,7 +50,6 @@ enum SidebarMode: String, CaseIterable {
         case .research: "Research"
         case .automation: "Automation"
         case .activity: "Activity"
-        case .mindPalace: "Mind Palace"
         case .knowledgeGraph: "Knowledge Graph"
         }
     }
@@ -66,7 +63,6 @@ enum SidebarMode: String, CaseIterable {
         case .workflows: "4"
         case .automation: "5"
         case .activity: "6"
-        case .mindPalace: "7"
         case .research: "8"
         case .knowledgeGraph: "9"
         }
@@ -90,8 +86,6 @@ enum SidebarMode: String, CaseIterable {
             body = "Automation — schedules and triggers that run workflows automatically"
         case .activity:
             body = "Activity — monitor running and recent background jobs"
-        case .mindPalace:
-            body = "Mind Palace — a spatial 3D view of your documents"
         case .knowledgeGraph:
             body = "Knowledge Graph — explore entities and how they connect"
         }
@@ -123,6 +117,46 @@ enum PreviewMode: String, CaseIterable {
     case widescreen // Content and preview side-by-side
 }
 
+/// Mail-modeled vocabulary for WHERE the document preview sits relative to the
+/// library list (#2032/§6d). This is a thin facade over the canonical
+/// `PreviewMode` — it does NOT introduce a parallel stored value. The single
+/// source of truth remains `ViewSettings.previewMode` (and its per-window
+/// `@SceneStorage("currentLayoutMode")` mirror); `PreviewLayout` just renames
+/// the three existing cases into Apple-Mail terms:
+///
+///   .side   ⇆ .widescreen  — list and preview side-by-side (HStack)
+///   .bottom ⇆ .standard    — list above, preview below (VSplitView)
+///   .hidden ⇆ .none        — list only, no preview
+///
+/// Default `.side` preserves current behavior (`previewMode` defaults to
+/// `.widescreen`). Use `PreviewMode.layout` / `PreviewLayout.previewMode` to
+/// bridge; never store a `PreviewLayout` separately.
+enum PreviewLayout: String, CaseIterable {
+    case side    // = .widescreen
+    case bottom  // = .standard
+    case hidden  // = .none
+
+    /// The canonical preview mode this layout maps to.
+    var previewMode: PreviewMode {
+        switch self {
+        case .side: .widescreen
+        case .bottom: .standard
+        case .hidden: .none
+        }
+    }
+}
+
+extension PreviewMode {
+    /// The Mail-vocabulary layout this preview mode corresponds to.
+    var layout: PreviewLayout {
+        switch self {
+        case .widescreen: .side
+        case .standard: .bottom
+        case .none: .hidden
+        }
+    }
+}
+
 // MARK: - Focused Values
 
 /// Focused value for sidebar mode - allows menu commands to change per-window sidebar mode
@@ -142,4 +176,30 @@ extension FocusedValues {
     @Entry var showDocumentCanvas: Binding<Bool>?
     /// The WebKit/reading content pane (transcript surface).
     @Entry var showReadingPane: Binding<Bool>?
+
+    /// The active representation shown in the document content/WebKit surface
+    /// (Transcript/Digest/Graph/Claims/Timeline/Map), published by the focused
+    /// `DocumentKGSurface`. Drives the View-menu "Add View" items so the
+    /// representation switcher lives in the menu instead of a floating icon bar
+    /// over the content (#2032 / reform §G). Nil when no document surface is
+    /// focused, so the menu items disable.
+    ///
+    /// Uses the Equatable `DocumentRepresentationFocus` wrapper (not a raw
+    /// `Binding`, which is non-Equatable) so SwiftUI can dedupe it: a `body`
+    /// pass with the same active tab does NOT republish, avoiding per-frame
+    /// focused-value churn (#2032).
+    @Entry var documentRepresentation: DocumentRepresentationFocus?
+
+    /// The active view mode of the global Knowledge Graph browser
+    /// (List/Graph/Chart/Timeline/Map), published by the focused
+    /// `OntologyBrowser`. Drives the View-menu "Knowledge Graph View" items and
+    /// the iOS toolbar View menu so the KG mode switcher lives in the menu /
+    /// main toolbar instead of a segmented icon row inside the KG pane toolbar
+    /// (#2436, same principle as `documentRepresentation`). Nil when the KG
+    /// browser is not focused, so the menu items disable.
+    ///
+    /// Uses the Equatable `KnowledgeGraphViewModeFocus` wrapper (not a raw
+    /// `Binding`) so SwiftUI dedupes it and the switcher does not republish a
+    /// "new" focused value every `body` pass.
+    @Entry var knowledgeGraphViewMode: KnowledgeGraphViewModeFocus?
 }

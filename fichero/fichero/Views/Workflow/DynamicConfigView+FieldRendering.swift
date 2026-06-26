@@ -55,13 +55,13 @@ extension DynamicConfigView {
 
                 default:
                     Text("Unsupported type: \(type)")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundColor(.red)
                 }
 
                 if type != "boolean", let desc = description {
                     Text(desc)
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }
@@ -132,7 +132,7 @@ extension DynamicConfigView {
                     removeConfig(key: key)
                 } label: {
                     Label("Reset to default", systemImage: "arrow.counterclockwise")
-                        .font(.caption2)
+                        .font(.caption)
                 }
                 .buttonStyle(.plain)
                 .foregroundColor(.accentColor)
@@ -270,7 +270,7 @@ extension DynamicConfigView {
 
         if folderOptions.isEmpty {
             Text("No folders found. Create one in Library first.")
-                .font(.caption2)
+                .font(.caption)
                 .foregroundColor(.secondary)
                 .italic()
         }

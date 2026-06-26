@@ -234,7 +234,8 @@ struct ContradictionTriageSheet: View {
         do {
             _ = try await library.entityService.patchClaim(claimId, curationState: state)
             statusMessage = "Saved: \(claimId) → \(state.rawValue)"
-            NotificationCenter.default.post(name: .ficheroClaimUpdated, object: claimId)
+            // The backend emits `claim.updated`; the change-stream fans the
+            // refresh to bound claim surfaces, so no NotificationCenter (#1862).
         } catch {
             statusMessage = "Failed to save curation decision"
         }

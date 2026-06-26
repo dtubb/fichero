@@ -23,7 +23,6 @@ class AppState: ObservableObject {
     // MARK: - Provider Management
 
     @Published var providers: [Components.Schemas.ProviderResponse] = []
-    @Published var showProvidersSettings: Bool = false
     @Published var showAddProvider: Bool = false
     @Published var hasCheckedProviders: Bool = false
     @Published var isFirstLaunchProviderSetup: Bool = false  // True when showing Add Provider on first launch
@@ -31,11 +30,6 @@ class AppState: ObservableObject {
     // MARK: - MCP Server Management
 
     @Published var showMCPServers: Bool = false
-
-    // MARK: - Notes browser (#1500)
-
-    /// Drives the standalone NotesBrowserView sheet (Data ▸ Notes Browser…).
-    @Published var showNotesBrowser: Bool = false
 
     // MARK: - Integrations (Hazel-like folder/app observers)
 
@@ -45,11 +39,12 @@ class AppState: ObservableObject {
 
     // MARK: - Services
 
-    private let apiClient = APIClient()  // App-wide APIClient for global services
-    private let ficheroClient = FicheroClient()  // App-wide FicheroClient for generated services
+    private let apiClient = APIClient()  // App-wide APIClient for legacy services
+    private let ficheroClient = FicheroClient(baseURL: EngineConfig.host)  // App-wide generated client
     let providerService: ProviderServiceGenerated  // Public for @EnvironmentObject injection
     let mcpService: MCPService  // Public for @EnvironmentObject injection
     let modelService: ModelServiceGenerated  // Public for @EnvironmentObject injection (HuggingFace browsing)
+    let usersStore: UsersStore  // Public for Settings → Users tab
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "AppState")
 
     // MARK: - Initialization
@@ -60,15 +55,8 @@ class AppState: ObservableObject {
         self.providerService = ProviderServiceGenerated(ficheroClient: ficheroClient)
         self.mcpService = MCPService(apiClient: apiClient)
         self.modelService = ModelServiceGenerated(ficheroClient: ficheroClient)
-        logger.info("⏱ AppState.init services ready — queuing health check")
-
-        // Check API health on launch, then start the periodic heartbeat
-        // so the offline banner appears if the engine goes down mid-session
-        // (#967 — Daniel: "the app kept working, and failed silently").
-        Task { @MainActor in
-            await checkBackendHealth()
-            startBackendHeartbeat()
-        }
+        self.usersStore = UsersStore(client: ficheroClient)
+        logger.info("⏱ AppState.init services ready")
     }
 
     deinit {
@@ -93,27 +81,30 @@ class AppState: ObservableObject {
         }
     }
 
+    func reconfigureGeneratedClientsForCurrentHost() {
+        ficheroClient.reconfigure(baseURL: EngineConfig.host)
+        NotificationCenter.default.post(name: EngineConfig.engineHostDidChangeNotification, object: nil)
+    }
+
     private func pingBackendOnce() async {
-        let url = EngineConfig.apiBaseURL.appendingPathComponent("health")
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 3
         do {
-            let (_, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            let response = try await ficheroClient.api.healthCheckApiHealthGet(headers: .init())
+            switch response {
+            case .ok:
+                // Success — flip back online immediately so the offline banner
+                // clears the moment the engine comes back. Reset the failure
+                // streak.
+                heartbeatFailureCount = 0
+                if !isBackendRunning {
+                    isBackendRunning = true
+                    backendError = nil
+                    logger.info("Backend heartbeat: recovered — back online")
+                    // Reload providers now that the engine is back so list
+                    // views aren't empty until next manual refresh.
+                    await loadProviders()
+                }
+            default:
                 noteHeartbeatFailure(reason: "API returned error status")
-                return
-            }
-            // Success — flip back online immediately so the offline banner
-            // clears the moment the engine comes back. Reset the failure
-            // streak.
-            heartbeatFailureCount = 0
-            if !isBackendRunning {
-                isBackendRunning = true
-                backendError = nil
-                logger.info("Backend heartbeat: recovered — back online")
-                // Reload providers now that the engine is back so list
-                // views aren't empty until next manual refresh.
-                await loadProviders()
             }
         } catch {
             noteHeartbeatFailure(reason: error.localizedDescription)
@@ -142,47 +133,31 @@ class AppState: ObservableObject {
 
     /// Check if the Python API is running
     func checkBackendHealth() async {
+        reconfigureGeneratedClientsForCurrentHost()
         logger.info("⏱ checkBackendHealth entry")
         isCheckingBackend = true
         defer { isCheckingBackend = false }
 
-        let url = EngineConfig.apiBaseURL.appendingPathComponent("health")
-
-        logger.info("⏱ checkBackendHealth request-start → \(url.absoluteString)")
+        logger.info("⏱ checkBackendHealth request-start")
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
-            logger.info("⏱ checkBackendHealth response-received")
+            let response = try await ficheroClient.api.healthCheckApiHealthGet(headers: .init())
+            switch response {
+            case .ok(let okResponse):
+                let health = try okResponse.body.json
 
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else {
+                documentCount = health.activeLibraries ?? 0
+                isBackendRunning = true
+                backendError = nil
+                logger.info("Backend connected: v\(health.backendVersion ?? "unknown"), \(health.activeLibraries ?? 0) active libraries")
+
+                // Now load providers
+                _ = await AuthTokenMiddleware.waitForToken()
+                await loadProviders()
+
+            default:
                 backendError = "API returned error status"
                 isBackendRunning = false
-                return
             }
-
-            // Parse health response
-            struct HealthResponse: Codable {
-                let status: String
-                let backendVersion: String
-                let activeLibraries: Int
-
-                // swiftlint:disable:next nesting
-                enum CodingKeys: String, CodingKey {
-                    case status
-                    case backendVersion = "backend_version"
-                    case activeLibraries = "active_libraries"
-                }
-            }
-
-            let health = try JSONDecoder().decode(HealthResponse.self, from: data)
-            documentCount = health.activeLibraries  // Track number of active libraries instead
-            isBackendRunning = true
-            backendError = nil
-            logger.info("Backend connected: v\(health.backendVersion), \(health.activeLibraries) active libraries")
-
-            // Now load providers
-            _ = await AuthTokenMiddleware.waitForToken()
-            await loadProviders()
 
         } catch let error as URLError where error.code == .cannotConnectToHost {
             backendError = """
@@ -227,25 +202,87 @@ class AppState: ObservableObject {
     // MARK: - AI Defaults
 
     func fetchAIDefaults() async throws -> AIDefaults {
-        let result: AIDefaults = try await apiClient.get("/settings/ai-defaults")
-        return result
-    }
-
-    func saveAIDefaults(_ defaults: AIDefaults) async throws {
-        let _: StatusResponse = try await apiClient.put("/settings/ai-defaults", body: defaults)
-    }
-
-    func resetAIDefaults() async throws {
-        let url = EngineConfig.apiBaseURL.appendingPathComponent("settings/ai-defaults")
-        var request = URLRequest(url: url)
-        request.httpMethod = "DELETE"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.addEngineAuth()
-        let (_, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
+        let response = try await ficheroClient.api.getAiDefaultsApiSettingsAiDefaultsGet(headers: .init())
+        switch response {
+        case .ok(let okResponse):
+            let generated = try okResponse.body.json
+            return AppState.map(generated)
+        default:
             throw APIError.invalidResponse
         }
     }
 
+    func saveAIDefaults(_ defaults: AIDefaults) async throws {
+        let update = AppState.mapToUpdate(defaults)
+        let response = try await ficheroClient.api.setAiDefaultsApiSettingsAiDefaultsPut(body: .json(update))
+        switch response {
+        case .ok:
+            return
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw APIError.httpError(statusCode: 422, message: detail?.detail?.description ?? "Validation error")
+        default:
+            throw APIError.invalidResponse
+        }
+    }
+
+    func resetAIDefaults() async throws {
+        let response = try await ficheroClient.api.resetAiDefaultsApiSettingsAiDefaultsDelete(headers: .init())
+        switch response {
+        case .ok:
+            return
+        default:
+            throw APIError.invalidResponse
+        }
+    }
+}
+
+// MARK: - AI Defaults Mapping
+
+extension AppState {
+    /// Map generated OpenAPI AI defaults to the local view model.
+    static func map(_ generated: Components.Schemas.AIDefaults) -> AIDefaults {
+        AIDefaults(
+            visionProvider: generated.visionProvider ?? "",
+            visionModel: generated.visionModel ?? "",
+            textProvider: generated.textProvider ?? "",
+            textModel: generated.textModel ?? "",
+            audioProvider: generated.audioProvider ?? "",
+            audioModel: generated.audioModel ?? "",
+            videoProvider: generated.videoProvider ?? "",
+            videoModel: generated.videoModel ?? "",
+            embeddingsProvider: generated.embeddingsProvider ?? "",
+            embeddingsModel: generated.embeddingsModel ?? "",
+            smallProvider: generated.smallProvider ?? "",
+            smallModel: generated.smallModel ?? "",
+            largeProvider: generated.largeProvider ?? "",
+            largeModel: generated.largeModel ?? "",
+            temperature: generated.temperature ?? "",
+            maxTokens: generated.maxTokens ?? "",
+            promptPrefix: generated.promptPrefix ?? ""
+        )
+    }
+
+    /// Map the local AI defaults view model to the generated update payload.
+    static func mapToUpdate(_ defaults: AIDefaults) -> Components.Schemas.AIDefaultsUpdate {
+        Components.Schemas.AIDefaultsUpdate(
+            visionProvider: defaults.visionProvider,
+            visionModel: defaults.visionModel,
+            textProvider: defaults.textProvider,
+            textModel: defaults.textModel,
+            audioProvider: defaults.audioProvider,
+            audioModel: defaults.audioModel,
+            videoProvider: defaults.videoProvider,
+            videoModel: defaults.videoModel,
+            embeddingsProvider: defaults.embeddingsProvider,
+            embeddingsModel: defaults.embeddingsModel,
+            smallProvider: defaults.smallProvider,
+            smallModel: defaults.smallModel,
+            largeProvider: defaults.largeProvider,
+            largeModel: defaults.largeModel,
+            temperature: defaults.temperature,
+            maxTokens: defaults.maxTokens,
+            promptPrefix: defaults.promptPrefix
+        )
+    }
 }

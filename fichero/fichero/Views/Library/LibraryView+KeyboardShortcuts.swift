@@ -1,5 +1,13 @@
 import SwiftUI
 
+private struct DocumentDeleteActionParams: Encodable {
+    let docId: String
+
+    enum CodingKeys: String, CodingKey {
+        case docId = "doc_id"
+    }
+}
+
 // MARK: - Keyboard Shortcuts Extension
 
 extension LibraryView {
@@ -7,7 +15,9 @@ extension LibraryView {
     // swiftlint:disable:next function_body_length
     func withKeyboardShortcuts(_ content: some View) -> some View {
         content
+            #if os(macOS)
             .onDeleteCommand(perform: promptDeleteSelected)
+            #endif
             .onKeyPress(.return) {
                 openSelectedDocument()
                 return .handled
@@ -36,16 +46,32 @@ extension LibraryView {
             .onKeyPress(.pageDown, phases: .down) { _ in
                 handleArrowKey(direction: .pageDown)
             }
+            #if os(macOS)
             .onMoveCommand { direction in
                 handleMoveCommand(direction)
             }
-            .focusedSceneValue(\.librarySelectAll, !filteredDocuments.isEmpty ? {
-                selectAll()
-            } : nil)
-            .focusedSceneValue(\.libraryDeleteSelection, !selection.isEmpty ? {
-                promptDeleteSelected()
-            } : nil)
-            .focusedSceneValue(\.librarySortField, $libraryToolbar.sortFieldRaw)
+            #endif
+            .focusedSceneValue(
+                \.librarySelectAll,
+                FocusedLibraryAction(
+                    isEnabled: !(isShowingEntitiesCollection ? filteredEntities.isEmpty : filteredDocuments.isEmpty),
+                    run: { selectAll() }
+                )
+            )
+            .focusedSceneValue(
+                \.libraryDeleteSelection,
+                FocusedLibraryAction(
+                    isEnabled: !isShowingEntitiesCollection && !selection.isEmpty,
+                    run: { promptDeleteSelected() }
+                )
+            )
+            .focusedSceneValue(
+                \.librarySortField,
+                FocusedSortField(
+                    value: libraryToolbar.sortFieldRaw,
+                    set: { libraryToolbar.sortFieldRaw = $0 }
+                )
+            )
             .focusedSceneValue(\.librarySortAscending, $libraryToolbar.sortAscending)
             .confirmationDialog(
                 "Delete \(documentsToDelete.count) document\(documentsToDelete.count == 1 ? "" : "s")?",
@@ -126,10 +152,14 @@ extension LibraryView {
 
     /// Perform the actual deletion after confirmation
     private func performDeleteSelected() async {
-        guard let library = libraryManager.globalLibrary else { return }
+        guard let library = libraryManager.getLibrary(id: windowState.libraryId) else { return }
         for doc in documentsToDelete {
             do {
-                try await library.documentStore.deleteDocument(doc)
+                let result = try await library.actionsService.invokeAction(
+                    name: "document.delete",
+                    params: DocumentDeleteActionParams(docId: doc.id)
+                )
+                LastAction.shared.record(auditId: result.auditId, actionName: "document.delete")
             } catch {
                 ErrorService.shared.reportError(
                     ErrorModel.fileSystemError(
@@ -153,14 +183,23 @@ extension LibraryView {
 
     /// Open the first selected document in the inspector
     func openSelectedDocument() {
-        guard let firstId = selection.first,
-              let doc = filteredDocuments.first(where: { $0.id == firstId }) else { return }
+        guard let firstId = selection.first else { return }
+        if isShowingEntitiesCollection,
+           let entity = filteredEntities.first(where: { entitySelectionId(for: $0) == firstId }) {
+            focusEntityIfPossible(entity)
+            return
+        }
+        guard let doc = filteredDocuments.first(where: { $0.id == firstId }) else { return }
         detailDocument = doc
     }
 
     /// Select all visible documents
     func selectAll() {
-        selection = Set(filteredDocuments.map(\.id))
+        if isShowingEntitiesCollection {
+            selection = Set(filteredEntities.map { entitySelectionId(for: $0) })
+        } else {
+            selection = Set(filteredDocuments.map(\.id))
+        }
     }
 
     // MARK: - Arrow Key Navigation
@@ -169,6 +208,7 @@ extension LibraryView {
         case upDir, down, left, right, pageUp, pageDown
     }
 
+    #if os(macOS)
     func handleMoveCommand(_ direction: MoveCommandDirection) {
         switch direction {
         case .up:
@@ -183,34 +223,44 @@ extension LibraryView {
             break
         }
     }
+    #endif
 
     /// Handle arrow key press for navigating documents.
     /// All four arrows navigate within the content area (like Finder).
     /// Tab/Shift+Tab cycle focus between panes.
     func handleArrowKey(direction: ArrowDirection) -> KeyPress.Result {
-        let docs = filteredDocuments
-        guard !docs.isEmpty else { return .ignored }
+        let ids: [String]
+        if isShowingEntitiesCollection {
+            ids = filteredEntities.map { entitySelectionId(for: $0) }
+        } else {
+            ids = filteredDocuments.map(\.id)
+        }
+        guard !ids.isEmpty else { return .ignored }
 
         // Select first item if nothing is selected yet
-        guard let currentIndex = currentSelectionIndex(in: docs) else {
-            selection = [docs[0].id]; selectionAnchor = docs[0].id; return .handled
+        guard let currentIndex = currentSelectionIndex(in: ids) else {
+            selection = [ids[0]]
+            selectionAnchor = ids[0]
+            focusSelectedEntityIfNeeded()
+            return .handled
         }
 
         let step = stepSize(for: direction)
         guard step != 0 else { return .ignored }
         let targetIndex = currentIndex + step
-        guard targetIndex >= 0, targetIndex < docs.count else { return .handled }
+        guard targetIndex >= 0, targetIndex < ids.count else { return .handled }
 
-        applySelection(targetIndex: targetIndex, docs: docs)
+        applySelection(targetIndex: targetIndex, ids: ids)
         if displayMode == .icon || displayMode == .list || displayMode == .table {
-            listScrollTarget = docs[targetIndex].id
+            listScrollTarget = ids[targetIndex]
         }
+        focusSelectedEntityIfNeeded()
         return .handled
     }
 
-    private func currentSelectionIndex(in docs: [Document]) -> Int? {
+    private func currentSelectionIndex(in ids: [String]) -> Int? {
         guard let firstSelected = selection.first else { return nil }
-        return docs.firstIndex(where: { $0.id == firstSelected })
+        return ids.firstIndex(of: firstSelected)
     }
 
     private func stepSize(for direction: ArrowDirection) -> Int {
@@ -232,20 +282,28 @@ extension LibraryView {
         return 10
     }
 
-    private func applySelection(targetIndex: Int, docs: [Document]) {
-        let targetDoc = docs[targetIndex]
+    private func applySelection(targetIndex: Int, ids: [String]) {
+        let targetId = ids[targetIndex]
+        #if os(macOS)
         if NSEvent.modifierFlags.contains(.shift),
            let anchor = selectionAnchor,
-           let anchorIndex = docs.firstIndex(where: { $0.id == anchor }) {
+           let anchorIndex = ids.firstIndex(of: anchor) {
             let range = min(anchorIndex, targetIndex)...max(anchorIndex, targetIndex)
-            selection = Set(docs[range].map(\.id))
+            selection = Set(range.map { ids[$0] })
         } else if NSEvent.modifierFlags.contains(.shift) {
-            selection.insert(targetDoc.id)
-            selectionAnchor = targetDoc.id
+            selection.insert(targetId)
+            selectionAnchor = targetId
         } else {
-            selection = [targetDoc.id]
-            selectionAnchor = targetDoc.id
+            selection = [targetId]
+            selectionAnchor = targetId
         }
+        #else
+        // iOS: keyboard modifier flags aren't available on .onKeyPress;
+        // collapse to plain selection. Modifier-aware keyboard selection
+        // is a separate iPad UI pass.
+        selection = [targetId]
+        selectionAnchor = targetId
+        #endif
     }
 
     // MARK: - Type-to-Select
@@ -258,8 +316,13 @@ extension LibraryView {
         // Append to the buffer
         typeSelectBuffer += characters.lowercased()
 
-        // Find the first document whose name starts with the buffer
-        if let match = filteredDocuments.first(where: {
+        if isShowingEntitiesCollection,
+           let match = filteredEntities.first(where: {
+               $0.canonicalName.lowercased().hasPrefix(typeSelectBuffer)
+           }) {
+            selection = [entitySelectionId(for: match)]
+            focusEntityIfPossible(match)
+        } else if let match = filteredDocuments.first(where: {
             $0.name.lowercased().hasPrefix(typeSelectBuffer)
         }) {
             selection = [match.id]
@@ -272,23 +335,70 @@ extension LibraryView {
             typeSelectBuffer = ""
         }
     }
+
+    private func focusSelectedEntityIfNeeded() {
+        guard isShowingEntitiesCollection,
+              let firstId = selection.first,
+              let entity = filteredEntities.first(where: { entitySelectionId(for: $0) == firstId }) else { return }
+        focusEntityIfPossible(entity)
+    }
+}
+
+// MARK: - FocusedValue Equatable Wrappers
+
+/// Equatable wrapper for a library action (selectAll / deleteSelection).
+///
+/// Closures are non-Equatable, so publishing a raw `() -> Void` via
+/// `focusedSceneValue` causes SwiftUI to see a new value on every `body` pass
+/// → republishes → cascading invalidation ("FocusedValue update tried to update
+/// multiple times per frame"). This wrapper keys equality on `isEnabled` only;
+/// the `run` closure is excluded (closures are non-Equatable). Because the
+/// enable state is the only part readers query for menu-item enable/disable, this
+/// is semantically identical to the old nil-means-disabled pattern while being
+/// stable across re-renders.
+struct FocusedLibraryAction: Equatable {
+    /// Whether the action is currently available (non-empty list or selection).
+    let isEnabled: Bool
+    /// Execute the action.
+    let run: () -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.isEnabled == rhs.isEnabled
+    }
+}
+
+/// Equatable wrapper for the library sort-field focused value.
+///
+/// `Binding<String>` is non-Equatable — publishing it directly via
+/// `focusedSceneValue` causes the same per-frame churn as raw closures.
+/// This wrapper captures the current value (for equality and display) plus a
+/// setter (for mutation), excluding the setter from equality.
+struct FocusedSortField: Equatable {
+    /// The current raw sort-field value (e.g. `LibrarySortField.name.rawValue`).
+    let value: String
+    /// Update the sort field to a new raw value.
+    let set: (String) -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.value == rhs.value
+    }
 }
 
 // MARK: - FocusedValue Keys for Library Actions
 
 /// FocusedValue key for selecting all documents in the library
 struct LibrarySelectAllKey: FocusedValueKey {
-    typealias Value = () -> Void
+    typealias Value = FocusedLibraryAction
 }
 
 /// FocusedValue key for deleting selected documents in the library
 struct LibraryDeleteSelectionKey: FocusedValueKey {
-    typealias Value = () -> Void
+    typealias Value = FocusedLibraryAction
 }
 
-/// FocusedValue key for the library sort field binding
+/// FocusedValue key for the library sort field
 struct LibrarySortFieldKey: FocusedValueKey {
-    typealias Value = Binding<String>
+    typealias Value = FocusedSortField
 }
 
 /// FocusedValue key for the library sort direction binding

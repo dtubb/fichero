@@ -4,11 +4,12 @@ import SwiftUI
 // MARK: - Models for the section's local rendering state
 
 @MainActor
-final class KnowledgeGraphInspectorLoadState: ObservableObject {
-    @Published var claims: [Components.Schemas.KnowledgeClaim] = []
-    @Published var canonicalGroups: [Components.Schemas.KGEntityGroup] = []
-    @Published var isLoading = false
-    @Published var loadError: String?
+@Observable
+final class KnowledgeGraphInspectorLoadState {
+    var claims: [Components.Schemas.KnowledgeClaim] = []
+    var canonicalGroups: [Components.Schemas.KGEntityGroup] = []
+    var isLoading = false
+    var loadError: String?
 }
 
 // MARK: - GroupedItem

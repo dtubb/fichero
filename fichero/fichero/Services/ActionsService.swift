@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 import OSLog
 
@@ -57,45 +58,9 @@ final class ActionsService: ActionLibraryService {
 
 // MARK: - Models
 
-struct ActionItem: Codable, Identifiable, Hashable {
-    let id: String
-    let name: String
-    let description: String
-    let category: String
-    let tags: [String]
-    let icon: String
-    let nodeTemplate: [String: AnyCodable]
-    let nodes: [[String: AnyCodable]]
-    let edges: [[String: AnyCodable]]
-    let isBuiltin: Bool
-    let isComposite: Bool
-    let author: String
-    let useCount: Int
-    let lastUsedAt: String?
-    let createdAt: String
-    let updatedAt: String
+typealias ActionItem = Components.Schemas.ActionResponse
 
-    enum CodingKeys: String, CodingKey {
-        case id, name, description, category, tags, icon
-        case nodeTemplate = "node_template"
-        case nodes, edges
-        case isBuiltin = "is_builtin"
-        case isComposite = "is_composite"
-        case author
-        case useCount = "use_count"
-        case lastUsedAt = "last_used_at"
-        case createdAt = "created_at"
-        case updatedAt = "updated_at"
-    }
-
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(id)
-    }
-
-    static func == (lhs: ActionItem, rhs: ActionItem) -> Bool {
-        lhs.id == rhs.id
-    }
-}
+extension Components.Schemas.ActionResponse: @retroactive Identifiable {}
 
 // AnyCodable is defined in Models/Document.swift — do not duplicate
 

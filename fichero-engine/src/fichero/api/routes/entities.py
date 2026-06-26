@@ -13,11 +13,20 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-from fichero.api.main import _is_allowed_library_path, db_manager, get_library_database
+from fichero.api.library_header import optional_library_path, require_library_path
+from fichero.api.change_stream import emit_change
+from fichero.api.auth import request_actor
+from fichero.api.main import (
+    _is_allowed_library_path,
+    assert_library_read_authorized,
+    db_manager,
+    get_library_database,
+    get_library_database_for_write,
+)
 from fichero.knowledge_models import KnowledgeClaim
 from fichero.db import Database
 from fichero.knowledge_models import (
@@ -38,9 +47,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/entities", tags=["entities"])
 
-_BARE_DATE_NAME_RE = re.compile(
-    r"^\d{4}(?:-\d{2}(?:-\d{2})?)?$"
-)
+_BARE_DATE_NAME_RE = re.compile(r"^\d{4}(?:-\d{2}(?:-\d{2})?)?$")
 
 
 # =============================================================================
@@ -139,9 +146,8 @@ class EntityAuditResponse(BaseModel):
 
 # =============================================================================
 async def _digest_library_database(
-    x_fichero_library_path: str | None = Header(
-        default=None, alias="X-Fichero-Library-Path"
-    ),
+    request: Request,
+    x_fichero_library_path: str | None = Depends(optional_library_path),
 ) -> Database:
     """Resolve the digest database and translate missing headers to 400."""
     if not x_fichero_library_path:
@@ -154,20 +160,23 @@ async def _digest_library_database(
             status_code=403,
             detail="Library path is not in an allowed location or not a .fichero package.",
         )
+    assert_library_read_authorized(request, x_fichero_library_path)
     return db_manager.get_database(x_fichero_library_path)
 
 
 def _entity_type_label(entity: KnowledgeEntity) -> str:
-    raw = getattr(entity.entity_type, "value", None) or str(entity.entity_type or "other")
+    raw = getattr(entity.entity_type, "value", None) or str(
+        entity.entity_type or "other"
+    )
     return raw.replace("_", " ").title()
 
 
-def _source_reference(claim: KnowledgeClaim, documents_by_id: dict[str, Document]) -> str:
+def _source_reference(
+    claim: KnowledgeClaim, documents_by_id: dict[str, Document]
+) -> str:
     doc = documents_by_id.get(claim.source_document_id)
     doc_name = (
-        getattr(doc, "name", None)
-        or claim.source_document_id
-        or "unknown source"
+        getattr(doc, "name", None) or claim.source_document_id or "unknown source"
     )
     if claim.source_page_label:
         return f"{doc_name} - p. {claim.source_page_label}"
@@ -265,6 +274,26 @@ def _is_date_like_entity(entity: KnowledgeEntity) -> bool:
     return bool(_BARE_DATE_NAME_RE.match((entity.canonical_name or "").strip()))
 
 
+def _entity_ids_scoped_to_docs(db: Database, doc_ids: set[str]) -> set[str]:
+    """Entity ids whose own ``source_document_ids`` intersect ``doc_ids``.
+
+    Pushes the per-page scope union (#1562) down to SQL instead of scanning
+    every entity row in Python. ``source_document_ids`` is a JSON-encoded
+    list, so we match the doc id embedded as ``"<id>"`` — the same JSON-LIKE
+    shape already used for ``entity_ids`` elsewhere in this module. Returns
+    only ids (cheap); callers hydrate via ``db.get`` so the entity is built
+    exactly once. (#1815)
+    """
+    if not doc_ids:
+        return set()
+
+    try:
+        return db.knowledge_entity_ids_scoped_to_documents(doc_ids)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("scoped-entity-id lookup failed: %s", exc)
+        return set()
+
+
 def _build_alias_to_entity_id_map(db: Database) -> dict[str, str]:
     """Build a mapping of normalized aliases to entity IDs."""
     alias_map: dict[str, str] = {}
@@ -282,13 +311,37 @@ def _build_alias_to_entity_id_map(db: Database) -> dict[str, str]:
 # =============================================================================
 
 
+def _is_garbage_entity_name(name: str) -> bool:
+    """True when name has no letter characters (same heuristic as Swift isOcrGarbage).
+
+    Catches OCR noise like "12:10", pure-numeric fragments, timestamps, and
+    bbox/coordinate strings that extraction LLMs sometimes emit as entity names.
+    """
+    stripped = name.strip()
+    return len(stripped) < 2 or not any(c.isalpha() for c in stripped)
+
+
 @router.post("", response_model=KnowledgeEntity)
 async def upsert_entity(
     request: EntityUpsertRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> KnowledgeEntity:
     """Create or update a knowledge entity."""
+    if _is_garbage_entity_name(request.canonical_name):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"canonical_name {request.canonical_name!r} contains no letter characters "
+                "and cannot be stored as an entity name"
+            ),
+        )
     entity = db.get(KnowledgeEntity, request.id) if request.id else None
+    is_create = entity is None
     now = datetime.now()
     if entity is None:
         entity = KnowledgeEntity(
@@ -319,6 +372,17 @@ async def upsert_entity(
         )
         entity.updated_at = now
     db.save(entity)
+
+    # Observable data layer (#1863): broadcast the create/update so every
+    # window's EntityStore refreshes. Best-effort.
+    emit_change(
+        x_fichero_library_path,
+        type="entity.created" if is_create else "entity.updated",
+        entity_ids=[entity.id],
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
     return entity
 
 
@@ -340,32 +404,27 @@ async def list_entities(
         from fichero.api.routes.claims import _descendant_doc_ids
 
         doc_ids = _descendant_doc_ids(db, document_id)
-        # Get all claims for this document and any descendant page/chunk docs.
-        all_claims = db.query(KnowledgeClaim)
-        doc_claims = [c for c in all_claims if c.source_document_id in doc_ids]
+        # Claims for this document and any descendant page/chunk docs. Push
+        # the source_document_id filter to SQL (IN) instead of scanning every
+        # claim row in Python — the O(claims) melt at GHG scale (#1815).
+        doc_claims = db.query_in(KnowledgeClaim, "source_document_id", doc_ids)
 
         # Extract entity IDs from those claims
         entity_ids: set[str] = set()
         for c in doc_claims:
             entity_ids.update(c.entity_ids or [])
 
-        # Fetch the claim-referenced entities.
-        entities = [db.get(KnowledgeEntity, eid) for eid in entity_ids]
-        entities = [e for e in entities if e is not None]
-
         # #1562 — belt-and-suspenders union: also include entities whose
         # own per-page scope (source_document_ids, recorded at upsert by
         # _entity_writer) intersects the requested doc scope. This covers
         # the case where an entity's CLAIMS carry the PARENT id (legacy /
         # non-aggregate flow) but the entity itself was scoped to a page,
-        # so per-page table views still surface it. Dedup by entity id.
-        seen_ids = {e.id for e in entities}
-        for entity in db.all(KnowledgeEntity):
-            if entity.id in seen_ids:
-                continue
-            if doc_ids.intersection(entity.source_document_ids or []):
-                entities.append(entity)
-                seen_ids.add(entity.id)
+        # so per-page table views still surface it. Resolved via a SQL
+        # JSON-LIKE id lookup instead of a full db.all(KnowledgeEntity)
+        # scan (#1815). Union the two id sets, then hydrate each once.
+        entity_ids.update(_entity_ids_scoped_to_docs(db, doc_ids))
+        entities = [db.get(KnowledgeEntity, eid) for eid in entity_ids]
+        entities = [e for e in entities if e is not None]
     else:
         entities = (
             db.query(KnowledgeEntity, entity_type=entity_type)
@@ -376,6 +435,12 @@ async def list_entities(
             entities = [
                 entity for entity in entities if not _is_date_like_entity(entity)
             ]
+
+    # Tombstoned (merged-away) entities carry ``merged_into_id`` but are kept
+    # as rows for audit/undo. They must never surface in the list the UI shows
+    # — otherwise a successful merge looks like it did nothing (#1849). Mirrors
+    # the soft-delete exclusion already done in kg_review / cleanup.
+    entities = [entity for entity in entities if entity.merged_into_id is None]
 
     needle = _normalize_text(q)
     if needle:
@@ -403,6 +468,10 @@ async def get_entity_alias_map(
     entries: list[EntityAliasMapEntry] = []
     seen: set[str] = set()
     for entity in db.all(KnowledgeEntity):
+        # Skip tombstoned (merged-away) entities — their aliases now belong to
+        # the absorber and must not resurface in the reviewer map (#1849).
+        if entity.merged_into_id is not None:
+            continue
         # Canonical name as an alias entry
         norm_canonical = _normalize_text(entity.canonical_name)
         if norm_canonical not in seen:
@@ -494,9 +563,7 @@ async def top_entities(
     / dates / events / other) restricts the cloud to one kind.
     """
     try:
-        rows = db.conn.execute(
-            "SELECT entity_ids FROM knowledgeclaims",
-        ).fetchall()
+        raw_entity_id_values = db.knowledge_claim_entity_id_values()
     except Exception as exc:  # noqa: BLE001
         logger.warning("top-entities lookup failed: %s", exc)
         return TopEntityListResponse(items=[], count=0)
@@ -505,7 +572,7 @@ async def top_entities(
     from collections import Counter
 
     counter: Counter[str] = Counter()
-    for (raw,) in rows:
+    for raw in raw_entity_id_values:
         if not raw:
             continue
         try:
@@ -527,8 +594,10 @@ async def top_entities(
         if ent is None:
             continue
         kind_val = getattr(ent, "entity_type", None)
-        kind_str = kind_val.value if hasattr(kind_val, "value") else (
-            str(kind_val) if kind_val else None
+        kind_str = (
+            kind_val.value
+            if hasattr(kind_val, "value")
+            else (str(kind_val) if kind_val else None)
         )
         if type_filter and kind_str != type_filter:
             continue
@@ -560,12 +629,12 @@ async def entity_claim_counts(
 
     counter: Counter[str] = Counter()
     try:
-        rows = db.conn.execute("SELECT entity_ids FROM knowledgeclaims").fetchall()
+        raw_entity_id_values = db.knowledge_claim_entity_id_values()
     except Exception as exc:  # noqa: BLE001
         logger.warning("entity-claim-counts lookup failed: %s", exc)
         return ClaimCountsResponse(counts={})
 
-    for (raw,) in rows:
+    for raw in raw_entity_id_values:
         if not raw:
             continue
         try:
@@ -662,6 +731,7 @@ class EntityPatchRequest(BaseModel):
     Every editable attribute is here as ``Optional`` so PATCH can
     target a single field without losing the rest. (#901)
     """
+
     canonical_name: str | None = None
     entity_type: EntityType | None = None
     aliases: list[str] | None = None
@@ -674,7 +744,12 @@ class EntityPatchRequest(BaseModel):
 async def patch_entity(
     entity_id: str,
     request: EntityPatchRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> KnowledgeEntity:
     """Partial-update a knowledge entity.
 
@@ -714,16 +789,20 @@ async def patch_entity(
     # Mutation log row — captures before + after for undo.
     try:
         from fichero.knowledge_models import MutationLog, MutationOperationType
-        db.save(MutationLog(
-            entity_type="KnowledgeEntity",
-            entity_id=entity.id,
-            operation=MutationOperationType.update,
-            before_state=before_state,
-            after_state=entity.model_dump(mode="json"),
-            changed_fields=changed_fields,
-        ))
+
+        db.save(
+            MutationLog(
+                entity_type="KnowledgeEntity",
+                entity_id=entity.id,
+                operation=MutationOperationType.update,
+                before_state=before_state,
+                after_state=entity.model_dump(mode="json"),
+                changed_fields=changed_fields,
+            )
+        )
     except Exception as exc:
         import logging
+
         logging.getLogger(__name__).warning(
             "patch_entity: mutation log write failed: %s", exc
         )
@@ -731,6 +810,7 @@ async def patch_entity(
     # Refresh the LanceDB vector so cosine search reflects the edit.
     try:
         from fichero.kg import entity_vectors
+
         entity_vectors.index_entity(
             db=db,
             entity_id=entity.id,
@@ -742,10 +822,21 @@ async def patch_entity(
         # Don't fail the API call if vector refresh fails — the
         # DuckDB row is the canonical store.
         import logging
+
         logging.getLogger(__name__).warning(
             "patch_entity: vector refresh failed for %s: %s", entity.id, exc
         )
 
+    # Observable data layer (#1863): broadcast the edit so every window's
+    # EntityStore refreshes. Best-effort.
+    emit_change(
+        x_fichero_library_path,
+        type="entity.updated",
+        entity_ids=[entity.id],
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
     return entity
 
 
@@ -761,7 +852,12 @@ async def delete_entity(
             "provenance for claims that mention multiple entities."
         ),
     ),
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> None:
     """Hard-delete a knowledge entity.
 
@@ -780,6 +876,7 @@ async def delete_entity(
 
     # Find dependent claims.
     from fichero.knowledge_models import KnowledgeClaim
+
     all_claims = db.query(KnowledgeClaim)
     dependent = [c for c in all_claims if entity_id in (c.entity_ids or [])]
 
@@ -789,16 +886,20 @@ async def delete_entity(
     else:
         # Strip the id but keep the claim row.
         for claim in dependent:
-            claim.entity_ids = [eid for eid in (claim.entity_ids or []) if eid != entity_id]
+            claim.entity_ids = [
+                eid for eid in (claim.entity_ids or []) if eid != entity_id
+            ]
             claim.updated_at = datetime.now()
             db.save(claim)
 
     # Drop the vector.
     try:
         from fichero.kg import entity_vectors
+
         entity_vectors.remove(db=db, entity_id=entity_id)
     except Exception as exc:
         import logging
+
         logging.getLogger(__name__).warning(
             "delete_entity: vector remove failed for %s: %s", entity_id, exc
         )
@@ -808,18 +909,31 @@ async def delete_entity(
     # Mutation log row.
     try:
         from fichero.knowledge_models import MutationLog, MutationOperationType
-        db.save(MutationLog(
-            entity_type="KnowledgeEntity",
-            entity_id=entity_id,
-            operation=MutationOperationType.delete,
-            before_state=before_state,
-            after_state=None,
-        ))
+
+        db.save(
+            MutationLog(
+                entity_type="KnowledgeEntity",
+                entity_id=entity_id,
+                operation=MutationOperationType.delete,
+                before_state=before_state,
+                after_state=None,
+            )
+        )
     except Exception as exc:
         import logging
+
         logging.getLogger(__name__).warning(
             "delete_entity: mutation log write failed: %s", exc
         )
+
+    emit_change(
+        x_fichero_library_path,
+        type="entity.deleted",
+        entity_ids=[entity_id],
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
 
 
 class EntityDocumentLink(BaseModel):
@@ -871,25 +985,8 @@ async def get_entity_documents(
     if entity is None:
         raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
 
-    needle = f'%"{entity_id}"%'
     try:
-        rows = db.conn.execute(
-            """
-            SELECT c.source_document_id,
-                   d.name,
-                   d.doc_type,
-                   d.file_type,
-                   COUNT(*) AS claim_count,
-                   MIN(c.source_excerpt) AS first_excerpt
-            FROM knowledgeclaims c
-            LEFT JOIN documents d ON d.id = c.source_document_id
-            WHERE c.entity_ids LIKE $needle
-            GROUP BY c.source_document_id, d.name, d.doc_type, d.file_type
-            ORDER BY claim_count DESC, d.name
-            LIMIT $limit
-            """,
-            {"needle": needle, "limit": limit},
-        ).fetchall()
+        rows = db.entity_document_link_rows(entity_id, limit)
     except Exception as exc:  # noqa: BLE001
         logger.warning("entity-documents lookup failed: %s", exc)
         return EntityDocumentListResponse(items=[], count=0)
@@ -928,12 +1025,8 @@ async def get_entity_co_occurrence(
     if entity is None:
         raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
 
-    needle = f'%"{entity_id}"%'
     try:
-        claim_rows = db.conn.execute(
-            "SELECT entity_ids FROM knowledgeclaims WHERE entity_ids LIKE $needle",
-            {"needle": needle},
-        ).fetchall()
+        raw_entity_id_values = db.knowledge_claim_entity_id_values(entity_id=entity_id)
     except Exception as exc:  # noqa: BLE001
         logger.warning("co-occurrence lookup failed: %s", exc)
         return EntityCoOccurrenceListResponse(items=[], count=0)
@@ -942,7 +1035,7 @@ async def get_entity_co_occurrence(
     from collections import Counter
 
     counter: Counter[str] = Counter()
-    for (raw,) in claim_rows:
+    for raw in raw_entity_id_values:
         if not raw:
             continue
         try:
@@ -965,8 +1058,10 @@ async def get_entity_co_occurrence(
         if other is None:
             continue
         kind_val = getattr(other, "entity_type", None)
-        kind_str = kind_val.value if hasattr(kind_val, "value") else (
-            str(kind_val) if kind_val else None
+        kind_str = (
+            kind_val.value
+            if hasattr(kind_val, "value")
+            else (str(kind_val) if kind_val else None)
         )
         out.append(
             EntityCoOccurrence(
@@ -1017,26 +1112,11 @@ async def entity_drill_down(
         entity_id, limit=co_occurrence_limit, db=db
     )
 
-    needle = f'%"{entity_id}"%'
-    excerpts: list[str] = []
     try:
-        rows = db.conn.execute(
-            """
-            SELECT source_excerpt FROM knowledgeclaims
-            WHERE entity_ids LIKE $needle
-              AND source_excerpt IS NOT NULL
-              AND length(source_excerpt) > 0
-            ORDER BY length(source_excerpt) ASC
-            LIMIT $limit
-            """,
-            {"needle": needle, "limit": excerpts_limit},
-        ).fetchall()
+        excerpts = db.knowledge_claim_excerpts_for_entity(entity_id, excerpts_limit)
     except Exception as exc:  # noqa: BLE001
         logger.warning("excerpt lookup failed: %s", exc)
-        rows = []
-    for (excerpt,) in rows:
-        if excerpt:
-            excerpts.append(excerpt)
+        excerpts = []
 
     return EntityDrillDownResponse(
         entity=entity,
@@ -1050,7 +1130,12 @@ async def entity_drill_down(
 async def add_entity_aliases(
     entity_id: str,
     request: EntityAliasRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> KnowledgeEntity:
     """Add aliases to an existing entity."""
     entity = db.get(KnowledgeEntity, entity_id)
@@ -1061,6 +1146,15 @@ async def add_entity_aliases(
     entity.aliases = sorted(merged)
     entity.updated_at = datetime.now()
     db.save(entity)
+
+    emit_change(
+        x_fichero_library_path,
+        type="entity.updated",
+        entity_ids=[entity_id],
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
     return entity
 
 
@@ -1116,27 +1210,16 @@ def assemble_entity_biography(
     claims = claims[:claims_limit]
 
     # --- source documents: aggregate claim counts per document ---
-    needle = f'%"{entity_id}"%'
-    doc_rows: list[tuple] = []
     try:
-        doc_rows = db.conn.execute(
-            """
-            SELECT source_document_id, COUNT(*) AS claim_count
-            FROM knowledgeclaims
-            WHERE entity_ids LIKE $needle
-            GROUP BY source_document_id
-            ORDER BY claim_count DESC
-            LIMIT $limit
-            """,
-            {"needle": needle, "limit": documents_limit},
-        ).fetchall()
+        doc_rows = db.entity_document_claim_counts(entity_id, documents_limit)
     except Exception as exc:  # noqa: BLE001
         logger.warning("biography document lookup failed: %s", exc)
+        doc_rows = []
 
     from fichero.models import Document as _Document
 
     doc_links: list[EntityDocumentLink] = []
-    for (doc_id, claim_count) in doc_rows:
+    for doc_id, claim_count in doc_rows:
         doc = db.get(_Document, doc_id)
         if doc is None:
             continue
@@ -1149,17 +1232,14 @@ def assemble_entity_biography(
         )
 
     # --- co-occurring entities ---
-    claim_rows: list[tuple] = []
     try:
-        claim_rows = db.conn.execute(
-            "SELECT entity_ids FROM knowledgeclaims WHERE entity_ids LIKE $needle",
-            {"needle": needle},
-        ).fetchall()
+        raw_entity_id_values = db.knowledge_claim_entity_id_values(entity_id=entity_id)
     except Exception as exc:  # noqa: BLE001
         logger.warning("biography co-occurrence lookup failed: %s", exc)
+        raw_entity_id_values = []
 
     counter: Counter[str] = Counter()
-    for (raw,) in claim_rows:
+    for raw in raw_entity_id_values:
         if not raw:
             continue
         try:

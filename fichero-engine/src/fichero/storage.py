@@ -30,8 +30,8 @@ from __future__ import annotations
 
 import base64
 import logging
+import os
 import shutil
-
 import tempfile
 import threading
 from concurrent.futures import ThreadPoolExecutor, Future
@@ -43,6 +43,11 @@ if TYPE_CHECKING:
 
 from pydantic import computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from fichero.path_security import (
+    allowed_source_roots,
+    resolve_under_allowed_roots,
+)
+from fichero.perf import perf_span
 from fichero.paths import engine_state_dir
 
 try:
@@ -52,9 +57,15 @@ except ImportError:
     ImageOps = None  # type: ignore
 
 if TYPE_CHECKING:
+    from fichero.db import Database
     from fichero.models import Document
 
 logger = logging.getLogger(__name__)
+
+THUMBNAIL_MAX_DIMENSION = 1024
+DISPLAY_MAX_DIMENSION = 1000
+DEFAULT_MAX_UPLOAD_BYTES = 500 * 1024 * 1024
+DEFAULT_UPLOAD_CHUNK_SIZE = 1024 * 1024
 
 
 # =============================================================================
@@ -77,14 +88,18 @@ class StorageSettings(BaseSettings):
     base_path: Path = engine_state_dir()
 
     # Thumbnail settings
-    thumb_width: int = 200
-    thumb_height: int = 200
-    display_width: int = 1000
-    display_height: int = 1000
+    thumb_width: int = THUMBNAIL_MAX_DIMENSION
+    thumb_height: int = THUMBNAIL_MAX_DIMENSION
+    display_width: int = DISPLAY_MAX_DIMENSION
+    display_height: int = DISPLAY_MAX_DIMENSION
     quality: int = 85
 
     # Thread pool size for background generation
     max_workers: int = 2
+
+    # Periodic snapshot scheduler polls for due libraries at this cadence.
+    scheduled_snapshot_poll_interval_seconds: float = 60.0
+    max_upload_bytes: int = DEFAULT_MAX_UPLOAD_BYTES
 
     @computed_field
     @property
@@ -137,6 +152,14 @@ class StorageSettings(BaseSettings):
 settings = StorageSettings()
 
 
+class UploadTooLargeError(ValueError):
+    """Raised when an uploaded body exceeds the configured size cap."""
+
+    def __init__(self, max_bytes: int):
+        self.max_bytes = max_bytes
+        super().__init__(f"Upload exceeds maximum allowed size of {max_bytes} bytes")
+
+
 # =============================================================================
 # Path Helpers
 # =============================================================================
@@ -162,6 +185,22 @@ def _thumb_path(doc_id: str, package_path: Path | None = None) -> Path:
     return thumb_dir / prefix / f"{doc_id}.jpg"
 
 
+def _thumbnail_cache_path(
+    doc_id: str,
+    size: tuple[int, int],
+    source_mtime_ns: int,
+    package_path: Path | None = None,
+) -> Path:
+    """Get the versioned thumbnail cache path for a source revision."""
+    prefix = doc_id[:2].lower()
+    if package_path:
+        thumb_dir = package_path / "storage" / "thumbnails"
+    else:
+        thumb_dir = settings.thumb_dir
+    width, height = size
+    return thumb_dir / prefix / f"{doc_id}__{width}x{height}__{source_mtime_ns}.jpg"
+
+
 def _display_path(doc_id: str, package_path: Path | None = None) -> Path:
     """Get path for display-size image.
 
@@ -175,6 +214,79 @@ def _display_path(doc_id: str, package_path: Path | None = None) -> Path:
     else:
         thumb_dir = settings.thumb_dir
     return thumb_dir / prefix / f"{doc_id}_display.jpg"
+
+
+def _derive_doc_id_from_thumb_name(stem: str) -> str:
+    """Extract the document id from legacy and versioned thumbnail names."""
+    stem = stem.replace("_display", "")
+    if "__" in stem:
+        return stem.split("__", 1)[0]
+    return stem
+
+
+def _source_mtime_ns(source: Path) -> int:
+    return source.stat().st_mtime_ns
+
+
+def _sync_alias_to_cache(cache_path: Path, alias_path: Path) -> None:
+    """Keep the legacy doc-id.jpg path pointing at the latest cache entry."""
+    alias_path.parent.mkdir(parents=True, exist_ok=True)
+    if alias_path.exists() or alias_path.is_symlink():
+        alias_path.unlink()
+    try:
+        os.link(cache_path, alias_path)
+    except OSError:
+        shutil.copy2(cache_path, alias_path)
+
+
+def _remove_stale_thumbnail_variants(
+    doc_id: str, active_path: Path, package_path: Path | None = None
+) -> None:
+    shard_dir = active_path.parent
+    if not shard_dir.exists():
+        return
+    for candidate in shard_dir.glob(f"{doc_id}__*.jpg"):
+        if candidate == active_path:
+            continue
+        try:
+            candidate.unlink()
+        except OSError as exc:
+            logger.debug("Failed to remove stale thumbnail cache %s: %s", candidate, exc)
+
+
+def _resolve_thumbnail_cache_candidate(
+    doc: "Document",
+    package_path: Path | None = None,
+    db: "Database | None" = None,
+    size: tuple[int, int] | None = None,
+) -> tuple[Path | None, Path, Path | None, int | None]:
+    """Resolve the active thumbnail cache file and supporting source paths."""
+    size = size or settings.thumb_size
+    alias_path = _thumb_path(doc.id, package_path)
+    source = resolve_source(doc, library_root=package_path)
+    pdf_render = _resolve_pdf_render_source(doc, db=db, library_root=package_path)
+
+    if not source and not pdf_render:
+        return alias_path if alias_path.exists() else None, alias_path, source, None
+
+    source_path = pdf_render[0] if pdf_render else source
+    assert source_path is not None
+    source_mtime_ns = _source_mtime_ns(source_path)
+    cache_path = _thumbnail_cache_path(doc.id, size, source_mtime_ns, package_path)
+
+    if cache_path.exists():
+        return cache_path, alias_path, source, source_mtime_ns
+
+    if alias_path.exists() and alias_path.stat().st_mtime_ns >= source_mtime_ns:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            os.replace(alias_path, cache_path)
+        except OSError:
+            shutil.copy2(alias_path, cache_path)
+        _sync_alias_to_cache(cache_path, alias_path)
+        return cache_path, alias_path, source, source_mtime_ns
+
+    return None, alias_path, source, source_mtime_ns
 
 
 # =============================================================================
@@ -204,13 +316,58 @@ def resolve_source(
     Returns:
         Path to existing file, or None if not found
     """
-    # Try bookmark first (macOS)
+    allowed_roots = allowed_source_roots(library_root, storage_base=settings.base_path)
+
+    def confined_existing(candidate: Path) -> Path | None:
+        if not candidate.exists():
+            return None
+        return resolve_under_allowed_roots(candidate, allowed_roots)
+
+    def library_confined_existing(candidate: Path) -> Path | None:
+        if library_root is None or not candidate.exists():
+            return None
+        library_roots = allowed_source_roots(
+            library_root,
+            storage_base=None,
+            include_engine_temp=False,
+        )
+        return resolve_under_allowed_roots(candidate, library_roots)
+
+    def package_candidate(path_value: object) -> Path | None:
+        if not path_value or library_root is None:
+            return None
+        try:
+            p = Path(path_value).expanduser()
+        except TypeError:
+            return None
+        root = Path(library_root).expanduser()
+        if not p.is_absolute():
+            return root / p
+        if "/files/" in str(p):
+            tail = str(p).split("/files/", 1)[1]
+            return root / "files" / tail
+        return p
+
+    # Prefer copied/in-package storage before macOS bookmarks. Remote engines
+    # should use package-confined files and avoid resolving client-host bookmarks.
+    package_candidates = [doc.path] + [
+        (doc.metadata or {}).get(k)
+        for k in ("source_path", "full_path", "display_path", "local_path")
+    ]
+    for path_value in package_candidates:
+        if candidate := package_candidate(path_value):
+            if confined := library_confined_existing(candidate):
+                return confined
+
+    # Try bookmark next when enabled (embedded macOS only by default).
     if bookmark_data := _get_bookmark(doc):
         try:
+            from fichero.bookmarks import is_available as bookmarks_available
             from fichero.bookmarks import resolve_bookmark
 
-            if path := resolve_bookmark(bookmark_data):
-                return path
+            if bookmarks_available() and (path := resolve_bookmark(bookmark_data)):
+                if confined := confined_existing(path):
+                    return confined
         except ImportError:
             pass  # bookmarks module not available
 
@@ -226,11 +383,12 @@ def resolve_source(
             # without breaking image paths (#1663). Resolve it against the
             # CURRENT library root rather than the process CWD.
             if not p.is_absolute() and library_root is not None:
-                candidate = (Path(library_root).expanduser() / p)
-                if candidate.exists():
-                    return candidate
-            elif p.is_absolute() and p.exists():
-                return p
+                candidate = Path(library_root).expanduser() / p
+                if confined := confined_existing(candidate):
+                    return confined
+            elif p.is_absolute():
+                if confined := confined_existing(p):
+                    return confined
 
     # Check metadata fields
     if doc.metadata:
@@ -240,8 +398,10 @@ def resolve_source(
                     p = Path(path_str).expanduser()
                 except TypeError:
                     continue
-                if p.exists():
-                    return p
+                if not p.is_absolute() and library_root is not None:
+                    p = Path(library_root).expanduser() / p
+                if confined := confined_existing(p):
+                    return confined
 
     # Library-relative fallback: the library was renamed/moved, so the stored
     # absolute path (which bakes in the old package name) no longer exists, but
@@ -257,8 +417,8 @@ def resolve_source(
                 continue
             tail = str(path_str).split("/files/", 1)[1]
             p = root / "files" / tail
-            if p.exists():
-                return p
+            if confined := confined_existing(p):
+                return confined
 
     return None
 
@@ -276,13 +436,54 @@ def _get_bookmark(doc: "Document") -> bytes | None:
     return None
 
 
+def _resolve_pdf_render_source(
+    doc: "Document",
+    *,
+    db: "Database | None" = None,
+    library_root: Path | None = None,
+) -> tuple[Path, int] | None:
+    """Return ``(pdf_path, page_index)`` when ``doc`` should render from a PDF.
+
+    Top-level PDF documents render page 0. Page-child documents render their
+    own ``sequence`` from the parent PDF path instead of trusting any stale
+    per-page ``metadata.pdf_path`` left behind from ingest.
+    """
+    from fichero.models import Document as DocumentModel, DocType, FileType
+
+    if doc.doc_type == DocType.page:
+        if db is None or not doc.parent_id:
+            return None
+        parent = db.get(DocumentModel, doc.parent_id)
+        if not parent or parent.file_type != FileType.pdf:
+            return None
+        source = resolve_source(parent, library_root=library_root)
+        if not source:
+            return None
+        try:
+            page_number = int(doc.sequence or (doc.metadata or {}).get("page_number") or 1)
+        except (TypeError, ValueError):
+            page_number = 1
+        return source, max(page_number - 1, 0)
+
+    if getattr(doc, "file_type", None) != FileType.pdf:
+        return None
+
+    source = resolve_source(doc, library_root=library_root)
+    if not source:
+        return None
+    return source, 0
+
+
 # =============================================================================
 # Thumbnail Generation
 # =============================================================================
 
 
 def ensure_thumbnail(
-    doc: "Document", force: bool = False, package_path: Path | None = None
+    doc: "Document",
+    force: bool = False,
+    package_path: Path | None = None,
+    db: "Database | None" = None,
 ) -> Path | None:
     """Generate thumbnail if needed.
 
@@ -294,30 +495,60 @@ def ensure_thumbnail(
     Returns:
         Path to thumbnail, or None on failure
     """
-    if Image is None:
-        logger.error("Pillow not installed - cannot generate thumbnails")
-        return None
+    with perf_span(
+        "library.thumbnail.ensure",
+        logger=logger,
+        doc_id=doc.id,
+        force=force,
+    ) as perf:
+        if Image is None:
+            logger.error("Pillow not installed - cannot generate thumbnails")
+            perf["cache_state"] = "pillow_missing"
+            return None
 
-    path = _thumb_path(doc.id, package_path)
-    source = resolve_source(doc)
+        cached_path, alias_path, source, source_mtime_ns = _resolve_thumbnail_cache_candidate(
+            doc,
+            package_path=package_path,
+            db=db,
+            size=settings.thumb_size,
+        )
 
-    if not source:
-        logger.warning(f"No source found for {doc.id}")
-        return None
+        if not force and cached_path and cached_path.exists():
+            perf["cache_state"] = "hit"
+            perf["thumbnail_path"] = cached_path.name
+            perf["source_mtime_ns"] = source_mtime_ns
+            return cached_path
 
-    # Check if regeneration needed
-    if path.exists() and not force:
-        # Auto-regenerate if source is newer
-        if source.stat().st_mtime <= path.stat().st_mtime:
-            return path
-        logger.debug(f"Source newer than thumbnail, regenerating: {doc.id}")
+        pdf_render = _resolve_pdf_render_source(doc, db=db, library_root=package_path)
+        source_path = pdf_render[0] if pdf_render else source
+        if not source_path:
+            logger.warning(f"No source found for {doc.id}")
+            perf["cache_state"] = "missing_source"
+            return None
 
-    # Generate
-    return _generate_image(source, path, settings.thumb_size)
+        source_mtime_ns = _source_mtime_ns(source_path)
+        cache_path = _thumbnail_cache_path(doc.id, settings.thumb_size, source_mtime_ns, package_path)
+        perf["cache_state"] = "regenerated" if force else "miss"
+        perf["source_mtime_ns"] = source_mtime_ns
+
+        if pdf_render:
+            pdf_path, page_index = pdf_render
+            result = _generate_pdf_image(pdf_path, page_index, cache_path, settings.thumb_size)
+        else:
+            result = _generate_image(source_path, cache_path, settings.thumb_size)
+
+        if result:
+            _sync_alias_to_cache(result, alias_path or _thumb_path(doc.id, package_path))
+            _remove_stale_thumbnail_variants(doc.id, result, package_path)
+            perf["thumbnail_path"] = result.name
+        return result
 
 
 def ensure_display(
-    doc: "Document", force: bool = False, package_path: Path | None = None
+    doc: "Document",
+    force: bool = False,
+    package_path: Path | None = None,
+    db: "Database | None" = None,
 ) -> Path | None:
     """Generate display-size image if needed.
 
@@ -333,16 +564,79 @@ def ensure_display(
         return None
 
     path = _display_path(doc.id, package_path)
-    source = resolve_source(doc)
+    source = resolve_source(doc, library_root=package_path)
+    pdf_render = _resolve_pdf_render_source(
+        doc, db=db, library_root=package_path
+    )
 
-    if not source:
+    if not source and not pdf_render:
         return None
 
     if path.exists() and not force:
-        if source.stat().st_mtime <= path.stat().st_mtime:
+        source_mtime = pdf_render[0].stat().st_mtime if pdf_render else source.stat().st_mtime
+        if source_mtime <= path.stat().st_mtime:
             return path
 
+    if pdf_render:
+        pdf_path, page_index = pdf_render
+        return _generate_pdf_image(pdf_path, page_index, path, settings.display_size)
+
     return _generate_image(source, path, settings.display_size)
+
+
+def _generate_pdf_image(
+    source: Path,
+    page_index: int,
+    dest: Path,
+    size: tuple[int, int],
+) -> Path | None:
+    """Render a PDF page to a cached JPEG."""
+    if Image is None:
+        return None
+
+    try:
+        import fitz
+    except ImportError:
+        logger.warning("PyMuPDF not installed - cannot render PDF: %s", source.name)
+        return None
+
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+
+        with fitz.open(str(source)) as pdf:
+            if page_index < 0 or page_index >= pdf.page_count:
+                logger.warning(
+                    "PDF page %s out of range for %s (page_count=%s)",
+                    page_index,
+                    source.name,
+                    pdf.page_count,
+                )
+                return None
+
+            page = pdf.load_page(page_index)
+            rect = page.rect
+            width_scale = size[0] / max(rect.width, 1)
+            height_scale = size[1] / max(rect.height, 1)
+            scale = max(min(width_scale, height_scale), 0.1)
+            pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
+            img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+            img.save(dest, "JPEG", quality=settings.quality)
+
+        logger.info(
+            "Generated PDF-derived image: %s from %s page %s",
+            dest,
+            source.name,
+            page_index + 1,
+        )
+        return dest
+    except Exception as exc:
+        logger.warning(
+            "PDF image generation failed for %s page %s: %s",
+            source.name,
+            page_index + 1,
+            exc,
+        )
+        return None
 
 
 def _generate_image(source: Path, dest: Path, size: tuple[int, int]) -> Path | None:
@@ -414,13 +708,21 @@ def _generate_image(source: Path, dest: Path, size: tuple[int, int]) -> Path | N
                         img.save(dest, "JPEG", quality=settings.quality)
                     logger.info(f"Generated thumbnail via sips fallback: {source.name}")
                     return dest
-                except Exception:
-                    pass
+                except Exception as fallback_exc:
+                    logger.debug(
+                        "sips fallback image open failed for %s: %s",
+                        source.name,
+                        fallback_exc,
+                    )
                 finally:
                     try:
                         converted.unlink(missing_ok=True)
-                    except Exception:
-                        pass
+                    except OSError as unlink_exc:
+                        logger.debug(
+                            "Failed to remove temporary sips conversion %s: %s",
+                            converted,
+                            unlink_exc,
+                        )
 
         logger.warning(
             f"Image generation failed for {source.name} ({source.suffix}): {e}"
@@ -504,8 +806,16 @@ def _sips_convert(source: Path) -> Path | None:
         )
         if result.returncode == 0 and tmp.exists():
             return tmp
-    except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
-        pass
+        logger.debug(
+            "sips thumbnail conversion failed for %s: returncode=%s stderr=%s",
+            source.name,
+            result.returncode,
+            result.stderr.decode("utf-8", errors="replace").strip(),
+        )
+    except FileNotFoundError as exc:
+        logger.debug("sips thumbnail conversion unavailable for %s: %s", source.name, exc)
+    except subprocess.TimeoutExpired as exc:
+        logger.debug("sips thumbnail conversion timed out for %s: %s", source.name, exc)
     return None
 
 
@@ -610,7 +920,7 @@ def cleanup_orphans(valid_doc_ids: set[str]) -> int:
                 continue
 
             # Extract doc ID from filename
-            doc_id = thumb_file.stem.replace("_display", "")
+            doc_id = _derive_doc_id_from_thumb_name(thumb_file.stem)
 
             if doc_id not in valid_doc_ids:
                 try:
@@ -689,7 +999,13 @@ def stats(package_path: Path | None = None) -> dict:
     }
 
 
-async def save_uploaded_file(file) -> Path:
+async def save_uploaded_file(
+    file,
+    *,
+    max_bytes: int | None = None,
+    content_length: int | str | None = None,
+    chunk_size: int = DEFAULT_UPLOAD_CHUNK_SIZE,
+) -> Path:
     """Save an uploaded FastAPI file to a temporary location.
 
     Args:
@@ -703,6 +1019,21 @@ async def save_uploaded_file(file) -> Path:
         Use this with ingest_file(mode=IngestMode.COPY) which will
         copy the file to library storage.
     """
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be positive")
+
+    max_allowed = settings.max_upload_bytes if max_bytes is None else int(max_bytes)
+    if max_allowed <= 0:
+        raise ValueError("max_bytes must be positive")
+
+    if content_length not in (None, ""):
+        try:
+            declared_length = int(content_length)
+        except (TypeError, ValueError):
+            declared_length = None
+        if declared_length is not None and declared_length > max_allowed:
+            raise UploadTooLargeError(max_allowed)
+
     # Create temp file with same extension as uploaded file
     suffix = Path(file.filename).suffix if file.filename else ""
 
@@ -711,12 +1042,16 @@ async def save_uploaded_file(file) -> Path:
     temp_path = Path(temp_path)
 
     try:
-        # Read uploaded file content
-        content = await file.read()
-
-        # Write to temp file
-        with open(fd, "wb") as f:
-            f.write(content)
+        total_bytes = 0
+        with os.fdopen(fd, "wb") as f:
+            while True:
+                chunk = await file.read(chunk_size)
+                if not chunk:
+                    break
+                total_bytes += len(chunk)
+                if total_bytes > max_allowed:
+                    raise UploadTooLargeError(max_allowed)
+                f.write(chunk)
 
         logger.debug(f"Saved upload to temp: {temp_path}")
         return temp_path
@@ -800,7 +1135,11 @@ def has_display(doc_id: str, package_path: Path | None = None) -> bool:
     return _display_path(doc_id, package_path).exists()
 
 
-def get_thumbnail(doc: "Document", package_path: Path | None = None) -> Path | None:
+def get_thumbnail(
+    doc: "Document",
+    package_path: Path | None = None,
+    db: "Database | None" = None,
+) -> Path | None:
     """Get thumbnail path if it exists, else None.
 
     Does NOT generate - use ensure_thumbnail() for that.
@@ -809,8 +1148,13 @@ def get_thumbnail(doc: "Document", package_path: Path | None = None) -> Path | N
         doc: Document to get thumbnail for
         package_path: Path to .fichero package (if None, uses global base_path)
     """
-    path = _thumb_path(doc.id, package_path)
-    return path if path.exists() else None
+    path, _, _, _ = _resolve_thumbnail_cache_candidate(
+        doc,
+        package_path=package_path,
+        db=db,
+        size=settings.thumb_size,
+    )
+    return path
 
 
 def get_display(doc: "Document", package_path: Path | None = None) -> Path | None:
@@ -834,8 +1178,14 @@ from fichero.storage_snapshots import (  # noqa: F401, E402 (re-exported)
     _load_all_snapshot_records,
     _save_snapshot_record,
     _snapshot_records_path,
+    auto_snapshot_before_risky_operation,
     delete_snapshot,
+    has_scheduled_snapshots_enabled,
     list_snapshots,
+    periodic_snapshot_loop,
     restore_snapshot,
+    run_due_scheduled_snapshots,
     snapshot_library,
+    start_periodic_snapshot_task,
+    stop_periodic_snapshot_task,
 )

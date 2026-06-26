@@ -128,7 +128,7 @@ struct AIModelSelectionView: View {
                         .textFieldStyle(.plain)
                 }
                 .padding(8)
-                .background(Color(nsColor: .controlBackgroundColor))
+                .background(Color(platformColor: .controlBackgroundColor))
                 .cornerRadius(6)
 
                 // Sort picker
@@ -153,7 +153,7 @@ struct AIModelSelectionView: View {
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 6)
-                    .background(Color(nsColor: .controlBackgroundColor))
+                    .background(Color(platformColor: .controlBackgroundColor))
                     .cornerRadius(6)
                 }
                 .menuStyle(.borderlessButton)
@@ -201,7 +201,7 @@ struct AIModelSelectionView: View {
                     .background(
                         hasActiveFilters
                             ? Color.accentColor.opacity(0.1)
-                            : Color(nsColor: .controlBackgroundColor)
+                            : Color(platformColor: .controlBackgroundColor)
                     )
                     .cornerRadius(6)
                 }
@@ -223,17 +223,16 @@ struct AIModelSelectionView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 8) {
-                        ForEach(filteredModels) { model in
-                            ModelInfoRow(model: model, isSelected: selectedModel?.modelId == model.modelId) {
-                                handleModelTap(model)
-                            }
+                List {
+                    ForEach(filteredModels) { model in
+                        ModelInfoRow(model: model, isSelected: selectedModel?.modelId == model.modelId) {
+                            handleModelTap(model)
                         }
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                        .listRowSeparator(.hidden)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
                 }
+                .listStyle(.plain)
             }
         }
         .task {

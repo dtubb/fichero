@@ -10,10 +10,13 @@ from datetime import datetime
 import re
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from fichero.api.main import get_library_database
+from fichero.api.library_header import require_library_path
+from fichero.api.auth import request_actor
+from fichero.api.change_stream import emit_change
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.knowledge_models import (
     ClaimCurationState,
@@ -313,16 +316,16 @@ def _delete_claim_links_for_claim(db: Database, claim_id: str) -> list[dict[str,
 
 
 # =============================================================================
-# Claim CRUD Endpoints
+# Claim mutation impls — the proven business logic, extracted so BOTH the route
+# handler and the audited action (EPIC #1848 / #2014) drive the SAME code
+# (iterate-not-replace: wrapped, never re-derived). Emission to the observable
+# layer stays with the caller (route OR registry.invoke). Each raises
+# HTTPException on bad input exactly as the route did.
 # =============================================================================
 
 
-@router.post("", response_model=KnowledgeClaim)
-async def create_claim(
-    request: ClaimCreateRequest,
-    db: Database = Depends(get_library_database),
-) -> KnowledgeClaim:
-    """Create a new knowledge claim."""
+def create_claim_impl(db: Database, request: ClaimCreateRequest) -> KnowledgeClaim:
+    """Create + persist a knowledge claim (validation + heuristic attribution)."""
     # Validate source document exists (manual claims have no source doc)
     if request.source_document_id is not None:
         source_doc = db.get(Document, request.source_document_id)
@@ -421,28 +424,271 @@ async def create_claim(
     return claim
 
 
-@router.patch("/{claim_id}", response_model=KnowledgeClaim)
-async def patch_claim(
-    claim_id: str,
-    request: ClaimPatchRequest,
-    db: Database = Depends(get_library_database),
-) -> KnowledgeClaim:
-    """Update an existing knowledge claim."""
+def patch_claim_impl(
+    db: Database, claim_id: str, request: ClaimPatchRequest
+) -> tuple[KnowledgeClaim, dict[str, Any]]:
+    """Apply a patch to an existing claim. Returns (claim, before_snapshot)."""
     claim = db.get(KnowledgeClaim, claim_id)
     if claim is None:
         raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
 
+    before = claim.model_dump(mode="json")
     data = request.model_dump(exclude_unset=True)
     _validate_claim_references(db, data)
     _apply_claim_patch(claim, data)
     db.save(claim)
+    return claim, before
+
+
+def delete_claim_impl(
+    db: Database, claim_id: str
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[str]]:
+    """Hard-delete a claim + its orphaning links.
+
+    Returns ``(claim_before, deleted_link_snapshots, affected_entity_ids)`` so
+    the caller can emit + so the audited action can invert to ``claim.restore``.
+    """
+    claim = db.get(KnowledgeClaim, claim_id)
+    if claim is None:
+        raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
+    before_state = claim.model_dump(mode="json")
+    affected_entity_ids = list(claim.entity_ids or [])
+    deleted_links = _delete_claim_links_for_claim(db, claim_id)
+    db.delete(claim)
+
+    # Mutation log row for undo. (#901)
+    try:
+        db.save(
+            MutationLog(
+                entity_type="KnowledgeClaim",
+                entity_id=claim_id,
+                operation=MutationOperationType.delete,
+                before_state={**before_state, "deleted_claim_links": deleted_links},
+                after_state=None,
+            )
+        )
+    except Exception as exc:
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "delete_claim: mutation log write failed: %s", exc
+        )
+    return before_state, deleted_links, affected_entity_ids
+
+
+def restore_claim_impl(
+    db: Database,
+    *,
+    snapshot: dict[str, Any],
+    link_snapshots: list[dict[str, Any]] | None = None,
+) -> KnowledgeClaim:
+    """Re-create a claim (and any deleted links) from JSON snapshots.
+
+    The inverse of ``patch_claim_impl`` / ``delete_claim_impl``: it reuses the
+    proven ``model_validate`` round-trip so undo restores the exact pre-mutation
+    row rather than re-deriving a field diff.
+    """
+    claim = KnowledgeClaim.model_validate(snapshot)
+    db.save(claim)
+    for link_snapshot in link_snapshots or []:
+        db.save(KnowledgeClaimLink.model_validate(link_snapshot))
+    return claim
+
+
+def assign_time_period_impl(
+    db: Database, request: "ClaimAssignTimePeriodRequest"
+) -> tuple["ClaimAssignTimePeriodResponse", list[str]]:
+    """Bulk-assign a temporal scope to claims. Returns (response, updated_ids)."""
+    source_doc = db.get(Document, request.source_document_id)
+    if source_doc is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Source document not found: {request.source_document_id}",
+        )
+    if (
+        request.page_start is not None
+        and request.page_end is not None
+        and request.page_start > request.page_end
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="page_start must be <= page_end",
+        )
+
+    if request.include_descendants:
+        scope_ids = _descendant_doc_ids(db, request.source_document_id)
+    else:
+        scope_ids = {request.source_document_id}
+
+    matched = 0
+    updated = 0
+    skipped_existing = 0
+    updated_ids: list[str] = []
+
+    for claim in db.all(KnowledgeClaim):
+        if claim.source_document_id not in scope_ids:
+            continue
+        if request.page_start is not None or request.page_end is not None:
+            page_no = _page_number(claim.source_page_label)
+            if page_no is None:
+                continue
+            if request.page_start is not None and page_no < request.page_start:
+                continue
+            if request.page_end is not None and page_no > request.page_end:
+                continue
+
+        matched += 1
+        if not request.overwrite_existing and claim.time_start:
+            skipped_existing += 1
+            continue
+
+        claim.time_start = request.time_start
+        claim.time_end = request.time_end or request.time_start
+        claim.time_precision = request.time_precision
+        claim.updated_at = datetime.now()
+        db.save(claim)
+        updated += 1
+        updated_ids.append(claim.id)
+
+    return (
+        ClaimAssignTimePeriodResponse(
+            matched_count=matched,
+            updated_count=updated,
+            skipped_existing_count=skipped_existing,
+        ),
+        updated_ids,
+    )
+
+
+def assign_time_period_from_metadata_impl(
+    db: Database, request: "ClaimAssignTimePeriodFromMetadataRequest"
+) -> tuple["ClaimAssignTimePeriodFromMetadataResponse", list[str]]:
+    """Assign claim dates from the source document's metadata date field.
+
+    Returns (response, updated_ids). Sibling of ``assign_time_period_impl``
+    (fix-then-sweep): same shape, but the date comes from the source document's
+    metadata rather than a caller-supplied value.
+    """
+    source_doc = db.get(Document, request.source_document_id)
+    if source_doc is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Source document not found: {request.source_document_id}",
+        )
+    resolved = _resolve_metadata_date(source_doc)
+    if resolved is None:
+        raise HTTPException(
+            status_code=422,
+            detail="No supported date field found on source document metadata",
+        )
+    source_field, date_value = resolved
+
+    scoped_ids = (
+        _descendant_doc_ids(db, request.source_document_id)
+        if request.include_descendants
+        else {request.source_document_id}
+    )
+    matched = 0
+    updated = 0
+    skipped_existing = 0
+    updated_ids: list[str] = []
+    for claim in db.all(KnowledgeClaim):
+        if claim.source_document_id not in scoped_ids:
+            continue
+        matched += 1
+        if not request.overwrite_existing and claim.time_start:
+            skipped_existing += 1
+            continue
+        claim.time_start = date_value
+        claim.time_end = date_value
+        claim.time_precision = "metadata"
+        claim.updated_at = datetime.now()
+        db.save(claim)
+        updated += 1
+        updated_ids.append(claim.id)
+
+    return (
+        ClaimAssignTimePeriodFromMetadataResponse(
+            matched_count=matched,
+            updated_count=updated,
+            skipped_existing_count=skipped_existing,
+            time_start=date_value,
+            time_end=date_value,
+            source_field=source_field,
+        ),
+        updated_ids,
+    )
+
+
+# =============================================================================
+# Claim CRUD Endpoints
+# =============================================================================
+
+
+@router.post("", response_model=KnowledgeClaim)
+async def create_claim(
+    request: ClaimCreateRequest,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
+) -> KnowledgeClaim:
+    """Create a new knowledge claim."""
+    claim = create_claim_impl(db, request)
+
+    # Observable data layer (#1863): broadcast the new claim so every window's
+    # ClaimStore refreshes. Best-effort — never breaks the mutation.
+    emit_change(
+        x_fichero_library_path,
+        type="claim.updated",
+        claim_ids=[claim.id],
+        entity_ids=list(claim.entity_ids or []),
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
+    return claim
+
+
+@router.patch("/{claim_id}", response_model=KnowledgeClaim)
+async def patch_claim(
+    claim_id: str,
+    request: ClaimPatchRequest,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
+) -> KnowledgeClaim:
+    """Update an existing knowledge claim."""
+    claim, _before = patch_claim_impl(db, claim_id, request)
+
+    # Observable data layer (#1863): broadcast the update (incl. any entity
+    # re-link) so every window's ClaimStore refreshes. Best-effort.
+    emit_change(
+        x_fichero_library_path,
+        type="claim.updated",
+        claim_ids=[claim.id],
+        entity_ids=list(claim.entity_ids or []),
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
     return claim
 
 
 @router.post("/resolve-source", response_model=ClaimSourceResolveResponse)
 async def resolve_claim_source(
     request: ClaimSourceResolveRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> ClaimSourceResolveResponse:
     """Resolve claim/SVO selectors to exact source provenance anchor."""
     selected: KnowledgeClaim | None = None
@@ -450,9 +696,15 @@ async def resolve_claim_source(
     if request.claim_id:
         selected = db.get(KnowledgeClaim, request.claim_id)
         if selected is None:
-            raise HTTPException(status_code=404, detail=f"Claim not found: {request.claim_id}")
+            raise HTTPException(
+                status_code=404, detail=f"Claim not found: {request.claim_id}"
+            )
     else:
-        if not (request.subject_canonical and request.predicate_verb and request.object_phrase):
+        if not (
+            request.subject_canonical
+            and request.predicate_verb
+            and request.object_phrase
+        ):
             raise HTTPException(
                 status_code=400,
                 detail="Provide claim_id, or full SVO fields (subject_canonical, predicate_verb, object_phrase).",
@@ -460,16 +712,21 @@ async def resolve_claim_source(
         candidates = [
             claim
             for claim in db.all(KnowledgeClaim)
-            if (claim.subject_canonical or "").strip().lower() == request.subject_canonical.strip().lower()
-            and (claim.predicate_verb or "").strip().lower() == request.predicate_verb.strip().lower()
-            and (claim.object_phrase or "").strip().lower() == request.object_phrase.strip().lower()
+            if (claim.subject_canonical or "").strip().lower()
+            == request.subject_canonical.strip().lower()
+            and (claim.predicate_verb or "").strip().lower()
+            == request.predicate_verb.strip().lower()
+            and (claim.object_phrase or "").strip().lower()
+            == request.object_phrase.strip().lower()
             and (
                 request.source_document_id is None
                 or claim.source_document_id == request.source_document_id
             )
         ]
         if not candidates:
-            raise HTTPException(status_code=404, detail="No matching claim for supplied SVO.")
+            raise HTTPException(
+                status_code=404, detail="No matching claim for supplied SVO."
+            )
         # Prefer exact-span anchors for click-through, then newest update.
         candidates.sort(
             key=lambda claim: (
@@ -478,6 +735,15 @@ async def resolve_claim_source(
             )
         )
         selected = candidates[0]
+
+    emit_change(
+        x_fichero_library_path,
+        type="claim.updated",
+        claim_ids=[selected.id],
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
 
     return ClaimSourceResolveResponse(
         claim_id=selected.id,
@@ -507,7 +773,12 @@ async def get_claim(
 @router.delete("/{claim_id}", status_code=204)
 async def delete_claim(
     claim_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> None:
     """Hard-delete a single knowledge claim.
 
@@ -516,27 +787,19 @@ async def delete_claim(
     piece of evidence about it. Use ``DELETE /api/entities/{id}``
     to remove the entity itself. (#901)
     """
-    claim = db.get(KnowledgeClaim, claim_id)
-    if claim is None:
-        raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
-    before_state = claim.model_dump(mode="json")
-    deleted_links = _delete_claim_links_for_claim(db, claim_id)
-    db.delete(claim)
+    _before_state, _deleted_links, affected_entity_ids = delete_claim_impl(db, claim_id)
 
-    # Mutation log row for undo. (#901)
-    try:
-        db.save(MutationLog(
-            entity_type="KnowledgeClaim",
-            entity_id=claim_id,
-            operation=MutationOperationType.delete,
-            before_state={**before_state, "deleted_claim_links": deleted_links},
-            after_state=None,
-        ))
-    except Exception as exc:
-        import logging
-        logging.getLogger(__name__).warning(
-            "delete_claim: mutation log write failed: %s", exc
-        )
+    # Observable data layer (#1863): broadcast the deletion so every window's
+    # ClaimStore drops the row. Best-effort — never breaks the delete.
+    emit_change(
+        x_fichero_library_path,
+        type="claim.deleted",
+        claim_ids=[claim_id],
+        entity_ids=affected_entity_ids,
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
 
 
 # =============================================================================
@@ -563,6 +826,7 @@ def _descendant_doc_ids(db: Database, root_id: str) -> set[str]:
     KG view that only filters by source_document_id=<folder> returns
     empty even when descendants have rich entities (#826)."""
     from fichero.models import Document
+
     seen: set[str] = {root_id}
     frontier: list[str] = [root_id]
     while frontier:
@@ -580,67 +844,31 @@ def _descendant_doc_ids(db: Database, root_id: str) -> set[str]:
 @router.post("/assign-time-period", response_model=ClaimAssignTimePeriodResponse)
 async def assign_time_period(
     request: ClaimAssignTimePeriodRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> ClaimAssignTimePeriodResponse:
     """Assign a user-curated period to many claims at once.
 
     This powers timeline seeding from user decisions (page range / folder scope)
     by writing directly into `KnowledgeClaim.time_start/time_end`.
     """
-    source_doc = db.get(Document, request.source_document_id)
-    if source_doc is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Source document not found: {request.source_document_id}",
-        )
-    if (
-        request.page_start is not None
-        and request.page_end is not None
-        and request.page_start > request.page_end
-    ):
-        raise HTTPException(
-            status_code=422,
-            detail="page_start must be <= page_end",
+    response, updated_ids = assign_time_period_impl(db, request)
+
+    if updated_ids:
+        emit_change(
+            x_fichero_library_path,
+            type="claim.updated",
+            claim_ids=updated_ids,
+            actor=actor,
+            origin_window=x_fichero_origin_window,
+            origin_user=actor,
         )
 
-    if request.include_descendants:
-        scope_ids = _descendant_doc_ids(db, request.source_document_id)
-    else:
-        scope_ids = {request.source_document_id}
-
-    matched = 0
-    updated = 0
-    skipped_existing = 0
-
-    for claim in db.all(KnowledgeClaim):
-        if claim.source_document_id not in scope_ids:
-            continue
-        if request.page_start is not None or request.page_end is not None:
-            page_no = _page_number(claim.source_page_label)
-            if page_no is None:
-                continue
-            if request.page_start is not None and page_no < request.page_start:
-                continue
-            if request.page_end is not None and page_no > request.page_end:
-                continue
-
-        matched += 1
-        if not request.overwrite_existing and claim.time_start:
-            skipped_existing += 1
-            continue
-
-        claim.time_start = request.time_start
-        claim.time_end = request.time_end or request.time_start
-        claim.time_precision = request.time_precision
-        claim.updated_at = datetime.now()
-        db.save(claim)
-        updated += 1
-
-    return ClaimAssignTimePeriodResponse(
-        matched_count=matched,
-        updated_count=updated,
-        skipped_existing_count=skipped_existing,
-    )
+    return response
 
 
 @router.post(
@@ -649,53 +877,27 @@ async def assign_time_period(
 )
 async def assign_time_period_from_metadata(
     request: ClaimAssignTimePeriodFromMetadataRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> ClaimAssignTimePeriodFromMetadataResponse:
     """Assign claim dates from the source document's metadata date field."""
-    source_doc = db.get(Document, request.source_document_id)
-    if source_doc is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Source document not found: {request.source_document_id}",
-        )
-    resolved = _resolve_metadata_date(source_doc)
-    if resolved is None:
-        raise HTTPException(
-            status_code=422,
-            detail="No supported date field found on source document metadata",
-        )
-    source_field, date_value = resolved
+    response, updated_ids = assign_time_period_from_metadata_impl(db, request)
 
-    scoped_ids = (
-        _descendant_doc_ids(db, request.source_document_id)
-        if request.include_descendants
-        else {request.source_document_id}
-    )
-    matched = 0
-    updated = 0
-    skipped_existing = 0
-    for claim in db.all(KnowledgeClaim):
-        if claim.source_document_id not in scoped_ids:
-            continue
-        matched += 1
-        if not request.overwrite_existing and claim.time_start:
-            skipped_existing += 1
-            continue
-        claim.time_start = date_value
-        claim.time_end = date_value
-        claim.time_precision = "metadata"
-        claim.updated_at = datetime.now()
-        db.save(claim)
-        updated += 1
+    if updated_ids:
+        emit_change(
+            x_fichero_library_path,
+            type="claim.updated",
+            claim_ids=updated_ids,
+            actor=actor,
+            origin_window=x_fichero_origin_window,
+            origin_user=actor,
+        )
 
-    return ClaimAssignTimePeriodFromMetadataResponse(
-        matched_count=matched,
-        updated_count=updated,
-        skipped_existing_count=skipped_existing,
-        time_start=date_value,
-        time_end=date_value,
-        source_field=source_field,
-    )
+    return response
 
 
 @router.get("", response_model=ClaimListResponse)
@@ -751,3 +953,219 @@ async def list_claims(
 
     items = claims[offset : offset + limit]
     return ClaimListResponse(items=items, count=len(items))
+
+
+# =============================================================================
+# Action layer registration (EPIC #1848 / #2014) — claim CRUD + time-period.
+# =============================================================================
+#
+# Each action WRAPS the proven ``*_impl`` above (iterate-not-replace) and routes
+# through ``registry.invoke`` so chat tools / App Intents / tests / the audit
+# log share ONE path with the typed routes. The routes themselves are untouched
+# (they call the same ``*_impl`` directly and emit), matching the entity.merge
+# pilot in ``kg_entity_curation.py``.
+#
+# Undo is data, not code: ``ChangeSpec.before/after`` becomes the ActionAudit
+# payload, and ``invert(before, after)`` derives the inverse action. The
+# reversible pairs here:
+#   * claim.create -> claim.delete
+#   * claim.patch  -> claim.restore   (restore the before-snapshot)
+#   * claim.delete -> claim.restore   (restore claim + its deleted links)
+
+from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
+
+
+class ClaimDeleteParams(BaseModel):
+    """Params for claim.delete — also the inverse of claim.create."""
+
+    claim_id: str = Field(description="Claim id to hard-delete")
+
+
+class ClaimPatchActionParams(BaseModel):
+    """Params for claim.patch — the path claim_id + the partial patch body.
+
+    ``patch`` is a nested :class:`ClaimPatchRequest` so the registry's
+    ``model_validate`` preserves exclude-unset semantics: only fields actually
+    present in the request are applied (a ``None`` the caller sent is honoured;
+    a field omitted entirely is left untouched).
+    """
+
+    claim_id: str = Field(description="Claim id to patch")
+    patch: ClaimPatchRequest = Field(description="Partial claim update")
+
+
+class ClaimRestoreParams(BaseModel):
+    """Params for claim.restore — re-create a claim (+ its links) from snapshots."""
+
+    snapshot: dict[str, Any] = Field(description="KnowledgeClaim.model_dump snapshot")
+    link_snapshots: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="KnowledgeClaimLink snapshots deleted alongside the claim.",
+    )
+
+
+def _invert_create_claim(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not after:
+        return None
+    claim_id = after.get("claim_id")
+    if not claim_id:
+        return None
+    return ("claim.delete", {"claim_id": claim_id})
+
+
+def _invert_patch_claim(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not before:
+        return None
+    return ("claim.restore", {"snapshot": before})
+
+
+def _invert_delete_claim(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not before:
+        return None
+    return (
+        "claim.restore",
+        {
+            "snapshot": before.get("claim", {}),
+            "link_snapshots": before.get("deleted_links", []),
+        },
+    )
+
+
+@action(
+    "claim.create",
+    ClaimCreateRequest,
+    domains=["claim"],
+    undoable=True,
+    invert=_invert_create_claim,
+)
+def _action_create_claim(
+    db: Database, params: ClaimCreateRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    claim = create_claim_impl(db, params)
+    entity_ids = list(claim.entity_ids or [])
+    spec = ChangeSpec(
+        domains=["claim"],
+        target_ids=[claim.id],
+        after={"claim_id": claim.id},
+        emit_type="claim.updated",
+        claim_ids=[claim.id],
+        entity_ids=entity_ids,
+    )
+    return claim.model_dump(mode="json"), spec
+
+
+@action(
+    "claim.patch",
+    ClaimPatchActionParams,
+    domains=["claim"],
+    undoable=True,
+    invert=_invert_patch_claim,
+)
+def _action_patch_claim(
+    db: Database, params: ClaimPatchActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    claim, before = patch_claim_impl(db, params.claim_id, params.patch)
+    spec = ChangeSpec(
+        domains=["claim"],
+        target_ids=[claim.id],
+        before=before,
+        after=claim.model_dump(mode="json"),
+        emit_type="claim.updated",
+        claim_ids=[claim.id],
+        entity_ids=list(claim.entity_ids or []),
+    )
+    return claim.model_dump(mode="json"), spec
+
+
+@action(
+    "claim.delete",
+    ClaimDeleteParams,
+    domains=["claim"],
+    undoable=True,
+    invert=_invert_delete_claim,
+)
+def _action_delete_claim(
+    db: Database, params: ClaimDeleteParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    before_state, deleted_links, affected_entity_ids = delete_claim_impl(
+        db, params.claim_id
+    )
+    spec = ChangeSpec(
+        domains=["claim"],
+        target_ids=[params.claim_id],
+        before={"claim": before_state, "deleted_links": deleted_links},
+        after=None,
+        emit_type="claim.deleted",
+        claim_ids=[params.claim_id],
+        entity_ids=affected_entity_ids,
+    )
+    return {"deleted_claim_id": params.claim_id}, spec
+
+
+@action(
+    "claim.restore",
+    ClaimRestoreParams,
+    domains=["claim"],
+    undoable=False,
+)
+def _action_restore_claim(
+    db: Database, params: ClaimRestoreParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    claim = restore_claim_impl(
+        db, snapshot=params.snapshot, link_snapshots=params.link_snapshots
+    )
+    spec = ChangeSpec(
+        domains=["claim"],
+        target_ids=[claim.id],
+        after=claim.model_dump(mode="json"),
+        emit_type="claim.updated",
+        claim_ids=[claim.id],
+        entity_ids=list(claim.entity_ids or []),
+    )
+    return claim.model_dump(mode="json"), spec
+
+
+@action(
+    "claim.assign_time_period",
+    ClaimAssignTimePeriodRequest,
+    domains=["claim"],
+    undoable=False,
+)
+def _action_assign_time_period(
+    db: Database, params: ClaimAssignTimePeriodRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    response, updated_ids = assign_time_period_impl(db, params)
+    spec = ChangeSpec(
+        domains=["claim"],
+        target_ids=updated_ids,
+        after=response.model_dump(mode="json"),
+        emit_type="claim.updated" if updated_ids else None,
+        claim_ids=updated_ids,
+    )
+    return response.model_dump(mode="json"), spec
+
+
+@action(
+    "claim.assign_time_period_from_metadata",
+    ClaimAssignTimePeriodFromMetadataRequest,
+    domains=["claim"],
+    undoable=False,
+)
+def _action_assign_time_period_from_metadata(
+    db: Database, params: ClaimAssignTimePeriodFromMetadataRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    response, updated_ids = assign_time_period_from_metadata_impl(db, params)
+    spec = ChangeSpec(
+        domains=["claim"],
+        target_ids=updated_ids,
+        after=response.model_dump(mode="json"),
+        emit_type="claim.updated" if updated_ids else None,
+        claim_ids=updated_ids,
+    )
+    return response.model_dump(mode="json"), spec

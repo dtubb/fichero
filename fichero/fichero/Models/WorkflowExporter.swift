@@ -1,10 +1,14 @@
+#if canImport(AppKit)
 import AppKit
+#endif
 import Foundation
 import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "WorkflowExporter")
 
 /// Utility for importing/exporting workflows to files via backend API
+#if os(macOS)
+
 enum WorkflowExporter {
 
     /// Export a workflow to a JSON file via save panel (calls backend API)
@@ -79,3 +83,21 @@ enum WorkflowExporter {
         }
     }
 }
+
+#else
+
+// iOS stub: workflow import/export uses document picker on iOS; these methods no-op.
+enum WorkflowExporter {
+    @MainActor
+    static func exportToFile(_ workflowId: String, name: String, using service: WorkflowServiceGenerated) async {
+        // No-op on iOS.
+    }
+
+    @MainActor
+    static func importFromFile(using service: WorkflowServiceGenerated) async -> String? {
+        // iOS: import would be handled via UIDocumentPickerViewController.
+        return nil
+    }
+}
+
+#endif

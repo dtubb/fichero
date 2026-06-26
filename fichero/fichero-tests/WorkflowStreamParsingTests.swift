@@ -17,7 +17,7 @@ struct WorkflowStreamParsingTests {
     // MARK: - Helper
 
     private func makeService() -> WorkflowStreamService {
-        WorkflowStreamService(apiClient: APIClient(), ficheroClient: FicheroClient())
+        WorkflowStreamService(ficheroClient: FicheroClient())
     }
 
     private func json(
@@ -37,8 +37,13 @@ struct WorkflowStreamParsingTests {
         for (key, value) in extra {
             dict[key] = value
         }
-        let jsonData = try! JSONSerialization.data(withJSONObject: dict)
-        return String(data: jsonData, encoding: .utf8)!
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: dict) else {
+            fatalError("Failed to encode test SSE payload")
+        }
+        guard let jsonString = String(bytes: jsonData, encoding: .utf8) else {
+            fatalError("Failed to decode test SSE payload")
+        }
+        return jsonString
     }
 
     // MARK: - Start Event
@@ -231,18 +236,29 @@ struct WorkflowStreamParsingTests {
                 "file_path": "/docs/test.pdf",
                 "file_index": 2,
                 "file_total": 10,
-                "progress": 0.2
+                "progress": 0.2,
+                "document_id": "pdf-1",
+                "page_id": "page-2",
+                "display_name": "Page 2",
+                "sequence": 2
             ]
         )
 
         let result = service.parseEvent(input)
 
-        if case .fileStart(_, let nodeId, let filePath, let fileIndex, let fileTotal, let progress) = result {
+        if case .fileStart(
+            _, let nodeId, let filePath, let fileIndex, let fileTotal, let progress,
+            let documentId, let pageId, let displayName, let sequence
+        ) = result {
             #expect(nodeId == "node-1")
             #expect(filePath == "/docs/test.pdf")
             #expect(fileIndex == 2)
             #expect(fileTotal == 10)
             #expect(progress == 0.2)
+            #expect(documentId == "pdf-1")
+            #expect(pageId == "page-2")
+            #expect(displayName == "Page 2")
+            #expect(sequence == 2)
         } else {
             Issue.record("Expected .fileStart event, got \(String(describing: result))")
         }
@@ -259,18 +275,29 @@ struct WorkflowStreamParsingTests {
                 "file_path": "/docs/done.pdf",
                 "file_index": 3,
                 "file_total": 10,
-                "progress": 0.3
+                "progress": 0.3,
+                "document_id": "pdf-1",
+                "page_id": "page-3",
+                "display_name": "Page 3",
+                "sequence": 3
             ]
         )
 
         let result = service.parseEvent(input)
 
-        if case .fileComplete(_, let nodeId, let filePath, let fileIndex, let fileTotal, let progress, _) = result {
+        if case .fileComplete(
+            _, let nodeId, let filePath, let fileIndex, let fileTotal, let progress, _,
+            let documentId, let pageId, let displayName, let sequence
+        ) = result {
             #expect(nodeId == "node-1")
             #expect(filePath == "/docs/done.pdf")
             #expect(fileIndex == 3)
             #expect(fileTotal == 10)
             #expect(progress == 0.3)
+            #expect(documentId == "pdf-1")
+            #expect(pageId == "page-3")
+            #expect(displayName == "Page 3")
+            #expect(sequence == 3)
         } else {
             Issue.record("Expected .fileComplete event, got \(String(describing: result))")
         }
@@ -285,17 +312,28 @@ struct WorkflowStreamParsingTests {
             extra: [
                 "node_id": "node-1",
                 "file_path": "/docs/bad.pdf",
-                "progress": 0.5
+                "progress": 0.5,
+                "document_id": "pdf-1",
+                "page_id": "page-4",
+                "display_name": "Page 4",
+                "sequence": 4
             ]
         )
 
         let result = service.parseEvent(input)
 
-        if case .fileError(_, let nodeId, let filePath, let error, let progress) = result {
+        if case .fileError(
+            _, let nodeId, let filePath, let error, let progress,
+            let documentId, let pageId, let displayName, let sequence
+        ) = result {
             #expect(nodeId == "node-1")
             #expect(filePath == "/docs/bad.pdf")
             #expect(error == "File corrupt")
             #expect(progress == 0.5)
+            #expect(documentId == "pdf-1")
+            #expect(pageId == "page-4")
+            #expect(displayName == "Page 4")
+            #expect(sequence == 4)
         } else {
             Issue.record("Expected .fileError event, got \(String(describing: result))")
         }
@@ -456,7 +494,7 @@ struct SSEEventDataDecodingTests {
             "data": {"workflow_name": "Test"},
             "timestamp": "2026-02-22T12:00:00Z"
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let event = try JSONDecoder().decode(SSEEventData.self, from: json)
         #expect(event.event == "start")
@@ -484,7 +522,7 @@ struct SSEEventDataDecodingTests {
             "file_total": 10,
             "progress": 0.2
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let event = try JSONDecoder().decode(SSEEventData.self, from: json)
         #expect(event.nodeId == "node-1")
@@ -507,7 +545,7 @@ struct SSEEventDataDecodingTests {
             },
             "timestamp": "2026-02-22T12:00:00Z"
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let event = try JSONDecoder().decode(SSEEventData.self, from: json)
         #expect(event.data["node_id"]?.stringValue == "node-abc")
@@ -529,7 +567,7 @@ struct ExecuteAcceptedResponseTests {
             "status": "running",
             "stream_url": "/api/stream/t-abc"
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let response = try JSONDecoder().decode(ExecuteAcceptedResponse.self, from: json)
         #expect(response.threadId == "t-abc")

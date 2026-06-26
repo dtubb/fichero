@@ -134,7 +134,7 @@ struct NodeComparisonSheet: View {
             .padding(8)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(isOn ? Color.accentColor.opacity(0.12) : Color(.quaternaryLabelColor).opacity(0.1))
+                    .fill(isOn ? Color.accentColor.opacity(0.12) : Color(platformColor: .platformQuaternaryLabel).opacity(0.1))
             )
         }
         .buttonStyle(.plain)

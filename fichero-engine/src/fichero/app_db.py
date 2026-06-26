@@ -16,13 +16,27 @@ This is separate from library databases which store:
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import duckdb
 from pydantic import BaseModel
 from fichero.storage import settings
-from fichero.models import Provider, Model
+from fichero.models import (
+    AccountSession,
+    AccountUser,
+    Device,
+    LibraryAclOverride,
+    LibraryRole,
+    Model,
+    Provider,
+)
+from fichero.model_profiles import (
+    ModelProfile,
+    ModelProfileParams,
+    ModelProfilePrivacy,
+    ModelProfileRole,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +57,14 @@ def get_db_path() -> str:
 class AppDatabase:
     """App-wide database for providers and settings."""
     _TABLE_BY_MODEL_NAME: dict[str, str] = {
+        "AccountUser": "users",
+        "AccountSession": "sessions",
+        "Device": "devices",
+        "LibraryRole": "library_roles",
+        "LibraryAclOverride": "library_acl_overrides",
         "Provider": "providers",
         "Model": "models",
+        "ModelProfile": "model_profiles",
         "MCPServer": "mcp_servers",
         "AppSetting": "settings",
     }
@@ -77,6 +97,11 @@ class AppDatabase:
 
         logger.info(f"Opened app-wide database: {path}")
         self._initialize_schema()
+
+    def commit(self) -> None:
+        """Commit pending app-wide database work through the typed wrapper."""
+        with self._lock:
+            self.conn.commit()
 
     def _initialize_schema(self):
         """Create tables if they don't exist."""
@@ -142,6 +167,119 @@ class AppDatabase:
             )
         """)
 
+        # Named AI model/provider profiles (app-wide)
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS model_profiles (
+                id VARCHAR PRIMARY KEY,
+                name VARCHAR NOT NULL UNIQUE,
+                provider VARCHAR NOT NULL,
+                model VARCHAR NOT NULL,
+                role VARCHAR NOT NULL DEFAULT 'text',
+                privacy VARCHAR NOT NULL DEFAULT 'standard',
+                local_only BOOLEAN DEFAULT FALSE,
+                temperature DOUBLE,
+                max_tokens INTEGER,
+                timeout INTEGER,
+                reasoning_effort VARCHAR,
+                api_base VARCHAR,
+                extra JSON DEFAULT '{}',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Users table (app-wide identity directory)
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id VARCHAR PRIMARY KEY,
+                username VARCHAR NOT NULL UNIQUE,
+                display_name VARCHAR NOT NULL,
+                password_hash VARCHAR NOT NULL,
+                is_owner BOOLEAN DEFAULT FALSE,
+                active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Sessions table (app-wide session store)
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS sessions (
+                id VARCHAR PRIMARY KEY,
+                user_id VARCHAR NOT NULL,
+                token_hash VARCHAR NOT NULL UNIQUE,
+                device_label VARCHAR DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP NOT NULL,
+                revoked BOOLEAN DEFAULT FALSE,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+
+        # Devices table (app-wide paired-device token store)
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS devices (
+                id VARCHAR PRIMARY KEY,
+                name VARCHAR NOT NULL,
+                user_id VARCHAR NOT NULL,
+                token_hash VARCHAR NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP NOT NULL,
+                revoked BOOLEAN DEFAULT FALSE,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+        # Migration: app.duckdb persists across versions, so `CREATE TABLE IF NOT
+        # EXISTS` will NOT add a new column to a devices table created before
+        # expires_at existed (#2173). Add it idempotently and backfill existing
+        # paired devices with a finite TTL derived from their creation time so the
+        # NOT-NULL invariant of fresh schemas is preserved for migrated rows.
+        _device_cols = {
+            row[1] for row in self.conn.execute("PRAGMA table_info(devices)").fetchall()
+        }
+        if "expires_at" not in _device_cols:
+            self.conn.execute("ALTER TABLE devices ADD COLUMN expires_at TIMESTAMP")
+            self.conn.execute(
+                "UPDATE devices SET expires_at = created_at + INTERVAL 90 DAY "
+                "WHERE expires_at IS NULL"
+            )
+            # Flush the DDL into the main DB file immediately. DuckDB cannot
+            # REPLAY an ALTER ... ADD COLUMN from the WAL on recovery (internal
+            # error "GetDefaultDatabase with no default database set"), so if the
+            # process dies before the next checkpoint the WAL is poisoned and every
+            # restart crashes natively. CHECKPOINT here keeps the migration durable
+            # and out of the recovery WAL. See app-db migration incident 2026-06-12.
+            self.conn.execute("CHECKPOINT")
+
+        # Per-library ACL tables (global identity scope, not per-library DB).
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS library_roles (
+                id VARCHAR PRIMARY KEY,
+                user_id VARCHAR NOT NULL,
+                library_path VARCHAR NOT NULL,
+                role VARCHAR NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, library_path),
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS library_acl_overrides (
+                id VARCHAR PRIMARY KEY,
+                user_id VARCHAR NOT NULL,
+                library_path VARCHAR NOT NULL,
+                target_id VARCHAR NOT NULL,
+                effect VARCHAR NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, library_path, target_id),
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+
         # Create indexes
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_providers_type ON providers(provider_type)"
@@ -151,6 +289,45 @@ class AppDatabase:
         )
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_mcp_servers_enabled ON mcp_servers(enabled)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_model_profiles_name ON model_profiles(name)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_users_owner ON users(is_owner, active)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sessions_token_hash ON sessions(token_hash)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_devices_user_id ON devices(user_id)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_devices_token_hash ON devices(token_hash)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_devices_expires_at ON devices(expires_at)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_library_roles_user_library "
+            "ON library_roles(user_id, library_path)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_library_roles_library "
+            "ON library_roles(library_path)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_library_acl_overrides_user_library "
+            "ON library_acl_overrides(user_id, library_path)"
         )
 
         logger.info("App database schema initialized")
@@ -490,6 +667,13 @@ class AppDatabase:
             "default_medium_model",
             "default_large_provider",
             "default_large_model",
+            "default_vision_small_provider",
+            "default_vision_small_model",
+            "default_vision_medium_provider",
+            "default_vision_medium_model",
+            "default_vision_large_provider",
+            "default_vision_large_model",
+            "default_primary_language",
             "default_temperature",
             "default_max_tokens",
             "default_prompt_prefix",
@@ -554,6 +738,10 @@ class AppDatabase:
             "default_small_provider", "default_small_model",
             "default_medium_provider", "default_medium_model",
             "default_large_provider", "default_large_model",
+            "default_vision_small_provider", "default_vision_small_model",
+            "default_vision_medium_provider", "default_vision_medium_model",
+            "default_vision_large_provider", "default_vision_large_model",
+            "default_primary_language",
             "default_temperature", "default_max_tokens", "default_prompt_prefix",
         ]
         for key in keys_to_delete:
@@ -572,10 +760,643 @@ class AppDatabase:
             "default_medium_provider": "openrouter", "default_medium_model": "openai/gpt-4o-mini",
             "default_large_provider": apple, "default_large_model": "apple-intelligence",
             "default_vision_provider": apple, "default_vision_model": "apple-vision",
+            "default_vision_small_provider": apple, "default_vision_small_model": "apple-vision",
+            "default_vision_medium_provider": apple, "default_vision_medium_model": "apple-vision",
+            "default_vision_large_provider": apple, "default_vision_large_model": "apple-vision",
             "default_audio_provider": apple, "default_audio_model": "apple-speech",
         }
         for key, value in factory_defaults.items():
             self.set_setting(key, value)
+
+    # =========================================================================
+    # Model Profiles
+    # =========================================================================
+
+    def _row_to_model_profile(self, row) -> ModelProfile:
+        params = ModelProfileParams(
+            temperature=row[7],
+            max_tokens=row[8],
+            timeout=row[9],
+            reasoning_effort=row[10],
+        )
+        try:
+            extra = json.loads(row[12] or "{}")
+        except (json.JSONDecodeError, TypeError):
+            extra = {}
+        if not isinstance(extra, dict):
+            extra = {}
+        return ModelProfile(
+            id=row[0],
+            name=row[1],
+            provider=row[2],
+            model=row[3],
+            role=ModelProfileRole(row[4]),
+            privacy=ModelProfilePrivacy(row[5]),
+            local_only=bool(row[6]),
+            params=params,
+            api_base=row[11],
+            extra=extra,
+            created_at=row[13],
+            updated_at=row[14],
+        )
+
+    def save_model_profile(self, profile: ModelProfile) -> ModelProfile:
+        """Save or update a named model/provider profile."""
+        now = datetime.now()
+        with self._lock:
+            self.conn.execute(
+                """
+                INSERT INTO model_profiles (
+                    id, name, provider, model, role, privacy, local_only,
+                    temperature, max_tokens, timeout, reasoning_effort,
+                    api_base, extra, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (id) DO UPDATE SET
+                    name = excluded.name,
+                    provider = excluded.provider,
+                    model = excluded.model,
+                    role = excluded.role,
+                    privacy = excluded.privacy,
+                    local_only = excluded.local_only,
+                    temperature = excluded.temperature,
+                    max_tokens = excluded.max_tokens,
+                    timeout = excluded.timeout,
+                    reasoning_effort = excluded.reasoning_effort,
+                    api_base = excluded.api_base,
+                    extra = excluded.extra,
+                    updated_at = excluded.updated_at
+            """,
+                [
+                    profile.id,
+                    profile.name,
+                    profile.provider,
+                    profile.model,
+                    profile.role.value,
+                    profile.privacy.value,
+                    profile.local_only,
+                    profile.params.temperature,
+                    profile.params.max_tokens,
+                    profile.params.timeout,
+                    profile.params.reasoning_effort,
+                    profile.api_base,
+                    json.dumps(profile.extra or {}),
+                    now,
+                ],
+            )
+            self.conn.commit()
+        return profile.model_copy(update={"updated_at": now})
+
+    def get_model_profile(self, profile_id: str) -> ModelProfile | None:
+        """Get a model profile by id."""
+        with self._lock:
+            row = self.conn.execute(
+                "SELECT * FROM model_profiles WHERE id = ?", [profile_id]
+            ).fetchone()
+        return self._row_to_model_profile(row) if row else None
+
+    def get_model_profile_by_name(self, name: str) -> ModelProfile | None:
+        """Get a model profile by exact display name."""
+        with self._lock:
+            row = self.conn.execute(
+                "SELECT * FROM model_profiles WHERE name = ?", [name]
+            ).fetchone()
+        return self._row_to_model_profile(row) if row else None
+
+    def list_model_profiles(self) -> list[ModelProfile]:
+        """List named model profiles in stable display order."""
+        with self._lock:
+            rows = self.conn.execute(
+                "SELECT * FROM model_profiles ORDER BY name, created_at"
+            ).fetchall()
+        return [self._row_to_model_profile(row) for row in rows]
+
+    def delete_model_profile(self, profile_id: str) -> ModelProfile | None:
+        """Delete a model profile by id."""
+        profile = self.get_model_profile(profile_id)
+        if profile is None:
+            return None
+        with self._lock:
+            self._delete_typed(profile)
+            self.conn.commit()
+        return profile
+
+    # =========================================================================
+    # Users and sessions
+    # =========================================================================
+
+    def create_user(
+        self,
+        *,
+        username: str,
+        display_name: str,
+        password_hash: str,
+        is_owner: bool = False,
+        active: bool = True,
+    ) -> AccountUser:
+        """Insert a new user row and return the typed record."""
+        user = AccountUser(
+            username=username.strip(),
+            display_name=display_name.strip(),
+            password_hash=password_hash,
+            is_owner=is_owner,
+            active=active,
+        )
+        with self._lock:
+            self.conn.execute(
+                """
+                INSERT INTO users (
+                    id, username, display_name, password_hash,
+                    is_owner, active, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+                [
+                    user.id,
+                    user.username,
+                    user.display_name,
+                    user.password_hash,
+                    user.is_owner,
+                    user.active,
+                    user.created_at,
+                ],
+            )
+            self.conn.commit()
+        return user
+
+    def _row_to_user(self, row) -> AccountUser:
+        return AccountUser(
+            id=row[0],
+            username=row[1],
+            display_name=row[2],
+            password_hash=row[3],
+            is_owner=row[4],
+            active=row[5],
+            created_at=row[6],
+        )
+
+    def get_user_by_username(self, username: str) -> AccountUser | None:
+        """Get a user row by username."""
+        with self._lock:
+            result = self.conn.execute(
+                """
+                SELECT id, username, display_name, password_hash,
+                       is_owner, active, created_at
+                FROM users
+                WHERE username = ?
+                """,
+                [username.strip()],
+            ).fetchone()
+        return self._row_to_user(result) if result else None
+
+    def get_user(self, user_id: str) -> AccountUser | None:
+        """Get a user by ID."""
+        with self._lock:
+            result = self.conn.execute(
+                """
+                SELECT id, username, display_name, password_hash,
+                       is_owner, active, created_at
+                FROM users
+                WHERE id = ?
+                """,
+                [user_id],
+            ).fetchone()
+        return self._row_to_user(result) if result else None
+
+    def list_users(self) -> list[AccountUser]:
+        """List all users, owner-first."""
+        with self._lock:
+            rows = self.conn.execute(
+                """
+                SELECT id, username, display_name, password_hash,
+                       is_owner, active, created_at
+                FROM users
+                ORDER BY is_owner DESC, created_at, username
+                """
+            ).fetchall()
+        return [self._row_to_user(row) for row in rows]
+
+    def set_password(self, user_id: str, password_hash: str) -> AccountUser | None:
+        """Update a user's password hash."""
+        with self._lock:
+            self.conn.execute(
+                "UPDATE users SET password_hash = ? WHERE id = ?",
+                [password_hash, user_id],
+            )
+            self.conn.commit()
+        return self.get_user(user_id)
+
+    def set_active(self, user_id: str, active: bool) -> AccountUser | None:
+        """Enable or disable a user."""
+        with self._lock:
+            self.conn.execute(
+                "UPDATE users SET active = ? WHERE id = ?",
+                [active, user_id],
+            )
+            self.conn.commit()
+        return self.get_user(user_id)
+
+    # =========================================================================
+    # Library ACLs
+    # =========================================================================
+
+    def _row_to_library_role(self, row) -> LibraryRole:
+        return LibraryRole(
+            id=row[0],
+            user_id=row[1],
+            library_path=row[2],
+            role=row[3],
+            created_at=row[4],
+            updated_at=row[5],
+        )
+
+    def _row_to_library_acl_override(self, row) -> LibraryAclOverride:
+        return LibraryAclOverride(
+            id=row[0],
+            user_id=row[1],
+            library_path=row[2],
+            target_id=row[3],
+            effect=row[4],
+            created_at=row[5],
+            updated_at=row[6],
+        )
+
+    def set_library_role(
+        self,
+        *,
+        user_id: str,
+        library_path: str,
+        role: str,
+    ) -> LibraryRole:
+        """Create or update a user's role for one library."""
+        now = datetime.now()
+        existing = self.get_library_role(user_id, library_path)
+        row = LibraryRole(
+            user_id=user_id,
+            library_path=library_path,
+            role=role,
+            updated_at=now,
+        )
+        if existing:
+            row.id = existing.id
+            row.created_at = existing.created_at
+        with self._lock:
+            self.conn.execute(
+                """
+                INSERT INTO library_roles (
+                    id, user_id, library_path, role, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT (user_id, library_path) DO UPDATE SET
+                    role = excluded.role,
+                    updated_at = excluded.updated_at
+                """,
+                [
+                    row.id,
+                    row.user_id,
+                    row.library_path,
+                    row.role,
+                    row.created_at,
+                    row.updated_at,
+                ],
+            )
+            self.conn.commit()
+        return self.get_library_role(user_id, library_path) or row
+
+    def get_library_role(
+        self, user_id: str, library_path: str
+    ) -> LibraryRole | None:
+        """Return a user's role for one library."""
+        with self._lock:
+            result = self.conn.execute(
+                """
+                SELECT id, user_id, library_path, role, created_at, updated_at
+                FROM library_roles
+                WHERE user_id = ? AND library_path = ?
+                """,
+                [user_id, library_path],
+            ).fetchone()
+        return self._row_to_library_role(result) if result else None
+
+    def list_library_roles(self, library_path: str) -> list[LibraryRole]:
+        """Return all roles for a library."""
+        with self._lock:
+            rows = self.conn.execute(
+                """
+                SELECT id, user_id, library_path, role, created_at, updated_at
+                FROM library_roles
+                WHERE library_path = ?
+                ORDER BY created_at, user_id
+                """,
+                [library_path],
+            ).fetchall()
+        return [self._row_to_library_role(row) for row in rows]
+
+    def set_library_acl_override(
+        self,
+        *,
+        user_id: str,
+        library_path: str,
+        target_id: str,
+        effect: str,
+    ) -> LibraryAclOverride:
+        """Create or update a grant/deny override for one target subtree."""
+        now = datetime.now()
+        existing = self.get_library_acl_override(user_id, library_path, target_id)
+        row = LibraryAclOverride(
+            user_id=user_id,
+            library_path=library_path,
+            target_id=target_id,
+            effect=effect,
+            updated_at=now,
+        )
+        if existing:
+            row.id = existing.id
+            row.created_at = existing.created_at
+        with self._lock:
+            self.conn.execute(
+                """
+                INSERT INTO library_acl_overrides (
+                    id, user_id, library_path, target_id, effect, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (user_id, library_path, target_id) DO UPDATE SET
+                    effect = excluded.effect,
+                    updated_at = excluded.updated_at
+                """,
+                [
+                    row.id,
+                    row.user_id,
+                    row.library_path,
+                    row.target_id,
+                    row.effect,
+                    row.created_at,
+                    row.updated_at,
+                ],
+            )
+            self.conn.commit()
+        return self.get_library_acl_override(user_id, library_path, target_id) or row
+
+    def get_library_acl_override(
+        self, user_id: str, library_path: str, target_id: str
+    ) -> LibraryAclOverride | None:
+        """Return one exact-target ACL override, if any."""
+        with self._lock:
+            result = self.conn.execute(
+                """
+                SELECT id, user_id, library_path, target_id, effect, created_at, updated_at
+                FROM library_acl_overrides
+                WHERE user_id = ? AND library_path = ? AND target_id = ?
+                """,
+                [user_id, library_path, target_id],
+            ).fetchone()
+        return self._row_to_library_acl_override(result) if result else None
+
+    def list_library_acl_overrides(
+        self, user_id: str, library_path: str
+    ) -> list[LibraryAclOverride]:
+        """Return a user's target overrides for one library."""
+        with self._lock:
+            rows = self.conn.execute(
+                """
+                SELECT id, user_id, library_path, target_id, effect, created_at, updated_at
+                FROM library_acl_overrides
+                WHERE user_id = ? AND library_path = ?
+                ORDER BY created_at, target_id
+                """,
+                [user_id, library_path],
+            ).fetchall()
+        return [self._row_to_library_acl_override(row) for row in rows]
+
+    def create_session(
+        self,
+        user_id: str,
+        token_hash: str,
+        device_label: str | None,
+        ttl: timedelta,
+    ) -> AccountSession:
+        """Insert a new session row and return the typed record."""
+        now = datetime.now()
+        session = AccountSession(
+            user_id=user_id,
+            token_hash=token_hash,
+            device_label=(device_label or "").strip(),
+            created_at=now,
+            last_seen_at=now,
+            expires_at=now + ttl,
+        )
+        with self._lock:
+            self.conn.execute(
+                """
+                INSERT INTO sessions (
+                    id, user_id, token_hash, device_label,
+                    created_at, last_seen_at, expires_at, revoked
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+                [
+                    session.id,
+                    session.user_id,
+                    session.token_hash,
+                    session.device_label,
+                    session.created_at,
+                    session.last_seen_at,
+                    session.expires_at,
+                    session.revoked,
+                ],
+            )
+            self.conn.commit()
+        return session
+
+    def _row_to_session(self, row) -> AccountSession:
+        return AccountSession(
+            id=row[0],
+            user_id=row[1],
+            token_hash=row[2],
+            device_label=row[3] or "",
+            created_at=row[4],
+            last_seen_at=row[5],
+            expires_at=row[6],
+            revoked=row[7],
+        )
+
+    def get_session_by_token_hash(self, token_hash: str) -> AccountSession | None:
+        """Get a session by its stored token hash."""
+        with self._lock:
+            result = self.conn.execute(
+                """
+                SELECT id, user_id, token_hash, device_label,
+                       created_at, last_seen_at, expires_at, revoked
+                FROM sessions
+                WHERE token_hash = ?
+                """,
+                [token_hash],
+            ).fetchone()
+        return self._row_to_session(result) if result else None
+
+    def touch_session(
+        self,
+        token_hash: str,
+        when: datetime | None = None,
+        expires_at: datetime | None = None,
+    ) -> None:
+        """Update the last-seen timestamp for a session."""
+        now = when or datetime.now()
+        with self._lock:
+            if expires_at is None:
+                self.conn.execute(
+                    "UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?",
+                    [now, token_hash],
+                )
+            else:
+                self.conn.execute(
+                    "UPDATE sessions SET last_seen_at = ?, expires_at = ? WHERE token_hash = ?",
+                    [now, expires_at, token_hash],
+                )
+            self.conn.commit()
+        return None
+
+    def revoke_session(self, token_hash: str) -> AccountSession | None:
+        """Mark one session as revoked."""
+        with self._lock:
+            self.conn.execute(
+                "UPDATE sessions SET revoked = TRUE WHERE token_hash = ?",
+                [token_hash],
+            )
+            self.conn.commit()
+        return self.get_session_by_token_hash(token_hash)
+
+    def revoke_all_for_user(self, user_id: str) -> None:
+        """Revoke all sessions for one user."""
+        with self._lock:
+            self.conn.execute(
+                "UPDATE sessions SET revoked = TRUE WHERE user_id = ?",
+                [user_id],
+            )
+            self.conn.commit()
+
+    # =========================================================================
+    # Devices
+    # =========================================================================
+
+    def create_device(
+        self,
+        *,
+        name: str,
+        user_id: str,
+        token_hash: str,
+        ttl: timedelta = timedelta(days=90),
+    ) -> Device:
+        """Insert a paired device credential and return the typed record."""
+        now = datetime.now()
+        device = Device(
+            name=name.strip(),
+            user_id=user_id,
+            token_hash=token_hash,
+            created_at=now,
+            last_seen=now,
+            expires_at=now + ttl,
+        )
+        with self._lock:
+            self.conn.execute(
+                """
+                INSERT INTO devices (
+                    id, name, user_id, token_hash,
+                    created_at, last_seen, expires_at, revoked
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    device.id,
+                    device.name,
+                    device.user_id,
+                    device.token_hash,
+                    device.created_at,
+                    device.last_seen,
+                    device.expires_at,
+                    device.revoked,
+                ],
+            )
+            self.conn.commit()
+        return device
+
+    def _row_to_device(self, row) -> Device:
+        return Device(
+            id=row[0],
+            name=row[1],
+            user_id=row[2],
+            token_hash=row[3],
+            created_at=row[4],
+            last_seen=row[5],
+            expires_at=row[6],
+            revoked=row[7],
+        )
+
+    def get_device(self, device_id: str) -> Device | None:
+        """Return one paired device by id."""
+        with self._lock:
+            result = self.conn.execute(
+                """
+                SELECT id, name, user_id, token_hash,
+                       created_at, last_seen, expires_at, revoked
+                FROM devices
+                WHERE id = ?
+                """,
+                [device_id],
+            ).fetchone()
+        return self._row_to_device(result) if result else None
+
+    def get_device_by_token_hash(self, token_hash: str) -> Device | None:
+        """Return one paired device by stored token hash."""
+        with self._lock:
+            result = self.conn.execute(
+                """
+                SELECT id, name, user_id, token_hash,
+                       created_at, last_seen, expires_at, revoked
+                FROM devices
+                WHERE token_hash = ?
+                """,
+                [token_hash],
+            ).fetchone()
+        return self._row_to_device(result) if result else None
+
+    def list_devices(self) -> list[Device]:
+        """List all paired devices."""
+        with self._lock:
+            rows = self.conn.execute(
+                """
+                SELECT id, name, user_id, token_hash,
+                       created_at, last_seen, expires_at, revoked
+                FROM devices
+                ORDER BY revoked, created_at, name
+                """
+            ).fetchall()
+        return [self._row_to_device(row) for row in rows]
+
+    def touch_device(
+        self,
+        token_hash: str,
+        when: datetime | None = None,
+    ) -> None:
+        """Update the last-seen timestamp for a device token."""
+        now = when or datetime.now()
+        with self._lock:
+            self.conn.execute(
+                "UPDATE devices SET last_seen = ? WHERE token_hash = ?",
+                [now, token_hash],
+            )
+            self.conn.commit()
+        return None
+
+    def revoke_device(self, device_id: str) -> Device | None:
+        """Mark one paired device as revoked."""
+        with self._lock:
+            self.conn.execute(
+                "UPDATE devices SET revoked = TRUE WHERE id = ?",
+                [device_id],
+            )
+            self.conn.commit()
+        return self.get_device(device_id)
 
     def delete_model(self, model_id: str):
         """Delete a model."""

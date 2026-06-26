@@ -2,28 +2,53 @@ import SwiftUI
 
 // MARK: - Backend Settings
 
-/// Backend connection settings
+// Backend connection settings
 struct BackendSettingsView: View {
     @EnvironmentObject var appState: AppState
-    @AppStorage("backendPort") private var backendPort: Int = 8765
-    @AppStorage("backendHost") private var backendHost: String = "127.0.0.1"
+    @EnvironmentObject var backendService: EmbeddedBackendService
+    // storageService is per-LIBRARY, not in the Settings scene environment — reach it
+    // optionally via libraryManager (which IS injected here). A required @EnvironmentObject
+    // would trap "No ObservableObject of type StorageServiceGenerated" and crash this tab.
+    @EnvironmentObject var libraryManager: LibraryManager
+    @AppStorage(EngineConfig.userDefaultsKey) private var engineHost = EngineConfig.defaultHostString
+
+    @State private var storageStats: StorageStats?
+    @State private var isLoadingStats = false
+    @State private var statsError: String?
 
     var body: some View {
         Form {
-            Section("Connection") {
-                TextField("Host", text: $backendHost)
-                TextField("Port", value: $backendPort, format: .number)
-
-                HStack {
+            Section {
+                HStack(alignment: .center, spacing: 12) {
                     Circle()
                         .fill(appState.isBackendRunning ? Color.green : Color.red)
                         .frame(width: 10, height: 10)
 
-                    Text(appState.isBackendRunning ? "Connected" : "Disconnected")
-
-                    Spacer()
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(appState.isBackendRunning ? "Connected" : "Disconnected")
+                            .font(.headline)
+                        Text(connectionDescription)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
+
+            #if canImport(AppKit)
+            MacRemoteClientPairingSection(
+                appState: appState,
+                backendService: backendService,
+                libraryManager: libraryManager
+            )
+            #endif
+
+            #if canImport(AppKit)
+            BackendSettingsRemoteAccessSection(
+                appState: appState,
+                backendService: backendService,
+                libraryManager: libraryManager
+            )
+            #endif
 
             Section("Statistics") {
                 LabeledContent("Documents") {
@@ -32,8 +57,96 @@ struct BackendSettingsView: View {
                 LabeledContent("Indexed") {
                     Text("\(appState.indexedCount)")
                 }
+
+                if isLoadingStats {
+                    LabeledContent("Storage") {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                } else if let error = statsError {
+                    LabeledContent("Storage") {
+                        Text(error)
+                            .foregroundStyle(.red)
+                            .font(.caption)
+                    }
+                } else if let stats = storageStats {
+                    LabeledContent("Total Size") {
+                        Text(ByteCountFormatter.string(fromByteCount: stats.totalSize, countStyle: .file))
+                    }
+                    LabeledContent("Files") {
+                        Text("\(stats.fileCount)")
+                    }
+                    LabeledContent("Collections") {
+                        Text("\(stats.collectionCount)")
+                    }
+                    LabeledContent("Linked Files") {
+                        Text("\(stats.linkedCount)")
+                    }
+                    LabeledContent("Copied Files") {
+                        Text("\(stats.copiedCount)")
+                    }
+                }
             }
+
+            AdvancedConnectionSection(engineHost: $engineHost)
         }
         .formStyle(.grouped)
+        .task {
+            await loadStorageStats()
+        }
+    }
+
+    // MARK: - Private
+
+    private func loadStorageStats() async {
+        isLoadingStats = true
+        statsError = nil
+        defer { isLoadingStats = false }
+        guard let storageService = libraryManager.globalLibrary?.storageService else {
+            // No library open → no per-library storage stats to show.
+            storageStats = nil
+            return
+        }
+        do {
+            storageStats = try await storageService.getStats()
+        } catch {
+            statsError = error.localizedDescription
+        }
+    }
+
+    private var connectionDescription: String {
+        if appState.isBackendRunning {
+            return EngineConfig.requiresExternalBackendConnection
+                ? "This Mac is connected to another Fichero library."
+                : "Fichero is running on this Mac."
+        }
+        return EngineConfig.requiresExternalBackendConnection
+            ? "Check the shared library link in Advanced if this Mac should reconnect."
+            : "Start the library on this Mac to share it with other devices."
+    }
+
+}
+
+private struct AdvancedConnectionSection: View {
+    @Binding var engineHost: String
+
+    var body: some View {
+        Section {
+            DisclosureGroup("Advanced") {
+                TextField("Engine URL", text: $engineHost)
+                    .textFieldStyle(.roundedBorder)
+                    .autocorrectionDisabled()
+
+                LabeledContent("Effective API Base") {
+                    Text(EngineConfig.apiBaseURL.absoluteString)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+
+                Text("Leave blank only when this Mac should use its embedded local engine.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 }

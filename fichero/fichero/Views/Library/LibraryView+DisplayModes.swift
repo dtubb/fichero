@@ -1,3 +1,5 @@
+// swiftlint:disable file_length
+import FicheroAPIClient
 import SwiftUI
 
 // MARK: - Display Modes Extension
@@ -21,23 +23,43 @@ extension LibraryView {
                         alignment: .center,
                         spacing: 20
                     ) {
-                        ForEach(filteredDocuments) { doc in
-                            DocumentThumbnailView(
-                                document: doc,
-                                isSelected: selection.contains(doc.id),
-                                scale: CGFloat(iconViewScale)
-                            )
-                            .id(doc.id)
-                            .draggable(doc.id)
-                            .onTapGesture(count: 2) {
-                                handleDoubleClick(doc)
+                        if isShowingEntitiesCollection {
+                            ForEach(filteredEntities, id: \.stableInspectorId) { entity in
+                                let entityId = entitySelectionId(for: entity)
+                                EntityThumbnailView(
+                                    entity: entity,
+                                    isSelected: selection.contains(entityId),
+                                    secondaryText: entityTileSecondaryText(for: entity),
+                                    kindStyle: entityTileKindStyle(for: entity),
+                                    scale: CGFloat(iconViewScale)
+                                )
+                                .id(entityId)
+                                .onTapGesture(count: 2) {
+                                    handleEntityDoubleClick(entity)
+                                }
+                                .onTapGesture {
+                                    handleEntityTap(entity)
+                                }
                             }
-                            .onTapGesture {
-                                handleTap(doc)
-                                onRequestFocus()
-                            }
-                            .contextMenu {
-                                documentContextMenu(for: doc)
+                        } else {
+                            ForEach(filteredDocuments) { doc in
+                                DocumentThumbnailView(
+                                    document: doc,
+                                    isSelected: selection.contains(doc.id),
+                                    scale: CGFloat(iconViewScale)
+                                )
+                                .id(doc.id)
+                                .draggable(doc.id)
+                                .onTapGesture(count: 2) {
+                                    handleDoubleClick(doc)
+                                }
+                                .onTapGesture {
+                                    handleTap(doc)
+                                    onRequestFocus()
+                                }
+                                .contextMenu {
+                                    documentContextMenu(for: doc)
+                                }
                             }
                         }
                     }
@@ -64,9 +86,11 @@ extension LibraryView {
                 .onKeyPress(.pageDown, phases: .down) { _ in
                     handleArrowKey(direction: .pageDown)
                 }
+                #if os(macOS)
                 .onMoveCommand { direction in
                     handleMoveCommand(direction)
                 }
+                #endif
                 // .focusable() here so the .onKeyPress handlers above receive
                 // arrow keys (ScrollView would otherwise swallow them). But
                 // the default focus ring draws around this whole scroll area
@@ -168,8 +192,8 @@ extension LibraryView {
                 // contents arrive so fast-scrolling sees images not placeholders (#719).
                 // Imported IIIF/W3C pages are `docType == .page` + `fileType == .image`,
                 // so include page images as well as top-level image files.
-                .task(id: filteredDocuments.map(\.id).joined()) {
-                    guard !Task.isCancelled else { return }
+                .task(id: thumbnailPrefetchKey) {
+                    guard !Task.isCancelled, !isShowingEntitiesCollection else { return }
                     let imageIds = filteredDocuments
                         .filter { $0.fileType == .image && $0.docType != .folder }
                         .map(\.id)
@@ -187,38 +211,67 @@ extension LibraryView {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    ForEach(filteredDocuments) { doc in
-                        MailStyleRow(
-                            document: doc,
-                            isSelected: selection.contains(doc.id),
-                            visibleEntityTypes: listVisibleEntityTypes
-                        ) { tag in
-                            searchText = tag
-                            showFilterBar = true
-                        }
-                        .id(doc.id)
-                        .draggable(doc.id)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(
-                            selection.contains(doc.id)
-                                ? Color.accentColor.opacity(0.12)
-                                : Color.clear
-                        )
-                        .contentShape(Rectangle())
-                        .onTapGesture(count: 2) {
-                            handleDoubleClick(doc)
-                        }
-                        .onTapGesture {
-                            handleTap(doc)
-                            onRequestFocus()
-                        }
-                        .contextMenu {
-                            documentContextMenu(for: doc)
-                        }
+                    if isShowingEntitiesCollection {
+                        ForEach(filteredEntities, id: \.stableInspectorId) { entity in
+                            let entityId = entitySelectionId(for: entity)
+                            EntityRow(
+                                entity: entity,
+                                claimCount: entity.corroborationCount ?? 0,
+                                style: .browser
+                            )
+                            .id(entityId)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                selection.contains(entityId)
+                                    ? Color.accentColor.opacity(0.12)
+                                    : Color.clear
+                            )
+                            .contentShape(Rectangle())
+                            .onTapGesture(count: 2) {
+                                handleEntityDoubleClick(entity)
+                            }
+                            .onTapGesture {
+                                handleEntityTap(entity)
+                            }
 
-                        Divider()
-                            .padding(.leading, 12)
+                            Divider()
+                                .padding(.leading, 12)
+                        }
+                    } else {
+                        ForEach(filteredDocuments) { doc in
+                            MailStyleRow(
+                                document: doc,
+                                isSelected: selection.contains(doc.id),
+                                visibleEntityTypes: listVisibleEntityTypes
+                            ) { tag in
+                                searchText = tag
+                                showFilterBar = true
+                            }
+                            .id(doc.id)
+                            .draggable(doc.id)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                selection.contains(doc.id)
+                                    ? Color.accentColor.opacity(0.12)
+                                    : Color.clear
+                            )
+                            .contentShape(Rectangle())
+                            .onTapGesture(count: 2) {
+                                handleDoubleClick(doc)
+                            }
+                            .onTapGesture {
+                                handleTap(doc)
+                                onRequestFocus()
+                            }
+                            .contextMenu {
+                                documentContextMenu(for: doc)
+                            }
+
+                            Divider()
+                                .padding(.leading, 12)
+                        }
                     }
                 }
             }
@@ -271,6 +324,35 @@ extension LibraryView {
         KgKindMapping(kind: "event", scope: "events", label: "Events"),
         KgKindMapping(kind: "concept", scope: "keywords", label: "Keywords")
     ]
+
+    private func entityTileKindStyle(
+        for entity: Components.Schemas.KnowledgeEntity
+    ) -> EntityThumbnailKindStyle {
+        switch entity.entityType?.rawValue {
+        case "person":
+            EntityThumbnailKindStyle(label: "People", systemName: "person.2.fill", tint: .blue)
+        case "location":
+            EntityThumbnailKindStyle(label: "Places", systemName: "mappin.and.ellipse", tint: .green)
+        case "organization":
+            EntityThumbnailKindStyle(label: "Organizations", systemName: "building.2.fill", tint: .orange)
+        case "event":
+            EntityThumbnailKindStyle(label: "Events", systemName: "calendar", tint: .pink)
+        case "concept":
+            EntityThumbnailKindStyle(label: "Keywords", systemName: "tag.fill", tint: .purple)
+        default:
+            EntityThumbnailKindStyle(label: "Other", systemName: "questionmark.circle.fill", tint: .gray)
+        }
+    }
+
+    private func entityTileSecondaryText(
+        for entity: Components.Schemas.KnowledgeEntity
+    ) -> String {
+        let aliasCount = entity.aliases?.count ?? 0
+        let corroborationCount = entity.corroborationCount ?? 0
+        let aliasLabel = aliasCount == 1 ? "alias" : "aliases"
+        let corroborationLabel = corroborationCount == 1 ? "corroboration" : "corroborations"
+        return "\(aliasCount) \(aliasLabel) • \(corroborationCount) \(corroborationLabel)"
+    }
 
     /// Set of entity-type ids the user wants visible in list rows.
     /// Drives `MailStyleRow` → `ArtifactEntitiesView` filtering. (#519
@@ -331,3 +413,4 @@ extension LibraryView {
     }
 
 }
+// swiftlint:enable file_length

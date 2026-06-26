@@ -1,9 +1,7 @@
-import AppKit
 import FicheroAPIClient
 import Foundation
 import ImageIO
 import OpenAPIRuntime
-import OpenAPIURLSession
 import OSLog
 import SwiftUI
 
@@ -11,7 +9,8 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Storage
 
 /// StorageService using the generated OpenAPI client.
 /// Handles storage operations (thumbnails, previews, source files).
-/// Note: Image loading is done via direct URLSession for efficiency.
+/// Note: Image and source bytes travel through the generated OpenAPI client
+/// so auth, pinning, and library-path middleware stay central (#1710).
 @MainActor
 class StorageServiceGenerated: ObservableObject {
     // MARK: - Published State
@@ -20,8 +19,7 @@ class StorageServiceGenerated: ObservableObject {
     @Published var lastError: Error?
 
     private let client: FicheroClient
-    private let session = URLSession.shared
-    private let baseURL: URL
+    private let configuredBaseURL: URL?
 
     /// In-memory cache keyed by `docId`. Prevents the "Loading thumbnail
     /// for document: X" storms Daniel was seeing — `.task` re-fires on
@@ -32,16 +30,25 @@ class StorageServiceGenerated: ObservableObject {
     /// switching libraries naturally resets.
     private var thumbnailCache: [String: Image] = [:]
     private var displayCache: [String: Image] = [:]
-    private var displayNSImageCache: [String: NSImage] = [:]
+    private var displayPlatformImageCache: [String: PlatformImage] = [:]
+    private var sourceDataCache: [String: Data] = [:]
 
     /// Upper bound on the thumbnail cache so opening a folder with thousands
     /// of images can't grow it without limit (#719). When exceeded, the
     /// oldest-inserted entries are evicted first (FIFO) — by the time the
     /// cache is this full the user has scrolled well past those rows.
     static let thumbnailCacheLimit = 1000
+    /// Upper bound on the display-platform-image cache. Display images are
+    /// larger than thumbnails (~1–5 MB each); a small window around the
+    /// current position is all we need (#2469).
+    static let displayPlatformImageCacheLimit = 12
+    static let maxImageBytes = 50 * 1024 * 1024
+    static let maxSourceBytes = 500 * 1024 * 1024
     /// Insertion order of thumbnail-cache keys, oldest first. Drives FIFO
     /// eviction in `cacheThumbnail`.
     private var thumbnailCacheOrder: [String] = []
+    /// Insertion order for `displayPlatformImageCache`. FIFO eviction.
+    private var displayPlatformImageCacheOrder: [String] = []
 
     /// Number of cached thumbnails. Exposed for tests (#719 eviction).
     var thumbnailCacheCount: Int { thumbnailCache.count }
@@ -49,15 +56,25 @@ class StorageServiceGenerated: ObservableObject {
     /// Cached thumbnail for `docId`, if present. Exposed for tests (#719).
     func cachedThumbnail(for docId: String) -> Image? { thumbnailCache[docId] }
 
-    init(ficheroClient: FicheroClient, baseURL: URL = EngineConfig.apiBaseURL) {
+    /// Number of cached display platform images. Exposed for tests (#2469).
+    var displayPlatformImageCacheCount: Int { displayPlatformImageCache.count }
+
+    /// Cached display platform image for `docId`, if present. Exposed for tests (#2469).
+    func cachedDisplayPlatformImage(for docId: String) -> PlatformImage? { displayPlatformImageCache[docId] }
+
+    private var baseURL: URL {
+        configuredBaseURL ?? EngineConfig.apiBaseURL
+    }
+
+    init(ficheroClient: FicheroClient, baseURL: URL? = nil) {
         self.client = ficheroClient
-        self.baseURL = baseURL
+        self.configuredBaseURL = baseURL
     }
 
     convenience init(apiClient: APIClient) {
         let libraryPath = apiClient.currentLibraryPath ?? ""
-        let ficheroClient = FicheroClient(libraryPath: libraryPath)
-        self.init(ficheroClient: ficheroClient, baseURL: apiClient.baseURL)
+        let ficheroClient = FicheroClient(baseURL: EngineConfig.host, libraryPath: libraryPath)
+        self.init(ficheroClient: ficheroClient)
     }
 
     // MARK: - Image Loading
@@ -68,7 +85,7 @@ class StorageServiceGenerated: ObservableObject {
             return cached
         }
         logger.info("Loading thumbnail for document: \(docId)")
-        let data = try await fetchImageData(from: thumbnailURL(for: docId))
+        let data = try await thumbnailData(for: docId)
         let image = try await Self.decodeImage(from: data)
         cacheThumbnail(image, for: docId)
         return image
@@ -88,32 +105,127 @@ class StorageServiceGenerated: ObservableObject {
         }
     }
 
+    /// Raw thumbnail bytes for `docId`, bypassing the decoded-`Image` cache.
+    /// RealityKit's `TextureResource(contentsOf:)` needs a file on disk, so the
+    /// Spatial 3D scene fetches undecoded bytes through this authenticated
+    /// storage path instead of hand-building a URL and calling `URLSession`
+    /// directly (#1902).
+    func thumbnailData(for docId: String) async throws -> Data {
+        let response = try await client.api.getThumbnailApiStorageThumbnailDocIdGet(.init(
+            path: .init(docId: docId)
+        ))
+        switch response {
+        case .ok(let okResponse):
+            let body = try okResponse.body.jpeg
+            return try await Data(collecting: body, upTo: Self.maxImageBytes)
+        case .notFound:
+            throw StorageServiceError.notFound(url: thumbnailURL(for: docId), contentType: "application/json")
+        default:
+            throw StorageServiceError.unexpectedResponse
+        }
+    }
+
     /// Get display-quality image for a document. Memoised per-service-instance.
     func getDisplayImage(_ docId: String) async throws -> Image {
         if let cached = displayCache[docId] {
             return cached
         }
         logger.info("Loading display image for document: \(docId)")
-        let data = try await fetchImageData(from: displayURL(for: docId))
+        let data = try await displayData(for: docId)
         let image = try await Self.decodeImage(from: data)
         displayCache[docId] = image
         return image
     }
 
-    /// Get display-quality image for zoomable AppKit-backed canvases.
+    /// Get display-quality image for zoomable canvases.
     /// Uses the same generated storage endpoint as `getDisplayImage`, not the
     /// image-edit preview endpoint.
-    func getDisplayNSImage(_ docId: String) async throws -> NSImage {
-        if let cached = displayNSImageCache[docId] {
+    func getDisplayPlatformImage(_ docId: String) async throws -> PlatformImage {
+        if let cached = displayPlatformImageCache[docId] {
             return cached
         }
-        logger.info("Loading display NSImage for document: \(docId)")
-        let data = try await fetchImageData(from: displayURL(for: docId))
-        guard let image = NSImage(data: data) else {
+        logger.info("Loading display image for document: \(docId)")
+        let data = try await displayData(for: docId)
+        guard let image = PlatformImage(data: data) else {
             throw StorageServiceError.invalidImageData
         }
-        displayNSImageCache[docId] = image
+        cacheDisplayPlatformImage(image, for: docId)
         return image
+    }
+
+    /// Insert a display platform image into the bounded cache, evicting the
+    /// oldest entries (FIFO) once the cache exceeds `displayPlatformImageCacheLimit`.
+    /// Internal so the eviction bound can be unit-tested without a live backend. (#2469)
+    func cacheDisplayPlatformImage(_ image: PlatformImage, for docId: String) {
+        if displayPlatformImageCache[docId] == nil {
+            displayPlatformImageCacheOrder.append(docId)
+        }
+        displayPlatformImageCache[docId] = image
+        while displayPlatformImageCacheOrder.count > Self.displayPlatformImageCacheLimit {
+            let oldest = displayPlatformImageCacheOrder.removeFirst()
+            displayPlatformImageCache.removeValue(forKey: oldest)
+        }
+    }
+
+    /// Warm the display-image cache for a batch of document ids (#2469).
+    /// Fires concurrent fetches (max 4 at a time) only for uncached ids.
+    /// Errors are swallowed — this is best-effort prefetch, not critical load.
+    func prefetchDisplayImages(_ docIds: [String]) async {
+        let uncached = docIds.filter { displayPlatformImageCache[$0] == nil }
+        guard !uncached.isEmpty else { return }
+        await withTaskGroup(of: Void.self) { group in
+            var inFlight = 0
+            for docId in uncached {
+                if inFlight >= 4 {
+                    await group.next()
+                    inFlight -= 1
+                }
+                group.addTask { [weak self] in
+                    guard let self else { return }
+                    _ = try? await self.getDisplayPlatformImage(docId)
+                }
+                inFlight += 1
+            }
+        }
+    }
+
+    /// Fetch display image bytes via the generated OpenAPI client.
+    private func displayData(for docId: String) async throws -> Data {
+        let response = try await client.api.getDisplayImageApiStorageDisplayDocIdGet(.init(
+            path: .init(docId: docId)
+        ))
+        switch response {
+        case .ok(let okResponse):
+            let body = try okResponse.body.jpeg
+            return try await Data(collecting: body, upTo: Self.maxImageBytes)
+        case .notFound:
+            throw StorageServiceError.notFound(url: displayURL(for: docId), contentType: "application/json")
+        default:
+            throw StorageServiceError.unexpectedResponse
+        }
+    }
+
+    /// Get original source-file bytes for a document. Memoised per-service
+    /// instance so PDFKit surfaces can share one download.
+    func getSourceData(_ docId: String) async throws -> Data {
+        if let cached = sourceDataCache[docId] {
+            return cached
+        }
+        logger.info("Loading source data for document: \(docId)")
+        let response = try await client.api.getSourceFileApiStorageSourceDocIdGet(.init(
+            path: .init(docId: docId)
+        ))
+        switch response {
+        case .ok(let okResponse):
+            let body = try okResponse.body.any
+            let data = try await Data(collecting: body, upTo: Self.maxSourceBytes)
+            sourceDataCache[docId] = data
+            return data
+        case .notFound:
+            throw StorageServiceError.notFound(url: sourceURL(for: docId), contentType: "application/json")
+        default:
+            throw StorageServiceError.unexpectedResponse
+        }
     }
 
     /// Warm the thumbnail cache for a batch of documents (#719).
@@ -143,36 +255,10 @@ class StorageServiceGenerated: ObservableObject {
     func invalidateImageCache(for docId: String) {
         thumbnailCache.removeValue(forKey: docId)
         displayCache.removeValue(forKey: docId)
-        displayNSImageCache.removeValue(forKey: docId)
+        displayPlatformImageCache.removeValue(forKey: docId)
+        sourceDataCache.removeValue(forKey: docId)
         thumbnailCacheOrder.removeAll { $0 == docId }
-    }
-
-    /// Fetch raw image bytes from the backend. Suspends during the
-    /// network call; doesn't block main thread.
-    ///
-    /// On non-200, surfaces the actual status code + content-type instead
-    /// of a generic "invalid response" so #1018-style failures can be
-    /// diagnosed from logs without re-instrumenting the backend.
-    private func fetchImageData(from url: URL) async throws -> Data {
-        var request = URLRequest(url: url)
-        request.addEngineAuth(libraryPath: client.currentLibraryPath)
-        let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw StorageServiceError.invalidResponse
-        }
-        if httpResponse.statusCode == 200 {
-            return data
-        }
-        let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type") ?? "unknown"
-        if httpResponse.statusCode == 404 {
-            throw StorageServiceError.notFound(url: url, contentType: contentType)
-        }
-        let bodyPeek = String(data: data.prefix(200), encoding: .utf8) ?? "<binary>"
-        throw StorageServiceError.unexpectedStatus(
-            status: httpResponse.statusCode,
-            contentType: contentType,
-            bodyPeek: bodyPeek
-        )
+        displayPlatformImageCacheOrder.removeAll { $0 == docId }
     }
 
     /// Decode image bytes into a SwiftUI `Image` off the main thread.
@@ -223,19 +309,28 @@ class StorageServiceGenerated: ObservableObject {
 
         logger.info("Downloading source file for document: \(docId)")
 
-        let url = sourceURL(for: docId)
-        var request = URLRequest(url: url)
-        request.addEngineAuth(libraryPath: client.currentLibraryPath)
-
-        let (localURL, response) = try await session.download(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
-            throw StorageServiceError.invalidResponse
+        let response = try await client.api.getSourceFileApiStorageSourceDocIdGet(.init(
+            path: .init(docId: docId)
+        ))
+        switch response {
+        case .ok(let okResponse):
+            let body = try okResponse.body.any
+            let tempURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .appendingPathExtension("fichero")
+            FileManager.default.createFile(atPath: tempURL.path, contents: nil, attributes: nil)
+            let handle = try FileHandle(forWritingTo: tempURL)
+            defer { try? handle.close() }
+            for try await chunk in body {
+                handle.write(Data(chunk))
+            }
+            logger.info("Downloaded source file to: \(tempURL.path)")
+            return tempURL
+        case .notFound:
+            throw StorageServiceError.notFound(url: sourceURL(for: docId), contentType: "application/json")
+        default:
+            throw StorageServiceError.unexpectedResponse
         }
-
-        logger.info("Downloaded source file to: \(localURL.path)")
-        return localURL
     }
 
     // MARK: - Storage Stats
@@ -244,9 +339,7 @@ class StorageServiceGenerated: ObservableObject {
     func getStats() async throws -> StorageStats {
         logger.info("Fetching storage stats")
 
-        let response = try await client.api.storageStatsApiStorageStatsGet(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
-        )
+        let response = try await client.api.storageStatsApiStorageStatsGet()
 
         switch response {
         case .ok(let okResponse):
@@ -285,27 +378,18 @@ class StorageServiceGenerated: ObservableObject {
 // MARK: - Error Types
 
 enum StorageServiceError: Error, LocalizedError {
-    case invalidResponse
     case invalidImageData
-    case downloadFailed
     case unexpectedResponse
     case notFound(url: URL, contentType: String)
-    case unexpectedStatus(status: Int, contentType: String, bodyPeek: String)
 
     var errorDescription: String? {
         switch self {
-        case .invalidResponse:
-            return "Invalid response from storage service"
         case .invalidImageData:
             return "Could not decode image data"
-        case .downloadFailed:
-            return "File download failed"
         case .unexpectedResponse:
             return "Unexpected response from storage service"
         case .notFound(let url, _):
             return "Storage 404 for \(url.lastPathComponent) (no thumbnail/display image generated yet)"
-        case let .unexpectedStatus(status, contentType, bodyPeek):
-            return "Storage HTTP \(status) (content-type=\(contentType)): \(bodyPeek)"
         }
     }
 }

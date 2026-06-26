@@ -10,13 +10,14 @@ import SwiftUI
 // definitions at the end of the file.
 
 @MainActor
-final class OntologyBrowserLoadState: ObservableObject {
-    @Published var entities: [Components.Schemas.KnowledgeEntity] = []
-    @Published var claimCounts: [String: Int] = [:]
-    @Published var loadError: String?
-    @Published var isLoading = false
-    @Published var entityClaims: [Components.Schemas.KnowledgeClaim] = []
-    @Published var isLoadingClaims = false
+@Observable
+final class OntologyBrowserLoadState {
+    var entities: [Components.Schemas.KnowledgeEntity] = []
+    var claimCounts: [String: Int] = [:]
+    var loadError: String?
+    var isLoading = false
+    var entityClaims: [Components.Schemas.KnowledgeClaim] = []
+    var isLoadingClaims = false
 }
 
 // MARK: - Model

@@ -6,42 +6,50 @@ struct ActivityConsoleView: View {
     let activityItems: [ActivityItem]
     let liveExecution: WorkflowExecution?
 
-    var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 4) {
-                if let execution = liveExecution {
-                    // Live execution - show node progress
-                    let sortedStates = execution.nodeStates.values.sorted(by: { $0.nodeId < $1.nodeId })
-                    ForEach(Array(sortedStates), id: \.nodeId) { state in
-                        nodeLogEntry(state)
-                    }
+    private var sortedNodeStates: [NodeExecutionState] {
+        liveExecution?.nodeStates.values.sorted(by: { $0.nodeId < $1.nodeId }) ?? []
+    }
 
-                    // Current file being processed
-                    if let fileName = execution.currentFileName {
-                        HStack(spacing: 6) {
-                            ProgressView()
-                                .scaleEffect(0.5)
-                            Text("Processing: \(fileName)")
-                                .font(.system(.caption, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.horizontal, 8)
+    var body: some View {
+        List {
+            if let execution = liveExecution {
+                // Live execution - show node progress
+                ForEach(sortedNodeStates, id: \.nodeId) { state in
+                    nodeLogEntry(state)
+                        .listRowInsets(EdgeInsets(top: 1, leading: 8, bottom: 1, trailing: 8))
+                        .listRowSeparator(.hidden)
+                }
+
+                // Current file being processed
+                if let fileName = execution.currentFileName {
+                    HStack(spacing: 6) {
+                        ProgressView()
+                            .scaleEffect(0.5)
+                        Text("Processing: \(fileName)")
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
                     }
-                } else if activityItems.isEmpty {
-                    Text("No console output available")
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding()
-                } else {
-                    // Historical - show activity items as log entries
-                    ForEach(activityItems) { item in
-                        activityLogEntry(item)
-                    }
+                    .listRowInsets(EdgeInsets(top: 1, leading: 8, bottom: 1, trailing: 8))
+                    .listRowSeparator(.hidden)
+                }
+            } else if activityItems.isEmpty {
+                Text("No console output available")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding()
+                    .listRowSeparator(.hidden)
+            } else {
+                // Historical - show activity items as log entries
+                ForEach(activityItems) { item in
+                    activityLogEntry(item)
+                        .listRowInsets(EdgeInsets(top: 1, leading: 8, bottom: 1, trailing: 8))
+                        .listRowSeparator(.hidden)
                 }
             }
-            .padding(8)
         }
-        .background(Color(nsColor: .textBackgroundColor))
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(Color(platformColor: .textBackgroundColor))
     }
 
     @ViewBuilder

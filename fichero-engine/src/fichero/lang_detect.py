@@ -48,6 +48,40 @@ _SPANISH_MARKERS = re.compile(r"[ñÑ¿¡áéíóúÁÉÍÓÚ]")
 # Word tokeniser — letters only, lowercased. Drops punctuation, digits,
 # and any non-letter run. Unicode-aware so "España" tokenises cleanly.
 _WORD_RE = re.compile(r"[a-záéíóúñü]+", re.IGNORECASE)
+_SEGMENT_SPLIT_RE = re.compile(r"(?:\n\s*\n+|(?<=[.!?])\s+)")
+
+
+def _looks_like_running_prose(segment: str) -> bool:
+    """Heuristic filter for prose-like segments.
+
+    Proper-noun lists and caption fragments tend to have too few function
+    words to be trustworthy for language detection. Keep only segments with
+    enough words and at least a little stop-word signal.
+    """
+    words = [w.lower() for w in _WORD_RE.findall(segment)]
+    if len(words) < 6:
+        return False
+
+    stopword_hits = 0
+    for word in words:
+        if any(word in hints for hints in _LANG_HINTS.values()):
+            stopword_hits += 1
+            if stopword_hits >= 2:
+                return True
+    return False
+
+
+def _select_detection_sample(text: str) -> str:
+    """Prefer running prose over noun-heavy fragments for detection."""
+    sample = text[:4000]
+    prose_segments = [
+        segment.strip()
+        for segment in _SEGMENT_SPLIT_RE.split(sample)
+        if _looks_like_running_prose(segment)
+    ]
+    if prose_segments:
+        return " ".join(prose_segments)[:2000]
+    return sample[:2000]
 
 
 def detect_language(text: str, default: str = "English") -> str:
@@ -68,7 +102,7 @@ def detect_language(text: str, default: str = "English") -> str:
     if not text:
         return default
 
-    sample = text[:2000]
+    sample = _select_detection_sample(text)
 
     words = [w.lower() for w in _WORD_RE.findall(sample)]
     if not words:
@@ -119,12 +153,17 @@ def resolve_output_language(
     requested: str | None,
     text: str,
     default: str = "English",
+    primary_language: str | None = None,
 ) -> str:
     """Resolve a tool's `output_language` config value into a concrete
     language name. Treats "" / None / "auto" as "detect from text";
     everything else passes through unchanged so users can still pin a
-    specific language in the workflow editor.
+    specific language in the workflow editor. When a primary-language
+    override is configured, it wins over auto-detect but not over an
+    explicit per-workflow language.
     """
     if requested and requested.lower() not in {"", "auto"}:
         return requested
+    if primary_language and primary_language.strip():
+        return primary_language.strip()
     return detect_language(text, default=default)

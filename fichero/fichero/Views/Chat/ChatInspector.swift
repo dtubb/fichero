@@ -6,6 +6,8 @@ let chatInspectorLogger = Logger(subsystem: "app.fichero.fichero", category: "Ch
 
 struct ChatInspector: View {
     @Binding var selectedDocuments: Set<String>
+    let suggestedDocumentIDs: [String]
+    var onAddSuggestedDocuments: (() -> Void)?
 
     @State var scopedDocuments: [Document] = []
     @State var listSelection: Set<String> = []
@@ -62,12 +64,40 @@ struct ChatInspector: View {
     }
 }
 
+extension ChatInspector {
+    var suggestedDocumentSet: Set<String> {
+        Set(suggestedDocumentIDs)
+    }
+
+    var mergedSuggestedDocuments: Set<String> {
+        selectedDocuments.union(suggestedDocumentSet)
+    }
+
+    var pendingSuggestedDocumentCount: Int {
+        suggestedDocumentSet.subtracting(selectedDocuments).count
+    }
+
+    var showsTouchScopeActions: Bool {
+        #if canImport(UIKit)
+        true
+        #else
+        false
+        #endif
+    }
+}
+
 #Preview("With Documents") {
-    ChatInspector(selectedDocuments: .constant(["doc1", "doc2"]))
+    ChatInspector(
+        selectedDocuments: .constant(["doc1", "doc2"]),
+        suggestedDocumentIDs: ["doc3"]
+    )
         .frame(width: 300, height: 500)
 }
 
 #Preview("Empty") {
-    ChatInspector(selectedDocuments: .constant([]))
+    ChatInspector(
+        selectedDocuments: .constant([]),
+        suggestedDocumentIDs: ["doc1", "doc2"]
+    )
         .frame(width: 300, height: 500)
 }

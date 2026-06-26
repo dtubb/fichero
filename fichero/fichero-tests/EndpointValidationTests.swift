@@ -163,8 +163,11 @@ struct HTTPMethodValidationTests {
     func deleteOperationsUseDelete() throws {
         let pythonEndpoints = try loadAllEndpoints()
 
+        // Use word-boundary split to avoid matching "delete" within "deleted"
+        // (e.g. list_deleted_documents_api_documents_trash_get is a GET endpoint).
         let deleteEndpoints = pythonEndpoints.filter {
-            $0.operationId?.contains("delete") == true
+            guard let id = $0.operationId else { return false }
+            return id.split(separator: "_").contains(Substring("delete"))
         }
 
         for endpoint in deleteEndpoints {
@@ -314,7 +317,7 @@ struct GeneratedClientValidationTests {
     func clientInstantiation() async {
         // Verify the client wrapper can be created
         let client = FicheroClient()
-        #expect(client.baseURL.absoluteString == "http://127.0.0.1:8765")
+        #expect(client.baseURL.absoluteString == "https://127.0.0.1:8765")
         #expect(client.currentLibraryPath == nil)
 
         // Verify client with library path
@@ -411,8 +414,12 @@ struct PythonEndpointStructureTests {
             let envKeys = ["SRCROOT", "PROJECT_DIR", "FICHERO_REPO_ROOT", "BUILT_PRODUCTS_DIR"]
                 .compactMap { key in env[key].map { "\(key)=\($0)" } }
                 .joined(separator: " | ")
+            let fileDirectory = URL(fileURLWithPath: #file).deletingLastPathComponent().path
             Issue.record(
-                "endpoints.json not found at \(filePath.path). cwd=\(FileManager.default.currentDirectoryPath), #file dir=\(URL(fileURLWithPath: #file).deletingLastPathComponent().path), env: \(envKeys)"
+                """
+                endpoints.json not found at \(filePath.path). cwd=\(FileManager.default.currentDirectoryPath), \
+                #file dir=\(fileDirectory), env: \(envKeys)
+                """
             )
             return []
         }

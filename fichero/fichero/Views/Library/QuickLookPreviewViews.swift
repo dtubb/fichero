@@ -1,7 +1,13 @@
+#if canImport(AppKit)
 import AppKit
-import OSLog
+#endif
+#if canImport(Quartz)
 import Quartz
+#endif
+import OSLog
 import SwiftUI
+
+#if os(macOS)
 
 // MARK: - Smart Preview View
 
@@ -108,3 +114,43 @@ struct SwipeSiblingNavigator: View {
             }
     }
 }
+#else
+
+// iOS stubs: QuickLook previewing and swipe navigation are macOS-only until
+// QLPreviewController / UIPageViewController replacements land.
+
+struct SmartPreviewView: View {
+    let url: URL
+    var documentId: String?
+
+    var body: some View {
+        ContentUnavailableView(
+            "Preview",
+            systemImage: "doc.richtext",
+            description: Text("Document preview is not available on iOS yet.")
+        )
+    }
+}
+
+struct QuickLookPreviewView: View {
+    let url: URL
+
+    var body: some View {
+        ContentUnavailableView(
+            "Preview",
+            systemImage: "doc.richtext",
+            description: Text("Quick Look preview is not available on iOS yet.")
+        )
+    }
+}
+
+struct SwipeSiblingNavigator: View {
+    var onNavigatePrevious: () -> Void
+    var onNavigateNext: () -> Void
+
+    var body: some View {
+        Color.clear
+    }
+}
+
+#endif

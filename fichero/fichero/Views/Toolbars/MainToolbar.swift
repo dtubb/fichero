@@ -3,6 +3,8 @@ import SwiftUI
 /// Main application toolbar with all controls
 /// Matches DevonThink-style toolbar layout
 struct MainToolbar: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
     // View mode bindings
     @Binding var viewMode: ViewDisplayMode
     @Binding var layoutMode: LayoutMode
@@ -19,14 +21,16 @@ struct MainToolbar: View {
             // Left side: Sidebar toggle and Add button
             HStack(spacing: 8) {
                 // Sidebar toggle button
-                Button(
-                    action: { showSidebar.toggle() },
-                    label: {
-                        Label("Toggle Sidebar", systemImage: "sidebar.left")
-                            .labelStyle(.iconOnly)
-                    }
-                )
-                .help("Toggle Sidebar")
+                if horizontalSizeClass != .compact {
+                    Button(
+                        action: { showSidebar.toggle() },
+                        label: {
+                            Label("Toggle Sidebar", systemImage: "sidebar.left")
+                                .labelStyle(.iconOnly)
+                        }
+                    )
+                    .help("Toggle Sidebar")
+                }
 
                 // Add item menu
                 AddItemMenu(registry: itemRegistry, style: .button)
@@ -45,7 +49,7 @@ struct MainToolbar: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(Color(nsColor: .controlBackgroundColor))
+            .background(Color(platformColor: .controlBackgroundColor))
             .cornerRadius(6)
 
             Spacer()
@@ -91,15 +95,18 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
     case table = "Table"
     case map = "Map"
     case realitykit = "RealityKit"
+    case spatial = "Spatial"
+    case workspace = "Workspace"
 
     var id: String { rawValue }
 
-    /// Mail-style display label shown in pickers/menus. `table` → "Column"
-    /// (#1613). `rawValue` deliberately stays "Table" so persisted per-folder
-    /// modes and the XCUITest hooks (`viewMode-Table`) don't churn.
+    /// User-facing label shown in menus/pickers. rawValue is preserved for
+    /// persistence/XCUITest hooks — only label changes here.
     var label: String {
         switch self {
-        case .table: "Column"
+        case .table: "Columns"
+        case .map: "Canvas"
+        case .realitykit: "Space"
         default: rawValue
         }
     }
@@ -111,6 +118,8 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         case .table: "tablecells"
         case .map: "map"
         case .realitykit: "cube.transparent"
+        case .spatial: "square.3.layers.3d"
+        case .workspace: "square.stack.3d.up"
         }
     }
 
@@ -119,8 +128,10 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         case .icon: "Grid of icons"
         case .list: "Linear list"
         case .table: "Column view"
-        case .map: "Visual map"
-        case .realitykit: "Spatial 3D view"
+        case .map: "Canvas / node map"
+        case .realitykit: "3D space view"
+        case .spatial: "Spatial collection view"
+        case .workspace: "Workspace collection view"
         }
     }
 }
@@ -144,7 +155,7 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         itemRegistry: registry,
         searchText: $searchText
     )
-    .frame(height: MiniToolbar<EmptyView>.standardHeight)
+    .frame(height: MiniToolbar<EmptyView, EmptyView>.standardHeight)
     .onAppear {
         registry.createFolder = { print("Create folder") }
         registry.createSearch = { print("Create search") }

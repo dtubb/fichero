@@ -28,6 +28,45 @@ Avoid — SwiftUI has the answer:
 
 ---
 
+## 2026 update — Observation-first, Golden Gate only (READ FIRST)
+
+**Target: macOS 26 "Golden Gate" only.** No back-deployment, **no `if #available` guards** —
+adopt 2026 APIs directly.
+
+**State management is Observation-first.** For ANY new view-model / store you introduce:
+- `@Observable` (Observation framework) — NOT `ObservableObject` / `@Published` / Combine.
+- `@State` to own an `@Observable`; `@Bindable` for two-way bindings; `@Environment(Type.self)`
+  for dependency injection. Use **lazy `@State` init** for Observable when construction is costly.
+- **Migrate existing view-local `ObservableObject` view-models to `@Observable` as you touch each
+  surface** — this IS in scope (inspector models, sidebar state managers, per-feature models like
+  `ImageEditorModel`, `OntologyBrowserLoadState`). Update their consumers from `@StateObject`/
+  `@ObservedObject` to `@State`/`@Bindable`.
+- **Exception — stage carefully, don't migrate blindly:** the app-wide god-objects
+  (`DocumentStore`, `LibraryManager`, `AppState`, and the `*Generated` service wrappers consumed
+  across many views). These have huge blast radius — migrate them in a deliberate, dedicated pass,
+  never as a side-effect of a list-conversion PR.
+- **Replace `NotificationCenter`-as-mutation-bus with an `@Observable` store.** Posting
+  `.ficheroClaimUpdated`-style notifications to fan mutations across views is the anti-pattern; an
+  observed store (or the service's published change) is the modern path.
+
+**Modern SwiftUI to prefer (2026):**
+- Native `List` / `Section` selection (it's `NSTableView` underneath → free macOS selection
+  emphasis, context-menu target ring); `\.appearsActive` / `\.isEmphasized` for focus-loss.
+- Swipe actions on any view; List/Grid/Section content-reordering APIs; toolbar
+  visibility-priority + auto-minimizing; AsyncImage caching.
+- **Liquid Glass** / `.regularMaterial` for chrome; **SF Symbols 8** for glyphs.
+- `swift-collections` (`OrderedSet`/`OrderedDictionary`) where ordering/dedup matters.
+
+**Still mandatory (unchanged):** `@MainActor` + async/await with `Task.isCancelled` (never
+`DispatchQueue.main`); no `NotificationCenter` for state (use bindings / Observation /
+`@FocusedValue`); OSLog only; files < 400 lines; read from services/HTTP — **never local file
+paths** (engine may be remote). AppKit only behind a contained bridge — see `appkit_interop.md`.
+
+> The §1–§9 examples below still show the `ObservableObject`/`@Published` pattern. Those remain
+> valid for the *existing* code they describe, but **new code uses `@Observable`** per this section.
+
+---
+
 ## SwiftUI Best Practices (Mandatory)
 
 ### 1. Use Proper State Management
@@ -277,10 +316,17 @@ NSLayoutConstraint.activate(...)  // ❌ Use SwiftUI layout
 - **Trackpad swipe** — `NSEvent.addLocalMonitorForEvents(matching: .swipe)` (no SwiftUI equivalent on macOS 15)
 - Native file pickers use SwiftUI `.fileImporter` — do NOT bridge those.
 
+**Two sanctioned reasons to bridge** (see `appkit_interop.md` for the full decision):
+1. **Capability gap** — SwiftUI literally can't do it (the bridges listed above).
+2. **Behavioral-fidelity gap** — SwiftUI renders it but can't match a decades-old Mac
+   interaction a power user feels the absence of (selection emphasis on focus loss,
+   context-menu target focus ring, drag-session visibility, type-in-search + arrow-through
+   results). Same containment discipline; fold into the existing list/inspector stack.
+
 **Before adding a NEW AppKit bridge:**
 1. Check Sosumi MCP for a SwiftUI equivalent
 2. Search Ref MCP for documentation
-3. Confirm a genuine capability gap, then wrap it in an `NSViewRepresentable`
+3. Confirm a genuine capability OR fidelity gap, then wrap it in an `NSViewRepresentable`
 
 ---
 

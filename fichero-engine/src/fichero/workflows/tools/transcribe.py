@@ -93,7 +93,7 @@ Rules:
   signatures (transcribe the signed name as written), printed labels,
   handwritten annotations.
 - For text you cannot confidently read, use explicit uncertainty markers:
-  [ILLEGIBLE] for unreadable text and [UNCERTAIN] for plausible-but-low-
+  [ilegible] for unreadable text and [uncertain] for plausible-but-low-
   confidence readings. Place the marker inline at the uncertain span.
   Do not guess. Do not fill in.
 - Do NOT invent dates, numbers, names, or words that are not legibly
@@ -141,6 +141,7 @@ def build_transcribe_prompt(config: dict) -> str:
     uses_llm=True,
     supports_batch=True,
     supports_structured_output=True,
+    tested=True,  # part of the validated HTR transcription chain
     input_ports=VISION_INPUT_PORTS,
     output_ports=BASE_OUTPUT_PORTS,
     config_schema=merge_config_schema(VISION_CONFIG_SCHEMA, TRANSCRIBE_CONFIG),
@@ -216,5 +217,6 @@ async def transcribe(
         input_metadata=input_metadata,
         save_to_db=inputs.get("save_to_db", True),
         save_to_file_flag=inputs.get("save_to_file", False),
+        return_boxes=return_boxes,
         metadata_field=inputs.get("metadata_field"),
     )

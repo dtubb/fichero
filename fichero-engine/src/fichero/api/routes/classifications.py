@@ -14,7 +14,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.knowledge_models import (
     ClassificationDimension,
@@ -101,16 +101,15 @@ class ClassificationCreateRequest(BaseModel):
     sort_order: int = 0
 
 
-@router.post(
-    "",
-    response_model=ClassificationValue,
-    summary="Add a custom classification value",
-)
-async def create_value(
-    request: ClassificationCreateRequest,
-    db: Database = Depends(get_library_database),
+def create_value_impl(
+    db: Database, request: ClassificationCreateRequest
 ) -> ClassificationValue:
-    # Reject duplicate (dimension, key).
+    """Create a custom (non-builtin) classification value.
+
+    The proven create logic, extracted so BOTH the typed route and the audited
+    ``classification.create`` action run the *same* code (iterate-not-replace,
+    EPIC #1848 / #2014). Rejects a duplicate ``(dimension, key)`` with 409.
+    """
     for existing in db.query(ClassificationValue):
         if existing.dimension == request.dimension and existing.key == request.key:
             raise HTTPException(
@@ -122,6 +121,18 @@ async def create_value(
     return value
 
 
+@router.post(
+    "",
+    response_model=ClassificationValue,
+    summary="Add a custom classification value",
+)
+async def create_value(
+    request: ClassificationCreateRequest,
+    db: Database = Depends(get_library_database_for_write),
+) -> ClassificationValue:
+    return create_value_impl(db, request)
+
+
 class ClassificationPatchRequest(BaseModel):
     label: str | None = None
     description: str | None = None
@@ -131,16 +142,14 @@ class ClassificationPatchRequest(BaseModel):
     sort_order: int | None = None
 
 
-@router.patch(
-    "/{value_id}",
-    response_model=ClassificationValue,
-    summary="Edit a classification value's label / color / order",
-)
-async def patch_value(
-    value_id: str,
-    request: ClassificationPatchRequest,
-    db: Database = Depends(get_library_database),
+def patch_value_impl(
+    db: Database, value_id: str, request: ClassificationPatchRequest
 ) -> ClassificationValue:
+    """Apply a partial edit to a classification value (404 if missing).
+
+    Extracted so the typed route and ``classification.patch`` share one path.
+    ``exclude_unset`` preserves PATCH semantics — only provided fields change.
+    """
     value = db.get(ClassificationValue, value_id)
     if value is None:
         raise HTTPException(404, f"Value not found: {value_id}")
@@ -151,11 +160,26 @@ async def patch_value(
     return value
 
 
-@router.delete("/{value_id}", status_code=204)
-async def delete_value(
+@router.patch(
+    "/{value_id}",
+    response_model=ClassificationValue,
+    summary="Edit a classification value's label / color / order",
+)
+async def patch_value(
     value_id: str,
-    db: Database = Depends(get_library_database),
-) -> None:
+    request: ClassificationPatchRequest,
+    db: Database = Depends(get_library_database_for_write),
+) -> ClassificationValue:
+    return patch_value_impl(db, value_id, request)
+
+
+def delete_value_impl(db: Database, value_id: str) -> ClassificationValue:
+    """Hard-delete a custom classification value; returns the removed row.
+
+    404 if missing, 409 if built-in (built-ins are never deletable). Returning
+    the deleted object lets ``classification.delete`` snapshot it as the undo
+    payload so ``classification.restore`` can re-create it with the same id.
+    """
     value = db.get(ClassificationValue, value_id)
     if value is None:
         raise HTTPException(404, f"Value not found: {value_id}")
@@ -164,3 +188,194 @@ async def delete_value(
             409, f"Built-in value {value.dimension.value}={value.key} cannot be deleted",
         )
     db.delete(value)
+    return value
+
+
+@router.delete("/{value_id}", status_code=204)
+async def delete_value(
+    value_id: str,
+    db: Database = Depends(get_library_database_for_write),
+) -> None:
+    delete_value_impl(db, value_id)
+
+
+# ---------------------------------------------------------------------------
+# Action layer registration (EPIC #1848 / sweep #2014) — classification/ontology
+# ---------------------------------------------------------------------------
+#
+# Every classification mutation (create / patch / delete) becomes a registered,
+# audited action that WRAPS the proven ``*_impl`` above — the typed routes stay
+# green and untouched; the action is the additional uniform path that chat tools
+# / App Intents / tests drive via POST /api/actions/invoke. All three are
+# undoable: ``before``/``after`` snapshots ARE the undo payload, and the typed
+# inverse derives from them (delete -> restore -> delete is a clean redo chain).
+#
+# Covers all dimensions — claim_type ("claim-kinds"), epistemic_status
+# ("epistemic-statuses"), entity_type, document_prototype, node_class — since
+# they share one ClassificationValue table and one CRUD surface (#915).
+
+from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
+
+
+def _snap_value(value: ClassificationValue) -> dict:
+    """JSON-able snapshot of a classification value (the undo payload)."""
+    return value.model_dump(mode="json")
+
+
+class ClassificationPatchParams(ClassificationPatchRequest):
+    """``classification.patch`` params — the patch fields plus the target id."""
+
+    value_id: str
+
+
+class ClassificationDeleteParams(BaseModel):
+    value_id: str
+
+
+class ClassificationRestoreParams(BaseModel):
+    """``classification.restore`` — re-materialize a deleted value by snapshot."""
+
+    snapshot: dict
+
+
+def _invert_create(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Undo a create by hard-deleting the value it produced."""
+    if not after:
+        return None
+    vid = after.get("id")
+    if not vid:
+        return None
+    return ("classification.delete", {"value_id": vid})
+
+
+def _invert_patch(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Undo a patch by re-applying the pre-edit field values."""
+    if not before:
+        return None
+    fields = {
+        k: before.get(k)
+        for k in ("label", "description", "parent_key", "color", "icon", "sort_order")
+    }
+    return ("classification.patch", {"value_id": before["id"], **fields})
+
+
+def _invert_delete(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Undo a delete by restoring the full pre-delete snapshot (same id)."""
+    if not before:
+        return None
+    return ("classification.restore", {"snapshot": before})
+
+
+def _invert_restore(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Undo a restore by deleting again (so delete<->restore redo works)."""
+    if not after:
+        return None
+    vid = after.get("id")
+    if not vid:
+        return None
+    return ("classification.delete", {"value_id": vid})
+
+
+@action(
+    "classification.create",
+    ClassificationCreateRequest,
+    domains=["classification"],
+    undoable=True,
+    invert=_invert_create,
+)
+def _action_create_value(
+    db: Database, params: ClassificationCreateRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    value = create_value_impl(db, params)
+    after = _snap_value(value)
+    spec = ChangeSpec(
+        domains=["classification"],
+        target_ids=[value.id],
+        before=None,
+        after=after,
+        emit_type="classification.created",
+    )
+    return after, spec
+
+
+@action(
+    "classification.patch",
+    ClassificationPatchParams,
+    domains=["classification"],
+    undoable=True,
+    invert=_invert_patch,
+)
+def _action_patch_value(
+    db: Database, params: ClassificationPatchParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    existing = db.get(ClassificationValue, params.value_id)
+    if existing is None:
+        raise HTTPException(404, f"Value not found: {params.value_id}")
+    before = _snap_value(existing)
+    patch = ClassificationPatchRequest(
+        **params.model_dump(exclude={"value_id"}, exclude_unset=True)
+    )
+    value = patch_value_impl(db, params.value_id, patch)
+    after = _snap_value(value)
+    spec = ChangeSpec(
+        domains=["classification"],
+        target_ids=[value.id],
+        before=before,
+        after=after,
+        emit_type="classification.updated",
+    )
+    return after, spec
+
+
+@action(
+    "classification.delete",
+    ClassificationDeleteParams,
+    domains=["classification"],
+    undoable=True,
+    invert=_invert_delete,
+)
+def _action_delete_value(
+    db: Database, params: ClassificationDeleteParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    deleted = delete_value_impl(db, params.value_id)
+    before = _snap_value(deleted)
+    spec = ChangeSpec(
+        domains=["classification"],
+        target_ids=[params.value_id],
+        before=before,
+        after=None,
+        emit_type="classification.deleted",
+    )
+    return before, spec
+
+
+@action(
+    "classification.restore",
+    ClassificationRestoreParams,
+    domains=["classification"],
+    undoable=True,
+    invert=_invert_restore,
+)
+def _action_restore_value(
+    db: Database, params: ClassificationRestoreParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Re-create a deleted value from its snapshot (preserving its id)."""
+    value = ClassificationValue(**params.snapshot)
+    db.save(value)
+    after = _snap_value(value)
+    spec = ChangeSpec(
+        domains=["classification"],
+        target_ids=[value.id],
+        before=None,
+        after=after,
+        emit_type="classification.created",
+    )
+    return after, spec

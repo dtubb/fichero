@@ -4,18 +4,21 @@ Storage Routes
 Thumbnail and file serving endpoints.
 """
 
+import asyncio
 import logging
 import os
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import APIRouter, HTTPException, Depends, Header, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from fichero.db import Database
-from fichero.api.main import get_library_database
+from fichero.api.library_header import require_library_path
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.models import Document, LibrarySnapshot, SnapshotInitiatorType
+from fichero.perf import perf_span
 from fichero.storage import (
     snapshot_library,
     list_snapshots,
@@ -42,6 +45,23 @@ class DocumentDebugResponse(BaseModel):
     metadata: dict
 
 
+class NotFoundResponse(BaseModel):
+    detail: str
+
+
+def _normalize_document_id(doc_id: str) -> str:
+    """Accept both bare ids and ``doc:``-prefixed sidebar ids."""
+    return doc_id.removeprefix("doc:")
+
+
+def _document_or_404(db: Database, doc_id: str) -> Document:
+    normalized_id = _normalize_document_id(doc_id)
+    doc = db.get(Document, normalized_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    return doc
+
+
 def _inline_content_disposition(filename: str) -> str:
     """Build a Content-Disposition header safe for non-ASCII filenames."""
     ascii_fallback = (
@@ -51,65 +71,115 @@ def _inline_content_disposition(filename: str) -> str:
     return f"inline; filename=\"{ascii_fallback}\"; filename*=UTF-8''{encoded_filename}"
 
 
-@router.get("/thumbnail/{doc_id}")
+@router.get(
+    "/thumbnail/{doc_id}",
+    responses={
+        200: {
+            "content": {
+                "image/jpeg": {"schema": {"type": "string", "format": "binary"}}
+            },
+            "description": "Thumbnail image bytes",
+        },
+        404: {"model": NotFoundResponse, "description": "Document or thumbnail not found"},
+    },
+)
 async def get_thumbnail(
     doc_id: str,
+    background_tasks: BackgroundTasks,
     db: Database = Depends(get_library_database),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ):
     """
     Get thumbnail image for a document.
 
     Returns 404 if document not found or no thumbnail available.
+    On a cache miss, also schedules generation of the companion display image
+    so both formats exist after the first access (#2217).
     """
-    package_path = Path(x_fichero_library_path)
-    doc = db.get(Document, doc_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    with perf_span(
+        "library.thumbnail.endpoint",
+        logger=logger,
+        doc_id=doc_id,
+    ) as perf:
+        package_path = Path(x_fichero_library_path)
+        doc = _document_or_404(db, doc_id)
 
-    from fichero.storage import get_thumbnail, ensure_thumbnail
+        from fichero.storage import get_thumbnail, ensure_thumbnail, get_display, ensure_display
 
-    # Try to get existing thumbnail (with package path for library isolation)
-    thumb_path = get_thumbnail(doc, package_path)
+        thumb_path = get_thumbnail(doc, package_path=package_path, db=db)
+        perf["cache_state"] = "hit" if thumb_path else "miss"
 
-    # If no thumbnail, try to generate one
-    if not thumb_path:
-        thumb_path = ensure_thumbnail(doc, package_path=package_path)
+        if not thumb_path:
+            thumb_path = await asyncio.to_thread(
+                ensure_thumbnail, doc, package_path=package_path, db=db
+            )
+            perf["cache_state"] = "generated" if thumb_path else "unavailable"
+            # Warm the companion display image so both formats exist after the
+            # first access — avoids the asymmetry where only the requested format
+            # is created lazily (#2216/#2217).
+            if thumb_path and not get_display(doc, package_path):
+                background_tasks.add_task(
+                    asyncio.to_thread, ensure_display, doc,
+                    package_path=package_path, db=db,
+                )
 
-    if not thumb_path or not thumb_path.exists():
-        raise HTTPException(status_code=404, detail="Thumbnail not available")
+        if not thumb_path or not thumb_path.exists():
+            raise HTTPException(status_code=404, detail="Thumbnail not available")
 
-    return FileResponse(
-        thumb_path,
-        media_type="image/jpeg",
-        headers={"Cache-Control": "max-age=86400"},
-    )
+        perf["thumbnail_path"] = thumb_path.name
+        return FileResponse(
+            thumb_path,
+            media_type="image/jpeg",
+            headers={"Cache-Control": "max-age=86400"},
+        )
 
 
-@router.get("/display/{doc_id}")
+@router.get(
+    "/display/{doc_id}",
+    responses={
+        200: {
+            "content": {
+                "image/jpeg": {"schema": {"type": "string", "format": "binary"}}
+            },
+            "description": "Display image bytes",
+        },
+        404: {"model": NotFoundResponse, "description": "Document or display image not found"},
+    },
+)
 async def get_display_image(
     doc_id: str,
+    background_tasks: BackgroundTasks,
     db: Database = Depends(get_library_database),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ):
     """
     Get display-size image for a document.
 
     Larger than thumbnail, suitable for preview display.
+    On a cache miss, also schedules generation of the companion thumbnail
+    so both formats exist after the first access (#2216).
     """
     package_path = Path(x_fichero_library_path)
-    doc = db.get(Document, doc_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    doc = _document_or_404(db, doc_id)
 
-    from fichero.storage import get_display, ensure_display
+    from fichero.storage import get_display, ensure_display, get_thumbnail, ensure_thumbnail
 
     # Try to get existing display image (with package path for library isolation)
     display_path = get_display(doc, package_path)
 
     # If no display image, try to generate one
     if not display_path:
-        display_path = ensure_display(doc, package_path=package_path)
+        display_path = await asyncio.to_thread(
+            ensure_display, doc, package_path=package_path, db=db
+        )
+        # Warm the companion thumbnail so both formats exist after the first
+        # access — avoids the asymmetry where only the requested format is
+        # created lazily (#2216/#2217).
+        if display_path and not get_thumbnail(doc, package_path=package_path, db=db):
+            background_tasks.add_task(
+                asyncio.to_thread, ensure_thumbnail, doc,
+                package_path=package_path, db=db,
+            )
 
     if not display_path or not display_path.exists():
         raise HTTPException(status_code=404, detail="Display image not available")
@@ -121,20 +191,29 @@ async def get_display_image(
     )
 
 
-@router.get("/source/{doc_id}")
+@router.get(
+    "/source/{doc_id}",
+    responses={
+        200: {
+            "content": {
+                "*/*": {"schema": {"type": "string", "format": "binary"}}
+            },
+            "description": "Original source file bytes",
+        },
+        404: {"model": NotFoundResponse, "description": "Document or source file not found"},
+    },
+)
 async def get_source_file(
     doc_id: str,
     db: Database = Depends(get_library_database),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ):
     """
     Get the original source file for a document.
 
     Returns 404 if source is not accessible (e.g., external file moved).
     """
-    doc = db.get(Document, doc_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    doc = _document_or_404(db, doc_id)
 
     from fichero.storage import resolve_source
 
@@ -208,7 +287,7 @@ async def get_source_file(
 
 @router.get("/stats")
 async def storage_stats(
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ):
     """Get storage statistics for a library."""
     from fichero.storage import stats
@@ -217,19 +296,69 @@ async def storage_stats(
     return stats(package_path)
 
 
+class RegenerateMissingResponse(BaseModel):
+    generated: int
+    skipped: int
+    failed: int
+    doc_ids: list[str]
+
+
+@router.post("/regenerate-missing", response_model=RegenerateMissingResponse)
+async def regenerate_missing_thumbnails(
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+) -> RegenerateMissingResponse:
+    """Regenerate thumbnails for all documents that are missing one.
+
+    Scans the library for docs without a cached thumbnail and renders each
+    one synchronously. Idempotent — already-cached thumbs are skipped.
+    Returns counts of generated / skipped / failed docs (#2218).
+    """
+    from fichero.storage import get_thumbnail, ensure_thumbnail
+    from fichero.models import Document
+
+    package_path = Path(x_fichero_library_path)
+    docs: list[Document] = db.all(Document)
+
+    generated_ids: list[str] = []
+    skipped = 0
+    failed = 0
+
+    for doc in docs:
+        if get_thumbnail(doc, package_path=package_path, db=db):
+            skipped += 1
+            continue
+        try:
+            result = await asyncio.to_thread(
+                ensure_thumbnail, doc, package_path=package_path, db=db
+            )
+            if result:
+                generated_ids.append(doc.id)
+            else:
+                skipped += 1
+        except Exception:
+            logger.exception("regenerate-missing: failed for doc %s", doc.id)
+            failed += 1
+
+    return RegenerateMissingResponse(
+        generated=len(generated_ids),
+        skipped=skipped,
+        failed=failed,
+        doc_ids=generated_ids,
+    )
+
+
 @router.get("/debug/{doc_id}")
 async def debug_document_paths(
     doc_id: str,
     db: Database = Depends(get_library_database),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> DocumentDebugResponse:
     """Debug endpoint to check document paths and file access."""
     from fichero.storage import resolve_source, _thumb_path
 
     package_path = Path(x_fichero_library_path)
-    doc = db.get(Document, doc_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    doc = _document_or_404(db, doc_id)
 
     source_path = resolve_source(doc, library_root=db.path.parent)
     thumb_path = _thumb_path(doc.id, package_path)
@@ -264,6 +393,8 @@ class SnapshotRestoreResponse(BaseModel):
     library_path: str
     duckdb_restored_path: str | None
     lance_restored_path: str | None
+    duckdb_backup_path: str | None = None
+    lance_backup_path: str | None = None
     note: str
 
 
@@ -344,9 +475,9 @@ async def get_snapshot(snapshot_id: str) -> LibrarySnapshot:
 async def restore_library_snapshot(snapshot_id: str) -> SnapshotRestoreResponse:
     """Restore a library from a snapshot.
 
-    Restoration creates NEW database and vector files alongside the originals.
-    The current library is NOT modified. After restoration, update
-    X-Fichero-Library-Path to point to the restored library to use it.
+    Restoration swaps the captured database and vector files back into the
+    original library package. The pre-restore files are retained with a
+    .pre-restore suffix.
     """
     try:
         result = restore_snapshot(snapshot_id)

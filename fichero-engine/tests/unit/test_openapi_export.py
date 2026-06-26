@@ -18,7 +18,10 @@ from __future__ import annotations
 
 import json
 import importlib.util
+import os
 from pathlib import Path
+import subprocess
+import sys
 
 
 def _load_exporter():
@@ -28,6 +31,25 @@ def _load_exporter():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def test_openapi_export_uses_temp_base_path(tmp_path: Path) -> None:
+    """Schema export should succeed without the user's app.duckdb."""
+    script_path = Path(__file__).resolve().parents[2] / "scripts" / "export_openapi_schema.py"
+    src_path = Path(__file__).resolve().parents[2] / "src"
+    code = (
+        "import importlib.util; "
+        f"spec = importlib.util.spec_from_file_location('export_openapi_schema', {str(script_path)!r}); "
+        "module = importlib.util.module_from_spec(spec); "
+        "spec.loader.exec_module(module); "
+        "paths = module.build_openapi_schema()['paths']; "
+        "assert '/api/health' in paths"
+    )
+    env = os.environ.copy()
+    env["FICHERO_BASE_PATH"] = str(tmp_path)
+    env["PYTHONPATH"] = str(src_path)
+
+    subprocess.run([sys.executable, "-c", code], env=env, check=True)
 
 
 def test_openapi_export_is_deterministic_and_split():
@@ -94,3 +116,34 @@ def test_openapi_export_is_deterministic_and_split():
     assert schemas["NodeDef-Input"] == schemas["NodeDef-Output"], (
         "NodeDef-Input and NodeDef-Output should have identical content"
     )
+
+
+def test_library_path_header_is_not_an_operation_parameter():
+    """The library path is a transport header, not a generated client argument."""
+    exporter = _load_exporter()
+    schema = exporter.build_openapi_schema()
+
+    offenders: list[str] = []
+    forbidden_names = {"x-fichero-library-path", "x_fichero_library_path"}
+    for path, methods in schema.get("paths", {}).items():
+        for method, operation in methods.items():
+            if not isinstance(operation, dict):
+                continue
+            for parameter in operation.get("parameters", []) or []:
+                if str(parameter.get("name", "")).lower() in forbidden_names:
+                    offenders.append(f"{method.upper()} {path}")
+
+    assert offenders == []
+
+
+def test_kg_query_and_export_surface_is_present():
+    """The organized KG SPARQL/RDF surface should be discoverable in OpenAPI."""
+    exporter = _load_exporter()
+    schema = exporter.build_openapi_schema()
+    paths = schema.get("paths", {})
+
+    assert "/api/kg/query/examples" in paths
+    assert "/api/kg/query/sparql" in paths
+    assert "/api/kg/export/rdf" in paths
+    assert "/api/kg/sparql" in paths
+    assert paths["/api/kg/sparql"]["post"].get("deprecated") is True

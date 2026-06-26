@@ -1,6 +1,6 @@
 {
   "name": "Catalogue",
-  "description": "Transcribe every file, extract typed entities (people, places, organizations, dates, events, keywords) in a single combined LLM call per page, then folder-level dedup and a narrative catalogue entry. All LLM nodes use the $small model alias \u2014 set your default small model in Settings \u2192 AI Defaults (e.g. Apple Intelligence for free local use).",
+  "description": "Transcribe every file, extract typed entities (people, places, organizations, dates, events, keywords) in a single combined LLM call per page, persist per-page KG claims inline during extraction, then folder-level dedup and a narrative catalogue entry. All LLM nodes use the $small model alias \u2014 set your default small model in Settings \u2192 AI Defaults (e.g. Apple Intelligence for free local use).",
   "format": "nodes",
   "is_template": true,
   "is_system": true,
@@ -16,7 +16,7 @@
       "tool": "files",
       "label": "Files",
       "position_x": 80,
-      "position_y": 400,
+      "position_y": 600,
       "inputs": {},
       "config": {}
     },
@@ -24,12 +24,12 @@
       "id": "transcribe",
       "tool": "transcribe",
       "label": "Transcribe each file",
-      "position_x": 240,
-      "position_y": 400,
+      "position_x": 300,
+      "position_y": 600,
       "inputs": {},
       "config": {
         "vision_mode": "auto",
-        "language": "en",
+        "language": "auto",
         "update_page_content": true
       }
     },
@@ -37,41 +37,21 @@
       "id": "extract_all",
       "tool": "extract_all",
       "label": "Extract All Entities",
-      "position_x": 400,
-      "position_y": 400,
+      "position_x": 520,
+      "position_y": 600,
       "inputs": {},
       "config": {
         "output_language": "auto",
         "provider_name": "$small",
-        "persist_kg": false
-      }
-    },
-    {
-      "id": "kg_writer",
-      "tool": "kg_writer",
-      "label": "Write KG",
-      "position_x": 560,
-      "position_y": 400,
-      "inputs": {},
-      "config": {}
-    },
-    {
-      "id": "citations_extract",
-      "tool": "citations_extract",
-      "label": "Extract Citations",
-      "position_x": 560,
-      "position_y": 680,
-      "inputs": {},
-      "config": {
-        "provider_name": "$medium"
+        "persist_kg": true
       }
     },
     {
       "id": "people_folder_clean",
       "tool": "people_folder_cleanup",
       "label": "Clean People (folder)",
-      "position_x": 560,
-      "position_y": 80,
+      "position_x": 740,
+      "position_y": 180,
       "inputs": {},
       "config": {
         "provider_name": "$small"
@@ -81,8 +61,8 @@
       "id": "places_folder_clean",
       "tool": "places_folder_cleanup",
       "label": "Clean Places (folder)",
-      "position_x": 560,
-      "position_y": 180,
+      "position_x": 740,
+      "position_y": 320,
       "inputs": {},
       "config": {
         "provider_name": "$small"
@@ -92,8 +72,8 @@
       "id": "organizations_folder_clean",
       "tool": "organizations_folder_cleanup",
       "label": "Clean Organizations (folder)",
-      "position_x": 560,
-      "position_y": 280,
+      "position_x": 740,
+      "position_y": 460,
       "inputs": {},
       "config": {
         "provider_name": "$small"
@@ -103,8 +83,8 @@
       "id": "dates_folder_clean",
       "tool": "dates_folder_cleanup",
       "label": "Clean Dates (folder)",
-      "position_x": 560,
-      "position_y": 380,
+      "position_x": 740,
+      "position_y": 600,
       "inputs": {},
       "config": {
         "provider_name": "$small"
@@ -114,8 +94,8 @@
       "id": "events_folder_clean",
       "tool": "events_folder_cleanup",
       "label": "Clean Events (folder)",
-      "position_x": 560,
-      "position_y": 480,
+      "position_x": 740,
+      "position_y": 740,
       "inputs": {},
       "config": {
         "provider_name": "$small"
@@ -125,19 +105,30 @@
       "id": "keywords_folder_clean",
       "tool": "keywords_folder_cleanup",
       "label": "Clean Keywords (folder)",
-      "position_x": 560,
-      "position_y": 580,
+      "position_x": 740,
+      "position_y": 880,
       "inputs": {},
       "config": {
         "provider_name": "$small"
       }
     },
     {
+      "id": "citations_extract",
+      "tool": "citations_extract",
+      "label": "Extract Citations",
+      "position_x": 740,
+      "position_y": 1020,
+      "inputs": {},
+      "config": {
+        "provider_name": "$medium"
+      }
+    },
+    {
       "id": "merge_extracts",
       "tool": "aggregate",
       "label": "Combine all per-section outputs",
-      "position_x": 720,
-      "position_y": 400,
+      "position_x": 960,
+      "position_y": 600,
       "inputs": {},
       "config": {
         "mode": "concat",
@@ -148,8 +139,8 @@
       "id": "catalogue",
       "tool": "catalogue",
       "label": "Catalogue",
-      "position_x": 880,
-      "position_y": 400,
+      "position_x": 1180,
+      "position_y": 600,
       "inputs": {},
       "config": {
         "output_language": "auto",
@@ -164,6 +155,13 @@
       "target": "transcribe",
       "source_port": "files",
       "target_port": "files"
+    },
+    {
+      "id": "e-files-transcribe-documents",
+      "source": "files-source",
+      "target": "transcribe",
+      "source_port": "documents",
+      "target_port": "documents"
     },
     {
       "id": "e-transcribe-extract_all-text",
@@ -185,13 +183,6 @@
       "target": "people_folder_clean",
       "source_port": "text",
       "target_port": "text"
-    },
-    {
-      "id": "e-extract_all-kg_writer",
-      "source": "extract_all",
-      "target": "kg_writer",
-      "source_port": "kg_payload",
-      "target_port": "kg_payload"
     },
     {
       "id": "e-files-citations-documents",

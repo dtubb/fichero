@@ -4,7 +4,10 @@ import SwiftUI
 // MARK: - Entity Detail View
 
 struct EntityDetailView: View {
-    @EnvironmentObject private var entityService: EntityServiceGenerated
+    @EnvironmentObject var entityService: EntityServiceGenerated
+    /// Entity rename routes through the store (#1862/#1865); the change-stream's
+    /// `entity.updated` event fans the refresh, retiring `.ficheroEntityUpdated`.
+    @Environment(EntityStore.self) var entityStore
     let entity: Components.Schemas.KnowledgeEntity
     let claims: [Components.Schemas.KnowledgeClaim]
     let isLoadingClaims: Bool
@@ -81,39 +84,33 @@ struct EntityDetailView: View {
     /// state via @SceneStorage so resets on each entity navigation
     /// don't surprise the user. (#994)
     @State var showAllClaims: Bool = false
-    @State private var metadataJSON: String = "{}"
-    @State private var metadataSaveMessage: String?
-    @State private var isSavingMetadata = false
+    @State var metadataJSON: String = "{}"
+    @State var metadataSaveMessage: String?
+    @State var isSavingMetadata = false
     @State private var showDigestSheet = false
     @State var showContradictionTriageSheet = false
     @State var showClaimReviewQueueSheet = false
 
+    /// Native multi-select for the claims (source-annotation SVO) List. (#1864)
+    @State var selectedClaimIds: Set<String> = []
+
+    /// In-place rename of the entity from the header. Optimistic local
+    /// override while the PATCH is in flight; reverts on failure. (#1865)
+    @State private var isRenamingHeader = false
+    @State private var renameDraft = ""
+    @State private var nameOverride: String?
+    @FocusState private var renameFieldFocused: Bool
+
+    /// Canonical name to display — the optimistic override wins while a
+    /// rename is committing, otherwise the server's value.
+    var displayName: String {
+        nameOverride ?? entity.canonicalName
+    }
+
     var body: some View {
         if sourceGroupsMode {
             VStack(spacing: 0) {
-                // Minimal top bar: entity name + back button
-                HStack {
-                    Image(systemName: iconForEntityType)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    Text(entity.canonicalName)
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .lineLimit(1)
-                    Spacer()
-                    Button {
-                        sourceGroupsMode = false
-                    } label: {
-                        Label("Claims", systemImage: "list.bullet")
-                            .font(.caption2)
-                            .foregroundStyle(Color.accentColor)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Back to claim cards")
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color(.windowBackgroundColor))
+                sourceGroupsTopBar
                 Divider()
                 EntitySourceGroupsView(entityId: entity.id ?? "")
             }
@@ -122,9 +119,7 @@ struct EntityDetailView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     headerSection
                     aliasesSection
-                    if biographyMode {
-                        biographySection
-                    }
+                    mentionsSection
                     metadataSection
                     claimsSection
                     auditSection
@@ -139,15 +134,106 @@ struct EntityDetailView: View {
         }
     }
 
-    static func prettyMetadataJSON(_ entity: Components.Schemas.KnowledgeEntity) -> String {
-        let raw = entity.metadata?.additionalProperties.value ?? [:]
-        guard JSONSerialization.isValidJSONObject(raw),
-              let data = try? JSONSerialization.data(withJSONObject: raw, options: [.prettyPrinted, .sortedKeys]),
-              let text = String(data: data, encoding: .utf8)
-        else {
-            return "{}"
+    // MARK: - Source-groups top bar
+
+    private var sourceGroupsTopBar: some View {
+        HStack {
+            Image(systemName: iconForEntityType)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(displayName)
+                .font(.caption)
+                .fontWeight(.semibold)
+                .lineLimit(1)
+            Spacer()
+            Button {
+                sourceGroupsMode = false
+            } label: {
+                Label("Claims", systemImage: "list.bullet")
+                    .font(.caption2)
+                    .foregroundStyle(Color.accentColor)
+            }
+            .buttonStyle(.plain)
+            .help("Back to claim cards")
         }
-        return text
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.regularMaterial)
+    }
+
+    // MARK: - Header
+
+    /// Canonical-name view. Double-click or the Rename context action
+    /// swaps the link for an inline TextField (Enter commits, Esc
+    /// cancels); otherwise it's a tappable scoped-search link. (#1864/#1865)
+    @ViewBuilder
+    private var headerNameView: some View {
+        if isRenamingHeader {
+            TextField("Entity name", text: $renameDraft)
+                .textFieldStyle(.plain)
+                .font(.title2)
+                .fontWeight(.semibold)
+                .focused($renameFieldFocused)
+                .onSubmit { commitRename() }
+                #if os(macOS)
+                .onExitCommand { cancelRename() }
+                #endif
+                .onAppear { renameFieldFocused = true }
+        } else {
+            Button {
+                // #882 — tap canonical name to run a scoped library search.
+                NotificationCenter.default.post(
+                    name: .ficheroEntitySearchRequested,
+                    object: nil,
+                    userInfo: [
+                        "name": displayName,
+                        "entityType": entitySearchScope
+                    ]
+                )
+            } label: {
+                Text(displayName)
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.accentColor)
+                    .underline()
+            }
+            .buttonStyle(.plain)
+            .help("Search the library for \"\(displayName)\" — double-click to rename")
+            .simultaneousGesture(TapGesture(count: 2).onEnded { beginRename() })
+            .contextMenu {
+                Button("Rename") { beginRename() }
+            }
+        }
+    }
+
+    private func beginRename() {
+        renameDraft = displayName
+        isRenamingHeader = true
+    }
+
+    private func cancelRename() {
+        isRenamingHeader = false
+        renameFieldFocused = false
+    }
+
+    /// Commit the inline rename through the typed entity service.
+    /// Optimistic: the new name shows immediately; a failed PATCH reverts.
+    private func commitRename() {
+        let trimmed = renameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        isRenamingHeader = false
+        renameFieldFocused = false
+        guard !trimmed.isEmpty, trimmed != displayName, let entityId = entity.id else { return }
+        let previous = nameOverride
+        nameOverride = trimmed
+        Task {
+            do {
+                // Route through the store; its scope reload + the change-stream's
+                // `entity.updated` event refresh every bound surface (#1862/#1865).
+                _ = try await entityStore.rename(entityId: entityId, to: trimmed)
+            } catch {
+                nameOverride = previous
+            }
+        }
     }
 
     // MARK: - Header
@@ -159,28 +245,7 @@ struct EntityDetailView: View {
                     .font(.system(size: 24))
                     .foregroundStyle(Color.accentColor)
 
-                Button {
-                    // #882 — tap canonical name to run a scoped library
-                    // search. Pass entityType so ContentView's receiver
-                    // takes the typed branch (e.g. `people:"Eugenio Córdoba"`)
-                    // and hits only that artifact instead of free-text.
-                    NotificationCenter.default.post(
-                        name: .ficheroEntitySearchRequested,
-                        object: nil,
-                        userInfo: [
-                            "name": entity.canonicalName,
-                            "entityType": entitySearchScope
-                        ]
-                    )
-                } label: {
-                    Text(entity.canonicalName)
-                        .font(.title2)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.accentColor)
-                        .underline()
-                }
-                .buttonStyle(.plain)
-                .help("Search the library for \"\(entity.canonicalName)\"")
+                headerNameView
 
                 Spacer()
 
@@ -216,180 +281,12 @@ struct EntityDetailView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.controlBackgroundColor))
+        .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .sheet(isPresented: $showDigestSheet) {
             EntityDigestContent(entity: entity, entityService: entityService)
                 .frame(minWidth: 780, minHeight: 560)
                 .padding(20)
-        }
-    }
-
-    /// Map EntityType → the search-scope token consumed by
-    /// runToolbarSearch via the entity-search notification. Mirrors
-    /// what the library entity lozenges use so tapping a name here
-    /// hits the same artifact bucket.
-    private var entitySearchScope: String {
-        guard let type = entity.entityType else { return "" }
-        switch type {
-        case .person: return "people"
-        case .location: return "places"
-        case .organization: return "organizations"
-        case .event: return "events"
-        case .concept: return "keywords"
-        case .citation: return "citations"
-        case .other: return ""
-        }
-    }
-
-    private var iconForEntityType: String {
-        guard let type = entity.entityType else { return "person.fill" }
-        switch type {
-        case .person: return "person.fill"
-        case .organization: return "building.2.fill"
-        case .location: return "mappin.circle.fill"
-        case .event: return "calendar.circle.fill"
-        case .concept: return "lightbulb.fill"
-        case .citation: return "text.quote"
-        case .other: return "circle.fill"
-        }
-    }
-
-    // MARK: - Aliases
-
-    private var aliasesSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Aliases")
-                .font(.subheadline)
-                .fontWeight(.semibold)
-
-            if let aliases = entity.aliases, !aliases.isEmpty {
-                FlowLayout(spacing: 6) {
-                    ForEach(aliases, id: \.self) { alias in
-                        Text(alias)
-                            .font(.caption)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.accentColor.opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: 4))
-                    }
-                }
-            } else {
-                Text("No aliases")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
-
-    private var metadataSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Raw Entity JSON")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                Spacer()
-                if let metadataSaveMessage {
-                    Text(metadataSaveMessage)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                Button {
-                    Task { await saveMetadataJSON() }
-                } label: {
-                    if isSavingMetadata {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Text("Save")
-                    }
-                }
-                .disabled(isSavingMetadata)
-            }
-
-            TextEditor(text: $metadataJSON)
-                .font(.system(.caption, design: .monospaced))
-                .frame(minHeight: 120)
-                .padding(6)
-                .background(Color(.textBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
-
-    private func saveMetadataJSON() async {
-        isSavingMetadata = true
-        defer { isSavingMetadata = false }
-        guard let library = LibraryManager.shared.globalLibrary else {
-            metadataSaveMessage = "No library"
-            return
-        }
-        guard let entityId = entity.id else {
-            metadataSaveMessage = "Entity ID missing"
-            return
-        }
-        let trimmed = metadataJSON.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let data = trimmed.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data),
-              let dictAny = json as? [String: Any]
-        else {
-            metadataSaveMessage = "Invalid JSON object"
-            return
-        }
-        guard let sendableMetadata = Self.makeSendableMetadata(dictAny) else {
-            metadataSaveMessage = "Invalid JSON values"
-            return
-        }
-        do {
-            _ = try await library.entityService.patchEntity(entityId, metadata: sendableMetadata)
-            metadataSaveMessage = "Saved"
-        } catch {
-            metadataSaveMessage = "Save failed"
-        }
-    }
-
-    private static func makeSendableMetadata(_ dict: [String: Any]) -> [String: any Sendable]? {
-        var output: [String: any Sendable] = [:]
-        for (key, value) in dict {
-            guard let converted = makeSendableJSON(value) else { return nil }
-            output[key] = converted
-        }
-        return output
-    }
-
-    private static func makeSendableJSON(_ value: Any) -> (any Sendable)? {
-        switch value {
-        case let string as String:
-            return string
-        case let int as Int:
-            return int
-        case let double as Double:
-            return double
-        case let bool as Bool:
-            return bool
-        case let number as NSNumber:
-            return number.doubleValue
-        case let array as [Any]:
-            var converted: [any Sendable] = []
-            converted.reserveCapacity(array.count)
-            for item in array {
-                guard let sendable = makeSendableJSON(item) else { return nil }
-                converted.append(sendable)
-            }
-            return converted
-        case let object as [String: Any]:
-            return makeSendableMetadata(object)
-        case _ as NSNull:
-            return nil as String?
-        default:
-            return nil
         }
     }
 }

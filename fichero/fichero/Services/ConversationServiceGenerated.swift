@@ -25,9 +25,7 @@ class ConversationServiceGenerated: ObservableObject {
 
     /// List all conversations.  GET /api/chat/conversations
     func listConversations() async throws -> [ConversationSummary] {
-        let response = try await client.api.listConversationsApiChatConversationsGet(.init(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
-        ))
+        let response = try await client.api.listConversationsApiChatConversationsGet(.init())
 
         switch response {
         case .ok(let okResponse):
@@ -45,7 +43,6 @@ class ConversationServiceGenerated: ObservableObject {
     func getConversation(_ id: String) async throws -> ConversationDetail {
         let response = try await client.api.getConversationApiChatConversationsConversationIdGet(.init(
             path: .init(conversationId: id),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         ))
 
         switch response {
@@ -61,7 +58,6 @@ class ConversationServiceGenerated: ObservableObject {
     func deleteConversation(_ id: String) async throws {
         let response = try await client.api.deleteConversationApiChatConversationsConversationIdDelete(.init(
             path: .init(conversationId: id),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         ))
 
         switch response {
@@ -78,7 +74,6 @@ class ConversationServiceGenerated: ObservableObject {
     func duplicateConversation(_ id: String) async throws -> ConversationAPI {
         let response = try await client.api.duplicateConversationApiChatConversationsConversationIdDuplicatePost(.init(
             path: .init(conversationId: id),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         ))
 
         switch response {
@@ -119,7 +114,6 @@ class ConversationServiceGenerated: ObservableObject {
 
         let response = try await client.api.updateConversationApiChatConversationsConversationIdPut(.init(
             path: .init(conversationId: id),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(request)
         ))
 
@@ -153,7 +147,6 @@ class ConversationServiceGenerated: ObservableObject {
     func reorderConversations(_ conversationIds: [String], folderPath: String = "/") async throws {
         let response = try await client.api.reorderConversationsApiChatConversationsReorderPost(.init(
             query: .init(folderPath: folderPath),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(conversationIds)
         ))
 

@@ -6,6 +6,7 @@ struct SearchResultsDisplay: View {
     let displayMode: ViewDisplayMode
     @Binding var selection: Set<String>
     let onLoadDocument: (String) -> Void
+    var onOpenExcerpt: ((SearchResult) -> Void)?
     /// Current query text — drives the empty-state copy.
     /// Empty (whitespace-only) → "Type to search" placeholder.
     /// Non-empty + no results → "No matches for X" guidance. (#481)
@@ -59,7 +60,7 @@ struct SearchResultsDisplay: View {
                     listView
                 case .table:
                     tableView
-                case .map, .realitykit:
+                case .map, .realitykit, .spatial, .workspace:
                     mapView
                 }
             }
@@ -119,7 +120,12 @@ struct SearchResultsDisplay: View {
     private var listView: some View {
         List(selection: $selection) {
             ForEach(searchResults) { result in
-                SearchResultRowFromAPI(result: result)
+                SearchResultRowFromAPI(
+                    result: result,
+                    onOpenExcerpt: {
+                        onOpenExcerpt?(result)
+                    }
+                )
                     .tag(result.documentId)
                     .draggable(result.documentId)
             }
@@ -190,7 +196,7 @@ struct SearchResultsDisplay: View {
             .width(min: 60, ideal: 80)
 
             TableColumn("Preview") { result in
-                if let preview = result.contentPreview {
+                if let preview = SearchResultRowFromAPI(result: result).preferredExcerptText {
                     Text(preview)
                         .lineLimit(2)
                         .foregroundColor(.secondary)

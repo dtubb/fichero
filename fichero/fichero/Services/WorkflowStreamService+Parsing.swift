@@ -49,6 +49,9 @@ extension WorkflowStreamService {
                 let checkpointId = eventData.data["checkpoint_id"]?.stringValue
                 return .pause(threadId: eventData.threadId, checkpointId: checkpointId, currentState: nil)
 
+            case "cancelled":
+                return .cancelled(threadId: eventData.threadId)
+
             case "error":
                 let errorMsg = (eventData.data["error"]?.stringValue) ?? "Unknown error"
                 return .error(threadId: eventData.threadId, error: errorMsg)
@@ -76,7 +79,11 @@ extension WorkflowStreamService {
                     filePath: filePath,
                     fileIndex: fileIndex,
                     fileTotal: fileTotal,
-                    progress: progress
+                    progress: progress,
+                    documentId: eventData.documentId,
+                    pageId: eventData.pageId,
+                    displayName: eventData.displayName,
+                    sequence: eventData.sequence
                 )
 
             case "file_complete":
@@ -94,7 +101,11 @@ extension WorkflowStreamService {
                     fileIndex: fileIndex,
                     fileTotal: fileTotal,
                     progress: progress,
-                    cached: cached
+                    cached: cached,
+                    documentId: eventData.documentId,
+                    pageId: eventData.pageId,
+                    displayName: eventData.displayName,
+                    sequence: eventData.sequence
                 )
 
             case "file_error":
@@ -108,7 +119,11 @@ extension WorkflowStreamService {
                     nodeId: nodeId,
                     filePath: filePath,
                     error: errorMsg,
-                    progress: progress
+                    progress: progress,
+                    documentId: eventData.documentId,
+                    pageId: eventData.pageId,
+                    displayName: eventData.displayName,
+                    sequence: eventData.sequence
                 )
 
             case "parallel_complete":

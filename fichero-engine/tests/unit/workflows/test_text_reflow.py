@@ -218,6 +218,19 @@ mous, often taking years per manuscript."""
         result = _reflow_text(text)
         assert "enormous" in result  # de-hyphenated
         assert "dedication" not in "dedica-\ntion"  # no broken dedication
+
+    def test_reflow_preserves_ilegible_markers(self):
+        text = (
+            "La firma es [ilegible]\n"
+            "y la fecha [uncertain] quedó al margen.\n\n"
+            "Segundo párrafo con Chocó."
+        )
+
+        result = _reflow_text(text)
+
+        assert "[ilegible]" in result
+        assert "[uncertain]" in result
+        assert "Chocó" in result
         # Paragraphs should be preserved
         para_count = result.count("\n\n")
         assert para_count >= 1

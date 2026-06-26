@@ -16,12 +16,10 @@ extension SidebarView {
 
         // Observe changes in all libraries' services
         for library in libraryManager.openLibraries {
-            // Observe document changes - use $collections which fires AFTER mutation
-            library.documentStore.$collections
-                .dropFirst()  // Skip initial value
-                .receive(on: RunLoop.main)
-                .sink { _ in rebuildCaches() }
-                .store(in: &cancellables)
+            // Observe document changes. DocumentStore is @Observable (#1851),
+            // so it has no Combine `$collections` publisher — use Observation
+            // tracking and re-arm after each mutation.
+            observeDocumentStore(library.documentStore)
 
             // Observe saved search changes
             library.savedSearchServiceGenerated.$savedSearches
@@ -37,12 +35,11 @@ extension SidebarView {
                 .sink { _ in rebuildCaches() }
                 .store(in: &cancellables)
 
-            // Observe workflow changes - use $workflows which fires AFTER mutation
-            library.workflowStore.$workflows
-                .dropFirst()
-                .receive(on: RunLoop.main)
-                .sink { _ in rebuildCaches() }
-                .store(in: &cancellables)
+            // Observe workflow changes. WorkflowStore is now @Observable (#1911),
+            // so it has no Combine `$workflows` publisher — use Observation
+            // tracking, re-armed after each fire, to mirror the old behaviour
+            // (rebuild caches AFTER a workflow mutation completes).
+            observeWorkflowStore(library.workflowStore)
         }
 
         // Observe chain changes (global ChainService)
@@ -53,6 +50,35 @@ extension SidebarView {
                 chains = newChains
             }
             .store(in: &cancellables)
+    }
+
+    /// Observe an @Observable WorkflowStore's `workflows` array and rebuild the
+    /// sidebar caches when it changes. `withObservationTracking` fires once, so
+    /// we re-arm it on each change to keep observing for the view's lifetime.
+    func observeWorkflowStore(_ store: WorkflowStore) {
+        withObservationTracking {
+            _ = store.workflows
+        } onChange: {
+            Task { @MainActor in
+                rebuildCaches()
+                observeWorkflowStore(store)
+            }
+        }
+    }
+
+    /// Observe an @Observable DocumentStore's sidebar-driving arrays and
+    /// rebuild caches when either changes. Re-arm after each fire because
+    /// `withObservationTracking` is one-shot.
+    func observeDocumentStore(_ store: DocumentStore) {
+        withObservationTracking {
+            _ = store.collections
+            _ = store.currentDocuments
+        } onChange: {
+            Task { @MainActor in
+                rebuildCaches()
+                observeDocumentStore(store)
+            }
+        }
     }
 
     /// Load automation data (schedules and triggers)
@@ -86,6 +112,7 @@ extension SidebarView {
         defer { activityIsLoading = false }
 
         let types = [
+            "workflow_started",
             "workflow_completed",
             "workflow_failed",
             "workflow_cancelled"

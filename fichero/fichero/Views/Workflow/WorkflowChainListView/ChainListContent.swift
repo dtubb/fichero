@@ -7,6 +7,7 @@ struct ChainListContent: View {
     let searchText: String
     let executingChainId: String?
     let onNewChain: () -> Void
+    @Binding var selectedChainId: String?
     let onSelectChain: (String) -> Void
     let onExecuteChain: (WorkflowChain) -> Void
     let onConfirmDelete: (WorkflowChain) -> Void
@@ -35,11 +36,12 @@ struct ChainListContent: View {
                     }
                 }
             } else {
-                List(filteredChains) { chain in
+                List(filteredChains, selection: $selectedChainId) { chain in
                     ChainListRow(
                         chain: chain,
                         isExecuting: executingChainId == chain.id
                     )
+                    .tag(chain.id)
                     .contentShape(Rectangle())
                     .onTapGesture(count: 2) {
                         onSelectChain(chain.id)

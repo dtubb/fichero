@@ -157,10 +157,10 @@ final class ModelComparisonTypesTests: XCTestCase {
         }
         """.data(using: .utf8)!
         let bucket = try JSONDecoder().decode(ModelsByTier.self, from: json)
-        XCTAssertTrue(bucket.frontier.isEmpty)
-        XCTAssertTrue(bucket.mid.isEmpty)
-        XCTAssertTrue(bucket.budget.isEmpty)
-        XCTAssertTrue(bucket.local.isEmpty)
+        XCTAssertEqual(bucket.frontier ?? [], [])
+        XCTAssertEqual(bucket.mid ?? [], [])
+        XCTAssertEqual(bucket.budget ?? [], [])
+        XCTAssertEqual(bucket.local ?? [], [])
     }
 
     // MARK: - ComparisonToolInfo

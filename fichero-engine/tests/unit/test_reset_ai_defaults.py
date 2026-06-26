@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 
 from fichero.app_db import AppDatabase
-from fichero.api.main import _repair_known_bad_ai_defaults
+from fichero.api.main import _ensure_default_ai_defaults, _repair_known_bad_ai_defaults
 from fichero.models import Provider, Model
 from fichero.providers import ProviderType
 
@@ -49,6 +49,9 @@ class TestResetAIDefaults:
         assert defaults["default_medium_model"] == "openai/gpt-4o-mini"
         assert defaults["default_vision_provider"] == "apple"
         assert defaults["default_vision_model"] == "apple-vision"
+        for tier in ("small", "medium", "large"):
+            assert defaults[f"default_vision_{tier}_provider"] == "apple"
+            assert defaults[f"default_vision_{tier}_model"] == "apple-vision"
         assert defaults["default_audio_provider"] == "apple"
         assert defaults["default_audio_model"] == "apple-speech"
 
@@ -66,6 +69,28 @@ class TestResetAIDefaults:
             assert defaults.get(f"default_{tier}_model") == "apple-intelligence"
         assert defaults["default_medium_provider"] == "openrouter"
         assert defaults["default_medium_model"] == "openai/gpt-4o-mini"
+
+    def test_reset_populates_all_vision_tiers(self, app_db):
+        """Vision aliases need settings defaults so #2200 preflight can resolve them."""
+        app_db.reset_ai_defaults()
+        defaults = app_db.get_ai_defaults()
+        for tier in ("small", "medium", "large"):
+            assert defaults.get(f"default_vision_{tier}_provider") == "apple"
+            assert defaults.get(f"default_vision_{tier}_model") == "apple-vision"
+
+    def test_bootstrap_populates_all_vision_tiers_without_overwriting(self, app_db):
+        app_db.set_setting("default_vision_large_provider", "openai")
+        app_db.set_setting("default_vision_large_model", "gpt-4o")
+
+        _ensure_default_ai_defaults(app_db, "ignored-provider-id")
+
+        defaults = app_db.get_ai_defaults()
+        assert defaults["default_vision_small_provider"] == "apple"
+        assert defaults["default_vision_small_model"] == "apple-vision"
+        assert defaults["default_vision_medium_provider"] == "apple"
+        assert defaults["default_vision_medium_model"] == "apple-vision"
+        assert defaults["default_vision_large_provider"] == "openai"
+        assert defaults["default_vision_large_model"] == "gpt-4o"
 
     def test_repair_known_bad_large_default_rewrites_openrouter_free(self, app_db):
         app_db.set_setting("default_large_provider", "openrouter")
@@ -125,3 +150,11 @@ class TestResetAIDefaults:
         # Video isn't in the factory baseline → cleared, no value
         assert "default_video_provider" not in defaults
         assert "default_video_model" not in defaults
+
+    def test_reset_clears_primary_language_override(self, app_db):
+        app_db.set_setting("default_primary_language", "Spanish")
+
+        app_db.reset_ai_defaults()
+
+        defaults = app_db.get_ai_defaults()
+        assert "default_primary_language" not in defaults

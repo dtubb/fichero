@@ -23,16 +23,16 @@ from __future__ import annotations
 import logging
 import re
 import time
-from typing import Any
+from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/kg/sparql")
+router = APIRouter(prefix="/kg")
 
 
 # Verbs that mutate the graph. Reject these — the endpoint is read-only.
@@ -71,8 +71,81 @@ class SparqlResponse(BaseModel):
     elapsed_ms: int
 
 
+class SparqlExampleQuery(BaseModel):
+    """Saved/example query exposed so the frontend has visible seed content."""
+    id: str
+    title: str
+    description: str
+    query: str
+
+
+class SparqlExamplesResponse(BaseModel):
+    examples: list[SparqlExampleQuery]
+
+
+_SPARQL_EXAMPLES: list[SparqlExampleQuery] = [
+    SparqlExampleQuery(
+        id="people-labels",
+        title="People and labels",
+        description="List every person in the library with their canonical label.",
+        query=(
+            "PREFIX foaf: <http://xmlns.com/foaf/0.1/> "
+            "PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> "
+            "SELECT ?person ?label WHERE { "
+            "?person a foaf:Person ; rdfs:label ?label . "
+            "} ORDER BY ?label"
+        ),
+    ),
+    SparqlExampleQuery(
+        id="claims-with-source",
+        title="Claims with source pages",
+        description="Show claims, their subject entity, and the source page label when present.",
+        query=(
+            "PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> "
+            "PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> "
+            "PREFIX fichero: <https://fichero.app/ns#> "
+            "SELECT ?claim ?subjectLabel ?page WHERE { "
+            "?claim a rdf:Statement ; rdf:subject ?subject ; "
+            "fichero:sourcePageLabel ?page . "
+            "?subject rdfs:label ?subjectLabel . "
+            "} ORDER BY ?subjectLabel ?page"
+        ),
+    ),
+]
+
+
+RdfExportFormat = Literal["nt", "turtle", "json-ld", "xml"]
+
+_RDF_MEDIA_TYPES: dict[RdfExportFormat, str] = {
+    "nt": "application/n-triples; charset=utf-8",
+    "turtle": "text/turtle; charset=utf-8",
+    "json-ld": "application/ld+json; charset=utf-8",
+    "xml": "application/rdf+xml; charset=utf-8",
+}
+
+_RDF_FILENAMES: dict[RdfExportFormat, str] = {
+    "nt": "knowledge-graph.nt",
+    "turtle": "knowledge-graph.ttl",
+    "json-ld": "knowledge-graph.jsonld",
+    "xml": "knowledge-graph.rdf",
+}
+
+
+@router.get(
+    "/query/examples",
+    response_model=SparqlExamplesResponse,
+    summary="List example KG queries",
+    description=(
+        "Returns curated SPARQL example queries so the KG query surface is "
+        "discoverable in OpenAPI and the frontend can seed a query console."
+    ),
+)
+async def sparql_examples() -> SparqlExamplesResponse:
+    return SparqlExamplesResponse(examples=_SPARQL_EXAMPLES)
+
+
 @router.post(
-    "",
+    "/query/sparql",
     response_model=SparqlResponse,
     summary="Run a SPARQL query against the library's RDF graph",
     description=(
@@ -125,6 +198,53 @@ async def sparql_query(
         row_count=len(rows),
         truncated=truncated,
         elapsed_ms=elapsed_ms,
+    )
+
+
+@router.post(
+    "/sparql",
+    response_model=SparqlResponse,
+    summary="Run a SPARQL query against the library's RDF graph (legacy path)",
+    description=(
+        "Compatibility alias for the canonical ``/api/kg/query/sparql`` route. "
+        "Kept so existing callers continue to work while the KG query/export "
+        "surface is reorganized."
+    ),
+    deprecated=True,
+)
+async def sparql_query_legacy(
+    request: SparqlRequest,
+    db: Database = Depends(get_library_database),
+) -> SparqlResponse:
+    return await sparql_query(request=request, db=db)
+
+
+@router.get(
+    "/export/rdf",
+    summary="Export the library knowledge graph as RDF",
+    description=(
+        "Materializes the entity + claim store as RDF and serializes it for "
+        "external linked-data tooling. Supports N-Triples, Turtle, JSON-LD, "
+        "and RDF/XML."
+    ),
+    response_class=Response,
+)
+async def export_rdf(
+    format: RdfExportFormat = Query(
+        default="turtle",
+        description="RDF serialization format.",
+    ),
+    db: Database = Depends(get_library_database),
+) -> Response:
+    graph = _cached_rdf_graph(db)
+    payload = graph.serialize(format=format, encoding="utf-8")
+    headers = {
+        "Content-Disposition": f'attachment; filename="{_RDF_FILENAMES[format]}"',
+    }
+    return Response(
+        content=payload,
+        media_type=_RDF_MEDIA_TYPES[format],
+        headers=headers,
     )
 
 

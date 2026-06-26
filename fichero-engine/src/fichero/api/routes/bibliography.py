@@ -7,9 +7,10 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from fastapi.responses import PlainTextResponse
+from pydantic import BaseModel, Field
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.models import Document
 
@@ -68,27 +69,9 @@ class ImportResponse(BaseModel):
 )
 async def import_bibliography(
     request: ImportRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ImportResponse:
-    from fichero.bibliography.importers import (
-        detect_format,
-        read_bibtex,
-        read_csl_json,
-        read_ris,
-    )
-
-    fmt = request.format or detect_format(request.text)
-    if fmt == "bibtex":
-        entries = read_bibtex(request.text)
-    elif fmt == "ris":
-        entries = read_ris(request.text)
-    elif fmt == "csl_json":
-        entries = read_csl_json(request.text)
-    else:
-        raise HTTPException(
-            400,
-            "Format not recognised — try 'bibtex', 'ris', or 'csl_json'",
-        )
+    entries = _parse_bibliography(request.text, request.format)
     return ImportResponse(count=len(entries), entries=entries)
 
 
@@ -104,30 +87,71 @@ async def import_bibliography(
 async def attach_record(
     document_id: str,
     request: AttachRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> MetadataResponse:
-    from fichero.bibliography.importers import detect_format, read_bibtex, read_csl_json, read_ris
+    doc, _ = _attach_record_impl(db, document_id, request.text, request.format)
+    return MetadataResponse(document_id=document_id, metadata=doc.source_metadata or {})
 
+
+def _parse_bibliography(text: str, fmt: str | None) -> list[dict[str, Any]]:
+    """Parse BibTeX / RIS / CSL-JSON content into entry dicts (format auto-
+    detected when ``fmt`` is None). Shared by the import + attach paths."""
+    from fichero.bibliography.importers import (
+        detect_format,
+        read_bibtex,
+        read_csl_json,
+        read_ris,
+    )
+
+    resolved = fmt or detect_format(text)
+    if resolved == "bibtex":
+        return read_bibtex(text)
+    if resolved == "ris":
+        return read_ris(text)
+    if resolved == "csl_json":
+        return read_csl_json(text)
+    raise HTTPException(400, "Format not recognised — try 'bibtex', 'ris', or 'csl_json'")
+
+
+def _attach_record_impl(
+    db: Database, document_id: str, text: str, fmt: str | None
+) -> tuple[Document, dict[str, Any] | None]:
+    """Parse a single bibliographic record and write it into a document's
+    ``source_metadata`` — the proven body of ``POST .../attach``, extracted so
+    BOTH the route and the ``bibliography.attach`` action drive the same code.
+    Returns ``(document, previous_source_metadata)`` (the previous value is the
+    undo payload). Raises ``HTTPException`` on unknown id / unparsable input."""
     doc = db.get(Document, document_id)
     if doc is None:
         raise HTTPException(404, f"Document not found: {document_id}")
 
-    fmt = request.format or detect_format(request.text)
-    if fmt == "bibtex":
-        entries = read_bibtex(request.text)
-    elif fmt == "ris":
-        entries = read_ris(request.text)
-    elif fmt == "csl_json":
-        entries = read_csl_json(request.text)
-    else:
-        raise HTTPException(400, "Format not recognised — try 'bibtex', 'ris', or 'csl_json'")
+    entries = _parse_bibliography(text, fmt)
     if not entries:
         raise HTTPException(400, "No parsable bibliography record found")
 
+    before = doc.source_metadata
     doc.source_metadata = entries[0]
     doc.updated_at = datetime.now()
     db.save(doc)
-    return MetadataResponse(document_id=document_id, metadata=doc.source_metadata or {})
+    return doc, before
+
+
+def _patch_metadata_impl(
+    db: Database, document_id: str, metadata: dict[str, Any]
+) -> tuple[Document, dict[str, Any] | None]:
+    """Replace a document's ``source_metadata`` — the proven body of the
+    ``PATCH /bibliography/document/{id}`` route, extracted so BOTH the route and
+    the ``bibliography.patch_metadata`` action drive the same code (iterate-not-
+    replace). Returns ``(document, previous_source_metadata)``; the previous
+    value is the undo payload. Raises ``HTTPException(404)`` on unknown id."""
+    doc = db.get(Document, document_id)
+    if doc is None:
+        raise HTTPException(404, f"Document not found: {document_id}")
+    before = doc.source_metadata
+    doc.source_metadata = metadata
+    doc.updated_at = datetime.now()
+    db.save(doc)
+    return doc, before
 
 
 class ExportRequest(BaseModel):
@@ -136,6 +160,7 @@ class ExportRequest(BaseModel):
 
 @router.post(
     "/export.bib",
+    response_class=PlainTextResponse,
     summary="Bulk export multiple documents as BibTeX",
     description=(
         "Returns a multi-entry .bib file built from each document's "
@@ -146,8 +171,6 @@ async def export_bibtex(
     request: ExportRequest,
     db: Database = Depends(get_library_database),
 ):
-    from fastapi.responses import PlainTextResponse
-
     from fichero.bibliography.importers import write_bibtex
 
     entries: list[dict[str, Any]] = []
@@ -179,7 +202,7 @@ class ResolveRequest(BaseModel):
 async def resolve(
     request: ResolveRequest,
     document_id: str | None = Query(default=None),
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> MetadataResponse:
     from fichero.bibliography.doi_lookup import resolve_doi, resolve_isbn
 
@@ -228,14 +251,9 @@ class MetadataPatchRequest(BaseModel):
 async def patch_metadata(
     document_id: str,
     request: MetadataPatchRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> MetadataResponse:
-    doc = db.get(Document, document_id)
-    if doc is None:
-        raise HTTPException(404, f"Document not found: {document_id}")
-    doc.source_metadata = request.metadata
-    doc.updated_at = datetime.now()
-    db.save(doc)
+    doc, _ = _patch_metadata_impl(db, document_id, request.metadata)
     return MetadataResponse(document_id=document_id, metadata=doc.source_metadata)
 
 
@@ -260,7 +278,7 @@ async def run_extractor(
             "LLM."
         ),
     ),
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> MetadataResponse:
     doc = db.get(Document, document_id)
     if doc is None:
@@ -284,3 +302,96 @@ async def run_extractor(
     doc.updated_at = datetime.now()
     db.save(doc)
     return MetadataResponse(document_id=document_id, metadata=merged)
+
+
+# ---------------------------------------------------------------------------
+# Action layer registration (EPIC #1848 sweep #2014) — bibliography mutations
+# ---------------------------------------------------------------------------
+#
+# Each action WRAPS the proven `_impl` above (iterate-not-replace) and routes
+# through `registry.invoke`, which writes the generic ActionAudit + emits one
+# typed change event. Bibliographic metadata lives on `Document.source_metadata`,
+# so the touched ids are document_ids. Both mutations are undoable: their inverse
+# restores the prior `source_metadata` via `bibliography.patch_metadata` itself —
+# the before/after snapshots in the ChangeSpec ARE the undo payload.
+#
+# NOT wrapped (noted for the manager): `import_bibliography` parses only and
+# persists nothing (pure transform — no audit needed); `resolve` and
+# `run_extractor` perform async network / LLM I/O, which the sync `execute(db,
+# params, ctx)` contract can't host — they need an async-action variant (future).
+
+from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
+
+
+class BibliographyPatchMetadataParams(BaseModel):
+    """Params for bibliography.patch_metadata — replace a document's metadata."""
+
+    document_id: str = Field(description="Target document id")
+    metadata: dict[str, Any] = Field(description="New source_metadata dict (replaces)")
+
+
+class BibliographyAttachParams(BaseModel):
+    """Params for bibliography.attach — parse one record into a document."""
+
+    document_id: str = Field(description="Target document id")
+    text: str = Field(description="BibTeX / RIS / CSL-JSON record content")
+    format: str | None = Field(default=None, description="Format hint; auto-detected when None")
+
+
+def _invert_to_patch_metadata(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Inverse of any source_metadata mutation: restore the prior dict. The
+    PATCH params require a dict, so a previously-absent (None) metadata round-
+    trips to ``{}`` — semantically equivalent to "no metadata"."""
+    if not before:
+        return None
+    document_id = before.get("document_id")
+    if not document_id:
+        return None
+    prior = before.get("source_metadata") or {}
+    return ("bibliography.patch_metadata", {"document_id": document_id, "metadata": prior})
+
+
+@action(
+    "bibliography.patch_metadata",
+    BibliographyPatchMetadataParams,
+    domains=["bibliography", "document"],
+    undoable=True,
+    invert=_invert_to_patch_metadata,
+)
+def _action_patch_metadata(
+    db: Database, params: BibliographyPatchMetadataParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    doc, before_meta = _patch_metadata_impl(db, params.document_id, params.metadata)
+    spec = ChangeSpec(
+        domains=["bibliography", "document"],
+        target_ids=[doc.id],
+        before={"document_id": doc.id, "source_metadata": before_meta},
+        after={"document_id": doc.id, "source_metadata": doc.source_metadata},
+        emit_type="bibliography.updated",
+        document_ids=[doc.id],
+    )
+    return {"document_id": doc.id, "metadata": doc.source_metadata or {}}, spec
+
+
+@action(
+    "bibliography.attach",
+    BibliographyAttachParams,
+    domains=["bibliography", "document"],
+    undoable=True,
+    invert=_invert_to_patch_metadata,
+)
+def _action_attach_record(
+    db: Database, params: BibliographyAttachParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    doc, before_meta = _attach_record_impl(db, params.document_id, params.text, params.format)
+    spec = ChangeSpec(
+        domains=["bibliography", "document"],
+        target_ids=[doc.id],
+        before={"document_id": doc.id, "source_metadata": before_meta},
+        after={"document_id": doc.id, "source_metadata": doc.source_metadata},
+        emit_type="bibliography.updated",
+        document_ids=[doc.id],
+    )
+    return {"document_id": doc.id, "metadata": doc.source_metadata or {}}, spec

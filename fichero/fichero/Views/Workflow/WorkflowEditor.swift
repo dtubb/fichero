@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Workflow editor content view - canvas with optional output log
-/// This view goes in the content column, with WorkflowInspector in the detail column
+/// Workflow editor content view - canvas with optional output log.
+/// This view goes in the content column, with WorkflowInspector in the detail column.
 struct WorkflowEditor: View {
     /// Reference to the selected workflow from sidebar (for display info)
     let selectedWorkflow: WorkflowSidebarItem?
@@ -19,8 +19,6 @@ struct WorkflowEditor: View {
     @State var saveError: String?
     @State var showSaveSuccess: Bool = false
     @State private var autosaveTask: Task<Void, Never>?
-    @State var showOutputLog: Bool = true
-    @State var executionState: WorkflowExecutionState?
 
     // Canvas state (passed to WorkflowCanvasView)
     @State var scale: CGFloat = 1.0
@@ -28,7 +26,7 @@ struct WorkflowEditor: View {
 
     // Diagram preview state
     @State var showDiagramPreview: Bool = false
-    @State var diagramImage: NSImage?
+    @State var diagramImage: PlatformImage?
     @State var diagramLoading: Bool = false
     @State var diagramError: String?
 
@@ -36,19 +34,29 @@ struct WorkflowEditor: View {
     @State var showDocumentPicker: Bool = false
     @State var showModelComparison: Bool = false
 
-    @EnvironmentObject var workflowStore: WorkflowStore
+    @Environment(WorkflowStore.self) var workflowStore
     @EnvironmentObject var workflowServiceGenerated: WorkflowServiceGenerated
     @EnvironmentObject var workflowStreamService: WorkflowStreamService
-    @EnvironmentObject var documentStore: DocumentStore
+    @Environment(DocumentStore.self) var documentStore: DocumentStore
     @EnvironmentObject var libraryManager: LibraryManager
     @ObservedObject var featureManager = FeatureManager.shared
 
     // Uses @Observable pattern - injected via .environment() from LibraryWindow
     @Environment(WorkflowExecutionObserver.self) var executionObserver
+    // Not `private`: WorkflowEditor+Actions.runWorkflow() opens the Activity
+    // window via this action, and Swift `private` blocks cross-file extension
+    // access. Matches ContentView/LibraryView convention (#2328).
+    @Environment(\.openWindow) var openWindow
 
-    /// Node execution states from the observer (single source of truth)
+    /// Node execution states for the editor's list/table/icon node views.
+    ///
+    /// Intentionally empty (#2546 / B2): run progress now lives ONLY in the
+    /// Activity monitor, so the editor's node rows/cards/table cells stay in
+    /// their idle state during a run — the editor is for editing, Activity is
+    /// the single monitor. (`executionObserver` is still used to seed the
+    /// run/compare sheets below.)
     var nodeStates: [String: NodeExecutionState] {
-        executionObserver.activeExecutions[editingWorkflow.id]?.nodeStates ?? [:]
+        [:]
     }
 
     init(
@@ -87,76 +95,57 @@ struct WorkflowEditor: View {
                 }
             )
 
-            // Canvas and output log
-            VSplitView {
-                // Main content area (adapts to displayMode)
-                Group {
-                    switch displayMode {
-                    case .icon:
-                        // Note: WorkflowCanvasView reads nodeStates from @Environment(WorkflowExecutionObserver.self)
-                        WorkflowCanvasView(
-                            workflow: $editingWorkflow,
-                            scale: $scale,
-                            snapToGrid: $snapToGrid
-                        )
-                    case .list:
-                        workflowNodesListView
-                    case .table:
-                        if featureManager.isWorkflowEditorAdvancedViewsEnabled {
-                            workflowNodesTableView
-                        } else {
-                            WorkflowCanvasView(
-                                workflow: $editingWorkflow,
-                                scale: $scale,
-                                snapToGrid: $snapToGrid
-                            )
-                        }
-                    case .map:
-                        // Keep map/table as advanced-mode fallback to avoid adding extra surface in 0.0.1.
-                        WorkflowCanvasView(
-                            workflow: $editingWorkflow,
-                            scale: $scale,
-                            snapToGrid: $snapToGrid
-                        )
-                    case .realitykit:
-                        // RealityKit is a Mind-Palace spatial mode, not a workflow-editor surface —
-                        // fall back to the canvas like .map/.table.
+            // Canvas — run output surfaces in the Activity view (#2439)
+            Group {
+                switch displayMode {
+                case .icon:
+                    // Note: WorkflowCanvasView reads nodeStates from @Environment(WorkflowExecutionObserver.self)
+                    WorkflowCanvasView(
+                        workflow: $editingWorkflow,
+                        scale: $scale,
+                        snapToGrid: $snapToGrid
+                    )
+                case .list:
+                    workflowNodesListView
+                case .table:
+                    if featureManager.isWorkflowEditorAdvancedViewsEnabled {
+                        workflowNodesTableView
+                    } else {
                         WorkflowCanvasView(
                             workflow: $editingWorkflow,
                             scale: $scale,
                             snapToGrid: $snapToGrid
                         )
                     }
+                case .map:
+                    // Keep map/table as advanced-mode fallback to avoid adding extra surface in 0.0.1.
+                    WorkflowCanvasView(
+                        workflow: $editingWorkflow,
+                        scale: $scale,
+                        snapToGrid: $snapToGrid
+                    )
+                case .realitykit:
+                    // RealityKit is a Spatial mode, not a workflow-editor surface —
+                    // fall back to the canvas like .map/.table.
+                    WorkflowCanvasView(
+                        workflow: $editingWorkflow,
+                        scale: $scale,
+                        snapToGrid: $snapToGrid
+                    )
+                case .spatial, .workspace:
+                    // Collection-only stubs live at the library routing seam.
+                    // In the workflow editor they fall back to the canvas like .map/.realitykit.
+                    WorkflowCanvasView(
+                        workflow: $editingWorkflow,
+                        scale: $scale,
+                        snapToGrid: $snapToGrid
+                    )
                 }
-                .frame(minHeight: 200)
-
-                // Output log is always visible in 0.0.1 workflow editor.
-                WorkflowOutputLog(
-                    workflow: editingWorkflow,
-                    executionStateOverride: executionState
-                )
-                .frame(minHeight: 100, maxHeight: 250)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .overlay(alignment: .top) {
-            // Save status indicator
-            if showSaveSuccess {
-                HStack {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                    Text("Saved")
-                        .font(.caption)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(.regularMaterial)
-                .cornerRadius(8)
-                .padding(.top, 50)
-                .transition(.move(edge: .top).combined(with: .opacity))
-            }
-        }
-        .animation(.easeInOut(duration: 0.2), value: showSaveSuccess)
+        // Saving is silent — no "Saved" flash/toast (#2438). Save failures still
+        // surface via the alert below.
         .alert("Save Failed", isPresented: Binding(
             get: { saveError != nil },
             set: { if !$0 { saveError = nil } }
@@ -173,6 +162,7 @@ struct WorkflowEditor: View {
                 workflowName: editingWorkflow.name,
                 isPresented: $showDiagramPreview
             )
+            .environment(executionObserver)
         }
         .sheet(isPresented: $showDocumentPicker) {
             DocumentPickerSheet(
@@ -180,10 +170,12 @@ struct WorkflowEditor: View {
                 workflowName: editingWorkflow.name
             )
             .environmentObject(libraryManager)
-            .environmentObject(documentStore)
+            .environment(documentStore)
+            .environment(executionObserver)
         }
         .sheet(isPresented: $showModelComparison) {
             ModelComparisonView()
+                .environment(executionObserver)
         }
         // Debounced autosave on any editingWorkflow change (#780). Without
         // this, model/provider selections in the node inspector live

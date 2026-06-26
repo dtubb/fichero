@@ -5,7 +5,7 @@ Tests the source, vision, and LLM tools for workflows.
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, call, patch
 from pathlib import Path
 import base64
 
@@ -167,8 +167,17 @@ class TestFolderTool:
         )
 
         mock_db = MagicMock()
-        # First call returns files, second call returns subfolders
-        mock_db.query.side_effect = [mock_documents, [subfolder]]
+        # Use callable side_effect so the query dispatcher is robust to the
+        # extra db.query(…, doc_type=DocType.page) call added by fan-out logic
+        # (#2239) — a list-based side_effect would be consumed in the wrong order.
+        def _query(model, **kwargs):
+            dt = kwargs.get("doc_type")
+            if dt == DocType.folder:
+                return [subfolder]
+            if dt == DocType.page:
+                return []  # no page children for any file
+            return mock_documents
+        mock_db.query.side_effect = _query
 
         with patch('fichero.workflows.tools.sources.db_manager') as mock_manager:
             mock_manager.get_database.return_value = mock_db
@@ -188,13 +197,17 @@ class TestSearchTool:
 
     @pytest.mark.asyncio
     async def test_search_no_query(self, mock_llm_config, mock_state):
-        """Test search tool with no query."""
+        """#2613: empty query is a graceful skip, not a systemic error."""
         from fichero.workflows.tools.sources import search_tool
 
         result = await search_tool({}, mock_state, mock_llm_config)
 
-        assert result["error"] == "No search query provided"
+        assert result.get("error") is None
+        assert result["skipped"] is True
+        assert result["skip_reason"] == "No search query provided"
         assert result["files"] == []
+        assert result["documents"] == []
+        assert result["count"] == 0
 
     @pytest.mark.asyncio
     async def test_search_includes_kg_context_in_documents(self, mock_llm_config, mock_state):
@@ -383,14 +396,15 @@ class TestTranscribeTool:
 
     @pytest.mark.asyncio
     async def test_transcribe_no_files(self, mock_llm_config, mock_state):
-        """Test transcribe with no input files."""
+        """Test transcribe with no input files returns empty result without aborting workflow."""
         from fichero.workflows.tools.transcribe import transcribe
 
         result = await transcribe({}, mock_state, mock_llm_config)
 
-        assert result["error"] == "No input files provided"
+        # No "error" key — empty-files is a warning, not a workflow-aborting error (#2220)
+        assert "error" not in result
         assert result["text"] == ""
-        assert result["texts"] == []
+        assert result["results"] == []
 
     @pytest.mark.asyncio
     async def test_transcribe_with_files(self, mock_llm_config, mock_state, tmp_path):
@@ -469,12 +483,13 @@ class TestDescribeTool:
 
     @pytest.mark.asyncio
     async def test_describe_no_files(self, mock_llm_config, mock_state):
-        """Test describe with no input files."""
+        """Test describe with no input files returns empty result without aborting workflow."""
         from fichero.workflows.tools.describe import describe
 
         result = await describe({}, mock_state, mock_llm_config)
 
-        assert result["error"] == "No input files provided"
+        # No "error" key — empty-files is a warning, not a workflow-aborting error (#2220)
+        assert "error" not in result
         assert result["text"] == ""
 
     @pytest.mark.asyncio
@@ -509,6 +524,79 @@ class TestDescribeTool:
             # describe uses standard output ports (text, texts)
             assert result["text"] == "A test image description"
             assert len(result["texts"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_describe_saves_per_page_artifact_to_page_child(
+        self, mock_llm_config, tmp_path
+    ):
+        """Per-page describe fan-out saves description artifacts on page docs."""
+        from tests.integration._seedlib import seed
+
+        from fichero.db import db_manager
+        from fichero.workflows.tools.describe import describe
+
+        library_path = tmp_path / "describe-visual.fichero"
+        seed(library_path)
+        pdf = tmp_path / "book.pdf"
+        pdf.write_bytes(b"%PDF-1.4\n%%EOF")
+        db = db_manager.get_database(library_path)
+        parent = Document(
+            id="parent-pdf-id",
+            name="book.pdf",
+            path=str(pdf),
+            doc_type=DocType.file,
+            file_type=FileType.pdf,
+        )
+        db.save(parent)
+        db.save(
+            Document(
+                id="page-2-id",
+                name="book.pdf — p2",
+                doc_type=DocType.page,
+                parent_id=parent.id,
+                sequence=2,
+            )
+        )
+        page2 = {
+            "id": "page-2-id",
+            "path": None,
+            "parent_id": "parent-pdf-id",
+            "sequence": 2,
+            "metadata": {},
+        }
+        saved_document_ids: list[str | None] = []
+
+        async def fake_save_artifact(file_path, content, document_id, **_):
+            saved_document_ids.append(document_id)
+            return "artifact-" + (document_id or "none")
+
+        with (
+            patch(
+                "fichero.workflows.tools.vision_base._pdf_page_to_data_uri",
+                return_value="data:image/png;base64,FAKE",
+            ),
+            patch(
+                "fichero.llm.vision",
+                new=AsyncMock(return_value="Visual description for page 2."),
+            ),
+            patch(
+                "fichero.workflows.tools.vision_base.save_artifact",
+                new=AsyncMock(side_effect=fake_save_artifact),
+            ),
+        ):
+            result = await describe(
+                {
+                    "files": [str(pdf)],
+                    "documents": [page2],
+                    "vision_mode": "llm",
+                    "save_to_db": True,
+                },
+                {"library_path": str(library_path), "task_id": None},
+                mock_llm_config,
+            )
+
+        assert result["text"] == "Visual description for page 2."
+        assert saved_document_ids == ["page-2-id"]
 
 
 # =============================================================================
@@ -797,7 +885,13 @@ class TestDatabaseSaving:
                 result = await transcribe(
                     {
                         "files": [str(test_image)],
-                        "documents": [{"id": "doc123", "path": str(test_image)}],
+                        # Must include the required `name` field: save_artifact
+                        # re-validates the passed document dict (Document.
+                        # model_validate), and a missing field now surfaces
+                        # loudly instead of being silently swallowed (#2510).
+                        "documents": [
+                            {"id": "doc123", "path": str(test_image), "name": "test.jpg"}
+                        ],
                         "save_to_db": True,
                         "vision_mode": "llm",  # Use LLM, not Apple Vision OCR
                     },
@@ -861,7 +955,7 @@ class TestSaveArtifact:
 
     @pytest.mark.asyncio
     async def test_save_artifact_by_file_path(self):
-        """Test save_artifact falls back to path query when no ID."""
+        """Test save_artifact falls back to a relative path query when no ID."""
         from fichero.workflows.tools.llm_base import save_artifact, LLMToolConfig
 
         mock_doc = MagicMock()
@@ -885,7 +979,7 @@ class TestSaveArtifact:
 
             result = await save_artifact(
                 document_id=None,
-                file_path="/photos/photo.jpg",
+                file_path="files/fi/photo.jpg",
                 content="Photo content",
                 data=None,
                 library_path="/test/library.fichero",
@@ -898,6 +992,54 @@ class TestSaveArtifact:
             mock_db.query.assert_called_once()
             assert result is not None
             assert mock_doc.metadata["description"] == "Photo content"
+
+    @pytest.mark.asyncio
+    async def test_save_artifact_by_absolute_file_path_uses_relative_fallback(self):
+        """Test save_artifact retries with files/... when file_path is absolute."""
+        from fichero.workflows.tools.llm_base import save_artifact, LLMToolConfig
+        from fichero.models import Document
+
+        absolute_path = (
+            "/Users/test/ICANH-Andagoya.fichero/files/fi/hash_photo.jpg"
+        )
+        relative_path = "files/fi/hash_photo.jpg"
+
+        mock_doc = MagicMock()
+        mock_doc.id = "doc_abs"
+        mock_doc.name = "hash_photo.jpg"
+        mock_doc.metadata = {}
+
+        mock_db = MagicMock()
+        mock_db.get.return_value = None
+        mock_db.query.side_effect = [[], [mock_doc]]
+
+        tool_config = LLMToolConfig(
+            artifact_type="description",
+            metadata_field="description",
+        )
+        llm_config = LLMConfig(provider="test", model="test-model")
+
+        with patch('fichero.db.db_manager') as mock_manager:
+            mock_manager.get_database.return_value = mock_db
+
+            result = await save_artifact(
+                document_id=None,
+                file_path=absolute_path,
+                content="Recovered content",
+                data=None,
+                library_path="/test/library.fichero",
+                llm_config=llm_config,
+                task_id=None,
+                tool_config=tool_config,
+            )
+
+            assert result is not None
+            assert mock_db.save.call_count == 2
+            assert mock_doc.metadata["description"] == "Recovered content"
+            assert mock_db.query.call_args_list == [
+                call(Document, path=absolute_path),
+                call(Document, path=relative_path),
+            ]
 
     @pytest.mark.asyncio
     async def test_save_artifact_document_not_found(self):
@@ -1067,6 +1209,112 @@ class TestSaveArtifact:
             assert saved_artifact.model == "apple-vision"
             assert saved_artifact.provider == "apple"
 
+    # ------------------------------------------------------------------
+    # #2510 — save_artifact must not report false success on a partial write.
+    # save_artifact is a multi-step write: (1) db.save(artifact) →
+    # (2) doc.page_content promotion + db.save(doc) → (3) db.embed(doc).
+    # A failure in the CORE steps (1 or 2) must SURFACE (raise), never return
+    # an artifact_id that implies the whole op succeeded. The EMBED tail (3) is
+    # best-effort: a failure there must NOT fail the save, but must log loud.
+    # ------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_save_artifact_surfaces_core_doc_write_failure(self):
+        """Step-2 (page_content promotion) failure must raise, not return an id.
+
+        Monkeypatch the SECOND db.save (the doc-side write) to raise. Before
+        #2510 the except returned the already-set artifact_id, recording FALSE
+        success while the doc content was never promoted. The fixed contract
+        surfaces the error so the caller records a real failure.
+        """
+        from fichero.workflows.tools.llm_base import save_artifact, LLMToolConfig
+
+        mock_doc = MagicMock()
+        mock_doc.id = "doc-core"
+        mock_doc.metadata = {}
+
+        mock_db = MagicMock()
+        mock_db.get.return_value = mock_doc
+        # 1st save (artifact) succeeds; 2nd save (doc page_content) explodes.
+        mock_db.save.side_effect = [None, RuntimeError("disk full mid-write")]
+
+        tool_config = LLMToolConfig(
+            artifact_type="transcription",
+            update_page_content=True,   # forces step-2 db.save(doc)
+            trigger_embedding=False,
+        )
+        llm_config = LLMConfig(provider="test", model="test-model")
+
+        with patch("fichero.db.db_manager") as mock_manager:
+            mock_manager.get_database.return_value = mock_db
+
+            with pytest.raises(RuntimeError, match="disk full"):
+                await save_artifact(
+                    document_id="doc-core",
+                    file_path=None,
+                    content="Promoted text",
+                    data=None,
+                    library_path="/test/library.fichero",
+                    llm_config=llm_config,
+                    task_id="task-core",
+                    tool_config=tool_config,
+                )
+
+            # Both writes were attempted (artifact, then the failing doc save) —
+            # confirming the failure is the CORE doc write, not a no-op.
+            assert mock_db.save.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_save_artifact_embed_failure_is_best_effort(self, caplog):
+        """Step-3 (embed) failure must NOT fail the save, but must log loud.
+
+        The artifact + page_content are already durable, so a failed embed is a
+        best-effort tail: save_artifact still returns the artifact_id (success)
+        and emits a loud error — never a silent swallow (#2510).
+        """
+        import logging
+        from fichero.workflows.tools.llm_base import save_artifact, LLMToolConfig
+
+        mock_doc = MagicMock()
+        mock_doc.id = "doc-embed"
+        mock_doc.metadata = {}
+
+        mock_db = MagicMock()
+        mock_db.get.return_value = mock_doc
+        mock_db.save.return_value = None            # artifact + doc writes OK
+        mock_db.embed.side_effect = RuntimeError("vector index offline")
+
+        tool_config = LLMToolConfig(
+            artifact_type="transcription",
+            update_page_content=True,
+            trigger_embedding=True,                 # forces step-3 db.embed
+        )
+        llm_config = LLMConfig(provider="test", model="test-model")
+
+        with patch("fichero.db.db_manager") as mock_manager:
+            mock_manager.get_database.return_value = mock_db
+
+            with caplog.at_level(logging.ERROR):
+                result = await save_artifact(
+                    document_id="doc-embed",
+                    file_path=None,
+                    content="Promoted text",
+                    data=None,
+                    library_path="/test/library.fichero",
+                    llm_config=llm_config,
+                    task_id="task-embed",
+                    tool_config=tool_config,
+                )
+
+            # Save still succeeds (artifact id returned) despite the embed blowing up.
+            assert result is not None
+            mock_db.embed.assert_called_once()
+            # …and the embed failure was logged LOUD, not silently swallowed.
+            assert any(
+                "Embedding FAILED" in rec.message and rec.levelno == logging.ERROR
+                for rec in caplog.records
+            )
+
 
 class TestSaveToFile:
     """Test save_to_file function."""
@@ -1201,12 +1449,15 @@ class TestProcessVisionSave:
             metadata_field="description",
         )
 
-        mock_doc = MagicMock()
-        mock_doc.id = "doc_abc"
-        mock_doc.metadata = {}
+        # Production passes full Document model_dump() dicts in workflow state
+        # (see completion.py); save_artifact now uses that pass-through
+        # (document=) instead of a cross-thread db.get re-fetch (#2430). The test
+        # must therefore supply a COMPLETE document dict, not a partial one.
+        from fichero.models import Document
+        real_doc = Document(id="doc_abc", name="test.jpg", path=str(test_image))
 
         mock_db = MagicMock()
-        mock_db.get.return_value = mock_doc
+        mock_db.get.return_value = real_doc  # db.get fallback (not hit when document= is passed)
 
         with patch('fichero.llm.vision', new_callable=AsyncMock) as mock_vision:
             mock_vision.return_value = "A test description"
@@ -1216,7 +1467,7 @@ class TestProcessVisionSave:
 
                 result = await process_vision(
                     files=[str(test_image)],
-                    documents=[{"id": "doc_abc", "path": str(test_image)}],
+                    documents=[real_doc.model_dump()],
                     prompt="Describe this image",
                     llm_config=mock_llm_config,
                     library_path="/test/lib.fichero",
@@ -1230,7 +1481,89 @@ class TestProcessVisionSave:
                 assert len(result["artifacts"]) == 1
                 # Verify db.save was called (artifact + doc metadata)
                 assert mock_db.save.call_count == 2
-                assert mock_doc.metadata["description"] == "A test description"
+                # The pass-through doc (validated from the dict) carries the
+                # description — capture it from the db.save calls.
+                saved_docs = [
+                    c.args[0]
+                    for c in mock_db.save.call_args_list
+                    if isinstance(c.args[0], Document)
+                ]
+                assert saved_docs, "expected the document to be saved"
+                assert saved_docs[-1].metadata["description"] == "A test description"
+
+    @pytest.mark.asyncio
+    async def test_process_vision_propagates_pages_with_absolute_file_path(
+        self, mock_llm_config, tmp_path
+    ):
+        """Per-page propagation should tolerate absolute file paths for parent PDFs."""
+        from fichero.workflows.tools.vision_base import process_vision, VisionToolConfig
+
+        library_path = tmp_path / "ICANH-Andagoya.fichero"
+        pdf_path = library_path / "files" / "fi" / "hash_doc.pdf"
+        pdf_path.parent.mkdir(parents=True)
+        pdf_path.write_bytes(b"%PDF-1.4\n%mock\n")
+
+        tool_config = VisionToolConfig(
+            artifact_type="transcription",
+            supports_apple_vision=True,
+            update_page_content=False,
+            trigger_embedding=False,
+            skip_if_artifact_exists=False,
+            metadata_field="transcription",
+        )
+
+        mock_db = MagicMock()
+        mock_db.get.return_value = MagicMock(metadata={})
+
+        with patch(
+            'fichero.workflows.tools.vision_base._try_pdf_text_layer',
+            return_value=None,
+        ), patch(
+            'fichero.workflows.tools.vision_base.apple_vision_ocr_pages_async',
+            new=AsyncMock(return_value=["Page one", "Page two"]),
+        ), patch(
+            'fichero.workflows.tools.vision_base.save_artifact',
+            new=AsyncMock(return_value="artifact_123"),
+        ) as mock_save_artifact, patch(
+            'fichero.workflows.tools.vision_base._propagate_to_page_children',
+            # Return 2 children so the #2249 fallback path (n_children == 0
+            # → save to parent) is NOT taken.
+            new=AsyncMock(return_value=2),
+        ) as mock_propagate, patch(
+            'fichero.db.db_manager',
+        ) as mock_manager:
+            mock_manager.get_database.return_value = mock_db
+
+            result = await process_vision(
+                files=[str(pdf_path)],
+                documents=[{"id": "parent_doc", "path": "files/fi/hash_doc.pdf"}],
+                prompt="Transcribe this PDF",
+                llm_config=mock_llm_config,
+                library_path=str(library_path),
+                task_id="task1",
+                tool_config=tool_config,
+                vision_mode="apple",
+                save_to_db=True,
+            )
+
+            # #2249: whole-PDF path now routes per-page texts to page-child
+            # artifacts directly (via _propagate_to_page_children) instead of
+            # saving the combined transcript to the parent doc artifact.
+            # When page children are found (n_children > 0), save_artifact is
+            # NOT called for the parent — so artifacts list is empty here.
+            assert result["artifacts"] == [], (
+                "#2249: combined transcript must not be saved on the parent doc "
+                "when page children are available"
+            )
+            mock_save_artifact.assert_not_awaited()
+            mock_propagate.assert_awaited_once_with(
+                "parent_doc",
+                ["Page one", "Page two"],
+                str(library_path),
+                artifact_type="transcription",
+                llm_config=ANY,
+                page_geometries=None,
+            )
 
     @pytest.mark.asyncio
     async def test_process_vision_save_to_file(self, mock_llm_config, tmp_path):

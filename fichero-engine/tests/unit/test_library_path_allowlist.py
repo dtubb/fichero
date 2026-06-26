@@ -13,6 +13,7 @@ to a path outside every allowed root and got a 403. The allowlist must now:
 - still reject un-allowed roots.
 """
 
+import os
 from pathlib import Path
 
 from fichero.api.main import _is_allowed_library_path
@@ -108,6 +109,26 @@ def test_home_code_path_allowed():
     """Corpus/dev libraries under ~/code are allowed."""
     p = Path.home() / "code" / "marshall_diaries" / "Marshall.fichero"
     assert _is_allowed_library_path(str(p)) is True
+
+
+def test_env_configured_remote_roots_allowed(tmp_path, monkeypatch):
+    """Remote/Linux engines can add server-side package roots."""
+    remote_root = tmp_path / "srv" / "fichero-libraries"
+    other_root = tmp_path / "mnt" / "fichero"
+    monkeypatch.setenv(
+        "FICHERO_LIBRARY_ALLOWED_ROOTS",
+        f"  {tmp_path / 'unused'}  {os.pathsep}{remote_root},\n{other_root}",
+    )
+
+    assert _is_allowed_library_path(str(remote_root / "Remote.fichero")) is True
+    assert _is_allowed_library_path(str(other_root / "Nested" / "Remote.fichero")) is True
+
+
+def test_env_configured_root_directory_is_ignored(monkeypatch):
+    """A broad '/' allowlist entry must not make arbitrary packages valid."""
+    monkeypatch.setenv("FICHERO_LIBRARY_ALLOWED_ROOTS", "/")
+
+    assert _is_allowed_library_path("/usr/local/Unsafe.fichero") is False
 
 
 def test_non_fichero_suffix_rejected():

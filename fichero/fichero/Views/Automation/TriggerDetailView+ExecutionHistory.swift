@@ -86,7 +86,7 @@ extension TriggerDetailView {
             }
         }
         .padding(8)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(Color(platformColor: .controlBackgroundColor))
         .cornerRadius(8)
     }
 }

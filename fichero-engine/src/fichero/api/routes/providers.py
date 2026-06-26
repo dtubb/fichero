@@ -12,8 +12,13 @@ from pydantic import BaseModel
 
 from fichero.db import Database
 from fichero.app_db import get_app_db, AppDatabase
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
+from fichero.api.routes.auth_accounts import (
+    _require_authenticated_or_bootstrap,
+    _require_owner_or_bootstrap,
+)
 from fichero.models import Model, Provider, ProviderRef, ProviderType
+from fichero.models import AppleIntelligenceProbeResponse
 from fichero.providers import (
     get_provider_info,
     list_providers as list_catalog_providers,
@@ -45,7 +50,7 @@ from fichero.api.routes.provider_models import (  # noqa: F401 (re-exported for 
 from fichero.api.routes.provider_keys import router as keys_router
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(_require_authenticated_or_bootstrap)])
 
 # Include sub-routers
 router.include_router(models_router)
@@ -64,14 +69,10 @@ def _safe_isoformat(value) -> str:
 # =============================================================================
 
 
-class AppleIntelligenceProbeResponse(BaseModel):
-    """Result of probing whether Apple Intelligence is usable on this Mac."""
-
-    available: bool
-    reason: str | None = None
-
-
-@router.get("/apple-intelligence/probe")
+@router.get(
+    "/apple-intelligence/probe",
+    response_model=AppleIntelligenceProbeResponse,
+)
 async def probe_apple_intelligence() -> AppleIntelligenceProbeResponse:
     """Quick check: is Apple Intelligence usable on this device?
 
@@ -166,7 +167,10 @@ async def list_provider_catalog() -> ProviderCatalogListResponse:
     return ProviderCatalogListResponse(items=result, count=len(result))
 
 
-@router.get("/catalog/{provider_type}")
+@router.get(
+    "/catalog/{provider_type}",
+    response_model=ProviderCatalogResponse,
+)
 async def get_catalog_provider(provider_type: str) -> ProviderCatalogResponse:
     """Get info about a specific provider type."""
     info = get_provider_info(provider_type)
@@ -222,12 +226,19 @@ async def list_providers(
     return ProviderListResponse(items=items, count=len(items))
 
 
-@router.post("")
-async def create_provider(
-    request: ProviderCreate,
-    app_db: AppDatabase = Depends(get_app_database),
-) -> ProviderResponse:
-    """Create a new provider configuration (app-wide)."""
+def create_provider_impl(
+    app_db: AppDatabase, request: ProviderCreate
+) -> tuple[Provider, bool]:
+    """Create-or-upsert a provider (app-wide). Returns ``(provider, created)``.
+
+    Extracted verbatim from the ``create_provider`` route so BOTH the route and
+    the ``provider.create`` action (EPIC #1848) drive the *same* validation +
+    upsert (iterate-not-replace: the algorithm is wrapped, never re-derived).
+    ``created`` is True only when a NEW provider row was inserted (vs an existing
+    ``(name, provider_type)`` row being updated, see #704) — the
+    ``provider.create`` undo uses it to know whether deleting the row is a safe
+    inverse. Raises ``HTTPException`` on bad input exactly as the route did.
+    """
     try:
         ptype = ProviderType(request.provider_type)
     except ValueError:
@@ -270,6 +281,7 @@ async def create_provider(
         existing.enabled = True
         app_db.save_provider(existing)
         provider = existing
+        created = False
     else:
         provider = Provider(
             name=target_name,
@@ -278,9 +290,22 @@ async def create_provider(
             enabled=True,
         )
         app_db.save_provider(provider)
+        created = True
 
     if request.api_key:
         set_api_key(request.provider_type, request.api_key)
+
+    return provider, created
+
+
+@router.post("")
+async def create_provider(
+    request: ProviderCreate,
+    _owner: None = Depends(_require_owner_or_bootstrap),
+    app_db: AppDatabase = Depends(get_app_database),
+) -> ProviderResponse:
+    """Create a new provider configuration (app-wide)."""
+    provider, _created = create_provider_impl(app_db, request)
 
     return ProviderResponse(
         id=provider.id,
@@ -367,7 +392,7 @@ async def list_library_provider_refs(
 @router.post("/refs")
 async def add_provider_ref(
     request: ProviderRefCreate,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     app_db: AppDatabase = Depends(get_app_database),
 ) -> ProviderRefResponse:
     """Add a provider reference to this library."""
@@ -400,14 +425,15 @@ async def add_provider_ref(
     )
 
 
-@router.patch("/refs/{ref_id}")
-async def update_provider_ref(
-    ref_id: str,
-    request: ProviderRefUpdate,
-    db: Database = Depends(get_library_database),
-    app_db: AppDatabase = Depends(get_app_database),
-) -> ProviderRefResponse:
-    """Update a provider reference."""
+def update_provider_ref_impl(
+    db: Database, ref_id: str, request: ProviderRefUpdate
+) -> ProviderRef:
+    """Apply a library provider-reference update. Returns the saved ref.
+
+    Extracted from the route so route + ``provider.update_ref`` action share the
+    same field-merge (iterate-not-replace). ProviderRef is a *library* model, so
+    this operates on the library ``db`` (not app_db). Raises 404 if missing.
+    """
     ref = db.get(ProviderRef, ref_id)
     if not ref:
         raise HTTPException(status_code=404, detail="Provider reference not found")
@@ -419,6 +445,18 @@ async def update_provider_ref(
 
     ref.updated_at = datetime.now()
     db.save(ref)
+    return ref
+
+
+@router.patch("/refs/{ref_id}")
+async def update_provider_ref(
+    ref_id: str,
+    request: ProviderRefUpdate,
+    db: Database = Depends(get_library_database_for_write),
+    app_db: AppDatabase = Depends(get_app_database),
+) -> ProviderRefResponse:
+    """Update a provider reference."""
+    ref = update_provider_ref_impl(db, ref_id, request)
 
     provider = app_db.get_provider(ref.provider_id)
     if not provider:
@@ -436,21 +474,31 @@ async def update_provider_ref(
     )
 
 
-@router.delete("/refs/{ref_id}")
-async def delete_provider_ref(
-    ref_id: str,
-    db: Database = Depends(get_library_database),
-) -> DeletedResponse:
-    """Remove a provider reference from this library."""
+def delete_provider_ref_impl(db: Database, ref_id: str) -> ProviderRef:
+    """Remove a library provider reference. Returns the deleted ref.
+
+    Returns the ref so the ``provider.delete_ref`` action can snapshot it for
+    undo. Extracted from the route (iterate-not-replace). Raises 404 if missing.
+    """
     ref = db.get(ProviderRef, ref_id)
     if not ref:
         raise HTTPException(status_code=404, detail="Provider reference not found")
 
     db.delete(ref)
+    return ref
+
+
+@router.delete("/refs/{ref_id}")
+async def delete_provider_ref(
+    ref_id: str,
+    db: Database = Depends(get_library_database_for_write),
+) -> DeletedResponse:
+    """Remove a provider reference from this library."""
+    delete_provider_ref_impl(db, ref_id)
     return DeletedResponse(status="deleted")
 
 
-@router.get("/{provider_id}")
+@router.get("/{provider_id}", response_model=ProviderResponse)
 async def get_provider(
     provider_id: str,
     app_db: AppDatabase = Depends(get_app_database),
@@ -472,13 +520,16 @@ async def get_provider(
     )
 
 
-@router.patch("/{provider_id}")
-async def update_provider(
-    provider_id: str,
-    request: ProviderUpdate,
-    app_db: AppDatabase = Depends(get_app_database),
-) -> ProviderResponse:
-    """Update a provider configuration (app-wide)."""
+def update_provider_impl(
+    app_db: AppDatabase, provider_id: str, request: ProviderUpdate
+) -> Provider:
+    """Apply a provider config update (app-wide). Returns the saved provider.
+
+    Extracted from the ``update_provider`` route so the route and the
+    ``provider.update`` action share the exact same field-merge + keychain
+    side-effect (iterate-not-replace). PATCH semantics: a ``None`` field means
+    "leave unchanged". Raises 404 if the provider doesn't exist.
+    """
     provider = app_db.get_provider(provider_id)
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found")
@@ -498,6 +549,19 @@ async def update_provider(
         else:
             delete_api_key(provider.provider_type.value)
 
+    return provider
+
+
+@router.patch("/{provider_id}", response_model=ProviderResponse)
+async def update_provider(
+    provider_id: str,
+    request: ProviderUpdate,
+    _owner: None = Depends(_require_owner_or_bootstrap),
+    app_db: AppDatabase = Depends(get_app_database),
+) -> ProviderResponse:
+    """Update a provider configuration (app-wide)."""
+    provider = update_provider_impl(app_db, provider_id, request)
+
     return ProviderResponse(
         id=provider.id,
         name=provider.name,
@@ -510,17 +574,29 @@ async def update_provider(
     )
 
 
-@router.delete("/{provider_id}")
-async def delete_provider(
-    provider_id: str,
-    app_db: AppDatabase = Depends(get_app_database),
-) -> DeletedResponse:
-    """Delete a provider (app-wide). Models are cascade deleted."""
+def delete_provider_impl(app_db: AppDatabase, provider_id: str) -> Provider:
+    """Delete a provider + cascade-delete its models (app-wide).
+
+    Returns the provider that was deleted (so the ``provider.delete`` action can
+    snapshot it for undo). Extracted from the route so route + action share the
+    same delete (iterate-not-replace). Raises 404 if it doesn't exist.
+    """
     provider = app_db.get_provider(provider_id)
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found")
 
     app_db.delete_provider(provider_id)
+    return provider
+
+
+@router.delete("/{provider_id}", response_model=DeletedResponse)
+async def delete_provider(
+    provider_id: str,
+    _owner: None = Depends(_require_owner_or_bootstrap),
+    app_db: AppDatabase = Depends(get_app_database),
+) -> DeletedResponse:
+    """Delete a provider (app-wide). Models are cascade deleted."""
+    delete_provider_impl(app_db, provider_id)
     return DeletedResponse(status="deleted")
 
 
@@ -643,6 +719,7 @@ def _derive_capabilities_from_registry(provider_type: str, model_id: str) -> lis
 async def add_model_to_provider(
     provider_id: str,
     request: ModelCreate,
+    _owner: None = Depends(_require_owner_or_bootstrap),
     app_db: AppDatabase = Depends(get_app_database),
 ) -> UserModelResponse:
     """Add a model configuration to a provider."""
@@ -702,18 +779,481 @@ async def add_model_to_provider(
     )
 
 
+def remove_model_impl(app_db: AppDatabase, provider_id: str, model_id: str) -> Model:
+    """Remove a model from a provider. Returns the deleted model.
+
+    Returns the model (so the ``provider.remove_model`` action can snapshot it
+    for undo). Extracted from the route (iterate-not-replace). The 404 is keyed
+    on the model belonging to ``provider_id`` exactly as the route did. Raises
+    404 if the model isn't found under that provider.
+    """
+    models = app_db.list_models(provider_id)
+    model = next((m for m in models if m.id == model_id), None)
+
+    if model is None:
+        raise HTTPException(status_code=404, detail="Model not found")
+
+    app_db.delete_model(model_id)
+    return model
+
+
 @router.delete("/{provider_id}/models/{model_id}")
 async def remove_model_from_provider(
     provider_id: str,
     model_id: str,
+    _owner: None = Depends(_require_owner_or_bootstrap),
     app_db: AppDatabase = Depends(get_app_database),
 ) -> DeletedResponse:
     """Remove a model from a provider."""
-    models = app_db.list_models(provider_id)
-    model_exists = any(m.id == model_id for m in models)
-
-    if not model_exists:
-        raise HTTPException(status_code=404, detail="Model not found")
-
-    app_db.delete_model(model_id)
+    remove_model_impl(app_db, provider_id, model_id)
     return DeletedResponse(status="deleted")
+
+
+# =============================================================================
+# Action layer registration (EPIC #1848 / sweep #2014) — PROVIDER domain
+# =============================================================================
+#
+# Every mutating provider route above gets ONE registered action that WRAPS its
+# proven ``*_impl`` (iterate-not-replace) and routes through ``registry.invoke``,
+# which writes the generic ActionAudit + emits a change event. The original typed
+# routes still call the same ``*_impl`` directly and stay green; the action is the
+# *additional* uniform path that chat tools / App Intents / tests drive via
+# POST /api/actions/invoke (mirrors the entity.merge pilot).
+#
+# Two domain-specific wrinkles drive the shapes below:
+#   * Provider/Model are *app-wide* (AppDatabase), so each ``execute`` reaches
+#     ``get_app_db()`` for the mutation; the library ``db`` handed to ``invoke``
+#     only carries the ActionAudit row. ProviderRef is a *library* model, so its
+#     actions use ``db`` directly.
+#   * ``registry.invoke`` dumps ``params.model_dump()`` into the audit row, so any
+#     secret (``api_key``) MUST be ``Field(exclude=True)`` on the params model —
+#     readable as an attribute in ``execute`` but never serialized into the audit.
+
+from pydantic import ConfigDict, Field  # noqa: E402
+
+from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
+
+
+# -- params models -----------------------------------------------------------
+
+
+class ProviderCreateParams(ProviderCreate):
+    """provider.create params. ``api_key`` is secret → excluded from the audit."""
+
+    api_key: str | None = Field(default=None, exclude=True)
+
+
+class ProviderUpdateParams(ProviderUpdate):
+    """provider.update params — the PATCH body plus the target id.
+
+    ``api_key`` is secret → excluded from the audit serialization.
+    """
+
+    provider_id: str
+    api_key: str | None = Field(default=None, exclude=True)
+
+
+class ProviderDeleteParams(BaseModel):
+    provider_id: str
+
+
+class RemoveModelParams(BaseModel):
+    provider_id: str
+    model_id: str
+
+
+class UpdateProviderRefParams(BaseModel):
+    ref_id: str
+    enabled: bool | None = None
+    sort_order: int | None = None
+
+
+class DeleteProviderRefParams(BaseModel):
+    ref_id: str
+
+
+class RestoreProviderParams(BaseModel):
+    """Inverse of provider.delete — re-create the provider + its models."""
+
+    provider: dict
+    models: list[dict] = Field(default_factory=list)
+
+
+class RestoreModelParams(BaseModel):
+    """Inverse of provider.remove_model — re-create the model row."""
+
+    model_config = ConfigDict(protected_namespaces=())
+    model: dict
+
+
+class RestoreProviderRefParams(BaseModel):
+    """Inverse of provider.delete_ref — re-create the library ProviderRef."""
+
+    ref: dict
+
+
+def _provider_public_dict(provider: Provider) -> dict:
+    """Non-secret provider fields for an action's ``result`` payload."""
+    return {
+        "id": provider.id,
+        "name": provider.name,
+        "provider_type": provider.provider_type.value,
+        "api_base": provider.api_base,
+        "enabled": provider.enabled,
+        "sort_order": provider.sort_order,
+    }
+
+
+# -- provider.create ---------------------------------------------------------
+
+
+def _invert_create_provider(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    # Only a genuinely-inserted row is safe to undo by deletion. An upsert that
+    # UPDATED a pre-existing (name, provider_type) row must NOT be undone by
+    # deleting that row — return None so the undo endpoint reports "no inverse".
+    if not after or not after.get("created"):
+        return None
+    pid = after.get("provider_id")
+    return ("provider.delete", {"provider_id": pid}) if pid else None
+
+
+@action(
+    "provider.create",
+    ProviderCreateParams,
+    domains=["provider"],
+    undoable=True,
+    invert=_invert_create_provider,
+)
+def _action_create_provider(
+    db, params: ProviderCreateParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    app_db = get_app_db()
+    provider, created = create_provider_impl(app_db, params)
+    spec = ChangeSpec(
+        domains=["provider"],
+        target_ids=[provider.id],
+        before=None,
+        after={"provider_id": provider.id, "created": created},
+        emit_type="provider.created",
+    )
+    return _provider_public_dict(provider), spec
+
+
+# -- provider.update ---------------------------------------------------------
+
+
+def _invert_update_provider(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not before or not before.get("provider_id"):
+        return None
+    # Restore the prior config fields. api_key=None means "leave the key alone"
+    # (secrets are never snapshotted, so they can't be reversed). PATCH semantics
+    # mean a field that was originally None can't be reset to None by the inverse
+    # — documented limitation; the common name/enabled/api_base(str) cases reverse
+    # faithfully.
+    return (
+        "provider.update",
+        {
+            "provider_id": before["provider_id"],
+            "name": before.get("name"),
+            "api_base": before.get("api_base"),
+            "enabled": before.get("enabled"),
+            "api_key": None,
+        },
+    )
+
+
+@action(
+    "provider.update",
+    ProviderUpdateParams,
+    domains=["provider"],
+    undoable=True,
+    invert=_invert_update_provider,
+)
+def _action_update_provider(
+    db, params: ProviderUpdateParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    app_db = get_app_db()
+    existing = app_db.get_provider(params.provider_id)
+    if existing is None:
+        raise HTTPException(
+            status_code=404, detail=f"Provider not found: {params.provider_id}"
+        )
+    before = {
+        "provider_id": existing.id,
+        "name": existing.name,
+        "api_base": existing.api_base,
+        "enabled": existing.enabled,
+    }
+    update_req = ProviderUpdate(
+        name=params.name,
+        api_base=params.api_base,
+        enabled=params.enabled,
+        api_key=params.api_key,
+    )
+    provider = update_provider_impl(app_db, params.provider_id, update_req)
+    after = {
+        "provider_id": provider.id,
+        "name": provider.name,
+        "api_base": provider.api_base,
+        "enabled": provider.enabled,
+    }
+    spec = ChangeSpec(
+        domains=["provider"],
+        target_ids=[provider.id],
+        before=before,
+        after=after,
+        emit_type="provider.updated",
+    )
+    return _provider_public_dict(provider), spec
+
+
+# -- provider.delete + provider.restore --------------------------------------
+
+
+def _invert_delete_provider(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not before or not before.get("provider"):
+        return None
+    return (
+        "provider.restore",
+        {"provider": before["provider"], "models": before.get("models", [])},
+    )
+
+
+@action(
+    "provider.delete",
+    ProviderDeleteParams,
+    domains=["provider"],
+    undoable=True,
+    invert=_invert_delete_provider,
+)
+def _action_delete_provider(
+    db, params: ProviderDeleteParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    app_db = get_app_db()
+    existing = app_db.get_provider(params.provider_id)
+    if existing is None:
+        raise HTTPException(
+            status_code=404, detail=f"Provider not found: {params.provider_id}"
+        )
+    # Snapshot the provider + its (cascade-deleted) models BEFORE deletion so the
+    # inverse (provider.restore) can re-create the whole set. The keychain API key
+    # is intentionally NOT snapshotted (secret) — restore brings back config, not
+    # the key.
+    models = app_db.list_models(params.provider_id)
+    before = {
+        "provider": existing.model_dump(mode="json"),
+        "models": [m.model_dump(mode="json") for m in models],
+    }
+    delete_provider_impl(app_db, params.provider_id)
+    spec = ChangeSpec(
+        domains=["provider"],
+        target_ids=[params.provider_id],
+        before=before,
+        after={"provider_id": params.provider_id, "deleted": True},
+        emit_type="provider.deleted",
+    )
+    return {"status": "deleted", "provider_id": params.provider_id}, spec
+
+
+@action(
+    "provider.restore",
+    RestoreProviderParams,
+    domains=["provider"],
+    undoable=False,
+)
+def _action_restore_provider(
+    db, params: RestoreProviderParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    app_db = get_app_db()
+    provider = Provider.model_validate(params.provider)
+    app_db.save_provider(provider)  # ON CONFLICT(id) -> restores the same row
+    restored_models: list[str] = []
+    for raw in params.models:
+        model = Model.model_validate(raw)
+        app_db.save_model(model)
+        restored_models.append(model.id)
+    spec = ChangeSpec(
+        domains=["provider"],
+        target_ids=[provider.id],
+        after={"provider_id": provider.id, "model_ids": restored_models},
+        emit_type="provider.created",
+    )
+    return _provider_public_dict(provider), spec
+
+
+# -- provider.remove_model + provider.restore_model --------------------------
+
+
+def _invert_remove_model(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not before or not before.get("model"):
+        return None
+    return ("provider.restore_model", {"model": before["model"]})
+
+
+@action(
+    "provider.remove_model",
+    RemoveModelParams,
+    domains=["provider"],
+    undoable=True,
+    invert=_invert_remove_model,
+)
+def _action_remove_model(
+    db, params: RemoveModelParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    app_db = get_app_db()
+    models = app_db.list_models(params.provider_id)
+    model = next((m for m in models if m.id == params.model_id), None)
+    if model is None:
+        raise HTTPException(
+            status_code=404, detail=f"Model not found: {params.model_id}"
+        )
+    before = {"model": model.model_dump(mode="json")}
+    remove_model_impl(app_db, params.provider_id, params.model_id)
+    spec = ChangeSpec(
+        domains=["provider"],
+        target_ids=[params.model_id],
+        before=before,
+        after={"model_id": params.model_id, "removed": True},
+        emit_type="provider.model_removed",
+    )
+    return {"status": "deleted", "model_id": params.model_id}, spec
+
+
+@action(
+    "provider.restore_model",
+    RestoreModelParams,
+    domains=["provider"],
+    undoable=False,
+)
+def _action_restore_model(
+    db, params: RestoreModelParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    app_db = get_app_db()
+    model = Model.model_validate(params.model)
+    app_db.save_model(model)
+    spec = ChangeSpec(
+        domains=["provider"],
+        target_ids=[model.id],
+        after={"model_id": model.id},
+        emit_type="provider.model_added",
+    )
+    return {"model_id": model.id}, spec
+
+
+# -- provider.update_ref (library ProviderRef) -------------------------------
+
+
+def _invert_update_ref(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not before or not before.get("ref_id"):
+        return None
+    # enabled + sort_order are always captured (non-null), so this round-trips
+    # exactly — unlike provider.update there's no null-reset gap here.
+    return (
+        "provider.update_ref",
+        {
+            "ref_id": before["ref_id"],
+            "enabled": before.get("enabled"),
+            "sort_order": before.get("sort_order"),
+        },
+    )
+
+
+@action(
+    "provider.update_ref",
+    UpdateProviderRefParams,
+    domains=["provider"],
+    undoable=True,
+    invert=_invert_update_ref,
+)
+def _action_update_ref(
+    db, params: UpdateProviderRefParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    existing = db.get(ProviderRef, params.ref_id)
+    if existing is None:
+        raise HTTPException(
+            status_code=404, detail=f"Provider reference not found: {params.ref_id}"
+        )
+    before = {
+        "ref_id": existing.id,
+        "enabled": existing.enabled,
+        "sort_order": existing.sort_order,
+    }
+    req = ProviderRefUpdate(enabled=params.enabled, sort_order=params.sort_order)
+    ref = update_provider_ref_impl(db, params.ref_id, req)
+    after = {"ref_id": ref.id, "enabled": ref.enabled, "sort_order": ref.sort_order}
+    spec = ChangeSpec(
+        domains=["provider"],
+        target_ids=[ref.id],
+        before=before,
+        after=after,
+        emit_type="provider.ref_updated",
+    )
+    return ref.model_dump(mode="json"), spec
+
+
+# -- provider.delete_ref + provider.restore_ref ------------------------------
+
+
+def _invert_delete_ref(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not before or not before.get("ref"):
+        return None
+    return ("provider.restore_ref", {"ref": before["ref"]})
+
+
+@action(
+    "provider.delete_ref",
+    DeleteProviderRefParams,
+    domains=["provider"],
+    undoable=True,
+    invert=_invert_delete_ref,
+)
+def _action_delete_ref(
+    db, params: DeleteProviderRefParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    existing = db.get(ProviderRef, params.ref_id)
+    if existing is None:
+        raise HTTPException(
+            status_code=404, detail=f"Provider reference not found: {params.ref_id}"
+        )
+    before = {"ref": existing.model_dump(mode="json")}
+    delete_provider_ref_impl(db, params.ref_id)
+    spec = ChangeSpec(
+        domains=["provider"],
+        target_ids=[params.ref_id],
+        before=before,
+        after={"ref_id": params.ref_id, "deleted": True},
+        emit_type="provider.ref_deleted",
+    )
+    return {"status": "deleted", "ref_id": params.ref_id}, spec
+
+
+@action(
+    "provider.restore_ref",
+    RestoreProviderRefParams,
+    domains=["provider"],
+    undoable=False,
+)
+def _action_restore_ref(
+    db, params: RestoreProviderRefParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    ref = ProviderRef.model_validate(params.ref)
+    db.save(ref)
+    spec = ChangeSpec(
+        domains=["provider"],
+        target_ids=[ref.id],
+        after={"ref_id": ref.id},
+        emit_type="provider.ref_added",
+    )
+    return ref.model_dump(mode="json"), spec
