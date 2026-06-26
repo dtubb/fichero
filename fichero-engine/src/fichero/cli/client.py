@@ -23,6 +23,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -207,7 +208,7 @@ class FicheroClient:
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
         if self.library_path:
-            headers["X-Fichero-Library-Path"] = self.library_path
+            headers["X-Fichero-Library-Path"] = quote(self.library_path, safe="/")
         return headers
 
     def request(

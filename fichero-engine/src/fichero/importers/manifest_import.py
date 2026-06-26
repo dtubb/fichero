@@ -159,7 +159,9 @@ class HttpManifestClient:
         url = f"{self.api_base}{path}"
         headers = {
             "Authorization": f"Bearer {self.token}",
-            "X-Fichero-Library-Path": self.library_path,
+            "X-Fichero-Library-Path": urllib.parse.quote(
+                self.library_path, safe="/"
+            ),
         }
         data = None
         if body is not None:

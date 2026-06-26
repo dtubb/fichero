@@ -40,6 +40,7 @@ os.environ.setdefault("LANGGRAPH_STRICT_MSGPACK", "true")
 # so app_db_path resolves under a per-process tmp dir.
 import tempfile as _tempfile
 import pathlib as _pathlib
+from urllib.parse import quote
 
 def _make_test_base_path() -> _pathlib.Path:
     """Create a per-process base path for test-only app storage.
@@ -267,7 +268,7 @@ def client(test_package, app_db):
     # Create client with default headers
     client = TestClient(
         app,
-        headers={"X-Fichero-Library-Path": str(test_package)}
+        headers={"X-Fichero-Library-Path": quote(str(test_package), safe="/")}
     )
 
     yield client

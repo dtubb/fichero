@@ -781,7 +781,7 @@ app.add_middleware(
 @app.middleware("http")
 async def validate_library_path_header(request: Request, call_next):
     """Validate library header early, even when dependencies are overridden in tests."""
-    library_path = request.headers.get("X-Fichero-Library-Path")
+    library_path = optional_library_path(request)
     if library_path and not _is_allowed_library_path(library_path):
         from fastapi.responses import JSONResponse
 

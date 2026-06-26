@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 from contextlib import contextmanager
+from urllib.parse import quote
 
 import httpx
 import pytest
@@ -252,7 +253,9 @@ def test_auth_and_library_headers_are_set(monkeypatch):
     with _mock_client(monkeypatch, body=[]) as seen:
         mcp_server.fichero_activity()
     assert seen[0].headers["authorization"] == "Bearer test-token"
-    assert seen[0].headers["x-fichero-library-path"] == "/tmp/Lib.fichero"
+    assert seen[0].headers["x-fichero-library-path"] == quote(
+        "/tmp/Lib.fichero", safe="/"
+    )
 
 
 def test_create_note_hits_core_notes_endpoint(monkeypatch):

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import shutil
+from urllib.parse import quote
 
 from fastapi.testclient import TestClient
 
@@ -232,3 +233,31 @@ def test_import_can_target_seeded_inbox_from_root_lookup(tmp_path: Path) -> None
     assert import_response.status_code == 200, import_response.text
     body = import_response.json()
     assert body["parent_id"] == inbox["id"]
+
+
+def test_open_library_accepts_percent_encoded_non_ascii_header(
+    tmp_path: Path,
+    client: TestClient,
+) -> None:
+    """Encoded non-ASCII library paths must round-trip through the header.
+
+    Uses the shared ``client`` fixture (carries the auth bearer token via the
+    ``_unit_test_auth_header`` autouse fixture) so the request reaches the
+    library-path logic instead of being rejected at the shared-secret auth
+    gate. The ``X-Fichero-Library-Path`` header is overridden per-request with
+    the percent-encoded non-ASCII path — modelling what a correct client
+    sends. See #2647 for why the bare ``_client()`` helper 401s.
+    """
+    target = tmp_path / "Chocó_Librería.fichero"
+
+    response = client.post("/api/library", json={"path": str(target)})
+    assert response.status_code == 200, response.text
+
+    encoded_headers = {
+        "X-Fichero-Library-Path": quote(str(target), safe="/"),
+    }
+    collections = client.get("/api/documents/collections", headers=encoded_headers)
+
+    assert collections.status_code == 200, collections.text
+    items = collections.json()["items"]
+    assert any(item["name"] == "Inbox" for item in items)

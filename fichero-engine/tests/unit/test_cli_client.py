@@ -6,6 +6,7 @@ The HTTP layer is mocked with httpx.MockTransport — no live backend required.
 from __future__ import annotations
 
 import json
+from urllib.parse import quote
 
 import httpx
 import pytest
@@ -53,7 +54,9 @@ def test_auth_header_is_set():
 def test_library_path_header_is_set():
     handler, seen = _capture(response=[])
     _client(handler, library_path="/tmp/My.fichero").list_documents()
-    assert seen[0].headers["x-fichero-library-path"] == "/tmp/My.fichero"
+    assert seen[0].headers["x-fichero-library-path"] == quote(
+        "/tmp/My.fichero", safe="/"
+    )
 
 
 def test_empty_token_omits_auth_header():
@@ -588,7 +591,7 @@ def test_request_picks_up_library_path_after_startup_gap(monkeypatch):
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append(request)
         library_path = request.headers.get("x-fichero-library-path")
-        if library_path != "/tmp/Lib.fichero":
+        if library_path != quote("/tmp/Lib.fichero", safe="/"):
             return httpx.Response(403, text="missing or invalid X-Fichero-Library-Path")
         return httpx.Response(200, json=[])
 
@@ -604,7 +607,9 @@ def test_request_picks_up_library_path_after_startup_gap(monkeypatch):
 
     assert docs == []
     assert len(seen) == 1
-    assert seen[0].headers["x-fichero-library-path"] == "/tmp/Lib.fichero"
+    assert seen[0].headers["x-fichero-library-path"] == quote(
+        "/tmp/Lib.fichero", safe="/"
+    )
 
 
 def test_base_url_falls_back_to_default(monkeypatch):

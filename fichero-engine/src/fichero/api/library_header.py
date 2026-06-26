@@ -4,6 +4,8 @@ The Swift client injects ``X-Fichero-Library-Path`` as a transport header.
 Routes should not declare it as an OpenAPI operation parameter.
 """
 
+from urllib.parse import unquote
+
 from fastapi import HTTPException, Request
 
 LIBRARY_PATH_HEADER = "X-Fichero-Library-Path"
@@ -11,7 +13,8 @@ LIBRARY_PATH_HEADER = "X-Fichero-Library-Path"
 
 def optional_library_path(request: Request) -> str | None:
     """Read the library path transport header without exposing it in OpenAPI."""
-    return request.headers.get(LIBRARY_PATH_HEADER)
+    library_path = request.headers.get(LIBRARY_PATH_HEADER)
+    return unquote(library_path) if library_path is not None else None
 
 
 def require_library_path(request: Request) -> str:
