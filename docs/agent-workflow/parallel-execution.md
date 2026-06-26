@@ -1,7 +1,7 @@
 # Parallel Execution & Review Process
 
 How to use single sessions, subagents, and agent teams on Fichero — and how to
-keep the lead agent's context clean during the 0.0.2 bug sweep.
+keep the lead agent's context clean during the main-branch bug sweep.
 
 ## The core problem this solves
 
@@ -39,7 +39,7 @@ Agent teams are **enabled** in `~/.claude/settings.json`
 
 ### Do NOT use an agent team
 
-- **The 0.0.2 backend fix cluster** — fixes overlap in the same files
+- **The backend fix cluster** — fixes overlap in the same files
   (`extract_all.py`, `extractors.py`, `runner.py`). Parallel teammates overwrite
   each other. Single session; use subagents only for the read-only investigation.
 - **The SwiftUI bug cluster** — one Xcode, one DerivedData, one `⌘R`. Teammates
@@ -53,13 +53,13 @@ Agent teams are **enabled** in `~/.claude/settings.json`
 | Build / lint / test a change | **subagent** (`test-runner`) | report-back task; keeps lead context clean |
 | Investigate a bug / trace a path | **subagent** (`Explore`, `feature-dev:code-explorer`) | result-only, no coordination cost |
 | Review a finished sweep before commit | **agent team** (3 reviewers) | independent lenses, the QA gate |
-| 0.0.2 backend fix sweep | **single session** + investigation subagents | overlapping files kill team parallelism |
-| 0.0.2 SwiftUI fixes | **single session** | serialized on one Xcode |
+| backend fix sweep | **single session** + investigation subagents | overlapping files kill team parallelism |
+| SwiftUI fixes | **single session** | serialized on one Xcode |
 | 0.0.3+ cross-layer feature | **agent team** (backend / swift / test) | disjoint file ownership = real parallelism |
 
 ## QA review gate (issue #1061)
 
-Before committing a sweep of bug fixes to `0.0.2`, run a review team instead of
+Before committing a sweep of bug fixes to `main`, run a review team instead of
 self-certifying. This is the safest place to use agent teams and the fix for the
 "no review gate" gap.
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Manager/integrator check for finished worker work not merged to 0.0.2.
+"""Manager/integrator check for finished worker work not merged to main.
 
 This is intentionally not part of scripts/verify_all.sh --fast. Dirty or active
 worktree state should not fail a per-commit code-quality gate; managers and
@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-BASE_REF = "origin/0.0.2"
+BASE_REF = "origin/main"
 WORKTREE_ROOTS = (
     Path.home() / "code" / "fichero-worktrees",
     ROOT / ".claude" / "worktrees",
@@ -56,7 +56,7 @@ def _ensure_base_ref() -> str | None:
     result = _git(["rev-parse", "--verify", "--quiet", BASE_REF], check=False)
     if result.returncode == 0:
         return None
-    return f"Missing comparison ref {BASE_REF}. Run `git fetch origin 0.0.2` and retry."
+    return f"Missing comparison ref {BASE_REF}. Run `git fetch origin main` and retry."
 
 
 def _ahead_commits(ref: str, cwd: Path = ROOT) -> tuple[str, ...]:
@@ -166,7 +166,7 @@ def main(argv: list[str]) -> int:
     print(f"Worker branch patterns: {', '.join(WORKER_BRANCH_PATTERNS)}")
 
     if not findings:
-        print("\nPASS: no worker work found ahead of 0.0.2.")
+        print("\nPASS: no worker work found ahead of main.")
         return 0
 
     print(f"\nFAIL: {len(findings)} unmerged worker work item(s) found.\n")

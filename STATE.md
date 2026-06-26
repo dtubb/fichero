@@ -1,3 +1,33 @@
+# STATE — 2026-06-26 (0.0.2 → main MERGED via PR #2652; worktrees purged; TestFlight next)
+
+Branch `main` @ **6437c140** (= `origin/main`, clean). The `0.0.2` working line is merged to `main` via PR #2652 (real merge commit, parents `0f5665ad` + `1ec14343`). **`main` is now the working branch** — `.claude/CLAUDE.md` `WORKING_BRANCH` updated, `CONSTITUTION.md` + `docs/agent-workflow/*` + `scripts/check_unmerged_work.py` swept for `0.0.2` working-branch refs. All 8 stale worktrees purged (`git worktree remove --force`); only the `main` checkout remains.
+
+## DONE THIS SESSION
+- **Merge**: PR #2652 → `origin/main` = `6437c140`. Not a fast-forward (main had 2 old PR-merge commits); merged with `--merge` for a real merge commit.
+- **Worktree purge**: codex-execpkg, codex-execrunner, codex-multiplat, codex-wf2525, codex-wf2627b, codex-winchrome, integrate-batch5-20260626, integrate-frontend-batch-20260625 — all removed. Branches preserved (held `#2594` work still on codex-execpkg/codex-execrunner).
+- **Reference sweep** (`0.0.2` → `main` in active instructions): `.claude/CLAUDE.md`, `CONSTITUTION.md`, `docs/agent-workflow/skills/dispatch-worker.md`, `docs/agent-workflow/parallel-execution.md`, `docs/agent-workflow/github-conventions.md`, `docs/architecture/swiftui/workflow_checklist.md`, `scripts/check_unmerged_work.py`. Historical records (`HISTORY.md`, `MEMORY.md`, dated `docs/design/*`, `docs/archive/*`, release-notes-0.0.2.md, `v0.0.2` release tag) left as-is.
+- **Test hangs filed, NOT silently merged past**: #2650 (execute-route blocks in-process at `client.post` — `test_routes_workflow_execution.py` 16th test), #2651 (2nd hang — DuckDB/lancedb connection deadlock mid-suite). Plus #2649 (guardrail allowlist drift).
+
+## GATE STRENGTH (acknowledged debt — fix AFTER release)
+Daniel: "verify_all is important, but when there are errors we're not fixing them — our gate isn't strong enough." Accepted. The structural fix is **conftest app-DB isolation + seeding** (the backend suite shares `app.duckdb` with the live engine → contaminated when the engine is up; isolation alone breaks the suite on an empty DB). Deferred to the post-release testing-cleanup pass along with #2649/#2650/#2651. Path B for the release: merge on "no new correctness regressions," don't detour into fixing the gate now.
+
+## NEXT — TESTFLIGHT RELEASE (the goal)
+Sequence per Daniel: merge (✅) → TestFlight → GitHub release → then testing cleanup → then backend + issues on `main`.
+1. #158 — App Store Connect API key for notarization.
+2. #159 — verify Sparkle EdDSA private key matches the public key in Info.plist.
+3. #160 — build engine + signed Release app + DMG.
+4. #161 — notarize DMG + staple ticket.
+5. #162 — Sparkle-sign DMG + GitHub release on `fichero-releases` + tag source.
+6. #163 — wire real download URL in site/index.md + deploy site.
+7. #164 — smoke test: download fresh DMG on a clean Mac account / after `xattr -cr`.
+
+## POST-RELEASE (deferred)
+- Testing-cleanup pass: #2649 (guardrail allowlist), #2650 (execute-route hang root-cause), #2651 (DuckDB/lancedb deadlock — identify the test), + conftest app-DB isolation+seeding (the structural gate fix).
+- Then: proceed on backend + issues on `origin/main`.
+
+GOTCHAS: working branch is now `main` — commit work directly to `main` (PR still required to push). Worktrees branch from `main`, live ONLY under `~/code/fichero-worktrees/`. Never `rm -rf` a bare `~/code/fichero-*` sibling. The `0.0.2` branch still exists (preserved for history); do not start new work on it.
+
+---
 # STATE — 2026-06-25 (manager takeover from Claude; 0.0.2 cleaned, pushed, workers shut down)
 
 Branch `0.0.2` @ **c8775216** (= `origin/0.0.2`, clean). I took over the manager lane from Claude's rate-limited session, recovered its session history, reconciled the live worktrees/branches, pushed the two held-local `#2594` commits, cleaned the dirty tree, filed the new PDF fan-out efficiency bug, and shut down the stale worker tmux sessions (`f_knowledge`, `f_mindpalace`, `f_runner`).
