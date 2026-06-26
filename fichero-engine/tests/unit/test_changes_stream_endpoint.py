@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -21,6 +22,11 @@ from fichero.api.routes import changes
 class _FakeRequest:
     def __init__(self) -> None:
         self.disconnected = False
+        # The route calls assert_library_read_authorized before opening the
+        # stream (#2025 authz chokepoint). Mark the request as bootstrap-authed
+        # so it takes the early-return path — these tests exercise the SSE
+        # framing/delivery, not authorization (covered in test_authz_*).
+        self.state = SimpleNamespace(bootstrap_auth=True, user=None)
 
     async def is_disconnected(self) -> bool:
         return self.disconnected
