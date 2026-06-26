@@ -4060,6 +4060,20 @@ def register_generated_openapi_commands(
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("export-the-library-knowledge-graph-as-rdf")
+    def kg_export_the_library_knowledge_graph_as_rdf_get(
+        ctx: typer.Context,
+        format: Optional[str] = typer.Option(None, "--format", help="Query parameter: format."),
+    ) -> None:
+        """Export the library knowledge graph as RDF (GET /api/kg/export/rdf)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/kg/export/rdf"
+            params = {
+                "format": format,
+            }
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("top-k-entities-by-composite-centrality")
     def kg_top_k_entities_by_composite_centrality_get(
         ctx: typer.Context,
@@ -4743,6 +4757,31 @@ def register_generated_openapi_commands(
             return client.request("GET", path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("list-example-queries")
+    def kg_list_example_queries_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List example KG queries (GET /api/kg/query/examples)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/kg/query/examples"
+            params = None
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("run-a-sparql-query-against-the-library-s-rdf-graph")
+    def kg_run_a_sparql_query_against_the_library_s_rdf_graph_post(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Run a SPARQL query against the library's RDF graph (POST /api/kg/query/sparql)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/kg/query/sparql"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("backfill-derived-stores")
     def kg_backfill_derived_stores_post(
         ctx: typer.Context,
@@ -4892,13 +4931,13 @@ def register_generated_openapi_commands(
             return client.request("GET", path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("run-a-sparql-query-against-the-library-s-rdf-graph")
-    def kg_run_a_sparql_query_against_the_library_s_rdf_graph_post(
+    @target_app.command("run-a-sparql-query-against-the-library-s-rdf-graph-legacy-path")
+    def kg_run_a_sparql_query_against_the_library_s_rdf_graph_legacy_path_post(
         ctx: typer.Context,
         body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
         body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
     ) -> None:
-        """Run a SPARQL query against the library's RDF graph (POST /api/kg/sparql)."""
+        """Run a SPARQL query against the library's RDF graph (legacy path) (POST /api/kg/sparql)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/sparql"
             params = None

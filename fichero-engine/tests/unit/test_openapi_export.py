@@ -112,3 +112,16 @@ def test_library_path_header_is_not_an_operation_parameter():
                     offenders.append(f"{method.upper()} {path}")
 
     assert offenders == []
+
+
+def test_kg_query_and_export_surface_is_present():
+    """The organized KG SPARQL/RDF surface should be discoverable in OpenAPI."""
+    exporter = _load_exporter()
+    schema = exporter.build_openapi_schema()
+    paths = schema.get("paths", {})
+
+    assert "/api/kg/query/examples" in paths
+    assert "/api/kg/query/sparql" in paths
+    assert "/api/kg/export/rdf" in paths
+    assert "/api/kg/sparql" in paths
+    assert paths["/api/kg/sparql"]["post"].get("deprecated") is True

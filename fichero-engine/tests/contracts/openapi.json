@@ -21239,14 +21239,36 @@
         }
       }
     },
-    "/api/kg/sparql": {
+    "/api/kg/query/examples": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "List example KG queries",
+        "description": "Returns curated SPARQL example queries so the KG query surface is discoverable in OpenAPI and the frontend can seed a query console.",
+        "operationId": "sparql_examples_api_kg_query_examples_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SparqlExamplesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/query/sparql": {
       "post": {
         "tags": [
           "knowledge-graph"
         ],
         "summary": "Run a SPARQL query against the library's RDF graph",
         "description": "Materializes the entity + claim store as an rdflib Graph (using the standard W3C ontology \u2014 foaf/schema/skos plus the fichero: namespace for SVO predicates) and runs the SPARQL query. Read-only; mutating verbs are rejected.",
-        "operationId": "sparql_query_api_kg_sparql_post",
+        "operationId": "sparql_query_api_kg_query_sparql_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -21267,6 +21289,94 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/sparql": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Run a SPARQL query against the library's RDF graph (legacy path)",
+        "description": "Compatibility alias for the canonical ``/api/kg/query/sparql`` route. Kept so existing callers continue to work while the KG query/export surface is reorganized.",
+        "operationId": "sparql_query_legacy_api_kg_sparql_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SparqlRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SparqlResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/kg/export/rdf": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Export the library knowledge graph as RDF",
+        "description": "Materializes the entity + claim store as RDF and serializes it for external linked-data tooling. Supports N-Triples, Turtle, JSON-LD, and RDF/XML.",
+        "operationId": "export_rdf_api_kg_export_rdf_get",
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "nt",
+                "turtle",
+                "json-ld",
+                "xml"
+              ],
+              "type": "string",
+              "description": "RDF serialization format.",
+              "default": "turtle",
+              "title": "Format"
+            },
+            "description": "RDF serialization format."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -55079,6 +55189,51 @@
         ],
         "title": "SourceUpsertResponse",
         "description": "Response after upserting or reading a source document."
+      },
+      "SparqlExampleQuery": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "query": {
+            "type": "string",
+            "title": "Query"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "description",
+          "query"
+        ],
+        "title": "SparqlExampleQuery",
+        "description": "Saved/example query exposed so the frontend has visible seed content."
+      },
+      "SparqlExamplesResponse": {
+        "properties": {
+          "examples": {
+            "items": {
+              "$ref": "#/components/schemas/SparqlExampleQuery"
+            },
+            "type": "array",
+            "title": "Examples"
+          }
+        },
+        "type": "object",
+        "required": [
+          "examples"
+        ],
+        "title": "SparqlExamplesResponse"
       },
       "SparqlRequest": {
         "properties": {

@@ -3401,6 +3401,8 @@ def check(ctx: typer.Context) -> None:
         "/api/search/stats", "/api/activity", "/api/entities/top",
         "/api/entities", "/api/kg/search", "/api/kg/graph/communities",
         "/api/kg/graph/neighborhood/{entity_id}", "/api/kg/sparql",
+        "/api/kg/query/examples", "/api/kg/query/sparql",
+        "/api/kg/export/rdf",
         "/api/settings/ai-defaults", "/api/providers", "/api/artifacts",
         "/api/kg/entity-curation/audit",
     }

@@ -4111,6 +4111,22 @@
       },
       {
         "method": "GET",
+        "path": "/kg/export/rdf",
+        "operation_id": "export_rdf_api_kg_export_rdf_get",
+        "summary": "Export the library knowledge graph as RDF",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "format",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
         "path": "/kg/graph/centrality",
         "operation_id": "centrality_api_kg_graph_centrality_get",
         "summary": "Top-k entities by composite centrality",
@@ -4846,6 +4862,26 @@
         "response_model": "TrainingResult"
       },
       {
+        "method": "GET",
+        "path": "/kg/query/examples",
+        "operation_id": "sparql_examples_api_kg_query_examples_get",
+        "summary": "List example KG queries",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SparqlExamplesResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/kg/query/sparql",
+        "operation_id": "sparql_query_api_kg_query_sparql_post",
+        "summary": "Run a SPARQL query against the library's RDF graph",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SparqlRequest",
+        "response_model": "SparqlResponse"
+      },
+      {
         "method": "POST",
         "path": "/kg/rebuild",
         "operation_id": "rebuild_kg_api_kg_rebuild_post",
@@ -5000,8 +5036,8 @@
       {
         "method": "POST",
         "path": "/kg/sparql",
-        "operation_id": "sparql_query_api_kg_sparql_post",
-        "summary": "Run a SPARQL query against the library's RDF graph",
+        "operation_id": "sparql_query_legacy_api_kg_sparql_post",
+        "summary": "Run a SPARQL query against the library's RDF graph (legacy path)",
         "path_params": [],
         "query_params": [],
         "request_model": "SparqlRequest",
