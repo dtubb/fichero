@@ -3,7 +3,6 @@
 import logging
 
 from fastapi import APIRouter, HTTPException, Depends
-from fastapi.responses import Response
 from pydantic import BaseModel
 
 from fichero.db import Database
@@ -103,56 +102,20 @@ async def get_workflow_visualization_png(
     workflow_id: str,
     db: Database = Depends(get_library_database),
     xray: bool = False,
-) -> Response:
+) -> WorkflowVisualizationResponse:
     """
-    Get visualization as PNG image for a workflow.
+    Get visualization data for a workflow.
 
-    Returns the workflow graph as a PNG image.
+    Returns Mermaid code that can be rendered as a graph diagram.
 
     Args:
         workflow_id: Workflow ID
         xray: If True, show internal subgraph details
 
     Returns:
-        PNG image of the workflow graph
+        Mermaid diagram code and workflow metadata
     """
-    try:
-        # Load workflow
-        store = WorkflowStore(db)
-        workflow = store.get(workflow_id)
-        if not workflow:
-            raise HTTPException(
-                status_code=404, detail=f"Workflow not found: {workflow_id}"
-            )
-
-        workflow_def = to_workflow_def(workflow)
-
-        # Build compiled graph
-        from fichero.workflows.builder import build_graph  # noqa: PLC0415
-        from langchain_core.runnables.graph import MermaidDrawMethod  # noqa: PLC0415
-        app = build_graph(workflow_def, enable_parallel=True, checkpointer=None)
-
-        # Get PNG bytes using local PYPPETEER rendering, not remote mermaid.ink.
-        # draw_mermaid_png is SYNC and internally calls asyncio.run(), which cannot be
-        # nested inside this async route's running event loop (#2473). Offload to a
-        # worker thread so the nested asyncio.run() gets a loop-free thread.
-        from starlette.concurrency import run_in_threadpool  # noqa: PLC0415
-        graph_obj = app.get_graph(xray=xray)
-        png_bytes = await run_in_threadpool(
-            graph_obj.draw_mermaid_png, draw_method=MermaidDrawMethod.PYPPETEER
-        )
-
-        return Response(
-            content=png_bytes,
-            media_type="image/png",
-            headers={"Content-Disposition": f'inline; filename="{workflow.name}.png"'},
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception(f"Failed to generate PNG for workflow {workflow_id}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return await get_workflow_visualization(workflow_id, db, xray)
 
 
 @router.get("/workflows/{workflow_id}/code")

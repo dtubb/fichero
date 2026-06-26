@@ -2563,7 +2563,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "$ref": "#/components/schemas/fichero__knowledge_models__ProjectStatus",
+              "$ref": "#/components/schemas/fichero__knowledge__knowledge_models__ProjectStatus",
               "nullable": true,
               "title": "Status"
             }
@@ -8479,7 +8479,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "$ref": "#/components/schemas/fichero__knowledge_models__EntityType",
+              "$ref": "#/components/schemas/fichero__knowledge__knowledge_models__EntityType",
               "nullable": true,
               "title": "Entity Type"
             }
@@ -8613,7 +8613,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "$ref": "#/components/schemas/fichero__knowledge_models__EntityType",
+              "$ref": "#/components/schemas/fichero__knowledge__knowledge_models__EntityType",
               "nullable": true,
               "title": "Entity Type"
             }
@@ -17283,7 +17283,7 @@
           "workflow-execution"
         ],
         "summary": "Get Workflow Visualization Png",
-        "description": "Get visualization as PNG image for a workflow.\n\nReturns the workflow graph as a PNG image.\n\nArgs:\n    workflow_id: Workflow ID\n    xray: If True, show internal subgraph details\n\nReturns:\n    PNG image of the workflow graph",
+        "description": "Get visualization data for a workflow.\n\nReturns Mermaid code that can be rendered as a graph diagram.\n\nArgs:\n    workflow_id: Workflow ID\n    xray: If True, show internal subgraph details\n\nReturns:\n    Mermaid diagram code and workflow metadata",
         "operationId": "get_workflow_visualization_png_api_workflow_execution_workflows__workflow_id__visualization_png_get",
         "parameters": [
           {
@@ -17311,7 +17311,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowVisualizationResponse"
+                }
               }
             }
           },
@@ -21259,7 +21261,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "$ref": "#/components/schemas/fichero__knowledge_models__EntityType",
+              "$ref": "#/components/schemas/fichero__knowledge__knowledge_models__EntityType",
               "nullable": true,
               "title": "Entity Type"
             }
@@ -25996,7 +25998,7 @@
           "mind-palace"
         ],
         "summary": "Arrange Folder Canvas",
-        "description": "Lay out a folder's nodes by ``strategy`` and persist the transforms.\n\nComputes positions (grid/row/column/circle/stack) and upserts one\n``canvas_layout`` row per node, then returns the persisted rows in the\nstandard ``{items, count}`` envelope.",
+        "description": "Lay out a folder's nodes by ``strategy`` and persist the transforms.\n\nComputes positions (grid/row/column/circle/stack), writes them onto the\nunderlying child documents, then returns the compatibility payload in the\nstandard ``{items, count}`` envelope.",
         "operationId": "arrange_folder_canvas_api_mind_palace_folders__folder_id__arrange_post",
         "parameters": [
           {
@@ -35150,7 +35152,7 @@
           "item_id"
         ],
         "title": "CanvasLayoutItem",
-        "description": "One item's position within a folder's spatial canvas (upsert payload).\n\n``folder_id`` is taken from the path, never the body, so a batch can only\nwrite rows for the folder it is addressed to."
+        "description": "One item's position within a folder's spatial canvas.\n\n``folder_id`` is taken from the path, never the body, so a batch can only\nupdate document-backed positions for the folder it is addressed to."
       },
       "CanvasLayoutSaveRequest": {
         "properties": {
@@ -35167,7 +35169,7 @@
           "items"
         ],
         "title": "CanvasLayoutSaveRequest",
-        "description": "Batch of item positions to upsert for a folder (one drag \u2192 one save)."
+        "description": "Batch of item positions to persist for a folder (one drag -> one save)."
       },
       "CaptureRegion": {
         "type": "string",
@@ -40977,7 +40979,7 @@
             "title": "Canonical Name"
           },
           "entity_type": {
-            "$ref": "#/components/schemas/fichero__knowledge_models__EntityType",
+            "$ref": "#/components/schemas/fichero__knowledge__knowledge_models__EntityType",
             "nullable": true
           },
           "aliases": {
@@ -41080,7 +41082,7 @@
             "title": "Match Canonical Name"
           },
           "match_entity_type": {
-            "$ref": "#/components/schemas/fichero__knowledge_models__EntityType",
+            "$ref": "#/components/schemas/fichero__knowledge__knowledge_models__EntityType",
             "nullable": true
           },
           "target_canonical_name": {
@@ -41089,7 +41091,7 @@
             "title": "Target Canonical Name"
           },
           "target_entity_type": {
-            "$ref": "#/components/schemas/fichero__knowledge_models__EntityType",
+            "$ref": "#/components/schemas/fichero__knowledge__knowledge_models__EntityType",
             "nullable": true
           },
           "reason": {
@@ -41335,7 +41337,7 @@
             "title": "Canonical Name"
           },
           "entity_type": {
-            "$ref": "#/components/schemas/fichero__knowledge_models__EntityType",
+            "$ref": "#/components/schemas/fichero__knowledge__knowledge_models__EntityType",
             "default": "other"
           },
           "aliases": {
@@ -50483,7 +50485,7 @@
             "title": "Icon"
           },
           "status": {
-            "$ref": "#/components/schemas/fichero__knowledge_models__ProjectStatus",
+            "$ref": "#/components/schemas/fichero__knowledge__knowledge_models__ProjectStatus",
             "default": "active"
           },
           "members": {
@@ -50636,7 +50638,7 @@
             "title": "Icon"
           },
           "status": {
-            "$ref": "#/components/schemas/fichero__knowledge_models__ProjectStatus",
+            "$ref": "#/components/schemas/fichero__knowledge__knowledge_models__ProjectStatus",
             "nullable": true
           },
           "members": {
@@ -59856,7 +59858,7 @@
             "title": "Icon"
           },
           "status": {
-            "$ref": "#/components/schemas/fichero__knowledge_models__ProjectStatus",
+            "$ref": "#/components/schemas/fichero__knowledge__knowledge_models__ProjectStatus",
             "default": "active"
           },
           "members": {
@@ -60097,7 +60099,7 @@
         "title": "ToolListResponse",
         "description": "All tools by category (standardized {items, count} envelope; items\nare per-category groups)."
       },
-      "fichero__knowledge_models__EntityType": {
+      "fichero__knowledge__knowledge_models__EntityType": {
         "type": "string",
         "enum": [
           "person",
@@ -60110,7 +60112,7 @@
         ],
         "title": "EntityType"
       },
-      "fichero__knowledge_models__ProjectStatus": {
+      "fichero__knowledge__knowledge_models__ProjectStatus": {
         "type": "string",
         "enum": [
           "active",
