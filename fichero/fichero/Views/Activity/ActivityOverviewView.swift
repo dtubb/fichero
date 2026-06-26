@@ -6,6 +6,9 @@ struct ActivityOverviewView: View {
     let activityItems: [ActivityItem]
     let liveExecution: WorkflowExecution?
     let errorCount: Int
+    let effectiveStatus: SelectedActivityRun.ActivityRunStatusType
+    let startedAt: Date
+    let stoppedAt: Date?
 
     var body: some View {
         ScrollView {
@@ -43,9 +46,14 @@ struct ActivityOverviewView: View {
             Text(statusText)
                 .font(.headline)
 
-            Text(selectedRun.timestamp, format: .dateTime)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            VStack(spacing: 2) {
+                Text("Started \(startedAt, format: .dateTime)")
+                if let stoppedAt {
+                    Text("Stopped \(stoppedAt, format: .dateTime)")
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
         .padding()
@@ -163,15 +171,15 @@ struct ActivityOverviewView: View {
     }
 
     private var statusIcon: String {
-        ActivityViewHelpers.statusIcon(for: selectedRun.status)
+        ActivityViewHelpers.statusIcon(for: effectiveStatus)
     }
 
     private var statusColor: Color {
-        ActivityViewHelpers.statusColor(for: selectedRun.status)
+        ActivityViewHelpers.statusColor(for: effectiveStatus)
     }
 
     private var statusText: String {
-        ActivityViewHelpers.statusText(for: selectedRun.status)
+        ActivityViewHelpers.statusText(for: effectiveStatus)
     }
 }
 
@@ -269,7 +277,10 @@ struct ActivityOverviewView: View {
         selectedRun: selectedRun,
         activityItems: mockItems,
         liveExecution: mockExecution,
-        errorCount: 0
+        errorCount: 0,
+        effectiveStatus: .running,
+        startedAt: mockExecution.startTime,
+        stoppedAt: nil
     )
     .frame(width: 600, height: 500)
 }
@@ -307,7 +318,10 @@ struct ActivityOverviewView: View {
         selectedRun: selectedRun,
         activityItems: mockItems,
         liveExecution: nil,
-        errorCount: 3
+        errorCount: 3,
+        effectiveStatus: .failed,
+        startedAt: Date().addingTimeInterval(-90),
+        stoppedAt: Date()
     )
     .frame(width: 600, height: 500)
 }

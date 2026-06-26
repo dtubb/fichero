@@ -19,8 +19,6 @@ struct WorkflowEditor: View {
     @State var saveError: String?
     @State var showSaveSuccess: Bool = false
     @State private var autosaveTask: Task<Void, Never>?
-    @State var showOutputLog: Bool = true
-    @State var executionState: WorkflowExecutionState?
 
     // Canvas state (passed to WorkflowCanvasView)
     @State var scale: CGFloat = 1.0
@@ -45,6 +43,7 @@ struct WorkflowEditor: View {
 
     // Uses @Observable pattern - injected via .environment() from LibraryWindow
     @Environment(WorkflowExecutionObserver.self) var executionObserver
+    @Environment(\.openWindow) private var openWindow
 
     /// Node execution states for the editor's list/table/icon node views.
     ///

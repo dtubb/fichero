@@ -101,7 +101,8 @@ func runsByWorkflow(
 
 func activityMapExecutionStatus(_ status: WorkflowStatus) -> ActivityRunStatus {
     switch status {
-    case .running, .paused, .idle: return .running
+    case .running, .idle: return .running
+    case .paused: return .paused
     case .completed: return .completed
     case .failed: return .failed
     }
@@ -110,6 +111,7 @@ func activityMapExecutionStatus(_ status: WorkflowStatus) -> ActivityRunStatus {
 func activityMapActivityType(_ type: String) -> ActivityRunStatus {
     switch type {
     case "workflow_started": return .running
+    case "workflow_paused": return .paused
     case "workflow_completed": return .completed
     case "workflow_failed": return .failed
     case "workflow_cancelled": return .cancelled

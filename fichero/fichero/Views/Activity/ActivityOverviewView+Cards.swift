@@ -103,14 +103,6 @@ extension ActivityOverviewView {
                 HStack {
                     Text("Timing")
                         .font(.headline)
-                    Spacer()
-                    if execution.isRunning {
-                        Text(ActivityViewHelpers.formatDuration(
-                            Date().timeIntervalSince(execution.startTime) * 1000
-                        ))
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                    }
                 }
 
                 Divider()

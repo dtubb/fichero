@@ -14,13 +14,6 @@ extension WorkflowEditor {
     // swiftlint:disable:next function_body_length cyclomatic_complexity
     func runWorkflow() {
         isRunning = true
-        showOutputLog = true
-
-        // Initialize execution state (will be updated from observer)
-        executionState = WorkflowExecutionState(
-            status: .running,
-            documentProgress: []
-        )
 
         // Register immediately so Activity tab shows "Starting…" before first SSE event
         var executionThreadId = "starting:\(UUID().uuidString)"
@@ -29,6 +22,7 @@ extension WorkflowEditor {
             name: editingWorkflow.name,
             threadId: executionThreadId
         )
+        openWindow(id: "activity-monitor")
 
         actionsLogger.info("Run workflow: \(editingWorkflow.name)")
 
@@ -121,9 +115,6 @@ extension WorkflowEditor {
                             )
                         }
 
-                        // Update executionState from observer (for output log)
-                        executionState = executionObserver.getExecutionState(for: workflowId)
-
                         // Update document processing status in library view
                         updateDocumentStatus(for: event, documentStore: documentStore)
 
@@ -184,28 +175,11 @@ extension WorkflowEditor {
                     finalStatus = .completed
                 }
 
-                // Final update of execution state from observer (with document progress)
-                if var finalState = executionObserver.getExecutionState(for: workflowId) {
-                    finalState.status = finalStatus
-                    let statusStr = String(describing: finalStatus)
-                    let docCount = finalState.documentProgress.count
-                    let finalError = finalState.error ?? "none"
-                    actionsLogger.info(
-                        "[SSE] Final state: \(docCount) docs, status: \(statusStr), error: \(finalError)"
-                    )
-                    executionState = finalState
-                } else {
-                    actionsLogger.warning("[SSE] No final state from observer, keeping current executionState")
-                    executionState?.status = finalStatus
-                }
-
                 // End tracking in global observer
                 executionObserver.endExecution(threadId: executionThreadId, status: finalStatus)
 
             } catch {
                 actionsLogger.error("Failed to execute workflow: \(error.localizedDescription)")
-                executionState?.status = .failed
-                executionState?.error = error.localizedDescription
 
                 // End tracking with failed status
                 executionObserver.endExecution(threadId: executionThreadId, status: .failed)

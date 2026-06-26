@@ -20,16 +20,10 @@ struct ActivityDetailView: View {
     @State private var activityItems: [ActivityItem] = []
     @State private var isLoading = false
     @State private var error: String?
+    @State private var workflowRun: WorkflowRunResponse?
     @State private var selectedSectionId: String = "overview"
     @State private var isActingOnRun = false
 
-    /// Live/completed execution for the selected run.
-    ///
-    /// Prefers the threadId-keyed `WorkflowExecutionStore` (#2546) so a run
-    /// started ANYWHERE shows live progress once Activity subscribes-on-select
-    /// (see `.task` below). Falls back to the editor-fed `WorkflowExecutionObserver`
-    /// (keyed by workflowId, incl. its `completedExecutions` archive) so runs
-    /// started in the Workflow editor keep their existing live + post-run data.
     private var liveExecution: WorkflowExecution? {
         if let threadId = selectedRun.threadId,
            let stored = executionStore?.execution(forThreadId: threadId) {
@@ -46,6 +40,34 @@ struct ActivityDetailView: View {
         }
         // Count items with error level OR items that have an error field set
         return activityItems.filter { $0.level == "error" || $0.level == "critical" || $0.error != nil }.count
+    }
+
+    private var effectiveStatus: SelectedActivityRun.ActivityRunStatusType {
+        ActivityViewHelpers.selectedRunStatus(
+            selectedRun: selectedRun,
+            liveExecution: liveExecution,
+            persistedRun: workflowRun
+        )
+    }
+
+    private var startedAt: Date {
+        if let liveExecution {
+            return liveExecution.startTime
+        }
+        if let parsed = WorkflowExecution.parseISODate(workflowRun?.startedAt) {
+            return parsed
+        }
+        return selectedRun.timestamp
+    }
+
+    private var stoppedAt: Date? {
+        if liveExecution?.isRunning == true || effectiveStatus == .paused {
+            return nil
+        }
+        if let parsed = WorkflowExecution.parseISODate(workflowRun?.completedAt) {
+            return parsed
+        }
+        return selectedRun.timestamp
     }
 
     var body: some View {
@@ -77,13 +99,13 @@ struct ActivityDetailView: View {
         HStack(spacing: 16) {
             // Status indicator
             HStack(spacing: 6) {
-                if selectedRun.status == .running {
+                if effectiveStatus == .running {
                     ProgressView()
                         .scaleEffect(0.7)
                         .frame(width: 14, height: 14)
                 } else {
                     Circle()
-                        .fill(ActivityViewHelpers.statusColor(for: selectedRun.status))
+                        .fill(ActivityViewHelpers.statusColor(for: effectiveStatus))
                         .frame(width: 10, height: 10)
                 }
 
@@ -95,20 +117,11 @@ struct ActivityDetailView: View {
             Spacer()
 
             // Progress for running workflows
-            if selectedRun.status == .running, let execution = liveExecution {
+            if effectiveStatus == .running || effectiveStatus == .paused, let execution = liveExecution {
                 progressStats(execution)
             }
 
-            // Duration or timestamp
-            if let execution = liveExecution, execution.isRunning {
-                Text("Running \(execution.startTime, style: .relative)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                Text(selectedRun.timestamp, style: .relative)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            timingSummary
 
             // Error badge
             if errorCount > 0 {
@@ -131,25 +144,53 @@ struct ActivityDetailView: View {
     private var runControls: some View {
         if let threadId = selectedRun.threadId {
             HStack(spacing: 8) {
-                switch selectedRun.status {
+                switch effectiveStatus {
                 case .running:
                     Button("Pause") {
-                        Task { await pauseRun(threadId: threadId) }
+                        Task { await performRunAction(.pause, threadId: threadId) }
                     }
                     .disabled(isActingOnRun)
 
                     Button("Stop") {
-                        Task { await stopRun(threadId: threadId) }
+                        Task { await performRunAction(.stop, threadId: threadId) }
+                    }
+                    .disabled(isActingOnRun)
+                case .paused:
+                    Button("Resume") {
+                        Task { await performRunAction(.resume, threadId: threadId) }
+                    }
+                    .disabled(isActingOnRun)
+
+                    Button("Stop") {
+                        Task { await performRunAction(.stop, threadId: threadId) }
                     }
                     .disabled(isActingOnRun)
                 case .cancelled, .completed, .failed:
                     Button("Delete") {
-                        Task { await deleteRun(threadId: threadId) }
+                        Task { await performRunAction(.delete, threadId: threadId) }
                     }
                     .disabled(isActingOnRun)
                 }
             }
             .font(.caption)
+        }
+    }
+
+    private var timingSummary: some View {
+        VStack(alignment: .trailing, spacing: 2) {
+            Text(ActivityViewHelpers.statusText(for: effectiveStatus))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(ActivityViewHelpers.statusColor(for: effectiveStatus))
+
+            Text("Started \(startedAt, format: .dateTime)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if let stoppedAt {
+                Text("Stopped \(stoppedAt, format: .dateTime)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -251,7 +292,10 @@ struct ActivityDetailView: View {
                 selectedRun: selectedRun,
                 activityItems: activityItems,
                 liveExecution: liveExecution,
-                errorCount: errorCount
+                errorCount: errorCount,
+                effectiveStatus: effectiveStatus,
+                startedAt: startedAt,
+                stoppedAt: stoppedAt
             )
         }
     }
@@ -264,12 +308,6 @@ struct ActivityDetailView: View {
         childType?.rawValue ?? "overview"
     }
 
-    // MARK: - Live Subscription (#2546)
-
-    /// Subscribe-on-select: when a running run is selected, ensure the shared
-    /// store is streaming its live SSE progress — so Activity shows live progress
-    /// even if the run was started in another window / the Workflow editor (or
-    /// the editor has since closed). Idempotent in the store.
     private func subscribeToLiveExecutionIfRunning() {
         guard selectedRun.status == .running,
               let threadId = selectedRun.threadId,
@@ -298,16 +336,19 @@ struct ActivityDetailView: View {
             // Load all activity events for this run
             // Prefer threadId (identifies a specific run) over workflowId
             if let threadId = selectedRun.threadId {
+                workflowRun = try await activityService.getWorkflowRun(threadId: threadId)
                 activityItems = try await activityService.getThreadActivities(
                     threadId: threadId,
                     limit: 500
                 )
             } else if let workflowId = selectedRun.workflowId {
+                workflowRun = nil
                 activityItems = try await activityService.getWorkflowActivities(
                     workflowId: workflowId,
                     limit: 500
                 )
             } else {
+                workflowRun = nil
                 // Fall back to querying by ID
                 activityItems = try await activityService.queryActivities(
                     threadId: selectedRun.id,
@@ -324,59 +365,14 @@ struct ActivityDetailView: View {
         isLoading = false
     }
 
-    private func workflowExecutionService() -> WorkflowExecutionService {
-        WorkflowExecutionService(
-            baseURL: apiClient.baseURL,
-            libraryPath: apiClient.currentLibraryPath
-        )
-    }
-
-    private func pauseRun(threadId: String) async {
+    private func performRunAction(_ action: ActivityViewHelpers.RunAction, threadId: String) async {
         isActingOnRun = true
         defer { isActingOnRun = false }
         do {
-            try await workflowExecutionService().pauseWorkflow(threadId: threadId)
-        } catch {
-            self.error = error.localizedDescription
-        }
-    }
-
-    private func stopRun(threadId: String) async {
-        isActingOnRun = true
-        defer { isActingOnRun = false }
-        do {
-            try await workflowExecutionService().cancelWorkflow(threadId: threadId)
-        } catch {
-            self.error = error.localizedDescription
-        }
-    }
-
-    private func deleteRun(threadId: String) async {
-        isActingOnRun = true
-        defer { isActingOnRun = false }
-        do {
-            try await workflowExecutionService().deleteThread(threadId: threadId)
+            try await ActivityViewHelpers.performRunAction(action, threadId: threadId, apiClient: apiClient)
         } catch {
             self.error = error.localizedDescription
         }
     }
 }
 // swiftlint:enable type_body_length
-
-#Preview {
-    ActivityDetailView(
-        selectedRun: SelectedActivityRun(
-            id: "test-1",
-            name: "Test Workflow",
-            workflowId: "workflow-1",
-            threadId: "thread-1",
-            timestamp: Date().addingTimeInterval(-3600),
-            status: .completed,
-            isLive: false,
-            childType: nil
-        )
-    )
-    .environmentObject(APIClient())
-    .environment(WorkflowExecutionObserver())
-    .frame(width: 600, height: 400)
-}

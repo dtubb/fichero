@@ -3,11 +3,19 @@ import SwiftUI
 /// Shared helper functions for Activity views
 enum ActivityViewHelpers {
 
+    enum RunAction {
+        case pause
+        case resume
+        case stop
+        case delete
+    }
+
     // MARK: - Status Helpers
 
     static func statusIcon(for status: SelectedActivityRun.ActivityRunStatusType) -> String {
         switch status {
         case .running: return "play.circle.fill"
+        case .paused: return "pause.circle.fill"
         case .completed: return "checkmark.circle.fill"
         case .failed: return "xmark.circle.fill"
         case .cancelled: return "stop.circle.fill"
@@ -17,6 +25,7 @@ enum ActivityViewHelpers {
     static func statusColor(for status: SelectedActivityRun.ActivityRunStatusType) -> Color {
         switch status {
         case .running: return .blue
+        case .paused: return .orange
         case .completed: return .green
         case .failed: return .red
         case .cancelled: return .orange
@@ -26,9 +35,52 @@ enum ActivityViewHelpers {
     static func statusText(for status: SelectedActivityRun.ActivityRunStatusType) -> String {
         switch status {
         case .running: return "Running"
+        case .paused: return "Paused"
         case .completed: return "Completed"
         case .failed: return "Failed"
         case .cancelled: return "Cancelled"
+        }
+    }
+
+    static func selectedRunStatus(
+        selectedRun: SelectedActivityRun,
+        liveExecution: WorkflowExecution?,
+        persistedRun: WorkflowRunResponse?
+    ) -> SelectedActivityRun.ActivityRunStatusType {
+        if let liveExecution {
+            return selectedRunStatus(for: liveExecution.status)
+        }
+        if let persistedRun {
+            return selectedRunStatus(forRaw: persistedRun.status)
+        }
+        return selectedRun.status
+    }
+
+    static func selectedRunStatus(for status: WorkflowStatus) -> SelectedActivityRun.ActivityRunStatusType {
+        switch status {
+        case .running, .idle:
+            return .running
+        case .paused:
+            return .paused
+        case .completed:
+            return .completed
+        case .failed:
+            return .failed
+        }
+    }
+
+    static func selectedRunStatus(forRaw raw: String) -> SelectedActivityRun.ActivityRunStatusType {
+        switch raw.lowercased() {
+        case "paused":
+            return .paused
+        case "completed", "complete", "success", "succeeded":
+            return .completed
+        case "failed", "error":
+            return .failed
+        case "cancelled", "canceled":
+            return .cancelled
+        default:
+            return .running
         }
     }
 
@@ -55,6 +107,28 @@ enum ActivityViewHelpers {
             let minutes = Int(milliseconds / 60000)
             let seconds = Int((milliseconds.truncatingRemainder(dividingBy: 60000)) / 1000)
             return "\(minutes)m \(seconds)s"
+        }
+    }
+
+    @MainActor
+    static func performRunAction(
+        _ action: RunAction,
+        threadId: String,
+        apiClient: APIClient
+    ) async throws {
+        let service = WorkflowExecutionService(
+            baseURL: apiClient.baseURL,
+            libraryPath: apiClient.currentLibraryPath
+        )
+        switch action {
+        case .pause:
+            try await service.pauseWorkflow(threadId: threadId)
+        case .resume:
+            _ = try await service.resumeWorkflow(threadId: threadId)
+        case .stop:
+            try await service.cancelWorkflow(threadId: threadId)
+        case .delete:
+            try await service.deleteThread(threadId: threadId)
         }
     }
 }
@@ -152,7 +226,7 @@ struct ActivityBrowserView: View {
             threadId: execution.threadId,
             workflowName: activityCleanWorkflowName(execution.name),
             timestamp: execution.startTime,
-            status: .running,
+            status: activityMapExecutionStatus(execution.status),
             progress: execution.overallProgress,
             currentStep: execution.currentNodeName,
             errorCount: execution.nodeStates.values.reduce(0) { $0 + $1.errorCount },

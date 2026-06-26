@@ -142,20 +142,44 @@ struct ActivityMonitorView: View {
             }
             .disabled(selectedExecution == nil)
 
-            if let execution = selectedExecution, execution.status == .running {
-                Button {
-                    Task { await act("pause") }
-                } label: {
-                    Label("Pause", systemImage: "pause")
-                }
-                .disabled(isActing)
+            if let execution = selectedExecution {
+                switch execution.status {
+                case .running:
+                    Button {
+                        Task { await act(.pause) }
+                    } label: {
+                        Label("Pause", systemImage: "pause")
+                    }
+                    .disabled(isActing)
 
-                Button {
-                    Task { await act("stop") }
-                } label: {
-                    Label("Stop", systemImage: "stop")
+                    Button {
+                        Task { await act(.stop) }
+                    } label: {
+                        Label("Stop", systemImage: "stop")
+                    }
+                    .disabled(isActing)
+                case .paused:
+                    Button {
+                        Task { await act(.resume) }
+                    } label: {
+                        Label("Resume", systemImage: "play.fill")
+                    }
+                    .disabled(isActing)
+
+                    Button {
+                        Task { await act(.stop) }
+                    } label: {
+                        Label("Stop", systemImage: "stop")
+                    }
+                    .disabled(isActing)
+                case .completed, .failed:
+                    Button {
+                        Task { await act(.delete) }
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                    .disabled(isActing)
                 }
-                .disabled(isActing)
             }
         }
     }
@@ -184,26 +208,18 @@ struct ActivityMonitorView: View {
             workflowId: execution.id,
             threadId: execution.threadId,
             timestamp: execution.startTime,
-            status: execution.isRunning ? .running : .completed,
+            status: activityMapExecutionStatus(execution.status).toStatusType(),
             isLive: execution.isRunning,
             childType: .log
         )
     }
 
-    private func act(_ action: String) async {
+    private func act(_ action: ActivityViewHelpers.RunAction) async {
         guard let threadId = selectedExecution?.threadId else { return }
         isActing = true
         defer { isActing = false }
-        let service = WorkflowExecutionService(
-            baseURL: apiClient.baseURL,
-            libraryPath: apiClient.currentLibraryPath
-        )
         do {
-            switch action {
-            case "pause": try await service.pauseWorkflow(threadId: threadId)
-            case "stop":  try await service.cancelWorkflow(threadId: threadId)
-            default: break
-            }
+            try await ActivityViewHelpers.performRunAction(action, threadId: threadId, apiClient: apiClient)
         } catch {
             errorMessage = error.localizedDescription
         }

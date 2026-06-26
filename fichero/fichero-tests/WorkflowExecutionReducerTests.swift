@@ -309,4 +309,72 @@ struct WorkflowExecutionReducerTests {
             Issue.record("Expected promoted execution to keep early file state")
         }
     }
+
+}
+
+@MainActor
+struct ActivityStatusMappingTests {
+
+    @Test("activity maps paused executions explicitly")
+    func activityMapsPausedExecutionsExplicitly() {
+        #expect(activityMapExecutionStatus(.paused) == .paused)
+        #expect(activityMapExecutionStatus(.running) == .running)
+        #expect(activityMapExecutionStatus(.completed) == .completed)
+    }
+
+    @Test("activity resolves live and persisted terminal statuses")
+    func activityResolvesRunStatuses() {
+        let selectedRun = SelectedActivityRun(
+            id: "thread-1",
+            name: "Transcribe",
+            workflowId: "wf-1",
+            threadId: "thread-1",
+            timestamp: Date(),
+            status: .running,
+            isLive: true,
+            childType: nil
+        )
+
+        let pausedExecution = WorkflowExecution(
+            id: "wf-1",
+            name: "Transcribe",
+            threadId: "thread-1",
+            startTime: Date(),
+            status: .paused,
+            nodeStates: [:],
+            documentProgress: [:],
+            currentFilePath: nil,
+            currentNodeId: nil,
+            currentNodeName: nil,
+            isRunning: false,
+            workflowError: nil
+        )
+        #expect(
+            ActivityViewHelpers.selectedRunStatus(
+                selectedRun: selectedRun,
+                liveExecution: pausedExecution,
+                persistedRun: nil
+            ) == .paused
+        )
+
+        let cancelledRun = WorkflowRunResponse(
+            threadId: "thread-1",
+            workflowId: "wf-1",
+            workflowName: "Transcribe",
+            pythonCode: nil,
+            executionLog: nil,
+            status: "cancelled",
+            startedAt: nil,
+            completedAt: nil,
+            durationMs: nil,
+            error: nil
+        )
+        #expect(
+            ActivityViewHelpers.selectedRunStatus(
+                selectedRun: selectedRun,
+                liveExecution: nil,
+                persistedRun: cancelledRun
+            ) == .cancelled
+        )
+    }
 }

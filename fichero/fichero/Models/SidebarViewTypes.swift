@@ -68,6 +68,7 @@ struct SelectedActivityRun: Equatable, Identifiable {
 
     enum ActivityRunStatusType: String, Equatable {
         case running
+        case paused
         case completed
         case failed
         case cancelled
