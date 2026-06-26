@@ -33833,6 +33833,10 @@
             "nullable": true,
             "title": "Data"
           },
+          "ocr_geometry": {
+            "$ref": "#/components/schemas/OCRGeometryResult",
+            "nullable": true
+          },
           "source_document_id": {
             "type": "string",
             "nullable": true,
@@ -49177,6 +49181,125 @@
           "shared"
         ],
         "title": "NoteType"
+      },
+      "OCRGeometryBox": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Bbox",
+            "description": "Normalized [x, y, width, height] values in the range 0..1."
+          },
+          "level": {
+            "$ref": "#/components/schemas/OCRGeometryLevel",
+            "default": "word"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Confidence"
+          },
+          "page_index": {
+            "type": "integer",
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Page Index"
+          },
+          "provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model"
+          },
+          "coordinate_space": {
+            "type": "string",
+            "title": "Coordinate Space",
+            "default": "normalized"
+          },
+          "source": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "bbox"
+        ],
+        "title": "OCRGeometryBox",
+        "description": "One normalized OCR/transcription geometry record."
+      },
+      "OCRGeometryLevel": {
+        "type": "string",
+        "enum": [
+          "page",
+          "block",
+          "line",
+          "word",
+          "region"
+        ],
+        "title": "OCRGeometryLevel"
+      },
+      "OCRGeometryResult": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "default": ""
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model"
+          },
+          "boxes": {
+            "items": {
+              "$ref": "#/components/schemas/OCRGeometryBox"
+            },
+            "type": "array",
+            "title": "Boxes"
+          },
+          "source": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "provider"
+        ],
+        "title": "OCRGeometryResult",
+        "description": "Normalized OCR/transcription text plus geometry records."
       },
       "OpenItemResponse": {
         "properties": {

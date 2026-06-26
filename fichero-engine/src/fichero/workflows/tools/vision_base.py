@@ -30,6 +30,7 @@ from typing import Any, TYPE_CHECKING
 if TYPE_CHECKING:
     from fichero.llm import LLMConfig
 
+from fichero.ocr_geometry import OCRGeometryResult, parse_vlm_geometry
 from fichero.workflows.types import PortDef, DataType
 
 # Pre-import macOS Vision/Quartz framework symbols at module load on the
@@ -1053,12 +1054,43 @@ def _page_index_from_document(doc: dict, metadata: dict) -> int | None:
     return page_number - 1 if page_number > 0 else 0
 
 
+def _supports_return_boxes(llm_config: LLMConfig) -> bool:
+    provider = (getattr(llm_config, "provider", "") or "").lower()
+    model = (getattr(llm_config, "model", "") or "").lower()
+    return provider == "google" and "gemini" in model
+
+
+def _parse_return_boxes_payload(
+    payload: str,
+    *,
+    llm_config: LLMConfig,
+    page_index: int | None,
+) -> OCRGeometryResult:
+    geometry = parse_vlm_geometry(
+        payload,
+        provider=getattr(llm_config, "provider", "vlm_json") or "vlm_json",
+        model=getattr(llm_config, "model", None),
+    )
+    if not geometry.boxes:
+        raise ValueError("Gemini return_boxes response must include at least one box")
+    boxes = [
+        box.model_copy(
+            update={
+                "page_index": page_index if box.page_index is None else box.page_index,
+            }
+        )
+        for box in geometry.boxes
+    ]
+    return geometry.model_copy(update={"boxes": boxes})
+
+
 async def _propagate_to_page_children(
     parent_id: str,
     page_texts: list[str],
     library_path: str,
     artifact_type: str | None = None,
     llm_config: LLMConfig | None = None,
+    page_geometries: list[OCRGeometryResult | None] | None = None,
 ) -> list[str] | None:
     """Write per-page OCR text to page child documents and re-embed each one.
 
@@ -1132,11 +1164,21 @@ async def _propagate_to_page_children(
                     if matched:
                         art = matched[0]
                         art.content = artifact_content
+                        art.ocr_geometry = (
+                            page_geometries[page_idx]
+                            if page_geometries and page_idx < len(page_geometries)
+                            else None
+                        )
                     else:
                         art = Artifact(
                             document_id=page_doc.id,
                             artifact_type=artifact_type,
                             content=artifact_content,
+                            ocr_geometry=(
+                                page_geometries[page_idx]
+                                if page_geometries and page_idx < len(page_geometries)
+                                else None
+                            ),
                             provider=provider,
                             model=model,
                             version=1,
@@ -1354,6 +1396,7 @@ async def process_vision(
     # Storage (from BASE_CONFIG_SCHEMA)
     save_to_db: bool = True,
     save_to_file_flag: bool = False,
+    return_boxes: bool = False,
     metadata_field: str | None = None,
     custom_metadata: dict | None = None,
 ) -> dict[str, Any]:
@@ -1656,6 +1699,15 @@ async def process_vision(
                 values.append(None)
                 return _outcome()
             doc_id_for_file = _page_doc_id or resolve_path_to_doc(path_to_doc, file_path)
+            if return_boxes:
+                if vision_mode != "llm":
+                    raise ValueError(
+                        "return_boxes is only supported on the Gemini LLM vision path"
+                    )
+                if not _supports_return_boxes(effective_config):
+                    raise ValueError(
+                        "return_boxes requires provider=google with a Gemini model"
+                    )
             # Pre-loaded page-doc dict (eliminates db.get re-fetch in save_artifact, #2430)
             _preloaded_doc = (
                 page_doc_dict_by_index[file_index]
@@ -1746,6 +1798,8 @@ async def process_vision(
                 return _outcome()
 
             per_page_texts: list[str] | None = None
+            per_page_geometries: list[OCRGeometryResult | None] | None = None
+            page_geometry: OCRGeometryResult | None = None
 
             # PDF text-layer short-circuit (#957, #1033, #1064). A born-digital
             # PDF (InDesign export, LaTeX, Word→PDF) already carries a
@@ -1928,6 +1982,7 @@ async def process_vision(
                         Path(file_path).name,
                     )
                     _llm_page_texts: list[str] = []
+                    _llm_page_geometries: list[OCRGeometryResult | None] = []
                     for _page_idx in range(_llm_num_pages):
                         try:
                             _page_uri = _pdf_page_to_data_uri(
@@ -1958,7 +2013,18 @@ async def process_vision(
                                         config=effective_config,
                                     )
                                 )
-                                _llm_page_texts.append(_pt if isinstance(_pt, str) else "")
+                                _payload = _pt if isinstance(_pt, str) else ""
+                                if return_boxes:
+                                    _geometry = _parse_return_boxes_payload(
+                                        _payload,
+                                        llm_config=effective_config,
+                                        page_index=_page_idx,
+                                    )
+                                    _llm_page_geometries.append(_geometry)
+                                    _llm_page_texts.append(_geometry.text)
+                                else:
+                                    _llm_page_geometries.append(None)
+                                    _llm_page_texts.append(_payload)
                         except ProviderRateLimitedError:
                             # #2543: breaker is OPEN for this provider — abort
                             # the per-page loop and fail this file fast rather
@@ -1971,7 +2037,9 @@ async def process_vision(
                                 _page_idx, Path(file_path).name, _pe,
                             )
                             _llm_page_texts.append("")
+                            _llm_page_geometries.append(None)
                     per_page_texts = _llm_page_texts
+                    per_page_geometries = _llm_page_geometries
                     _parts: list[str] = []
                     for _i, _t in enumerate(per_page_texts):
                         if _t:
@@ -2043,6 +2111,14 @@ async def process_vision(
                             )
                         )
                         # Parse output according to format
+                        parsed = parse_output(text, output_format, output_options)
+                    if return_boxes:
+                        page_geometry = _parse_return_boxes_payload(
+                            text,
+                            llm_config=effective_config,
+                            page_index=requested_page_index,
+                        )
+                        text = page_geometry.text
                         parsed = parse_output(text, output_format, output_options)
 
             # Apply reference matching
@@ -2170,6 +2246,7 @@ async def process_vision(
                         library_path,
                         artifact_type=tool_config.artifact_type,
                         llm_config=save_config,
+                        page_geometries=per_page_geometries,
                     )
                     if page_artifact_ids is None and len(per_page_texts) > 1:
                         # Multi-page PDF with NO page children. Per #2430 /
@@ -2200,6 +2277,7 @@ async def process_vision(
                             library_path,
                             artifact_type=tool_config.artifact_type,
                             llm_config=save_config,
+                            page_geometries=per_page_geometries,
                         )
                         if page_artifact_ids is None:
                             # Still unsplittable. FAIL LOUD rather than write a
@@ -2225,6 +2303,7 @@ async def process_vision(
                             llm_config=save_config,
                             task_id=task_id,
                             tool_config=tool_config,
+                            ocr_geometry=page_geometry,
                             metadata_field=metadata_field,
                             custom_metadata=custom_metadata,
                             document=_preloaded_doc,
@@ -2245,6 +2324,7 @@ async def process_vision(
                         llm_config=save_config,
                         task_id=task_id,
                         tool_config=tool_config,
+                        ocr_geometry=page_geometry,
                         metadata_field=metadata_field,
                         custom_metadata=custom_metadata,
                         document=_preloaded_doc,

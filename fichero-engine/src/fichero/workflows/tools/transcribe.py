@@ -217,5 +217,6 @@ async def transcribe(
         input_metadata=input_metadata,
         save_to_db=inputs.get("save_to_db", True),
         save_to_file_flag=inputs.get("save_to_file", False),
+        return_boxes=return_boxes,
         metadata_field=inputs.get("metadata_field"),
     )

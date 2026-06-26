@@ -35,6 +35,7 @@ from typing import Any, TYPE_CHECKING
 if TYPE_CHECKING:
     from fichero.llm import LLMConfig
 
+from fichero.ocr_geometry import OCRGeometryResult
 from fichero.workflows.types import PortDef, DataType
 from fichero.workflows.tools._doc_lookup import find_document_by_path
 from fichero.workflows.tools.llm_prompting import (  # noqa: F401 (re-exported)
@@ -458,6 +459,7 @@ async def save_artifact(
     task_id: str | None,
     tool_config: LLMToolConfig,
     *,
+    ocr_geometry: OCRGeometryResult | None = None,
     metadata_field: str | None = None,
     custom_metadata: dict | None = None,
     document: object | None = None,
@@ -521,6 +523,7 @@ async def save_artifact(
         tool_config,
         metadata_field,
         custom_metadata,
+        ocr_geometry,
     )
 
 
@@ -536,6 +539,7 @@ def _save_artifact_sync(
     tool_config: LLMToolConfig,
     metadata_field: str | None,
     custom_metadata: dict | None,
+    ocr_geometry: OCRGeometryResult | None,
 ) -> str | None:
     """Synchronous DB-write + embed core of :func:`save_artifact`.
 
@@ -588,6 +592,7 @@ def _save_artifact_sync(
             artifact_type=tool_config.artifact_type,
             content=content,
             data=data,
+            ocr_geometry=ocr_geometry,
             provider=llm_config.provider if hasattr(llm_config, "provider") else None,
             model=llm_config.model if hasattr(llm_config, "model") else None,
             run_id=task_id,
@@ -696,6 +701,7 @@ async def save_file_artifact(
     task_id: str | None,
     tool_config: LLMToolConfig,
     *,
+    ocr_geometry: OCRGeometryResult | None = None,
     metadata_field: str | None = None,
     custom_metadata: dict | None = None,
     document: object | None = None,
@@ -720,6 +726,7 @@ async def save_file_artifact(
         file_path=file_path,
         content=content,
         data=None,
+        ocr_geometry=ocr_geometry,
         library_path=library_path,
         llm_config=llm_config,
         task_id=task_id,

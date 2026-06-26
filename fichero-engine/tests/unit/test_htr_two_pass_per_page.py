@@ -85,6 +85,12 @@ def _llm_config():
     return LLMConfig(provider="openai", model="gpt-4o")
 
 
+def _gemini_llm_config():
+    from fichero.llm import LLMConfig
+
+    return LLMConfig(provider="google", model="gemini-2.5-flash")
+
+
 def _preset_path(name: str) -> Path:
     from fichero.workflows.default_workflows import _PRESETS_DIR
 
@@ -105,6 +111,25 @@ def _stub_vision():
         patch(
             "fichero.llm.vision",
             new=AsyncMock(return_value="Transcribed page text."),
+        ),
+    )
+
+
+def _stub_vision_with_boxes():
+    """Return Gemini-style JSON boxes on each per-page vision call."""
+    payload = (
+        '{"text":"Transcribed page text.","boxes":['
+        '{"text":"Transcribed page text.","bbox":[0.1,0.2,0.5,0.1],"level":"line"}'
+        "]}"
+    )
+    return (
+        patch(
+            "fichero.workflows.tools.vision_base._pdf_page_to_data_uri",
+            return_value="data:image/png;base64,FAKE",
+        ),
+        patch(
+            "fichero.llm.vision",
+            new=AsyncMock(return_value=payload),
         ),
     )
 
@@ -265,6 +290,59 @@ class TestTwoPassPerPage:
             assert (live.page_content or "").strip(), (
                 f"page {child.sequence} has no page_content after review"
             )
+
+    @pytest.mark.asyncio
+    async def test_gemini_return_boxes_persist_on_each_page_child(
+        self, temp_library, tmp_path
+    ):
+        from fichero.models import Artifact, Document, DocType, FileType
+        from fichero.workflows.tools.sources import files_tool
+        from fichero.workflows.tools.transcribe import transcribe
+
+        library_path, db_manager = temp_library
+        db = db_manager.get_database(library_path)
+        pdf = tmp_path / "manuscript.pdf"
+        _make_pdf(pdf, 3)
+
+        parent = Document(
+            name="manuscript.pdf",
+            doc_type=DocType.file,
+            file_type=FileType.pdf,
+            path=str(pdf),
+        )
+        db.save(parent)
+
+        src = await files_tool(
+            inputs={},
+            state={"selected_doc_ids": [parent.id], "library_path": library_path},
+            llm_config=_gemini_llm_config(),
+        )
+
+        page_uri, vision = _stub_vision_with_boxes()
+        with page_uri, vision:
+            await transcribe(
+                inputs={
+                    "files": src["files"],
+                    "documents": src["documents"],
+                    "vision_mode": "llm",
+                    "return_boxes": True,
+                    "update_page_content": True,
+                },
+                state={"library_path": library_path, "task_id": None},
+                llm_config=_gemini_llm_config(),
+            )
+
+        assert db.query(Artifact, document_id=parent.id, artifact_type="transcription") == []
+        children = db.query(Document, parent_id=parent.id, doc_type=DocType.page)
+        assert len(children) == 3
+        for child in children:
+            arts = db.query(Artifact, document_id=child.id, artifact_type="transcription")
+            assert len(arts) == 1, f"page {child.sequence} missing transcription artifact"
+            geometry = arts[0].ocr_geometry
+            assert geometry is not None, f"page {child.sequence} missing typed OCR geometry"
+            assert geometry.text == "Transcribed page text."
+            assert len(geometry.boxes) == 1
+            assert geometry.boxes[0].page_index == child.sequence - 1
 
 
 # ---------------------------------------------------------------------------

@@ -35,6 +35,9 @@ from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 import base64
 
+# Typed OCR/transcription geometry saved on artifacts.
+from fichero.ocr_geometry import OCRGeometryResult
+
 # Import ProviderType from providers module (single source of truth)
 from fichero.providers import ProviderType
 from fichero.knowledge_models import Reference, ReferenceProvenance
@@ -545,6 +548,7 @@ class Artifact(BaseModel):
     # Content (one or both)
     content: str | None = None  # Text output
     data: dict[str, Any] | None = None  # Structured output
+    ocr_geometry: OCRGeometryResult | None = None  # Typed OCR/transcription boxes
 
     # Provenance
     source_document_id: str | None = None  # Source document this was extracted from (for page docs, parent PDF)
