@@ -52,6 +52,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import AsyncIterator, Any, Literal as _Literal
 
+from langchain_core.language_models.chat_models import BaseChatModel
 from pydantic import BaseModel
 
 from fichero.llm_models import (  # noqa: F401 (re-exported)
@@ -1582,30 +1583,7 @@ async def _apple_intelligence_chat(
     from pathlib import Path
     import asyncio
 
-    # Flatten messages list into a single prompt + optional system
-    # instructions. Apple Intelligence's session API doesn't model OpenAI's
-    # multi-turn message list directly; we collapse to user prompt + system.
-    if isinstance(prompt, str):
-        user_text = prompt
-        instructions = system or ""
-    else:
-        instructions = system or ""
-        user_parts: list[str] = []
-        for msg in prompt:
-            role = msg.get("role", "user")
-            content = msg.get("content", "")
-            if isinstance(content, list):
-                # Multimodal content list — flatten the text parts only;
-                # Apple Intelligence is text-only (no vision in this bridge).
-                content = " ".join(
-                    p.get("text", "") if isinstance(p, dict) else str(p)
-                    for p in content
-                )
-            if role == "system" and not instructions:
-                instructions = str(content)
-            else:
-                user_parts.append(str(content))
-        user_text = "\n\n".join(user_parts)
+    user_text, instructions = _collapse_apple_prompt(prompt, system)
 
     # Locate fm-bridge. Lives in src/fichero/resources/bin/fm-bridge as
     # part of the Python package — briefcase auto-bundles anything under
@@ -1956,6 +1934,164 @@ def _convert_to_langchain_messages(messages: list[dict]) -> list:
             result.append(HumanMessage(content=content))
 
     return result
+
+
+def _langchain_messages_to_openai_messages(messages: list[Any]) -> list[dict[str, Any]]:
+    """Convert LangChain message objects into the OpenAI-style dicts our Apple path already accepts."""
+    from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+
+    result: list[dict[str, Any]] = []
+    for msg in messages:
+        if isinstance(msg, SystemMessage):
+            role = "system"
+        elif isinstance(msg, AIMessage):
+            role = "assistant"
+        elif isinstance(msg, HumanMessage):
+            role = "user"
+        else:
+            role = getattr(msg, "type", "user") or "user"
+        result.append({"role": role, "content": getattr(msg, "content", "")})
+    return result
+
+
+def _collapse_apple_prompt(
+    prompt: str | list[dict[str, Any]],
+    system: str | None,
+) -> tuple[str, str]:
+    """Flatten OpenAI-style messages into the user+instructions pair fm-bridge expects."""
+    if isinstance(prompt, str):
+        return prompt, system or ""
+
+    instructions = system or ""
+    user_parts: list[str] = []
+    for msg in prompt:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+        if isinstance(content, list):
+            content = " ".join(
+                p.get("text", "") if isinstance(p, dict) else str(p)
+                for p in content
+            )
+        if role == "system" and not instructions:
+            instructions = str(content)
+        else:
+            user_parts.append(str(content))
+    return "\n\n".join(user_parts), instructions
+
+
+class _AppleStructuredRunnable:
+    """Minimal LangChain-compatible structured wrapper over chat_structured()."""
+
+    def __init__(
+        self,
+        model: "ChatAppleIntelligence",
+        schema: type[BaseModel],
+        *,
+        include_raw: bool,
+    ) -> None:
+        self._model = model
+        self._schema = schema
+        self._include_raw = include_raw
+
+    async def ainvoke(self, input_data: Any, config: Any = None, **kwargs: Any) -> Any:
+        from langchain_core.messages import AIMessage
+
+        prompt, system = self._model._structured_prompt_and_system(input_data)
+        parsed = await chat_structured(
+            prompt,
+            self._schema,
+            self._model.config,
+            system=system,
+        )
+        if not self._include_raw:
+            return parsed
+        raw = AIMessage(content=parsed.model_dump_json())
+        return {"raw": raw, "parsed": parsed, "parsing_error": None}
+
+    def invoke(self, input_data: Any, config: Any = None, **kwargs: Any) -> Any:
+        return asyncio.run(self.ainvoke(input_data, config=config, **kwargs))
+
+
+class ChatAppleIntelligence(BaseChatModel):
+    config: LLMConfig
+    bound_tools: tuple[Any, ...] = ()
+    tool_choice: str | None = None
+
+    @property
+    def _llm_type(self) -> str:
+        return "apple_intelligence"
+
+    @property
+    def _identifying_params(self) -> dict[str, Any]:
+        return {
+            "provider": self.config.provider,
+            "model": self.config.model,
+            "temperature": self.config.temperature,
+            "max_tokens": self.config.max_tokens,
+        }
+
+    def bind_tools(
+        self,
+        tools: list[Any],
+        *,
+        tool_choice: str | None = None,
+        **kwargs: Any,
+    ) -> "ChatAppleIntelligence":
+        # ponytail: interface-preserving no-op until fm-bridge exposes native tool-call envelopes.
+        return self.model_copy(update={"bound_tools": tuple(tools), "tool_choice": tool_choice})
+
+    def with_structured_output(
+        self,
+        schema: dict[str, Any] | type,
+        *,
+        include_raw: bool = False,
+        **kwargs: Any,
+    ) -> _AppleStructuredRunnable:
+        if not isinstance(schema, type) or not issubclass(schema, BaseModel):
+            raise ValueError(
+                "Apple Intelligence structured output currently requires a Pydantic model class."
+            )
+        return _AppleStructuredRunnable(self, schema, include_raw=include_raw)
+
+    def _structured_prompt_and_system(self, input_data: Any) -> tuple[str, str | None]:
+        if isinstance(input_data, str):
+            return input_data, None
+        if not isinstance(input_data, list):
+            raise TypeError(f"Unsupported Apple structured input: {type(input_data)!r}")
+        prompt, system = _collapse_apple_prompt(
+            _langchain_messages_to_openai_messages(input_data),
+            None,
+        )
+        return prompt, system or None
+
+    async def _agenerate(
+        self,
+        messages: list[Any],
+        stop: list[str] | None = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> Any:
+        from langchain_core.messages import AIMessage
+        from langchain_core.outputs import ChatGeneration, ChatResult
+
+        response_text = await chat(
+            _langchain_messages_to_openai_messages(messages),
+            self.config,
+        )
+        return ChatResult(
+            generations=[ChatGeneration(message=AIMessage(content=response_text))]
+        )
+
+    def _generate(
+        self,
+        messages: list[Any],
+        stop: list[str] | None = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> Any:
+        return asyncio.run(
+            self._agenerate(messages, stop=stop, run_manager=run_manager, **kwargs)
+        )
 
 
 # =============================================================================
@@ -3438,8 +3574,8 @@ def _build_langchain_model(config: LLMConfig) -> Any:
       truth — adding a new provider is a one-line change.
     - Azure OpenAI → AzureChatOpenAI (different param shape).
     - AWS Bedrock → ChatBedrock (different package).
-    - apple → NotImplementedError (Apple Intelligence has no LangChain
-      wrapper; chat()/chat_structured() route to fm-bridge directly).
+    - apple → ChatAppleIntelligence, a thin BaseChatModel adapter over
+      the existing fm-bridge chat()/chat_structured() helpers.
 
     `max_retries=10` (LangChain default is 6) is set on every model so
     transient OpenRouter / Anthropic blips recover silently with
@@ -3592,18 +3728,7 @@ def _build_langchain_model(config: LLMConfig) -> Any:
         )
 
     if provider == "apple":
-        # Apple Intelligence has no LangChain ChatModel — Foundation
-        # Models is Swift-only and not @objc-exposed. Workflow tools
-        # should call chat() / chat_structured() which route to
-        # fm-bridge directly. This branch only fires from direct
-        # get_langchain_model callers (multi_agent, agent) — surface a
-        # clear error so the caller knows the path doesn't exist.
-        raise NotImplementedError(
-            "Apple Intelligence has no LangChain ChatModel wrapper yet. "
-            "Use llm.chat() / llm.chat_structured() (which route to "
-            "fm-bridge) or pick a different provider for multi_agent / "
-            "agent tools."
-        )
+        return ChatAppleIntelligence(config=config)
 
     if not provider:
         raise ValueError(

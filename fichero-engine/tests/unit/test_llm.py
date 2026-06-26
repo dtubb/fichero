@@ -836,6 +836,57 @@ def test_get_langchain_model_reuses_cached_model_for_identical_config(monkeypatc
     assert len(built_models) == 3
 
 
+@pytest.mark.asyncio
+async def test_get_langchain_model_returns_apple_chat_model(monkeypatch):
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    cfg = LLMConfig(provider="apple", model="apple-intelligence")
+    chat_mock = AsyncMock(return_value="apple says hi")
+    monkeypatch.setattr(llm, "chat", chat_mock)
+
+    model = llm.get_langchain_model(cfg)
+    response = await model.ainvoke(
+        [
+            SystemMessage(content="be concise"),
+            HumanMessage(content="hello"),
+        ]
+    )
+
+    assert response.content == "apple says hi"
+    assert isinstance(model, llm.ChatAppleIntelligence)
+    prompt_arg, config_arg = chat_mock.await_args.args[:2]
+    assert prompt_arg == [
+        {"role": "system", "content": "be concise"},
+        {"role": "user", "content": "hello"},
+    ]
+    assert config_arg == cfg
+
+
+@pytest.mark.asyncio
+async def test_apple_chat_model_with_structured_output_delegates(monkeypatch):
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    cfg = LLMConfig(provider="apple", model="apple-intelligence")
+    parsed = _StructuredResult(answer="structured apple")
+    structured_mock = AsyncMock(return_value=parsed)
+    monkeypatch.setattr(llm, "chat_structured", structured_mock)
+
+    model = llm.get_langchain_model(cfg)
+    structured_model = model.with_structured_output(_StructuredResult, include_raw=True)
+    result = await structured_model.ainvoke(
+        [
+            SystemMessage(content="extract"),
+            HumanMessage(content="prompt"),
+        ]
+    )
+
+    assert result["parsed"] == parsed
+    assert result["parsing_error"] is None
+    assert result["raw"].content == parsed.model_dump_json()
+    assert structured_mock.await_args.args[:3] == ("prompt", _StructuredResult, cfg)
+    assert structured_mock.await_args.kwargs["system"] == "extract"
+
+
 class _ConcurrencyResponse:
     content = "ok"
     usage_metadata = {}
