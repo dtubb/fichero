@@ -40,6 +40,11 @@ def _ctx() -> ActionContext:
     return ActionContext(actor="ui", library_path=LIB)
 
 
+@pytest.fixture(autouse=True)
+def _single_user_workflow_actions(monkeypatch):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "0")
+
+
 @pytest.fixture
 def emit_spy(monkeypatch):
     """Spy on emit_change at the SOURCE module (where registry._emit imports it)."""

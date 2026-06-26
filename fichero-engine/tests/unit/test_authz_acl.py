@@ -278,7 +278,7 @@ def test_viewer_can_search_but_cannot_save_search_route(
 async def test_multiuser_off_leaves_write_dependency_unchanged(
     db, users, monkeypatch
 ):
-    monkeypatch.delenv("FICHERO_MULTIUSER", raising=False)
+    monkeypatch.setenv("FICHERO_MULTIUSER", "0")
     library_path = _library_path(db)
 
     assert (
@@ -502,7 +502,7 @@ def test_owner_can_grant_role_and_it_takes_effect(
 async def test_multiuser_off_leaves_registry_and_read_dependency_unchanged(
     db, users, acl_action, monkeypatch
 ):
-    monkeypatch.delenv("FICHERO_MULTIUSER", raising=False)
+    monkeypatch.setenv("FICHERO_MULTIUSER", "0")
     library_path = _library_path(db)
 
     assert (
@@ -531,6 +531,19 @@ async def test_multiuser_off_leaves_registry_and_read_dependency_unchanged(
         ActionContext(actor="stranger", library_path=library_path),
     )
     assert result.ok is True
+
+
+def test_assert_can_write_bypasses_single_user_but_denies_multiuser_without_role(
+    db, users, monkeypatch
+):
+    library_path = _library_path(db)
+
+    monkeypatch.setenv("FICHERO_MULTIUSER", "0")
+    authz.assert_can_write("ui", library_path)
+
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    with pytest.raises(authz.AuthorizationError):
+        authz.assert_can_write(users.stranger, library_path)
 
 
 def test_registry_add_does_not_auto_adopt_library_under_multiuser(
