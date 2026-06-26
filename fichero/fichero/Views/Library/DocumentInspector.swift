@@ -1,6 +1,8 @@
 import FicheroAPIClient
 import SwiftUI
 
+// swiftlint:disable file_length type_body_length
+
 /// Inspector panel showing document metadata and details
 struct DocumentInspector: View {
     let document: Document?
@@ -360,6 +362,7 @@ private struct DocumentInspectorImageEditsTab: View {
                 onRemove: { index in Task { await model.removeOperation(at: index) } },
                 onReset: { Task { await model.resetAll() } },
                 onRotate: { angle in Task { await model.rotate(by: angle) } },
+                onStraighten: { Task { await model.straighten() } },
                 onEnhance: { brightness, contrast, sharpen, auto in
                     Task { await model.enhance(brightness: brightness, contrast: contrast, sharpen: sharpen, autoLevels: auto) }
                 },
@@ -423,3 +426,5 @@ private struct DocumentInspectorImageEditsTab: View {
         .environment(KGFocusState.shared)
         .frame(width: 280, height: 400)
 }
+
+// swiftlint:enable file_length type_body_length

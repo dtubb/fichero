@@ -50,6 +50,10 @@ class RotateOperationRequest(BaseModel):
     page: int = 1
 
 
+class StraightenOperationRequest(BaseModel):
+    page: int = Field(1, ge=1)
+
+
 class EnhanceOperationRequest(BaseModel):
     brightness: float = Field(1.0, ge=0.0)
     contrast: float = Field(1.0, ge=0.0)
@@ -162,6 +166,41 @@ def _remove_background(image: Image.Image, params: dict[str, Any]) -> Image.Imag
     raise HTTPException(status_code=400, detail=f"Unsupported background method: {method}")
 
 
+def _estimate_straighten_angle(image: Image.Image) -> float:
+    try:
+        import cv2  # type: ignore[import-not-found]
+        import numpy as np
+    except ImportError:
+        return 0.0
+
+    rgb = np.array(image.convert("RGB"))
+    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    edges = cv2.Canny(blurred, 50, 150)
+    min_length = max(80, gray.shape[1] // 5)
+    lines = cv2.HoughLinesP(
+        edges,
+        1,
+        np.pi / 180,
+        threshold=100,
+        minLineLength=min_length,
+        maxLineGap=12,
+    )
+    if lines is None:
+        return 0.0
+
+    angles: list[float] = []
+    for line in lines:
+        x1, y1, x2, y2 = line[0]
+        angle = float(np.degrees(np.arctan2(y2 - y1, x2 - x1)))
+        if -15.0 <= angle <= 15.0:
+            angles.append(angle)
+
+    if not angles:
+        return 0.0
+    return float(np.median(angles))
+
+
 def _foreground_segments(
     image: Image.Image, threshold: int, min_area: int, max_segments: int
 ) -> list[dict[str, Any]]:
@@ -267,6 +306,11 @@ def _apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
         raise HTTPException(status_code=400, detail=f"Invalid params for operation: {name}")
 
     if name == "rotate":
+        angle = float(params.get("angle", 0))
+        expand = bool(params.get("expand", True))
+        return image.rotate(angle, expand=expand)
+
+    if name == "straighten":
         angle = float(params.get("angle", 0))
         expand = bool(params.get("expand", True))
         return image.rotate(angle, expand=expand)
@@ -495,6 +539,24 @@ def rotate_image_impl(
     return _render_and_append(db, document_id, source_path, op, request.page)
 
 
+def straighten_image_impl(
+    db: Database, document_id: str, request: StraightenOperationRequest
+) -> ImageEditChain:
+    doc = _get_or_404_document(db, document_id)
+    source_path = _resolve_source_or_404(db, doc)
+    base = _load_source_image(source_path, page=request.page)
+    angle = _estimate_straighten_angle(base)
+    op = {
+        "op": "straighten",
+        "page": request.page,
+        "params": {"angle": angle, "expand": True},
+    }
+    derived = _apply_operation(base, op)
+    op["derived_path"] = _write_derived_image(document_id, request.page, derived)
+    op["created_at"] = datetime.now().isoformat()
+    return _append_operation(db, document_id, op)
+
+
 def enhance_image_impl(
     db: Database, document_id: str, request: EnhanceOperationRequest
 ) -> ImageEditChain:
@@ -611,6 +673,20 @@ async def rotate_image(
     db: Database = Depends(get_library_database_for_write),
 ) -> ImageEditChainResponse:
     chain = rotate_image_impl(db, document_id, request)
+    return ImageEditChainResponse(
+        document_id=document_id,
+        operations=chain.operations,
+        updated_at=chain.updated_at,
+    )
+
+
+@router.post("/{document_id}/operations/straighten", response_model=ImageEditChainResponse)
+async def straighten_image(
+    document_id: str,
+    request: StraightenOperationRequest,
+    db: Database = Depends(get_library_database_for_write),
+) -> ImageEditChainResponse:
+    chain = straighten_image_impl(db, document_id, request)
     return ImageEditChainResponse(
         document_id=document_id,
         operations=chain.operations,
@@ -739,6 +815,10 @@ class CropImageActionParams(CropOperationRequest):
 
 
 class RotateImageActionParams(RotateOperationRequest):
+    document_id: str
+
+
+class StraightenImageActionParams(StraightenOperationRequest):
     document_id: str
 
 
@@ -874,6 +954,24 @@ def _action_rotate(
 ) -> tuple[dict, ChangeSpec]:
     before_ops = _chain_ops_snapshot(db, params.document_id)
     chain = rotate_image_impl(db, params.document_id, params)
+    after_ops = [dict(op) for op in chain.operations]
+    return _chain_result(chain), _image_chain_spec(
+        params.document_id, before_ops, after_ops
+    )
+
+
+@action(
+    "image.straighten",
+    StraightenImageActionParams,
+    domains=["image"],
+    undoable=True,
+    invert=_invert_image_chain,
+)
+def _action_straighten(
+    db: Database, params: StraightenImageActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    before_ops = _chain_ops_snapshot(db, params.document_id)
+    chain = straighten_image_impl(db, params.document_id, params)
     after_ops = [dict(op) for op in chain.operations]
     return _chain_result(chain), _image_chain_spec(
         params.document_id, before_ops, after_ops

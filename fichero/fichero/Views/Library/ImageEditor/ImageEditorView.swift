@@ -149,6 +149,9 @@ private extension ImageEditorView {
                 toolButton("rotate.right", help: "Rotate right 90°") {
                     Task { await model.rotate(by: -90) }
                 }
+                toolButton("crop.rotate", help: "Straighten — auto-detect document skew") {
+                    Task { await model.straighten() }
+                }
 
                 // Enhance with slider popover
                 Button {
@@ -281,6 +284,13 @@ private extension ImageEditorView {
                 Task {
                     await model.batchApply(documentIds: selectedEditableDocs.map(\.id)) { service, id in
                         try await service.rotate(documentId: id, angle: -90)
+                    }
+                }
+            }
+            Button("Straighten") {
+                Task {
+                    await model.batchApply(documentIds: selectedEditableDocs.map(\.id)) { service, id in
+                        try await service.straighten(documentId: id)
                     }
                 }
             }

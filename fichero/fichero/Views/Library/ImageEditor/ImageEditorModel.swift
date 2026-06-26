@@ -143,6 +143,12 @@ final class ImageEditorModel {
         }
     }
 
+    func straighten() async {
+        await runOp { service in
+            try await service.straighten(documentId: self.documentId, page: self.page)
+        }
+    }
+
     func enhance(brightness: Double, contrast: Double, sharpen: Double, autoLevels: Bool) async {
         await runOp { service in
             try await service.enhance(

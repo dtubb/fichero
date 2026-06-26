@@ -15,6 +15,7 @@ struct ImageEditChainPanel: View {
     let onRemove: (Int) -> Void
     let onReset: () -> Void
     let onRotate: (Double) -> Void
+    let onStraighten: () -> Void
     let onEnhance: (Double, Double, Double, Bool) -> Void
     /// Re-apply a crop at a new pixel rect (left, top, width, height). Called after
     /// onRemove so the chain has only one crop step at a time.
@@ -210,6 +211,27 @@ struct ImageEditChainPanel: View {
                 }
             }
             .font(.caption)
+        case "straighten":
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "crop.rotate")
+                        .foregroundStyle(.secondary)
+                    Text("Auto-straighten — re-apply to rerun on the current image.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                HStack {
+                    Spacer()
+                    Button("Re-apply") {
+                        onRemove(index)
+                        onStraighten()
+                        selectedStepIndex = nil
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(isBusy)
+                }
+            }
         case "crop":
             let cropLeft = operation.params["left"] as? Int ?? 0
             let cropTop = operation.params["top"] as? Int ?? 0
@@ -375,6 +397,9 @@ struct ImageEditChainPanel: View {
                 addToolButton("rotate.right", title: "Rotate ↻") {
                     onRotate(-90); addStepExpanded = false
                 }
+                addToolButton("crop.rotate", title: "Straighten") {
+                    onStraighten(); addStepExpanded = false
+                }
             }
             DisclosureGroup {
                 VStack(alignment: .leading, spacing: 8) {
@@ -463,6 +488,7 @@ struct ImageEditChainPanel: View {
         onRemove: { _ in },
         onReset: {},
         onRotate: { _ in },
+        onStraighten: {},
         onEnhance: { _, _, _, _ in },
         onCrop: { _, _, _, _ in },
         onRemoveBackground: {},
@@ -481,6 +507,7 @@ struct ImageEditChainPanel: View {
         onRemove: { _ in },
         onReset: {},
         onRotate: { _ in },
+        onStraighten: {},
         onEnhance: { _, _, _, _ in },
         onCrop: { _, _, _, _ in },
         onRemoveBackground: {},

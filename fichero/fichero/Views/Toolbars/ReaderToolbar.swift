@@ -328,11 +328,11 @@ struct ReaderToolbar: View {
         .buttonStyle(.plain)
         .foregroundColor(binding.wrappedValue ? .accentColor : .primary)
         .disabled(isEditing == nil)
-        .help(isEditing == nil
+                .help(isEditing == nil
                 ? "Image editing (not available for this document)"
                 : (binding.wrappedValue
                     ? "Done — return to viewing"
-                    : "Edit image (crop, rotate, enhance, remove background)"))
+                    : "Edit image (crop, rotate, straighten, enhance, remove background)"))
         .accessibilityIdentifier("canvasEditModeToggle")
 
         sectionDivider
