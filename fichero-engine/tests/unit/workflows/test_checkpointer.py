@@ -13,7 +13,6 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-import duckdb
 
 from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer, JsonCheckpointSerializer
 
@@ -266,6 +265,41 @@ class TestCheckpointSaveLoad:
 
         assert result is not None
         assert result.checkpoint["id"] == sample_checkpoint["id"]
+
+    @pytest.mark.asyncio
+    async def test_aput_compacts_outputs_before_persisting_checkpoint(
+        self, checkpointer, sample_metadata
+    ):
+        checkpoint = {
+            "id": str(uuid4()),
+            "type": "checkpoint",
+            "channel_values": {
+                "outputs": {
+                    "tx": {
+                        "text": "joined",
+                        "texts": ["page 1", "page 2"],
+                        "results": [{"file": "a"}, {"file": "b"}],
+                        "values": ["v1", "v2"],
+                    }
+                }
+            },
+            "channel_versions": {"outputs": 1},
+            "versions_seen": {"source": {"outputs": 1}},
+        }
+        config = {"configurable": {"thread_id": "compact-thread", "checkpoint_ns": ""}}
+
+        await checkpointer.aput(config, checkpoint, sample_metadata, {})
+        result = await checkpointer.aget_tuple(config)
+
+        assert result is not None
+        tx = result.checkpoint["channel_values"]["outputs"]["tx"]
+        assert tx["text"] == "joined"
+        assert tx["text_count"] == 2
+        assert tx["result_count"] == 2
+        assert tx["value_count"] == 2
+        assert "texts" not in tx
+        assert "results" not in tx
+        assert "values" not in tx
 
 
 class TestThreadIsolation:

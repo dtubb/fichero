@@ -30,7 +30,29 @@ from langgraph.checkpoint.base import (
     SerializerProtocol,
 )
 
+from fichero.workflows.types import compact_output_for_state
+
 logger = logging.getLogger(__name__)
+
+
+def _compact_checkpoint(checkpoint: Checkpoint) -> Checkpoint:
+    """Trim redundant State.outputs payloads before persisting checkpoints."""
+    compact = dict(checkpoint)
+    channel_values = compact.get("channel_values")
+    if not isinstance(channel_values, dict):
+        return compact
+
+    outputs = channel_values.get("outputs")
+    if not isinstance(outputs, dict):
+        return compact
+
+    compact_channel_values = dict(channel_values)
+    compact_channel_values["outputs"] = {
+        node_id: compact_output_for_state(node_output)
+        for node_id, node_output in outputs.items()
+    }
+    compact["channel_values"] = compact_channel_values
+    return compact
 
 
 class JsonCheckpointSerializer(SerializerProtocol):
@@ -225,7 +247,7 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
         checkpoint_id = checkpoint["id"]
 
         # Serialize checkpoint and metadata
-        checkpoint_blob = self.serde.dumps(checkpoint)
+        checkpoint_blob = self.serde.dumps(_compact_checkpoint(checkpoint))
         metadata_blob = self.serde.dumps(metadata)
 
         # Insert checkpoint (run in thread pool since DuckDB doesn't have native async)

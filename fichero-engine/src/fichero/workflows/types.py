@@ -14,10 +14,45 @@ Key concepts:
 
 from __future__ import annotations
 
+import json
 import uuid
 from enum import Enum
 from typing import TypedDict, Any, Literal, Annotated
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+_STATE_OUTPUT_MAX_BYTES = 8 * 1024 * 1024
+
+
+def compact_output_for_state(value: Any) -> Any:
+    """Drop redundant per-file payloads before they accumulate in State.
+
+    Downstream nodes read the combined ``text`` / ``records`` outputs, not the
+    full per-file ``texts`` / ``results`` / ``values`` arrays. Keep counts so
+    callers can still report fan-out cardinality without retaining every branch
+    payload in memory or checkpoints.
+    """
+    if not isinstance(value, dict):
+        return value
+
+    compact = dict(value)
+    if isinstance(compact.get("texts"), list):
+        compact["text_count"] = len(compact["texts"])
+        compact.pop("texts", None)
+    if isinstance(compact.get("results"), list):
+        compact["result_count"] = len(compact["results"])
+        compact.pop("results", None)
+    if isinstance(compact.get("values"), list):
+        compact["value_count"] = len(compact["values"])
+        compact.pop("values", None)
+
+    size = len(json.dumps(compact, ensure_ascii=False))
+    if size > _STATE_OUTPUT_MAX_BYTES:
+        raise ValueError(
+            "Workflow State output exceeded the capped serialized size "
+            f"({size} > {_STATE_OUTPUT_MAX_BYTES} bytes)"
+        )
+    return compact
 
 
 def _merge_parallel_results(
@@ -55,7 +90,12 @@ def _merge_outputs(
     if new is None:
         return existing
     result = dict(existing)
-    result.update(new)
+    result.update(
+        {
+            node_id: compact_output_for_state(node_output)
+            for node_id, node_output in new.items()
+        }
+    )
     return result
 
 

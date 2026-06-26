@@ -45,7 +45,7 @@ from fichero.workflows.builder import (
 )
 from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer
 from fichero.workflows.runtime import create_compiled_app
-from fichero.workflows.types import EdgeDef, NodeDef, WorkflowDef
+from fichero.workflows.types import EdgeDef, NodeDef, WorkflowDef, _merge_outputs
 
 
 # ---------------------------------------------------------------------------
@@ -186,6 +186,31 @@ def test_fan_out_send_payload_excludes_outputs_blob():
             "library_path",
         }
         assert send.arg["parallel_total"] == 3
+
+
+def test_state_outputs_drop_redundant_per_file_arrays():
+    """State keeps the aggregate text, not the full per-file arrays (#2541)."""
+    merged = _merge_outputs(
+        {},
+        {
+            "tx": {
+                "text": "page 1\n\npage 2",
+                "texts": ["page 1", "page 2"],
+                "results": [{"file": "a"}, {"file": "b"}],
+                "values": ["v1", "v2"],
+                "records": [{"doc_id": "d1", "text": "page 1"}],
+            }
+        },
+    )
+
+    tx = merged["tx"]
+    assert tx["text"] == "page 1\n\npage 2"
+    assert tx["text_count"] == 2
+    assert tx["result_count"] == 2
+    assert tx["value_count"] == 2
+    assert "texts" not in tx
+    assert "results" not in tx
+    assert "values" not in tx
 
 
 @pytest.mark.asyncio
