@@ -1489,6 +1489,7 @@ class TestProcessVisionSave:
                 str(library_path),
                 artifact_type="transcription",
                 llm_config=ANY,
+                page_geometries=None,
             )
 
     @pytest.mark.asyncio
