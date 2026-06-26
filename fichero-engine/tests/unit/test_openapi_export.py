@@ -18,7 +18,10 @@ from __future__ import annotations
 
 import json
 import importlib.util
+import os
 from pathlib import Path
+import subprocess
+import sys
 
 
 def _load_exporter():
@@ -28,6 +31,25 @@ def _load_exporter():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def test_openapi_export_uses_temp_base_path(tmp_path: Path) -> None:
+    """Schema export should succeed without the user's app.duckdb."""
+    script_path = Path(__file__).resolve().parents[2] / "scripts" / "export_openapi_schema.py"
+    src_path = Path(__file__).resolve().parents[2] / "src"
+    code = (
+        "import importlib.util; "
+        f"spec = importlib.util.spec_from_file_location('export_openapi_schema', {str(script_path)!r}); "
+        "module = importlib.util.module_from_spec(spec); "
+        "spec.loader.exec_module(module); "
+        "paths = module.build_openapi_schema()['paths']; "
+        "assert '/api/health' in paths"
+    )
+    env = os.environ.copy()
+    env["FICHERO_BASE_PATH"] = str(tmp_path)
+    env["PYTHONPATH"] = str(src_path)
+
+    subprocess.run([sys.executable, "-c", code], env=env, check=True)
 
 
 def test_openapi_export_is_deterministic_and_split():
