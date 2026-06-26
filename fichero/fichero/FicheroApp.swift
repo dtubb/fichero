@@ -361,6 +361,14 @@ struct FicheroApp: App {
         }
         .defaultSize(width: 480, height: 620)
 
+        WindowGroup("Document", id: "document-detail") {
+            DocumentDetailWindow()
+                .environmentObject(libraryManager)
+                .environmentObject(claimFocusState)
+                .environment(kgFocusState)
+        }
+        .defaultSize(width: 540, height: 720)
+
         // Activity monitor (#2546 / B2): the poppable live workflow monitor —
         // the window's root IS the hierarchical outline table. Resolves the
         // active library's shared WorkflowExecutionStore via LibraryManager and

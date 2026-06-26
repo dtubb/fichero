@@ -78,6 +78,7 @@ struct ContentView: View {
     // Runtime state - full objects for use in views
     @State var viewMode: AppViewMode = .library(nil)
     @State var detailDocument: Document?
+    @State private var focusedDocument = FocusedDocument.shared
     /// The page document currently in view, updated only by scroll/page-flip
     /// events. Drives the inspector without re-rooting the WebKit pane (#1463).
     @State var pageFocusDocument: Document?
@@ -327,6 +328,33 @@ struct ContentView: View {
                 maxWidth: .infinity,
                 maxHeight: .infinity
             )
+            .popover(
+                item: $detailDocument,
+                attachmentAnchor: .rect(.bounds),
+                arrowEdge: .trailing
+            ) { document in
+                VStack(spacing: 0) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "doc.text.magnifyingglass")
+                            .foregroundStyle(.secondary)
+                        Text(document.name)
+                            .font(.headline)
+                            .lineLimit(1)
+                        Spacer(minLength: 0)
+                        DetachInspectorButton(isEnabled: true) {
+                            focusedDocument.select(document, libraryId: windowState.libraryId)
+                            openWindow(id: "document-detail")
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .frame(height: MiniToolbar<EmptyView, EmptyView>.standardHeight)
+
+                    Divider()
+
+                    DocumentInspector(document: document)
+                }
+                .frame(minWidth: 360, minHeight: 420)
+            }
 
         // Listen for claim selection from inspector and sync to other panes
         .onReceive(NotificationCenter.default.publisher(for: .claimSelectedInInspector)) { notification in
@@ -399,7 +427,10 @@ struct ContentView: View {
         }
         .navigationTitle(toolbarTitle)
         .modifier(NavigationSubtitleCompat(subtitle: breadcrumbSubtitle))
-        .onAppear { handleOnAppear() }
+        .onAppear {
+            handleOnAppear()
+            syncFocusedDocumentSelection(detailDocument)
+        }
         .onChange(of: documentStore.collections) { old, new in
             handleCollectionsChange(old: old, new: new)
         }
@@ -447,6 +478,7 @@ struct ContentView: View {
                 handleBrowserSelectionChange(newSelection)
             }
             .onChange(of: detailDocument) { _, newDoc in
+                syncFocusedDocumentSelection(newDoc)
                 handleDetailDocumentChange(newDoc)
             }
             #if canImport(AppKit)
@@ -772,6 +804,14 @@ extension ContentView {
                     }
                     .help("Search current content")
             }
+        }
+    }
+
+    private func syncFocusedDocumentSelection(_ document: Document?) {
+        if let document {
+            focusedDocument.select(document, libraryId: windowState.libraryId)
+        } else {
+            focusedDocument.clear()
         }
     }
 }
