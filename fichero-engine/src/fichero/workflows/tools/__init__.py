@@ -45,6 +45,7 @@ from fichero.workflows.tools import table_extract
 from fichero.workflows.tools import handwriting
 from fichero.workflows.tools import style
 from fichero.workflows.tools import similarity
+from fichero.workflows.tools import organize_same_documents  # noqa: F401  (#2284 slice 2)
 from fichero.workflows.tools import rotate_images  # noqa: F401  (#1387)
 from fichero.workflows.tools import prepare_images  # noqa: F401  (#1390)
 from fichero.workflows.tools import enhance_images  # noqa: F401  (#1388)
@@ -138,6 +139,7 @@ __all__ = [
     "handwriting",
     "style",
     "similarity",
+    "organize_same_documents",
     "rotate_images",
     "prepare_images",
     "enhance_images",

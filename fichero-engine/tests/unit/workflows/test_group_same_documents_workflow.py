@@ -8,7 +8,7 @@ from PIL import Image
 from tests.integration._seedlib import seed
 
 from fichero.db import db_manager
-from fichero.models import Artifact, DocType, Document, FileType, Workflow
+from fichero.models import ActionAudit, Artifact, DocType, Document, FileType, Workflow
 from fichero.workflows.builder import build_graph
 from fichero.workflows.default_workflows import _load_preset_files
 from fichero.workflows.runtime import build_initial_state, to_workflow_def
@@ -57,6 +57,28 @@ def test_group_same_documents_preset_clusters_known_duplicates(tmp_path: Path):
     artifacts = db.query(Artifact, document_id=folder_id, artifact_type="similarity")
     assert len(artifacts) == 1
     assert artifacts[0].data == output
+
+    organized = result["outputs"]["organize"]["summary"]
+    assert organized["clusters_organized"] == 1
+    assert organized["clusters_skipped"] == 2
+    assert organized["folders_created"] == 1
+    assert organized["documents_moved"] == 2
+
+    cluster_folders = db.query(Document, parent_id=folder_id, doc_type=DocType.folder)
+    assert len(cluster_folders) == 1
+    cluster_folder = cluster_folders[0]
+    assert cluster_folder.name == "Same Document 1"
+
+    assert db.get(Document, docs[0].id).parent_id == cluster_folder.id
+    assert db.get(Document, docs[1].id).parent_id == cluster_folder.id
+    assert db.get(Document, docs[2].id).parent_id == folder_id
+    assert db.get(Document, docs[3].id).parent_id == folder_id
+
+    audits = list(db.all(ActionAudit))
+    create_audits = [audit for audit in audits if audit.action_name == "document.create"]
+    move_audits = [audit for audit in audits if audit.action_name == "document.move"]
+    assert len(create_audits) == 1
+    assert len(move_audits) == 2
 
 
 def _seed_duplicate_folder(tmp_path: Path) -> tuple[Path, str, list[Document]]:

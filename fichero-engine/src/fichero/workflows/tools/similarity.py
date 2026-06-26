@@ -23,8 +23,10 @@ from fichero.workflows.tools.catalogue import _resolve_write_target
 from fichero.workflows.tools.llm_base import (
     BASE_OUTPUT_PORTS,
     merge_config_schema,
+    merge_ports,
     build_context_section,
 )
+from fichero.workflows.types import DataType, PortDef
 from fichero.workflows.tools.vision_base import (
     VISION_INPUT_PORTS,
     VISION_CONFIG_SCHEMA,
@@ -34,6 +36,19 @@ from fichero.workflows.tools.vision_base import (
 from fichero.llm import vision, LLMConfig
 
 logger = logging.getLogger(__name__)
+
+_SIMILARITY_OUTPUT_PORTS = merge_ports(
+    BASE_OUTPUT_PORTS,
+    [
+        PortDef(
+            id="clusters",
+            name="Clusters",
+            port_type="output",
+            data_type=DataType.JSON,
+            description="Typed same-document clusters.",
+        )
+    ],
+)
 
 
 class SimilarityAspectScore(BaseModel):
@@ -232,7 +247,7 @@ def _map_clusters(
     supports_batch=False,  # Processes all files together
     supports_structured_output=True,
     input_ports=VISION_INPUT_PORTS,
-    output_ports=BASE_OUTPUT_PORTS,
+    output_ports=_SIMILARITY_OUTPUT_PORTS,
     config_schema=merge_config_schema(VISION_CONFIG_SCHEMA, SIMILARITY_CONFIG),
     default_prompt=_build_prompt(
         ["content", "composition", "color", "style"], "percentage"
