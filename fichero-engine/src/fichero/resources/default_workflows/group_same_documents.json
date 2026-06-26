@@ -1,0 +1,56 @@
+{
+  "name": "Group Same Documents",
+  "description": "First slice for same-document clustering. Scores the selected files together, groups duplicate or variant forms of the same underlying document, and persists the clusters on the selected container. Folder organize / move is deferred to a follow-up slice.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Organize",
+  "tags": [
+    "preset",
+    "organize",
+    "cluster",
+    "reviewable"
+  ],
+  "config": {
+    "preset_version": 1,
+    "stage": "group_same_documents"
+  },
+  "nodes": [
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Files",
+      "position_x": 80,
+      "position_y": 200,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "similarity",
+      "tool": "similarity",
+      "label": "Group Same Documents",
+      "position_x": 320,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "max_image_dimension": 1024
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-files-similarity-files",
+      "source": "files-source",
+      "target": "similarity",
+      "source_port": "files",
+      "target_port": "files"
+    },
+    {
+      "id": "edge-files-similarity-documents",
+      "source": "files-source",
+      "target": "similarity",
+      "source_port": "documents",
+      "target_port": "documents"
+    }
+  ]
+}
