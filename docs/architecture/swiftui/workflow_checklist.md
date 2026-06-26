@@ -8,7 +8,7 @@
 > - **Tasks are tracked in GitHub Issues + Milestones**, not `docs/agent-workflow/TODO.md`
 >   (retired). Ignore the "check / update TODO.md" steps.
 > - **Branch discipline**: commit milestone work directly to the milestone branch
->   (e.g. `0.0.2`); do **not** create per-task `feature-branch-name` branches and do
+>   (e.g. `main`); do **not** create per-task `feature-branch-name` branches and do
 >   not `git pull origin main` into your work — see `.claude/CLAUDE.md` → "Branch discipline".
 > - **AppKit**: "100% SwiftUI" is aspirational. SwiftUI-first with ~8 sanctioned
 >   `NSViewRepresentable` bridges (PDFKit, magnifier, text editors, …). The

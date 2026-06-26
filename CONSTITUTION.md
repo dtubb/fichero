@@ -71,7 +71,7 @@ Execution tracking and planning are governed in GitHub:
 
 ## Versioning
 
-The destination is **dated releases** (CalVer, e.g. `2026.05.01`) — a dated snapshot is a known-good build with document management, workflows, KG, CLI, and the autonomous loops working together. That's the model for the **final release**; it is not fully in place yet. Current development still runs on the `0.0.2` line, and day-to-day work is organized per worker/lane.
+The destination is **dated releases** (CalVer, e.g. `2026.05.01`) — a dated snapshot is a known-good build with document management, workflows, KG, CLI, and the autonomous loops working together. That's the model for the **final release**; it is not fully in place yet. Current development runs on `main` (the `0.0.2` working line was merged to `main` via PR #2652 on 2026-06-26), and day-to-day work is organized per worker/lane.
 
 - Current working branch + worktree mechanics → `.claude/CLAUDE.md`
 - Release / packaging process (signing, notarize, Sparkle, DMG) → `docs/architecture/release-process.md` (the pipeline itself lives in the separate `fichero-releases` repo)

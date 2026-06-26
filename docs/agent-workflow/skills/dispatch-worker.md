@@ -13,7 +13,7 @@ from in-repo worktrees; false-green incremental builds; stale-tree pytest).
 - **Worktrees live ONLY under `<worktrees-root>/<name>`** — a single isolated
   parent dir, NEVER bare siblings `<code-dir>/fichero-<name>`. NEVER the Agent tool's
   `isolation: worktree` (lands in `.claude/worktrees/` inside the repo, which
-  `uvicorn --reload` watches). Create: `git worktree add <worktrees-root>/<name> -b <branch> 0.0.2`.
+  `uvicorn --reload` watches). Create: `git worktree add <worktrees-root>/<name> -b <branch> main`.
 - **DELETION SAFETY:**
   remove worktrees with `git worktree remove --force <path>` ONLY (touches only registered
   worktrees). **NEVER `rm -rf` a `<code-dir>/` path, and NEVER glob-delete `<code-dir>/fichero-*`** —
@@ -45,7 +45,7 @@ from in-repo worktrees; false-green incremental builds; stale-tree pytest).
 
 ## 1. Create the external worktree
 ```bash
-git worktree add <worktrees-root>/<name> -b <branch> 0.0.2
+git worktree add <worktrees-root>/<name> -b <branch> main
 ```
 
 ## 2. Launch via tmux + send-keys (NOT `codex exec` — it hangs headless)
