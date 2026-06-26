@@ -25894,7 +25894,7 @@
           "mind-palace"
         ],
         "summary": "Save Canvas Layout",
-        "description": "Upsert a batch of item positions for a folder's spatial canvas.\n\nEach row is keyed by the deterministic ``(folder_id, item_id)`` composite,\nso re-saving the same item overwrites its prior position rather than\ncreating a duplicate. Returns the persisted rows.",
+        "description": "Compatibility wrapper: persist folder item positions onto Document attrs.",
         "operationId": "save_canvas_layout_api_mind_palace_folders__folder_id__canvas_layout_put",
         "parameters": [
           {
@@ -39326,6 +39326,21 @@
             "nullable": true,
             "title": "Position Z"
           },
+          "rotation_z": {
+            "type": "number",
+            "nullable": true,
+            "title": "Rotation Z"
+          },
+          "scale": {
+            "type": "number",
+            "nullable": true,
+            "title": "Scale"
+          },
+          "z_index": {
+            "type": "integer",
+            "title": "Z Index",
+            "default": 0
+          },
           "expected_thumbnail_path": {
             "type": "string",
             "title": "Expected Thumbnail Path",
@@ -39538,6 +39553,36 @@
             "type": "string",
             "nullable": true,
             "title": "Prototype Key"
+          },
+          "position_x": {
+            "type": "number",
+            "nullable": true,
+            "title": "Position X"
+          },
+          "position_y": {
+            "type": "number",
+            "nullable": true,
+            "title": "Position Y"
+          },
+          "position_z": {
+            "type": "number",
+            "nullable": true,
+            "title": "Position Z"
+          },
+          "rotation_z": {
+            "type": "number",
+            "nullable": true,
+            "title": "Rotation Z"
+          },
+          "scale": {
+            "type": "number",
+            "nullable": true,
+            "title": "Scale"
+          },
+          "z_index": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Z Index"
           }
         },
         "additionalProperties": true,
@@ -40097,6 +40142,21 @@
             "type": "number",
             "nullable": true,
             "title": "Position Z"
+          },
+          "rotation_z": {
+            "type": "number",
+            "nullable": true,
+            "title": "Rotation Z"
+          },
+          "scale": {
+            "type": "number",
+            "nullable": true,
+            "title": "Scale"
+          },
+          "z_index": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Z Index"
           }
         },
         "additionalProperties": true,

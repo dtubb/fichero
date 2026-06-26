@@ -28,7 +28,7 @@ from fichero.spatial_models import (
     SpatialViewport,
     SpatialRoom,
 )
-from fichero.models import MindPalaceListResponse
+from fichero.models import Document, MindPalaceListResponse
 from fichero.actions.registry import action, ActionContext, ChangeSpec
 from fichero.spatial_arrange import (
     DEFAULT_SPACING,
@@ -826,10 +826,10 @@ async def import_from_tinderbox(
 
 
 class CanvasLayoutItem(BaseModel):
-    """One item's position within a folder's spatial canvas (upsert payload).
+    """One item's position within a folder's spatial canvas.
 
     ``folder_id`` is taken from the path, never the body, so a batch can only
-    write rows for the folder it is addressed to.
+    update document-backed positions for the folder it is addressed to.
     """
 
     item_id: str
@@ -845,9 +845,61 @@ class CanvasLayoutItem(BaseModel):
 
 
 class CanvasLayoutSaveRequest(BaseModel):
-    """Batch of item positions to upsert for a folder (one drag → one save)."""
+    """Batch of item positions to persist for a folder (one drag -> one save)."""
 
     items: list[CanvasLayoutItem]
+
+
+def _canvas_layout_row_from_document(folder_id: str, doc: Document) -> CanvasLayout:
+    """Compatibility shape for the retired canvas_layout table, backed by Document attrs."""
+    metadata = doc.metadata if isinstance(doc.metadata, dict) else {}
+    return CanvasLayout(
+        id=CanvasLayout.make_id(folder_id, doc.id),
+        folder_id=folder_id,
+        item_id=doc.id,
+        x=doc.position_x or 0.0,
+        y=doc.position_y or 0.0,
+        z=doc.position_z or 0.0,
+        w=metadata.get("canvas_w"),
+        h=metadata.get("canvas_h"),
+        d=metadata.get("canvas_d"),
+        angle=doc.rotation_z or 0.0,
+        z_index=doc.z_index,
+        style=metadata.get("canvas_style"),
+        updated_at=doc.updated_at,
+    )
+
+
+def _folder_canvas_documents(db: Database, folder_id: str) -> list[Document]:
+    """Folder child documents that currently carry canvas position data."""
+    rows = db.query(Document, parent_id=folder_id)
+    return [
+        doc for doc in rows
+        if doc.position_x is not None
+        or doc.position_y is not None
+        or doc.position_z is not None
+        or doc.rotation_z is not None
+        or doc.z_index != 0
+        or (
+            isinstance(doc.metadata, dict)
+            and any(
+                key in doc.metadata
+                for key in ("canvas_w", "canvas_h", "canvas_d", "canvas_style")
+            )
+        )
+    ]
+
+
+def _folder_canvas_document_or_404(db: Database, folder_id: str, item_id: str) -> Document:
+    doc = db.get(Document, item_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail=f"Document not found: {item_id}")
+    if doc.parent_id != folder_id:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Document {item_id} is not in folder {folder_id}",
+        )
+    return doc
 
 
 @router.get("/folders/{folder_id}/canvas-layout", response_model=MindPalaceListResponse)
@@ -856,7 +908,10 @@ async def get_canvas_layout(
     db: Database = Depends(get_library_database),
 ) -> MindPalaceListResponse:
     """Load all persisted item positions for a folder's spatial canvas."""
-    rows = db.query(CanvasLayout, folder_id=folder_id)
+    rows = [
+        _canvas_layout_row_from_document(folder_id, doc)
+        for doc in _folder_canvas_documents(db, folder_id)
+    ]
     return MindPalaceListResponse(items=rows, count=len(rows))
 
 
@@ -866,22 +921,24 @@ async def save_canvas_layout(
     request: CanvasLayoutSaveRequest,
     db: Database = Depends(get_library_database_for_write),
 ) -> list[CanvasLayout]:
-    """Upsert a batch of item positions for a folder's spatial canvas.
-
-    Each row is keyed by the deterministic ``(folder_id, item_id)`` composite,
-    so re-saving the same item overwrites its prior position rather than
-    creating a duplicate. Returns the persisted rows.
-    """
+    """Compatibility wrapper: persist folder item positions onto Document attrs."""
     saved: list[CanvasLayout] = []
     for item in request.items:
-        row = CanvasLayout(
-            id=CanvasLayout.make_id(folder_id, item.item_id),
-            folder_id=folder_id,
-            updated_at=datetime.now(),
-            **item.model_dump(),
-        )
-        db.save(row)
-        saved.append(row)
+        doc = _folder_canvas_document_or_404(db, folder_id, item.item_id)
+        metadata = dict(doc.metadata) if isinstance(doc.metadata, dict) else {}
+        doc.position_x = item.x
+        doc.position_y = item.y
+        doc.position_z = item.z
+        doc.rotation_z = item.angle
+        doc.z_index = item.z_index
+        metadata["canvas_w"] = item.w
+        metadata["canvas_h"] = item.h
+        metadata["canvas_d"] = item.d
+        metadata["canvas_style"] = item.style
+        doc.metadata = metadata
+        doc.updated_at = datetime.now()
+        db.save(doc)
+        saved.append(_canvas_layout_row_from_document(folder_id, doc))
     return saved
 
 
@@ -916,7 +973,7 @@ def arrange_impl(
     columns: int | None = None,
     radius: float | None = None,
 ) -> list[CanvasLayout]:
-    """Compute transforms for ``node_ids`` and upsert them into ``canvas_layout``.
+    """Compute transforms for ``node_ids`` and persist them onto Document attrs.
 
     Shared by the HTTP route and the registered action so both drive the same
     code (iterate-not-replace). Raises ``ValueError`` (empty / unknown strategy)
@@ -933,18 +990,14 @@ def arrange_impl(
     saved: list[CanvasLayout] = []
     now = datetime.now()
     for pos in positions:
-        row = CanvasLayout(
-            id=CanvasLayout.make_id(folder_id, pos["item_id"]),
-            folder_id=folder_id,
-            item_id=pos["item_id"],
-            x=pos["x"],
-            y=pos["y"],
-            z=pos["z"],
-            z_index=pos["z_index"],
-            updated_at=now,
-        )
-        db.save(row)
-        saved.append(row)
+        doc = _folder_canvas_document_or_404(db, folder_id, pos["item_id"])
+        doc.position_x = pos["x"]
+        doc.position_y = pos["y"]
+        doc.position_z = pos["z"]
+        doc.z_index = pos["z_index"]
+        doc.updated_at = now
+        db.save(doc)
+        saved.append(_canvas_layout_row_from_document(folder_id, doc))
     return saved
 
 
@@ -956,8 +1009,8 @@ async def arrange_folder_canvas(
 ) -> MindPalaceListResponse:
     """Lay out a folder's nodes by ``strategy`` and persist the transforms.
 
-    Computes positions (grid/row/column/circle/stack) and upserts one
-    ``canvas_layout`` row per node, then returns the persisted rows in the
+    Computes positions (grid/row/column/circle/stack), writes them onto the
+    underlying child documents, then returns the compatibility payload in the
     standard ``{items, count}`` envelope.
     """
     try:
@@ -990,9 +1043,9 @@ def _action_arrange_canvas(
 ) -> tuple[list[dict], ChangeSpec]:
     node_id_set = set(params.node_ids)
     before = [
-        r.model_dump(mode="json")
-        for r in db.query(CanvasLayout, folder_id=params.folder_id)
-        if r.item_id in node_id_set
+        _canvas_layout_row_from_document(params.folder_id, doc).model_dump(mode="json")
+        for doc in _folder_canvas_documents(db, params.folder_id)
+        if doc.id in node_id_set
     ]
     rows = arrange_impl(
         db,
@@ -1016,10 +1069,10 @@ def _action_arrange_canvas(
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Canvas items — STANDALONE placeable CONTENT (#2294): notes, quotes,
-# work-notes, links/connectors, free text. The non-document placeables. Their
-# POSITION lives in canvas_layout (#2293), keyed by the same id; this is the
-# payload. FOLDER-scoped via the path. One model, a ``kind`` field — not a
-# model per kind.
+# work-notes, links/connectors, free text. The non-document placeables.
+# Folder-scoped via the path. One model, a ``kind`` field -- not a model per
+# kind. Document/page placement now lives on Document attrs; these items remain
+# as content payloads only.
 # ─────────────────────────────────────────────────────────────────────────────
 
 

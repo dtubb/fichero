@@ -923,22 +923,38 @@ class TestUpdateDocument:
         assert create.json().get("position_x") is None
         assert create.json().get("position_y") is None
         assert create.json().get("position_z") is None
+        assert create.json().get("rotation_z") is None
+        assert create.json().get("scale") is None
+        assert create.json().get("z_index") == 0
 
         update = client.put(
             f"/api/documents/{doc_id}",
-            json={"position_x": 120.5, "position_y": 240.0, "position_z": 1.0},
+            json={
+                "position_x": 120.5,
+                "position_y": 240.0,
+                "position_z": 1.0,
+                "rotation_z": 45.0,
+                "scale": 1.25,
+                "z_index": 3,
+            },
         )
         assert update.status_code == 200
         payload = update.json()
         assert payload["position_x"] == 120.5
         assert payload["position_y"] == 240.0
         assert payload["position_z"] == 1.0
+        assert payload["rotation_z"] == 45.0
+        assert payload["scale"] == 1.25
+        assert payload["z_index"] == 3
 
         single = client.get(f"/api/documents/{doc_id}")
         assert single.status_code == 200
         assert single.json()["position_x"] == 120.5
         assert single.json()["position_y"] == 240.0
         assert single.json()["position_z"] == 1.0
+        assert single.json()["rotation_z"] == 45.0
+        assert single.json()["scale"] == 1.25
+        assert single.json()["z_index"] == 3
 
         list_resp = client.get("/api/documents")
         assert list_resp.status_code == 200
@@ -946,6 +962,9 @@ class TestUpdateDocument:
         assert item["position_x"] == 120.5
         assert item["position_y"] == 240.0
         assert item["position_z"] == 1.0
+        assert item["rotation_z"] == 45.0
+        assert item["scale"] == 1.25
+        assert item["z_index"] == 3
 
 
 class TestBatchExcludeDocuments:

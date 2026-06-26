@@ -1,18 +1,26 @@
-"""Unit tests for folder-scoped canvas layout persistence (#2293 slice 1).
+"""Unit tests for folder-scoped canvas layout compatibility persistence.
 
-The spatial 2D/3D library canvas must remember where each item was placed,
-scoped to a FOLDER (not a mind-palace room), so switching view modes does not
-lose positions.
+The old canvas-layout endpoint is now a compatibility wrapper over document
+position attributes, so switching view modes still returns the same payload
+without a separate canvas_layout table.
 """
 
-from fichero.spatial_models import CanvasLayout
+from fichero.models import DocType, Document
 
 BASE = "/api/mind-palace/folders"
 
 
-def test_round_trip_upsert_then_load(client):
+def _make_doc(db, folder_id: str, doc_id: str) -> Document:
+    doc = Document(id=doc_id, name=doc_id, parent_id=folder_id, doc_type=DocType.file)
+    db.save(doc)
+    return doc
+
+
+def test_round_trip_upsert_then_load(client, db):
     """Saving a batch then loading returns the same positions."""
     folder = "folder-A"
+    _make_doc(db, folder, "doc-1")
+    _make_doc(db, folder, "doc-2")
     resp = client.put(
         f"{BASE}/{folder}/canvas-layout",
         json={
@@ -36,9 +44,10 @@ def test_round_trip_upsert_then_load(client):
     assert rows["doc-2"]["w"] == 100.0
 
 
-def test_defaults_for_omitted_fields(client):
+def test_defaults_for_omitted_fields(client, db):
     """Omitted spatial fields fall back to documented defaults."""
     folder = "folder-defaults"
+    _make_doc(db, folder, "only-id")
     resp = client.put(
         f"{BASE}/{folder}/canvas-layout",
         json={"items": [{"item_id": "only-id"}]},
@@ -57,9 +66,10 @@ def test_defaults_for_omitted_fields(client):
     assert row["style"] is None
 
 
-def test_upsert_is_idempotent_no_duplicate_rows(client):
+def test_upsert_is_idempotent_no_duplicate_rows(client, db):
     """Re-saving the same (folder, item) overwrites — never duplicates."""
     folder = "folder-idem"
+    _make_doc(db, folder, "node")
     client.put(
         f"{BASE}/{folder}/canvas-layout",
         json={"items": [{"item_id": "node", "x": 1.0, "y": 1.0}]},
@@ -75,15 +85,17 @@ def test_upsert_is_idempotent_no_duplicate_rows(client):
     assert rows[0]["y"] == 88.0
 
 
-def test_layout_is_folder_scoped(client):
+def test_layout_is_folder_scoped(client, db):
     """Positions in one folder never leak into another folder's load."""
+    _make_doc(db, "folder-x", "shared-id")
+    _make_doc(db, "folder-y", "shared-id-y")
     client.put(
         f"{BASE}/folder-x/canvas-layout",
         json={"items": [{"item_id": "shared-id", "x": 1.0}]},
     )
     client.put(
         f"{BASE}/folder-y/canvas-layout",
-        json={"items": [{"item_id": "shared-id", "x": 2.0}]},
+        json={"items": [{"item_id": "shared-id-y", "x": 2.0}]},
     )
     x_rows = client.get(f"{BASE}/folder-x/canvas-layout").json()["items"]
     y_rows = client.get(f"{BASE}/folder-y/canvas-layout").json()["items"]
@@ -92,23 +104,18 @@ def test_layout_is_folder_scoped(client):
 
 
 def test_load_empty_folder_returns_empty_list(client):
-    """A folder that was never arranged loads as [] (and creates the table)."""
+    """A folder that was never arranged loads as an empty compatibility list."""
     resp = client.get(f"{BASE}/never-touched/canvas-layout")
     assert resp.status_code == 200
     assert resp.json()["items"] == []
 
 
-def test_table_creation_is_idempotent(db):
-    """_ensure_table via save works on a fresh DB and tolerates re-saves."""
-    row = CanvasLayout(
-        id=CanvasLayout.make_id("f", "i"),
-        folder_id="f",
-        item_id="i",
-        x=3.0,
-    )
+def test_document_position_storage_is_idempotent(db):
+    """Document position attrs persist directly on the document row."""
+    row = Document(id="i", name="i", parent_id="f", doc_type=DocType.file, position_x=3.0)
     db.save(row)
-    db.save(row)  # second save must not raise (idempotent upsert)
-    fetched = db.query(CanvasLayout, folder_id="f")
-    assert len(fetched) == 1
-    assert fetched[0].x == 3.0
-    assert fetched[0].id == "f::i"
+    row.position_x = 9.0
+    db.save(row)
+    fetched = db.get(Document, "i")
+    assert fetched is not None
+    assert fetched.position_x == 9.0

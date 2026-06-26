@@ -307,6 +307,9 @@ class Document(BaseModel):
     position_x: float | None = None
     position_y: float | None = None
     position_z: float | None = None
+    rotation_z: float | None = None
+    scale: float | None = None
+    z_index: int = 0
 
     # =========================================================================
     # Typed accessors for common metadata

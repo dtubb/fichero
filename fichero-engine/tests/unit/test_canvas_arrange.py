@@ -1,9 +1,9 @@
-"""Tests for canvas arrange strategies + the persist-to-canvas_layout endpoint (#2297).
+"""Tests for canvas arrange strategies + the document-position compatibility endpoint (#2297).
 
 Two layers:
   * the pure ``compute_arrangement`` geometry (deterministic, no DB), and
   * the ``POST /folders/{folder_id}/arrange`` route + ``canvas.arrange`` action,
-    which must upsert one ``canvas_layout`` row per node.
+    which must persist one document-position row per node.
 """
 
 import math
@@ -18,10 +18,15 @@ from fichero.spatial_arrange import (
     ArrangeStrategy,
     compute_arrangement,
 )
-from fichero.spatial_models import CanvasLayout
+from fichero.models import DocType, Document
 
 BASE = "/api/mind-palace/folders"
 IDS = ["a", "b", "c", "d", "e"]
+
+
+def _seed_folder_docs(db, folder_id: str, ids: list[str]) -> None:
+    for item_id in ids:
+        db.save(Document(id=item_id, name=item_id, parent_id=folder_id, doc_type=DocType.file))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -123,8 +128,9 @@ def test_strategy_enum_has_only_geometric_members():
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def test_arrange_persists_rows_to_canvas_layout(client):
+def test_arrange_persists_document_positions(client, db):
     folder = "folder-arrange"
+    _seed_folder_docs(db, folder, IDS)
     resp = client.post(
         f"{BASE}/{folder}/arrange",
         json={"node_ids": IDS, "strategy": "row", "spacing": 100.0},
@@ -135,7 +141,7 @@ def test_arrange_persists_rows_to_canvas_layout(client):
     assert body["count"] == 5
     assert len(body["items"]) == 5
 
-    # The rows actually landed in canvas_layout and are loadable.
+    # The positions actually landed on document attrs and are loadable.
     loaded = client.get(f"{BASE}/{folder}/canvas-layout").json()
     assert loaded["count"] == 5
     by_id = {r["item_id"]: r for r in loaded["items"]}
@@ -161,8 +167,9 @@ def test_arrange_unknown_strategy_is_422(client):
     assert resp.status_code == 422, resp.text
 
 
-def test_arrange_is_idempotent_overwrites(client):
+def test_arrange_is_idempotent_overwrites(client, db):
     folder = "folder-reardange"
+    _seed_folder_docs(db, folder, ["a", "b"])
     client.post(
         f"{BASE}/{folder}/arrange",
         json={"node_ids": ["a", "b"], "strategy": "row", "spacing": 10.0},
@@ -180,14 +187,16 @@ def test_arrange_is_idempotent_overwrites(client):
     assert by_id["b"]["y"] == 10.0
 
 
-def test_arrange_is_folder_scoped(client):
+def test_arrange_is_folder_scoped(client, db):
+    _seed_folder_docs(db, "f1", ["shared"])
+    _seed_folder_docs(db, "f2", ["shared-2"])
     client.post(
         f"{BASE}/f1/arrange",
         json={"node_ids": ["shared"], "strategy": "row"},
     )
     client.post(
         f"{BASE}/f2/arrange",
-        json={"node_ids": ["shared"], "strategy": "row"},
+        json={"node_ids": ["shared-2"], "strategy": "row"},
     )
     f1 = client.get(f"{BASE}/f1/canvas-layout").json()["items"]
     f2 = client.get(f"{BASE}/f2/canvas-layout").json()["items"]
@@ -205,6 +214,7 @@ def test_canvas_arrange_action_is_registered():
 
 def test_canvas_arrange_action_persists_and_audits(db):
     ctx = ActionContext(actor="agent", library_path="/tmp/lib")
+    _seed_folder_docs(db, "f-act", ["x", "y", "z"])
     result = registry.invoke(
         db,
         "canvas.arrange",
@@ -215,11 +225,10 @@ def test_canvas_arrange_action_persists_and_audits(db):
     assert result.audit_id
     assert "canvas" in result.changed_domains
 
-    rows = db.query(CanvasLayout, folder_id="f-act")
-    assert len(rows) == 3
-    # stack -> same x/y, distinct climbing z_index
-    assert {r.z_index for r in rows} == {0, 1, 2}
-    assert all(r.x == 0.0 and r.y == 0.0 for r in rows)
+    rows = [db.get(Document, item_id) for item_id in ["x", "y", "z"]]
+    assert all(row is not None for row in rows)
+    assert {row.z_index for row in rows if row is not None} == {0, 1, 2}
+    assert all(row.position_x == 0.0 and row.position_y == 0.0 for row in rows if row is not None)
 
 
 def test_canvas_arrange_action_rejects_empty(db):

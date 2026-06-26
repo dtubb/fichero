@@ -128,6 +128,12 @@ class DocumentCreate(BaseModel):
     page_content: Optional[str] = None
     metadata: dict = {}
     prototype_key: Optional[str] = None
+    position_x: Optional[float] = None
+    position_y: Optional[float] = None
+    position_z: Optional[float] = None
+    rotation_z: Optional[float] = None
+    scale: Optional[float] = None
+    z_index: Optional[int] = None
 
 
 class DocumentUpdate(BaseModel):
@@ -152,6 +158,9 @@ class DocumentUpdate(BaseModel):
     position_x: Optional[float] = None
     position_y: Optional[float] = None
     position_z: Optional[float] = None
+    rotation_z: Optional[float] = None
+    scale: Optional[float] = None
+    z_index: Optional[int] = None
 
 
 class DocumentBatchExcludeRequest(BaseModel):
@@ -1696,6 +1705,12 @@ def create_document_impl(db: Database, doc: "DocumentCreate") -> Document:
         page_content=doc.page_content,
         metadata=doc.metadata,
         prototype_key=doc.prototype_key,
+        position_x=doc.position_x,
+        position_y=doc.position_y,
+        position_z=doc.position_z,
+        rotation_z=doc.rotation_z,
+        scale=doc.scale,
+        z_index=doc.z_index or 0,
     )
     if doc.parent_id:
         parent = _get_document_row(db, doc.parent_id)
