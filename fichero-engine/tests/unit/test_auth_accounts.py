@@ -22,7 +22,10 @@ def _enable_multiuser(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _disable_multiuser(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("FICHERO_MULTIUSER", raising=False)
+    # multiuser is default-ON (fichero/multiuser.py), so `delenv` is a no-op —
+    # it would leave multiuser enabled. Set the explicit off-switch instead.
+    # (Mirrors the 6be649fd fix to test_authz_acl.py for the same class.)
+    monkeypatch.setenv("FICHERO_MULTIUSER", "0")
 
 
 @pytest.fixture(autouse=True)
