@@ -20,12 +20,21 @@ The Swift app can validate its API calls against these files.
 """
 
 import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
 # Add API src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
+# OpenAPI is static; app construction should not contend with a running engine's
+# app.duckdb lock.
+if "FICHERO_BASE_PATH" not in os.environ:
+    os.environ["FICHERO_BASE_PATH"] = tempfile.mkdtemp(
+        prefix="fichero-openapi-export-"
+    )
 
 from fichero.api.main import app
 
