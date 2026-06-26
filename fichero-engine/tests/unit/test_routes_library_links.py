@@ -2,7 +2,8 @@
 
 LibraryItemLink connects any two library items (document, note, entity,
 claim) via source_id/target_id and reuses the typed ClaimRelationType
-vocabulary from KnowledgeClaimLink. These tests cover the new /api/links CRUD.
+vocabulary from KnowledgeClaimLink. These tests cover the canonical
+/api/library/links CRUD plus the legacy /api/links alias.
 """
 
 from datetime import datetime
@@ -10,6 +11,7 @@ from datetime import datetime
 from fichero.knowledge_models import (
     ClaimRelationType,
     KnowledgeClaim,
+    KnowledgeClaimLink,
     KnowledgeEntity,
     LibraryItemLink,
     LibraryItemType,
@@ -54,7 +56,7 @@ def _make_claim(db, doc: Document, text: str = "A claim") -> KnowledgeClaim:
 
 
 # ---------------------------------------------------------------------------
-# POST /api/links
+# POST /api/library/links
 # ---------------------------------------------------------------------------
 
 
@@ -62,7 +64,7 @@ class TestCreateLibraryLink:
     def test_create_document_to_entity_link(self, client, db):
         doc = _make_document(db)
         entity = _make_entity(db)
-        r = client.post("/api/links", json={
+        r = client.post("/api/library/links", json={
             "source_id": doc.id,
             "source_type": "document",
             "target_id": entity.id,
@@ -79,7 +81,7 @@ class TestCreateLibraryLink:
 
     def test_missing_source_returns_404(self, client, db):
         entity = _make_entity(db)
-        r = client.post("/api/links", json={
+        r = client.post("/api/library/links", json={
             "source_id": "missing-id",
             "source_type": "document",
             "target_id": entity.id,
@@ -90,7 +92,7 @@ class TestCreateLibraryLink:
 
     def test_missing_target_returns_404(self, client, db):
         doc = _make_document(db)
-        r = client.post("/api/links", json={
+        r = client.post("/api/library/links", json={
             "source_id": doc.id,
             "source_type": "document",
             "target_id": "missing-id",
@@ -101,7 +103,7 @@ class TestCreateLibraryLink:
 
     def test_invalid_item_type_returns_400(self, client, db):
         doc = _make_document(db)
-        r = client.post("/api/links", json={
+        r = client.post("/api/library/links", json={
             "source_id": doc.id,
             "source_type": "not-a-type",
             "target_id": doc.id,
@@ -110,9 +112,21 @@ class TestCreateLibraryLink:
         })
         assert r.status_code == 422
 
+    def test_legacy_alias_still_works(self, client, db):
+        doc = _make_document(db)
+        entity = _make_entity(db)
+        r = client.post("/api/links", json={
+            "source_id": doc.id,
+            "source_type": "document",
+            "target_id": entity.id,
+            "target_type": "entity",
+            "relation_type": "related_to",
+        })
+        assert r.status_code == 200, r.text
+
 
 # ---------------------------------------------------------------------------
-# GET /api/links
+# GET /api/library/links
 # ---------------------------------------------------------------------------
 
 
@@ -128,7 +142,7 @@ class TestListLibraryLinks:
             relation_type=ClaimRelationType.cites,
         )
         db.save(link)
-        r = client.get(f"/api/links?source_id={doc.id}")
+        r = client.get(f"/api/library/links?source_id={doc.id}")
         assert r.status_code == 200
         data = r.json()
         assert data["count"] == 1
@@ -154,15 +168,35 @@ class TestListLibraryLinks:
         )
         db.save(l1)
         db.save(l2)
-        r = client.get(f"/api/links?source_id={doc.id}&relation_type=contradicts")
+        r = client.get(f"/api/library/links?source_id={doc.id}&relation_type=contradicts")
         assert r.status_code == 200
         ids = {item["id"] for item in r.json()["items"]}
         assert l2.id in ids
         assert l1.id not in ids
 
+    def test_backfilled_claim_link_appears_in_generic_list(self, client, db):
+        doc = _make_document(db)
+        first = _make_claim(db, doc, text="First")
+        second = _make_claim(db, doc, text="Second")
+        db.save(KnowledgeClaimLink(
+            id="claim-link-1",
+            claim_id=first.id,
+            related_claim_id=second.id,
+            relation_type=ClaimRelationType.supports,
+        ))
+        db._backfill_claim_links_to_library_links()
+
+        r = client.get(f"/api/library/links?source_id={first.id}")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["count"] == 1
+        assert data["items"][0]["id"] == "claim-link-1"
+        assert data["items"][0]["source_type"] == "claim"
+        assert data["items"][0]["target_type"] == "claim"
+
 
 # ---------------------------------------------------------------------------
-# GET /api/links/{link_id}
+# GET /api/library/links/{link_id}
 # ---------------------------------------------------------------------------
 
 
@@ -178,17 +212,17 @@ class TestGetLibraryLink:
             relation_type=ClaimRelationType.related_to,
         )
         db.save(link)
-        r = client.get(f"/api/links/{link.id}")
+        r = client.get(f"/api/library/links/{link.id}")
         assert r.status_code == 200
         assert r.json()["id"] == link.id
 
     def test_get_missing_link_returns_404(self, client):
-        r = client.get("/api/links/missing-link")
+        r = client.get("/api/library/links/missing-link")
         assert r.status_code == 404
 
 
 # ---------------------------------------------------------------------------
-# PATCH /api/links/{link_id}
+# PATCH /api/library/links/{link_id}
 # ---------------------------------------------------------------------------
 
 
@@ -204,18 +238,18 @@ class TestUpdateLibraryLink:
             relation_type=ClaimRelationType.supports,
         )
         db.save(link)
-        r = client.patch(f"/api/links/{link.id}", json={"relation_type": "cites"})
+        r = client.patch(f"/api/library/links/{link.id}", json={"relation_type": "cites"})
         assert r.status_code == 200, r.text
         assert r.json()["relation_type"] == "cites"
         assert r.json()["updated_at"] is not None
 
     def test_patch_missing_returns_404(self, client):
-        r = client.patch("/api/links/missing-link", json={"link_quality": 0.9})
+        r = client.patch("/api/library/links/missing-link", json={"link_quality": 0.9})
         assert r.status_code == 404
 
 
 # ---------------------------------------------------------------------------
-# DELETE /api/links/{link_id}
+# DELETE /api/library/links/{link_id}
 # ---------------------------------------------------------------------------
 
 
@@ -231,14 +265,14 @@ class TestDeleteLibraryLink:
             relation_type=ClaimRelationType.cites,
         )
         db.save(link)
-        r = client.delete(f"/api/links/{link.id}")
+        r = client.delete(f"/api/library/links/{link.id}")
         assert r.status_code == 200
         assert r.json()["link_id"] == link.id
-        r2 = client.get(f"/api/links/{link.id}")
+        r2 = client.get(f"/api/library/links/{link.id}")
         assert r2.status_code == 404
 
     def test_delete_missing_returns_404(self, client):
-        r = client.delete("/api/links/missing-link")
+        r = client.delete("/api/library/links/missing-link")
         assert r.status_code == 404
 
 
@@ -285,12 +319,12 @@ class TestReadLibraryLinksRequireLibraryPath:
     """The three read endpoints must require the X-Fichero-Library-Path header."""
 
     def test_list_links_requires_library_path(self, client):
-        r = client.get("/api/links", headers={"X-Fichero-Library-Path": ""})
+        r = client.get("/api/library/links", headers={"X-Fichero-Library-Path": ""})
         assert r.status_code == 400
         assert "library" in r.json()["detail"].lower()
 
     def test_get_link_requires_library_path(self, client):
-        r = client.get("/api/links/some-link-id", headers={"X-Fichero-Library-Path": ""})
+        r = client.get("/api/library/links/some-link-id", headers={"X-Fichero-Library-Path": ""})
         assert r.status_code == 400
         assert "library" in r.json()["detail"].lower()
 

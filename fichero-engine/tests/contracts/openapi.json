@@ -5287,7 +5287,7 @@
         }
       }
     },
-    "/api/links": {
+    "/api/library/links": {
       "post": {
         "tags": [
           "library-links",
@@ -5295,7 +5295,19 @@
         ],
         "summary": "Create Library Link",
         "description": "Create a typed link between any two library items.",
-        "operationId": "create_library_link_api_links_post",
+        "operationId": "create_library_link_api_library_links_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -5336,7 +5348,7 @@
         ],
         "summary": "List Library Links",
         "description": "List generic library links, filtered by endpoint and/or relation.",
-        "operationId": "list_library_links_api_links_get",
+        "operationId": "list_library_links_api_library_links_get",
         "parameters": [
           {
             "name": "source_id",
@@ -5393,7 +5405,7 @@
         }
       }
     },
-    "/api/links/{link_id}": {
+    "/api/library/links/{link_id}": {
       "get": {
         "tags": [
           "library-links",
@@ -5401,7 +5413,7 @@
         ],
         "summary": "Get Library Link",
         "description": "Get a single generic library link by id.",
-        "operationId": "get_library_link_api_links__link_id__get",
+        "operationId": "get_library_link_api_library_links__link_id__get",
         "parameters": [
           {
             "name": "link_id",
@@ -5443,7 +5455,7 @@
         ],
         "summary": "Update Library Link",
         "description": "Update an existing generic library link.",
-        "operationId": "update_library_link_api_links__link_id__patch",
+        "operationId": "update_library_link_api_library_links__link_id__patch",
         "parameters": [
           {
             "name": "link_id",
@@ -5452,6 +5464,16 @@
             "schema": {
               "type": "string",
               "title": "Link Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
             }
           }
         ],
@@ -5495,7 +5517,7 @@
         ],
         "summary": "Delete Library Link",
         "description": "Delete a generic library link (hard delete).",
-        "operationId": "delete_library_link_api_links__link_id__delete",
+        "operationId": "delete_library_link_api_library_links__link_id__delete",
         "parameters": [
           {
             "name": "link_id",
@@ -5504,6 +5526,16 @@
             "schema": {
               "type": "string",
               "title": "Link Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
             }
           }
         ],
@@ -9953,6 +9985,59 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/RotateOperationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageEditChainResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/images/{document_id}/operations/straighten": {
+      "post": {
+        "tags": [
+          "images",
+          "images"
+        ],
+        "summary": "Straighten Image",
+        "operationId": "straighten_image_api_images__document_id__operations_straighten_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StraightenOperationRequest"
               }
             }
           }
@@ -55873,6 +55958,18 @@
         ],
         "title": "StoredPrediction",
         "description": "Stored prediction with metadata."
+      },
+      "StraightenOperationRequest": {
+        "properties": {
+          "page": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page",
+            "default": 1
+          }
+        },
+        "type": "object",
+        "title": "StraightenOperationRequest"
       },
       "TableViewData": {
         "properties": {

@@ -432,6 +432,7 @@ class Database(DatabaseEmbeddingMixin):
         migrate_spatial_node_layout_fields(self.conn)
         migrate_references_table(self.conn)
         migrate_reference_provenance_table(self.conn)
+        self._backfill_claim_links_to_library_links()
         self._backfill_saved_search_documents()
 
     def _connect(self) -> duckdb.DuckDBPyConnection:
@@ -1194,6 +1195,44 @@ class Database(DatabaseEmbeddingMixin):
 
         for saved in self.all(SavedSearch):
             self._save_saved_search_document(saved)
+
+    def _backfill_claim_links_to_library_links(self) -> None:
+        """Mirror legacy claim-link rows into generic library-link rows."""
+        if not hasattr(self.conn, "execute"):
+            return
+
+        from fichero.knowledge_models import (
+            KnowledgeClaimLink,
+            LibraryItemLink,
+            LibraryItemType,
+        )
+
+        self._ensure_table(LibraryItemLink)
+
+        table_name = self._table_name(KnowledgeClaimLink)
+        table_exists = self.execute_fetchone(
+            """
+            SELECT COUNT(*) FROM information_schema.tables
+            WHERE table_name = $table_name
+            """,
+            {"table_name": table_name},
+        )
+        if not table_exists or int(table_exists[0] or 0) == 0:
+            return
+
+        for link in self.all(KnowledgeClaimLink):
+            self.save(LibraryItemLink(
+                id=link.id,
+                source_id=link.claim_id,
+                source_type=LibraryItemType.claim,
+                target_id=link.related_claim_id,
+                target_type=LibraryItemType.claim,
+                relation_type=link.relation_type,
+                link_quality=link.link_quality,
+                evidence=link.evidence,
+                metadata=link.metadata,
+                created_at=link.created_at,
+            ))
 
     def count(self, model: Type[T], **filters) -> int:
         """Count objects matching filters."""

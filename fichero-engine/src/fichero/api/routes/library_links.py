@@ -9,11 +9,13 @@ library items (document, note, entity, claim) via source_id/target_id.
 from __future__ import annotations
 
 from datetime import datetime
+import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from fichero.api.change_stream import emit_change
 from fichero.api.library_header import require_library_path
 from fichero.api.auth import request_actor
 from fichero.api.main import get_library_database, get_library_database_for_write
@@ -27,6 +29,7 @@ from fichero.knowledge_models import (
 )
 from fichero.models import Document, LibraryItemLinkListResponse, Note
 
+logger = logging.getLogger(__name__)
 router = APIRouter(tags=["library-links"])
 
 
@@ -86,6 +89,7 @@ def _resolve_item(db: Database, item_id: str, item_type: LibraryItemType) -> Any
         )
     item = db.get(model, item_id)
     if item is None:
+        logger.warning("Library link endpoint missing %s: %s", item_type.value, item_id)
         raise HTTPException(
             status_code=404, detail=f"{item_type.value} not found: {item_id}"
         )
@@ -118,11 +122,15 @@ def _list_links(
 # =============================================================================
 
 
-@router.post("/links", response_model=LibraryItemLink)
+@router.post("/links", response_model=LibraryItemLink, include_in_schema=False)
+@router.post("/library/links", response_model=LibraryItemLink)
 async def create_library_link(
     request: LibraryLinkCreateRequest,
     db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
     actor: str = Depends(request_actor),
 ) -> LibraryItemLink:
     """Create a typed link between any two library items."""
@@ -141,10 +149,19 @@ async def create_library_link(
         created_at=datetime.now(),
     )
     db.save(link)
+    emit_change(
+        x_fichero_library_path,
+        type="library.link.created",
+        document_ids=[request.source_id, request.target_id],
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
     return link
 
 
-@router.get("/links", response_model=LibraryItemLinkListResponse)
+@router.get("/links", response_model=LibraryItemLinkListResponse, include_in_schema=False)
+@router.get("/library/links", response_model=LibraryItemLinkListResponse)
 async def list_library_links(
     source_id: str | None = Query(default=None),
     target_id: str | None = Query(default=None),
@@ -160,7 +177,8 @@ async def list_library_links(
     return LibraryItemLinkListResponse(items=items, count=len(items))
 
 
-@router.get("/links/{link_id}", response_model=LibraryItemLink)
+@router.get("/links/{link_id}", response_model=LibraryItemLink, include_in_schema=False)
+@router.get("/library/links/{link_id}", response_model=LibraryItemLink)
 async def get_library_link(
     link_id: str,
     db: Database = Depends(get_library_database),
@@ -170,21 +188,27 @@ async def get_library_link(
     """Get a single generic library link by id."""
     link = db.get(LibraryItemLink, link_id)
     if link is None:
+        logger.warning("Library link not found: %s", link_id)
         raise HTTPException(status_code=404, detail=f"Link not found: {link_id}")
     return link
 
 
-@router.patch("/links/{link_id}", response_model=LibraryItemLink)
+@router.patch("/links/{link_id}", response_model=LibraryItemLink, include_in_schema=False)
+@router.patch("/library/links/{link_id}", response_model=LibraryItemLink)
 async def update_library_link(
     link_id: str,
     request: LibraryLinkUpdateRequest,
     db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
     actor: str = Depends(request_actor),
 ) -> LibraryItemLink:
     """Update an existing generic library link."""
     link = db.get(LibraryItemLink, link_id)
     if link is None:
+        logger.warning("Library link update missing id: %s", link_id)
         raise HTTPException(status_code=404, detail=f"Link not found: {link_id}")
 
     data = request.model_dump(exclude_unset=True, exclude_none=True)
@@ -192,21 +216,42 @@ async def update_library_link(
         setattr(link, key, value)
     link.updated_at = datetime.now()
     db.save(link)
+    emit_change(
+        x_fichero_library_path,
+        type="library.link.updated",
+        document_ids=[link.source_id, link.target_id],
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
     return link
 
 
-@router.delete("/links/{link_id}")
+@router.delete("/links/{link_id}", include_in_schema=False)
+@router.delete("/library/links/{link_id}")
 async def delete_library_link(
     link_id: str,
     db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
     actor: str = Depends(request_actor),
 ) -> LibraryLinkDeletedResponse:
     """Delete a generic library link (hard delete)."""
     link = db.get(LibraryItemLink, link_id)
     if link is None:
+        logger.warning("Library link delete missing id: %s", link_id)
         raise HTTPException(status_code=404, detail=f"Link not found: {link_id}")
     db.delete(link)
+    emit_change(
+        x_fichero_library_path,
+        type="library.link.deleted",
+        document_ids=[link.source_id, link.target_id],
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
     return LibraryLinkDeletedResponse(success=True, link_id=link_id, operation="deleted")
 
 

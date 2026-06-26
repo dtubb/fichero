@@ -26,7 +26,14 @@ from fichero.models import (
     DocType, FileType, Status, RunStatus, SavedSearch
 )
 from fichero.db import Database
-from fichero.knowledge_models import EntityType, KnowledgeEntity
+from fichero.knowledge_models import (
+    ClaimRelationType,
+    EntityType,
+    KnowledgeClaim,
+    KnowledgeClaimLink,
+    KnowledgeEntity,
+    LibraryItemLink,
+)
 
 
 @pytest.fixture
@@ -1163,6 +1170,53 @@ class TestSavedSearchCRUD:
 
         all_searches = temp_db.all(SavedSearch)
         assert len(all_searches) == 2
+
+
+class TestLibraryLinkBackfill:
+    def test_reopen_backfills_claim_links_into_library_links(self):
+        """Legacy claim-link rows should appear in the generic library-link table."""
+        tmpdir = tempfile.mkdtemp()
+        db_path = Path(tmpdir) / "test.duckdb"
+        db = Database(db_path)
+        try:
+            doc = Document(name="Doc", doc_type=DocType.file)
+            db.save(doc)
+            first = KnowledgeClaim(
+                id="claim-a",
+                text="First",
+                source_document_id=doc.id,
+                entity_ids=[],
+            )
+            second = KnowledgeClaim(
+                id="claim-b",
+                text="Second",
+                source_document_id=doc.id,
+                entity_ids=[],
+            )
+            db.save(first)
+            db.save(second)
+            db.save(KnowledgeClaimLink(
+                id="claim-link-1",
+                claim_id=first.id,
+                related_claim_id=second.id,
+                relation_type=ClaimRelationType.supports,
+            ))
+            db._execute("DELETE FROM libraryitemlinks WHERE id = $id", {"id": "claim-link-1"})
+            assert db.get(LibraryItemLink, "claim-link-1") is None
+            db.close()
+
+            reopened = Database(db_path)
+            try:
+                mirrored = reopened.get(LibraryItemLink, "claim-link-1")
+                assert mirrored is not None
+                assert mirrored.source_id == first.id
+                assert mirrored.source_type.value == "claim"
+                assert mirrored.target_id == second.id
+                assert mirrored.target_type.value == "claim"
+            finally:
+                reopened.close()
+        finally:
+            shutil.rmtree(tmpdir)
 
     def test_reopen_backfills_saved_search_document(self):
         """Existing saved-search rows are backfilled into document nodes on open."""
