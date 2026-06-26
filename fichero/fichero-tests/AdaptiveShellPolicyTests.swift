@@ -173,6 +173,17 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         #endif
     }
 
+    func testAdaptiveAppleShellRouteUsesStackOnlyForCompactWidth() {
+        #if os(macOS)
+        XCTAssertEqual(AdaptiveAppleShellRoute.resolve(horizontalSizeClass: nil), .split)
+        XCTAssertEqual(AdaptiveAppleShellRoute.resolve(horizontalSizeClass: .compact), .split)
+        #else
+        XCTAssertEqual(AdaptiveAppleShellRoute.resolve(horizontalSizeClass: nil), .split)
+        XCTAssertEqual(AdaptiveAppleShellRoute.resolve(horizontalSizeClass: .regular), .split)
+        XCTAssertEqual(AdaptiveAppleShellRoute.resolve(horizontalSizeClass: .compact), .stack)
+        #endif
+    }
+
     func testSplittablePanesCollapseWhenWindowIsTooNarrow() {
         XCTAssertFalse(
             ContentView.shouldUseSplittablePane(
@@ -268,6 +279,7 @@ final class AdaptiveShellPolicyTests: XCTestCase {
     func testPersistentShellChromeStaysInSplitColumns() throws {
         let contentSource = try Self.appSource("Views/ContentView.swift")
         let buildersSource = try Self.appSource("Views/ContentView+ViewBuilders.swift")
+        let workspaceRootSource = try Self.appSource("Views/Library/LibraryWorkspaceRoot.swift")
 
         XCTAssertTrue(contentSource.contains("NavigationSplitView("))
         XCTAssertTrue(contentSource.contains("detailShellColumn"))
@@ -276,6 +288,7 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         XCTAssertTrue(buildersSource.contains("detailLocationPathBar"))
         XCTAssertTrue(buildersSource.contains("detailStatusPathBar"))
         XCTAssertTrue(buildersSource.contains("WindowOpener.open(libraryId: windowState.libraryId, asTab: true"))
+        XCTAssertTrue(workspaceRootSource.contains("AdaptiveAppleShellHost"))
     }
 
     func testSelectionStatusTextKeepsCountAndPathVisible() throws {
