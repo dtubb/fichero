@@ -108,7 +108,7 @@ extension ContentView {
             } else if viewDisplayMode == .workspace,
                       featureManager.isWorkspaceModeEnabled,
                       let doc = libraryViewDocument {
-                CollectionWorkspaceStub(collectionId: doc.id)
+                CollectionWorkspaceStub(document: doc)
             } else {
                 LibraryView(
                     documents: selectedDocuments,
