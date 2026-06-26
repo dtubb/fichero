@@ -1,7 +1,7 @@
 import FicheroAPIClient
 import SwiftUI
 
-/// 2D projection of a Mind Palace room — the `.twoD` render mode and the
+/// 2D projection of a Spatial room — the `.twoD` render mode and the
 /// fallback when RealityKit isn't available.
 ///
 /// Renders each `SpatialNode` at its **backend-provided** `positionX/Y`,
@@ -15,7 +15,7 @@ import SwiftUI
 /// `layoutStore` and `folderScopeId` are supplied the canvas loads the saved
 /// layout on appear, lets the user drag chips, and persists screen positions on
 /// drag-end — so a hand-arranged layout survives a view-mode switch (the #1
-/// bug). When either is nil (Mind Palace room, RealityKit fallback) the canvas
+/// bug). When either is nil (Spatial room, RealityKit fallback) the canvas
 /// is view-only, exactly as before. The store is the only thing that touches
 /// the network; this view never calls the generated client directly.
 struct Spatial2DCanvas: View {

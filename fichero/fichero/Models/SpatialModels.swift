@@ -1,9 +1,8 @@
 import SwiftUI
 
-// MARK: - Mind Palace spatial view-models
+// MARK: - Spatial view-models
 //
-// These mirror the backend `spatial_models.py` shapes (`SpatialNode`,
-// `SpatialConnection`, `SpatialViewport`, `SpatialRoom`, `RoomSceneSummary`).
+// These mirror the backend `spatial_models.py` shapes used by the canvas.
 //
 // We decode our own value types rather than the generated
 // `Components.Schemas.SpatialNode` because the list endpoints return an
@@ -180,7 +179,7 @@ struct SpatialNode: Codable, Identifiable, Hashable {
         return (value / gridSize).rounded() * gridSize
     }
 
-    /// Page-image URL used by the Mind Palace 3D view when a node has a
+    /// Page-image URL used by the Spatial 3D view when a node has a
     /// source document. The backend schema doesn't currently declare a
     /// dedicated field, so this is a client-side wrapper over the storage
     /// thumbnail endpoint.

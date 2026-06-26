@@ -8,8 +8,8 @@ import RealityKit
 
 // swiftlint:disable type_body_length
 
-/// RealityKit 3D rendering of a Mind Palace room — the `.threeD` render mode,
-/// and the forward path toward streaming the palace to Vision Pro.
+/// RealityKit 3D rendering of a Spatial room — the `.threeD` render mode,
+/// and the forward path toward streaming the spatial library to Vision Pro.
 ///
 /// Renders each `SpatialNode` as a page-card at its **backend-provided**
 /// `positionX/Y/Z` (with `rotation_*` and `scale` applied) and draws
@@ -44,7 +44,7 @@ struct SpatialScene3D: View {
     /// `store.layout` changes (load or agent move) on the live entities, and
     /// writes positions back on drag-end — so a hand-arranged 3D layout survives
     /// a view-mode switch. The store is the only thing that touches the network;
-    /// this view never calls the generated client. When nil (Mind Palace room,
+    /// this view never calls the generated client. When nil (Spatial room,
     /// RealityKit fallback) the scene is view-only, exactly as before.
     var layoutStore: CanvasLayoutStore?
     /// Observable canvas-item store (#2294) — the SAME instance the 2D canvas
@@ -53,7 +53,7 @@ struct SpatialScene3D: View {
     /// as cards, `link` as connectors) as a second renderer on the shared model,
     /// loaded on appear and reflected on every `store.items` change. The store is
     /// the only thing that touches the network; this view never calls the
-    /// generated client. Nil → no canvas items (Mind Palace room), exactly as
+    /// generated client. Nil → no canvas items (Spatial room), exactly as
     /// before.
     var itemStore: CanvasItemStore?
     /// The scope these positions belong to — a real folder id, or the synthetic
@@ -824,7 +824,7 @@ private extension SpatialScene3D {
 #endif
 
 #if canImport(RealityKit)
-/// Caches RealityKit textures for Mind Palace source-page nodes, keyed by the
+/// Caches RealityKit textures for Spatial source-page nodes, keyed by the
 /// node's backend `sourceId`. Page bytes are fetched through the shared
 /// `StorageServiceGenerated` (the canonical, authenticated thumbnail path) so
 /// the 3D scene no longer hand-builds a storage URL or calls `URLSession`

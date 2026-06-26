@@ -8,7 +8,7 @@ import AppKit
 import UIKit
 #endif
 
-/// Cross-platform colour bridge between the Mind Palace SwiftUI surfaces and
+/// Cross-platform colour bridge between the Spatial SwiftUI surfaces and
 /// the RealityKit renderer.
 ///
 /// `SwiftUI.Color` is the right type for inspectors and toolbars — but
@@ -16,7 +16,7 @@ import UIKit
 /// and `UIColor` on iOS / visionOS. Going through this enum keeps the renderer
 /// free of `#if os(...)` and lets the same code paths compile on every Apple
 /// platform per the Phase-3 design (see
-/// `agent-work/proposals/2026-05-30-mindpalace-spatial-library.md`).
+/// `agent-work/proposals/2026-05-30-spatial-library.md`).
 enum SpatialTheme {
 
     // MARK: - Node colours

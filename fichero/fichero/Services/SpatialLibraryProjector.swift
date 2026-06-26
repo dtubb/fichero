@@ -12,7 +12,7 @@ import Foundation
 // Phase 1 composes everything client-side because the backend doesn't yet have
 // a single "library scene" endpoint. Per `feedback_kg_logic_in_backend`,
 // positions and the projection should ultimately live in the backend (planned
-// for Phase 4 — `/api/mind-palace/library/scene`). This file is the temporary
+// for Phase 4 — `/api/spatial/library/scene`). This file is the temporary
 // bridge so the renderer can be built and tested NOW without waiting for that
 // endpoint.
 
