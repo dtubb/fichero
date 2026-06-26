@@ -878,6 +878,68 @@ def _build_fallback_config(config: LLMConfig, tier: str = "large") -> LLMConfig:
     )
 
 
+def _fallback_tier_order() -> tuple[str, ...]:
+    """Ordered fallback tiers after Apple. Defaults to $medium -> $large."""
+    raw = os.environ.get("FICHERO_AI_FALLBACK_TIERS")
+    if raw is None:
+        return ("medium", "large")
+
+    tiers: list[str] = []
+    for item in raw.split(","):
+        tier = item.strip().lower().lstrip("$")
+        if not tier:
+            continue
+        if tier not in {"medium", "large"}:
+            raise ValueError(
+                f"Invalid fallback tier {item!r}; expected comma-separated medium/large."
+            )
+        if tier not in tiers:
+            tiers.append(tier)
+    return tuple(tiers) or ("medium", "large")
+
+
+def _iter_fallback_configs(
+    config: LLMConfig,
+    *,
+    original_config: LLMConfig,
+    error_name: str,
+    kind: str,
+) -> Iterator[tuple[str, LLMConfig, bool]]:
+    """Yield usable fallback configs in ordered tier order."""
+    for tier in _fallback_tier_order():
+        try:
+            fallback_config = _build_fallback_config(config, tier)
+        except ValueError:
+            logger.warning(
+                "%s but no $%s fallback configured; continuing fallback chain.",
+                error_name,
+                tier,
+            )
+            continue
+
+        if (
+            fallback_config.provider == original_config.provider
+            and fallback_config.model == original_config.model
+        ):
+            continue
+
+        fallback_is_local = _is_local_or_builtin_provider(fallback_config.provider)
+        _enforce_local_only_provider(fallback_config, kind=f"{kind} ${tier} fallback")
+        if not _paid_remote_fallbacks_enabled() and not fallback_is_local:
+            logger.warning(
+                "Skipping $%s %s fallback %s/%s because paid remote fallbacks "
+                "are disabled by default. Configure a local provider or set "
+                "FICHERO_ALLOW_PAID_AI_FALLBACKS=1.",
+                tier,
+                kind,
+                fallback_config.provider,
+                fallback_config.model,
+            )
+            continue
+
+        yield tier, fallback_config, fallback_is_local
+
+
 def _paid_remote_fallbacks_enabled() -> bool:
     """Whether Apple structured fallback may use paid remote providers."""
     raw = os.environ.get("FICHERO_ALLOW_PAID_AI_FALLBACKS")
@@ -1408,9 +1470,8 @@ async def chat_with_fallback(
     system: str | None = None,
     permissive_guardrails: bool = False,
 ) -> str:
-    """Like chat(), but falls back to the user's $large model when Apple
-    Intelligence can't service the request — currently for guardrail
-    refusals (#838) and unsupported-locale rejections (#868).
+    """Like chat(), but falls back through the ordered tier chain when Apple
+    Intelligence can't service the request.
 
     Apple's safety filter is tuned for consumer use cases and refuses
     scholarly text containing literary profanity, drug references,
@@ -1426,8 +1487,8 @@ async def chat_with_fallback(
     are using direct chat() and accept the responsibility of catching
     AppleUnavailableError subclasses themselves.
 
-    Returns the response string. Raises the original error when fallback
-    is unavailable (no $large configured) or also fails.
+    Returns the response string. Raises when every configured fallback tier
+    is unavailable or fails.
     """
     try:
         return await chat(
@@ -1435,56 +1496,45 @@ async def chat_with_fallback(
             permissive_guardrails=permissive_guardrails,
         )
     except AppleUnavailableError as apple_exc:
-        # Only Apple Intelligence raises this — try $large if configured.
-        # Catches GuardrailViolationError, UnsupportedLocaleError, and any
-        # future "Apple can't proceed" subclass uniformly.
-        try:
-            large_config = _build_fallback_config(config, "large")
-        except ValueError:
-            # No $large configured — surface the original error so the
-            # caller knows it was Apple's refusal, not a missing key.
+        last_failure: Exception | None = None
+        attempted = False
+        for tier, fallback_config, fallback_is_local in _iter_fallback_configs(
+            config,
+            original_config=config,
+            error_name=type(apple_exc).__name__,
+            kind="chat",
+        ):
+            attempted = True
+            cost_note = (
+                "an on-device model — no API cost"
+                if fallback_is_local
+                else "a PAID remote model — this request now incurs cost"
+            )
             logger.warning(
-                "%s but no $large fallback configured; set Settings → "
-                "AI Defaults → Default large model to enable.",
+                "Apple Intelligence unavailable (%s); falling back to %s: "
+                "$%s = %s/%s.",
                 type(apple_exc).__name__,
+                cost_note,
+                tier,
+                fallback_config.provider,
+                fallback_config.model,
             )
-            raise apple_exc
-
-        # #1001: warning, not info — falling back is an offline-mode
-        # regression, and to a cloud provider it's also a billing event.
-        # #1560: local (omlx/ollama/lmstudio) AND builtin (apple) providers
-        # run on-device for free, so don't mislabel them as PAID.
-        fallback_is_local = _is_local_or_builtin_provider(large_config.provider)
-        _enforce_local_only_provider(large_config, kind="chat fallback")
-
-        if not _paid_remote_fallbacks_enabled() and not fallback_is_local:
-            logger.warning(
-                "Skipping $large chat fallback %s/%s because paid remote "
-                "fallbacks are disabled by default. Configure a local "
-                "provider or set FICHERO_ALLOW_PAID_AI_FALLBACKS=1.",
-                large_config.provider,
-                large_config.model,
+            try:
+                result = await chat(prompt, fallback_config, system=system)
+            except (AppleUnavailableError, ProviderQuotaError) as exc:
+                last_failure = exc
+                continue
+            logger.info(
+                "Fallback to $%s %s/%s succeeded.",
+                tier,
+                fallback_config.provider,
+                fallback_config.model,
             )
-            raise apple_exc
+            return result
 
-        _cost_note = (
-            "an on-device model — no API cost"
-            if fallback_is_local
-            else "a PAID remote model — this request now incurs cost"
-        )
-        logger.warning(
-            "Apple Intelligence unavailable (%s); falling back to %s: "
-            "$large = %s/%s.",
-            type(apple_exc).__name__, _cost_note,
-            large_config.provider, large_config.model,
-        )
-        # Permissive guardrails is Apple-only and has no effect here.
-        result = await chat(prompt, large_config, system=system)
-        logger.info(
-            "Fallback to %s/%s succeeded.",
-            large_config.provider, large_config.model,
-        )
-        return result
+        if attempted and last_failure is not None:
+            raise last_failure
+        raise apple_exc
 
 
 async def _translate_with_deepl(
@@ -2824,51 +2874,16 @@ async def chat_structured_with_fallback(
             except AppleUnavailableError as compact_retry_exc:
                 apple_exc = compact_retry_exc
 
-        last_config_error: ValueError | None = None
-        for tier in ("medium", "large"):
-            try:
-                fallback_config = _build_fallback_config(config, tier)
-            except ValueError as exc:
-                last_config_error = exc
-                logger.warning(
-                    "Structured-call %s but no $%s fallback configured; "
-                    "continuing fallback chain.",
-                    type(apple_exc).__name__,
-                    tier,
-                )
-                continue
-
-            if (
-                fallback_config.provider == config.provider
-                and fallback_config.model == config.model
-            ):
-                # Alias resolves to the same model we just tried — no point
-                # retrying that tier. Try the next tier before surfacing.
-                continue
-
-            fallback_is_local = _is_local_or_builtin_provider(fallback_config.provider)
-            _enforce_local_only_provider(
-                fallback_config, kind=f"structured ${tier} fallback"
-            )
-
-            if not _paid_remote_fallbacks_enabled() and not fallback_is_local:
-                logger.warning(
-                    "Skipping $%s structured fallback %s/%s because paid "
-                    "remote fallbacks are disabled by default. Configure "
-                    "a local provider or set "
-                    "FICHERO_ALLOW_PAID_AI_FALLBACKS=1.",
-                    tier,
-                    fallback_config.provider,
-                    fallback_config.model,
-                )
-                continue
-
-            # #1001/#1308: structured extractor fallback may become a billing
-            # event. $medium is intentionally a capable cloud model by
-            # default; local providers (omlx/ollama/lmstudio) remain free.
-            # #1560: builtin (apple) providers are also on-device/free —
-            # don't mislabel them as PAID.
-            _cost_note = (
+        last_failure: Exception | None = None
+        attempted = False
+        for tier, fallback_config, fallback_is_local in _iter_fallback_configs(
+            config,
+            original_config=config,
+            error_name=type(apple_exc).__name__,
+            kind="structured",
+        ):
+            attempted = True
+            cost_note = (
                 "an on-device model — no API cost"
                 if fallback_is_local
                 else "a PAID remote model — this request now incurs cost"
@@ -2877,7 +2892,7 @@ async def chat_structured_with_fallback(
                 "Apple Intelligence unavailable for structured call (%s); "
                 "falling back to %s: $%s = %s/%s.",
                 type(apple_exc).__name__,
-                _cost_note,
+                cost_note,
                 tier,
                 fallback_config.provider,
                 fallback_config.model,
@@ -2888,16 +2903,8 @@ async def chat_structured_with_fallback(
                 result = await chat_structured(
                     prompt, schema, fallback_config, system=system
                 )
-            except ProviderQuotaError:
-                if tier == "medium":
-                    logger.warning(
-                        "$medium structured fallback hit provider quota; "
-                        "trying $large."
-                    )
-                    continue
-                raise
-            except AppleUnavailableError:
-                # A misconfigured tier can point back to Apple; try the next tier.
+            except (ProviderQuotaError, AppleUnavailableError) as exc:
+                last_failure = exc
                 continue
             logger.info(
                 "Structured fallback to $%s %s/%s succeeded.",
@@ -2907,12 +2914,8 @@ async def chat_structured_with_fallback(
             )
             return result
 
-        if last_config_error is not None:
-            logger.warning(
-                "Structured-call %s but no usable $medium or $large fallback "
-                "configured; set Settings → AI Defaults.",
-                type(apple_exc).__name__,
-            )
+        if attempted and last_failure is not None:
+            raise last_failure
         raise apple_exc
 
 

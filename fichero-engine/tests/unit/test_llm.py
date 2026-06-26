@@ -422,7 +422,7 @@ async def test_chat_with_fallback_passes_through_on_success():
 @pytest.mark.asyncio
 async def test_chat_with_fallback_routes_around_guardrail_when_paid_fallback_enabled():
     """When Apple Intelligence raises GuardrailViolationError, the fallback
-    resolves $large via resolve_model_alias and retries with the resolved
+    resolves $medium first and retries with the resolved
     config. Returns the fallback model's response."""
     from fichero.llm import chat_with_fallback, LLMConfig, GuardrailViolationError
 
@@ -444,7 +444,7 @@ async def test_chat_with_fallback_routes_around_guardrail_when_paid_fallback_ena
         result = await chat_with_fallback("hi", config=primary_config)
 
     assert result == "fallback response"
-    assert len(call_log) == 2, "should have tried Apple first, then $large"
+    assert len(call_log) == 2, "should have tried Apple first, then $medium"
     assert call_log[0].provider == "apple"
     assert call_log[1].provider == "anthropic"
     assert call_log[1].model == "claude-sonnet-4"
@@ -452,7 +452,7 @@ async def test_chat_with_fallback_routes_around_guardrail_when_paid_fallback_ena
 
 @pytest.mark.asyncio
 async def test_chat_with_fallback_skips_remote_large_when_paid_fallback_disabled():
-    """Plain chat fallback must match the structured path: no remote $large
+    """Plain chat fallback must match the structured path: no remote tier
     call unless paid remote fallback consent is enabled."""
     from fichero.llm import chat_with_fallback, LLMConfig, GuardrailViolationError
 
@@ -463,11 +463,14 @@ async def test_chat_with_fallback_skips_remote_large_when_paid_fallback_disabled
         call_log.append(config)
         raise GuardrailViolationError("guardrailViolation: blocked")
 
+    alias_calls: list[str] = []
+
+    def fake_resolve(provider: str, _model: str) -> tuple[str, str]:
+        alias_calls.append(provider)
+        return ("openai", "gpt-5")
+
     with patch("fichero.llm.chat", new=fake_chat), \
-         patch(
-             "fichero.llm.resolve_model_alias",
-             return_value=("openai", "gpt-5"),
-         ), \
+         patch("fichero.llm.resolve_model_alias", side_effect=fake_resolve), \
          patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=False):
         with pytest.raises(GuardrailViolationError, match="blocked"):
             await chat_with_fallback("hi", config=primary_config)
@@ -475,6 +478,7 @@ async def test_chat_with_fallback_skips_remote_large_when_paid_fallback_disabled
     assert [(c.provider, c.model) for c in call_log] == [
         ("apple", "apple-intelligence")
     ]
+    assert alias_calls == ["$medium", "$large"]
 
 
 @pytest.mark.asyncio
@@ -504,6 +508,52 @@ async def test_chat_with_fallback_local_large_allowed_when_paid_fallback_disable
     assert [(c.provider, c.model) for c in call_log] == [
         ("apple", "apple-intelligence"),
         ("ollama", "llama3.2"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_chat_with_fallback_escalates_medium_then_large():
+    from fichero.llm import (
+        chat_with_fallback,
+        GuardrailViolationError,
+        ProviderQuotaError,
+    )
+
+    primary_config = LLMConfig(provider="apple", model="apple-intelligence")
+    call_log: list[tuple[str, str]] = []
+    alias_calls: list[str] = []
+
+    async def fake_chat(prompt, config, system=None, **_kwargs):
+        call_log.append((config.provider, config.model))
+        if config.provider == "apple":
+            raise GuardrailViolationError("guardrailViolation: blocked")
+        if config.model == "gpt-5-mini":
+            raise ProviderQuotaError(
+                provider=config.provider,
+                model=config.model,
+                detail="quota",
+            )
+        return "from-large"
+
+    def fake_resolve(provider: str, _model: str) -> tuple[str, str]:
+        alias_calls.append(provider)
+        if provider == "$medium":
+            return ("openai", "gpt-5-mini")
+        if provider == "$large":
+            return ("anthropic", "claude-sonnet-4")
+        raise AssertionError(provider)
+
+    with patch("fichero.llm.chat", new=fake_chat), \
+         patch("fichero.llm.resolve_model_alias", side_effect=fake_resolve), \
+         patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=True):
+        result = await chat_with_fallback("hi", config=primary_config)
+
+    assert result == "from-large"
+    assert alias_calls == ["$medium", "$large"]
+    assert call_log == [
+        ("apple", "apple-intelligence"),
+        ("openai", "gpt-5-mini"),
+        ("anthropic", "claude-sonnet-4"),
     ]
 
 
@@ -657,9 +707,9 @@ async def test_chat_structured_with_fallback_skips_same_model_medium_and_uses_la
 
 @pytest.mark.asyncio
 async def test_chat_with_fallback_reraises_when_no_large_configured():
-    """When $large isn't configured (resolve_model_alias raises ValueError),
-    chat_with_fallback re-raises the original GuardrailViolationError so
-    callers can show a meaningful 'configure $large to enable fallback'
+    """When no fallback tier is configured, chat_with_fallback re-raises
+    the original GuardrailViolationError so callers can show a meaningful
+    'configure fallback tiers to enable fallback'
     message rather than a confusing 'no default large model' error."""
     from fichero.llm import chat_with_fallback, LLMConfig, GuardrailViolationError
 
