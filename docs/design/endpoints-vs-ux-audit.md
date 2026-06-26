@@ -3,6 +3,29 @@
 > Issue #2588 · Milestone *Node Model & Endpoint Unification* · Base `0.0.2`
 > Status: **proposal / informational** — no code changed. Read-only audit to drive consolidation.
 
+## 2026-06-26 worker refresh
+
+Current pass ran from `worker/2633` on `origin/0.0.2` and rechecked the route
+surface against the settled SwiftUI service/store/view layer. The committed
+endpoint coverage matrix reports **655 OpenAPI operations**; most mismatches are
+already seeded guardrail gaps, which matches the audit finding that the problem is
+not one missing wrapper but too many parallel endpoint families around the same
+library-node concepts.
+
+Follow-up issues filed from this audit:
+
+- #2636 — add a general `/api/library/links` endpoint for typed node relations.
+- #2637 — persist saved searches as smart-folder nodes.
+- #2638 — retire or quarantine no-UX route families instead of carrying them in
+  the app API.
+
+Related existing follow-ups already covering major collapse areas:
+
+- #2081 — library node-model epic.
+- #2446 — research/workspace sidebar modes become library-tree node kinds.
+- #2447 — entities live in the library as folder-like nodes.
+- #2299 — backend Mind Palace cleanup for dead room routes and CLI/MCP surfaces.
+
 ## Why this exists
 
 Daniel's framing: **the Library is ONE graph of typed nodes.** Most of what looks
