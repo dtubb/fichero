@@ -5,6 +5,7 @@ struct EngineSettingsView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var backendService: EmbeddedBackendService
     @EnvironmentObject var libraryManager: LibraryManager
+    @AppStorage(EngineConfig.multiuserEnabledKey) private var multiuserEnabled = true
 
     @State private var storageStats: StorageStats?
     @State private var isLoadingStats = false
@@ -35,6 +36,15 @@ struct EngineSettingsView: View {
                     }
                 }
 
+                LabeledContent("Multi-user mode") {
+                    Toggle("", isOn: $multiuserEnabled)
+                        .labelsHidden()
+                }
+
+                Text(multiuserStatusDescription)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 if isLoadingStats {
                     LabeledContent("Storage") {
                         ProgressView().controlSize(.small)
@@ -62,6 +72,18 @@ struct EngineSettingsView: View {
         EngineConfig.requiresExternalBackendConnection
             ? "Connected to a shared Fichero library."
             : "Local engine for this Mac."
+    }
+
+    private var multiuserStatusDescription: String {
+        if appState.isBackendRunning {
+            return multiuserEnabled
+                ? "Backend is enforcing per-library authz."
+                : "Backend is not enforcing per-library authz."
+        }
+
+        return multiuserEnabled
+            ? "Backend will enforce per-library authz the next time it starts."
+            : "Backend will run without per-library authz until you turn this back on."
     }
 
     private func restartEngine() async {

@@ -14,6 +14,7 @@ import Foundation
 /// silently resolving to localhost.
 enum EngineConfig {
     static let userDefaultsKey = "fichero.engine.host"
+    static let multiuserEnabledKey = "fichero.multiuser.enabled"
     static let defaultHostString = "https://127.0.0.1:8765"
     static let engineHostDidChangeNotification = Notification.Name("engineHostDidChange")
 
@@ -167,6 +168,14 @@ enum EngineConfig {
     /// instead of launching or restarting the embedded engine.
     static var requiresExternalBackendConnection: Bool {
         resolvedHostConfiguration.requiresExternalBackendConnection
+    }
+
+    static var multiuserEnabled: Bool {
+        let defaults = UserDefaults.standard
+        guard defaults.object(forKey: multiuserEnabledKey) != nil else {
+            return true
+        }
+        return defaults.bool(forKey: multiuserEnabledKey)
     }
 
     /// True when the configured engine host is localhost / 127.0.0.1 / ::1.
@@ -326,7 +335,7 @@ enum RemoteAccessConfig {
         bonjourEnabled: Bool
     ) -> [String: String] {
         var environment = [
-            "FICHERO_MULTIUSER": "1",
+            "FICHERO_MULTIUSER": EngineConfig.multiuserEnabled ? "1" : "0",
             "FICHERO_ALLOW_NON_LOOPBACK_BIND": "I_UNDERSTAND_SHARED_SECRET_RISK",
             "FICHERO_BIND_HOST": material.bindHost,
             "FICHERO_PUBLIC_BASE_URL": publicBaseURL.absoluteString,

@@ -20,6 +20,7 @@ final class RemoteAccessConfigTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: RemoteAccessConfig.hostingEnabledKey)
         UserDefaults.standard.removeObject(forKey: RemoteAccessConfig.publicBaseURLKey)
         UserDefaults.standard.removeObject(forKey: RemoteAccessConfig.pairedLibraryPathKey)
+        UserDefaults.standard.removeObject(forKey: EngineConfig.multiuserEnabledKey)
         UserDefaults.standard.removeObject(forKey: EngineConfig.userDefaultsKey)
     }
 
@@ -330,6 +331,27 @@ final class RemoteAccessConfigTests: XCTestCase {
         XCTAssertEqual(environment["FICHERO_TLS_SPKI_HASH"], "c3BraS1waW4=")
         XCTAssertEqual(environment["FICHERO_ENABLE_BONJOUR"], "1")
         XCTAssertEqual(environment["FICHERO_ALLOW_NON_LOOPBACK_BIND"], "I_UNDERSTAND_SHARED_SECRET_RISK")
+    }
+
+    func testRemoteAccessLaunchEnvironmentDisablesMultiuserWhenToggledOff() {
+        UserDefaults.standard.set(false, forKey: EngineConfig.multiuserEnabledKey)
+        defer { UserDefaults.standard.removeObject(forKey: EngineConfig.multiuserEnabledKey) }
+
+        let material = RemoteAccessTLSMaterial(
+            bindHost: "pairing.example.com",
+            certificatePath: "/tmp/server.crt",
+            keyPath: "/tmp/server.key",
+            spkiPin: "c3BraS1waW4="
+        )
+        let publicBaseURL = URL(string: "https://pairing.example.com:9443")!
+
+        let environment = RemoteAccessConfig.launchEnvironment(
+            for: publicBaseURL,
+            material: material,
+            bonjourEnabled: false
+        )
+
+        XCTAssertEqual(environment["FICHERO_MULTIUSER"], "0")
     }
 
     func testActivePairedDevicesFilterHidesRevokedDevices() {

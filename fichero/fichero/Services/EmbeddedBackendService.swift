@@ -2,7 +2,7 @@ import FicheroAPIClient
 import Foundation
 import OSLog
 
-// swiftlint:disable type_body_length
+// swiftlint:disable file_length type_body_length
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "EmbeddedBackend")
 
@@ -48,6 +48,32 @@ final class EmbeddedBackendService: ObservableObject {
 
     /// Start the embedded backend
     func start() async throws {
+        if await useExistingBackendIfAvailable() {
+            return
+        }
+
+        logger.info("Starting embedded backend...")
+        status = .starting
+
+        // Launch embedded backend (macOS only; DEBUG fallback or RELEASE always).
+        // Briefcase-bundled engine cold-starts in ~25s on Apple Silicon
+        // (heavy ML imports + DB init); 90s gives margin on slower I/O,
+        // first-launch caches, and contended startup.
+        // iOS cannot spawn a local engine — a configured remote host is required.
+        #if os(macOS)
+        try launchEmbeddedBackend()
+        try await waitForBackend(timeout: 90)
+        _ = await AuthTokenMiddleware.waitForToken(timeout: 10)
+        status = .running
+        logger.info("Embedded backend started successfully")
+        #else
+        status = .failed
+        errorMessage = "No remote engine host configured. Set a custom host in Settings."
+        throw BackendError.notRunning
+        #endif
+    }
+
+    private func useExistingBackendIfAvailable() async -> Bool {
         // SwiftUI Previews / Xcode canvas: never spawn the embedded engine.
         // Previews launch the full app to render a view — orphan-cleanup
         // would SIGTERM the developer's external engine, and the briefcase
@@ -78,11 +104,8 @@ final class EmbeddedBackendService: ObservableObject {
                 status = .running
                 isExternalBackend = true
             }
-            return
+            return true
         }
-
-        logger.info("Starting embedded backend...")
-        status = .starting
 
         if EngineConfig.usesCustomHost {
             logger.info("Custom engine host configured: \(EngineConfig.host.absoluteString, privacy: .public)")
@@ -91,11 +114,12 @@ final class EmbeddedBackendService: ObservableObject {
                 status = .running
                 isExternalBackend = true
                 logger.info("Connected to configured external backend")
-                return
+                return true
             } catch {
                 status = .failed
                 errorMessage = error.localizedDescription
-                throw error
+                logger.error("Configured external backend did not respond: \(error.localizedDescription, privacy: .public)")
+                return false
             }
         }
 
@@ -113,29 +137,13 @@ final class EmbeddedBackendService: ObservableObject {
             status = .running
             isExternalBackend = true
             logger.info("Connected to external backend (will not manage lifecycle)")
-            return
+            return true
         } catch {
             logger.info("No external backend found, launching embedded backend...")
             isExternalBackend = false
         }
         #endif
-
-        // Launch embedded backend (macOS only; DEBUG fallback or RELEASE always).
-        // Briefcase-bundled engine cold-starts in ~25s on Apple Silicon
-        // (heavy ML imports + DB init); 90s gives margin on slower I/O,
-        // first-launch caches, and contended startup.
-        // iOS cannot spawn a local engine — a configured remote host is required.
-        #if os(macOS)
-        try launchEmbeddedBackend()
-        try await waitForBackend(timeout: 90)
-        _ = await AuthTokenMiddleware.waitForToken(timeout: 10)
-        status = .running
-        logger.info("Embedded backend started successfully")
-        #else
-        status = .failed
-        errorMessage = "No remote engine host configured. Set a custom host in Settings."
-        throw BackendError.notRunning
-        #endif
+        return false
     }
 
     /// Stop the embedded backend
@@ -203,6 +211,7 @@ final class EmbeddedBackendService: ObservableObject {
     // MARK: - Private Helpers
 
     #if os(macOS)
+    // swiftlint:disable:next function_body_length
     private func launchEmbeddedBackend() throws {
         guard let resourcePath = Bundle.main.resourcePath else {
             throw BackendError.bundleNotFound
