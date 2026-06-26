@@ -421,7 +421,7 @@ def test_app_wide_config_gates_require_authenticated_owner(users, monkeypatch):
 
 
 def test_app_wide_config_gates_short_circuit_when_multiuser_off(users, monkeypatch):
-    monkeypatch.delenv("FICHERO_MULTIUSER", raising=False)
+    monkeypatch.setenv("FICHERO_MULTIUSER", "0")
 
     # Flag OFF → both gates allow everyone (return None, no HTTPException), even
     # an unauthenticated request and a viewer who would be rejected by the owner
