@@ -468,6 +468,24 @@ extension LibraryView {
         Logger(subsystem: "app.fichero.fichero", category: "LibraryView.BottomBar")
     }
 
+    /// Minimum hit-target side for each bottom-bar button. Follows the shared
+    /// MiniToolbar metric policy: 28pt on the Mac (compact Finder bar) but 44pt
+    /// on touch platforms so iPhone/iPad targets are comfortably tappable (#2474).
+    private var bottomBarTouchTarget: CGFloat {
+        MiniToolbar<EmptyView, EmptyView>.touchTargetSide
+    }
+
+    /// Height of the bottom action bar. Stays compact (28pt) on the Mac and
+    /// grows to the standard touch height on iPhone/iPad so the larger hit
+    /// targets fit (#2474).
+    private var bottomBarHeight: CGFloat {
+        #if os(macOS)
+        return 28
+        #else
+        return MiniToolbar<EmptyView, EmptyView>.standardHeight
+        #endif
+    }
+
     /// Finder/Xcode-style bottom toolbar acting on the current library selection.
     private var libraryBottomActionBar: some View {
         VStack(spacing: 0) {
@@ -486,6 +504,8 @@ extension LibraryView {
                     }
                     .buttonStyle(.borderless)
                     .controlSize(.small)
+                    .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
+                    .contentShape(Rectangle())
                     .help("Create a new folder")
 
                     Button {
@@ -496,6 +516,8 @@ extension LibraryView {
                     }
                     .buttonStyle(.borderless)
                     .controlSize(.small)
+                    .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
+                    .contentShape(Rectangle())
                     .help("Delete selection")
                     .disabled(isShowingEntitiesCollection || selection.isEmpty)
 
@@ -513,6 +535,8 @@ extension LibraryView {
                     }
                     .buttonStyle(.borderless)
                     .controlSize(.small)
+                    .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
+                    .contentShape(Rectangle())
                     .help("Export selection as BibTeX")
                     .disabled(isShowingEntitiesCollection || selection.isEmpty)
 
@@ -524,6 +548,8 @@ extension LibraryView {
                     }
                     .buttonStyle(.borderless)
                     .controlSize(.small)
+                    .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
+                    .contentShape(Rectangle())
                     .help("Import files")
 
                     Button {
@@ -535,11 +561,13 @@ extension LibraryView {
                     }
                     .buttonStyle(.borderless)
                     .controlSize(.small)
+                    .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
+                    .contentShape(Rectangle())
                     .help("Run workflow on selection")
                     .disabled(isShowingEntitiesCollection || selection.isEmpty || !featureManager.isWorkflowRunOnSelectionEnabled)
                 }
                 .padding(.horizontal, 10)
-                .frame(height: 28)
+                .frame(height: bottomBarHeight)
                 .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8))
             }
         }

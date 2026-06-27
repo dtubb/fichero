@@ -110,6 +110,7 @@ struct ArtifactsBrowserView: View {
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
+                    .help("Clear the artifact search")
                 }
             }
             .padding(6)

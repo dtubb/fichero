@@ -105,6 +105,7 @@ struct LibrarySectionHeader: View {
                 .foregroundStyle(isCurrentLibrary ? Color.accentColor : Color.primary)
                 .font(.system(size: 13))
             Text(libraryName)
+            locationBadge
             Spacer()
             if itemCount > 0 {
                 Text("\(itemCount)")
@@ -115,12 +116,28 @@ struct LibrarySectionHeader: View {
         .simultaneousGesture(TapGesture().onEnded { onTap?() })
     }
 
+    /// Small badge showing WHERE this library's engine lives — local embedded
+    /// engine vs a named remote device/host (#2574). Reads
+    /// `LibraryReference.locationDescriptor`; icon-only inline with a
+    /// `.help`/accessibility label carrying the full "On <device>" text so the
+    /// row stays compact.
+    @ViewBuilder
+    private var locationBadge: some View {
+        let location = library.locationDescriptor
+        Image(systemName: location.systemImage)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .help(location.label)
+            .accessibilityLabel(location.label)
+    }
+
     private var accessibilityLabel: String {
+        let location = library.locationDescriptor.label
         if itemCount > 0 {
             let plural = itemCount == 1 ? "document" : "documents"
-            return "\(libraryName), library, \(itemCount) \(plural)"
+            return "\(libraryName), library, \(location), \(itemCount) \(plural)"
         }
-        return "\(libraryName), library"
+        return "\(libraryName), library, \(location)"
     }
 
     private static func loadURL(from provider: NSItemProvider) async throws -> URL {

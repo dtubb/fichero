@@ -21,6 +21,7 @@ struct ChatInputView: View {
                     .foregroundColor(inputText.isEmpty ? .secondary : .accentColor)
             }
             .buttonStyle(.plain)
+            .help("Send your message (Return)")
             .disabled(inputText.isEmpty || isLoading)
             .keyboardShortcut(.return, modifiers: [])
         }

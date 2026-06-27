@@ -204,6 +204,15 @@ class LibraryManager: ObservableObject {
         // Security-scoped resource tracking
         private nonisolated(unsafe) var isAccessingSecurityScope: Bool = false
 
+        /// Where this library's engine lives — local embedded engine vs a named
+        /// remote device/host. Drives the sidebar local-vs-remote badge (#2574).
+        /// Front-end-first: derived from the app-level `EngineConfig` host today;
+        /// the seam to read a per-library `host` once that lands is a single
+        /// change inside `LibraryLocationDescriptor.current()`.
+        var locationDescriptor: LibraryLocationDescriptor {
+            LibraryLocationDescriptor.current()
+        }
+
         @MainActor
         init(
             url: URL,

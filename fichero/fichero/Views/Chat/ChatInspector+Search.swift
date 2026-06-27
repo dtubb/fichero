@@ -36,6 +36,7 @@ extension ChatInspector {
                         .foregroundColor(.secondary)
                 }
                 .buttonStyle(.plain)
+                .help("Clear the search")
             }
         }
         .padding(8)
@@ -94,6 +95,7 @@ extension ChatInspector {
                                         .foregroundColor(.accentColor)
                                 }
                                 .buttonStyle(.plain)
+                                .help("Add this document to the chat scope")
                             }
                         }
                         .contentShape(Rectangle())
