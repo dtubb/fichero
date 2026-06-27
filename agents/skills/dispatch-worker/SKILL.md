@@ -31,6 +31,10 @@ from in-repo worktrees; false-green incremental builds; stale-tree pytest).
   `uvicorn`, the CLI, or any heavy/background subprocess. The dispatch brief MUST say:
   *"Do NOT run pytest or any background test process — the manager runs tests. Write the
   tests, commit, and report."* See [[workers-write-tests-manager-runs-them]].
+- **Commit attribution + docs placement** (AGENTS.md): the dispatch brief MUST tell
+  the worker to commit as ITSELF (author = the agent, committer = human, credit Daniel
+  via `Co-Authored-By`) and to place any docs by audience (public → `site/docs/`,
+  internal dev → `docs/`, agent scratch → `agent-work/`, crud → `git rm`).
 - jcodemunch index is stale → tell the worker to verify-by-reading-disk.
 - **PARTITION BY FILE-SET before fanning out (2026-06-09 lesson).** Parallel is only
   free when lanes touch DISJOINT files. Two backend lanes that both rewrote
@@ -99,9 +103,14 @@ Swift and CLI tests are compile-verify-only; full test execution is intentionall
 
 ## 4. Integrate on completion (manager)
 ```bash
-# codex can't write the shared .git lock — commit from the manager shell if needed:
+# codex can't write the shared .git lock — commit from the manager shell if needed.
+# Attribute to the WORKER that wrote it, not the manager (AGENTS.md → Commit Attribution):
 git -C ~/code/fichero-worktrees/<name> add -A
-git -C ~/code/fichero-worktrees/<name> commit -m "<msg>"   # only if worker left it uncommitted
+git -C ~/code/fichero-worktrees/<name> \
+  -c user.name="Codex" -c user.email="noreply@anthropic.com" \
+  commit -m "<msg>
+
+Co-Authored-By: Daniel Tubb <dtubb@me.com>"   # only if worker left it uncommitted
 CX=$(git -C ~/code/fichero-worktrees/<name> rev-parse HEAD)
 git cherry-pick "$CX"      # resolve conflicts keeping BOTH intents
 ```

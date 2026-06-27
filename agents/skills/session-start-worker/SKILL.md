@@ -74,7 +74,17 @@ Only use `Read` immediately before `Edit`/`Write` on a file you already located.
      (loads the embedding model, ~2–9 GB; the manager runs the suite serially). Note the
      pytest command for the manager to run.
    - Swift/UI/CLI: mark compile-verify targets for manager/integrator; do not run full suites locally.
-7. Commit: `git commit -m "<imperative description> (#N)"`
+7. Commit AS YOURSELF (see AGENTS.md → Commit Attribution): author is the agent
+   writing the work, committer stays the human, credit Daniel via `Co-Authored-By`.
+   ```bash
+   git -c user.name="Claude" -c user.email="noreply@anthropic.com" \
+     commit -m "<imperative description> (#N)
+
+   Co-Authored-By: Daniel Tubb <dtubb@me.com>"
+   ```
+   Codex workers use `user.name="Codex"`. Place any docs you write by audience
+   (AGENTS.md → Docs Placement): public → `site/docs/`, internal dev reference →
+   `docs/`, agent scratch → `agent-work/`, crud → `git rm`.
 8. Push branch.
 9. Run `/complete-task N` to close the task.
 

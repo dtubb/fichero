@@ -31,6 +31,28 @@ swiftlint lint fichero/fichero/
 
 ---
 
+## Worker Orchestration
+
+Fichero is built by AI coding agents that Daniel directs. The work runs through a
+manager-with-workers loop:
+
+- The **manager** (`session-start-manager`) holds the control lane. It does not
+  write source code. It triages issues, picks the next batch, and dispatches it.
+- Each **worker** runs in its OWN git worktree under
+  `~/code/fichero-worktrees/<name>`, in a separate tmux window, as an interactive
+  agent (`claude --dangerously-skip-permissions` or `codex`). A worker grinds one
+  milestone's GitHub issues and commits as itself (see Commit Attribution below).
+- The manager **reviews** each worker's output (ponytail lens plus `/code-review`),
+  **build-gates** it, runs `verify_all`, then **merges via PR**, closes the issues,
+  and **re-dispatches** the next batch. It checks in on the workers about every 15
+  minutes.
+
+Workers never push to shared branches for the manager; the manager owns the merge.
+This keeps one Xcode and one full-suite run as the gate while many workers grind in
+parallel, isolated worktrees.
+
+---
+
 ## Working in Xcode
 
 When an agent runs **inside Xcode** (Claude-in-Xcode / the `xcode-tools` MCP server), prefer the MCP tools over command-line `ls`/`find` — every shell invocation may prompt the user for approval, so use them sparingly.
@@ -88,6 +110,47 @@ Start a session with `plan_turn { repo: ".", query: "<task>" }` for confidence +
 ## Commit Format
 
 Conventional commits — `feat:`, `fix:`, `chore:`, `refactor:`, `test:`, `docs:`, `style:` — always referencing a GitHub issue: `feat: add tasks router (#420)`. GitHub Issues + Milestones is the source of truth for the backlog.
+
+---
+
+## Commit Attribution
+
+Each agent commits as ITSELF. The author is the agent doing the work; the
+committer stays the human; credit Daniel with a `Co-Authored-By` trailer.
+
+- Claude writing → author `Claude <noreply@anthropic.com>`
+- Codex writing → author `Codex <noreply@anthropic.com>`
+- Other model → that model's name with `<noreply@anthropic.com>`
+
+```bash
+git -c user.name="Claude" -c user.email="noreply@anthropic.com" \
+  commit -m "docs: fix faq models (#1234)
+
+Co-Authored-By: Daniel Tubb <dtubb@me.com>"
+```
+
+This keeps authorship honest: the git log shows which agent produced which work,
+and Daniel is credited as the human who directed and reviewed it.
+
+---
+
+## Docs Placement
+
+Four homes, one rule each. When you write or move a doc, pick the home by audience:
+
+- **`site/docs/`** — the PUBLIC MkDocs site (`docs_dir`). Curated user manual,
+  contributor docs, API reference, and the How It's Built page. This is what ships
+  to the public site. Put public-worthy content here.
+- **`docs/`** — INTERNAL dev reference that is not published: durable architecture
+  and development guides, runbooks, module references. Never published by MkDocs.
+- **`agent-work/`** — AGENT scratch: session notes, handoffs, QA logs, reviews,
+  validation reports, audits, triage, design explorations, proposals. Not published.
+- **delete** — pure crud or superseded material: `git rm` it.
+
+When unsure between `docs/` and `agent-work/`: point-in-time, dated, "what I found"
+material is agent-work; durable "how the system works" reference is `docs/`. Do not
+promote raw internal design docs into `site/docs/`; the public site carries curated
+versions only.
 
 ---
 
