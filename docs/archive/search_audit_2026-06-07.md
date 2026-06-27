@@ -1,3 +1,8 @@
+> **ARCHIVED 2026-06-27** — historical point-in-time verification (2026-06-07).
+> The search-everything vision is tracked in #1824/#1833; the concrete index
+> data-debt (dual entity-vector tables, manual claim embeddings, no rebuild
+> endpoint) is tracked in #2709. Kept for provenance; line-refs may be stale.
+
 # Search Audit
 
 Verified on `2026-06-07` against the live backend at `http://127.0.0.1:8765` using the Marshall library at `~/code/marshall_diaries/Marshall.fichero`. The live backend was treated as read-only throughout this audit. PyKEEN training was verified only on a disposable clone of the Marshall library.
