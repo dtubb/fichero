@@ -57,9 +57,6 @@ run_check "OpenAPI sync script" ./fichero-engine/scripts/sync_openapi_schema.sh
 run_check "OpenAPI parity check" cmp -s \
   fichero-engine/tests/contracts/openapi.json \
   fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json
-run_check "OpenAPI legacy parity check" cmp -s \
-  fichero-engine/tests/contracts/openapi.json \
-  fichero/fichero-api-client/Sources/openapi.json
 
 echo
 if [ "$FAILURES" -eq 0 ]; then

@@ -1,7 +1,14 @@
 # Fichero Cron Script
 # This script is intended to be run every 30 minutes via OpenClaw cron.
 
-cd /Users/dtubb-openclaw/code/fichero
+if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+    echo "Usage: cron_check.sh"
+    echo "Runs the Fichero cron health checks from the configured checkout."
+    exit 0
+fi
+
+REPO_ROOT="${FICHERO_REPO_ROOT:-$HOME/code/fichero}"
+cd "$REPO_ROOT"
 
 echo "--- Fichero Cron Execution: $(date) ---"
 
