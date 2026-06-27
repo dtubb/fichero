@@ -274,6 +274,12 @@ extension ContentView {
                 if featureManager.isWorkspaceModeEnabled {
                     modes.append(.workspace)
                 }
+                // Gate .spatial behind the feature flag. Leaving it
+                // unconditional let a persisted `.spatial` survive
+                // normalizedViewDisplayMode() and route the iPad split
+                // path into Spatial2DCanvas, overflowing the main-thread
+                // stack on launch (#2665). .realitykit stays as-is — it was
+                // never the regression.
                 if featureManager.isSpatialModeEnabled {
                     modes.append(.spatial)
                 }
