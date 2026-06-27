@@ -73,6 +73,7 @@ struct ReaderToolbar: View {
     // `.compact` (iPhone) hides zoom/fit. Page navigation is kept on every size
     // class — a reader still needs to turn pages.
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.splitAxisActions) private var splitAxisActions
     @AppStorage("readerToolbar.pageNavExpanded") private var pageNavExpanded = false
     @AppStorage("readerToolbar.zoomExpanded") private var zoomExpanded = false
     @AppStorage("readerToolbar.toolsExpanded") private var toolsExpanded = false

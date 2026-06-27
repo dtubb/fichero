@@ -116,6 +116,16 @@ fichero workflow list
 swiftlint lint fichero/fichero/
 ```
 
+## Releases
+
+The release lane is documented in [docs/release/release-lane.md](docs/release/release-lane.md).
+It covers the notarized DMG/Sparkle/GitHub path and the separate Mac TestFlight
+archive/upload path. The wrapper script is:
+
+```bash
+scripts/release-all.sh --help
+```
+
 ## Features
 
 - **Library**: Hierarchical document storage with collections

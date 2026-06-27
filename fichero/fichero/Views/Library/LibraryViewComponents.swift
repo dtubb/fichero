@@ -216,6 +216,19 @@ struct DocumentThumbnailView: View {
     let isSelected: Bool
     var selectedTint: Color = .accentColor
     var scale: CGFloat = 1.0
+
+    init(
+        document: Document,
+        isSelected: Bool,
+        selectedTint: Color = .accentColor,
+        scale: CGFloat = 1.0
+    ) {
+        self.document = document
+        self.isSelected = isSelected
+        self.selectedTint = selectedTint
+        self.scale = scale
+    }
+
     var body: some View {
         VStack(spacing: 6) {
             ZStack {
@@ -335,6 +348,22 @@ struct EntityThumbnailView: View {
     let kindStyle: EntityThumbnailKindStyle
     var selectedTint: Color = .accentColor
     var scale: CGFloat = 1.0
+
+    init(
+        entity: Components.Schemas.KnowledgeEntity,
+        isSelected: Bool,
+        secondaryText: String,
+        kindStyle: EntityThumbnailKindStyle,
+        selectedTint: Color = .accentColor,
+        scale: CGFloat = 1.0
+    ) {
+        self.entity = entity
+        self.isSelected = isSelected
+        self.secondaryText = secondaryText
+        self.kindStyle = kindStyle
+        self.selectedTint = selectedTint
+        self.scale = scale
+    }
 
     var body: some View {
         VStack(spacing: 6) {

@@ -23,6 +23,20 @@ struct ResizableDivider: View {
         case trailing  // panel on right/bottom — drag left/up to grow
     }
 
+    init(
+        width: Binding<Double>,
+        minWidth: Double,
+        maxWidth: Double,
+        edge: Edge = .trailing,
+        axis: DividerResizeAxis = .horizontal
+    ) {
+        self._width = width
+        self.minWidth = minWidth
+        self.maxWidth = maxWidth
+        self.edge = edge
+        self.axis = axis
+    }
+
     var body: some View {
         // 8px clear hit zone with a 1px visible separator centered inside.
         Color.clear
