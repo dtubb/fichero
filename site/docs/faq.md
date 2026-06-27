@@ -2,15 +2,15 @@
 
 ### What is Fichero?
 
-Fichero is a work in progress. At its core, it's an app that lets you use cutting-edge machine-learning techniques and prompts in a repeatable, programmatic way on documents. Rather than have an AI control how things are done in ways that are hard to understand, Fichero gives you a way to visually build the steps yourself — and then reproduce them across your collection.
+Fichero is a work in progress. At its core, it's an app that lets you use cutting-edge machine-learning techniques and prompts in a repeatable, programmatic way on documents. Rather than have an AI control how things are done in ways that are hard to understand, Fichero gives you a way to visually build the steps yourself, and then reproduce them across your collection.
 
 ### What does "Fichero" mean?
 
-Fichero is Spanish for "card-file cabinet" — the physical index card filing system used by researchers, archivists, and notably by Niklas Luhmann in his Zettelkasten method. The name references both the archival tradition and Fichero's roots in processing historical archival images.
+Fichero is Spanish for "card-file cabinet," the physical index card filing system used by researchers, archivists, and notably by Niklas Luhmann in his Zettelkasten method. The name references both the archival tradition and Fichero's roots in processing historical archival images.
 
 ### How does it work?
 
-Fichero is two apps in one: a native SwiftUI frontend for browsing and managing your documents, and a Python FastAPI backend that handles AI processing, search, and data storage. The backend is embedded inside the Mac app and starts automatically — you never need to think about it.
+Fichero is two apps in one: a native SwiftUI frontend for browsing and managing your documents, and a Python FastAPI backend that handles AI processing, search, and data storage. The backend is embedded inside the Mac app and starts automatically, so you never need to think about it.
 
 ### What AI models does it support?
 
@@ -38,7 +38,7 @@ Fichero is currently free during early development. Pricing for future versions 
 
 ### How is Fichero built?
 
-Fichero is vibe-coded. Daniel is an anthropologist, not a software engineer — he doesn't write Swift or Python from scratch. Instead, he sits down with [Claude](https://www.anthropic.com/claude) (Anthropic's AI assistant) and describes what he wants in plain language. Claude does the typing; Daniel directs: what the app should do, where it's broken, what to work on next. Sessions are conversational and long, and code, tests, and commits all come out the other end.
+Fichero is vibe-coded. Daniel is an anthropologist rather than a software engineer, and he doesn't write Swift or Python from scratch. Instead, he sits down with [Claude](https://www.anthropic.com/claude) (Anthropic's AI assistant) and describes what he wants in plain language. Claude does the typing; Daniel directs: what the app should do, where it's broken, what to work on next. Sessions are conversational and long, and code, tests, and commits all come out the other end.
 
 ### What is the relationship between Fichero and Fichero Toolbox?
 

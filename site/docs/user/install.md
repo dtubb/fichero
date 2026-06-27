@@ -29,7 +29,7 @@ Fichero is signed and notarized. On first launch, macOS may show a Gatekeeper al
 
 You only need to do this once. After that, Fichero opens normally.
 
-When Fichero starts, the backend engine launches automatically in the background. You may see "Connecting to backend…" briefly in the title bar while it starts. This is normal — it takes a few seconds the first time.
+When Fichero starts, the backend engine launches automatically in the background. You may see "Connecting to backend…" briefly in the title bar while it starts. This is normal, and it takes a few seconds the first time.
 
 No separate Python installation is required. The engine is embedded in the app.
 
@@ -37,4 +37,4 @@ No separate Python installation is required. The engine is embedded in the app.
 
 ## Alpha software
 
-Fichero is in active development. The library format may change between releases. Keep original copies of any documents you import — do not use Fichero as your only copy of anything.
+Fichero is in active development. The library format may change between releases. Keep original copies of any documents you import, and do not use Fichero as your only copy of anything.
