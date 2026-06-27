@@ -17,10 +17,13 @@ cd "$(dirname "$0")/.." || exit 2
 tier="fast"
 run_macos=0
 run_ios=0
+selfcheck=0
+json_requested=0
+file_issues=0
 show_help() {
   cat <<'EOF'
 Usage:
-  scripts/verify_all.sh [--fast|--standard|--full] [--macos] [--ios]
+  scripts/verify_all.sh [--fast|--standard|--full] [--macos] [--ios] [--json] [--self-check]
 
 Tiers:
   --fast      swiftlint + ruff + scripts/check_*.py + check_version_date.sh + OpenAPI model sync
@@ -35,6 +38,17 @@ Platforms:
 Environment overrides:
   VERIFY_ALL_MACOS=1  request the macOS Xcode build/test leg
   VERIFY_ALL_IOS=1    request the iPhone/iPad simulator build legs (plus visionOS when supported)
+
+Reporting:
+  --json        always also writes a machine-readable failure report to
+                build/verify_all_report.json (the file is written regardless;
+                this flag is accepted for explicitness)
+  --self-check  run an internal pass+fail probe and assert the JSON report has
+                exactly one failure record, then exit
+  --file-issues on failure, invoke scripts/verify_to_issues.sh --apply to file
+                de-duped GitHub issues into the right milestones, write the
+                manager-flag build/verify_all_needs_fixing.json, and print a
+                MANAGER-ACTION line. Default OFF (report only).
 
 Default: --fast
 
@@ -72,6 +86,15 @@ for arg in "$@"; do
       ;;
     --ios)
       run_ios=1
+      ;;
+    --json)
+      json_requested=1
+      ;;
+    --self-check)
+      selfcheck=1
+      ;;
+    --file-issues)
+      file_issues=1
       ;;
     -h|--help)
       show_help
@@ -121,6 +144,113 @@ fi
 
 fail=0
 FAILED_CHECKS=()
+
+# --- Machine-readable failure report (build/verify_all_report.json) ----------
+# Each failing check appends a staged record; write_report() serialises them to
+# JSON at the end. build/ is gitignored. This is purely additive — the human
+# "FAILED CHECKS" block below is untouched.
+REPORT_JSON="build/verify_all_report.json"
+REPORT_STAGING="$(mktemp -d)"
+REPORT_COUNT=0
+trap 'rm -rf "${REPORT_STAGING}"' EXIT
+
+# Map a human check label to a stable category used for milestone routing.
+categorize_label() {
+  local label="$1"
+  case "$label" in
+    swiftlint*) echo "swift-lint" ;;
+    *ruff*) echo "python-lint" ;;
+    *OpenAPI*) echo "contract" ;;
+    *pytest*) echo "test" ;;
+    *xcodebuild*) echo "build" ;;
+    version-date|check_*.py|check_*) echo "guardrail" ;;
+    *) echo "other" ;;
+  esac
+}
+
+# Stage one failure record. Args: label, output-file, then the command argv.
+record_failure() {
+  local label="$1"
+  local outfile="$2"
+  shift 2
+  local idx
+  idx="$(printf '%04d' "$REPORT_COUNT")"
+  local dir="${REPORT_STAGING}/${idx}"
+  mkdir -p "$dir"
+  printf '%s' "$label" >"$dir/label"
+  printf '%s' "$(categorize_label "$label")" >"$dir/category"
+  printf '%s' "$tier" >"$dir/tier"
+  printf '%s' "$*" >"$dir/command"
+  if [[ -n "$outfile" && -f "$outfile" ]]; then
+    tail -n 40 "$outfile" >"$dir/output_tail" 2>/dev/null || true
+  else
+    : >"$dir/output_tail"
+  fi
+  # For the pytest leg, parse failing test node IDs from the summary lines.
+  case "$label" in
+    *pytest*)
+      if [[ -n "$outfile" && -f "$outfile" ]]; then
+        grep -E '^FAILED ' "$outfile" \
+          | sed -E 's/^FAILED ([^ ]+).*/\1/' >"$dir/failing_tests" || true
+      fi
+      ;;
+  esac
+  REPORT_COUNT=$((REPORT_COUNT + 1))
+}
+
+# Serialise all staged records to REPORT_JSON. Pure python3 (stdlib only) for
+# safe escaping; falls back to a minimal valid file if python3 is unavailable.
+write_report() {
+  mkdir -p "$(dirname "$REPORT_JSON")"
+  if REPORT_STAGING="$REPORT_STAGING" REPORT_JSON="$REPORT_JSON" TIER="$tier" \
+      "${PYTHON_BIN}" - <<'PY' 2>/dev/null
+import glob
+import json
+import os
+
+staging = os.environ["REPORT_STAGING"]
+out = os.environ["REPORT_JSON"]
+
+
+def read(path):
+    try:
+        with open(path) as handle:
+            return handle.read()
+    except FileNotFoundError:
+        return ""
+
+
+records = []
+for d in sorted(glob.glob(os.path.join(staging, "*"))):
+    if not os.path.isdir(d):
+        continue
+    rec = {
+        "label": read(os.path.join(d, "label")),
+        "category": read(os.path.join(d, "category")),
+        "tier": read(os.path.join(d, "tier")),
+        "command": read(os.path.join(d, "command")),
+        "output_tail": read(os.path.join(d, "output_tail")),
+    }
+    ft = os.path.join(d, "failing_tests")
+    if os.path.exists(ft):
+        rec["failing_tests"] = [
+            line for line in read(ft).splitlines() if line.strip()
+        ]
+    records.append(rec)
+
+report = {"tier": os.environ.get("TIER", ""), "failed": len(records), "checks": records}
+with open(out, "w") as handle:
+    json.dump(report, handle, indent=2)
+    handle.write("\n")
+PY
+  then
+    :
+  else
+    # Minimal fallback so the path always exists and is valid JSON.
+    printf '{"tier":"%s","failed":%d,"checks":[]}\n' "$tier" "$REPORT_COUNT" >"$REPORT_JSON"
+  fi
+}
+
 XCODE_PROJECT="fichero/fichero.xcodeproj"
 XCODE_SCHEME="Fichero"
 VISION_SUPPORTED=0
@@ -195,13 +325,19 @@ run_check() {
   local label="$1"
   shift
   echo "-- ${label} --"
-  if "$@"; then
+  # Capture combined output so we can tail it into the JSON report on failure,
+  # while still streaming it to the terminal unchanged (tee passthrough).
+  local outfile
+  outfile="$(mktemp)"
+  if "$@" 2>&1 | tee "$outfile"; then
     echo "PASS ${label}"
   else
     echo "FAIL ${label}"
     fail=1
     FAILED_CHECKS+=("${label}")
+    record_failure "$label" "$outfile" "$@"
   fi
+  rm -f "$outfile"
 }
 
 run_fast() {
@@ -232,8 +368,10 @@ run_standard() {
   echo "verify_all tier: standard"
   run_fast
 
+  # -rf emits a "FAILED <node_id>" line per failure in the short summary so the
+  # JSON report can list failing test node IDs (parsed in record_failure).
   run_check "backend pytest unit tests" env PYTHONPATH=fichero-engine/src \
-    "${PYTEST_CMD[@]}" fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived
+    "${PYTEST_CMD[@]}" -rf fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived
 }
 
 run_platform_checks() {
@@ -260,6 +398,7 @@ run_platform_checks() {
       echo "FAIL xcodebuild iPhone Simulator build"
       fail=1
       FAILED_CHECKS+=("xcodebuild iPhone Simulator build")
+      record_failure "xcodebuild iPhone Simulator build" "" "simulator_udid iphone (no available iPhone simulator)"
       return
     }
 
@@ -267,6 +406,7 @@ run_platform_checks() {
       echo "FAIL xcodebuild iPad Simulator build"
       fail=1
       FAILED_CHECKS+=("xcodebuild iPad Simulator build")
+      record_failure "xcodebuild iPad Simulator build" "" "simulator_udid ipad (no available iPad simulator)"
       return
     }
 
@@ -303,6 +443,22 @@ run_full() {
   run_platform_checks
 }
 
+if [[ "$selfcheck" -eq 1 ]]; then
+  tier="selfcheck"
+  echo "verify_all tier: selfcheck"
+  run_check "selfcheck pass" true
+  run_check "selfcheck fail" false
+  write_report
+  count="$("${PYTHON_BIN}" -c \
+    "import json;print(len(json.load(open('${REPORT_JSON}'))['checks']))" 2>/dev/null)"
+  if [[ "$count" == "1" ]]; then
+    echo "self-check OK: exactly 1 failure record in ${REPORT_JSON}"
+    exit 0
+  fi
+  echo "self-check FAILED: expected 1 record, got '${count}'" >&2
+  exit 1
+fi
+
 case "$tier" in
   fast)
     run_fast
@@ -332,4 +488,18 @@ else
   echo "===================================================================="
   echo "verify_all (${tier}): ${#FAILED_CHECKS[@]} FAILED — see consolidated list above (details inline higher up)"
 fi
+
+# Always emit the machine-readable report so tooling has a stable artifact path.
+write_report
+echo "verify_all report: ${REPORT_JSON}"
+
+# Optionally close the autonomous loop: file the failures as GitHub issues and
+# flag the manager. Default OFF so normal runs never spam issues.
+if [[ "$file_issues" -eq 1 && "$fail" -ne 0 ]]; then
+  echo "verify_all: --file-issues set and failures present — filing issues"
+  VERIFY_ALL_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    scripts/verify_to_issues.sh --apply || \
+    echo "verify_all: verify_to_issues.sh --apply returned non-zero" >&2
+fi
+
 exit "$fail"
