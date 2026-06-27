@@ -108,7 +108,9 @@ struct ResearchProjectListView: View {
                     selectedProjectIds.removeAll()
                 }
             }
+            #if os(macOS)
             .onDeleteCommand(perform: confirmDeleteSelection)
+            #endif
         }
     }
 

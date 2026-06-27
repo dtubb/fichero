@@ -227,7 +227,9 @@ struct WorkflowListView: View {
                 .help("Delete selection")
             }
         }
+        #if os(macOS)
         .onDeleteCommand(perform: promptDeleteSelected)
+        #endif
     }
 
     // MARK: - Icon Grid View

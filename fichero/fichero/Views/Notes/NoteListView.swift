@@ -83,7 +83,9 @@ struct NoteListView: View {
                 .disabled(selectedNoteIds.isEmpty)
             }
         }
+        #if os(macOS)
         .onDeleteCommand(perform: promptDeleteSelectedNotes)
+        #endif
         .alert("Delete Notes?", isPresented: $showingDeleteConfirmation) {
             Button("Cancel", role: .cancel) {
                 notesToDelete = []
