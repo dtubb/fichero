@@ -39,7 +39,7 @@ logs/
 fichero-engine/src/fichero/cli/generated/
 
 # MkDocs site (build output + local docs venv)
-site/_build/
+_site_build/
 .venv-docs/
 
 # Swift / Xcode user-local
