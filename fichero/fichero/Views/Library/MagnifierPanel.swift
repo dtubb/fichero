@@ -88,6 +88,7 @@ struct MagnifierPanelView: View {
                                 .font(.caption)
                         }
                         .buttonStyle(.plain)
+                        .help("Zoom the magnifier out")
                         .disabled(magnification <= minMagnification)
 
                         Text(String(format: "%.2gx", magnification))
@@ -101,6 +102,7 @@ struct MagnifierPanelView: View {
                                 .font(.caption)
                         }
                         .buttonStyle(.plain)
+                        .help("Zoom the magnifier in")
                         .disabled(magnification >= maxMagnification)
                     }
 
@@ -330,6 +332,7 @@ struct MagnifierPanelView: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundColor(isLocked ? .accentColor : .primary)
+                    .help(isLocked ? "Unlock magnifier (follows cursor)" : "Lock magnifier (stays on current position)")
 
                     Divider()
                         .frame(height: 12)
@@ -347,6 +350,7 @@ struct MagnifierPanelView: View {
                                 .font(.caption)
                         }
                         .buttonStyle(.plain)
+                        .help("Zoom the magnifier out")
                         .disabled(magnification <= minMagnification)
 
                         Text(String(format: "%.2gx", magnification))
@@ -360,6 +364,7 @@ struct MagnifierPanelView: View {
                                 .font(.caption)
                         }
                         .buttonStyle(.plain)
+                        .help("Zoom the magnifier in")
                         .disabled(magnification >= maxMagnification)
                     }
 

@@ -645,6 +645,7 @@ struct ZoomableImagePreview: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .disabled(previousAction == nil)
+                        .help("Show the previous image in this folder")
                         .accessibilityIdentifier("folderImagePrev")
 
                         Button {
@@ -656,6 +657,7 @@ struct ZoomableImagePreview: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .disabled(nextAction == nil)
+                        .help("Show the next image in this folder")
                         .accessibilityIdentifier("folderImageNext")
                     }
                     .padding(.bottom, 16)
@@ -778,6 +780,7 @@ struct FullScreenImagePreview: View {
             }
             .padding(.top, 8)
             .padding(.trailing, 16)
+            .help("Close full-screen image")
             .accessibilityIdentifier("fullScreenImageClose")
             .accessibilityLabel("Close Full Screen")
         }

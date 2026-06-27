@@ -25,6 +25,7 @@ extension ChatInspector {
                         .font(.caption)
                 }
                 .buttonStyle(.plain)
+                .help("Remove the selected documents from the chat scope")
                 .disabled(listSelection.isEmpty)
                 .keyboardShortcut(.delete, modifiers: [])
 
