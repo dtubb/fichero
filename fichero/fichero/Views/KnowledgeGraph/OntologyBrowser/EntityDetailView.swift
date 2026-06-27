@@ -14,6 +14,18 @@ struct EntityDetailView: View {
     let isLoadingClaims: Bool
     var onNavigateToSource: ((Components.Schemas.KnowledgeClaim) -> Void)?
 
+    init(
+        entity: Components.Schemas.KnowledgeEntity,
+        claims: [Components.Schemas.KnowledgeClaim],
+        isLoadingClaims: Bool,
+        onNavigateToSource: ((Components.Schemas.KnowledgeClaim) -> Void)? = nil
+    ) {
+        self.entity = entity
+        self.claims = claims
+        self.isLoadingClaims = isLoadingClaims
+        self.onNavigateToSource = onNavigateToSource
+    }
+
     /// Curation audit log for this entity — populated lazily from
     /// `/api/kg/entity-curation/audit?entity_id=…`. Each row is a
     /// reversible merge/split operation. Empty list = no curation has

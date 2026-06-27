@@ -43,6 +43,8 @@ Full developer index: [docs/developer/README.md](./developer/README.md)
 
 ## Releases
 
+- [Release Lane Runbook](./release/release-lane.md) — one-command DMG notarization,
+  Sparkle/GitHub release, and Mac TestFlight upload.
 - [Sparkle Release Setup](./release/sparkle-release.md) — app update metadata, feed URL, and release flow.
 
 ---

@@ -7,6 +7,9 @@ set -euo pipefail
 #
 # Usage:
 #   scripts/release-all.sh [--skip-backend] [--skip-dmg] [--skip-notarize] [--skip-testflight] [--github] [--draft]
+#
+# See docs/release/release-lane.md for required certificates/profiles and the
+# repeatable DMG, Sparkle/GitHub, and Mac TestFlight release cycle.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RELEASE_DIR="$ROOT_DIR/build/releases"
@@ -18,6 +21,10 @@ SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://raw.githubusercontent.com/dtubb/fi
 APP_STORE_CONNECT_KEY_PATH="${APP_STORE_CONNECT_KEY_PATH:-$HOME/Documents/Developer/Certificates/2026-07-5 App Store COnecnt/AuthKey_2MGYUR786H.p8}"
 APP_STORE_CONNECT_KEY_ID="${APP_STORE_CONNECT_KEY_ID:-2MGYUR786H}"
 APP_STORE_CONNECT_ISSUER_ID="${APP_STORE_CONNECT_ISSUER_ID:-6d2cfad9-6a3d-48a0-bdcc-9c75c308f812}"
+MAC_APP_STORE_PROFILE_PATH="${MAC_APP_STORE_PROFILE_PATH:-$HOME/Downloads/Mac_App_Store_Connect.provisionprofile}"
+MAC_APP_STORE_PROFILE_NAME="${MAC_APP_STORE_PROFILE_NAME:-Mac App Store Connect}"
+MAC_APP_STORE_SIGNING_CERT="${MAC_APP_STORE_SIGNING_CERT:-7CD87BA09F2DA8A79652710DE0F5E3C5DCD2CC35}"
+MAC_APP_STORE_PROFILE_UUID=""
 
 project_setting() {
   local name="$1"
@@ -43,6 +50,20 @@ app_store_version() {
     local IFS=.
     echo "${out[*]}"
   fi
+}
+
+install_mac_app_store_profile() {
+  [ -f "$MAC_APP_STORE_PROFILE_PATH" ] || return 0
+
+  local plist
+  plist="$(mktemp)"
+  security cms -D -i "$MAC_APP_STORE_PROFILE_PATH" > "$plist"
+  MAC_APP_STORE_PROFILE_UUID="$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$plist")"
+  mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+  cp "$MAC_APP_STORE_PROFILE_PATH" \
+    "$HOME/Library/MobileDevice/Provisioning Profiles/$MAC_APP_STORE_PROFILE_UUID.provisionprofile"
+  rm -f "$plist"
+  echo "  Installed Mac App Store profile: $MAC_APP_STORE_PROFILE_NAME ($MAC_APP_STORE_PROFILE_UUID)"
 }
 
 SKIP_BACKEND=false
@@ -112,6 +133,7 @@ if [ "$SKIP_TESTFLIGHT" = false ]; then
   TESTFLIGHT_BUILD_VERSION="${TESTFLIGHT_BUILD_VERSION:-${PROJECT_BUILD_VERSION:-$(date +%Y%m%d)}}"
 
   echo "  TestFlight version: $TESTFLIGHT_MARKETING_VERSION ($TESTFLIGHT_BUILD_VERSION)"
+  install_mac_app_store_profile
 
   if ! xcodebuild -project "$ROOT_DIR/fichero/fichero.xcodeproj" \
     -scheme Fichero \
@@ -146,7 +168,14 @@ if [ "$SKIP_TESTFLIGHT" = false ]; then
   <key>teamID</key>
   <string>QAPB6CWYR6</string>
   <key>signingStyle</key>
-  <string>automatic</string>
+  <string>manual</string>
+  <key>signingCertificate</key>
+  <string>$MAC_APP_STORE_SIGNING_CERT</string>
+  <key>provisioningProfiles</key>
+  <dict>
+    <key>app.fichero.fichero</key>
+    <string>${MAC_APP_STORE_PROFILE_UUID:-$MAC_APP_STORE_PROFILE_NAME}</string>
+  </dict>
   <key>testFlightInternalTestingOnly</key>
   <true/>
   <key>uploadSymbols</key>
