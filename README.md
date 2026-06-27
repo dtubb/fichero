@@ -29,7 +29,7 @@ Fichero is a single backend engine ("engine is logic; clients are display surfac
 ```
 ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
 │  SwiftUI app     │  │  fichero CLI     │  │  MCP server      │
-│  (fichero/)      │  │  (fichero-engine/src/fichero/cli/)  │  │  (planned)       │
+│  (fichero/)      │  │  (fichero-engine/src/fichero/cli/)  │  │  (fichero-mcp)   │
 └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘
          │                     │                     │
          └─────────────────────┴─────────────────────┘
@@ -44,10 +44,14 @@ Fichero is a single backend engine ("engine is logic; clients are display surfac
                  │         │         │
                  ▼         ▼         ▼
            ┌─────────┐ ┌────────┐ ┌─────────┐
-           │ DuckDB  │ │LangGr. │ │ LiteLLM │
+           │ DuckDB  │ │LangGr. │ │LangChain│
            │+Lance   │ │workflw │ │100+ LLMs│
            └─────────┘ └────────┘ └─────────┘
 ```
+
+> LLM calls go through LangChain provider integrations (one per provider).
+> LiteLLM is used **only** for model discovery and cost/pricing — not for
+> routing or inference.
 
 ### Surfaces
 
@@ -135,7 +139,7 @@ scripts/release-all.sh --help
 - **Knowledge Graph**: Entities, claims, and relationships extracted from documents (backend-owned; surfaces render)
 - **Ingest**: Comprehensive file ingestion with 37+ supported formats
 - **CLI / MCP**: Engine endpoints driven from the terminal (`fichero`) and from MCP-aware agents (`fichero-mcp`)
-- **Privacy / offline-first**: Model-agnostic via LiteLLM; run local models (Ollama, LM Studio, MLX) with no internet, or bring your own cloud API key
+- **Privacy / offline-first**: Model-agnostic via LangChain provider integrations; run local models (Ollama, LM Studio, MLX) with no internet, or bring your own cloud API key
 
 ## Ingest Module
 
