@@ -17,4 +17,4 @@ Fichero uses a worktree-based agent workflow. Start with the repo guidance in
 
 ## More Detail
 
-For the fuller repo conventions, see [docs/developer/setup-and-contributing.md](docs/developer/setup-and-contributing.md).
+For the fuller repo conventions, see [site/docs/developer/setup-and-contributing.md](site/docs/developer/setup-and-contributing.md).

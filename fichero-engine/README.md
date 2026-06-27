@@ -6,7 +6,7 @@ extracts text and meaning, runs AI workflows, and owns the knowledge graph,
 backed by DuckDB (structured metadata) and LanceDB (vector embeddings).
 
 See the [top-level README](../README.md) for the whole-system picture and
-[`docs/developer/architecture-overview.md`](../docs/developer/architecture-overview.md)
+[`site/docs/developer/architecture-overview.md`](../site/docs/developer/architecture-overview.md)
 for the deep dive.
 
 ## What lives here
@@ -70,7 +70,7 @@ ruff check fichero-engine/src/
 
 Backend-specific working notes live in [AGENTS.md](AGENTS.md). For the repo-wide
 workflow, see [CONTRIBUTING.md](../CONTRIBUTING.md) and
-[docs/developer/setup-and-contributing.md](../docs/developer/setup-and-contributing.md).
+[site/docs/developer/setup-and-contributing.md](../site/docs/developer/setup-and-contributing.md).
 
 ## How it works — workflows + knowledge graph
 
@@ -90,7 +90,7 @@ workflow, see [CONTRIBUTING.md](../CONTRIBUTING.md) and
 - **Action registry.** Engine mutations flow through a single typed action layer
   (`registry.invoke`) that emits change events and writes an audit record —
   shared by the API, CLI, and (planned) chat/App-Intent tools. See
-  `docs/developer/action-registry.md`.
+  `site/docs/developer/action-registry.md`.
 
 ## MCP server
 
