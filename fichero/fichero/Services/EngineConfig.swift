@@ -289,6 +289,46 @@ enum EngineConfig {
     }
 }
 
+/// Describes WHERE a library's engine lives so the sidebar can show a small
+/// local-vs-remote badge on each library row (#2574). "Front-end-first":
+/// today every open library shares the app-level `EngineConfig` host, so the
+/// descriptor is derived from it via ``current()``. Once a per-library
+/// `host` lands on `LibraryReference`, only that one call site changes — the
+/// badge UI keeps reading `library.locationDescriptor`.
+struct LibraryLocationDescriptor: Equatable {
+    /// True when the engine runs on the same machine as the app.
+    let isLocal: Bool
+    /// Short human label, e.g. "On this Mac" or "On studio.local".
+    let label: String
+    /// SF Symbol for the badge.
+    let systemImage: String
+
+    /// Derives the descriptor from the app-level `EngineConfig` host.
+    static func current() -> LibraryLocationDescriptor {
+        if EngineConfig.engineIsLocal {
+            #if os(macOS)
+            return LibraryLocationDescriptor(
+                isLocal: true,
+                label: "On this Mac",
+                systemImage: "laptopcomputer"
+            )
+            #else
+            return LibraryLocationDescriptor(
+                isLocal: true,
+                label: "On this device",
+                systemImage: "ipad"
+            )
+            #endif
+        }
+        let hostName = EngineConfig.host.host ?? EngineConfig.hostString
+        return LibraryLocationDescriptor(
+            isLocal: false,
+            label: "On \(hostName)",
+            systemImage: "network"
+        )
+    }
+}
+
 enum RemoteAccessConfig {
     static let hostingEnabledKey = "fichero.remote_access.enabled"
     static let bonjourEnabledKey = "fichero.remote_access.bonjour_enabled"
