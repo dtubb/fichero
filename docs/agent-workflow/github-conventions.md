@@ -186,7 +186,7 @@ Release-flow checklist lives in `dtubb/fichero-releases#1`. Do not refile in thi
 
 ## Manager / lane discipline
 
-See `.claude/CLAUDE.md` and `docs/CLAUDE.md`. Briefly:
+See `AGENTS.md` and `docs/CLAUDE.md`. Briefly:
 - Each lane uses its own worktree (`~/code/fichero-<lane>`); manager from `~/code/fichero`.
 - Lane branches push to origin so the manager merges from `origin/<branch>`, not a worktree path.
 - Never `gh issue close` until `git log origin/main..HEAD | grep "(#N)"` confirms the merge.

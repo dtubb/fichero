@@ -9,7 +9,7 @@
 
 ## Local Development Commands
 
-The commands below are the current repo-standard ones from `AGENTS.md` and `.claude/CLAUDE.md`.
+The commands below are the current repo-standard ones from `AGENTS.md`.
 
 ### Backend
 

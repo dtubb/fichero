@@ -1,6 +1,10 @@
 # AGENTS.md: Operational Manual
 
-How to *operate* on Fichero: verify, commit, ship-safety. The product north-star is `CONSTITUTION.md`; code-navigation policy, hard rules, and key paths live in `.claude/CLAUDE.md` (already in every session's context); the detailed guide is `docs/CLAUDE.md`. The session-start / manager skills tell each lane its job. None of that is repeated here.
+The single canonical agent/operational doc for Fichero. Every coding agent —
+Codex, Claude Code, and Claude-in-Xcode — reads this file. (`CLAUDE.md` is a thin
+pointer here.) The product north-star is `CONSTITUTION.md`; the detailed
+architecture/development guide is `docs/CLAUDE.md`; the session-start / manager
+skills under `agents/skills/` tell each lane its job.
 
 Every agent starts with `/session-start` (or a lane variant: `-manager`, `-worker`, `-integrator`, `-auto`); it loads context and reports state. Work happens on the milestone branch this worktree is on. Commit directly, no per-task branches.
 
@@ -27,6 +31,22 @@ swiftlint lint fichero/fichero/
 
 ---
 
+## Working in Xcode
+
+When an agent runs **inside Xcode** (Claude-in-Xcode / the `xcode-tools` MCP server), prefer the MCP tools over command-line `ls`/`find` — every shell invocation may prompt the user for approval, so use them sparingly.
+
+- **Build** with `BuildProject` (Xcode MCP) rather than raw `xcodebuild` — it shares Xcode.app's cache and avoids `build.db` lock contention.
+- **New Apple APIs**: use `DocumentationSearch` (Xcode MCP) liberally. It runs locally, returns compact results fast, and is newer than training data. ALWAYS search for these if referenced — they post-date most training data:
+  - **Liquid Glass** — the current design system.
+  - **FoundationModels** — on-device ML framework with macros for structured generation.
+  - **SwiftUI** keeps evolving (especially around `NSViewRepresentable`-era patterns) — don't assume the latest way of doing anything. If you can't find an implementation of something in the project, assume it's new API and search for it.
+- **The three-leg Swift check** before declaring SwiftUI work done, in order: (1) `swiftlint lint fichero/fichero/` clean; (2) `BuildProject` succeeds; (3) `RunAllTests` passes. A build log alone is not done; a green test run alone is not done. `XcodeRefreshCodeIssuesInFile` gives fast per-file diagnostics for the inner loop but does NOT substitute for a full build. Use `RenderPreview` / visual capture for rendered-UI changes.
+- **Limit changes to the requested task** — don't make unrelated edits.
+
+MCP/build notes live in `docs/CLAUDE.md` (`## MCP Tools`, `## Development Commands`); the SwiftUI code-style guidelines live in `docs/architecture/swiftui/development_standards.md`.
+
+---
+
 ## Pydantic + OpenAPI Discipline
 
 Three failure modes that bite *silently*, with no exception and no test failure, just data that vanishes or rows that hide. Load-bearing, not style:
@@ -44,3 +64,73 @@ When seed-data shape changes, the shape change and every filter that reads it sh
 Before completing a backend route change: does OpenAPI need updating? Do the Swift generated files need regenerating? Do frontend callers need updating? Plan first for architectural, OpenAPI-schema, feature-flag-tier, or database-schema changes; proceed directly on clear-root-cause fixes, tests, and lint/build fixes.
 
 **Engine bug or rendering bug?** The typed `fichero` CLI (`python -m fichero`) mirrors every endpoint reachable from SwiftUI. Reproduce against the CLI first; if it fails the same way, the engine owns it.
+
+---
+
+## Code Navigation
+
+When a code-intelligence MCP server (jcodemunch) is connected, prefer it over Read/Grep/Glob for code questions — it is an AST index with large token savings. If it is **not** connected, fall back to Read/Grep and say so. Typical routing:
+
+| Question | tool |
+|---|---|
+| Where is a symbol defined? | `search_symbols` |
+| What's in a file before I edit? | `get_file_outline` |
+| One symbol's source | `get_symbol_source` |
+| What breaks if I change X? | `get_blast_radius` |
+| Who imports / references this? | `find_importers` / `find_references` |
+| Repo overview / file tree | `get_repo_outline` / `get_file_tree` |
+| String/comment/config search | `search_text` |
+
+Start a session with `plan_turn { repo: ".", query: "<task>" }` for confidence + recommended files. **Top god nodes** (run `get_blast_radius` before touching): `Database`, `KnowledgeClaim`, `KnowledgeEntity`, `Document`, `LLMConfig`, `EntityType`, `DocType`, `Artifact`, `WorkflowDef`.
+
+---
+
+## Commit Format
+
+Conventional commits — `feat:`, `fix:`, `chore:`, `refactor:`, `test:`, `docs:`, `style:` — always referencing a GitHub issue: `feat: add tasks router (#420)`. GitHub Issues + Milestones is the source of truth for the backlog.
+
+---
+
+## Key Paths
+
+| Path | What |
+|---|---|
+| `CONSTITUTION.md` | Product north star: what we're building, why, what it's not, hard constraints |
+| `AGENTS.md` | This file — operational manual + hard rules |
+| `docs/CLAUDE.md` | Full architecture & development guide (canonical, detailed) |
+| `docs/architecture/` | Architecture docs |
+| `USER.md` | About Daniel — who he is, constraints |
+| `STATE.md` | Current branch, focus, next session |
+| `MEMORY.md` | Persistent lessons and decisions |
+| `agents/skills/` | Session-start / manager / worker skills + shared principles |
+| `fichero/fichero/` | Swift/SwiftUI frontend (Xcode project: `fichero/fichero.xcodeproj`) |
+| `fichero/fichero-api-client/` | Generated Swift OpenAPI client package |
+| `fichero-engine/src/fichero/` | Python FastAPI backend |
+| `fichero-engine/tests/` | Python tests (`unit/`, `integration/`, `contracts/`) |
+
+---
+
+## Rules I Don't Break
+
+1. Never push directly to `main` — always go through a PR (create it and merge it yourself).
+2. Never skip build, test, lint before marking work complete.
+3. Never modify genuinely auto-generated files: `openapi.json`, anything under `fichero/fichero-api-client/.build/`, anything under `fichero/fichero-api-client/Sources/FicheroAPIClient/` that's produced by the OpenAPI generator. **Note:** `fichero/fichero/Services/*Generated.swift` files are *hand-written service wrappers* (despite the confusing suffix) and CAN be edited. The `openapi.json` files ARE regenerated from the backend (via `fichero-engine/scripts/sync_openapi_schema.sh`) and that regen output should be committed — what's forbidden is hand-editing them.
+4. When editing a service wrapper that builds a request body, **always use the OpenAPI-typed fields** on `Components.Schemas.*`, not `additionalProperties`, for any field that's declared in `openapi.json`. Dumping declared fields into `additionalProperties` silently loses writes under Pydantic `extra="allow"` — see commit 31fc4141 for the pattern and `docs/architecture/swiftui/api_client.md` for context.
+5. Never start coding before a plan exists for non-trivial work.
+6. `PYTHONPATH` must be set to `fichero-engine/src` for all Python commands.
+7. Never create per-task branches — commit all work to the milestone branch directly.
+8. Never start a milestone more than one ahead of what Daniel is currently testing.
+9. **Schema changes are no-migration in 0.0.x for fresh DBs, but real data needs migrations.** A new column on a Pydantic model is picked up by `_ensure_table` on fresh databases — don't add an `ALTER TABLE ADD COLUMN` for a column already in the model. BUT once a persisted DB (`app.duckdb` or a real library) exists, a new column needs an idempotent `ALTER`+backfill, not `CREATE-IF-NOT-EXISTS`. Structural changes (table renames, data backfills) belong in `db_migrations.py`.
+10. **New .swift files must be registered with `scripts/add-swift-file.rb`**: The `Fichero` main target uses traditional PBX file references — a file written to disk is invisible to the compiler until registered. Always run `ruby scripts/add-swift-file.rb <path>` after creating any new `.swift` file. Test-target files are the exception (sync'd groups). Never edit `project.pbxproj` by hand. The build gate will catch unregistered files as "Cannot find type" errors.
+11. **Worktrees live ONLY under `~/code/fichero-worktrees/<name>`; never `rm` a `~/code/` sibling.** Create worktrees with `git worktree add ~/code/fichero-worktrees/<name> -b <branch> main` — never as bare siblings `~/code/fichero-<name>`. Remove them ONLY with `git worktree remove --force <path>` (operates only on registered worktrees). **NEVER `rm -rf` a `~/code/` path and NEVER glob-delete `~/code/fichero-*`** — bare siblings are SEPARATE projects with their own remotes and uncommitted work. Before any destructive fs op, confirm the path is under `~/code/fichero-worktrees/` AND in `git worktree list`; otherwise stop and surface it.
+
+---
+
+## Before editing backend or API-client code
+
+Read `docs/architecture/` first — specifically:
+- `docs/architecture/swiftui/api_client.md` for the OpenAPI round-trip contract.
+- `docs/architecture/api/development_standards.md` for backend conventions.
+- `docs/architecture/swiftui/development_standards.md` for Swift conventions.
+
+`docs/CLAUDE.md` is the canonical detailed guidance and also references these.

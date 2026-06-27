@@ -31,7 +31,7 @@ Read in order (skip missing):
 2. `docs/agent-workflow/github-conventions.md` — canonical feature naming (use these names in your docs)
 3. `CONSTITUTION.md` — product north star + voice
 4. `STATE.md` — current trunk state (so you know which features are live vs in-progress)
-5. `.claude/CLAUDE.md` — hard rules
+5. `AGENTS.md` — hard rules
 
 ---
 

@@ -2,7 +2,7 @@
 
 Issue: #1652
 
-This backend treats new extraction outputs as additive in 0.0.x. The contract test is [test_extensibility_guarantee.py](/Users/danieltubb/code/fichero-extguarantee/fichero-engine/tests/contracts/test_extensibility_guarantee.py).
+This backend treats new extraction outputs as additive in 0.0.x. The contract test is [test_extensibility_guarantee.py](fichero-engine/tests/contracts/test_extensibility_guarantee.py).
 
 ## Guaranteed additive extension points
 

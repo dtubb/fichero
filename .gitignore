@@ -69,17 +69,12 @@ toga-examples/
 # Graphify knowledge graph (machine-generated, ~17MB)
 graphify-out/
 
-# Private agent operational state — kept on disk, out of the public tree.
-# (Untracked before open-sourcing; the agent *workflow/skills* ship, the
-#  running state does not.)
-.claude/agent-memory/
-.codex/config.toml
-.agents/handoffs/
-.agents/loops/
-.ai/inbox/for-*.md
-.ai/inbox/done-*.md
-.ai/inbox/processed/done-*.md
-.ai/loop-live.log
+# Private agent / harness config — kept on disk, out of the public tree.
+# The agent *workflow + skills* ship under `agents/`; the per-machine harness
+# config and running state do not. (.ai/ is loop/inbox scratch — fully ignored.)
+.claude/
+.codex/
+.ai/
 .session-end-complete
 
 # Misc

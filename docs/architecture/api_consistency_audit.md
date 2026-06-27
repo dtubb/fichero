@@ -8,11 +8,11 @@ Scope: generated-client supersession check for #1412-#1417, remaining Swift raw 
 
 | Issue | Verdict | Evidence |
 | --- | --- | --- |
-| #1412 generate `Endpoints.swift` | Superseded | The canonical endpoint surface is now the generated Swift package plus `FicheroClient`, not a hand-maintained path enum. See [fichero/fichero-api-client/Sources/FicheroAPIClient/FicheroClient.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero-api-client/Sources/FicheroAPIClient/FicheroClient.swift:22) and the schema sync pipeline in `fichero-engine/scripts/sync_openapi_schema.sh`. |
-| #1413 shared `EngineRequest` helper | Superseded in intent | `FicheroClient` already centralizes transport and middleware, and `LibraryPathMiddleware` is the shared request-layer fix for header correctness. See [FicheroClient.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero-api-client/Sources/FicheroAPIClient/FicheroClient.swift:45) and [LibraryPathMiddleware.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero-api-client/Sources/FicheroAPIClient/LibraryPathMiddleware.swift:5). Building a second hand-rolled request abstraction would duplicate the generated stack. |
-| #1414 | Superseded by generated-client migration work | Actions transport is already de-duplicated onto one generated-client path. See [fichero/fichero/Services/ActionsService.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero/Services/ActionsService.swift:5) and commits `22a0af6e` / `e192e28e` (#1711). |
-| #1415 | Superseded by generated-client migration work | Workflow execution already routes through `FicheroClient`. See [fichero/fichero/Services/WorkflowExecutionService.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero/Services/WorkflowExecutionService.swift:8) and commits `562d1b22` / `6956d5e5` (#1712). |
-| #1416 | Superseded by generated-client migration work | Integrations already route through `FicheroClient`. See [fichero/fichero/Services/IntegrationsService.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero/Services/IntegrationsService.swift:6) and commit `69f931af` (#1713). |
+| #1412 generate `Endpoints.swift` | Superseded | The canonical endpoint surface is now the generated Swift package plus `FicheroClient`, not a hand-maintained path enum. See [fichero/fichero-api-client/Sources/FicheroAPIClient/FicheroClient.swift](fichero/fichero-api-client/Sources/FicheroAPIClient/FicheroClient.swift:22) and the schema sync pipeline in `fichero-engine/scripts/sync_openapi_schema.sh`. |
+| #1413 shared `EngineRequest` helper | Superseded in intent | `FicheroClient` already centralizes transport and middleware, and `LibraryPathMiddleware` is the shared request-layer fix for header correctness. See [FicheroClient.swift](fichero/fichero-api-client/Sources/FicheroAPIClient/FicheroClient.swift:45) and [LibraryPathMiddleware.swift](fichero/fichero-api-client/Sources/FicheroAPIClient/LibraryPathMiddleware.swift:5). Building a second hand-rolled request abstraction would duplicate the generated stack. |
+| #1414 | Superseded by generated-client migration work | Actions transport is already de-duplicated onto one generated-client path. See [fichero/fichero/Services/ActionsService.swift](fichero/fichero/Services/ActionsService.swift:5) and commits `22a0af6e` / `e192e28e` (#1711). |
+| #1415 | Superseded by generated-client migration work | Workflow execution already routes through `FicheroClient`. See [fichero/fichero/Services/WorkflowExecutionService.swift](fichero/fichero/Services/WorkflowExecutionService.swift:8) and commits `562d1b22` / `6956d5e5` (#1712). |
+| #1416 | Superseded by generated-client migration work | Integrations already route through `FicheroClient`. See [fichero/fichero/Services/IntegrationsService.swift](fichero/fichero/Services/IntegrationsService.swift:6) and commit `69f931af` (#1713). |
 | #1417 | Largely superseded; only residual sweep remains | Model comparison moved first (`c76176ef`, #1666), then the tier-2 stragglers moved (`9d883ca8`, #1714). Pass 2 moved `ResearchService` onto `FicheroClient`; remaining raw transport is now concentrated in `ArtifactServiceGenerated`, `ImageEditingServiceGenerated`, and a few justified SSE/binary call sites. |
 
 ### #1710 status
@@ -23,39 +23,39 @@ Scope: generated-client supersession check for #1412-#1417, remaining Swift raw 
 
 ### Still hand-rolled and should be treated as migration backlog
 
-- [fichero/fichero/Services/ArtifactServiceGenerated.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero/Services/ArtifactServiceGenerated.swift:116)
+- [fichero/fichero/Services/ArtifactServiceGenerated.swift](fichero/fichero/Services/ArtifactServiceGenerated.swift:116)
   Large residual raw transport surface. Notable direct sites: all-artifacts list, citation usages, library entity-type registry, classification list reads, and hermeneutics interpretation/framework reads and writes.
-- [fichero/fichero/Services/ImageEditingServiceGenerated.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero/Services/ImageEditingServiceGenerated.swift:103)
+- [fichero/fichero/Services/ImageEditingServiceGenerated.swift](fichero/fichero/Services/ImageEditingServiceGenerated.swift:103)
   Entire `/api/images` router is still raw `URLSession`; comments explicitly say it was kept raw for path visibility to the wiring checker.
-- [fichero/fichero/Models/DocumentStore+CRUD.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero/Models/DocumentStore+CRUD.swift:212)
+- [fichero/fichero/Models/DocumentStore+CRUD.swift](fichero/fichero/Models/DocumentStore+CRUD.swift:212)
   Multipart `/api/documents/import` upload is still hand-built.
-- [fichero/fichero/Views/MindPalace/SpatialScene3D.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero/Views/MindPalace/SpatialScene3D.swift:463)
+- [fichero/fichero/Views/MindPalace/SpatialScene3D.swift](fichero/fichero/Views/MindPalace/SpatialScene3D.swift:463)
   View-level direct request, not routed through a generated service wrapper.
 
 ### Raw transport that appears intentional / legitimate
 
-- [fichero/fichero/Services/WorkflowStreamService.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero/Services/WorkflowStreamService.swift:142)
+- [fichero/fichero/Services/WorkflowStreamService.swift](fichero/fichero/Services/WorkflowStreamService.swift:142)
   SSE stream subscription; generated client cannot consume `text/event-stream`.
-- [fichero/fichero/Services/BatchServiceGenerated.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero/Services/BatchServiceGenerated.swift:128)
+- [fichero/fichero/Services/BatchServiceGenerated.swift](fichero/fichero/Services/BatchServiceGenerated.swift:128)
   SSE kickoff path; same limitation.
-- [fichero/fichero/Services/StorageServiceGenerated.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero/Services/StorageServiceGenerated.swift:14)
+- [fichero/fichero/Services/StorageServiceGenerated.swift](fichero/fichero/Services/StorageServiceGenerated.swift:14)
   Binary/image fetches.
-- [fichero/fichero/App/AppState.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero/App/AppState.swift:80)
+- [fichero/fichero/App/AppState.swift](fichero/fichero/App/AppState.swift:80)
   App-lifecycle `/api/health` probe and settings bootstrap.
-- [fichero/fichero/Services/EmbeddedBackendService.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero/Services/EmbeddedBackendService.swift:277)
+- [fichero/fichero/Services/EmbeddedBackendService.swift](fichero/fichero/Services/EmbeddedBackendService.swift:277)
   Embedded backend lifecycle checks.
-- [fichero/fichero/App/WelcomeView+OnboardingWizardActions.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero/App/WelcomeView+OnboardingWizardActions.swift:49)
+- [fichero/fichero/App/WelcomeView+OnboardingWizardActions.swift](fichero/fichero/App/WelcomeView+OnboardingWizardActions.swift:49)
   External provider probes, not Fichero backend transport.
 
 ## Hand-Rolled Swift Models Still Duplicating Backend Shapes
 
-- [fichero/fichero/Models/ResearchModels.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero/Models/ResearchModels.swift:45)
+- [fichero/fichero/Models/ResearchModels.swift](fichero/fichero/Models/ResearchModels.swift:45)
   Research project/plan/task/note/source/checklist types are still frontend-owned duplicates even though transport now runs through the generated client.
-- [fichero/fichero/Models/SpatialModels.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero/Models/SpatialModels.swift:98)
+- [fichero/fichero/Models/SpatialModels.swift](fichero/fichero/Models/SpatialModels.swift:98)
   Mind Palace room/node/connection/stack/viewport types remain hand-rolled even though the backend exposes typed responses.
-- [fichero/fichero/Models/Document.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero/Models/Document.swift:334)
+- [fichero/fichero/Models/Document.swift](fichero/fichero/Models/Document.swift:334)
   Manual response envelopes like `DocumentListResponse`, `SearchResponse`, and `StatsResponse` still exist beside generated schemas.
-- [fichero/fichero/Services/AnnotationService.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero/Services/AnnotationService.swift:56)
+- [fichero/fichero/Services/AnnotationService.swift](fichero/fichero/Services/AnnotationService.swift:56)
   `DocumentAnnotation` is still a manual duplicate.
 
 ## Backend Routes Missing Explicit `response_model`
