@@ -59,6 +59,27 @@ final class DocumentKGPaneRouteTests: XCTestCase {
         XCTAssertEqual(request.value(forHTTPHeaderField: "X-Fichero-Library-Path"), "/tmp/library")
     }
 
+    /// A non-ASCII library path (diacritics, accented home dirs) must be
+    /// percent-encoded in the transport header so it survives the latin-1 HTTP
+    /// header pipeline; the engine `unquote`s it on read (#2648). Pure-ASCII
+    /// paths are unaffected (encoding is a no-op), as the test above pins.
+    func testNonASCIILibraryPathHeaderIsPercentEncoded() throws {
+        try RemoteCertificatePinning.persistSPKIPin(pin, hostString: hostString)
+
+        let request = try XCTUnwrap(
+            DocumentKGPaneRoute.request(
+                documentId: DocumentKGPaneRoute.globalKGDocumentID,
+                libraryPath: "/tmp/Chocó.fichero"
+            )
+        )
+
+        // ó (U+00F3) → UTF-8 0xC3 0xB3 → "%C3%B3"; "/" stays unencoded.
+        XCTAssertEqual(
+            request.value(forHTTPHeaderField: "X-Fichero-Library-Path"),
+            "/tmp/Choc%C3%B3.fichero"
+        )
+    }
+
     /// A per-document reader request is likewise served over the pinned HTTPS
     /// transport, with the document id percent-encoded into the path.
     func testDocumentReaderRequestIsHTTPS() throws {
