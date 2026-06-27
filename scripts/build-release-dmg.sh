@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Build a styled installer DMG containing Fichero.app + Applications symlink.
 # Two-phase build: writable DMG → style with AppleScript → compress to UDZO.
-# Usage: scripts/build-release-dmg.sh [--skip-backend]
+# Usage: scripts/build-release-dmg.sh [--skip-backend] [--skip-app-build]
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STAGE_DIR="$ROOT_DIR/build/releases/dmg-stage"
@@ -14,15 +14,24 @@ VOLUME_NAME="Fichero"
 APP_NAME="Fichero.app"
 APP_PATH="$ROOT_DIR/fichero/build/xcode/Products/Release/$APP_NAME"
 ICON_SOURCE="$ROOT_DIR/icon.png"
+SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://raw.githubusercontent.com/dtubb/fichero/main/fichero/appcast.xml}"
 
 EXTRA_ARGS=()
+SKIP_APP_BUILD=false
 for arg in "$@"; do
-  EXTRA_ARGS+=("$arg")
+  case "$arg" in
+    --skip-app-build) SKIP_APP_BUILD=true ;;
+    *) EXTRA_ARGS+=("$arg") ;;
+  esac
 done
 
 # ── 1. Build Release app ────────────────────────────────────────────────────
-echo "[1/6] Build Release app"
-"$ROOT_DIR/scripts/build-release.sh" "${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}"
+if [ "$SKIP_APP_BUILD" = true ]; then
+  echo "[1/6] Skipping Release app build (--skip-app-build)"
+else
+  echo "[1/6] Build Release app"
+  "$ROOT_DIR/scripts/build-release.sh" "${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}"
+fi
 
 if [ ! -d "$APP_PATH" ]; then
   echo "error: Release app not found at $APP_PATH" >&2
@@ -37,6 +46,80 @@ mkdir -p "$STAGE_DIR" "$ROOT_DIR/build/releases"
 ditto "$APP_PATH" "$STAGE_DIR/$APP_NAME"
 ln -s /Applications "$STAGE_DIR/Applications"
 echo "  Staged: $APP_NAME + Applications symlink"
+if [ -f "$STAGE_DIR/$APP_NAME/Contents/Info.plist" ]; then
+  /usr/libexec/PlistBuddy -c "Set :SUFeedURL $SPARKLE_FEED_URL" "$STAGE_DIR/$APP_NAME/Contents/Info.plist"
+  echo "  Sparkle feed: $SPARKLE_FEED_URL"
+fi
+
+# ── 2b. Re-sign staged app with Developer ID for notarization (inside-out) ───
+# The Release build signed with Apple Development; notarytool requires Developer
+# ID Application + hardened runtime + secure timestamp on EVERY Mach-O.
+# `codesign --deep` recurses into Contents/Frameworks (Sparkle.framework signs
+# fine) but NOT into loose .so/.dylib inside an embedded bundle under
+# Contents/Resources — so Briefcase's 800+ ad-hoc Python extensions in
+# Fichero Engine.app survive --deep and notarization rejects them. Sign every
+# Mach-O file individually first (with --timestamp), then re-seal every bundle
+# innermost-first so parent seals capture already-signed children. See #2662.
+echo "[2b/6] Re-sign staged app with Developer ID Application (inside-out + --timestamp)"
+APP="$STAGE_DIR/$APP_NAME"
+DEV_IDENTITY="${FICHERO_DEV_IDENTITY:-Developer ID Application: DANIEL GAVIN LIVINGSTONE TUBB (QAPB6CWYR6)}"
+
+# 2b.1 — collect every Mach-O in the app. `file {} +` batches one invocation per
+# many files; grep Mach-O; drop the per-architecture lines `file` emits for
+# universal binaries ("path (for architecture x86_64): ...") so only real paths
+# remain. sort -u dedups.
+macho_list="$(mktemp)"
+find "$APP" -type f -exec file {} + 2>/dev/null \
+  | awk -F': ' '/Mach-O/ && !/\(for architecture/ {print $1}' \
+  | sort -u > "$macho_list"
+macho_count=$(wc -l < "$macho_list" | tr -d ' ')
+echo "  $macho_count Mach-O binaries to sign (Developer ID + hardened runtime + secure timestamp)"
+
+# 2b.2 — sign each Mach-O individually. Keep this as a plain loop: when the
+# script runs under xcodebuild, the inherited environment can be large enough
+# that xargs cannot assemble even one command.
+sign_fails=0
+while IFS= read -r macho; do
+  if ! codesign --force --sign "$DEV_IDENTITY" --options runtime --timestamp "$macho" >/dev/null 2>&1; then
+    echo "  error: failed to re-sign Mach-O: $macho" >&2
+    sign_fails=$((sign_fails + 1))
+  fi
+done < "$macho_list"
+rm -f "$macho_list"
+if [ "$sign_fails" -gt 0 ]; then
+  echo "error: $sign_fails Mach-O binaries failed to re-sign" >&2
+  exit 1
+fi
+echo "  Signed $macho_count Mach-O binaries"
+
+# 2b.3 — re-seal every bundle innermost-first. Sorting bundle paths by length
+# descending guarantees a nested bundle (Downloader.xpc, Updater.app,
+# Fichero Engine.app) is sealed before its parent, so the parent's seal hashes
+# an already-correct child. Covers Sparkle.framework (+ XPC services + Updater),
+# the embedded Fichero Engine.app, and the outer Fichero.app.
+bundle_list="$(mktemp)"
+find "$APP" -type d \( -name '*.app' -o -name '*.framework' -o -name '*.xpc' \) \
+  | awk '{print length, $0}' | sort -rn | cut -d' ' -f2- > "$bundle_list"
+bundle_fails=0
+while IFS= read -r bundle; do
+  if ! codesign --force --sign "$DEV_IDENTITY" --options runtime --timestamp "$bundle" >/dev/null 2>&1; then
+    echo "  error: failed to re-seal bundle: $bundle" >&2
+    bundle_fails=$((bundle_fails + 1))
+  fi
+done < "$bundle_list"
+rm -f "$bundle_list"
+if [ "$bundle_fails" -gt 0 ]; then
+  echo "error: $bundle_fails bundles failed to re-seal" >&2
+  exit 1
+fi
+echo "  Re-sealed all bundles innermost-first"
+
+# 2b.4 — verify the whole app
+if ! codesign --verify --deep --strict "$APP" >/dev/null 2>&1; then
+  echo "error: Developer ID re-sign verification failed for $APP" >&2
+  exit 1
+fi
+echo "  Re-signed + verified: $APP_NAME"
 
 # ── 3. Create volume icon ───────────────────────────────────────────────────
 echo "[3/6] Create volume icon"
@@ -87,8 +170,9 @@ if [ -f "$ROOT_DIR/build/releases/VolumeIcon.icns" ]; then
   SetFile -a C "$MOUNT_POINT" 2>/dev/null || true
 fi
 
-# Style the Finder window via AppleScript
-osascript <<APPLESCRIPT
+# Style the Finder window via AppleScript. Finder automation can fail in
+# headless/agent sessions; that should not block a signed, notarizable DMG.
+if ! osascript <<APPLESCRIPT
 tell application "Finder"
     tell disk "$VOLUME_NAME"
         open
@@ -110,6 +194,9 @@ tell application "Finder"
     end tell
 end tell
 APPLESCRIPT
+then
+  echo "  warning: Finder DMG styling failed — continuing with default layout" >&2
+fi
 
 # Let Finder finish writing .DS_Store
 sync

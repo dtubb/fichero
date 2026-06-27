@@ -23,6 +23,7 @@ struct LibraryView: View {
     @Binding var selection: Set<String>
     @Binding var detailDocument: Document?
     @Binding var viewMode: LibraryLayout
+    var isPaneFocused: Bool = false
     let displayMode: ViewDisplayMode  // Universal view mode from toolbar
 
     let folderId: String?  // Current folder ID for per-folder sort persistence
@@ -147,8 +148,6 @@ struct LibraryView: View {
     /// regular-width affordance.
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
-    // Map view positions
-    @State var mapPositions: [String: CGPoint] = [:]
     @State var entities: [Components.Schemas.KnowledgeEntity] = []
     @State private var spatialSelectedNodeId: String?
 
@@ -200,9 +199,8 @@ struct LibraryView: View {
     // Grid column count for arrow key navigation (updated by GeometryReader in iconsView)
     @State var gridColumnCount: Int = 4
 
-    // Zoom scale for icon and map views (persisted per-app)
+    // Zoom scale for the icon view (persisted per-app)
     @AppStorage("library.iconViewScale") var iconViewScale: Double = 1.0
-    @State var mapCanvasScale: CGFloat = 1.0
     // Captures iconViewScale at the start of a pinch so the gesture's
     // multiplier multiplies against the gesture-start size, not the
     // continuously-updating scale (which would compound exponentially).
@@ -246,6 +244,7 @@ struct LibraryView: View {
             case .table:
                 tableView
             case .realitykit:
+                // Space (3D) — RealityKit render of the positioned-node data.
                 SpatialScene3D(
                     nodes: libraryProjection.nodes,
                     connections: [],
@@ -255,7 +254,12 @@ struct LibraryView: View {
                     itemStore: canvasItemStore,
                     folderScopeId: folderId ?? wholeLibraryRoomId
                 )
-            case .spatial:
+            case .map, .workspace, .spatial:
+                // Canvas (2D) — the merged 2D positioned-node view (#2667).
+                // `.map` (Canvas) and the retired `.spatial` alias both render
+                // Spatial2DCanvas off the SAME canvasLayoutStore as Space, so
+                // moves/links/notes/aliases are shared across both renders. The
+                // old `mapView`/`mapPositions` ephemeral grid is retired.
                 Spatial2DCanvas(
                     nodes: libraryProjection.nodes,
                     connections: [],
@@ -264,8 +268,6 @@ struct LibraryView: View {
                     itemStore: canvasItemStore,
                     folderScopeId: folderId ?? wholeLibraryRoomId
                 )
-            case .map, .workspace:
-                mapView
             }
         }
     }

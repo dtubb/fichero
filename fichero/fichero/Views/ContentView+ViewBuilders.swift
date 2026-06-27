@@ -36,10 +36,10 @@ private struct ReadingPaneView: View {
     /// X button: collapses the active split when inside one,
     /// otherwise calls onClose to hide the whole reading pane.
     private func closePane() {
-        if let actions = splitAxisActions {
-            // H-split is more local; collapse it before the V-split.
-            if actions.hasHorizontal { actions.onToggleHorizontal(); return }
-            if actions.hasVertical { actions.onToggleVertical(); return }
+        if let actions = splitAxisActions, actions.hasHorizontal || actions.hasVertical {
+            // Collapse the active axis one pane at a time so 3 -> 2 -> 1.
+            actions.onCollapseSplit()
+            return
         }
         onClose?()
     }
@@ -505,30 +505,30 @@ extension ContentView {
         }
     }
 
-    /// Compact-only push trigger (#2551). Resolves to a LEAF document — never a
-    /// folder, so tapping a folder still drills in place rather than pushing a
-    /// reader screen for a container. Falls back to the current selection when
-    /// no promoted `detailDocument` exists, so the push works in every compact
-    /// layout mode (the .none/.standard promote policy is regular-width only).
-    /// Setting `nil` (Back button / back-swipe) returns to the list and clears
-    /// the selection.
-    private var compactReaderDocument: Binding<Document?> {
-        Binding(
-            get: {
-                let candidate = detailDocument
-                    ?? browserSelection.first.flatMap { id in
-                        documentStore.currentDocuments.first(where: { $0.id == id })
-                    }
-                guard let doc = candidate, doc.docType != .folder else { return nil }
-                return doc
-            },
-            set: { newValue in
-                if newValue == nil {
-                    detailDocument = nil
-                    browserSelection = []
-                }
+    /// Resolves the current selection to a LEAF document for the compact reader
+    /// push (#2551) — never a folder, so tapping a folder still drills in place.
+    /// Falls back to the current selection when no promoted `detailDocument`
+    /// exists (the .none/.standard promote policy is regular-width only). Resolves
+    /// from the DISPLAYED `selectedDocuments` first, then `currentDocuments`, so a
+    /// tap resolves even when those two momentarily disagree (#2666).
+    private func compactReaderLeaf() -> Document? {
+        let candidate = detailDocument
+            ?? browserSelection.first.flatMap { id in
+                selectedDocuments.first(where: { $0.id == id })
+                    ?? documentStore.currentDocuments.first(where: { $0.id == id })
             }
-        )
+        guard let doc = candidate, doc.docType != .folder else { return nil }
+        return doc
+    }
+
+    /// Push the resolved leaf into `pushedReaderDocument` (#2666). Writing real
+    /// @State — instead of feeding `.navigationDestination(item:)` a computed
+    /// Binding — is what makes the push fire reliably on selection change.
+    private func syncPushedReaderDocument() {
+        let leaf = compactReaderLeaf()
+        if pushedReaderDocument?.id != leaf?.id {
+            pushedReaderDocument = leaf
+        }
     }
 
     /// Compact (iPhone) library/search reader stack (#2551). The list is the
@@ -541,7 +541,10 @@ extension ContentView {
             contentWithOptionalModeRail
                 .overlay { paneFocusIndicator(for: .content) }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .navigationDestination(item: compactReaderDocument) { doc in
+                // Drive the push from real @State (#2666). Selection changes
+                // recompute the leaf; popping (Back / back-swipe) sets the item
+                // to nil, which clears the selection so the list returns clean.
+                .navigationDestination(item: $pushedReaderDocument) { doc in
                     previewView
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .navigationTitle(doc.name)
@@ -550,6 +553,14 @@ extension ContentView {
                         // and EditorView already hosts SwipeSiblingNavigator for
                         // two/three-finger sibling paging. Add explicit
                         // stage-to-stage swiping later if Daniel wants it. (#2551)
+                }
+                .onChange(of: browserSelection) { _, _ in syncPushedReaderDocument() }
+                .onChange(of: detailDocument) { _, _ in syncPushedReaderDocument() }
+                .onChange(of: pushedReaderDocument) { _, newValue in
+                    if newValue == nil {
+                        detailDocument = nil
+                        browserSelection = []
+                    }
                 }
         }
     }

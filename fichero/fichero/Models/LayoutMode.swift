@@ -159,16 +159,15 @@ struct ReadingWorkspacePaneTogglePolicy {
 
 /// Selection policy for the library browser's detail/canvas document.
 ///
-/// If the user has a preview/canvas pane visible, a plain selection should drive
-/// that pane. If preview is hidden, selection remains browse-only until the user
-/// explicitly opens a document.
+/// A plain click should always drive the in-window detail/inspector selection.
+/// Open-in-new-window/tab stays on the explicit affordances.
 struct BrowserSelectionPreviewPolicy {
     static func shouldPromoteSelectionToDetail(
-        layoutMode: LayoutMode,
+        layoutMode _: LayoutMode,
         selectedDocumentId: String?,
         currentDetailDocumentId: String?
     ) -> Bool {
-        guard layoutMode != .none, let selectedDocumentId else {
+        guard let selectedDocumentId else {
             return false
         }
         return selectedDocumentId != currentDetailDocumentId

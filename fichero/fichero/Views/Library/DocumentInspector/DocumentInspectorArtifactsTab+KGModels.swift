@@ -47,6 +47,7 @@ struct GroupedItem: Identifiable {
         let sourceExcerpt: String?
     }
     var extraClaims: [ExtraClaim] = []
+    var includesChildren: Bool { !extraClaims.isEmpty }
     var id: String { claimId }
 
     init(

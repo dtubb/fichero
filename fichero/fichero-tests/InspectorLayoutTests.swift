@@ -9,25 +9,24 @@ import Testing
 
 struct InspectorTabTests {
 
-    @Test("InspectorTab includes content/annotations/notes/entities/kg/artifacts/citations/edits/info")
+    @Test("InspectorTab includes content/outline/annotations/notes/entities/kg/citations/edits/info")
     func allCases() {
-        #expect(InspectorTab.allCases.count == 10)
+        #expect(InspectorTab.allCases.count == 9)
         #expect(InspectorTab.allCases.contains(.content))
         #expect(InspectorTab.allCases.contains(.outline))
         #expect(InspectorTab.allCases.contains(.annotations))
         #expect(InspectorTab.allCases.contains(.notes))
         #expect(InspectorTab.allCases.contains(.entities))
         #expect(InspectorTab.allCases.contains(.knowledgeGraph))
-        #expect(InspectorTab.allCases.contains(.artifacts))
         #expect(InspectorTab.allCases.contains(.citations))
         #expect(InspectorTab.allCases.contains(.edits))
         #expect(InspectorTab.allCases.contains(.info))
     }
-    @Test("InspectorTab order: content, outline, annotations, notes, entities, kg, artifacts, citations, edits, info")
+    @Test("InspectorTab order: content, outline, annotations, notes, entities, kg, citations, edits, info")
     func ordering() {
         let expected: [InspectorTab] = [
             .content, .outline, .annotations, .notes, .entities, .knowledgeGraph,
-            .artifacts, .citations, .edits, .info
+            .citations, .edits, .info
         ]
         #expect(InspectorTab.allCases == expected)
     }
@@ -47,7 +46,6 @@ struct InspectorTabTests {
         #expect(InspectorTab.notes.icon == "pencil.and.scribble")
         #expect(InspectorTab.entities.icon == "person.text.rectangle")
         #expect(InspectorTab.knowledgeGraph.icon == "point.3.connected.trianglepath.dotted")
-        #expect(InspectorTab.artifacts.icon == "shippingbox")
         #expect(InspectorTab.edits.icon == "slider.horizontal.3")
         #expect(InspectorTab.info.icon == "info.circle")
     }
@@ -60,7 +58,6 @@ struct InspectorTabTests {
         #expect(InspectorTab.notes.rawValue == "Notes")
         #expect(InspectorTab.entities.rawValue == "Entities")
         #expect(InspectorTab.knowledgeGraph.rawValue == "Knowledge Graph")
-        #expect(InspectorTab.artifacts.rawValue == "Artifacts")
         #expect(InspectorTab.edits.rawValue == "Edits")
         #expect(InspectorTab.info.rawValue == "Info")
     }

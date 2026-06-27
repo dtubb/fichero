@@ -3,10 +3,11 @@ import SwiftUI
 /// The Artifacts inspector tab, rebuilt as List + detail (#2003, EPIC #2002).
 ///
 /// Replaces the old `DocumentInspectorContentV2(mode: .artifactsOnly)` stacked
-/// `ArtifactPanel`s. A vertical split: a lightweight `ArtifactListView` on top
-/// for overview, a single `ArtifactDetailView` below that follows the
-/// selection. A toolbar button tears the detail off into a separate, draggable
-/// window (`ArtifactDetailWindow`) that also follows selection.
+/// `ArtifactPanel`s. A horizontal split: a lightweight `ArtifactListView` on
+/// the left for overview, a single `ArtifactDetailView` on the right that
+/// follows the selection. A toolbar button tears the detail off into a
+/// separate, draggable window (`ArtifactDetailWindow`) that also follows
+/// selection.
 ///
 /// Data comes from the document-scoped `ArtifactStore` (#1997) — the sanctioned
 /// reactive source. The pane points the store at the current document; the
@@ -37,7 +38,7 @@ struct ArtifactsInspectorPane: View {
             if let actionError {
                 errorBox(actionError)
             }
-            PlatformVSplitView {
+            PlatformHSplitView {
                 ArtifactListView(
                     store: store,
                     focused: focused,

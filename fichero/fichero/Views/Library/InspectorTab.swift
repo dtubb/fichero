@@ -8,9 +8,10 @@ extension Notification.Name {
 }
 
 /// Tab selection for document inspector. Order matters — left-to-right is
-/// content / entities / knowledge graph / artifacts / info, per Daniel's
-/// mental model: "the document itself" → "extracted entities" → "structured
-/// claims" → "the raw outputs" → "metadata about the document".
+/// content / annotations / notes / entities / knowledge graph / citations /
+/// edits / info, per Daniel's mental model: "the document itself" →
+/// "what was marked" → "what was noted" → "extracted entities" → "structured
+/// claims" → "references" → "edit tools" → "metadata about the document".
 enum InspectorTab: String, CaseIterable, Identifiable {
     case content = "Content"
     case outline = "Outline"
@@ -18,7 +19,6 @@ enum InspectorTab: String, CaseIterable, Identifiable {
     case notes = "Notes"
     case entities = "Entities"
     case knowledgeGraph = "Knowledge Graph"
-    case artifacts = "Artifacts"
     case citations = "Citations"
     case edits = "Edits"
     case info = "Info"
@@ -33,7 +33,6 @@ enum InspectorTab: String, CaseIterable, Identifiable {
         case .notes: return "pencil.and.scribble"
         case .entities: return "person.text.rectangle"
         case .knowledgeGraph: return "point.3.connected.trianglepath.dotted"
-        case .artifacts: return "shippingbox"
         case .citations: return "text.quote"
         case .edits: return "slider.horizontal.3"
         case .info: return "info.circle"
@@ -55,8 +54,6 @@ enum InspectorTab: String, CaseIterable, Identifiable {
             return "Entities — extracted people, places, organizations, and concepts"
         case .knowledgeGraph:
             return "Knowledge graph — structured SVO claims and interpretations for this document"
-        case .artifacts:
-            return "Artifacts — outputs generated for this document, such as summaries and transcripts"
         case .citations:
             return "Citations — documents this one cites and documents that cite it; includes the document's extracted bibliography"
         case .edits:

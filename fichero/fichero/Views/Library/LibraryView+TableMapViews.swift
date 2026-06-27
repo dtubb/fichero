@@ -317,92 +317,10 @@ extension LibraryView {
         }
     }
 
-    // MARK: - Map View (Tinderbox-style canvas)
-
-    var mapView: some View {
-        ScrollView([.horizontal, .vertical]) {
-            ZStack(alignment: .topLeading) {
-                // Grid background (fills the scaled canvas frame)
-                MapGridBackground()
-
-                // Document cards at scaled positions
-                ForEach(filteredDocuments) { doc in
-                    let base = mapPositions[doc.id] ?? defaultMapPosition(for: doc)
-                    let pos = CGPoint(
-                        x: base.x * CGFloat(mapCanvasScale),
-                        y: base.y * CGFloat(mapCanvasScale)
-                    )
-                    MapCard(
-                        document: doc,
-                        isSelected: selection.contains(doc.id),
-                        position: pos
-                    )
-                    .onTapGesture(count: 2) {
-                        handleDoubleClick(doc)
-                    }
-                    .onTapGesture {
-                        handleTap(doc)
-                    }
-                    .gesture(
-                        DragGesture()
-                            .onChanged { value in
-                                // Store in unscaled document coordinates
-                                mapPositions[doc.id] = CGPoint(
-                                    x: value.location.x / CGFloat(mapCanvasScale),
-                                    y: value.location.y / CGFloat(mapCanvasScale)
-                                )
-                            }
-                    )
-                    .contextMenu {
-                        documentContextMenu(for: doc)
-                    }
-                }
-            }
-            .frame(
-                width: mapCanvasWidth * CGFloat(mapCanvasScale),
-                height: mapCanvasHeight * CGFloat(mapCanvasScale)
-            )
-        }
-        .background(Color(.textBackgroundColor))
-        .onAppear {
-            initializeMapPositions()
-        }
-    }
-
-    // MARK: - Map Helpers
-
-    func initializeMapPositions() {
-        // Only initialize if not already set
-        for (index, doc) in filteredDocuments.enumerated() where mapPositions[doc.id] == nil {
-            let row = index / 4
-            let col = index % 4
-            mapPositions[doc.id] = CGPoint(
-                x: 100 + CGFloat(col) * 200,
-                y: 100 + CGFloat(row) * 150
-            )
-        }
-    }
-
-    func defaultMapPosition(for doc: Document) -> CGPoint {
-        guard let index = filteredDocuments.firstIndex(where: { $0.id == doc.id }) else {
-            return CGPoint(x: 100, y: 100)
-        }
-        let row = index / 4
-        let col = index % 4
-        return CGPoint(x: 100 + CGFloat(col) * 200, y: 100 + CGFloat(row) * 150)
-    }
-
-    private var mapCanvasWidth: CGFloat {
-        let maxX = mapPositions.values.map(\.x).max() ?? 0
-        let cols = min(3, max(0, filteredDocuments.count - 1))
-        let countWidth = 100 + CGFloat(cols) * 200 + 200
-        return max(1200, max(maxX + 200, countWidth))
-    }
-
-    private var mapCanvasHeight: CGFloat {
-        let maxY = mapPositions.values.map(\.y).max() ?? 0
-        let rows = filteredDocuments.isEmpty ? 0 : (filteredDocuments.count - 1) / 4
-        let countHeight = 100 + CGFloat(rows) * 150 + 200
-        return max(800, max(maxY + 200, countHeight))
-    }
+    // Canvas (2D) is now rendered by `Spatial2DCanvas` off the shared
+    // canvasLayoutStore (#2667). The old `mapView` + its ephemeral, in-memory
+    // `mapPositions` grid (never persisted, reset every launch) were the
+    // duplicate this merge retires. `MapCard`/`MapGridBackground` in
+    // LibraryMapComponents.swift are now unreferenced; manager can `git rm`
+    // that file (pbxproj edits are gated to scripts, not hand-edited here).
 }

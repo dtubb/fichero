@@ -28,6 +28,8 @@ struct DisplayAttributesStrip: View { // swiftlint:disable:this type_body_length
     /// Knowledge-graph summaries the user has surfaced ("entities","claims"),
     /// comma-joined. Opt-in like artifacts (#1246).
     @AppStorage("inspector.attributeStrip.kg") private var shownKGRaw: String = ""
+    /// True = include child documents/pages when loading KG summaries.
+    @AppStorage("inspector.scope.includeChildren") private var includeChildren: Bool = true
     /// Document-metadata keys the user has surfaced, comma-joined. File
     /// metadata/info and any imported JSON all live in `document.metadata`,
     /// so this one bucket covers both. Opt-in (#1246).
@@ -205,6 +207,30 @@ struct DisplayAttributesStrip: View { // swiftlint:disable:this type_body_length
                     Toggle(attr.label, isOn: binding(for: attr))
                 }
             }
+            Section("Scope") {
+                Button {
+                    includeChildren = false
+                } label: {
+                    HStack {
+                        Text("This item only")
+                        Spacer(minLength: 0)
+                        if !includeChildren {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+                Button {
+                    includeChildren = true
+                } label: {
+                    HStack {
+                        Text("Include children")
+                        Spacer(minLength: 0)
+                        if includeChildren {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
             Section("Knowledge Graph") {
                 ForEach(KGItem.allCases) { item in
                     Toggle(item.label, isOn: kgBinding(for: item))
@@ -380,7 +406,7 @@ struct DisplayAttributesStrip: View { // swiftlint:disable:this type_body_length
         do {
             let response = try await entityService.documentKnowledgeGraph(
                 documentId: document.id,
-                includeChildren: true
+                includeChildren: includeChildren
             )
             claimCount = response.claimCount
             entityCount = response.entityCount

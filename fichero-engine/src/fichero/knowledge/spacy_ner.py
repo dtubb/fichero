@@ -93,7 +93,14 @@ def _load_pipeline(language: str):
     if language in _pipelines:
         return _pipelines[language]
 
-    import spacy
+    try:
+        import spacy
+    except ImportError as exc:
+        logger.warning(
+            "spacy_ner: spaCy is not installed (%s) — falling through to LLM-only NER",
+            exc,
+        )
+        return None
 
     model_name = {
         "en": "en_core_web_sm",

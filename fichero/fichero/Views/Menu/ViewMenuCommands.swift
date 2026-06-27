@@ -302,16 +302,8 @@ struct LibraryLayoutSection: View {
                     )
                 }
 
-                if availableSpatialModes.contains(.spatial) {
-                    Divider()
-                    SpatialViewButton(
-                        mode: .spatial,
-                        label: "as Spatial (2D)",
-                        icon: "square.3.layers.3d",
-                        shortcut: "8",
-                        binding: displayMode
-                    )
-                }
+                // "Spatial (2D)" retired (#2667): the 2D canvas is now "Canvas"
+                // (⌘4 / .map), peer to "Space" (⌘5 / .realitykit).
             }
         }
     }

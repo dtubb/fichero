@@ -156,15 +156,17 @@ final class LayoutModeTests: XCTestCase {
         )
     }
 
-    func testSelectionDoesNotPromoteWhenPreviewPaneIsHiddenOrAlreadyCurrent() {
-        XCTAssertFalse(
+    func testSelectionPromotesEvenWhenPreviewPaneIsHidden() {
+        XCTAssertTrue(
             BrowserSelectionPreviewPolicy.shouldPromoteSelectionToDetail(
                 layoutMode: .none,
                 selectedDocumentId: "page-1",
                 currentDetailDocumentId: "folder-1"
             )
         )
+    }
 
+    func testSelectionDoesNotPromoteWhenAlreadyCurrent() {
         XCTAssertFalse(
             BrowserSelectionPreviewPolicy.shouldPromoteSelectionToDetail(
                 layoutMode: .widescreen,

@@ -219,6 +219,16 @@ struct EntityKindRow: View {
                         .clipShape(Capsule())
                         .help("Claim confidence")
                 }
+                if isPrimary, item.includesChildren {
+                    Text("Includes children")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.secondary.opacity(0.12))
+                        .clipShape(Capsule())
+                        .help("This row includes claims from child documents")
+                }
 
                 if isPrimary, let onClaimSelect = onClaimSelect {
                     Button(action: {

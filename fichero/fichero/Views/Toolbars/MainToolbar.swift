@@ -71,7 +71,7 @@ struct MainToolbar: View {
 
                 // View mode picker (Icon/List/Table/Map)
                 Picker("View mode", selection: $viewMode) {
-                    ForEach(ViewDisplayMode.allCases) { mode in
+                    ForEach(ViewDisplayMode.selectableCases) { mode in
                         Label(mode.label, systemImage: mode.icon)
                             .labelStyle(.iconOnly)
                             .tag(mode)
@@ -95,8 +95,16 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
     case table = "Table"
     case map = "Map"
     case realitykit = "RealityKit"
+    // DEPRECATED legacy alias (#2667). "Spatial (2D)" merged into Canvas (.map):
+    // both now render Spatial2DCanvas off the shared canvasLayoutStore. The case
+    // is retained ONLY so persisted/@SceneStorage "Spatial" rawValues still decode
+    // and can be migrated to .map by normalizedViewDisplayMode(). It is hidden from
+    // every picker/menu and never offered by availableViewDisplayModes.
     case spatial = "Spatial"
     case workspace = "Workspace"
+
+    /// User-selectable cases (excludes the deprecated `.spatial` alias, #2667).
+    static var selectableCases: [ViewDisplayMode] { allCases.filter { $0 != .spatial } }
 
     var id: String { rawValue }
 

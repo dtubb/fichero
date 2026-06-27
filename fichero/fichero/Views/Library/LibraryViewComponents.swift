@@ -214,6 +214,7 @@ struct ProgressCell: View {
 struct DocumentThumbnailView: View {
     let document: Document
     let isSelected: Bool
+    var selectedTint: Color = .accentColor
     var scale: CGFloat = 1.0
     var body: some View {
         VStack(spacing: 6) {
@@ -277,7 +278,7 @@ struct DocumentThumbnailView: View {
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
-                    .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
+                    .stroke(isSelected ? selectedTint : Color.clear, lineWidth: 2)
             )
 
             // PDF page children label by page number (prefer extracted
@@ -289,13 +290,13 @@ struct DocumentThumbnailView: View {
                 .lineLimit(2)
                 .truncationMode(.middle)
                 .multilineTextAlignment(.center)
-                .foregroundColor(isSelected ? .accentColor : .primary)
+                .foregroundColor(isSelected ? selectedTint : .primary)
         }
         .frame(width: 100 * scale)
         .padding(6)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
+                .fill(isSelected ? selectedTint.opacity(0.1) : Color.clear)
         )
     }
 
@@ -332,6 +333,7 @@ struct EntityThumbnailView: View {
     let isSelected: Bool
     let secondaryText: String
     let kindStyle: EntityThumbnailKindStyle
+    var selectedTint: Color = .accentColor
     var scale: CGFloat = 1.0
 
     var body: some View {
@@ -365,7 +367,7 @@ struct EntityThumbnailView: View {
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
-                    .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
+                    .stroke(isSelected ? selectedTint : Color.clear, lineWidth: 2)
             )
 
             VStack(spacing: 2) {
@@ -374,7 +376,7 @@ struct EntityThumbnailView: View {
                     .lineLimit(2)
                     .truncationMode(.tail)
                     .multilineTextAlignment(.center)
-                    .foregroundColor(isSelected ? .accentColor : .primary)
+                .foregroundColor(isSelected ? selectedTint : .primary)
 
                 Text(secondaryText)
                     .font(.caption2)
@@ -387,7 +389,7 @@ struct EntityThumbnailView: View {
         .padding(6)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
+                .fill(isSelected ? selectedTint.opacity(0.1) : Color.clear)
         )
     }
 }

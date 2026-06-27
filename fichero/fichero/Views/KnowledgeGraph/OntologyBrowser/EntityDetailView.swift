@@ -5,6 +5,7 @@ import SwiftUI
 
 struct EntityDetailView: View {
     @EnvironmentObject var entityService: EntityServiceGenerated
+    @Environment(ClaimStore.self) var claimStore
     /// Entity rename routes through the store (#1862/#1865); the change-stream's
     /// `entity.updated` event fans the refresh, retiring `.ficheroEntityUpdated`.
     @Environment(EntityStore.self) var entityStore
@@ -93,6 +94,8 @@ struct EntityDetailView: View {
 
     /// Native multi-select for the claims (source-annotation SVO) List. (#1864)
     @State var selectedClaimIds: Set<String> = []
+    @State var claimsToDelete: [Components.Schemas.KnowledgeClaim] = []
+    @State var showingDeleteClaimsConfirmation: Bool = false
 
     /// In-place rename of the entity from the header. Optimistic local
     /// override while the PATCH is in flight; reverts on failure. (#1865)

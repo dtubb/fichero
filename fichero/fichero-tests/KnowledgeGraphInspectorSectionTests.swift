@@ -38,6 +38,32 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         )
     }
 
+    func testGroupedItemDetectsChildClaims() {
+        let child = GroupedItem.ExtraClaim(
+            claimId: "claim-2",
+            context: "child context",
+            sourceDocumentId: "doc-2",
+            sourcePageLabel: "page 2",
+            sourceExcerpt: nil
+        )
+        let item = GroupedItem(
+            claimId: "claim-1",
+            displayName: "Ada Lovelace",
+            context: "primary context",
+            aliases: [],
+            extraClaims: [child]
+        )
+        let leaf = GroupedItem(
+            claimId: "claim-3",
+            displayName: "Grace Hopper",
+            context: "primary context",
+            aliases: []
+        )
+
+        XCTAssertTrue(item.includesChildren)
+        XCTAssertFalse(leaf.includesChildren)
+    }
+
     func testWebPaneEntitySelectionDoesNotOpenSourceDocument() throws {
         let source = try Self.appSource("Views/Library/DocumentKGWebPane.swift")
         guard let entityCase = source.range(of: "case \"entitySelected\":"),

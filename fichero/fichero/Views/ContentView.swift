@@ -106,6 +106,13 @@ struct ContentView: View {
     // Chat state (shared between ChatView and ChatInspectorView)
     @State var chatSelectedDocuments: Set<String> = []
 
+    /// The leaf document currently PUSHED in the compact (iPhone) reader stack
+    /// (#2666). Backed by real @State — not a computed Binding — so
+    /// `.navigationDestination(item:)` reliably fires the push when the selection
+    /// resolves to a leaf, even if `selectedDocuments` and `currentDocuments`
+    /// momentarily disagree. Synced from selection by `syncPushedReaderDocument()`.
+    @State var pushedReaderDocument: Document?
+
     // Main toolbar state (per-window persistence)
     @SceneStorage("viewDisplayMode") var viewDisplayMode: ViewDisplayMode = .icon
 
@@ -329,7 +336,7 @@ struct ContentView: View {
                 maxHeight: .infinity
             )
             .popover(
-                item: $detailDocument,
+                item: detailPopoverDocument,
                 attachmentAnchor: .rect(.bounds),
                 arrowEdge: .trailing
             ) { document in
@@ -700,12 +707,9 @@ extension ContentView {
     private var contentPaneToolbarContent: some ToolbarContent {
         if supportsReadingWorkspace {
             ToolbarItemGroup(placement: .automatic) {
-                Button {
-                    showDocumentGrid.toggle()
-                } label: {
-                    Label("Library Pane", systemImage: showDocumentGrid ? "sidebar.left" : "sidebar.left")
+                if showViewModePicker && availableViewDisplayModes.count > 1 {
+                    viewDisplayModeMenu
                 }
-                .help(showDocumentGrid ? "Hide library pane" : "Show library pane")
 
                 Button {
                     setCanvasPaneVisible(!showDocumentCanvas)
@@ -722,6 +726,21 @@ extension ContentView {
                 .help(showReadingPane ? "Hide reading pane" : "Show reading pane")
             }
         }
+    }
+
+    private var viewDisplayModeMenu: some View {
+        Menu {
+            ForEach(availableViewDisplayModes) { mode in
+                Button {
+                    updateViewDisplayMode(mode)
+                } label: {
+                    Label(mode.label, systemImage: mode.icon)
+                }
+            }
+        } label: {
+            Label(viewDisplayMode.label, systemImage: viewDisplayMode.icon)
+        }
+        .help("Choose how library items are shown")
     }
 
     #if !os(macOS)

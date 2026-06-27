@@ -520,7 +520,6 @@
 		F272CFE1FADD5F15F71CFC23 /* ImageMarqueeOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72D05E0BE3C8D1AEA1AA3A8D /* ImageMarqueeOverlay.swift */; };
 		F2A340AB9853DC0671499E68 /* DocumentInspectorArtifactsTab+CurationHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = F259EE92E81B78CBE35C9947 /* DocumentInspectorArtifactsTab+CurationHistory.swift */; };
 		F5924EAC2877F93A6178107C /* HeuristicReviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEAE79F9381616EC474F4ED /* HeuristicReviewSheet.swift */; };
-		F64E8DA9BA2DC3A188FE35B2 /* LibraryMapComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8F0249656F38A2DB7AE0C54 /* LibraryMapComponents.swift */; };
 		FB55B6D23D3573E8E04CCD50 /* UsersSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD5D9E12155EC0A6E738B878 /* UsersSettingsView.swift */; };
 		FBC6479F61CDE8E911D6BDBB /* NoteDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFD4DC8D0E00D06ECFFEA224 /* NoteDetailView.swift */; };
 		FC38FF82492B7D35C486CF71 /* EditClaimSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C61D10AF212650451E8C13B /* EditClaimSheet.swift */; };
@@ -554,6 +553,7 @@
 		A1624FF62F2EE5710019C019 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			dstPath = "";
+			dstSubfolder = None;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 1;
@@ -1030,7 +1030,6 @@
 		B6A0010900000000BATCH6A2 /* AddProviderSheet+Step1.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AddProviderSheet+Step1.swift"; sourceTree = "<group>"; };
 		B6A0010A00000000BATCH6A3 /* AddProviderSheet+Step2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AddProviderSheet+Step2.swift"; sourceTree = "<group>"; };
 		B6A0010B00000000BATCH6A4 /* AddProviderSheet+Step3.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AddProviderSheet+Step3.swift"; sourceTree = "<group>"; };
-		B8F0249656F38A2DB7AE0C54 /* LibraryMapComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LibraryMapComponents.swift; sourceTree = "<group>"; };
 		BA39991F769A1DD42BB17F01 /* ClaimSummaryCard+Details.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ClaimSummaryCard+Details.swift"; sourceTree = "<group>"; };
 		BC62467E297F09DF404643C1 /* SpatialLibraryProjector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpatialLibraryProjector.swift; sourceTree = "<group>"; };
 		BCB24ED93772AA96CF319D4B /* ChatDocumentDropPayload.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ChatDocumentDropPayload.swift; sourceTree = "<group>"; };
@@ -1095,15 +1094,11 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A10521AA2EFDC92400B28C3E /* fichero-tests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = "fichero-tests";
 			sourceTree = "<group>";
 		};
 		A10521C22EFDC94100B28C3E /* fichero-ui-tests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = "fichero-ui-tests";
 			sourceTree = "<group>";
 		};
@@ -1881,7 +1876,6 @@
 				2CC15CD58C235F143320E172 /* PDFPageWithToolbar.swift */,
 				74515FA0260E31DB7F74A1D3 /* PDFReadingView.swift */,
 				5923B00FD0A382F8BBF21D58 /* PageContentPane.swift */,
-				B8F0249656F38A2DB7AE0C54 /* LibraryMapComponents.swift */,
 				92773EAEE52587BBA8DEDC9F /* LibraryView+TableMapViews.swift */,
 				84D0C7DF35AFB6A2AEBAB792 /* ArtifactEntityViews.swift */,
 				CAAFE05184A40A50ADFC54A9 /* QuickLookPreviewViews.swift */,
@@ -2028,8 +2022,6 @@
 			);
 			buildRules = (
 			);
-			dependencies = (
-			);
 			name = Fichero;
 			packageProductDependencies = (
 				A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */,
@@ -2152,8 +2144,6 @@
 /* Begin PBXShellScriptBuildPhase section */
 		CC0011223344556677889902 /* SwiftLint */ = {
 			isa = PBXShellScriptBuildPhase;
-			files = (
-			);
 			inputPaths = (
 				"$(SRCROOT)/../.swiftlint.yml",
 				"$(SRCROOT)/fichero",
@@ -2167,13 +2157,13 @@
 				"SWIFTLINT_BIN=\"${SWIFTLINT_PATH:-/opt/homebrew/bin/swiftlint}\"",
 				"if [ ! -x \"$SWIFTLINT_BIN\" ]; then",
 				"  SWIFTLINT_BIN=\"$(command -v swiftlint || true)\"",
-				fi,
+				"fi",
 				"",
 				"if [ -x \"$SWIFTLINT_BIN\" ]; then",
 				"  \"$SWIFTLINT_BIN\" lint --config \"$SRCROOT/../.swiftlint.yml\" \"$SRCROOT/fichero\"",
-				else,
+				"else",
 				"  echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"",
-				fi,
+				"fi",
 				"",
 				"mkdir -p \"$DERIVED_FILE_DIR\"",
 				"touch \"$DERIVED_FILE_DIR/swiftlint.done\"",
@@ -2183,8 +2173,6 @@
 		CC0011223344556677889903 /* Embed Fichero Engine */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
-			files = (
-			);
 			name = "Embed Fichero Engine";
 			shellPath = /bin/sh;
 			shellScript = (
@@ -2214,7 +2202,7 @@
 				"",
 				"  exit 0",
 				"",
-				fi,
+				"fi",
 				"",
 				"",
 				"",
@@ -2230,7 +2218,7 @@
 				"",
 				"  exit 1",
 				"",
-				fi,
+				"fi",
 				"",
 				"",
 				"",
@@ -2590,7 +2578,6 @@
 				650278DC2930567D10469587 /* ContentViewHelperViews.swift in Sources */,
 				DA49843739ACA26F5AD0759C /* AISettingsView+Tabs.swift in Sources */,
 				6944EB9DA6305E692A58C4E8 /* AISettingsView+Helpers.swift in Sources */,
-				F64E8DA9BA2DC3A188FE35B2 /* LibraryMapComponents.swift in Sources */,
 				EA5A4BBFC0797C7403FB49B3 /* LibraryView+TableMapViews.swift in Sources */,
 				B75451126537E8FFE337AE17 /* ArtifactEntityViews.swift in Sources */,
 				25B9458F0E27EB2BCD55B439 /* ClaimSummaryCard+Details.swift in Sources */,
@@ -2797,7 +2784,7 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		800 /* Debug */ = {
+		800 /* Debug configuration for PBXProject "fichero" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -2863,7 +2850,7 @@
 			};
 			name = Debug;
 		};
-		801 /* Release */ = {
+		801 /* Release configuration for PBXProject "fichero" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -2921,7 +2908,7 @@
 			};
 			name = Release;
 		};
-		810 /* Debug */ = {
+		810 /* Debug configuration for PBXNativeTarget "Fichero" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -2934,7 +2921,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 20260626;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_APP_SANDBOX = NO;
@@ -2960,20 +2947,20 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.1.0.dev1;
+				MARKETING_VERSION = "2026.06.26-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
 				PRODUCT_NAME = Fichero;
 				SPARKLE_FEED_URL = "https://raw.githubusercontent.com/dtubb/fichero-releases/main/appcast.xml";
 				SPARKLE_PUBLIC_ED_KEY = "z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=";
-				SUPPORTED_PLATFORMS = "appletvos appletvsimulator iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2,3,7";
+				TARGETED_DEVICE_FAMILY = "1,2,7";
 			};
 			name = Debug;
 		};
-		811 /* Release */ = {
+		811 /* Release configuration for PBXNativeTarget "Fichero" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -2987,14 +2974,23 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 20260626;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "";
-				ENABLE_APP_SANDBOX = NO;
+				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = NO;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -3013,26 +3009,32 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.1.0.dev1;
+				MARKETING_VERSION = "2026.06.26-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
 				PRODUCT_NAME = Fichero;
 				PROVISIONING_PROFILE_SPECIFIER = "";
+				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
+				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
+				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
+				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
+				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
 				SPARKLE_FEED_URL = "https://raw.githubusercontent.com/dtubb/fichero-releases/main/appcast.xml";
 				SPARKLE_PUBLIC_ED_KEY = "z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=";
-				SUPPORTED_PLATFORMS = "appletvos appletvsimulator iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2,3,7";
+				TARGETED_DEVICE_FAMILY = "1,2,7";
 			};
 			name = Release;
 		};
-		A10521AF2EFDC92400B28C3E /* Debug */ = {
+		A10521AF2EFDC92400B28C3E /* Debug configuration for PBXNativeTarget "FicheroTests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 20260626;
 				GENERATE_INFOPLIST_FILE = YES;
 				LIBRARY_SEARCH_PATHS = (
 					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
@@ -3041,7 +3043,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = "2026.06.26-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -3050,12 +3052,12 @@
 			};
 			name = Debug;
 		};
-		A10521B02EFDC92400B28C3E /* Release */ = {
+		A10521B02EFDC92400B28C3E /* Release configuration for PBXNativeTarget "FicheroTests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 20260626;
 				GENERATE_INFOPLIST_FILE = YES;
 				LIBRARY_SEARCH_PATHS = (
 					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
@@ -3064,7 +3066,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = "2026.06.26-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -3073,14 +3075,14 @@
 			};
 			name = Release;
 		};
-		A10521C82EFDC94100B28C3E /* Debug */ = {
+		A10521C82EFDC94100B28C3E /* Debug configuration for PBXNativeTarget "FicheroUITests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 20260626;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = "2026.06.26-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -3089,14 +3091,14 @@
 			};
 			name = Debug;
 		};
-		A10521C92EFDC94100B28C3E /* Release */ = {
+		A10521C92EFDC94100B28C3E /* Release configuration for PBXNativeTarget "FicheroUITests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 20260626;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = "2026.06.26-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -3111,32 +3113,32 @@
 		600 /* Build configuration list for PBXNativeTarget "Fichero" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				810 /* Debug */,
-				811 /* Release */,
+				810 /* Debug configuration for PBXNativeTarget "Fichero" */,
+				811 /* Release configuration for PBXNativeTarget "Fichero" */,
 			);
 			defaultConfigurationName = Debug;
 		};
 		710 /* Build configuration list for PBXProject "fichero" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				800 /* Debug */,
-				801 /* Release */,
+				800 /* Debug configuration for PBXProject "fichero" */,
+				801 /* Release configuration for PBXProject "fichero" */,
 			);
 			defaultConfigurationName = Debug;
 		};
 		A10521B12EFDC92400B28C3E /* Build configuration list for PBXNativeTarget "FicheroTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A10521AF2EFDC92400B28C3E /* Debug */,
-				A10521B02EFDC92400B28C3E /* Release */,
+				A10521AF2EFDC92400B28C3E /* Debug configuration for PBXNativeTarget "FicheroTests" */,
+				A10521B02EFDC92400B28C3E /* Release configuration for PBXNativeTarget "FicheroTests" */,
 			);
 			defaultConfigurationName = Debug;
 		};
 		A10521C72EFDC94100B28C3E /* Build configuration list for PBXNativeTarget "FicheroUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A10521C82EFDC94100B28C3E /* Debug */,
-				A10521C92EFDC94100B28C3E /* Release */,
+				A10521C82EFDC94100B28C3E /* Debug configuration for PBXNativeTarget "FicheroUITests" */,
+				A10521C92EFDC94100B28C3E /* Release configuration for PBXNativeTarget "FicheroUITests" */,
 			);
 			defaultConfigurationName = Debug;
 		};

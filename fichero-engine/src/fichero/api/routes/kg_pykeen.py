@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 
 from fichero.api.main import get_library_database, get_library_database_for_write
@@ -18,6 +18,13 @@ from fichero.models import PykeenListResponse, KGGraphListResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/kg/pykeen")
+
+
+def _pykeen_unavailable(exc: ImportError) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="PyKEEN link prediction is not installed in this backend.",
+    )
 
 
 class TrainResponse(BaseModel):
@@ -44,11 +51,17 @@ async def train(
     """Train + persist a KGE model. Synchronous (can take 30s+ on a
     small library; minutes on larger). Use the response to learn
     whether the corpus had enough triples."""
-    from fichero.kg.pykeen_predictor import train_model
+    try:
+        from fichero.kg.pykeen_predictor import train_model
+    except ImportError as exc:
+        raise _pykeen_unavailable(exc) from exc
 
-    stats = train_model(
-        db, model_name=model, embedding_dim=embedding_dim, num_epochs=num_epochs
-    )
+    try:
+        stats = train_model(
+            db, model_name=model, embedding_dim=embedding_dim, num_epochs=num_epochs
+        )
+    except ImportError as exc:
+        raise _pykeen_unavailable(exc) from exc
     return TrainResponse(**{**stats, "reason": stats.get("reason")})
 
 
@@ -76,9 +89,15 @@ async def predict(
     top_k: int = Query(default=10, ge=1, le=100),
     db: Database = Depends(get_library_database),
 ) -> KGGraphListResponse:
-    from fichero.kg.pykeen_predictor import predict_for_subject
+    try:
+        from fichero.kg.pykeen_predictor import predict_for_subject
+    except ImportError as exc:
+        raise _pykeen_unavailable(exc) from exc
 
-    predictions = predict_for_subject(db, entity_id, top_k=top_k)
+    try:
+        predictions = predict_for_subject(db, entity_id, top_k=top_k)
+    except ImportError as exc:
+        raise _pykeen_unavailable(exc) from exc
     if not predictions:
         # 200 with empty envelope — caller distinguishes "no model" from
         # "model has no predictions" via the explicit empty items list.

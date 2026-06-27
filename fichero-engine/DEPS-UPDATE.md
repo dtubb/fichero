@@ -1,122 +1,147 @@
-# Backend Python Dependency Update (#2248)
+# Backend Python Dependencies
 
-**Date:** 2026-06-14
-**Branch:** `ms/deps-update`
-**Worktree:** `~/code/fichero-worktrees/deps-update`
-**Isolated venv:** `.venv-deps` (Python 3.12.13) — the shared
-`~/code/fichero/.venv` was never touched.
+Last updated: 2026-06-27
 
-## TL;DR
+This file records the current dependency policy for the embedded Briefcase
+engine and the release-app bundle size audit.
 
-Moved `fichero-engine` to the latest mutually-compatible versions of every
-dependency. **Zero source-code changes were required** — the latest resolvable
-set is API-compatible with the current codebase. The only edits are
-documentation comments in `pyproject.toml` clarifying the one deliberate pin.
+## Current State
 
-- Full unit suite: **5031 passed, 22 skipped, 21 xfailed, 0 failed** in `.venv-deps`.
-- `pip check`: **No broken requirements found.**
-- One deliberate pin retained with a real, current reason: **`websockets<14`**.
+The embedded Mac engine is built from `fichero-engine/pyproject.toml`.
+Dependencies are mostly floating so a clean Briefcase create resolves the newest
+mutually compatible package set. The only ordinary version floor in the core
+manifest is `Pillow>=12.2.0`.
 
-## How "latest" is expressed
+The previous `websockets<14` / LangGraph cap has been removed. The server now
+launches Uvicorn with the modern sans-IO websocket protocol:
 
-`pyproject.toml` deps are **unpinned** (they float), so "latest" is achieved at
-install time by the resolver. There are no per-package version bumps to write —
-a fresh `pip install -e ".[dev]"` already pulls the newest compatible release of
-each package. The two existing version constraints are `websockets<14`
-(deliberate, see below) and `Pillow>=12.2.0` (floor only — resolves to 12.2.0,
-the latest).
+- Briefcase embedded engine: `ws="websockets-sansio"` in `src/engine/__main__.py`
+- CLI detached engine: `--ws websockets-sansio` in `src/fichero/cli/engine_manager.py`
 
-Because nothing is pinned, the resolver always selects the maximum
-mutually-compatible set. The held-back packages below are each capped by a
-*transitive* dependency that is itself already at its latest version, so no
-explicit pins are added (adding them would only make the manifest more brittle).
+A clean Briefcase create on 2026-06-27 resolved the newer websocket/LangGraph
+line successfully:
+
+- `websockets==15.0.1`
+- `uvicorn==0.49.0`
+- `langchain==1.3.11`
+- `langgraph==1.2.6`
+- `langgraph-sdk==0.4.2`
+- `Pillow==12.2.0`
+
+## Optional Heavy Features
+
+These packages are intentionally not in the default Briefcase/core dependency
+set for the shareable Mac tester app:
+
+- `pykeen` pulls `torch` into the bundle.
+- `rdflib` powers SPARQL/RDF export/query.
+- `spacy` powers deterministic first-pass NER; the app falls through to
+  LLM-only NER when it is absent.
+- `opencv-python-headless` provides `cv2`; image background removal falls back
+  to the threshold/Pillow path when it is absent.
+- `splink` is not currently shipped; it is future record-linkage work.
+
+Install optional feature stacks explicitly when working on those areas:
+
+```bash
+pip install -e ".[kg,image]"
+```
+
+## Clean Bundle Result
+
+After deleting the generated Briefcase macOS build and recreating it from the
+current manifest, the embedded Release app no longer contains:
+
+- `torch`
+- `pykeen`
+- `rdflib`
+- `spacy`
+- `splink`
+- `cv2` / OpenCV
+
+Observed sizes after the clean rebuild:
+
+- `fichero/build/xcode/Products/Release/Fichero.app`: `1.2G`
+- Embedded `Fichero Engine.app`: `1.0G`
+- Embedded `app_packages`: `902M`
+
+Largest remaining app packages:
+
+| Package/path | Size | Why it remains |
+|---|---:|---|
+| `lance` | `147M` | Lance/LanceDB vector-table storage |
+| `pyarrow` | `119M` | Arrow data layer used by LanceDB |
+| `lancedb` | `108M` | Vector search database |
+| `onnxruntime` | `68M` | Native runtime used by `fastembed` |
+| `kreuzberg` | `62M` | Document text extraction |
+| `litellm` | `60M` | Provider routing for LLM calls |
+| `pymupdf` | `51M` | PDF rendering/extraction |
+| `_duckdb...so` | `43M` | DuckDB database engine |
+| `botocore` | `24M` | AWS provider dependency via LangChain |
+| `numpy` | `22M` | Numeric dependency used by vector/image stacks |
+| `PIL` | `13M` | Pillow image support |
+
+ONNX Runtime is not the same package as FastEmbed, but FastEmbed uses it to run
+embedding models without PyTorch. ONNX is the model format/runtime interface;
+`onnxruntime` is the native execution engine in the bundle.
+
+Further large reductions require product choices, not obvious dead-dependency
+cleanup. The main tradeoffs are:
+
+- Removing local vector search/local embeddings would cut LanceDB/PyArrow/Lance
+  and FastEmbed/ONNX Runtime, but would remove core local search capability.
+- Removing broad LLM provider routing would cut some LiteLLM/LangChain/provider
+  packages, but would narrow model/provider support.
+- Removing document extraction/rendering packages would cut Kreuzberg/PyMuPDF,
+  but would reduce import and preview functionality.
 
 ## Verification
 
+Commands run after the 2026-06-27 changes:
+
 ```bash
-# from the worktree root, using the ISOLATED venv
-PYTHONPATH=fichero-engine/src .venv-deps/bin/pytest \
-  fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived -q
-# => 5031 passed, 22 skipped, 21 xfailed
-.venv-deps/bin/pip check     # => No broken requirements found.
+python -c 'import tomllib; tomllib.load(open("fichero-engine/pyproject.toml", "rb"))'
+PYTHONPATH=fichero-engine/src .venv/bin/ruff check \
+  fichero-engine/src/engine/__main__.py \
+  fichero-engine/src/fichero/cli/engine_manager.py \
+  fichero-engine/src/fichero/knowledge/spacy_ner.py \
+  fichero-engine/src/fichero/api/routes/kg_sparql.py \
+  fichero-engine/src/fichero/api/routes/kg_pykeen.py \
+  fichero-engine/src/fichero/api/routes/kg_predictions.py
+PYTHONPATH=fichero-engine/src .venv/bin/pytest \
+  fichero-engine/tests/unit/test_engine_entrypoint.py \
+  fichero-engine/tests/unit/test_remote_access_tls.py \
+  fichero-engine/tests/unit/kg/test_spacy_ner.py \
+  fichero-engine/tests/unit/workflows/test_ner_providers.py \
+  fichero-engine/tests/unit/workflows/test_remove_background_images.py -q
 ```
 
-Note: the fresh venv needed the spaCy language models (`en_core_web_sm`,
-`es_core_news_sm`) downloaded — these are model *data* packages, not part of the
-dependency bump. Without them, 5 KG-NER tests fail with "Can't find model";
-after `python -m spacy download …` they pass. The shared venv already had them.
+Results:
 
-## The one deliberate pin: `websockets<14`
+- TOML parse passed.
+- Ruff passed.
+- Focused tests passed: `29 passed, 1 warning`.
+- Earlier optional-dependency focused suite passed: `51 passed, 5 warnings`.
+- Clean Briefcase create/build produced `build/engine/macos/app/Fichero Engine.app`.
+- `bash scripts/build-release.sh --skip-backend` succeeded and embedded the clean engine.
+- `bash scripts/smoke-release-embedded-backend.sh --lan` passed:
+  - `https://127.0.0.1:8765/api/health`
+  - `https://macbook-pro-m1.local:8765/api/health`
 
-This is the "real incompat forces a pin" case from the task.
+## Historical Note
 
-- **Why:** uvicorn 0.49's `ws="auto"` still routes to the *legacy*
-  `websockets_impl` (`uvicorn/protocols/websockets/auto.py` imports
-  `WebSocketProtocol` from `websockets_impl`, **not** the newer
-  `websockets_sansio_impl`). On `websockets>=14` that legacy path logs
-  `websockets.legacy` deprecation noise on every connection.
-- **Cost of holding it:** `langgraph-sdk>=0.4` requires `websockets>=14,<16`.
-  Holding `websockets<14` therefore caps the LangChain/LangGraph chain at the
-  latest releases whose `langgraph-sdk` is `<0.4`:
-  - `langchain==1.3.2` (1.3.9 available, needs sdk 0.4)
-  - `langgraph==1.2.2` (1.2.5 available, needs sdk 0.4)
-  - `langgraph-sdk==0.3.15` (0.4.2 available, needs websockets>=14)
-- **To unblock in future:** set the server's uvicorn option to
-  `ws="websockets-sansio"` (the modern impl, no legacy logging), then drop the
-  `websockets<14` pin. That lets websockets float to 15.x and the
-  LangChain/LangGraph chain to the newest line. Deferred here because it is a
-  server-launch code change, not a dependency bump, and the held-back releases
-  are only patch-level.
+The original 2026-06-14 dependency pass used an isolated `.venv-deps`
+environment and reported:
 
-## Packages capped by an already-latest transitive dependency
+- Full unit suite: `5031 passed, 22 skipped, 21 xfailed, 0 failed`
+- `pip check`: no broken requirements
 
-| Package | Resolved | Newer exists | Capped by |
-|---|---|---|---|
-| `langchain` | 1.3.2 | 1.3.9 | `websockets<14` → `langgraph-sdk<0.4` |
-| `langgraph` | 1.2.2 | 1.2.5 | `websockets<14` → `langgraph-sdk<0.4` |
-| `langgraph-sdk` | 0.3.15 | 0.4.2 | `websockets<14` (sdk 0.4 needs ws>=14) |
-| `typer` | 0.25.1 | 0.26.7 | `huggingface-hub<0.26.0` (hf-hub already latest, 1.19.0) |
-| `cohere` | 5.21.1 | 7.0.4 | `langchain-cohere>=5.18,<6.0` (lc-cohere already latest, 0.6.0) |
-| `pydantic-core` | 2.46.4 | 2.47.0 | pinned `==` by `pydantic==2.13.4` (latest pydantic) |
-| `websockets` | 13.1 | 16.0 | deliberate `websockets<14` pin (see above) |
+That pass documented a temporary `websockets<14` cap. That cap is no longer the
+current policy because the server launch path now opts into
+`websockets-sansio`.
 
-## Notable version bumps (vs the live `~/code/fichero/.venv` baseline)
+## Open Follow-Up
 
-~44 packages moved forward, e.g.:
-
-- `anthropic` 0.105.2 → 0.109.1
-- `openai` 2.38.0 → 2.41.1
-- `litellm` 1.86.2 → 1.89.0
-- `langchain-core` 1.4.0 → 1.4.7
-- `langchain-openai` 1.2.2 → 1.3.2
-- `langchain-mcp-adapters` 0.2.2 → 0.3.0
-- `langchain-cohere` 0.5.1 → 0.6.0
-- `fastapi` 0.136.3 → 0.137.0
-- `starlette` 1.2.0 → 1.3.1
-- `uvicorn` 0.48.0 → 0.49.0
-- `aiohttp` 3.13.5 → 3.14.1
-- `cryptography` 48.0.0 → 49.0.0
-- `huggingface-hub` 1.17.0 → 1.19.0
-- `scikit-learn` 1.8.0 → 1.9.0
-- `google-genai` 2.7.0 → 2.8.0
-- `python-multipart` 0.0.29 → 0.0.32
-- `lance-namespace` 0.7.7 → 0.8.6
-
-Unchanged at their current latest: `duckdb` 1.5.3, `lancedb` 0.33.0,
-`pydantic` 2.13.4, `mcp` 1.27.2, `spacy` 3.8.14, `splink` 4.0.16,
-`pykeen` 1.11.1, `fastembed` 0.8.0, `rdflib` 7.6.0, `torch` 2.12.0,
-`PyMuPDF` 1.27.2.3, `Pillow` 12.2.0, `numpy` 2.4.6.
-
-## Code changes
-
-- `fichero-engine/pyproject.toml` — refreshed the two `websockets<14` comments
-  to document the current (uvicorn 0.49) rationale and the `langgraph-sdk>=0.4`
-  conflict. No dependency lines added, removed, or version-pinned.
-
-## On #2235 (LangGraph msgpack landmine)
-
-Not resolved by this update and out of scope for a deps bump. LangGraph remains
-on the 1.x line (1.2.2), where unregistered `fichero.models` types still
-*warn* but do not block on checkpoint deserialization. The block lands in a
-future LangGraph; the fix (register types / store primitives /
-`LANGGRAPH_STRICT_MSGPACK=true` in CI) is tracked separately in #2235.
+LangGraph strict msgpack remains separate work. Track the fix as primitive
+checkpoint storage / allowed type registration / `LANGGRAPH_STRICT_MSGPACK=true`
+coverage under the existing #2235 work.

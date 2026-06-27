@@ -583,6 +583,22 @@ async def _recover_stale_runs_on_startup(
     return recovered_total
 
 
+def _log_stale_run_recovery_result(task) -> None:
+    """Log background stale-run recovery completion without surfacing to startup."""
+    if task.cancelled():
+        logger.info("Startup stale-run recovery cancelled")
+        return
+    try:
+        recovered_total = task.result()
+    except Exception:
+        logger.exception("Startup stale-run recovery failed")
+        return
+    if recovered_total:
+        logger.info("Startup stale-run recovery finished: recovered %d run(s)", recovered_total)
+    else:
+        logger.info("Startup stale-run recovery finished: no stale runs found")
+
+
 async def _watch_parent_process() -> None:
     """If FICHERO_PARENT_PID is set, exit when that PID disappears.
 
@@ -668,8 +684,12 @@ async def lifespan(app: FastAPI):
     # a detectable multi-worker configuration.
     pairing.warn_pairing_single_process_invariant()
 
-    # Recover stale workflow runs left in 'running' by prior crashes/restarts (#1350).
-    await _recover_stale_runs_on_startup()
+    # Recover stale workflow runs left in 'running' by prior crashes/restarts
+    # (#1350), but never block the server socket from binding. On machines
+    # with many known libraries or slow external volumes, walking every library
+    # here can exceed the Swift app's launch health timeout.
+    stale_run_recovery_task = asyncio.create_task(_recover_stale_runs_on_startup())
+    stale_run_recovery_task.add_done_callback(_log_stale_run_recovery_result)
 
     # Pre-warm embeddings model and per-library caches in background (#1918).
     # _prewarm_embeddings now populates _EMBEDDER_CACHE (not a discarded instance)
@@ -705,6 +725,8 @@ async def lifespan(app: FastAPI):
     app.state.bonjour_advertiser = bonjour_advertiser
 
     yield
+    if not stale_run_recovery_task.done():
+        stale_run_recovery_task.cancel()
     parent_watcher.cancel()
     await stop_periodic_snapshot_task(periodic_snapshot_task)
     if bonjour_advertiser is not None:

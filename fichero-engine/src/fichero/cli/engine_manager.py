@@ -198,6 +198,8 @@ def start(port: int = 8765, workers: int = 1, host: str | None = None) -> None:
                 str(port),
                 "--workers",
                 str(workers),
+                "--ws",
+                "websockets-sansio",
                 "--ssl-certfile",
                 ssl_kwargs["ssl_certfile"],
                 "--ssl-keyfile",

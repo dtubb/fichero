@@ -1,34 +1,40 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Create a GitHub release on dtubb/fichero-releases (the public release repo
-# kept separate from the source repo so the source repo stays slim) and
-# upload the DMG. Then update appcast.xml in that same repo so Sparkle on
-# users' machines picks up the new version.
+# Create a GitHub release on dtubb/fichero and upload the DMG. Then update
+# fichero/appcast.xml in this repo so Sparkle can pick up the new version.
 #
-# Sparkle EdDSA signs the DMG via sign_update from ~/sparkle-tools/.
+# Sparkle EdDSA signs the DMG via sign_update from ~/code/sparkle-tools/.
+# The Ed25519 private key is read from the macOS Keychain (account "ed25519",
+# service "https://sparkle-project.org") — sign_update does this by default
+# when no -f/--ed-key-file is passed. The matching public key is baked into
+# the app via SPARKLE_PUBLIC_ED_KEY in project.pbxproj -> Info.plist SUPublicEDKey.
 #
-# Usage: scripts/create-github-release.sh [--draft] [--dry-run|-n]
+# Usage: scripts/create-github-release.sh [--draft] [--prerelease] [--dry-run|-n]
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DMG_PATH="$ROOT_DIR/build/releases/Fichero.dmg"
 APP_PATH="$ROOT_DIR/fichero/build/xcode/Products/Release/Fichero.app"
+STAGED_APP_PATH="$ROOT_DIR/build/releases/dmg-stage/Fichero.app"
 
-# Public release repo — separate from source repo to keep source repo slim
-RELEASE_REPO="dtubb/fichero-releases"
-RELEASE_REPO_DIR="${FICHERO_RELEASES_DIR:-$HOME/code/fichero-releases}"
+RELEASE_REPO="dtubb/fichero"
+APPCAST_PATH="$ROOT_DIR/fichero/appcast.xml"
+APPCAST_URL="https://raw.githubusercontent.com/$RELEASE_REPO/main/fichero/appcast.xml"
 
-# Sparkle CLI tools (downloaded tarball, not brew cask)
-SPARKLE_BIN="${SPARKLE_BIN:-$HOME/sparkle-tools/bin}"
-SPARKLE_PRIVATE_KEY="${SPARKLE_PRIVATE_KEY:-$HOME/.sparkle/fichero_ed_private_key}"
+# Sparkle CLI tools (downloaded tarball at ~/code/sparkle-tools/, not brew cask)
+SPARKLE_BIN="${SPARKLE_BIN:-$HOME/code/sparkle-tools/bin}"
+# Private key lives in the Keychain (account "ed25519"); sign_update reads it
+# automatically when no -f/--ed-key-file is passed. No on-disk key file.
 
 DRAFT_FLAG=""
+PRERELEASE_FLAG=""
 DRY_RUN=false
 for arg in "$@"; do
   case $arg in
     --draft) DRAFT_FLAG="--draft" ;;
+    --prerelease) PRERELEASE_FLAG="--prerelease" ;;
     --dry-run|-n) DRY_RUN=true ;;
-    --help|-h) echo "Usage: $0 [--draft] [--dry-run|-n]"; exit 0 ;;
+    --help|-h) echo "Usage: $0 [--draft] [--prerelease] [--dry-run|-n]"; exit 0 ;;
   esac
 done
 
@@ -45,6 +51,7 @@ if [ "$DRY_RUN" = true ]; then
   echo "[DRY RUN] create-github-release.sh — printing steps only, no commands executed"
   echo "[DRY RUN] DMG: $DMG_PATH"
   echo "[DRY RUN] Release repo: $RELEASE_REPO"
+  echo "[DRY RUN] Appcast: $APPCAST_PATH"
 fi
 
 # ── Preflight ───────────────────────────────────────────────────────────────
@@ -60,6 +67,17 @@ if [ "$DRY_RUN" = false ]; then
     exit 1
   fi
 
+  CHECK_APP_PATH="$APP_PATH"
+  [ -d "$STAGED_APP_PATH" ] && CHECK_APP_PATH="$STAGED_APP_PATH"
+  FEED_URL=$(/usr/libexec/PlistBuddy -c 'Print :SUFeedURL' "$CHECK_APP_PATH/Contents/Info.plist")
+  if [ "$FEED_URL" != "$APPCAST_URL" ]; then
+    echo "error: built app SUFeedURL does not match release appcast" >&2
+    echo "  built:    $FEED_URL" >&2
+    echo "  expected: $APPCAST_URL" >&2
+    echo "Rebuild the release app/DMG after updating SPARKLE_FEED_URL." >&2
+    exit 1
+  fi
+
   if ! command -v gh >/dev/null 2>&1; then
     echo "error: gh CLI not found — install with: brew install gh" >&2
     exit 1
@@ -67,23 +85,27 @@ if [ "$DRY_RUN" = false ]; then
 
   if [ ! -x "$SPARKLE_BIN/sign_update" ]; then
     echo "error: sign_update not found at $SPARKLE_BIN/sign_update" >&2
-    echo "Sparkle 2.9.1 tarball should be extracted to ~/sparkle-tools/" >&2
+    echo "Sparkle 2.9.1 tarball should be extracted to ~/code/sparkle-tools/" >&2
     exit 1
   fi
 
-  if [ ! -f "$SPARKLE_PRIVATE_KEY" ]; then
-    echo "error: Sparkle private key not found at $SPARKLE_PRIVATE_KEY" >&2
-    echo "Generate with: $SPARKLE_BIN/generate_keys" >&2
+  # Keychain key presence (metadata read only — no secret extraction, no GUI prompt).
+  if ! security find-generic-password -a "ed25519" -s "https://sparkle-project.org" >/dev/null 2>&1; then
+    echo "error: Sparkle Ed25519 private key not found in Keychain" >&2
+    echo "  (expected generic-password: account='ed25519', service='https://sparkle-project.org')" >&2
+    echo "  Generate with: $SPARKLE_BIN/generate_keys" >&2
     exit 1
   fi
 else
-  echo "[DRY RUN] would check: DMG, app, gh CLI, sign_update, Sparkle private key"
+  echo "[DRY RUN] would check: DMG, app, gh CLI, sign_update, Sparkle keychain key"
 fi
 
 # ── Read version + sizes from built app (or use placeholders in dry-run) ────
 if [ "$DRY_RUN" = false ]; then
-  VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Contents/Info.plist")
-  BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Contents/Info.plist")
+  VERSION_APP_PATH="$APP_PATH"
+  [ -d "$STAGED_APP_PATH" ] && VERSION_APP_PATH="$STAGED_APP_PATH"
+  VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$VERSION_APP_PATH/Contents/Info.plist")
+  BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$VERSION_APP_PATH/Contents/Info.plist")
   DMG_SIZE=$(stat -f%z "$DMG_PATH")
   DMG_SIZE_HUMAN=$(du -h "$DMG_PATH" | cut -f1)
 else
@@ -94,21 +116,23 @@ else
 fi
 TAG="v${VERSION}"
 
-echo "[1/5] Sparkle-sign DMG"
+echo "[1/5] Sparkle-sign DMG (Ed25519 key from Keychain)"
 if [ "$DRY_RUN" = false ]; then
-  ED_SIGNATURE=$("$SPARKLE_BIN/sign_update" "$DMG_PATH" -f "$SPARKLE_PRIVATE_KEY" | grep -oE 'sparkle:edSignature="[^"]+"' | sed -E 's/sparkle:edSignature="([^"]+)"/\1/')
+  # No -f: sign_update reads the private key from the Keychain by default.
+  ED_SIGNATURE=$("$SPARKLE_BIN/sign_update" "$DMG_PATH" | grep -oE 'sparkle:edSignature="[^"]+"' | sed -E 's/sparkle:edSignature="([^"]+)"/\1/')
   if [ -z "$ED_SIGNATURE" ]; then
     echo "error: sign_update did not produce a signature" >&2
     exit 1
   fi
   echo "  Signature: ${ED_SIGNATURE:0:20}…"
 else
-  echo "[DRY RUN] would run: $SPARKLE_BIN/sign_update $DMG_PATH -f $SPARKLE_PRIVATE_KEY"
+  echo "[DRY RUN] would run: $SPARKLE_BIN/sign_update $DMG_PATH  (key from Keychain)"
   ED_SIGNATURE="dry-run-placeholder-signature"
 fi
 
-# ── Create release on fichero-releases ──────────────────────────────────────
+# ── Create release on GitHub ────────────────────────────────────────────────
 echo "[2/5] Create GitHub release on $RELEASE_REPO ($TAG, build $BUILD, $DMG_SIZE_HUMAN)"
+RELEASE_TARGET="${RELEASE_TARGET:-$(git -C "$ROOT_DIR" rev-parse HEAD)}"
 
 RELEASE_BODY="## Fichero ${VERSION}
 
@@ -130,28 +154,20 @@ if [ "$DRY_RUN" = false ]; then
     --repo "$RELEASE_REPO" \
     --title "Fichero $VERSION" \
     --notes "$RELEASE_BODY" \
-    $DRAFT_FLAG
+    --target "$RELEASE_TARGET" \
+    $DRAFT_FLAG \
+    $PRERELEASE_FLAG
 else
-  echo "[DRY RUN] would run: gh release create $TAG --repo $RELEASE_REPO --title \"Fichero $VERSION\" $DRAFT_FLAG"
+  echo "[DRY RUN] would run: gh release create $TAG --repo $RELEASE_REPO --target $RELEASE_TARGET --title \"Fichero $VERSION\" $DRAFT_FLAG $PRERELEASE_FLAG"
 fi
 
 RELEASE_URL="https://github.com/$RELEASE_REPO/releases/download/${TAG}/Fichero.dmg"
 PUB_DATE=$(date -R)
 
-# ── Update appcast.xml in fichero-releases working copy ─────────────────────
-echo "[3/5] Update appcast.xml in $RELEASE_REPO"
+# ── Update local appcast.xml ────────────────────────────────────────────────
+echo "[3/5] Update appcast.xml"
 
 if [ "$DRY_RUN" = false ]; then
-  if [ ! -d "$RELEASE_REPO_DIR" ]; then
-    echo "  Cloning $RELEASE_REPO to $RELEASE_REPO_DIR"
-    git clone "https://github.com/$RELEASE_REPO.git" "$RELEASE_REPO_DIR"
-  fi
-
-  cd "$RELEASE_REPO_DIR"
-  git pull --rebase
-
-  APPCAST_PATH="$RELEASE_REPO_DIR/appcast.xml"
-
   # Append a new <item> before </channel>. If appcast.xml is the placeholder
   # skeleton (no items yet), seed it from scratch. Otherwise insert in place.
   if ! grep -q "<item>" "$APPCAST_PATH" 2>/dev/null; then
@@ -215,18 +231,18 @@ p.write_text(xml)
 PY
   fi
 
-  git add appcast.xml
-  git commit -m "release: $TAG"
-  git push
+  echo "  Updated: $APPCAST_PATH"
 else
-  echo "[DRY RUN] would: clone/pull $RELEASE_REPO, update appcast.xml, git commit + push"
+  echo "[DRY RUN] would: update $APPCAST_PATH"
 fi
 
 cd "$ROOT_DIR"
 
 echo "[4/5] Tag source repo"
 if [ "$DRY_RUN" = false ]; then
-  if git rev-parse "$TAG" >/dev/null 2>&1; then
+  if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+    echo "  Remote tag $TAG already exists, skipping"
+  elif git rev-parse "$TAG" >/dev/null 2>&1; then
     echo "  Tag $TAG already exists in source repo, skipping"
   else
     git tag -a "$TAG" -m "Fichero $VERSION (build $BUILD)"
@@ -239,5 +255,5 @@ fi
 echo "[5/5] Done"
 echo
 echo "Release:  https://github.com/$RELEASE_REPO/releases/tag/$TAG"
-echo "Appcast:  https://raw.githubusercontent.com/$RELEASE_REPO/main/appcast.xml"
+echo "Appcast:  $APPCAST_URL"
 echo "DMG:      $DMG_PATH ($DMG_SIZE_HUMAN)"

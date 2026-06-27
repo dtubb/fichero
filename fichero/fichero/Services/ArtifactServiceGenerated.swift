@@ -349,7 +349,7 @@ final class EntityServiceGenerated: ObservableObject {
     ///   - query: free-text query against canonical_name + aliases (nil for none)
     ///   - limit: page size
     func listEntities(
-        entityType: Components.Schemas.FicheroKnowledgeModelsEntityType? = nil,
+        entityType: Components.Schemas.FicheroKnowledgeKnowledgeModelsEntityType? = nil,
         query: String? = nil,
         limit: Int = 100
     ) async throws -> [Components.Schemas.KnowledgeEntity] {
@@ -706,7 +706,7 @@ final class EntityServiceGenerated: ObservableObject {
         var body = Components.Schemas.EntityPatchRequest()
         body.canonicalName = canonicalName
         body.entityType = entityType.flatMap {
-            Components.Schemas.FicheroKnowledgeModelsEntityType(rawValue: $0)
+            Components.Schemas.FicheroKnowledgeKnowledgeModelsEntityType(rawValue: $0)
         }
         body.aliases = aliases
         body.description = description
@@ -851,7 +851,7 @@ final class EntityServiceGenerated: ObservableObject {
         aliases: [String] = []
     ) async throws -> Components.Schemas.KnowledgeEntity {
         let typeEnum = entityType.flatMap {
-            Components.Schemas.FicheroKnowledgeModelsEntityType(rawValue: $0)
+            Components.Schemas.FicheroKnowledgeKnowledgeModelsEntityType(rawValue: $0)
         }
         var body = Components.Schemas.EntityUpsertRequest(canonicalName: name)
         body.entityType = typeEnum
