@@ -124,9 +124,9 @@ gh issue list --milestone "0.0.4"
 ## Architecture
 
 ```
-SwiftUI App → HTTP localhost:8765 → FastAPI → DuckDB/LanceDB
-                                             → LangGraph (workflows)
-                                             → LiteLLM (100+ providers)
+SwiftUI App → HTTPS 127.0.0.1:8765 (pinned) → FastAPI → DuckDB/LanceDB
+                                                      → LangGraph (workflows)
+                                                      → LangChain (100+ LLM providers; LiteLLM = cost/pricing only)
 ```
 
 Full architecture: `docs/CLAUDE.md`, `docs/architecture/`
