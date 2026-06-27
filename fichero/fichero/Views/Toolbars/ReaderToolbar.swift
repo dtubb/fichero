@@ -73,6 +73,9 @@ struct ReaderToolbar: View {
     // `.compact` (iPhone) hides zoom/fit. Page navigation is kept on every size
     // class — a reader still needs to turn pages.
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @AppStorage("readerToolbar.pageNavExpanded") private var pageNavExpanded = false
+    @AppStorage("readerToolbar.zoomExpanded") private var zoomExpanded = false
+    @AppStorage("readerToolbar.toolsExpanded") private var toolsExpanded = false
 
     private var isCompact: Bool { horizontalSizeClass == .compact }
 
@@ -122,18 +125,14 @@ struct ReaderToolbar: View {
     var body: some View {
         MiniToolbar(content: {
             chromeSection
-            pageNavSection
+            pageNavCluster
             Spacer(minLength: 0)
             // Zoom/fit are desktop-centric; on compact width pinch-zoom handles
             // scaling, so we drop them to de-clutter the bar (#2549).
             if !isCompact {
-                zoomSection
-                fitSection
+                zoomCluster
             }
-            ViewThatFits(in: .horizontal) {
-                inlineSecondaryTools
-                overflowMenu
-            }
+            secondaryToolsCluster
             Spacer()
         }, trailing: {
             pinButton
@@ -185,6 +184,7 @@ struct ReaderToolbar: View {
             pageNav?.goPrevious()
         } label: {
             Image(systemName: "chevron.left")
+                .foregroundStyle(.secondary)
         }
         .buttonStyle(.plain)
         .disabled(!(enabled && (pageNav?.canGoPrevious ?? false)))
@@ -201,6 +201,7 @@ struct ReaderToolbar: View {
             pageNav?.goNext()
         } label: {
             Image(systemName: "chevron.right")
+                .foregroundStyle(.secondary)
         }
         .buttonStyle(.plain)
         .disabled(!(enabled && (pageNav?.canGoNext ?? false)))
@@ -216,6 +217,7 @@ struct ReaderToolbar: View {
     private var zoomSection: some View {
         Button(action: zoomOut) {
             Image(systemName: "minus.magnifyingglass")
+                .foregroundStyle(.secondary)
         }
         .buttonStyle(.plain)
         .help("Zoom Out")
@@ -227,6 +229,7 @@ struct ReaderToolbar: View {
 
         Button(action: zoomIn) {
             Image(systemName: "plus.magnifyingglass")
+                .foregroundStyle(.secondary)
         }
         .buttonStyle(.plain)
         .help("Zoom In")
@@ -238,12 +241,14 @@ struct ReaderToolbar: View {
     private var fitSection: some View {
         Button(action: fitToWindow) {
             Image(systemName: "arrow.up.left.and.arrow.down.right")
+                .foregroundStyle(.secondary)
         }
         .buttonStyle(.plain)
         .help("Fit to Window")
 
         Button(action: actualSize) {
             Image(systemName: "1.square")
+                .foregroundStyle(.secondary)
         }
         .buttonStyle(.plain)
         .help("Actual Size (100%)")
@@ -355,6 +360,42 @@ struct ReaderToolbar: View {
         }
     }
 
+    @ViewBuilder
+    private var pageNavCluster: some View {
+        if pageNav != nil {
+            ReaderToolbarCluster(
+                isExpanded: $pageNavExpanded,
+                collapsedIcon: "chevron.left.chevron.right",
+                collapsedHelp: "Show page controls"
+            ) {
+                pageNavSection
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var zoomCluster: some View {
+        ReaderToolbarCluster(
+            isExpanded: $zoomExpanded,
+            collapsedIcon: "magnifyingglass",
+            collapsedHelp: "Show zoom controls"
+        ) {
+            zoomSection
+            fitSection
+        }
+    }
+
+    @ViewBuilder
+    private var secondaryToolsCluster: some View {
+        ReaderToolbarCluster(
+            isExpanded: $toolsExpanded,
+            collapsedIcon: "ellipsis.circle",
+            collapsedHelp: "Show reader tools"
+        ) {
+            inlineSecondaryTools
+        }
+    }
+
     // MARK: - Pin (trailing, after split buttons)
 
     @ViewBuilder
@@ -369,6 +410,66 @@ struct ReaderToolbar: View {
             .buttonStyle(.plain)
             .foregroundStyle(isPinned.wrappedValue ? Color.accentColor : Color.secondary)
             .help(isPinned.wrappedValue ? "Unpin — follow current selection" : "Pin to this document")
+        }
+    }
+}
+
+private struct ReaderToolbarCluster<Expanded: View>: View {
+    @Binding var isExpanded: Bool
+    let collapsedIcon: String
+    let collapsedHelp: String
+    let expandedContent: Expanded
+
+    init(
+        isExpanded: Binding<Bool>,
+        collapsedIcon: String,
+        collapsedHelp: String,
+        @ViewBuilder expandedContent: () -> Expanded
+    ) {
+        self._isExpanded = isExpanded
+        self.collapsedIcon = collapsedIcon
+        self.collapsedHelp = collapsedHelp
+        self.expandedContent = expandedContent()
+    }
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            if isExpanded {
+                HStack(spacing: 4) {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            isExpanded.toggle()
+                        }
+                    } label: {
+                        Image(systemName: collapsedIcon)
+                            .frame(
+                                minWidth: MiniToolbar<EmptyView, EmptyView>.touchTargetSide,
+                                minHeight: MiniToolbar<EmptyView, EmptyView>.touchTargetSide
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help("Collapse")
+                    .accessibilityLabel("Collapse")
+
+                    expandedContent
+                }
+            }
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                Image(systemName: collapsedIcon)
+                    .frame(
+                        minWidth: MiniToolbar<EmptyView, EmptyView>.touchTargetSide,
+                        minHeight: MiniToolbar<EmptyView, EmptyView>.touchTargetSide
+                    )
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help(collapsedHelp)
+            .accessibilityLabel(collapsedHelp)
         }
     }
 }
