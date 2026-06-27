@@ -211,4 +211,43 @@ final class ArtifactTests: XCTestCase {
         seen.insert(a)
         XCTAssertTrue(seen.contains(b))
     }
+
+    // MARK: - Inspector artifact layout / autosave regression guards
+    //
+    // `ArtifactPanel`'s sizing and autosave live in private `@State` View
+    // methods that can't be exercised in isolation without extracting them into
+    // a parallel type (which would violate iterate-never-replace). These
+    // source-level guards — the same pattern used by
+    // KnowledgeGraphInspectorSectionTests / SearchResultRowFromAPITests — lock
+    // in the two fixes so a future edit can't silently regress them.
+
+    private static func appSource(_ relativePath: String) throws -> String {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero")
+            .appendingPathComponent(relativePath)
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    /// #2495: the selected artifact's text must fill the full inspector height,
+    /// not sit at intrinsic height inside a ScrollView (the old bottom strip).
+    func testArtifactDetailFillsAvailableHeight() throws {
+        let source = try Self.appSource("Views/Library/ArtifactDetailView.swift")
+        // The editor claims all remaining vertical space …
+        XCTAssertTrue(
+            source.contains("fillsHeight: true"),
+            "ArtifactDetailView must pass fillsHeight: true so the artifact text fills the inspector (#2495)"
+        )
+        XCTAssertTrue(
+            source.contains("maxHeight: .infinity"),
+            "ArtifactDetailView must give the panel a full-height frame (#2495)"
+        )
+        // … and is NOT re-wrapped in an outer ScrollView (every content path
+        // scrolls internally; a nested ScrollView would clamp it back to a strip).
+        XCTAssertFalse(
+            source.contains("ScrollView"),
+            "ArtifactDetailView must not wrap the panel in a ScrollView — it fights the fill-height editor (#2495)"
+        )
+    }
 }
