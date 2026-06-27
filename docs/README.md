@@ -28,16 +28,16 @@ Full user manual: [site/docs/user/README.md](../site/docs/user/README.md)
 
 Contributors and anyone building on or integrating with Fichero.
 
-- [Architecture Overview](../site/docs/developer/architecture-overview.md) — the two-part system: SwiftUI frontend + Python engine.
-- [OpenAPI and Generated Clients](../site/docs/developer/openapi-and-clients.md) — the contract path from Python to Swift.
-- [Data Layer, Search, and Knowledge Graph Storage](../site/docs/developer/data-search-and-kg.md) — DuckDB, LanceDB, entity writing.
-- [Workflows, Activity, and Curation](../site/docs/developer/workflows-activity-and-curation.md) — workflow execution, annotations API, curation.
-- [Action Registry](../site/docs/developer/action-registry.md) — the single audited write path for all mutations.
-- [Security Model](../site/docs/developer/security-model.md) — local binding, shared-secret token, multi-user ACL, Tailscale transport.
+- [Architecture Overview](../site/docs/contributor/architecture-overview.md) — the two-part system: SwiftUI frontend + Python engine.
+- [OpenAPI and Generated Clients](../site/docs/contributor/openapi-and-clients.md) — the contract path from Python to Swift.
+- [Data Layer, Search, and Knowledge Graph Storage](../site/docs/contributor/data-search-and-kg.md) — DuckDB, LanceDB, entity writing.
+- [Workflows, Activity, and Curation](../site/docs/contributor/workflows-activity-and-curation.md) — workflow execution, annotations API, curation.
+- [Action Registry](../site/docs/contributor/action-registry.md) — the single audited write path for all mutations.
+- [Security Model](../site/docs/contributor/security-model.md) — local binding, shared-secret token, multi-user ACL, Tailscale transport.
 - [Tailscale Private Transport](./remote-backend-tailscale.md) — loopback-only engine plus `tailscale serve`, never Funnel or public bind.
-- [Setup and Contributing](../site/docs/developer/setup-and-contributing.md) — build commands, OpenAPI sync, contributing mechanics.
+- [Setup and Contributing](../site/docs/contributor/setup-and-contributing.md) — build commands, OpenAPI sync, contributing mechanics.
 
-Full developer index: [docs/developer/README.md](../site/docs/developer/README.md)
+Full contributor index: [site/docs/contributor/README.md](../site/docs/contributor/README.md)
 
 ---
 

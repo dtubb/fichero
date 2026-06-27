@@ -31,6 +31,6 @@ language: what the app should do, where it feels wrong, what to work on next.
 Fichero is open source and built in the open. Issues and pull requests are
 welcome on [GitHub](https://github.com/dtubb/fichero). For how the project is
 developed, see [How It's Built](site/docs/how-its-built.md). For setup and
-conventions, see the [developer docs](site/docs/developer/).
+conventions, see the [developer docs](site/docs/contributor/).
 
 [Tubb Lab](https://tubblab.com) · [Daniel Tubb](https://dtubb.github.io)
