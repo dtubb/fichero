@@ -38,12 +38,8 @@ dist/
 logs/
 fichero-engine/src/fichero/cli/generated/
 
-# Site
-site/_site/
-site/node_modules/
-
-# MkDocs docs site (build output + local docs venv)
-docs-site-build/
+# MkDocs site (build output + local docs venv)
+site/_build/
 .venv-docs/
 
 # Swift / Xcode user-local

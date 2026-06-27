@@ -2,7 +2,7 @@
 
 This folder owns the engine logic. The whole-system picture lives in the top-level
 [README](../README.md); the backend architecture notes are in
-[docs/developer/architecture-overview.md](../docs/developer/architecture-overview.md).
+[site/docs/developer/architecture-overview.md](../site/docs/developer/architecture-overview.md).
 
 ## Keep in mind
 

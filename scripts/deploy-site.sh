@@ -1,31 +1,35 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Deploy Fichero site content to tubb.ca repo and push.
-# Syncs site/src/apps/fichero/ → tubb.ca/apps/fichero/
+# Deploy the Fichero MkDocs site to the tubb.ca repo and push.
+# Builds the MkDocs site (mkdocs.yml at repo root, docs_dir: site/docs) into
+# site/_build, then syncs the built HTML → tubb.ca/apps/fichero/.
 # Usage: scripts/deploy-site.sh
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TUBB_SITE="$HOME/code/sites/tubb.ca"
 DEST="$TUBB_SITE/apps/fichero"
-SITE_SRC="$ROOT_DIR/site/src/apps/fichero"
+BUILD_DIR="$ROOT_DIR/site/_build"
+
+if ! command -v mkdocs >/dev/null 2>&1; then
+  echo "error: mkdocs not found. Install with: pip install -r requirements-docs.txt" >&2
+  exit 1
+fi
 
 if [ ! -d "$TUBB_SITE" ]; then
   echo "error: tubb.ca repo not found at $TUBB_SITE" >&2
   exit 1
 fi
 
-if [ ! -d "$SITE_SRC" ]; then
-  echo "error: site source not found at $SITE_SRC" >&2
-  echo "Expected fichero/site/src/apps/fichero/ to exist." >&2
-  exit 1
-fi
+echo "[1/3] Building MkDocs site → $BUILD_DIR"
+cd "$ROOT_DIR"
+mkdocs build --strict
 
-echo "[1/2] Syncing to $DEST"
+echo "[2/3] Syncing built site to $DEST"
 mkdir -p "$DEST"
-rsync -av --delete "$SITE_SRC/" "$DEST/"
+rsync -av --delete "$BUILD_DIR/" "$DEST/"
 
-echo "[2/2] Committing and pushing tubb.ca"
+echo "[3/3] Committing and pushing tubb.ca"
 cd "$TUBB_SITE"
 git add -A
 git commit -m "Update Fichero app page" || echo "Nothing to commit"

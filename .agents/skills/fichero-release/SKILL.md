@@ -21,7 +21,7 @@ If any of these are missing, tell Daniel to run `/fichero-release-prep` first.
 ### 1. Commit release notes
 
 ```bash
-git add site/src/apps/fichero/index.md
+git add site/docs/index.md
 git commit -m "docs: update release notes for v[version]"
 ```
 

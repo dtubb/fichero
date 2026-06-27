@@ -36,7 +36,7 @@ cat build/releases/release-manifest.txt
 
 ### 3. Update the site release notes
 
-Edit `site/src/apps/fichero/index.md` — add a new entry under "## Release Notes" with what changed in this version. Read recent git log for context:
+Edit `site/docs/index.md` — add a new entry under the "## Releases" / download section with what changed in this version. Read recent git log for context:
 ```bash
 git log --oneline -20
 ```
@@ -72,7 +72,7 @@ Artifacts:
   DMG:        build/releases/Fichero.dmg
   Manifest:   build/releases/release-manifest.txt
 
-Release notes updated: site/src/apps/fichero/index.md
+Release notes updated: site/docs/index.md
 
 Ready for: /fichero-release
 
