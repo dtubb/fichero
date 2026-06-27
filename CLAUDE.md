@@ -1,7 +1,7 @@
 # CLAUDE.md
 
-Canonical agent/developer guidance is maintained in `docs/CLAUDE.md`.
-Architecture and implementation context docs are in `docs/architecture/`.
+The single canonical agent/operational doc is **`AGENTS.md`** (operational manual,
+hard rules, key paths, code-navigation policy, Xcode notes). Read it first.
 
-jCodemunch-MCP code-navigation policy and session routing live in `.claude/CLAUDE.md`
-(the project constitution) and in your global `~/.claude/CLAUDE.md` — not duplicated here.
+The detailed architecture & development guide is `docs/CLAUDE.md`; the product
+north-star is `CONSTITUTION.md`. Architecture context docs are in `docs/architecture/`.

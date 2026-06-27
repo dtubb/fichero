@@ -29,7 +29,7 @@ pwd && git status && git log --oneline -5
 Read in order:
 1. `STATE.md` — "Next Session — Start Here (backend Claude)" section
 2. `MEMORY.md` — Python/FastAPI relevant entries
-3. `.claude/CLAUDE.md` — hard rules (PYTHONPATH, no-migration policy, envelope conventions)
+3. `AGENTS.md` — hard rules (PYTHONPATH, migration policy, envelope conventions)
 
 ---
 
