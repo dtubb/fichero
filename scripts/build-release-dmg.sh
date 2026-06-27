@@ -25,6 +25,23 @@ for arg in "$@"; do
   esac
 done
 
+# ── 0. Auto-stamp the dated release version ─────────────────────────────────
+# Every release auto-stamps TODAY's date (set-release-version.sh with no arg);
+# a second build the same day bumps a sub-number. Opt out by exporting
+# FICHERO_RELEASE_VERSION (the operator has stamped a specific version already).
+# Channel defaults to beta (the current distribution channel); set
+# FICHERO_RELEASE_BETA=0 for a stable stamp. Skipped when not rebuilding the app.
+if [ "$SKIP_APP_BUILD" = true ]; then
+  echo "[0/6] Skipping version stamp (--skip-app-build; using already-built app)"
+elif [ -n "${FICHERO_RELEASE_VERSION:-}" ]; then
+  echo "[0/6] FICHERO_RELEASE_VERSION=$FICHERO_RELEASE_VERSION set — operator controls version, not auto-stamping"
+else
+  echo "[0/6] Auto-stamp dated release version"
+  STAMP_ARGS=()
+  [ "${FICHERO_RELEASE_BETA:-1}" != "0" ] && STAMP_ARGS+=(--beta)
+  "$ROOT_DIR/scripts/set-release-version.sh" "${STAMP_ARGS[@]+"${STAMP_ARGS[@]}"}"
+fi
+
 # ── 1. Build Release app ────────────────────────────────────────────────────
 if [ "$SKIP_APP_BUILD" = true ]; then
   echo "[1/6] Skipping Release app build (--skip-app-build)"
