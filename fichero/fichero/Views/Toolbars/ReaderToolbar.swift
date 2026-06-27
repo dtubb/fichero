@@ -145,11 +145,19 @@ struct ReaderToolbar: View {
 
     // MARK: - Chrome (close + title)
 
+    private func closePane() {
+        if let actions = splitAxisActions, actions.hasVertical || actions.hasHorizontal {
+            actions.onCollapseSplit()
+            return
+        }
+        onClose?()
+    }
+
     @ViewBuilder
     private var chromeSection: some View {
         if onClose != nil || isInSplit {
             Button {
-                onClose?()
+                closePane()
             } label: {
                 Image(systemName: "xmark.circle.fill")
                     .foregroundStyle(.secondary)

@@ -36,10 +36,10 @@ private struct ReadingPaneView: View {
     /// X button: collapses the active split when inside one,
     /// otherwise calls onClose to hide the whole reading pane.
     private func closePane() {
-        if let actions = splitAxisActions {
-            // H-split is more local; collapse it before the V-split.
-            if actions.hasHorizontal { actions.onToggleHorizontal(); return }
-            if actions.hasVertical { actions.onToggleVertical(); return }
+        if let actions = splitAxisActions, actions.hasHorizontal || actions.hasVertical {
+            // Collapse the active axis one pane at a time so 3 -> 2 -> 1.
+            actions.onCollapseSplit()
+            return
         }
         onClose?()
     }
