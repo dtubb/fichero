@@ -2787,6 +2787,20 @@ def register_generated_openapi_commands(
         target_app = typer.Typer(help='Generated OpenAPI commands for export endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='export')
 
+    @target_app.command("eleventy-site-route")
+    def export_eleventy_site_route_post(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Export Eleventy Site Route (POST /api/export/eleventy-site)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/export/eleventy-site"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("excel-route")
     def export_excel_route_post(
         ctx: typer.Context,

@@ -9221,6 +9221,49 @@
         }
       }
     },
+    "/api/export/eleventy-site": {
+      "post": {
+        "tags": [
+          "export",
+          "export"
+        ],
+        "summary": "Export Eleventy Site Route",
+        "description": "Publish a library, folder, or subfolder as an 11ty/Netlify static site.",
+        "operationId": "export_eleventy_site_route_api_export_eleventy_site_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EleventySiteExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EleventySiteExportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/export/markdown-folder": {
       "post": {
         "tags": [
@@ -40308,6 +40351,85 @@
         ],
         "title": "EdgeDef",
         "description": "Definition of an edge connecting two nodes via their ports.\n\nEdges define data flow between nodes. Each edge connects\nan output port on the source node to an input port on the target node."
+      },
+      "EleventySiteExportRequest": {
+        "properties": {
+          "output_path": {
+            "type": "string",
+            "title": "Output Path",
+            "description": "Destination folder for the site project"
+          },
+          "target_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target Id",
+            "description": "Optional folder id to publish; omitted exports the library"
+          },
+          "recursive": {
+            "type": "boolean",
+            "title": "Recursive",
+            "description": "Include descendants of folders",
+            "default": true
+          },
+          "overwrite": {
+            "type": "boolean",
+            "title": "Overwrite",
+            "description": "Allow writing into a non-empty folder",
+            "default": false
+          },
+          "site_title": {
+            "type": "string",
+            "nullable": true,
+            "title": "Site Title",
+            "description": "Site title (defaults to the root folder name)"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "output_path"
+        ],
+        "title": "EleventySiteExportRequest",
+        "description": "Request body for 11ty/Netlify static-site export."
+      },
+      "EleventySiteExportResponse": {
+        "properties": {
+          "output_path": {
+            "type": "string",
+            "title": "Output Path"
+          },
+          "document_count": {
+            "type": "integer",
+            "title": "Document Count"
+          },
+          "collection_count": {
+            "type": "integer",
+            "title": "Collection Count"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/ExportedFileResponse"
+            },
+            "type": "array",
+            "title": "Files"
+          },
+          "assets": {
+            "items": {
+              "$ref": "#/components/schemas/ExportedFileResponse"
+            },
+            "type": "array",
+            "title": "Assets"
+          }
+        },
+        "type": "object",
+        "required": [
+          "output_path",
+          "document_count",
+          "collection_count",
+          "files",
+          "assets"
+        ],
+        "title": "EleventySiteExportResponse"
       },
       "EmbedClaimsResponse": {
         "properties": {
