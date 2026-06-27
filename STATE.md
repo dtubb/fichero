@@ -1,3 +1,26 @@
+# STATE — 2026-06-27 NIGHT (7-lane tmux worker grind + governance review)
+
+I am /session-start-manager. Workers run as INTERACTIVE `claude --dangerously-skip-permissions` (some `--model opus`) in tmux session `fichero-workers`, each in its OWN external worktree under `~/code/fichero-worktrees/ms-*` on a `lane/*` branch, committing as **Claude** (`git -c user.name=Claude -c user.email=noreply@anthropic.com`), NOT pushing. I review+ponytail+build-gate+verify_all+merge-via-PR+close-issues+re-dispatch on a 15-min loop. Resilient to Escape (separate processes). I keep STATE + RELEASE_NOTES current; main GREEN.
+
+## THE 7 LANES (tmux window → worktree → job)
+- **docs** → ms-docs (lane/docs): docs CONTENT — README typos, CHANGELOG→one RELEASE_NOTES, developer→contributor, platform=iOS/iPadOS/macOS only, FAQ (models not Ollama-only; Issues=dev-backlog→Discussions for users; honest how-built), API-in-progress banner, CONTRIBUTING.md, workflow doc in AGENTS, component .md (fichero/ + fichero-engine/) → thin pointers to canonical docs (single source of truth).
+- **guardrails** → ms-guardrails (lane/guardrails): WHOLE Programmatic Guardrails milestone (#2287/2286/2285/2270/2269 + #2461/#2393/#2660/#2281/#2271). scripts/check_*.py + verify_all wiring + KNOWN_VIOLATIONS allowlists.
+- **uireform** → ms-uireform (lane/uireform): WHOLE UI Reform — Representations milestone (triage stale-done; implement #2264/#2265/#2266 + net-new).
+- **backend** → ms-backend (lane/backend): AI Backend Hardening (#2507 silent-fallbacks→raise, #2615 local models) → Workflows & Catalogue Hardening (backend: #2545/#2538/#2529/#2528/#2535) → more backend milestones.
+- **tests** → ms-tests (lane/tests): run backend pytest + verify_all health (#2693 machinery); FIX test bugs, FILE issues for real product bugs (don't paper over), strengthen weak coverage.
+- **review** (OPUS) → ms-review (lane/review): governance/structure/agent-harness PLAN-GOVERNANCE.md — canonicalize root md (AGENTS canonical, CLAUDE thin pointer, make less-AI-specific), audit agents/skills/ (used/stale/update/delete/bring-from-~/code/fichero-skills), agent-work/ cleanup + harvest issues, rules.json, architecture-folder rename (swiftui→fichero, api→fichero-engine — RECOMMEND name + flag), AND the CANONICAL DOCS DECISION: **mkdocs renders docs/ (docs_dir: docs); merge site/docs/ INTO docs/; clean docs/ (scratch→agent-work); agent-work separate.** Owns docs STRUCTURE; can execute on its branch.
+- **archdocs** (OPUS) → ms-archdocs (lane/archdocs): accuracy-vs-code + impl-status + placement of docs/architecture/swiftui/* + api/* (reform_masterplan, observable_data_layer, mac_shell_design_proposal, mac_assed_audit, ios_appkit_audit, appkit_interop, SWIFTUI_PRINCIPLES). CAN move (Daniel: "no" was a question): durable principles→site/contributor (now docs/), dated audits→archive/agent-work; file issues for unimplemented findings.
+
+## MERGE RECONCILIATION
+docs/archdocs/review all touch docs/ — expect conflicts; I reconcile at merge with **review-lane structure as canonical** (docs/ = the rendered source), taking content from docs lane. Build-gate Swift (Xcode windowtab1) for uireform; ruff+pytest for backend/tests; mkdocs --strict for docs lanes.
+
+## PARKED (need Daniel)
+- Release: signed DMG 2026.06.27-beta ready; notarization blocked on UPLOAD-BANDWIDTH timeout → retry on wired connection, then Daniel's Keychain for GitHub/Sparkle + Mac TestFlight publish. Repo is PRIVATE so GitHub release won't be public.
+- review-lane plan + archdocs placement + the "less-AI-specific" reframings + architecture-folder name → Daniel's sign-off.
+- #2702 de-personalize; FastAPI version→dated-release; mkdocs serving at 127.0.0.1:8000.
+
+---
+
 # STATE — 2026-06-27 EVE (release cut + UX/docs batch + publicization prep)
 
 main @ `origin/main` `5407de80`+, synced, **green** (Xcode build verified, 644s 0 errors). Manager session driving the **first dated release** + a wide UX/docs/cleanup batch via worktree-isolated workers.
