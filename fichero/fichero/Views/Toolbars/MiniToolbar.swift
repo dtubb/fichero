@@ -143,6 +143,13 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
 
     @ViewBuilder
     private func splitButtonsRow(for actions: SplitAxisActions) -> some View {
+        let verticalHelp = actions.hasVertical
+            ? (actions.paneCount == 3 ? "Remove vertical split" : "Add a third vertical pane")
+            : "Split left / right"
+        let horizontalHelp = actions.hasHorizontal
+            ? (actions.paneCount == 3 ? "Remove horizontal split" : "Add a third horizontal pane")
+            : "Split top / bottom"
+
         HStack(spacing: 4) {
             Divider().frame(height: 16)
 
@@ -157,7 +164,7 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(actions.hasVertical ? Color.accentColor : Color.secondary)
-            .help(actions.hasVertical ? "Remove left/right split" : "Split left / right")
+            .help(verticalHelp)
 
             Button { actions.onToggleHorizontal() } label: {
                 Image(systemName: "rectangle.split.1x2")
@@ -170,18 +177,25 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(actions.hasHorizontal ? Color.accentColor : Color.secondary)
-            .help(actions.hasHorizontal ? "Remove top/bottom split" : "Split top / bottom")
+            .help(horizontalHelp)
         }
     }
 
     @ViewBuilder
     private func splitButtonsMenu(for actions: SplitAxisActions) -> some View {
+        let verticalTitle = actions.hasVertical
+            ? (actions.paneCount == 3 ? "Remove Vertical Split" : "Add Third Vertical Pane")
+            : "Split Left / Right"
+        let horizontalTitle = actions.hasHorizontal
+            ? (actions.paneCount == 3 ? "Remove Horizontal Split" : "Add Third Horizontal Pane")
+            : "Split Top / Bottom"
+
         Menu {
             Button {
                 actions.onToggleVertical()
             } label: {
                 Label(
-                    actions.hasVertical ? "Remove Left / Right Split" : "Split Left / Right",
+                    verticalTitle,
                     systemImage: "rectangle.split.2x1"
                 )
             }
@@ -190,7 +204,7 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
                 actions.onToggleHorizontal()
             } label: {
                 Label(
-                    actions.hasHorizontal ? "Remove Top / Bottom Split" : "Split Top / Bottom",
+                    horizontalTitle,
                     systemImage: "rectangle.split.1x2"
                 )
             }

@@ -291,7 +291,7 @@ struct DocumentInspectorEntitiesTab: View {
                     EntityCurationBadge(state: curationState)
                 }
                 if let count = entity.sourceDocumentIds?.count, count > 1 {
-                    Text("\(count) sources")
+                    Text("Includes children")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -808,8 +808,6 @@ struct InspectorEntitySelectionModifiers: OptionSet {
         self = value
     }
     #endif
-
-
 }
 
 enum InspectorEntityBulkAction {

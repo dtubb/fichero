@@ -56,7 +56,7 @@ struct WorkflowListView: View {
     @State private var selectedWorkflowIds: Set<String> = []
     @State private var showNewWorkflowSheet = false
     @State private var showDeleteConfirmation = false
-    @State private var workflowToDelete: WorkflowSidebarItem?
+    @State private var workflowsToDelete: [WorkflowSidebarItem] = []
     @State private var isLoading = false
     @State private var tableSortOrder = [KeyPathComparator(\WorkflowSidebarItem.name)]
     @State private var isImporting = false
@@ -94,16 +94,19 @@ struct WorkflowListView: View {
             }
             .alert("Delete Workflow?", isPresented: $showDeleteConfirmation) {
                 Button("Cancel", role: .cancel) {
-                    workflowToDelete = nil
+                    workflowsToDelete = []
                 }
                 Button("Delete", role: .destructive) {
-                    if let workflow = workflowToDelete {
-                        Task { await deleteWorkflow(workflow) }
+                    let workflows = workflowsToDelete
+                    if !workflows.isEmpty {
+                        Task { await deleteWorkflows(workflows) }
                     }
                 }
             } message: {
-                if let workflow = workflowToDelete {
+                if workflowsToDelete.count == 1, let workflow = workflowsToDelete.first {
                     Text("Are you sure you want to delete \"\(workflow.name)\"? This action cannot be undone.")
+                } else if !workflowsToDelete.isEmpty {
+                    Text("Are you sure you want to delete \(workflowsToDelete.count) workflows? This action cannot be undone.")
                 }
             }
             .alert(
@@ -214,8 +217,17 @@ struct WorkflowListView: View {
                     .disabled(isImporting)
                     .help("Import workflow from JSON file")
                 }
+
+                Button(role: .destructive) {
+                    promptDeleteSelected()
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .disabled(currentDeletionSelection.isEmpty)
+                .help("Delete selection")
             }
         }
+        .onDeleteCommand(perform: promptDeleteSelected)
     }
 
     // MARK: - Icon Grid View
@@ -262,7 +274,7 @@ struct WorkflowListView: View {
         let topLevel = (grouped["/"] ?? []).sorted { $0.name < $1.name }
         let folderKeys = grouped.keys.filter { $0 != "/" }.sorted()
 
-        return List(selection: $selectedWorkflowId) {
+        return List(selection: $selectedWorkflowIds) {
             if !topLevel.isEmpty {
                 ForEach(topLevel) { workflow in
                     workflowRow(workflow)
@@ -280,11 +292,8 @@ struct WorkflowListView: View {
                 }
             }
         }
-        .onChange(of: selectedWorkflowId) { _, newId in
-            if let id = newId,
-               let workflow = workflowStore.workflows.first(where: { $0.id == id }) {
-                openWorkflow(workflow)
-            }
+        .onChange(of: selectedWorkflowIds) { _, newValue in
+            selectedWorkflowId = newValue.first
         }
     }
 
@@ -292,6 +301,10 @@ struct WorkflowListView: View {
     private func workflowRow(_ workflow: WorkflowSidebarItem) -> some View {
         WorkflowLibraryRow(workflow: workflow)
             .tag(workflow.id)
+            .contentShape(Rectangle())
+            .onTapGesture(count: 2) {
+                openWorkflow(workflow)
+            }
             .contextMenu {
                 workflowContextMenu(for: workflow)
             }
@@ -417,7 +430,7 @@ struct WorkflowListView: View {
             Divider()
 
             Button(role: .destructive) {
-                confirmDelete(workflow)
+                confirmDelete(deleteSelection(containing: workflow))
             } label: {
                 Label("Delete", systemImage: "trash")
             }
@@ -462,20 +475,50 @@ struct WorkflowListView: View {
     }
 
     private func confirmDelete(_ workflow: WorkflowSidebarItem) {
-        workflowToDelete = workflow
-        showDeleteConfirmation = true
+        confirmDelete([workflow])
     }
 
-    private func deleteWorkflow(_ workflow: WorkflowSidebarItem) async {
+    private func confirmDelete(_ workflows: [WorkflowSidebarItem]) {
+        workflowsToDelete = workflows
+        showDeleteConfirmation = !workflows.isEmpty
+    }
+
+    private func deleteSelection(containing workflow: WorkflowSidebarItem? = nil) -> [WorkflowSidebarItem] {
+        let selection = currentDeletionSelection
+        guard let workflow else { return selection }
+        if selection.contains(where: { $0.id == workflow.id }) {
+            return selection
+        }
+        return [workflow]
+    }
+
+    private var currentDeletionSelection: [WorkflowSidebarItem] {
+        var selectedIds = selectedWorkflowIds
+        if let selectedWorkflowId {
+            selectedIds.insert(selectedWorkflowId)
+        }
+        guard !selectedIds.isEmpty else { return [] }
+        return workflowStore.workflows.filter { workflow in
+            selectedIds.contains(workflow.id) && !workflow.isSystem
+        }
+    }
+
+    private func promptDeleteSelected() {
+        confirmDelete(currentDeletionSelection)
+    }
+
+    private func deleteWorkflows(_ workflows: [WorkflowSidebarItem]) async {
         do {
-            try await workflowStore.deleteWorkflow(workflow.id)
-            if selectedWorkflowId == workflow.id {
-                selectedWorkflowId = nil
+            for workflow in workflows {
+                try await workflowStore.deleteWorkflow(workflow.id)
             }
-            workflowToDelete = nil
-            logger.info("Deleted workflow: \(workflow.name)")
+            let deletedIds = Set(workflows.map(\.id))
+            selectedWorkflowIds.subtract(deletedIds)
+            selectedWorkflowId = selectedWorkflowIds.first
+            workflowsToDelete = []
+            logger.info("Deleted \(workflows.count, privacy: .public) workflow(s)")
         } catch {
-            logger.error("Failed to delete workflow: \(String(describing: error))")
+            logger.error("Failed to delete workflows: \(String(describing: error))")
         }
     }
 

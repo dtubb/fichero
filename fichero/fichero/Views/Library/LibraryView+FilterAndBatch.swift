@@ -334,6 +334,7 @@ extension LibraryView {
         // Plain click: replace selection.
         selection = [doc.id]
         selectionAnchor = doc.id
+        detailDocument = doc
         if sidebarHidden, canNavigateInto(doc) {
             onNavigateInto(doc)
         }

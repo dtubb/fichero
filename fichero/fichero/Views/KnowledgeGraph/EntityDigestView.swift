@@ -5,13 +5,17 @@ import SwiftUI
 /// provenance across the library. Unlike the OntologyBrowser, this view
 /// prioritizes readability and a "published" feel over curation tools.
 struct EntityDigestView: View {
+    @Environment(EntityStore.self) private var entityStore
     @EnvironmentObject private var entityService: EntityServiceGenerated
     @State private var selectedEntityId: String?
+    @State private var selectedEntityIds: Set<String> = []
     @State private var searchText = ""
     @State private var entities: [Components.Schemas.KnowledgeEntity] = []
     @State private var claimCounts: [String: Int] = [:]
     @State private var isLoading = false
     @State private var loadError: String?
+    @State private var entitiesToDelete: [Components.Schemas.KnowledgeEntity] = []
+    @State private var showingDeleteConfirmation = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -40,6 +44,23 @@ struct EntityDigestView: View {
         .onChange(of: searchText) { _, _ in
             Task { await searchEntities() }
         }
+        .alert("Delete Entities?", isPresented: $showingDeleteConfirmation) {
+            Button("Cancel", role: .cancel) {
+                entitiesToDelete = []
+            }
+            Button("Delete", role: .destructive) {
+                let selection = entitiesToDelete
+                if !selection.isEmpty {
+                    Task { await deleteSelectedEntities(selection) }
+                }
+            }
+        } message: {
+            if entitiesToDelete.count == 1, let entity = entitiesToDelete.first {
+                Text("Are you sure you want to delete \"\(entity.canonicalName)\"? This action cannot be undone.")
+            } else if !entitiesToDelete.isEmpty {
+                Text("Are you sure you want to delete \(entitiesToDelete.count) entities? This action cannot be undone.")
+            }
+        }
     }
 
     private var entityIndexSidebar: some View {
@@ -50,6 +71,15 @@ struct EntityDigestView: View {
                     .foregroundStyle(.secondary)
                 TextField("Search index...", text: $searchText)
                     .textFieldStyle(.plain)
+                Spacer()
+                Button(role: .destructive) {
+                    promptDeleteSelectedEntities()
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.borderless)
+                .disabled(selectedEntityIds.isEmpty)
+                .help("Delete selected entities")
             }
             .padding(12)
             .background(Color(.controlBackgroundColor))
@@ -57,7 +87,7 @@ struct EntityDigestView: View {
             Divider()
 
             // Entity List
-            List(selection: $selectedEntityId) {
+            List(selection: $selectedEntityIds) {
                 if isLoading {
                     HStack {
                         Spacer()
@@ -74,11 +104,15 @@ struct EntityDigestView: View {
                 } else {
                     ForEach(entities, id: \.id) { entity in
                         indexRow(entity)
-                            .tag(entity.id)
+                            .tag(entity.id ?? "")
                     }
                 }
             }
             .listStyle(.sidebar)
+            .onChange(of: selectedEntityIds) { _, newValue in
+                selectedEntityId = newValue.first
+            }
+            .onDeleteCommand(perform: promptDeleteSelectedEntities)
         }
     }
 
@@ -91,6 +125,18 @@ struct EntityDigestView: View {
             claimCount: claimCounts[entity.id ?? ""] ?? 0,
             style: .digest
         )
+        .contentShape(Rectangle())
+        .contextMenu {
+            Button(role: .destructive) {
+                if selectedEntityIds.contains(entity.id ?? "") {
+                    promptDeleteSelectedEntities()
+                } else {
+                    confirmDelete([entity])
+                }
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
     }
 
     private var emptyState: some View {
@@ -114,6 +160,9 @@ struct EntityDigestView: View {
             async let counts = service.fetchClaimCounts()
             entities = try await entityList
             claimCounts = (try? await counts) ?? [:]
+            let validIds = Set(entities.compactMap(\.id))
+            selectedEntityIds = selectedEntityIds.intersection(validIds)
+            selectedEntityId = selectedEntityIds.first
         } catch {
             loadError = error.localizedDescription
         }
@@ -126,8 +175,36 @@ struct EntityDigestView: View {
         }
         do {
             entities = try await entityService.listEntities(query: searchText, limit: 500)
+            let validIds = Set(entities.compactMap(\.id))
+            selectedEntityIds = selectedEntityIds.intersection(validIds)
+            selectedEntityId = selectedEntityIds.first
         } catch {
             // keep current entities
+        }
+    }
+
+    private func promptDeleteSelectedEntities() {
+        let selection = entities.filter { entity in
+            guard let id = entity.id else { return false }
+            return selectedEntityIds.contains(id)
+        }
+        guard !selection.isEmpty else { return }
+        entitiesToDelete = selection
+        showingDeleteConfirmation = true
+    }
+
+    private func deleteSelectedEntities(_ selection: [Components.Schemas.KnowledgeEntity]) async {
+        let ids = selection.compactMap(\.id)
+        guard !ids.isEmpty else { return }
+        do {
+            try await entityStore.delete(entityIds: ids)
+            selectedEntityIds.subtract(ids)
+            selectedEntityId = selectedEntityIds.first
+            entitiesToDelete = []
+            showingDeleteConfirmation = false
+            await loadEntities()
+        } catch {
+            loadError = error.localizedDescription
         }
     }
 }

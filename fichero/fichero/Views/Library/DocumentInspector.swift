@@ -109,7 +109,7 @@ struct DocumentInspector: View {
         // The attribute strip moved below the tabs and now lives *inside* the
         // Content tab only — it described the document, which is the Content
         // tab's concern, and it shouldn't crowd the Knowledge Graph /
-        // Artifacts / Info tabs. (#1228)
+        // Citations / Info tabs. (#1228)
         VStack(spacing: 0) {
             tabBar
             Divider()
@@ -214,8 +214,6 @@ struct DocumentInspector: View {
             entitiesTab(for: doc)
         case .knowledgeGraph:
             knowledgeGraphTab(for: doc)
-        case .artifacts:
-            artifactsTab(for: doc)
         case .citations:
             CitationsInspectorPane(document: doc)
         case .edits:
@@ -229,7 +227,7 @@ struct DocumentInspector: View {
         guard let doc else { return InspectorTab.allCases }
         var tabs: [InspectorTab] = [
             .content, .annotations, .notes, .knowledgeGraph, .outline, .entities,
-            .artifacts, .citations
+            .citations
         ]
         if doc.fileType == .image || doc.fileType == .pdf || doc.docType == .page {
             tabs.append(.edits)
@@ -286,13 +284,6 @@ struct DocumentInspector: View {
             )
             .padding()
         }
-    }
-
-    @ViewBuilder
-    private func artifactsTab(for doc: Document) -> some View {
-        // Track B (#2003): List + detachable detail, replacing the stacked
-        // ArtifactPanels of DocumentInspectorContentV2(mode: .artifactsOnly).
-        ArtifactsInspectorPane(document: doc)
     }
 
     @ViewBuilder

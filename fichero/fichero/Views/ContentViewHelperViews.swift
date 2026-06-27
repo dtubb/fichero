@@ -1,34 +1,48 @@
 import SwiftUI
 
+enum DividerResizeAxis {
+    case horizontal
+    case vertical
+}
+
 /// Draggable divider for resizing adjacent panels.
-/// - `leadingPanel`: the panel being resized is on the LEFT (drag right to grow)
-/// - `trailingPanel`: the panel being resized is on the RIGHT (drag left to grow)
+/// - `leadingPanel`: the panel being resized is on the LEFT or TOP
+///   (drag right/down to grow)
+/// - `trailingPanel`: the panel being resized is on the RIGHT or BOTTOM
+///   (drag left/up to grow)
 struct ResizableDivider: View {
     @Binding var width: Double
     let minWidth: Double
     let maxWidth: Double
     var edge: Edge = .trailing
+    var axis: DividerResizeAxis = .horizontal
     @State private var initialWidth: Double?
 
     enum Edge {
-        case leading   // panel on left — drag right to grow
-        case trailing  // panel on right — drag left to grow
+        case leading   // panel on left/top — drag right/down to grow
+        case trailing  // panel on right/bottom — drag left/up to grow
     }
 
     var body: some View {
         // 8px clear hit zone with a 1px visible separator centered inside.
         Color.clear
-            .frame(width: 8)
+            .frame(
+                width: axis == .horizontal ? 8 : nil,
+                height: axis == .vertical ? 8 : nil
+            )
             .overlay(
                 Rectangle()
                     .fill(Color(platformColor: .separatorColor))
-                    .frame(width: 1)
+                    .frame(
+                        width: axis == .horizontal ? 1 : nil,
+                        height: axis == .vertical ? 1 : nil
+                    )
             )
             .contentShape(Rectangle())
             .onHover { hovering in
                 #if os(macOS)
                 if hovering {
-                    NSCursor.resizeLeftRight.set()
+                    (axis == .horizontal ? NSCursor.resizeLeftRight : NSCursor.resizeUpDown).set()
                 } else {
                     NSCursor.arrow.set()
                 }
@@ -41,7 +55,9 @@ struct ResizableDivider: View {
                     .onChanged { value in
                         if initialWidth == nil { initialWidth = width }
                         guard let start = initialWidth else { return }
-                        let delta = value.location.x - value.startLocation.x
+                        let delta = axis == .horizontal
+                            ? value.location.x - value.startLocation.x
+                            : value.location.y - value.startLocation.y
                         let newWidth = edge == .trailing
                             ? start - delta
                             : start + delta

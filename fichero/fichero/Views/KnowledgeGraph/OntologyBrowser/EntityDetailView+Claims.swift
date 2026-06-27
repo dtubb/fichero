@@ -50,6 +50,16 @@ extension EntityDetailView {
                     .disabled(filteredClaims.isEmpty)
                     .help("Review contradictions side-by-side")
 
+                    Button(role: .destructive) {
+                        promptDeleteSelectedClaims()
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                            .font(.caption2)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(selectedClaimIds.isEmpty)
+                    .help("Delete selected claims")
+
                     Text(claimsCountLabel)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -106,6 +116,7 @@ extension EntityDetailView {
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
                 .frame(minHeight: 80, maxHeight: 520)
+                .onDeleteCommand(perform: promptDeleteSelectedClaims)
                 if filteredClaims.count > cap {
                     Button {
                         showAllClaims.toggle()
@@ -135,11 +146,57 @@ extension EntityDetailView {
                 .frame(minWidth: 920, minHeight: 620)
                 .padding(16)
         }
+        .alert("Delete Claims?", isPresented: $showingDeleteClaimsConfirmation) {
+            Button("Cancel", role: .cancel) {
+                claimsToDelete = []
+            }
+            Button("Delete", role: .destructive) {
+                let claims = claimsToDelete
+                if !claims.isEmpty {
+                    Task { await deleteSelectedClaims(claims) }
+                }
+            }
+        } message: {
+            if claimsToDelete.count == 1, let claim = claimsToDelete.first {
+                Text("This removes the claim \"\(provenanceSummary(for: claim))\" from the knowledge graph.")
+            } else if !claimsToDelete.isEmpty {
+                Text("This removes \(claimsToDelete.count) claims from the knowledge graph.")
+            }
+        }
     }
 
     var claimsCountLabel: String {
         let total = claims.count
         let shown = filteredClaims.count
         return shown == total ? "\(total)" : "\(shown) / \(total)"
+    }
+
+    private var selectedClaimsForDeletion: [Components.Schemas.KnowledgeClaim] {
+        let selectedIds = selectedClaimIds
+        guard !selectedIds.isEmpty else { return [] }
+        return filteredClaims.filter { claim in
+            guard let id = claim.id else { return false }
+            return selectedIds.contains(id)
+        }
+    }
+
+    private func promptDeleteSelectedClaims() {
+        let claims = selectedClaimsForDeletion
+        guard !claims.isEmpty else { return }
+        claimsToDelete = claims
+        showingDeleteClaimsConfirmation = true
+    }
+
+    private func deleteSelectedClaims(_ claims: [Components.Schemas.KnowledgeClaim]) async {
+        let claimIds = claims.compactMap(\.id)
+        guard !claimIds.isEmpty else { return }
+        do {
+            try await claimStore.delete(claimIds: claimIds)
+            selectedClaimIds.subtract(claimIds)
+            claimsToDelete = []
+            showingDeleteClaimsConfirmation = false
+        } catch {
+            // Leave the selection in place so the user can retry or inspect.
+        }
     }
 }

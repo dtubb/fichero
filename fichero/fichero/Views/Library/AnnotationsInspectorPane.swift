@@ -24,7 +24,7 @@ struct AnnotationsInspectorPane: View {
             if let loadError = annotationStore.loadError {
                 errorBox(loadError)
             }
-            PlatformVSplitView {
+            PlatformHSplitView {
                 AnnotationListView(
                     annotations: annotations,
                     focused: focused,

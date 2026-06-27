@@ -9,9 +9,10 @@ struct WorkflowChainListView: View {
     @Environment(WorkflowStore.self) var workflowStore
     @State private var searchText = ""
     @State private var selectedChainId: String?
+    @State private var selectedChainIds: Set<String> = []
     @State private var showNewChainSheet = false
     @State private var showDeleteConfirmation = false
-    @State private var chainToDelete: WorkflowChain?
+    @State private var chainsToDelete: [WorkflowChain] = []
     @State private var executingChainId: String?
 
     init(apiClient: APIClient) {
@@ -26,10 +27,11 @@ struct WorkflowChainListView: View {
             searchText: searchText,
             executingChainId: executingChainId,
             onNewChain: { showNewChainSheet = true },
-            selectedChainId: $selectedChainId,
+            selectedChainIds: $selectedChainIds,
             onSelectChain: { selectedChainId = $0 },
             onExecuteChain: { executeChain($0) },
             onConfirmDelete: { confirmDelete($0) },
+            onConfirmDeleteSelection: { confirmDeleteSelection() },
             onRefresh: {
                 Task {
                     guard FeatureManager.shared.isWorkflowChainsEnabled else {
@@ -40,6 +42,9 @@ struct WorkflowChainListView: View {
                 }
             }
         )
+        .onChange(of: selectedChainIds) { _, newValue in
+            selectedChainId = newValue.first
+        }
         .searchable(text: $searchText, prompt: "Search chains...")
         .task {
             guard !Task.isCancelled else { return }
@@ -67,16 +72,19 @@ struct WorkflowChainListView: View {
         }
         .alert("Delete Chain?", isPresented: $showDeleteConfirmation) {
             Button("Cancel", role: .cancel) {
-                chainToDelete = nil
+                chainsToDelete = []
             }
             Button("Delete", role: .destructive) {
-                if let chain = chainToDelete {
-                    Task { await deleteChain(chain) }
+                let chains = chainsToDelete
+                if !chains.isEmpty {
+                    Task { await deleteChains(chains) }
                 }
             }
         } message: {
-            if let chain = chainToDelete {
+            if chainsToDelete.count == 1, let chain = chainsToDelete.first {
                 Text("Are you sure you want to delete \"\(chain.name)\"? This action cannot be undone.")
+            } else if !chainsToDelete.isEmpty {
+                Text("Are you sure you want to delete \(chainsToDelete.count) chains? This action cannot be undone.")
             }
         }
     }
@@ -130,9 +138,34 @@ struct WorkflowChainListView: View {
         }
     }
 
+    private func deleteChains(_ chains: [WorkflowChain]) async {
+        do {
+            for chain in chains {
+                try await chainService.deleteChain(chain.id)
+            }
+            let deletedIds = Set(chains.map(\.id))
+            selectedChainIds.subtract(deletedIds)
+            selectedChainId = selectedChainIds.first
+            chainsToDelete = []
+            logger.info("Deleted \(chains.count, privacy: .public) chain(s)")
+        } catch {
+            logger.error("Failed to delete chains: \(error.localizedDescription)")
+        }
+    }
+
     private func confirmDelete(_ chain: WorkflowChain) {
-        chainToDelete = chain
-        showDeleteConfirmation = true
+        confirmDelete([chain])
+    }
+
+    private func confirmDelete(_ chains: [WorkflowChain]) {
+        chainsToDelete = chains
+        showDeleteConfirmation = !chains.isEmpty
+    }
+
+    private func confirmDeleteSelection() {
+        let selectedChains = chainService.chains.filter { selectedChainIds.contains($0.id) }
+        guard !selectedChains.isEmpty else { return }
+        confirmDelete(selectedChains)
     }
 
     private func executeChain(_ chain: WorkflowChain) {

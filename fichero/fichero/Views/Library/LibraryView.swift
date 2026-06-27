@@ -23,6 +23,7 @@ struct LibraryView: View {
     @Binding var selection: Set<String>
     @Binding var detailDocument: Document?
     @Binding var viewMode: LibraryLayout
+    var isPaneFocused: Bool = false
     let displayMode: ViewDisplayMode  // Universal view mode from toolbar
 
     let folderId: String?  // Current folder ID for per-folder sort persistence

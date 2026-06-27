@@ -1,6 +1,6 @@
+@testable import Fichero
 import Foundation
 import Testing
-@testable import Fichero
 
 struct SidebarSelectionTests {
     @Test("#1165 sidebar tap fallback ignores already-selected rows")
@@ -34,6 +34,20 @@ struct SidebarSelectionTests {
     func noSelectionDoesNotReconcile() {
         #expect(!sidebarShouldReconcileSelection(selectedId: nil, lastHandled: nil))
         #expect(!sidebarShouldReconcileSelection(selectedId: nil, lastHandled: "doc:1"))
+    }
+
+    @Test("#2522 sidebar selection clears library selection and content uses pane focus tint")
+    func sidebarAndLibrarySelectionStayInSync() throws {
+        let stateSource = try appSource("Views/ContentView+State.swift")
+        let navigationSource = try appSource("Views/ContentView+Navigation.swift")
+        let displayModeSource = try appSource("Views/Library/LibraryView+DisplayModes.swift")
+        let componentSource = try appSource("Views/Library/LibraryViewComponents.swift")
+
+        #expect(stateSource.contains("browserSelection.removeAll()"))
+        #expect(navigationSource.contains("isPaneFocused: focusedPane == .content"))
+        #expect(displayModeSource.contains("private var selectionTint: Color"))
+        #expect(displayModeSource.contains("isPaneFocused ? .accentColor : .secondary"))
+        #expect(componentSource.contains("var selectedTint: Color = .accentColor"))
     }
 
     @Test("#2547 compact inspector sheet defaults to full-height .large")

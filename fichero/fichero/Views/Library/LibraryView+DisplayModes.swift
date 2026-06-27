@@ -7,6 +7,10 @@ import SwiftUI
 extension LibraryView {
     // MARK: - Icons View (Grid)
 
+    private var selectionTint: Color {
+        isPaneFocused ? .accentColor : .secondary
+    }
+
     var iconsView: some View {
         let itemMin = CGFloat(max(60, 120 * iconViewScale))
         let itemMax = CGFloat(max(80, 150 * iconViewScale))
@@ -31,6 +35,7 @@ extension LibraryView {
                                     isSelected: selection.contains(entityId),
                                     secondaryText: entityTileSecondaryText(for: entity),
                                     kindStyle: entityTileKindStyle(for: entity),
+                                    selectedTint: selectionTint,
                                     scale: CGFloat(iconViewScale)
                                 )
                                 .id(entityId)
@@ -46,6 +51,7 @@ extension LibraryView {
                                 DocumentThumbnailView(
                                     document: doc,
                                     isSelected: selection.contains(doc.id),
+                                    selectedTint: selectionTint,
                                     scale: CGFloat(iconViewScale)
                                 )
                                 .id(doc.id)
@@ -222,11 +228,7 @@ extension LibraryView {
                             .id(entityId)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
-                            .background(
-                                selection.contains(entityId)
-                                    ? Color.accentColor.opacity(0.12)
-                                    : Color.clear
-                            )
+                            .background(selection.contains(entityId) ? selectionTint.opacity(0.12) : Color.clear)
                             .contentShape(Rectangle())
                             .onTapGesture(count: 2) {
                                 handleEntityDoubleClick(entity)
@@ -252,11 +254,7 @@ extension LibraryView {
                             .draggable(doc.id)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
-                            .background(
-                                selection.contains(doc.id)
-                                    ? Color.accentColor.opacity(0.12)
-                                    : Color.clear
-                            )
+                            .background(selection.contains(doc.id) ? selectionTint.opacity(0.12) : Color.clear)
                             .contentShape(Rectangle())
                             .onTapGesture(count: 2) {
                                 handleDoubleClick(doc)
