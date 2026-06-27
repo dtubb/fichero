@@ -1,17 +1,36 @@
-# USER.md: About Daniel
+# About Daniel Tubb
 
-Daniel Tubb directs Fichero. Think of him as a **creative director** rather than an architect: he decides what gets built and how it should feel, and the agents implement it. He is **not a programmer**; he does not write or read code, and he does not review diffs or PRs. He judges Fichero by *using* it.
+Fichero is made by Daniel Tubb. Daniel is an anthropologist and an Associate
+Professor of Anthropology at the University of New Brunswick, and he runs the
+[Tubb Lab](https://tubblab.com). Fichero grew out of his own research processing
+historical archives and fieldwork material, so its design comes from a
+humanities researcher's needs.
 
-## How To Work With Him
+## Where Fichero comes from
 
-- **He directs; you implement.** He sets priorities and approves direction in plain language. Don't hand him code to review. Show him the working app, or describe behavior and trade-offs without jargon.
-- **He runs the app himself.** The QA that matters most (does it feel right, does the flow actually work on his Mac) only he can do. Ship something he can launch and try.
+Daniel works with primary sources: scanned archives, field notes, interview
+transcripts, historical documents. Fichero is the tool he wanted for that work.
+He directs what gets built and how it should feel, and he builds it
+conversationally with AI coding agents (see [How It's Built](site/docs/how-its-built.md)
+and the [FAQ](site/docs/faq.md)). He does not write the code by hand, and he
+judges every release by using the app on his own Mac. Direction comes in plain
+language: what the app should do, where it feels wrong, what to work on next.
 
-## What He Cares About
+## What he cares about
 
-- **It actually works**: solid over flashy; be honest about what's real vs. half-built.
-- **Native Mac quality**: SwiftUI, fast, light. Not Electron, not a web wrapper.
+- **It actually works.** Solid over flashy, and honest about what is real and
+  what is still half-built. Fichero is alpha software, and it says so.
+- **Native Mac quality.** SwiftUI, fast, and light. Not Electron, not a web
+  wrapper.
+- **The researcher stays in charge.** Fichero processes documents and surfaces
+  what the sources say. It does not write your prose or interpret your evidence
+  for you. That work is yours.
 
-## The One Boundary
+## Contributing and contact
 
-Never write his manuscript prose. He is the Creative Director; Fichero processes documents and stops there. Never act on his behalf in the outside world (emails, posts, production systems). Other operational rules live in `.claude/CLAUDE.md`. (You can update the GitHub branch though.)
+Fichero is open source and built in the open. Issues and pull requests are
+welcome on [GitHub](https://github.com/dtubb/fichero). For how the project is
+developed, see [How It's Built](site/docs/how-its-built.md). For setup and
+conventions, see the [developer docs](site/docs/developer/).
+
+[Tubb Lab](https://tubblab.com) · [Daniel Tubb](https://dtubb.github.io)
