@@ -14,23 +14,27 @@ from urllib.parse import quote
 
 from fastapi.testclient import TestClient
 
-from fichero.api.auth import attach_auth_middleware, initialize_token
+from fichero.api.auth import initialize_token
 from fichero.api.main import app
 from fichero.db import db_manager
 from fichero.models import DocType, Document
 
 _CLIENT_AUTH_TOKEN: str | None = None
-_CLIENT_AUTH_ATTACHED = False
 
 
 def _client() -> TestClient:
-    """TestClient with auth attached; POST /api/library does not need a library header."""
-    global _CLIENT_AUTH_TOKEN, _CLIENT_AUTH_ATTACHED
+    """TestClient with the bootstrap bearer token.
+
+    Do NOT call ``attach_auth_middleware`` here: the unit conftest already
+    attaches it (once, before the app starts) and another test's TestClient may
+    have started the app already, which makes a late ``add_middleware`` raise
+    "Cannot add middleware after an application has started". The token is the
+    same stable value the conftest uses (``initialize_token`` reads the persisted
+    ``.api-key``), so the conftest-attached middleware accepts this header.
+    """
+    global _CLIENT_AUTH_TOKEN
     if _CLIENT_AUTH_TOKEN is None:
         _CLIENT_AUTH_TOKEN = initialize_token()
-    if not _CLIENT_AUTH_ATTACHED:
-        attach_auth_middleware(app, _CLIENT_AUTH_TOKEN)
-        _CLIENT_AUTH_ATTACHED = True
     client = TestClient(app)
     client.headers["Authorization"] = f"Bearer {_CLIENT_AUTH_TOKEN}"
     return client
