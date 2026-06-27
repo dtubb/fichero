@@ -170,10 +170,22 @@ async def sparql_query(
             ),
         )
 
-    from fichero.kg import triples as triples_module
+    try:
+        from fichero.kg import triples as triples_module
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="SPARQL/RDF support is not installed in this backend.",
+        ) from exc
 
     started = time.monotonic()
-    graph = _cached_rdf_graph(db)
+    try:
+        graph = _cached_rdf_graph(db)
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="SPARQL/RDF support is not installed in this backend.",
+        ) from exc
 
     try:
         raw_rows = triples_module.sparql(graph, request.query)

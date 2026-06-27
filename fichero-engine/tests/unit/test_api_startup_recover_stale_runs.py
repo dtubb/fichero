@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -7,6 +8,15 @@ import pytest
 
 from fichero.api import main as api_main
 from fichero.workflows.activity_store import ActivityStore
+
+
+async def _wait_for_recovered(store: ActivityStore, thread_id: str):
+    for _ in range(50):
+        recovered = await store.get_workflow_run(thread_id)
+        if recovered is not None and recovered.status == "failed":
+            return recovered
+        await asyncio.sleep(0.02)
+    return await store.get_workflow_run(thread_id)
 
 
 @pytest.mark.asyncio
@@ -39,9 +49,8 @@ async def test_lifespan_startup_recovers_stale_running_workflow_runs(
     )
 
     async with api_main.lifespan(api_main.app):
-        pass
+        recovered = await _wait_for_recovered(store, "startup-zombie-thread")
 
-    recovered = await store.get_workflow_run("startup-zombie-thread")
     assert recovered is not None
     assert recovered.status == "failed"
 
@@ -84,11 +93,35 @@ async def test_lifespan_startup_recovers_recent_stale_running_runs(
     )
 
     async with api_main.lifespan(api_main.app):
-        pass
+        recovered = await _wait_for_recovered(store, "recent-zombie-thread")
 
-    recovered = await store.get_workflow_run("recent-zombie-thread")
     assert recovered is not None
     assert recovered.status == "failed", (
         "#2223: a thread started 5 minutes ago must be marked 'failed' at "
         "startup — max_age_hours=0 must catch all stale runs regardless of age"
     )
+
+
+@pytest.mark.asyncio
+async def test_lifespan_does_not_block_on_stale_run_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The API should bind before slow stale-run recovery finishes."""
+    entered = False
+    release_recovery = asyncio.Event()
+
+    async def slow_recovery() -> int:
+        await release_recovery.wait()
+        return 0
+
+    monkeypatch.setattr(api_main, "_seed_builtin_providers", lambda: None)
+    monkeypatch.setattr(api_main, "_collapse_duplicate_providers", lambda: None)
+    monkeypatch.setattr(api_main, "_install_access_log_filter", lambda: None)
+    monkeypatch.setattr(api_main, "_prewarm_embeddings", lambda: None)
+    monkeypatch.setattr(api_main, "_recover_stale_runs_on_startup", slow_recovery)
+
+    async with api_main.lifespan(api_main.app):
+        entered = True
+        release_recovery.set()
+
+    assert entered is True

@@ -196,8 +196,14 @@ async def apply_prediction_run(
     db: Database = Depends(get_library_database_for_write),
 ) -> ApplyPredictionsResponse:
     """Apply a prediction run's top-scoring predictions as claim links."""
-    import pykeen.models  # noqa: PLC0415
-    from pykeen.predict import predict_target  # noqa: PLC0415
+    try:
+        import pykeen.models  # noqa: PLC0415
+        from pykeen.predict import predict_target  # noqa: PLC0415
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="PyKEEN link prediction is not installed in this backend.",
+        ) from exc
 
     _ensure_pykeen_compat()
 
