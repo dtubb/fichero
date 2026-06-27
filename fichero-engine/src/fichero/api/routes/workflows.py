@@ -569,14 +569,52 @@ def import_workflow_impl(
 ) -> "Workflow":  # noqa: F821
     """Validate + persist a workflow from imported JSON (extracted from the
     ``POST /api/workflows/import`` route so the route and the
-    ``workflow.import`` action share one implementation). Raises
-    ``HTTPException(400)`` when the payload lacks ``nodes``/``edges``."""
+    ``workflow.import`` action share one implementation).
+
+    Parity with export (#2528): every node/edge is validated against the typed
+    NodeDef/EdgeDef models *before* anything is persisted, so a malformed file
+    fails loud (HTTP 400) with the offending element — never a silent partial
+    import. Export emits the raw stored dicts, so we persist those same dicts
+    once they validate (export→import round-trips to an identical graph)."""
     from fichero.models import Workflow
 
     if "nodes" not in workflow_data or "edges" not in workflow_data:
         raise HTTPException(
             status_code=400, detail="Invalid workflow data: missing nodes or edges"
         )
+
+    nodes = workflow_data.get("nodes", [])
+    edges = workflow_data.get("edges", [])
+    if not isinstance(nodes, list) or not isinstance(edges, list):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid workflow data: 'nodes' and 'edges' must be lists",
+        )
+
+    # Validate against the typed models up front — fail loud, persist nothing
+    # on a bad element (no silent partial import). enrich_ports=False keeps
+    # validation to structure, independent of the live tool registry so a
+    # round-tripped export validates regardless of registry state.
+    for i, node in enumerate(nodes):
+        try:
+            _dict_to_node_def(node, enrich_ports=False)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid workflow data: node[{i}] failed validation: {exc}",
+            )
+    for i, edge in enumerate(edges):
+        try:
+            _dict_to_edge_def(edge)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid workflow data: edge[{i}] failed validation: {exc}",
+            )
 
     workflow_name = name or workflow_data.get("name", "Imported Workflow")
     workflow_description = description or workflow_data.get("description", "")
@@ -589,8 +627,8 @@ def import_workflow_impl(
         format="nodes",
         provider=workflow_provider,
         model=workflow_model,
-        nodes=workflow_data.get("nodes", []),
-        edges=workflow_data.get("edges", []),
+        nodes=nodes,
+        edges=edges,
     )
     db.save(db_workflow)
     return db_workflow
