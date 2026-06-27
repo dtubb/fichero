@@ -112,7 +112,9 @@ struct EntityDigestView: View {
             .onChange(of: selectedEntityIds) { _, newValue in
                 selectedEntityId = newValue.first
             }
+            #if os(macOS)
             .onDeleteCommand(perform: promptDeleteSelectedEntities)
+            #endif
         }
     }
 
