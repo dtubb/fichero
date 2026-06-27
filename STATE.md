@@ -1,3 +1,47 @@
+# STATE — 2026-06-27 EVE (release cut + UX/docs batch + publicization prep)
+
+main @ `origin/main` `5407de80`+, synced, **green** (Xcode build verified, 644s 0 errors). Manager session driving the **first dated release** + a wide UX/docs/cleanup batch via worktree-isolated workers.
+
+## RELEASE — DMG built + signed, BLOCKED on notarization NETWORK
+- `build/releases/Fichero.dmg` (400M) = **2026.06.27-beta** (build 20260627), full build (engine rebuilt, no skips), **Developer ID signed inside-out** (app + engine binary + embedded `.so` all QAPB6CWYR6, `--deep --strict` OK). Version bumped via PR #2685; auto-date-stamping landed (PR #2699 — future releases self-stamp today's date + same-day sub-number).
+- **Notarization FAILED twice — `HTTPClientError.deadlineExceeded` uploading the 400MB DMG to Apple's notary.** This is a LOCAL UPLOAD-BANDWIDTH timeout, NOT a DMG problem. **Next: retry on a faster/wired connection**, or add a resumable-upload/longer-timeout to `notarize.sh`. The DMG is runnable as-is on Daniel's own Mac (signed; right-click-Open or `xattr -cr` if Gatekeeper warns) — notarization only matters for clean first-launch on OTHER Macs.
+- Repo `dtubb/fichero` is **PRIVATE** → GitHub release won't be public. ⚠️ Sparkle appcast on a private raw-URL can't be auth'd by end users — fine for testers now, real public auto-update needs a public release repo/feed later.
+- Run order in `docs/release/RELEASE_READINESS.md` §5. After notarize: `create-github-release.sh --prerelease` (Sparkle sign, Keychain prompt — DANIEL does the last step), then `release-all.sh --skip-dmg --skip-notarize` (Mac TestFlight). iOS/iPad TestFlight = NOT YET (release-all is Mac-only; needs a new iOS archive lane — iOS now compiles per #2098).
+
+## SHIPPED this session (PRs #2685, #2693–#2699; earlier #2674–#2684)
+- **UX batch (PR #2698):** #2474 iOS touch targets, #2520 iPad immersive preview, #2574 library local/remote badge, #1371 tooltips. Gated together (ponytail/swiftlint + macOS build).
+- **Inspector (earlier):** #2495 artifact text full-height (Daniel-flagged), #2536 autosave trailing edit.
+- **Docs voice (PR #2695):** em-dashes + "not-X-but-Y" stripped from 16 public docs; **USER.md reframed for public open-source** (internal agent-safety lines pulled OUT).
+- **README (PR #2694):** Daniel's hand-edited user-facing opening preserved; about.md removed.
+- **verify_all → issues (PR #2693):** `build/verify_all_report.json` (category per check) + `scripts/verify_to_issues.sh` routes failures to the right MILESTONE, `--file-issues` auto-files + writes `verify_all_needs_fixing.json` + prints `MANAGER-ACTION:` to flag the manager to dispatch fix-workers.
+- **Auto-versioning (PR #2699).** **Sparkle feed-URL fix, iOS compile unblock #2098, mkdocs site, hygiene** (prior PRs).
+
+## CLOSED stale (verify-net-new): #2468 #2521 #2522 #1379 #2547 #2487(dup of #2520) #2662. ready-for-test: #2474/#2520/#2574/#1371/#2495/#2536/#2665/#2666/#2661.
+
+## NEW issues filed (Daniel's UX think-through + docs direction)
+- **#2696** inspector: use standard SwiftUI List/Table everywhere, retire custom UX (esp. document inspector).
+- **#2697** document-inspector Content pane: top attributes default is wrong — surface interesting artefacts (entities/people/places) as added to the page.
+- **#2698**(issue, not PR — CHECK number) folder-vs-children ambiguity: inspector mixes a folder's OWN entities/artefacts with its children's; unclear ownership esp. artefacts. Needs design. Extends #2521.
+- **Docs Review milestone #108** (#2686–#2691): Daniel reviews every agent-written doc (README/governance/site landing/FAQ/user/dev/API/how-its-built).
+- Docs direction on **#1796** (user manual = explain every UI element + screenshots, app-not-backend) + **#1797** (dev docs for developers) + **#2692** (capture screenshots).
+
+## WORKERS still running (land next session)
+- **history-cleanup** (ab65...): merge CHANGELOG.md + HISTORY.md → ONE canonical RELEASE_NOTES.md; `git rm` CHANGELOG/HISTORY.md/HISTORY-worker.md/HISTORY//memory/ (archiving constitution-changelog into RELEASE_NOTES first).
+- **public-hygiene** (a56..., opus): audit `.claude/.codex/.agents/.ai` (ALL TRACKED → would go public) → KEEP/UNTRACK+gitignore/FLAG table; vendor app-dev skills from `~/code/fichero-skills/` into the repo (session-start-manager, session-end, dispatch-worker, choose-next, shared principles) WITHOUT leaking private vendor config/secrets.
+
+## ⚠️ PUBLICIZATION TODO (before repo goes public)
+- `.claude`(9)/`.codex`(1)/`.agents`(11)/`.ai`(16) files are TRACKED — public-hygiene worker is untracking the private ones. REVIEW its decision table.
+- Stale GitHub branches to review/delete (UNMERGED — not touched): `feat/lan-tls-listener-2157`, `feat/2020-entity-provenance-table`, `ms/importers`, `ms/mac-shell`, `ms/macos-gating`, `worker/2627b`, `worker/2633`. Keep `ms/kg-hermeneutics` (open PR #1627), `0.0.2`.
+- `rules.json` = cozempic agent-guard policy (KEEP unless removing the guard). `memory/` = stale journals (public-hygiene/history handling).
+
+## NEXT
+1. Retry notarization on a good connection → finish the release (Daniel does the Keychain last step).
+2. Land history-cleanup + public-hygiene; review the decision table; complete publicization.
+3. iOS/iPad TestFlight archive lane.
+4. Keep grinding UX (verify-net-new first): #2696/#2697 inspector standard-SwiftUI + attribute-default + folder-vs-children design, #2670 toolbars (Daniel's area).
+
+---
+
 # STATE — 2026-06-27 PM (autonomous manager session — site consolidation + iOS unblock + UX, 11 PRs)
 
 Branch `main` @ `origin/main` (`aab6023b`+), synced, **green** (Xcode BuildProject verified through the session). Daniel out running; manager ran a 15-min check-in loop, dispatching worktree-isolated workers (build-gated before every merge) + one codex tmux lane.
