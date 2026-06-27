@@ -39,7 +39,7 @@ XCODE_ROOT = ROOT / "fichero"
 SWIFT_ROOT = XCODE_ROOT / "fichero"
 PROJECT_FILE = XCODE_ROOT / "fichero.xcodeproj" / "project.pbxproj"
 TARGET_NAME = "Fichero"
-RULE_DOC = ".claude/CLAUDE.md"
+RULE_DOC = "AGENTS.md"
 
 # Swift files currently present on disk but not compiled by the Fichero target.
 # Drop entries after registering with scripts/add-swift-file.rb or removing the

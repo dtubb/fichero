@@ -29,7 +29,7 @@ pwd && git status && git log --oneline -5
 Read in order (skip missing):
 1. `STATE.md` — current focus + "Next Session — Start Here (frontend Claude)" section
 2. `MEMORY.md` — Swift-relevant entries (SwiftUI patterns, layout gotchas, SwiftLint rules)
-3. `.claude/CLAUDE.md` — hard rules
+3. `AGENTS.md` — hard rules
 
 ---
 

@@ -1,6 +1,6 @@
 # CLAUDE.md — Architecture & Development Guide
 
-The durable architecture reference for agents working in this repo: how the system is shaped, the conventions, and the pitfalls. Operational rules (build/test/lint, commit discipline, lanes) live in `AGENTS.md`; code-navigation policy + hard rules in `.claude/CLAUDE.md`; the product north-star in `CONSTITUTION.md`. User-facing run/build docs are in `README.md`.
+The durable architecture reference for agents working in this repo: how the system is shaped, the conventions, and the pitfalls. Operational rules (build/test/lint, commit discipline, lanes), the hard rules, and the code-navigation policy all live in `AGENTS.md` (the canonical operational manual); the product north-star in `CONSTITUTION.md`. User-facing run/build docs are in `README.md`.
 
 ## Project Overview
 
@@ -262,7 +262,7 @@ See `docs/architecture/swiftui/api_migration_guide.md` and `docs/architecture/sw
 ## Git Workflow, Commits, Tasks, Parallelism
 
 These are operational and owned elsewhere — not restated here:
-- **Branch discipline + conventional-commit format + pre-commit gate** → `AGENTS.md` and `.claude/CLAUDE.md` ("Rules I Don't Break"). In short: commit milestone work directly to the milestone branch (no per-task branches); never push to `main` without approval; regenerate the OpenAPI client before committing any backend API change.
+- **Branch discipline + conventional-commit format + pre-commit gate** → `AGENTS.md` ("Rules I Don't Break"). In short: commit milestone work directly to the milestone branch (no per-task branches); never push to `main` without approval; regenerate the OpenAPI client before committing any backend API change.
 - **Task tracking** → GitHub Issues + Milestones + Project board are the source of truth; local planning files (`PLAN.md`, `TASKS.md`) are not. `STATE.md` is continuity context only. (See `CONSTITUTION.md` → Execution Governance.)
 - **Lanes, delegation, the QA review gate** → the session-start / manager skills and `docs/agent-workflow/parallel-execution.md`.
 - **Current focus / next entry point** → `STATE.md`; completed-work log → `HISTORY.md`.
@@ -275,7 +275,7 @@ over time, so **the live tool list in your session is authoritative**. Don't rel
 there isn't one on purpose.
 
 Two project-specific notes you can't infer from the tool list:
-- **Code navigation goes through jcodemunch first** — policy in `.claude/CLAUDE.md`. If it isn't connected, fall back to Read/Grep and say so.
+- **Code navigation goes through jcodemunch first** — policy in `AGENTS.md` ("Code Navigation"). If it isn't connected, fall back to Read/Grep and say so.
 - **Xcode builds**: prefer the `xcode` MCP over raw `xcodebuild` (see Development Commands above). `XcodeBuildMCP`'s tools mostly target iOS simulators — Fichero is macOS, so use the macOS / device-less variants.
 
 ## Architecture Patterns Reference

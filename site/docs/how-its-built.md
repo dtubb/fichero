@@ -3,8 +3,8 @@
 Fichero is built openly with the help of AI coding agents. This page documents
 how that actually works, as the concrete process
 the project follows. It is grounded in the workflow files that live in the
-repository: `CLAUDE.md`, `.claude/CLAUDE.md` (the agent constitution), `AGENTS.md`,
-`MEMORY.md`, and the skills under `docs/agent-workflow/`.
+repository: `AGENTS.md` (the canonical agent constitution + operational manual),
+`CLAUDE.md`, `MEMORY.md`, and the skills under `agents/skills/` and `docs/agent-workflow/`.
 
 ## Why document this
 
