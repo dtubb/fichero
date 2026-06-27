@@ -73,6 +73,7 @@ struct KnowledgeGraphInspectorSection: View {
 
     /// Text = dense semicolon prose per entity; List = grouped disclosure rows.
     @AppStorage("inspector.kg.displayMode") private var displayMode: KGDisplayMode = .text
+    @AppStorage("inspector.scope.includeChildren") private var includeChildren: Bool = true
     @AppStorage("editor.fontSize") private var defaultFontSize: Double = 13
 
     private var bodyTextFont: Font {
@@ -389,6 +390,30 @@ struct KnowledgeGraphInspectorSection: View {
             // @AppStorage so the choice survives restarts and applies to
             // every doc the user inspects.
             Menu {
+                Section("Scope") {
+                    Button {
+                        includeChildren = false
+                    } label: {
+                        HStack {
+                            Text("This item only")
+                            Spacer(minLength: 0)
+                            if !includeChildren {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                    Button {
+                        includeChildren = true
+                    } label: {
+                        HStack {
+                            Text("Include children")
+                            Spacer(minLength: 0)
+                            if includeChildren {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
                 ForEach(EntityKind.displayOrder, id: \.self) { kind in
                     let isHidden = hiddenKinds.contains(kind)
                     Button {
@@ -591,7 +616,7 @@ struct KnowledgeGraphInspectorSection: View {
         do {
             let response = try await entityService.documentKnowledgeGraph(
                 documentId: documentId,
-                includeChildren: true
+                includeChildren: includeChildren
             )
             claims = response.claims
             canonicalGroups = response.groups
