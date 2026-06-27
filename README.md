@@ -267,7 +267,7 @@ See `docs/VALIDATION.md` for details and current known blockers.
 ## Documentation
 
 - **End users**: [`site/docs/user/`](site/docs/user/) — getting started, importing, reading & editing, search & knowledge graph, AI & privacy. (Published on the docs site.)
-- **Developers / contributors**: [`site/docs/developer/`](site/docs/developer/) — architecture overview, setup & contributing, OpenAPI & clients, security model, workflows, the action registry. (Published on the docs site.)
+- **Developers / contributors**: [`site/docs/contributor/`](site/docs/contributor/), architecture overview, setup & contributing, OpenAPI & clients, security model, workflows, the action registry. (Published on the docs site.)
 - **Architecture deep-dives**: [`docs/architecture/`](docs/architecture/) and the canonical agent guide [`docs/CLAUDE.md`](docs/CLAUDE.md).
 - Component READMEs: [`fichero/`](fichero/README.md) (SwiftUI app) and [`fichero-engine/`](fichero-engine/README.md) (Python engine).
 
