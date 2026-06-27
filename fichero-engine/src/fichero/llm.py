@@ -145,6 +145,13 @@ def clear_api_key_cache(provider: str | None = None) -> None:
         else:
             _API_KEY_CACHE.pop(provider, None)
 
+    # A rotated key must also drop cached embedding clients built with the old
+    # key (#2545 N1). Cheap and rare; clear all (the client cache isn't keyed
+    # by provider). Lazy import avoids a circular dependency at module load.
+    from fichero.llm_embeddings import clear_embeddings_client_cache
+
+    clear_embeddings_client_cache()
+
 # Content-addressed result cache for vision (and future LLM) calls (#2224).
 # Keyed by SHA-256 of (provider, model, prompt, per-image content hashes).
 # Caps at 1 000 entries with FIFO eviction. Thread-safe via a lock.
