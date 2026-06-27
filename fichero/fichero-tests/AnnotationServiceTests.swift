@@ -39,6 +39,19 @@ final class AnnotationServiceTests: XCTestCase {
         XCTAssertFalse(source.contains("URL(string:"))
     }
 
+    func testInspectorListDetailPanesUseHorizontalSplitLayout() throws {
+        let artifactsSource = try Self.appSource("Views/Library/ArtifactsInspectorPane.swift")
+        let citationsSource = try Self.appSource("Views/Library/CitationsInspectorPane.swift")
+        let annotationsSource = try Self.appSource("Views/Library/AnnotationsInspectorPane.swift")
+
+        XCTAssertTrue(artifactsSource.contains("PlatformHSplitView {"))
+        XCTAssertTrue(citationsSource.contains("PlatformHSplitView {"))
+        XCTAssertTrue(annotationsSource.contains("PlatformHSplitView {"))
+        XCTAssertFalse(artifactsSource.contains("PlatformVSplitView {"))
+        XCTAssertFalse(citationsSource.contains("PlatformVSplitView {"))
+        XCTAssertFalse(annotationsSource.contains("PlatformVSplitView {"))
+    }
+
     func testAnnotationServiceUsesExplicitPageAndFolderScopeFields() throws {
         let source = try Self.appSource("Services/AnnotationService.swift")
 

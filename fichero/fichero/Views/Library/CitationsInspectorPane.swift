@@ -3,10 +3,10 @@ import SwiftUI
 
 /// The Citations inspector tab, built as List + detail (#2004, EPIC #2002).
 ///
-/// Mirrors `ArtifactsInspectorPane`: a vertical split with a lightweight
-/// `CitationListView` on top and a single `CitationDetailView` below that
-/// follows the selection. A toolbar button tears the detail off into a separate
-/// `CitationDetailWindow` that also follows selection.
+/// Mirrors `ArtifactsInspectorPane`: a horizontal split with a lightweight
+/// `CitationListView` on the left and a single `CitationDetailView` on the
+/// right that follows the selection. A toolbar button tears the detail off
+/// into a separate `CitationDetailWindow` that also follows selection.
 ///
 /// Replaces the stacked `CitationGraphPanel` that lived as a section inside the
 /// Info tab. Data comes from the document-scoped `CitationStore` (#1998) — the
@@ -33,7 +33,7 @@ struct CitationsInspectorPane: View {
     }
 
     var body: some View {
-        PlatformVSplitView {
+        PlatformHSplitView {
             CitationListView(
                 store: store,
                 focused: focused,
