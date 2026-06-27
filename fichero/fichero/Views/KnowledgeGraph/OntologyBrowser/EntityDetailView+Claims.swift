@@ -116,7 +116,9 @@ extension EntityDetailView {
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
                 .frame(minHeight: 80, maxHeight: 520)
+                #if os(macOS)
                 .onDeleteCommand(perform: promptDeleteSelectedClaims)
+                #endif
                 if filteredClaims.count > cap {
                     Button {
                         showAllClaims.toggle()

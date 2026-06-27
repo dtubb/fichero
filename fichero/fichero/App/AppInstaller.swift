@@ -16,7 +16,7 @@ enum AppInstaller {
         return false
         #else
         let bundlePath = Bundle.main.bundleURL.resolvingSymlinksInPath().path
-        let homeApplications = FileManager.default.homeDirectoryForCurrentUser
+        let homeApplications = URL(fileURLWithPath: NSHomeDirectory())
             .appendingPathComponent("Applications").path
         return !bundlePath.hasPrefix("/Applications/") &&
             !bundlePath.hasPrefix("\(homeApplications)/")

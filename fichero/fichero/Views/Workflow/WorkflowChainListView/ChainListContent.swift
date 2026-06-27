@@ -101,6 +101,8 @@ struct ChainListContent: View {
                 }
             }
         }
+        #if os(macOS)
         .onDeleteCommand(perform: onConfirmDeleteSelection)
+        #endif
     }
 }
