@@ -1,15 +1,19 @@
 # fichero — SwiftUI app
 
-This folder is the native client. It renders UI, owns window state, and talks to the
-backend over pinned HTTPS loopback. The app overview lives in the top-level
-[README](../README.md); the SwiftUI-specific docs are under
-[docs/architecture/swiftui/](../docs/architecture/swiftui/).
+This folder is the native client: it renders UI, owns window state, and talks to the
+engine over pinned HTTPS loopback. The logic lives in the engine, not here.
 
-## Keep in mind
+**Canonical docs (do not duplicate here):**
+- Operational manual + hard rules: root [AGENTS.md](../AGENTS.md) — build/lint/test,
+  the `add-swift-file.rb` registration rule, OpenAPI sync, commit attribution.
+- Developer docs: [site/docs/contributor/](../site/docs/contributor/).
+- User manual: [site/docs/user/](../site/docs/user/).
+- This component's orientation, source layout, and key concepts: [README](README.md).
+- Swift conventions and the API round-trip contract:
+  [docs/architecture/swiftui/](../docs/architecture/swiftui/).
 
-- Start the backend with `bash fichero-engine/scripts/start_backend.sh` before testing app behavior.
-- Run `swiftlint lint fichero/fichero/` on touched Swift files.
-- New `.swift` files must be registered with `ruby scripts/add-swift-file.rb <path>`.
-- After backend API/schema changes, sync the OpenAPI contract artifacts before committing.
-- Keep generated OpenAPI client code in `fichero/fichero-api-client/` untouched by hand.
-- Sparkle release setup now lives in [docs/release/sparkle-release.md](../docs/release/sparkle-release.md).
+## Component essentials
+
+- Start the engine first: `bash fichero-engine/scripts/start_backend.sh` (serves
+  HTTPS; the app pins it fail-closed).
+- Lint touched Swift: `swiftlint lint fichero/fichero/`.
