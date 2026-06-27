@@ -250,4 +250,24 @@ final class ArtifactTests: XCTestCase {
             "ArtifactDetailView must not wrap the panel in a ScrollView — it fights the fill-height editor (#2495)"
         )
     }
+
+    /// #2536: a flush during an in-flight save must still persist the latest
+    /// draft — coalesce rather than early-return on `isSaving`.
+    func testFlushAutoSaveCoalescesInsteadOfDroppingTrailingEdit() throws {
+        let source = try Self.appSource("Views/Library/ArtifactPanel.swift")
+        // The old bug: `guard let onSave, !isSaving else { return }` dropped the
+        // trailing edit. The fix marks the draft dirty and re-saves in a loop.
+        XCTAssertFalse(
+            source.contains("guard let onSave, !isSaving else { return }"),
+            "performSave must not early-return on isSaving — that dropped the trailing edit (#2536)"
+        )
+        XCTAssertTrue(
+            source.contains("pendingResave"),
+            "performSave must coalesce a trailing edit via pendingResave (#2536)"
+        )
+        XCTAssertTrue(
+            source.contains("} while pendingResave"),
+            "performSave must loop to persist the newest draft after the in-flight save (#2536)"
+        )
+    }
 }
