@@ -9,7 +9,7 @@
 >   (retired). Ignore the "check / update TODO.md" steps.
 > - **Branch discipline**: commit milestone work directly to the milestone branch
 >   (e.g. `main`); do **not** create per-task `feature-branch-name` branches and do
->   not `git pull origin main` into your work — see `.claude/CLAUDE.md` → "Branch discipline".
+>   not `git pull origin main` into your work — see `AGENTS.md` → "Rules I Don't Break".
 > - **AppKit**: "100% SwiftUI" is aspirational. SwiftUI-first with ~8 sanctioned
 >   `NSViewRepresentable` bridges (PDFKit, magnifier, text editors, …). The
 >   `APPKIT_FINAL_AUDIT.md` referenced below has been retired — see
@@ -27,7 +27,7 @@
 **Prerequisites**:
 ```bash
 # [ ] Start Python backend (REQUIRED)
-cd /Users/danieltubb/code/fichero
+cd "$(git rev-parse --show-toplevel)"
 PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
 
 # [ ] Open Xcode project
@@ -391,8 +391,8 @@ swiftlint lint --path Fichero/Fichero/Views/MyView.swift
 
 ### Quick Links
 - Backend API: http://localhost:8765/docs
-- Sample Code: `/Users/danieltubb/code/fichero/fichero/sample_code`
-- Frontend Docs: `/Users/danieltubb/code/fichero/docs/architecture/swiftui/`
+- Sample Code: `fichero/sample_code`
+- Frontend Docs: `docs/architecture/swiftui/`
 - TODO List: GitHub Issues + Milestones (the source of truth; the old `docs/agent-workflow/TODO.md` is retired)
 
 ### MCP Tools

@@ -212,7 +212,7 @@ extension FocusedValues {
 ### Prerequisites
 ```bash
 # 1. Start Python backend (REQUIRED)
-cd /Users/danieltubb/code/fichero
+cd "$(git rev-parse --show-toplevel)"
 PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
 
 # 2. Open Xcode project
@@ -365,4 +365,4 @@ SwiftUI ← @Observable ← Service ← APIClient ← HTTP Response
 - **Development Standards**: `docs/architecture/swiftui/development_standards.md`
 - **Key Files**: `docs/architecture/swiftui/key_files.md`
 - **Workflow Checklist**: `docs/architecture/swiftui/workflow_checklist.md`
-- **Sample Code**: `/Users/danieltubb/code/fichero/fichero/sample_code`
+- **Sample Code**: `fichero/sample_code`

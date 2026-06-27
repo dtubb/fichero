@@ -56,7 +56,7 @@ Mac TestFlight:
 - Mac App Store Connect provisioning profile for bundle id
   `app.fichero.fichero`.
 - Current profile path expected by `scripts/release-all.sh`:
-  `/Users/danieltubb/Downloads/Mac_App_Store_Connect.provisionprofile`
+  `$MAC_APP_STORE_PROFILE_PATH` (default `$HOME/Downloads/Mac_App_Store_Connect.provisionprofile`)
 
 That profile currently decodes as:
 

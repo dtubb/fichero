@@ -19,7 +19,7 @@
 - ❌ No NotificationCenter for app logic
 
 **Before using AppKit:**
-1. Look in demo code: `/Users/danieltubb/code/fichero/fichero/sample_code` and `/Users/danieltubb/code/fichero/fichero/sample_code/FoodTruckBuildingASwiftUIMultiplatformApp`
+1. Look in demo code: `fichero/sample_code` and `fichero/sample_code/FoodTruckBuildingASwiftUIMultiplatformApp`
 2. Check `Sosumi MCP Tool` for SwiftUI equivalent
 3. Search Ref MCP Tool for documentation
 4. Verify there's no SwiftUI-native solution
