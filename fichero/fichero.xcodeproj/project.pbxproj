@@ -2960,7 +2960,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
 				PRODUCT_NAME = Fichero;
 				REGISTER_APP_GROUPS = YES;
-				SPARKLE_FEED_URL = "https://raw.githubusercontent.com/dtubb/fichero-releases/main/appcast.xml";
+				SPARKLE_FEED_URL = "https://raw.githubusercontent.com/dtubb/fichero/main/fichero/appcast.xml";
 				SPARKLE_PUBLIC_ED_KEY = "z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -3037,7 +3037,7 @@
 				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
 				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
 				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
-				SPARKLE_FEED_URL = "https://raw.githubusercontent.com/dtubb/fichero-releases/main/appcast.xml";
+				SPARKLE_FEED_URL = "https://raw.githubusercontent.com/dtubb/fichero/main/fichero/appcast.xml";
 				SPARKLE_PUBLIC_ED_KEY = "z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
 				SUPPORTS_MACCATALYST = NO;
