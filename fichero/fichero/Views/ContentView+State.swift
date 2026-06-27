@@ -270,18 +270,15 @@ extension ContentView {
             if let doc = libraryViewDocument,
                doc.docType == .folder || doc.isWorkspace ||
                (doc.docType == .file && doc.fileType.map { [.pdf, .word, .epub, .presentation].contains($0) } ?? false) {
+                // Canvas (.map → Spatial2DCanvas) and Space (.realitykit →
+                // SpatialScene3D) are two renders of the same positioned-node
+                // data, offered for every folder/pdf/node (#2667). The former
+                // standalone "Spatial (2D)" mode + its feature-flag gate are
+                // retired — .map IS the 2D canvas now, so there is no separate
+                // .spatial entry here to overflow the iPad split path (#2665).
                 var modes: [ViewDisplayMode] = [.icon, .list, .table, .map, .realitykit]
                 if featureManager.isWorkspaceModeEnabled {
                     modes.append(.workspace)
-                }
-                // Gate .spatial behind the feature flag. Leaving it
-                // unconditional let a persisted `.spatial` survive
-                // normalizedViewDisplayMode() and route the iPad split
-                // path into Spatial2DCanvas, overflowing the main-thread
-                // stack on launch (#2665). .realitykit stays as-is — it was
-                // never the regression.
-                if featureManager.isSpatialModeEnabled {
-                    modes.append(.spatial)
                 }
                 return modes
             }
@@ -578,6 +575,11 @@ extension ContentView {
 
     /// Normalize a requested display mode against current feature gates.
     func normalizedViewDisplayMode(_ mode: ViewDisplayMode) -> ViewDisplayMode {
+        // Migrate the retired "Spatial (2D)" mode onto Canvas (#2667). A
+        // persisted/@SceneStorage `.spatial` value (and per-folder saved modes)
+        // must land on Canvas, not a removed-feeling state, since both now render
+        // the same Spatial2DCanvas off the shared canvasLayoutStore.
+        let mode = mode == .spatial ? .map : mode
         guard availableViewDisplayModes.contains(mode) else {
             if availableViewDisplayModes.contains(.list) {
                 return .list
