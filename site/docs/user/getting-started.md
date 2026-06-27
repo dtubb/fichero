@@ -80,6 +80,6 @@ A few behaviors matter early:
 
 ## What Happens Before The App Is Ready
 
-The SwiftUI app depends on the local Python backend. If the backend is still starting, Fichero shows `Connecting to backend...`. If it cannot connect, the window switches to a backend error state with `Retry` and `Quit`.
+The Fichero app depends on the local fichero-engine server. If fichero-engine is still starting, Fichero shows `Connecting to backend...`. If it cannot connect, the window switches to a connection error state with `Retry` and `Quit`.
 
-That is normal architecture, not a separate offline mode: the frontend is a native UI over the local FastAPI engine.
+That is normal, not a separate offline mode: the Fichero app is a native interface over the local fichero-engine server.

@@ -10,7 +10,7 @@ Fichero is Spanish for "card-file cabinet," the physical index card filing syste
 
 ### How does it work?
 
-Fichero is two apps in one: a native SwiftUI frontend for browsing and managing your documents, and a Python FastAPI backend that handles AI processing, search, and data storage. The backend is embedded inside the Mac app and starts automatically, so you never need to think about it.
+Fichero has two parts: the Fichero app, a native SwiftUI app for browsing and managing your documents, and fichero-engine, a server that handles AI processing, search, and data storage. fichero-engine is embedded inside the app and starts automatically, so you never need to think about it.
 
 ### What AI models does it support?
 

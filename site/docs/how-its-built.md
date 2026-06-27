@@ -61,9 +61,9 @@ collides:
 
 A few hard rules keep the machine usable while agents run:
 
-- **Workers write tests but do not run the heavy suites.** Backend `pytest`
-  loads the embedding model and several gigabytes of dependencies; the **manager**
-  runs the backend test suite serially, one lane at a time. Workers may run cheap
+- **Workers write tests but do not run the heavy suites.** The fichero-engine `pytest`
+  suite loads the embedding model and several gigabytes of dependencies; the **manager**
+  runs the fichero-engine test suite serially, one lane at a time. Workers may run cheap
   guards (`swiftlint`, stdlib `scripts/check_*` checks).
 - Build, lint, and test logs are pushed **off** the lead agent's context: the
   lead reads a pass/fail verdict, not the full log. This is the "the lead reads a
@@ -102,7 +102,7 @@ human at the keyboard.
 Two non-negotiable rules close the loop:
 
 - **Never mark work complete without build + test + lint passing.** The exact
-  commands live in `CLAUDE.md` (backend `pytest` with `PYTHONPATH=fichero-engine/src`,
+  commands live in `CLAUDE.md` (fichero-engine `pytest` with `PYTHONPATH=fichero-engine/src`,
   `ruff` for Python, `swiftlint` and an Xcode build for Swift).
 - **Never push on top of an unverified commit.** The verification summary is read
   and parsed; work is pushed **only** when the suite is green. A change always

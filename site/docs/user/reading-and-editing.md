@@ -51,7 +51,7 @@ Use `Info` for file metadata, dates, path-related details, and related document 
 
 ## Annotations
 
-The `Annotations` tab is tied to `/api/annotations` in the backend and supports real work, not just display.
+The `Annotations` tab is backed by fichero-engine and supports real work, not just display.
 
 You can:
 
