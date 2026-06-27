@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-10  
 **From:** Previous session (Code Quality Review Plan creation)  
-**Branch:** 0.0.2 (clean, pushed)
+**Branch:** main (current checkout)
 
 ## Current State
 
@@ -33,7 +33,7 @@
 
 ```bash
 # Option 1: Run all phases on all security PRs
-cd /Users/danieltubb/code/fichero-0.0.2
+cd "$(git rev-parse --show-toplevel)"
 ./.agents/loops/run_code_review.sh --all
 
 # Option 2: Run specific phase
@@ -69,14 +69,7 @@ From #416 — all these must be true to recommend merge:
 
 ## Worktrees Available
 
-```
-../fichero-0.0.2-issue-398  (PR #399 — SSRF)
-../fichero-0.0.2-issue-400  (PR #401 — Integration audit)
-../fichero-0.0.2-issue-402  (PR #403 — KG audit)
-../fichero-0.0.2-issue-404  (PR #405 — Hermeneutics audit)
-../fichero-0.0.2-issue-406  (PR #407 — Mind Palace audit)
-../fichero-0.0.2-issue-408  (PR #409 — HIGH severity fixes)
-```
+Use the current checkout only. The retired `~/code/fichero-<version>` pattern no longer applies.
 
 ## Critical Files
 
