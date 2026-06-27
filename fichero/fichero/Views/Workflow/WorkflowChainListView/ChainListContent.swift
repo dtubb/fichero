@@ -7,10 +7,11 @@ struct ChainListContent: View {
     let searchText: String
     let executingChainId: String?
     let onNewChain: () -> Void
-    @Binding var selectedChainId: String?
+    @Binding var selectedChainIds: Set<String>
     let onSelectChain: (String) -> Void
     let onExecuteChain: (WorkflowChain) -> Void
     let onConfirmDelete: (WorkflowChain) -> Void
+    let onConfirmDeleteSelection: () -> Void
     let onRefresh: () -> Void
 
     var body: some View {
@@ -36,7 +37,7 @@ struct ChainListContent: View {
                     }
                 }
             } else {
-                List(filteredChains, selection: $selectedChainId) { chain in
+                List(filteredChains, selection: $selectedChainIds) { chain in
                     ChainListRow(
                         chain: chain,
                         isExecuting: executingChainId == chain.id
@@ -62,7 +63,11 @@ struct ChainListContent: View {
                         Divider()
 
                         Button(role: .destructive) {
-                            onConfirmDelete(chain)
+                            if selectedChainIds.contains(chain.id) {
+                                onConfirmDeleteSelection()
+                            } else {
+                                onConfirmDelete(chain)
+                            }
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }
@@ -80,6 +85,15 @@ struct ChainListContent: View {
             }
 
             ToolbarItem(placement: .automatic) {
+                Button(role: .destructive) {
+                    onConfirmDeleteSelection()
+                } label: {
+                    Label("Delete Selection", systemImage: "trash")
+                }
+                .disabled(selectedChainIds.isEmpty)
+            }
+
+            ToolbarItem(placement: .automatic) {
                 Button {
                     onRefresh()
                 } label: {
@@ -87,5 +101,6 @@ struct ChainListContent: View {
                 }
             }
         }
+        .onDeleteCommand(perform: onConfirmDeleteSelection)
     }
 }

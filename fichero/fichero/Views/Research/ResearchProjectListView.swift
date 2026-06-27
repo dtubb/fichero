@@ -6,10 +6,11 @@ struct ResearchProjectListView: View {
 
     @State private var showingNewProject = false
     @State private var newProjectName = ""
-    @State private var projectToDelete: ResearchProject?
+    @State private var projectsToDelete: [ResearchProject] = []
     @State private var showingDeleteConfirm = false
     @State private var showingNewWorkspace = false
     @State private var newWorkspaceName = ""
+    @State private var selectedProjectIds: Set<String> = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -87,7 +88,7 @@ struct ResearchProjectListView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            List(selection: $researchService.selectedProjectId) {
+            List(selection: $selectedProjectIds) {
                 Section("Research") {
                     ForEach(researchService.projects) { project in
                         projectRow(project)
@@ -97,6 +98,17 @@ struct ResearchProjectListView: View {
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
             .background(Color(platformColor: .windowBackgroundColor))
+            .onChange(of: selectedProjectIds) { _, newValue in
+                researchService.selectedProjectId = newValue.first
+            }
+            .onChange(of: researchService.selectedProjectId) { _, newValue in
+                if let newValue {
+                    selectedProjectIds = [newValue]
+                } else {
+                    selectedProjectIds.removeAll()
+                }
+            }
+            .onDeleteCommand(perform: confirmDeleteSelection)
         }
     }
 
@@ -120,10 +132,35 @@ struct ResearchProjectListView: View {
         .tag(project.id)
         .contextMenu {
             Button("Delete Project", role: .destructive) {
-                projectToDelete = project
-                showingDeleteConfirm = true
+                if selectedProjectIds.contains(project.id) {
+                    confirmDeleteSelection()
+                } else {
+                    confirmDelete([project])
+                }
             }
         }
+    }
+
+    private func confirmDeleteSelection() {
+        let projects = researchService.projects.filter { selectedProjectIds.contains($0.id) }
+        guard !projects.isEmpty else { return }
+        confirmDelete(projects)
+    }
+
+    private func confirmDelete(_ projects: [ResearchProject]) {
+        projectsToDelete = projects
+        showingDeleteConfirm = !projects.isEmpty
+    }
+
+    private func deleteProjects(_ projects: [ResearchProject]) async {
+        for project in projects {
+            try? await researchService.deleteProject(id: project.id)
+        }
+        let deletedIds = Set(projects.map(\.id))
+        selectedProjectIds.subtract(deletedIds)
+        researchService.selectedProjectId = selectedProjectIds.first
+        projectsToDelete = []
+        await researchService.loadProjects()
     }
 
     private var bottomToolbar: some View {
@@ -135,6 +172,15 @@ struct ResearchProjectListView: View {
             }
             .buttonStyle(.plain)
             .help("New Research Project")
+
+            Button(role: .destructive) {
+                confirmDeleteSelection()
+            } label: {
+                Label("Delete Selection", systemImage: "trash")
+            }
+            .buttonStyle(.plain)
+            .disabled(selectedProjectIds.isEmpty)
+            .help("Delete selected research projects")
 
             Button {
                 showingNewWorkspace = true
@@ -159,11 +205,18 @@ struct ResearchProjectListView: View {
             isPresented: $showingDeleteConfirm
         ) {
             Button("Delete", role: .destructive) {
-                if let project = projectToDelete {
-                    Task { try? await researchService.deleteProject(id: project.id) }
+                let projects = projectsToDelete
+                if !projects.isEmpty {
+                    Task { await deleteProjects(projects) }
                 }
             }
             Button("Cancel", role: .cancel) {}
+        } message: {
+            if projectsToDelete.count == 1, let project = projectsToDelete.first {
+                Text("Are you sure you want to delete \"\(project.name)\"? This action cannot be undone.")
+            } else if !projectsToDelete.isEmpty {
+                Text("Are you sure you want to delete \(projectsToDelete.count) research projects? This action cannot be undone.")
+            }
         }
     }
 
