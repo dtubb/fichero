@@ -187,6 +187,19 @@ extension EntityDetailView {
         showingDeleteClaimsConfirmation = true
     }
 
+    /// Short human label for a claim in confirmation copy — SVO triple when
+    /// available, else the claim text. Mirrors EntityDigestView.provenanceSummary.
+    private func provenanceSummary(for claim: Components.Schemas.KnowledgeClaim) -> String {
+        if let svo = ClaimSummaryCard.svoTriple(for: claim) {
+            return [svo.subject, svo.verb, svo.object]
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: " · ")
+        }
+        let fallback = claim.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return fallback.isEmpty ? "Untitled claim" : fallback
+    }
+
     private func deleteSelectedClaims(_ claims: [Components.Schemas.KnowledgeClaim]) async {
         let claimIds = claims.compactMap(\.id)
         guard !claimIds.isEmpty else { return }
