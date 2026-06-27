@@ -15,7 +15,7 @@ This section explains how the current Fichero codebase works for contributors. I
 
 ## Read This First
 
-Fichero is not a single-process desktop app. The macOS app is a native SwiftUI frontend over a local Python backend.
+Fichero is not a single-process desktop app. The macOS app is a native SwiftUI app over a local fichero-engine server (Python, FastAPI).
 
 The shortest accurate picture is:
 

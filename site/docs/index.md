@@ -55,12 +55,13 @@ produce catalogues, though the approach could be used for other tasks.
 
 The basic idea: an AI that does things on its own controls how they are done, in
 ways that are harder to understand. Fichero instead lets you, the user, visually
-build these steps yourself, and connect them together. Fichero is built
-on a Python backend, with a powerful database, a vector database, a knowledge
-graph, and an ontological layer, so it can be extended in new directions.
+build these steps yourself, and connect them together. The Fichero app talks to
+fichero-engine, a server that does the processing and storage. It comes with a
+powerful database, a vector database, a knowledge graph, and an ontological
+layer, so it can be extended in new directions.
 
-Under the hood, Fichero is a FastAPI server connecting to a DuckDB database. It
-talks to model providers through LangChain, and runs workflows with LangGraph.
+Under the hood, fichero-engine connects to a DuckDB database. It talks to model
+providers through LangChain, and runs workflows with LangGraph.
 
 ## Who it's for
 
@@ -93,8 +94,8 @@ reproduce steps across multiple documents.
 
 AIs are incredibly powerful. Fichero aims to make them more navigable, more
 transparent, and more accessible as tools for research. Currently, agents are
-not transparent; they are invisible to the user, hidden in a database or a
-backend, so it's hard to know what's going on under the covers. With Fichero, the
+not transparent; they are invisible to the user, hidden away on a server, so
+it's hard to know what's going on under the covers. With Fichero, the
 aim is to be more transparent, and therefore more accessible.
 
 Fichero is a work in progress. Iterative. It is, I hope, something useful.
