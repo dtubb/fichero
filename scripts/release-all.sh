@@ -97,6 +97,26 @@ mkdir -p "$RELEASE_DIR"
 echo "=== Fichero release ==="
 echo "Sparkle feed: $SPARKLE_FEED_URL"
 
+# ── Auto-stamp the dated release version (once, up front) ────────────────────
+# Stamp TODAY's date across frontend + backend before any build path runs, so
+# both the DMG and the TestFlight archive carry the same auto-incremented dated
+# version. Opt out by exporting FICHERO_RELEASE_VERSION (operator controls it);
+# channel defaults to beta — set FICHERO_RELEASE_BETA=0 for a stable stamp. We
+# export FICHERO_RELEASE_VERSION afterward so the nested build-release-dmg.sh
+# sees the version already set and does not re-stamp.
+if [ -n "${FICHERO_RELEASE_VERSION:-}" ]; then
+  echo
+  echo "── Version: FICHERO_RELEASE_VERSION=$FICHERO_RELEASE_VERSION set — not auto-stamping ──"
+else
+  echo
+  echo "── Version: auto-stamp dated release ──"
+  STAMP_ARGS=()
+  [ "${FICHERO_RELEASE_BETA:-1}" != "0" ] && STAMP_ARGS+=(--beta)
+  "$ROOT_DIR/scripts/set-release-version.sh" "${STAMP_ARGS[@]+"${STAMP_ARGS[@]}"}"
+  # Pin the just-stamped MARKETING_VERSION so downstream scripts don't re-stamp.
+  export FICHERO_RELEASE_VERSION="$(project_setting MARKETING_VERSION)"
+fi
+
 if [ "$SKIP_DMG" = false ]; then
   echo
   echo "── DMG: build + Developer ID sign ──"
