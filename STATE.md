@@ -1,3 +1,49 @@
+# STATE — 2026-06-27 (Mac/iOS shell regression batch shipped; release lane handed to manager; pre-compression session-end)
+
+Branch `main` @ **258a6e22** (= `origin/main`, synced, 0 ahead). Manager (Opus) is now in
+charge of BOTH product (UX milestones) AND the release lane (handed off from the codex release worker).
+
+## SHIPPED TO origin/main THIS SESSION (4 PRs)
+- **PR #2668** — 12 Mac/iOS shell regression fixes (the live blockers Daniel hit while testing):
+  - iOS/view-mode (Lane A, Opus): **#2665** iPad EXC_BAD_ACCESS stack-overflow (re-gate `.spatial`); **#2667** Canvas/Space view-mode merge (one 2D Canvas + 3D Space sharing `canvasLayoutStore`; `.spatial` kept as hidden deprecated migration alias; retired `mapView`/`LibraryMapComponents`); **#2666** iPhone reader push (`@State` `.navigationDestination`).
+  - Mac inspector/reader (Lane B, codex): **#2661** click→inspector-not-window, **#2468** remove redundant Artifacts tab, **#2521** current-vs-children inspector, **#2455** detail slide-in, **#2522** focus-aware selection, **#2519** multi-select delete, **#2467** collapsible reader toolbars, **#2481** three-pane split.
+  - Also folded in: shell WIP (toolbar view-mode menu / DocumentStore env), engine WIP (KG routes/NER/deps, ruff-clean), release scripts, Xcode dated-release versioning.
+- **PR #2669** — build fix: SplittablePane `.frame(maxWidth:height:)`×3, EntityDigestView `confirmDelete`, EntityDetailView+Claims `provenanceSummary`.
+- **PR #2671** — release-lane fix: ReaderToolbar `@Environment(\.splitAxisActions)`, explicit inits (ContentViewHelperViews/EntityDetailView/LibraryViewComponents — archive linker), docs/release/release-lane.md runbook.
+- All 12 UX issues are `status:ready-for-test` (Daniel verifies on device; not closed).
+- **EPIC #2667** (Canvas/Space) + **EPIC #2670** (unify mini-toolbars: bottom-anchored, Tahoe liquid-glass, adaptive per-platform button count + graceful macOS overflow) filed.
+
+## HARD LESSON (do not repeat)
+**Workers don't compile — swiftlint passes scope errors.** PR #2668 shipped 4 compile errors to
+origin/main (confirmDelete/provenanceSummary/splitAxisActions/frame-overload) because the SwiftUI merge
+was never full-compiled (Xcode build got cancelled). **GATE EVERY worker batch with an actual Xcode
+BuildProject (or `xcodebuild build` compile-only) BEFORE merge — swiftlint is NOT a compile gate.**
+Process rule now in memory [[workers-on-separate-worktrees-merge-to-main]]: each worker in its OWN
+worktree under `~/code/fichero-worktrees/`; manager merges to origin/main WITH a build gate. Running
+"Lane A" in the shared main checkout this session forced fragile pbxproj-hunk surgery + moving-tree races.
+
+## RELEASE LANE (now manager-owned) — runbook: docs/release/release-lane.md
+- **DMG**: build/releases/Fichero.dmg — built (embedded Briefcase engine), **notarized + stapled** (`xcrun stapler validate` ✅; notary submission 3b636277-68bf-4266-9383-dc28f800402a Accepted).
+- **TestFlight**: was blocked on the compile errors above — **now unblocked** (origin/main compiles). NEXT: rerun `scripts/release-all.sh --skip-dmg --skip-notarize 2>&1 | tee build/releases/testflight-final-$(date +%Y%m%d-%H%M%S).log` then parse `rg -n "error:|ARCHIVE FAILED|EXPORT FAILED|uploaded|Upload|Done"`. release-all converts MARKETING_VERSION to numeric for TestFlight; installs Mac App Store Connect profile (UUID fe5c4814-…, App ID QAPB6CWYR6.app.fichero.fichero, Apple Distribution SHA 7CD87BA09F2DA8A79652710DE0F5E3C5DCD2CC35).
+- **Sparkle/GitHub**: DMG ready; blocked on Daniel approving Keychain access for the Sparkle Ed25519 key (service https://sparkle-project.org, account ed25519, tool ~/code/sparkle-tools/bin/sign_update, pubkey z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=). GitHub release target dtubb/fichero; appcast fichero/appcast.xml. Cmd: `scripts/release-all.sh --skip-dmg --skip-notarize --skip-testflight --github --draft`.
+- Load-bearing: build-release-dmg.sh `[2b/6]` signs every embedded Mach-O individually then re-seals inside-out — DO NOT replace with `codesign --deep`.
+- Release constraints: build/archive only (no xcodebuild test / verify_all), no hand-edit pbxproj/openapi, no print .p8/Sparkle key, no direct push to main (PR).
+
+## OPEN QUESTION FROM DANIEL (answer next session)
+verify_all: "I saw tons of errors — are you catching them? does the script list all the errors at the end?"
+→ NEXT: read scripts/verify_all.sh, confirm whether it aggregates + lists all errors at the end or stops at first; report. (Note memory [[no-xcodebuild-test-on-daniels-machine]]: verify_all's xcodebuild TEST spawns GUI windows on his desktop — use compile-only build for the Swift gate; the python/ruff/pytest parts are safe.)
+
+## NEXT SESSION — DANIEL'S GOAL (verbatim intent)
+Grind UX milestones/issues + **build-and-verify as you go** (Xcode build gate per batch) + fix test
+bugs (may reveal front/back-end bugs) → Briefcase update → build in Xcode → DMG+Sparkle (GitHub) +
+TestFlight. Must run on a Mac, then connect from other devices. Work independently with claude + codex
+workers (separate worktrees, build-gated).
+- UX backlog (surveyed): #2670 mini-toolbars EPIC, #2495 inspector text-editor height (the "custom height not working" bug), #2474 iPhone/iPad toolbar touch targets, #2607 iPhone image full-screen, Observable Data Layer milestone (#2278/#2009/#1973/#2307 perf), emoji→SF Symbols sweep, standard-SwiftUI audits (#1859/#1875 EPICs).
+- Caution: Daniel was actively editing toolbar files (ReaderToolbar/ContentViewHelperViews/etc.) in Xcode in the shared checkout — coordinate / use worktrees so workers don't collide with his live edits.
+
+GOTCHAS: `main` is the working branch (PR required to push). Worktrees ONLY under `~/code/fichero-worktrees/`; never `rm -rf` a `~/code/fichero-*` sibling. tmux: `fichero-workers` session (ios-crash + mac-inspector lanes, drained); `f_backend` = the live engine server (do not kill).
+
+---
 # STATE — 2026-06-26 (0.0.2 → main MERGED via PR #2652; worktrees purged; TestFlight next)
 
 Branch `main` @ **6437c140** (= `origin/main`, clean). The `0.0.2` working line is merged to `main` via PR #2652 (real merge commit, parents `0f5665ad` + `1ec14343`). **`main` is now the working branch** — `.claude/CLAUDE.md` `WORKING_BRANCH` updated, `CONSTITUTION.md` + `docs/agent-workflow/*` + `scripts/check_unmerged_work.py` swept for `0.0.2` working-branch refs. All 8 stale worktrees purged (`git worktree remove --force`); only the `main` checkout remains.
