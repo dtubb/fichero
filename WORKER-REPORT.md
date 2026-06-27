@@ -184,6 +184,31 @@ detail" at the renamed `site/docs/contributor/setup-and-contributing.md`.
 
 ---
 
+## Extra — component docs as thin pointers (single source of truth)
+
+`fichero/` and `fichero-engine/` per-component docs now point to the canonical docs
+and keep only component-specific essentials:
+
+- `fichero/AGENTS.md`, `fichero-engine/AGENTS.md` → rewritten as thin pointers to root
+  `AGENTS.md` + `site/docs/contributor/` + `site/docs/user/`, plus a 2-3 line
+  "component essentials" block (start the engine; lint; `PYTHONPATH`; scripts entry
+  points).
+- `fichero/README.md` → kept the app-specific layout, key concepts, and build/run;
+  replaced the duplicated Notes (add-swift-file, OpenAPI sync) with a pointer to root
+  AGENTS.md.
+- `fichero-engine/README.md` → kept layout, the HTTPS-launcher run section, how-it-works,
+  MCP, and OCR/HTR guidance; collapsed the duplicated test/lint into a pointer; fixed
+  the `developer/` links; corrected the provider note (LangChain integrations; LiteLLM
+  for cost/discovery only, not routing) to match the canonical README/FAQ.
+
+Also fixed stray `site/docs/developer/` links the TASK 6 rename had missed in `USER.md`
+and `docs/README.md` (my first-pass grep was scoped too narrowly). Verified none remain.
+
+Note: `docs/CLAUDE.md` still describes LLM calls "via LiteLLM" in a couple of places;
+left untouched here since it is the large internal architecture guide and out of scope
+for this lane. Flagged for a follow-up pass if you want it aligned with the
+LangChain-integrations / LiteLLM-cost-only framing.
+
 ## Voice + verification
 
 - No em dashes and no "not-X-but-Y" in authored prose. Folded `CHANGELOG`/`RELEASE_NOTES`
