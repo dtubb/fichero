@@ -466,11 +466,18 @@ struct ZoomableImagePreview: View {
     @State private var loupeLocked: Bool = false
     @State private var imageCoordinator: ImageWithCursorTracking.Coordinator?
 
+    /// Drives the iPhone true-full-screen presentation (#2607). Compact only.
+    @State private var showingFullScreen = false
+
     private let minScale: CGFloat = 0.01
     private let maxScale: CGFloat = 10.0
 
     private var isCompact: Bool {
         horizontalSizeClass == .compact
+    }
+
+    private var hasImage: Bool {
+        renderedImage != nil || url != nil
     }
 
     /// Image/page siblings in the current folder, in display order.
@@ -519,6 +526,18 @@ struct ZoomableImagePreview: View {
                         .font(.caption)
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
+
+                    if hasImage {
+                        Button {
+                            showingFullScreen = true
+                        } label: {
+                            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.leading, 8)
+                        .accessibilityIdentifier("enterFullScreenImage")
+                        .accessibilityLabel("View Full Screen")
+                    }
                 } else {
                     Button(action: zoomOut) {
                         Image(systemName: "minus.magnifyingglass")
@@ -586,6 +605,13 @@ struct ZoomableImagePreview: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(white: 0.88, opacity: 1.0))
+                // Tap the image to go true full-screen on iPhone (#2607).
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if isCompact, hasImage {
+                        showingFullScreen = true
+                    }
+                }
 
                 // iOS touch prev/next overlay for folder image siblings (#2420).
                 if previousAction != nil || nextAction != nil {
@@ -623,6 +649,11 @@ struct ZoomableImagePreview: View {
             guard !neighbors.isEmpty else { return }
             await storageService.prefetchDisplayImages(neighbors)
         }
+        // True full-screen image/page viewer for iPhone (#2607): edge-to-edge,
+        // black background, no title/back/chrome, swipe-down or close to exit.
+        .fullScreenCover(isPresented: $showingFullScreen) {
+            FullScreenImagePreview(url: url, renderedImage: renderedImage)
+        }
     }
 
     // MARK: - Zoom Actions
@@ -657,6 +688,101 @@ struct ZoomableImagePreview: View {
 }
 
 #if canImport(UIKit)
+/// True full-screen image/page presentation for iPhone (#2607).
+///
+/// The inline `ZoomableImagePreview` lives inside a `NavigationStack` detail
+/// on iPhone, so it carries a title bar, back button, and the mini-toolbar —
+/// which waste most of a small screen when you just want to read the source.
+/// This cover fills the entire screen edge-to-edge on a black background with
+/// no chrome, reusing `ImageWithCursorTracking` so pinch-zoom/pan come for
+/// free (no parallel image stack). A close button always dismisses; a
+/// downward swipe does too when the image isn't being panned.
+struct FullScreenImagePreview: View {
+    let url: URL?
+    let renderedImage: PlatformImage?
+
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var scale: CGFloat = 1.0
+    @State private var cursorPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)
+    @State private var imageSize: CGSize = .zero
+    @State private var visibleRect: CGRect = .zero
+    @State private var loupeMagnification: CGFloat = 3.0
+    @State private var loupeSize: CGFloat = 150.0
+    @State private var imageCoordinator: ImageWithCursorTracking.Coordinator?
+    @State private var dragOffset: CGFloat = 0
+
+    private let minScale: CGFloat = 0.01
+    private let maxScale: CGFloat = 10.0
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            Color.black.ignoresSafeArea()
+
+            if renderedImage != nil || url != nil {
+                ImageWithCursorTracking(
+                    url: url ?? URL(fileURLWithPath: "/"),
+                    overrideImage: renderedImage,
+                    scale: $scale,
+                    cursorPosition: $cursorPosition,
+                    imageSize: $imageSize,
+                    visibleRect: $visibleRect,
+                    minScale: minScale,
+                    maxScale: maxScale,
+                    loupeEnabled: false,
+                    loupeLocked: false,
+                    loupeMagnification: $loupeMagnification,
+                    loupeSize: $loupeSize,
+                    coordinator: $imageCoordinator
+                )
+                .ignoresSafeArea()
+            } else {
+                ContentUnavailableView(
+                    "Image Preview",
+                    systemImage: "photo",
+                    description: Text("The image could not be loaded.")
+                )
+                .foregroundStyle(.white)
+            }
+
+            // Close affordance — respects the safe area so it stays tappable
+            // under the notch / Dynamic Island.
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(12)
+                    .background(.ultraThinMaterial, in: Circle())
+            }
+            .padding(.top, 8)
+            .padding(.trailing, 16)
+            .accessibilityIdentifier("fullScreenImageClose")
+            .accessibilityLabel("Close Full Screen")
+        }
+        .offset(y: dragOffset)
+        .gesture(
+            DragGesture(minimumDistance: 20)
+                .onChanged { value in
+                    if value.translation.height > 0 {
+                        dragOffset = value.translation.height
+                    }
+                }
+                .onEnded { value in
+                    if value.translation.height > 120 {
+                        dismiss()
+                    } else {
+                        withAnimation(.spring(response: 0.3)) { dragOffset = 0 }
+                    }
+                }
+        )
+        #if os(iOS)
+        .statusBarHidden(true)
+        #endif
+    }
+}
+
 #Preview("Compact Zoomable Image Preview") {
     ZoomableImagePreview(renderedImage: UIImage(systemName: "photo"))
         .environmentObject(StorageServiceGenerated(ficheroClient: FicheroClient(libraryPath: nil)))

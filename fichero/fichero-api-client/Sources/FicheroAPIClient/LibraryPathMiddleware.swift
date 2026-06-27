@@ -75,7 +75,12 @@ public struct LibraryPathMiddleware: ClientMiddleware {
         if !Self.isAppWidePath(path),
            let libraryPath = currentLibraryPath(),
            !libraryPath.isEmpty {
-            request.headerFields[.init("X-Fichero-Library-Path")!] = libraryPath
+            // Percent-encode so non-ASCII paths survive the latin-1 HTTP header
+            // transport (#2648). The engine `unquote`s on read
+            // (api/library_header.py); pure-ASCII paths encode to themselves.
+            // `.urlPathAllowed` mirrors `urllib.parse.quote(path, safe="/")`.
+            let encoded = libraryPath.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? libraryPath
+            request.headerFields[.init("X-Fichero-Library-Path")!] = encoded
         }
 
         return try await next(request, body, baseURL)

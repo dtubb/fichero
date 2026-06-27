@@ -103,8 +103,17 @@ struct BackendConnectionView: View {
         #endif
     }
 
+    /// Red failure UI shows ONLY for an explicit terminal failure
+    /// (`status == .failed`). During normal startup the service walks
+    /// `.stopped → .starting → .running`, and `appState.isCheckingBackend`
+    /// flips false in the 5 s gaps between health polls — keying failure off
+    /// `(!isCheckingBackend && !isBackendRunning)` painted a misleading red
+    /// "Engine Not Running" flash during those gaps while the engine was still
+    /// cold-starting (#2664). Genuine failures still surface: external/custom
+    /// hosts set `.failed` immediately, and the embedded poll loop below flips
+    /// to `.failed` after the 60 s timeout.
     private var showsFailureState: Bool {
-        backendService.status == .failed || (!appState.isCheckingBackend && !appState.isBackendRunning)
+        backendService.status == .failed
     }
 
     private var titleText: String {
