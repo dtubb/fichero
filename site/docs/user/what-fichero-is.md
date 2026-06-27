@@ -1,6 +1,6 @@
 # What Fichero Is
 
-Fichero is a document library for researchers. It runs on your Mac. It is built for working with primary sources — scanned archives, PDFs, field notes, historical documents, interview transcripts — the raw material of research.
+Fichero is a document library for researchers. It runs on your Mac. It is built for working with primary sources (scanned archives, PDFs, field notes, historical documents, interview transcripts), the raw material of research.
 
 You import your sources, read them, extract structured information from them, annotate them, and write from them. The whole process stays on your computer.
 
@@ -16,23 +16,23 @@ You import your sources, read them, extract structured information from them, an
 
 Fichero organizes research around three phases, each grounded in the source.
 
-### READ — Hermeneutic layer
+### READ: Hermeneutic layer
 
-The READ layer decomposes a source into structured facts: entities, claims, dates, citations, each anchored to the specific page it comes from. This is AI-assisted extraction. Fichero runs workflows — transcription, entity extraction, catalogue generation — across your documents.
+The READ layer decomposes a source into structured facts: entities, claims, dates, citations, each anchored to the specific page it comes from. This is AI-assisted extraction. Fichero runs workflows (transcription, entity extraction, catalogue generation) across your documents.
 
 The extraction is systematic. Every item carries provenance: which page, which document, which workflow produced it, which model was used. You can review the output, approve it, reject it, or correct it.
 
 This layer answers: *what does this source actually say?*
 
-### THINK — Interpretative layer
+### THINK: Interpretative layer
 
 The THINK layer is yours. It is your notes and annotations on a reading: what you observed, what you found significant, how this source connects to others in your collection. Fichero gives you annotation tools, a notes system, and an inspector for every document.
 
 This layer answers: *what do I make of this source?*
 
-### WRITE — Synthesis layer *(in development)*
+### WRITE: Synthesis layer *(in development)*
 
-The WRITE layer is where research becomes argument: Zettelkasten-style atomic notes, an outliner, and a writing space connected to your citations and knowledge graph — so you build an argument from your sources and export it with citations intact.
+The WRITE layer is where research becomes argument: Zettelkasten-style atomic notes, an outliner, and a writing space connected to your citations and knowledge graph, so you build an argument from your sources and export it with citations intact.
 
 This layer is **planned, not yet built** (the READ and THINK layers exist today; export with citations is partially available). It answers: *what do I want to say about these sources?*
 
@@ -63,7 +63,7 @@ Fichero runs as much as possible locally and privately. Where possible, use Appl
 
 Your data stays on your Mac. Fichero stores everything in a `.fichero` library package on your disk. There is no telemetry, no analytics, no cloud sync, and no account required.
 
-The only network traffic is to the AI provider you choose — and only when you run a workflow. If you run everything locally (Apple Intelligence or Ollama), Fichero makes no network calls at all.
+The only network traffic is to the AI provider you choose, and only when you run a workflow. If you run everything locally (Apple Intelligence or Ollama), Fichero makes no network calls at all.
 
 ---
 

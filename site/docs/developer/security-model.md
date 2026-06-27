@@ -54,7 +54,7 @@ Contributor rule: never use a client-supplied identity field as the actor. Alway
 
 For iPad or remote access, the setup is:
 
-1. The engine continues to bind to `127.0.0.1:8765` — no change there.
+1. The engine continues to bind to `127.0.0.1:8765`, with no change there.
 2. `tailscale serve` creates a tailnet-private HTTPS URL that proxies to localhost.
 
 ```bash
@@ -65,7 +65,7 @@ This exposes the API only to devices on your Tailscale tailnet. It is not public
 
 Do not use `tailscale funnel`. Funnel exposes the service to the public internet.
 
-Tailscale is transport. It provides network-level access control (tailnet vs. internet). It is not user-vs-user authorization — that is the `FICHERO_MULTIUSER` / `authz.py` layer. The two concerns are independent.
+Tailscale is transport. It provides network-level access control (tailnet vs. internet). User-vs-user authorization is a separate concern, handled by the `FICHERO_MULTIUSER` / `authz.py` layer. The two concerns are independent.
 
 `FICHERO_BIND_HOST` is loopback-only by default. Binding the engine directly to
 a non-loopback address requires the explicit escape hatch

@@ -80,7 +80,7 @@ The `Fichero` main target uses traditional PBX file references. A `.swift` file 
 ruby scripts/add-swift-file.rb fichero/fichero/Views/MyFolder/MyView.swift
 ```
 
-`scripts/add-swift-file.rb` uses the `xcodeproj` Ruby gem (installed at `~/.gem/ruby/2.6.0/gems/xcodeproj-1.27.0/`). Never edit `project.pbxproj` by hand. Test-target files are the exception — those use sync'd groups and are picked up automatically.
+`scripts/add-swift-file.rb` uses the `xcodeproj` Ruby gem (installed at `~/.gem/ruby/2.6.0/gems/xcodeproj-1.27.0/`). Never edit `project.pbxproj` by hand. Test-target files are the exception; those use sync'd groups and are picked up automatically.
 
 ### No per-task branches
 
@@ -104,7 +104,7 @@ All work goes through a PR. Create it and merge it yourself once the build gate 
 
 Backend schema changes go into `db.py` `_ensure_table` via the Pydantic model field. Fresh databases pick up new columns automatically.
 
-Do not add `ALTER TABLE ADD COLUMN` migration functions for columns that are already declared in the model. Only structural historical changes — table renames, data backfills — belong in `db_migrations.py`. This rule applies for the entire 0.0.x series and will change when 0.1.0 ships to real users.
+Do not add `ALTER TABLE ADD COLUMN` migration functions for columns that are already declared in the model. Only structural historical changes (table renames, data backfills) belong in `db_migrations.py`. This rule applies for the entire 0.0.x series and will change when 0.1.0 ships to real users.
 
 ### Feature tier
 

@@ -6,7 +6,7 @@ hide:
 
 <!-- Landing copy salvaged from the previous 11ty site (Daniel's own words).
      Adapted to MkDocs/Material. Release-specific bits (version string, download
-     link, release notes) are marked PLACEHOLDER — update them each release. -->
+     link, release notes) are marked PLACEHOLDER; update them each release. -->
 
 <p align="center">
   <img src="assets/icon.png" alt="Fichero icon" width="128">
@@ -22,14 +22,14 @@ workflows, entirely on your Mac.**
 [Get started :material-rocket-launch:](user/getting-started.md){ .md-button }
 
 Fichero turns scanned archives, PDFs, field notes, and historical documents into
-a searchable research library — using visual AI workflows you build yourself. To
+a searchable research library, using visual AI workflows you build yourself. To
 learn more about how Fichero works, read the [FAQ](faq.md). Fichero is available
 as a free Alpha download.
 
 !!! warning "This is Alpha software"
     Fichero is in active daily development. Things will change. Things will
-    break. Don't put irreplaceable work in it yet — keep originals elsewhere,
-    treat each release as an experiment.
+    break. Don't put irreplaceable work in it yet. Keep originals elsewhere,
+    and treat each release as an experiment.
 
 !!! note "Fichero is vibe-coded"
     Every line is written conversationally with
@@ -40,7 +40,7 @@ as a free Alpha download.
 ## What is Fichero?
 
 "Fichero" is Spanish for a card-file cabinet. The name recalls the index-card
-filing systems used by researchers, archivists, and scholars — from Niklas
+filing systems used by researchers, archivists, and scholars, from Niklas
 Luhmann's Zettelkasten to the physical card catalogues of archives and
 libraries, to the field notes ethnographers write, to Walter Benjamin's
 *Arcades Project*.
@@ -51,11 +51,11 @@ documents.
 It's an app that lets you use machine-learning techniques and prompts in a
 repeatable, programmatic way. I've built it to do transcription of handwritten
 documents using vision language models, to extract named entities, and to
-produce catalogues — but the approach could be used for other tasks.
+produce catalogues, though the approach could be used for other tasks.
 
-The basic idea: rather than have an AI do things — where it controls how things
-are done, in ways that are harder to understand — Fichero lets you, the user,
-visually build these steps yourself, and connect them together. Fichero is built
+The basic idea: an AI that does things on its own controls how they are done, in
+ways that are harder to understand. Fichero instead lets you, the user, visually
+build these steps yourself, and connect them together. Fichero is built
 on a Python backend, with a powerful database, a vector database, a knowledge
 graph, and an ontological layer, so it can be extended in new directions.
 
@@ -64,22 +64,22 @@ talks to model providers through LangChain, and runs workflows with LangGraph.
 
 ## Who it's for
 
-I've written Fichero primarily for anthropologists, historians, and archivists —
-but it's a tool, ultimately, to experiment with using large language models in a
+I've written Fichero primarily for anthropologists, historians, and archivists.
+Ultimately it's a tool to experiment with using large language models in a
 programmatic, methodological, step-by-step way.
 
 It is a desktop app, built on SwiftUI. It is useful to:
 
 - Work with archival materials, field notes, interviews, or historical documents;
 - Process scanned PDFs, images, and mixed-format collections;
-- Search your documents by meaning, not just keywords;
-- Run AI workflows — transcription, extraction, summarization — on batches of files;
+- Search your documents by meaning as well as keywords;
+- Run AI workflows (transcription, extraction, summarization) on batches of files;
 - Care about keeping your data local and under your control.
 
 ## Model agnostic
 
 Fichero is model agnostic. It works with open-source models as well as
-commercial providers — you just get yourself an API key. If you want to run
+commercial providers; you just get yourself an API key. If you want to run
 models locally, you can do so with Ollama or LM Studio.
 
 ## Beyond chat, beyond agents
@@ -93,7 +93,7 @@ reproduce steps across multiple documents.
 
 AIs are incredibly powerful. Fichero aims to make them more navigable, more
 transparent, and more accessible as tools for research. Currently, agents are
-not transparent — they are invisible to the user, hidden in a database or a
+not transparent; they are invisible to the user, hidden in a database or a
 backend, so it's hard to know what's going on under the covers. With Fichero, the
 aim is to be more transparent, and therefore more accessible.
 
@@ -143,7 +143,7 @@ The latest Alpha release is **Fichero 2026.04.29 Alpha**.
 [Download the latest Alpha :material-apple:](https://github.com/dtubb/fichero-releases/releases/latest){ .md-button .md-button--primary }
 
 Releases are dated by ship date (calendar versioning). Versions before 1.0 are
-Alpha — features change, bugs happen, expect rough edges.
+Alpha, so features change, bugs happen, and you should expect rough edges.
 
 Until Fichero hits version 1.0:
 

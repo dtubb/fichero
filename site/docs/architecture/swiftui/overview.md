@@ -1,7 +1,7 @@
 # Frontend Overview
 
 **Last Updated**: 2026-05-24
-**Status**: ✅ Swift 6 Compatible | SwiftUI-first (AppKit only behind contained `NSViewRepresentable` bridges — see `SWIFTUI_PRINCIPLES.md` §8)
+**Status**: ✅ Swift 6 Compatible | SwiftUI-first (AppKit only behind contained `NSViewRepresentable` bridges; see `SWIFTUI_PRINCIPLES.md` §8)
 
 ## What Fichero Frontend Does
 

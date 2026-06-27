@@ -33,7 +33,7 @@ fichero-engine/src/
 
 Routes are registered at startup based on the `FICHERO_FEATURE_TIER` environment variable (`release` | `dev`, default `release`).
 
-### Core Routes (always registered — 23 total)
+### Core Routes (always registered, 23 total)
 
 | Prefix | Module | Purpose |
 |---|---|---|
@@ -116,7 +116,7 @@ These are also gated behind `FICHERO_FEATURE_TIER=dev`. They are complete but no
 | Module | Purpose |
 |---|---|
 | `api/main.py` | FastAPI app, route registration, feature-tier resolver |
-| `db.py` | Database layer — DuckDB (relational) + LanceDB (vectors) |
+| `db.py` | Database layer: DuckDB (relational) + LanceDB (vectors) |
 | `models.py` | Pydantic models shared across API and database |
 | `app_db.py` | App-level settings database (separate from per-library DB) |
 | `ingest.py` | File ingestion pipeline (LINK/COPY modes, 37+ file types) |
@@ -161,11 +161,11 @@ These are also gated behind `FICHERO_FEATURE_TIER=dev`. They are complete but no
 ## Loaders
 
 Text extraction engines in `loaders/`:
-- `document_loader.py` — PDFs, DOCX, TXT, Markdown
-- `image_loader.py` — JPEG, PNG, HEIC, JPEG-XL with OCR
-- `audio_loader.py`, `video_loader.py` — Media transcription
-- `iiif_loader.py` — IIIF manifest fetching
-- `unified.py` — Dispatcher across all loader types
+- `document_loader.py`: PDFs, DOCX, TXT, Markdown
+- `image_loader.py`: JPEG, PNG, HEIC, JPEG-XL with OCR
+- `audio_loader.py`, `video_loader.py`: Media transcription
+- `iiif_loader.py`: IIIF manifest fetching
+- `unified.py`: Dispatcher across all loader types
 
 ## Development
 
@@ -188,4 +188,4 @@ ruff check fichero-engine/src/
 
 ## Related Contract Docs
 
-- `docs/architecture/api/capture_sessions_resumable_upload_contract.md` — mobile/offline capture session and resumable-upload contract slice (`#2352`)
+- `docs/architecture/api/capture_sessions_resumable_upload_contract.md`: mobile/offline capture session and resumable-upload contract slice (`#2352`)
