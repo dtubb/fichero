@@ -51,3 +51,35 @@ def _unit_test_auth_header(client):
         _AUTH_MIDDLEWARE_ATTACHED = True
     client.headers["Authorization"] = f"Bearer {_UNIT_TEST_AUTH_TOKEN}"
     yield
+
+
+@pytest.fixture(autouse=True)
+def _unit_test_auth_all_testclients(monkeypatch):
+    """Inject the bootstrap token into EVERY ``TestClient`` request, not just the
+    shared ``client`` fixture.
+
+    ``_unit_test_auth_header`` re-attaches the enforcing auth middleware to the
+    shared ``app`` (module-global, persists for the whole session), but many
+    route-test modules build their OWN bare ``TestClient(app)`` (e.g.
+    ``test_api_providers``, ``test_library_entity_types``, ``test_routes_library``)
+    instead of the shared fixture. Those clients carried no Authorization header
+    and so 401'd against the re-attached middleware. Inject the token via
+    ``setdefault`` so it never clobbers a header a security/negative-auth test set
+    deliberately (those tests pass an explicit/empty/wrong header or run their own
+    multi-user setup).
+    """
+    global _UNIT_TEST_AUTH_TOKEN
+    if _UNIT_TEST_AUTH_TOKEN is None:
+        _UNIT_TEST_AUTH_TOKEN = initialize_token()
+    token_header = f"Bearer {_UNIT_TEST_AUTH_TOKEN}"
+
+    from starlette.testclient import TestClient
+
+    original_request = TestClient.request
+
+    def _request_with_default_auth(self, *args, **kwargs):
+        self.headers.setdefault("Authorization", token_header)
+        return original_request(self, *args, **kwargs)
+
+    monkeypatch.setattr(TestClient, "request", _request_with_default_auth)
+    yield
