@@ -106,6 +106,13 @@ struct ContentView: View {
     // Chat state (shared between ChatView and ChatInspectorView)
     @State var chatSelectedDocuments: Set<String> = []
 
+    /// The leaf document currently PUSHED in the compact (iPhone) reader stack
+    /// (#2666). Backed by real @State — not a computed Binding — so
+    /// `.navigationDestination(item:)` reliably fires the push when the selection
+    /// resolves to a leaf, even if `selectedDocuments` and `currentDocuments`
+    /// momentarily disagree. Synced from selection by `syncPushedReaderDocument()`.
+    @State var pushedReaderDocument: Document?
+
     // Main toolbar state (per-window persistence)
     @SceneStorage("viewDisplayMode") var viewDisplayMode: ViewDisplayMode = .icon
 
