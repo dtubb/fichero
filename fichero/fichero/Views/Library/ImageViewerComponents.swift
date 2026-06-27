@@ -570,6 +570,25 @@ struct ZoomableImagePreview: View {
                     }
                     .buttonStyle(.plain)
                     .help("Actual Size (100%)")
+
+                    // Immersive full-screen entry on iPad regular width too, not
+                    // just iPhone-compact. Reuses the #2607 FullScreenImagePreview
+                    // cover (black background, page-only, zoom) — no parallel
+                    // viewer (#2520; #2487 is a duplicate of this).
+                    if hasImage {
+                        Divider()
+                            .frame(height: 16)
+
+                        Button {
+                            showingFullScreen = true
+                        } label: {
+                            Image(systemName: "viewfinder")
+                        }
+                        .buttonStyle(.plain)
+                        .help("View Full Screen")
+                        .accessibilityIdentifier("enterFullScreenImageRegular")
+                        .accessibilityLabel("View Full Screen")
+                    }
                 }
 
                 Spacer()
@@ -605,10 +624,11 @@ struct ZoomableImagePreview: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(white: 0.88, opacity: 1.0))
-                // Tap the image to go true full-screen on iPhone (#2607).
+                // Tap the image to go true full-screen on iPhone and iPad
+                // (#2607; extended to iPad regular width for #2520).
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    if isCompact, hasImage {
+                    if hasImage {
                         showingFullScreen = true
                     }
                 }
