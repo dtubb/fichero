@@ -174,3 +174,4 @@ nav:
           - SwiftUI Overview: architecture/swiftui/overview.md
           - Release Process: architecture/release-process.md
   - API Reference: api-reference/index.md
+  - How It's Built: agent-workflow/how-fichero-is-built.md
