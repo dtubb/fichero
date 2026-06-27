@@ -28,20 +28,27 @@ struct ArtifactDetailView: View {
     var body: some View {
         Group {
             if let artifact {
-                ScrollView {
-                    ArtifactPanel(
-                        kind: .artifact(artifact),
-                        // The detail always shows its body — there's no sibling
-                        // competing for height, so default to expanded.
-                        defaultExpanded: true,
-                        onDelete: onDelete.map { delete in { delete(artifact) } },
-                        onSave: onSave.map { save in
-                            { content in await save(artifact, content) }
-                        }
-                    )
-                    .padding(.horizontal, 4)
-                    .frame(maxWidth: .infinity, alignment: .top)
-                }
+                // #2495: the selected artifact's text must fill the full
+                // available inspector height — not sit at intrinsic height in a
+                // scroll view (the old "small bottom strip" whose size tracked
+                // panel content). `fillsHeight` makes the editor claim all
+                // remaining vertical space; every content path (editor /
+                // read-only Text / structured JSON) already scrolls internally,
+                // so no outer ScrollView is needed — and a nested ScrollView
+                // wrapping a maxHeight:.infinity editor would fight over height.
+                ArtifactPanel(
+                    kind: .artifact(artifact),
+                    // The detail always shows its body — there's no sibling
+                    // competing for height, so default to expanded.
+                    defaultExpanded: true,
+                    fillsHeight: true,
+                    onDelete: onDelete.map { delete in { delete(artifact) } },
+                    onSave: onSave.map { save in
+                        { content in await save(artifact, content) }
+                    }
+                )
+                .padding(.horizontal, 4)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             } else {
                 emptyState
             }
