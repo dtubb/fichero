@@ -1,20 +1,32 @@
 # Contributing
 
-Fichero uses a worktree-based agent workflow. Start with the repo guidance in
-[AGENTS.md](AGENTS.md), then use the folder-specific guidance in
-[fichero/AGENTS.md](fichero/AGENTS.md) and [fichero-engine/AGENTS.md](fichero-engine/AGENTS.md).
+Fichero is written by AI coding agents that Daniel directs. He is an
+anthropologist, not a software engineer, so he does not write Swift or Python from
+scratch. He decides what to build, what is broken, and what ships; the agents do
+the typing.
 
-## Workflow
+## How the work runs
 
-- Claim the issue before editing (`/claim-task <N>` or `gh issue edit <N> --add-assignee @me --add-label "status:in-progress"`).
-- Work on the current milestone branch in the assigned worktree; do not create per-task branches.
-- Keep changes small and scoped to the issue.
-- Worker lanes verify only the touched area:
-  - backend: `ruff check` plus focused `pytest`
-  - Swift: `swiftlint lint`
-- If you change the backend API or schema, sync the generated OpenAPI/client artifacts in the same change.
-- Do not edit generated files by hand.
+- A **manager** agent (`session-start-manager`) holds the control lane. It triages
+  GitHub issues, picks the next batch, and dispatches it. It does not write source
+  code.
+- Each **worker** agent runs in its own git worktree under
+  `~/code/fichero-worktrees/<name>`, in a separate tmux window (an interactive
+  `claude` or `codex` session). A worker grinds one milestone's GitHub issues and
+  commits as itself (Claude or Codex), crediting Daniel with a `Co-Authored-By`
+  trailer.
+- The manager **reviews** each worker's output, **build-gates** it, runs
+  `verify_all`, then **merges via PR**, closes the issues, and dispatches the next
+  batch. Daniel reviews the result and judges every release by using the app.
 
-## More Detail
+GitHub Issues plus Milestones is the source of truth for the backlog. Work lands on
+the milestone branch; there are no per-task branches.
 
-For the fuller repo conventions, see [site/docs/developer/setup-and-contributing.md](site/docs/developer/setup-and-contributing.md).
+## More detail
+
+See [AGENTS.md](AGENTS.md) for the operational manual (hard rules, commit
+attribution, docs placement, worker orchestration), and the folder-specific
+guidance in [fichero/AGENTS.md](fichero/AGENTS.md) and
+[fichero-engine/AGENTS.md](fichero-engine/AGENTS.md). For the fuller repo
+conventions, see
+[site/docs/contributor/setup-and-contributing.md](site/docs/contributor/setup-and-contributing.md).
