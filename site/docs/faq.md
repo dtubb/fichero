@@ -1,8 +1,3 @@
----
-layout: base.njk
-title: FAQ
----
-
 # Frequently Asked Questions
 
 ### What is Fichero?
@@ -47,4 +42,4 @@ Fichero is vibe-coded. Daniel is an anthropologist, not a software engineer — 
 
 ### What is the relationship between Fichero and Fichero Toolbox?
 
-They are separate apps. Fichero manages documents with AI processing. [Fichero Toolbox](/apps/fichero-toolbox/) connects AI agents to Tinderbox and other Mac apps via MCP. Both are built by Daniel Tubb.
+They are separate apps. Fichero manages documents with AI processing. Fichero Toolbox connects AI agents to Tinderbox and other Mac apps via MCP. Both are built by Daniel Tubb.

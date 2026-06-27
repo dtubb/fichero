@@ -1,47 +1,40 @@
-# Fichero documentation site (MkDocs + Material).
+# Fichero documentation + marketing site (MkDocs + Material).
 #
-# This site unifies the four faces of the project under one roof, modeled on
-# beeware.org: a marketing landing page, the end-user manual, the developer /
-# architecture docs, and the FastAPI HTTP API reference.
-#
-# It REUSES the existing markdown under docs/ (docs_dir: docs) and curates it
-# via the `nav` below — it does not duplicate or rewrite content. Only three
-# new files were added: docs/index.md (landing), docs/api-reference/index.md
-# (API page) and docs/api-reference/openapi.json (a copy of the committed
-# contract schema).
+# ONE site, ONE folder. The curated public site lives as REAL files under
+# `site/docs/` — the folder IS the source of truth, so browsing `site/docs/` on
+# GitHub shows exactly what publishes. There is no exclude_docs allowlist and no
+# mirroring of the repo's internal `docs/` tree (that stays the agent working
+# area and is never published).
 #
 # --- How to use ------------------------------------------------------------
 #   pip install -r requirements-docs.txt
 #   mkdocs serve          # live preview at http://127.0.0.1:8000
-#   mkdocs build --strict # production build into ./site (CI gate)
+#   mkdocs build --strict # production build into ./site/_build (gitignored)
 #
 # --- Publishing / domain swap ----------------------------------------------
 #   1. Set `site_url` below to the real domain (currently a placeholder).
-#   2. For GitHub Pages on a custom domain, add a CNAME: either create
-#      docs/CNAME containing the bare domain (e.g. `docs.fichero.app`) so it is
-#      copied into the build, or set the Pages custom domain in repo settings.
+#   2. For GitHub Pages on a custom domain, add a CNAME file (create
+#      site/docs/CNAME containing the bare domain so it's copied into the build,
+#      or set the Pages custom domain in repo settings).
 #   3. `mkdocs gh-deploy` builds and pushes to the gh-pages branch.
 
 site_name: Fichero
-site_description: A macOS document-management and knowledge-graph studio for researchers.
+site_description: A document library to organize, search, and process research materials using workflows, entirely on your Mac.
 site_author: Daniel Tubb
 # TODO: real domain undecided — placeholder only. Swap before publishing.
 site_url: https://fichero.example/
 
 repo_url: https://github.com/dtubb/fichero
 repo_name: dtubb/fichero
-edit_uri: edit/main/docs/
+edit_uri: edit/main/site/docs/
 
-docs_dir: docs
-# NOTE: the repo already has a tracked 11ty marketing site under ./site, so this
-# MkDocs site builds into a separate dir to avoid clobbering it. Both this build
-# dir and the docs venv are gitignored.
-site_dir: docs-site-build
+docs_dir: site/docs
+site_dir: site/_build
 
 theme:
   name: material
-  icon:
-    logo: material/file-cabinet
+  logo: assets/icon.png
+  favicon: assets/icon.png
   features:
     - navigation.sections
     - navigation.top
@@ -79,76 +72,20 @@ markdown_extensions:
 plugins:
   - search
 
-# The existing docs/ tree is rich and heavily cross-linked (architecture notes,
-# release docs, etc.). We curate a subset into the nav; the rest still builds
-# but is intentionally not in the menu. These validation settings keep --strict
-# meaningful for NAV integrity while tolerating the pre-existing cross-links
-# between non-curated docs and links out to source files.
+# Tolerate the pre-existing cross-links inside the curated manuals that point at
+# internal (unpublished) docs; keep nav integrity strict.
 validation:
   nav:
-    omitted_files: ignore
     not_found: warn
-    absolute_links: ignore
   links:
     not_found: ignore
     anchors: ignore
     absolute_links: ignore
     unrecognized_links: ignore
 
-# The repo's docs/ is an INTERNAL agent working area (session notes, QA logs,
-# reviews, validation reports, architecture scratch). The PUBLIC site publishes
-# ONLY a curated allowlist. So this is a DEFAULT-DENY filter: `/*` excludes every
-# top-level entry in docs/, then `!` re-includes exactly the curated pages. Any
-# future dump into docs/ is excluded automatically and never leaks to the site.
-#
-# gitignore semantics: `/*` matches only the immediate children of docs/ (it does
-# not cross `/`), so nested files are not matched and a re-included directory
-# exposes its contents. To publish a SUBSET of a directory, re-include the dir,
-# re-exclude its children with `dir/*`, then re-include the specific files.
-exclude_docs: |
-  # Default: exclude everything at the docs/ root.
-  /*
-
-  # Home / landing.
-  !/index.md
-
-  # User Guide — whole directory is user-facing.
-  !/user
-
-  # API Reference (Redoc page + the committed schema copy).
-  !/api-reference
-
-  # Developer Guide — a CURATED subset of docs/developer/ only.
-  !/developer
-  /developer/*
-  !/developer/README.md
-  !/developer/architecture-overview.md
-  !/developer/openapi-and-clients.md
-  !/developer/data-search-and-kg.md
-  !/developer/workflows-activity-and-curation.md
-  !/developer/action-registry.md
-  !/developer/security-model.md
-  !/developer/setup-and-contributing.md
-
-  # Architecture overview — only the 4 cleanest overview pages, NOT all of them.
-  !/architecture
-  /architecture/*
-  !/architecture/overview.md
-  !/architecture/release-process.md
-  !/architecture/api
-  /architecture/api/*
-  !/architecture/api/overview.md
-  !/architecture/swiftui
-  /architecture/swiftui/*
-  !/architecture/swiftui/overview.md
-
-  # How It's Built — ONLY this curated page from agent-workflow/, nothing else.
-  !/agent-workflow
-  /agent-workflow/*
-  !/agent-workflow/how-fichero-is-built.md
-
 nav:
   - Home: index.md
+  - FAQ: faq.md
   - User Guide:
       - Overview: user/README.md
       - What Fichero Is: user/what-fichero-is.md
@@ -174,4 +111,4 @@ nav:
           - SwiftUI Overview: architecture/swiftui/overview.md
           - Release Process: architecture/release-process.md
   - API Reference: api-reference/index.md
-  - How It's Built: agent-workflow/how-fichero-is-built.md
+  - How It's Built: how-its-built.md
