@@ -2,7 +2,7 @@
 
 ## System requirements
 
-- macOS 15 Sequoia or later
+- macOS 26 Tahoe or later
 - Apple Silicon (M1 or later)
 
 Fichero does not run on Intel Macs or on macOS 14 or earlier.
