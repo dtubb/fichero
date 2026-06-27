@@ -188,8 +188,14 @@ struct EntityDigestView: View {
             guard let id = entity.id else { return false }
             return selectedEntityIds.contains(id)
         }
-        guard !selection.isEmpty else { return }
-        entitiesToDelete = selection
+        confirmDelete(selection)
+    }
+
+    /// Prompt to delete a specific set of entities (e.g. a right-clicked row
+    /// that isn't part of the current multi-selection).
+    private func confirmDelete(_ entities: [Components.Schemas.KnowledgeEntity]) {
+        guard !entities.isEmpty else { return }
+        entitiesToDelete = entities
         showingDeleteConfirmation = true
     }
 

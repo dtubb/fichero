@@ -271,7 +271,7 @@ struct SplittablePane<Content: View>: View {
 
                 VStack(spacing: 0) {
                     splitPane(isSecondary: false)
-                        .frame(maxWidth: .infinity, height: primaryHeight)
+                        .frame(maxWidth: .infinity).frame(height: primaryHeight)
 
                     ResizableDivider(
                         width: $horizontalPrimaryExtent,
@@ -294,7 +294,7 @@ struct SplittablePane<Content: View>: View {
 
                 VStack(spacing: 0) {
                     splitPane(isSecondary: false)
-                        .frame(maxWidth: .infinity, height: primaryHeight)
+                        .frame(maxWidth: .infinity).frame(height: primaryHeight)
 
                     ResizableDivider(
                         width: $horizontalPrimaryExtent,
@@ -305,7 +305,7 @@ struct SplittablePane<Content: View>: View {
                     )
 
                     splitPane(isSecondary: true)
-                        .frame(maxWidth: .infinity, height: secondaryHeight)
+                        .frame(maxWidth: .infinity).frame(height: secondaryHeight)
 
                     ResizableDivider(
                         width: $horizontalSecondaryExtent,
