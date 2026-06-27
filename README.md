@@ -1,24 +1,36 @@
 # Fichero
 
-*Fichero* (Spanish: **file cabinet**, **card index**) is a document management
-system with AI processing for macOS. It gives a researcher's corpus — PDFs,
-fieldwork notes, audio, images, transcripts, references — a single home with
-semantic understanding: ask a question and find the relevant passage, not just
-the filename.
+*Fichero*, which is Spanish for a **filing cabinet** or a **card index**) is an application to manage documents, to read them, and to process them with AI tools for macOS and iOS. It's audience are researcher with a collection of images of historical documents, PDFs of books, archival materials, academic articles, hand written fieldwork notes, audio interviews, video recording, transcripts, primary and secodnary sources, and maps. It offers a single home for this material, and then a way to build a semantic understanding using AI tools, to allow researchs to read, transcribe, and ask questions of their materials, while always being able to easily find the relevant passage in the source document. Fichero's aim aims to let you build the steps yourself — visually, repeatably, across a whole corpus — to owkr with a colletion. It moves the beyond the chat box as a kind of delphic opaque agent, nad lets you see what the machine actually did and how. The iam is that the AI becomes an tool for the researcher, rather than an interlocutor or a plagerism machine. It aims to surfaces facts and provenance, but it does not do the interpretion for you.
 
-The aim is to move *beyond the chat box and beyond the opaque agent*. Rather than
-letting an AI decide how things get done behind the scenes, Fichero lets you
-build the steps yourself — visually, repeatably, across a whole corpus — and see
-what the machine actually did. AI here is an **instrument, not an interlocutor**:
-it surfaces facts and provenance; it does not interpret for you.
+Fichero is built primarily for historians, anthropologists, archivists and others in the humanities who work with handwritten-documents, arhcival materials, and ethngroaphic amterials. It allos you to deploy transcription with vision AI models, catalogue production using differnet workflwos, and is ultimately a tool for letting anyone use large language models in a programmatic, methodical, step-by-step way over tens or hunreds of thousand of documents.
 
-Built primarily for historians and archivists (handwritten-document
-transcription with vision models, catalogue production), but it is ultimately a
-tool for using large language models in a programmatic, methodical,
-step-by-step way over documents.
+Fichero is a work in progress. At its core, it's an app that lets you use
+cutting-edge machine-learning techniques and prompts in a repeatable,
+programmatic way on documents.
 
-For the what and why in plain language, see [docs/about.md](docs/about.md);
-for the product north star, [CONSTITUTION.md](CONSTITUTION.md).
+It is built it to do transcription of handwritten documents using vision language
+models, and to produce catalogues. However, this approach could be used for other
+tasks. The basic idea: rather than having an AI control how things are done, in
+ways that are harder to understand, Fichero gives you, the user, ways
+visually build these steps yourself. It also gives you a vector database, a
+knowledge graph, an ontological layer, MCP tools, etc.
+
+Under the hood, Fichero is a FastAPI server connecting to a DuckDB database. It is a tool
+to experiment with using large language models in a programmatic, methodological,
+step-by-step way that helps you with your work.
+
+Fichero is model-agnostic. It works with open-source models as well as
+commercial providers, you only need to get yourself an API key. If you want to
+run models locally, you can. 
+
+The aim of Fichero is to move beyond the chat, and beyond the agentic model. It aims to let you give you more control and insight into how AI does its work: steps you want to be
+able to reproduce across multiple documents. This is an app that aims to make the
+power of AI accessible, but also searchable and readable. AIs are incredibly
+powerful; the aim here is to make them more navigable and transparent. Transparent to you as a user, but also to you as you expali nyour methods to other peoplke.
+
+To much AI work is invisible. Hidden in opaque wbeiste, with a distant database, and it hard to know what's going on under the covers. Fichero aism to make hwo ti works more visible, and therefore more accessible.
+
+Fichero is a work in progress. It is 100% coded by Claude, Codex, and other models.
 
 **One engine, many surfaces.**
 
