@@ -78,4 +78,4 @@ It is useful if you:
 - want to extract structured information and build a research record
 - care about keeping your data local and under your control
 
-Fichero is a desktop application for macOS. It requires Apple Silicon (M1 or later) and macOS 15 Sequoia or later.
+Fichero is a desktop application for macOS. It requires Apple Silicon (M1 or later) and macOS 26 Tahoe or later.

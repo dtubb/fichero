@@ -22,7 +22,7 @@ Yes. Fichero is designed for offline-first use. Your documents are stored locall
 
 ### What macOS version is required?
 
-Fichero requires macOS 15.0 (Sequoia) or later.
+Fichero requires macOS 26 (Tahoe) or later.
 
 ### Is my data secure?
 

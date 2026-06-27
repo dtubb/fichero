@@ -131,7 +131,7 @@ Fichero is a work in progress. Iterative. It is, I hope, something useful.
 
 ## System requirements
 
-- macOS 15.0 Sequoia or later
+- macOS 26 Tahoe or later
 - Apple Silicon (M1 or later)
 
 ---
