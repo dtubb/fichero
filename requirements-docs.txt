@@ -1,0 +1,6 @@
+# Documentation site dependencies (MkDocs + Material theme).
+# Install:  pip install -r requirements-docs.txt
+# Serve:    mkdocs serve
+# Build:    mkdocs build --strict
+mkdocs-material>=9.5,<10
+# The API reference page embeds Redoc from a CDN; no extra MkDocs plugin needed.
