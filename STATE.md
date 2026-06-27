@@ -1,3 +1,37 @@
+# STATE — 2026-06-27 PM (autonomous manager session — site consolidation + iOS unblock + UX, 11 PRs)
+
+Branch `main` @ `origin/main` (`aab6023b`+), synced, **green** (Xcode BuildProject verified through the session). Daniel out running; manager ran a 15-min check-in loop, dispatching worktree-isolated workers (build-gated before every merge) + one codex tmux lane.
+
+## SHIPPED TO origin/main THIS SESSION (PRs #2674–#2683)
+- **One unified public site (PR #2675/#2676/#2677):** a single MkDocs-Material portal = marketing + user docs + dev docs + API (Redoc) + "How It's Built" (agent-transparency). **`docs_dir: site/docs`** — the folder IS the source of truth (no `exclude_docs` allowlist, no `docs/` mirror; `docs/` stays the internal agent scratch area). **11ty fully removed**, real `index.md`/`faq.md` salvaged in, app icon = logo/favicon, on-disk cruft cleaned. `site_url` is a placeholder pending the real `fichero.***` domain; landing copy marked `<!-- PLACEHOLDER: Daniel to rewrite -->`.
+- **iOS UNBLOCKED (PR #2681 #2098 + PR #2682):** the iOS Simulator target did NOT compile on main (ungated macOS-only APIs — `onDeleteCommand` ×6, `homeDirectoryForCurrentUser`) — almost certainly *why* iPad/iPhone "wasn't working". Gated 7 sites behind `#if os(macOS)`; iOS + macOS both BUILD SUCCEEDED. PR #2682 also guards the macOS engine-embed Run-Script for non-macOS so iOS **Release** builds too. See [[ios-build-gate-via-worktree-worker]] (worktree workers iOS-build without the Xcode build.db lock).
+- **Governance docs grounded in code (PR #2675):** README/CONSTITUTION/.claude/CLAUDE.md — LLM layer is **LangChain** not LiteLLM (cost-only), transport is **pinned HTTPS** not HTTP, **MCP server is live** not planned.
+- **verify_all failure summary (PR #2674):** failed checks now collect into one consolidated block + count at the end (Daniel's "does it list all the errors?" — now yes).
+- **Sparkle feed-URL fix (PR #2678):** pbxproj `SPARKLE_FEED_URL` repointed off the retired `fichero-releases` repo → canonical `dtubb/fichero/main/fichero/appcast.xml` (both configs).
+- **Repo hygiene (PR #2679):** #2656 dynamic cron path, #2658 retire 0.0.2 handoff paths, #2659 drop duplicate `Sources/openapi.json`.
+- **UX (PR #2680 + #2683):** #2648 percent-encode `X-Fichero-Library-Path` (non-ASCII paths), #2664 no red engine-failure flash during startup, #2607 true full-screen iPhone image viewer, #2495 inspector artifact text fills full height (Daniel-flagged), #2536 autosave no longer drops the trailing edit.
+- **RELEASE_NOTES.md + docs/release/RELEASE_READINESS.md (PR #2675):** dated changelog + manager-executable publish checklist.
+
+## STALE-DONE ISSUES CLOSED / READY-FOR-TEST
+- Closed (already on main): #2468 (no empty Artifacts tab, 3008814c), #2521 (current-vs-children filter, 94cf11d1).
+- `ready-for-test` (fix on main, need Daniel's device/visual verify): #2665 iPad crash, #2666 iPhone reader, #2661 click→inspector, #2648/#2664/#2607/#2495/#2536.
+- ⚠️ **Stale-issue rate is high** — several "open" issues were already shipped. **Verify net-new (fix not already on main) BEFORE dispatching a worker.**
+
+## RELEASE — READY, BLOCKED ONLY ON DANIEL'S KEYCHAIN
+Every cert/key/profile/tool present (Developer ID, Apple Distribution, notarytool profile, ASC `.p8` `2MGYUR786H`, provisioning, Sparkle EdDSA key, `gh` auth). Run order in `docs/release/RELEASE_READINESS.md`. Remaining = execution only: fresh `build-release-dmg.sh` → `notarize.sh` → `create-github-release.sh` (Sparkle `sign_update` needs Keychain approval) → first `gh release` (no `v*` tags yet) → `release-all.sh --skip-dmg --skip-notarize` (Mac TestFlight, needs Keychain). Compile blockers that previously failed the archive are fixed. `build-release-dmg.sh [2b/6]` inside-out re-sign is load-bearing — never `codesign --deep`.
+
+## WORKERS / OPS
+- codex tmux (`fichero-workers:1`) idle after the hygiene batch — prompt-heavy/low-throughput; **prefer background Claude subagents** for the grind. Worktree-isolated subagents build-verify in their own dir (no Xcode lock) and auto-report.
+- Build gate = Xcode MCP `BuildProject` (tab `windowtab1`); iOS gate = a worktree worker running `xcodebuild -destination 'generic/platform=iOS Simulator'`. NOT `xcodebuild test`/verify_all on Daniel's desktop.
+
+## NEXT — START HERE
+1. **Release publish** (needs Daniel present for Keychain): walk `RELEASE_READINESS.md` §5 run order; rehearse with `--dry-run` first.
+2. Pick the real domain → swap `site_url` + add `site/docs/CNAME`; Daniel rewrites the placeholder landing copy.
+3. **Keep grinding UX** but VERIFY-NET-NEW first: EPIC #2670 toolbars (Daniel's active area — coordinate), #2455 slide-in attribute browser, #2458 annotation controls, observables (#2278/#2009/#1696). Non-toolbar, build-gate, worktree-isolated.
+4. Optional cleanup: delete dead `ArtifactsInspectorPane.swift` (needs pbxproj deregistration via `add-swift-file.rb` reverse).
+
+---
+
 # STATE — 2026-06-27 (Mac/iOS shell batch + Canvas/Space shipped; release lane handed to manager)
 
 Branch `main` @ `origin/main` (`1da7f098`), synced. This session: regression-fix the Mac/iOS shell + Canvas/Space view modes, ship them, then inherit the release lane.
