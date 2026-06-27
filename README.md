@@ -1,6 +1,6 @@
 # Fichero
 
-*Fichero*, which is Spanish for a **filing cabinet** or a **card index**) is an application to manage documents, to read them, and to process them with AI tools for macOS and iOS. It's audience are researcher with a collection of images of historical documents, PDFs of books, archival materials, academic articles, hand written fieldwork notes, audio interviews, video recording, transcripts, primary and secodnary sources, and maps. It offers a single home for this material, and then a way to build a semantic understanding using AI tools, to allow researchs to read, transcribe, and ask questions of their materials, while always being able to easily find the relevant passage in the source document. Fichero's aim aims to let you build the steps yourself — visually, repeatably, across a whole corpus — to owkr with a colletion. It moves the beyond the chat box as a kind of delphic opaque agent, nad lets you see what the machine actually did and how. The iam is that the AI becomes an tool for the researcher, rather than an interlocutor or a plagerism machine. It aims to surfaces facts and provenance, but it does not do the interpretion for you.
+*Fichero*, which is Spanish for a **filing cabinet** or a **card index**) is an application to manage documents, to read them, and to process them with AI tools for macOS, iPadOS, and iOS (with tvOS and visionOS planned). It's audience are researcher with a collection of images of historical documents, PDFs of books, archival materials, academic articles, hand written fieldwork notes, audio interviews, video recording, transcripts, primary and secodnary sources, and maps. It offers a single home for this material, and then a way to build a semantic understanding using AI tools, to allow researchs to read, transcribe, and ask questions of their materials, while always being able to easily find the relevant passage in the source document. Fichero's aim aims to let you build the steps yourself — visually, repeatably, across a whole corpus — to owkr with a colletion. It moves the beyond the chat box as a kind of delphic opaque agent, nad lets you see what the machine actually did and how. The iam is that the AI becomes an tool for the researcher, rather than an interlocutor or a plagerism machine. It aims to surfaces facts and provenance, but it does not do the interpretion for you.
 
 Fichero is built primarily for historians, anthropologists, archivists and others in the humanities who work with handwritten-documents, arhcival materials, and ethngroaphic amterials. It allos you to deploy transcription with vision AI models, catalogue production using differnet workflwos, and is ultimately a tool for letting anyone use large language models in a programmatic, methodical, step-by-step way over tens or hunreds of thousand of documents.
 
@@ -15,8 +15,8 @@ ways that are harder to understand, Fichero gives you, the user, ways
 visually build these steps yourself. It also gives you a vector database, a
 knowledge graph, an ontological layer, MCP tools, etc.
 
-Under the hood, Fichero is a FastAPI server connecting to a DuckDB database. It is a tool
-to experiment with using large language models in a programmatic, methodological,
+Under the hood, the Fichero app talks to fichero-engine, a server that connects to a
+DuckDB database. It is a tool to experiment with using large language models in a programmatic, methodological,
 step-by-step way that helps you with your work.
 
 Fichero is model-agnostic. It works with open-source models as well as
@@ -36,7 +36,7 @@ Fichero is a work in progress. It is 100% coded by Claude, Codex, and other mode
 
 ## Architecture
 
-Fichero is a single backend engine ("engine is logic; clients are display surfaces") with multiple thin clients on top of it.
+fichero-engine is a single server that holds the logic; the Fichero app and the other surfaces sit on top of it and display what it returns.
 
 ```
 ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
@@ -50,7 +50,7 @@ Fichero is a single backend engine ("engine is logic; clients are display surfac
                               │
                               ▼
               ┌──────────────────────────────┐
-              │  FastAPI engine              │
+              │  fichero-engine (FastAPI)    │
               │  (fichero-engine/src/fichero)│
               └──┬─────────┬─────────┬───────┘
                  │         │         │
@@ -67,7 +67,7 @@ Fichero is a single backend engine ("engine is logic; clients are display surfac
 
 ### Surfaces
 
-All surfaces are thin clients on the engine. They render and accept input; they do not contain logic.
+All surfaces sit on top of fichero-engine. They render and accept input; they do not contain logic.
 
 | Surface | Path | Status |
 |---|---|---|
@@ -99,7 +99,7 @@ All surfaces are thin clients on the engine. They render and accept input; they 
 
 ## Running
 
-**Start the backend** (serves HTTPS on `127.0.0.1:8765`; the app pins it fail-closed, so a plain-HTTP engine cannot connect):
+**Start fichero-engine** (serves HTTPS on `127.0.0.1:8765`; the app pins it fail-closed, so a plain-HTTP engine cannot connect):
 ```bash
 bash fichero-engine/scripts/start_backend.sh
 ```
@@ -121,7 +121,7 @@ scripts/launch-release.sh --debug    # Debug build
 > Launch through `open` (which the helper does) or via Finder/Spotlight/Dock.
 > App logs go to the unified log: `log stream --predicate 'process == "Fichero"'`.
 
-**Use the CLI (against a running backend):**
+**Use the CLI (against a running fichero-engine):**
 ```bash
 fichero --help
 fichero workflow list
@@ -148,7 +148,7 @@ scripts/release-all.sh --help
 - **Search**: Semantic search via LanceDB embeddings
 - **Chat**: RAG-based document Q&A
 - **Workflows**: Visual node editor for document processing pipelines (LangGraph)
-- **Knowledge Graph**: Entities, claims, and relationships extracted from documents (backend-owned; surfaces render)
+- **Knowledge Graph**: Entities, claims, and relationships extracted from documents (owned by fichero-engine; surfaces render)
 - **Ingest**: Comprehensive file ingestion with 37+ supported formats
 - **CLI / MCP**: Engine endpoints driven from the terminal (`fichero`) and from MCP-aware agents (`fichero-mcp`)
 - **Privacy / offline-first**: Model-agnostic via LangChain provider integrations; run local models (Ollama, LM Studio, MLX) with no internet, or bring your own cloud API key
@@ -188,7 +188,7 @@ docs = ingest_folder(
 
 ## Project Structure
 
-- `fichero-engine/` — FastAPI backend, workflow runner, KG, ingest ([README](fichero-engine/README.md))
+- `fichero-engine/` — the server (FastAPI), workflow runner, KG, ingest ([README](fichero-engine/README.md))
 - `fichero/` — SwiftUI app, Xcode project, and `fichero` CLI under `fichero-engine/src/fichero/cli/`
 - `docs/agent-workflow/` — Agent workflow docs, task list, and templates
 
@@ -204,7 +204,7 @@ rules. Folder-specific notes live in [fichero/AGENTS.md](fichero/AGENTS.md) and
 - `generated/local`: `.build/`, `build/`, `dist/`, `logs/`, `fichero/derived_data/`
 - `reference`: `docs/`
 
-### Python Backend (`fichero-engine/src/fichero/`)
+### fichero-engine — Python server (`fichero-engine/src/fichero/`)
 
 ```
 api/               # FastAPI routes (documents, search, chat, workflows, kg, providers)
