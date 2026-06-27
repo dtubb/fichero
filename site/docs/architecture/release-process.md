@@ -27,7 +27,7 @@ Tag + ship
 
 ---
 
-## Step 1 — Backend Tests
+## Step 1: Backend Tests
 
 Run before any frontend work begins. The backend must be green before wiring.
 
@@ -44,7 +44,7 @@ ruff check fichero-engine/src/
 
 ---
 
-## Step 2 — Frontend: Enable + Integrate
+## Step 2: Frontend Enable + Integrate
 
 1. Enable the feature flag in `FeatureManager.swift` (or `resetToV0X()` tier)
 2. Verify Xcode build compiles without errors:
@@ -64,7 +64,7 @@ ruff check fichero-engine/src/
 
 ---
 
-## Step 3 — Automated API Tests (Claude)
+## Step 3: Automated API Tests (Claude)
 
 Claude calls the backend API directly via MCP tools to verify the feature's endpoints work correctly.
 
@@ -80,7 +80,7 @@ Results recorded as a comment on the release gate issue.
 
 ---
 
-## Step 4 — Visual Tests (Peekaboo)
+## Step 4: Visual Tests (Peekaboo)
 
 With the app running and the feature enabled, Claude uses Peekaboo to take screenshots.
 
@@ -94,9 +94,9 @@ Screenshots attached to the release gate issue as evidence.
 
 ---
 
-## Step 5 — Human Test (Daniel)
+## Step 5: Human Test (Daniel)
 
-Each release gate issue contains a **Daniel Test Checklist** — specific steps to follow in the running app.
+Each release gate issue contains a **Daniel Test Checklist** with specific steps to follow in the running app.
 
 **Format:**
 ```
@@ -110,7 +110,7 @@ When all items are checked and no P0 bugs remain open: release is approved.
 
 ---
 
-## Step 6 — Bug Loop
+## Step 6: Bug Loop
 
 Bugs found during Steps 3–5 are filed via `/bug` skill.
 Each bug gets a GitHub issue with label `type:bug` + current milestone.
@@ -118,7 +118,7 @@ Claude fixes bugs, re-runs Steps 3–5 for affected areas.
 
 ---
 
-## Step 7 — Tag + Ship
+## Step 7: Tag + Ship
 
 Once Daniel approves:
 ```bash

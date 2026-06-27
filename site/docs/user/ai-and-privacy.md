@@ -4,7 +4,7 @@
 
 Fichero stores everything in a `.fichero` library package on your disk. There is no telemetry, no analytics, and no cloud sync. Fichero does not require an account.
 
-The only network traffic is to the AI provider you choose — and only when you run a workflow that calls that provider. If you run everything locally, Fichero makes no network calls at all.
+The only network traffic is to the AI provider you choose, and only when you run a workflow that calls that provider. If you run everything locally, Fichero makes no network calls at all.
 
 ---
 
@@ -27,7 +27,7 @@ For sensitive research materials, local models are the right choice.
 
 ### Cloud options
 
-Fichero uses [LiteLLM](https://github.com/BerriAI/litellm) to connect to cloud providers. You supply your own API key. Fichero does not proxy requests through any intermediary — your API calls go directly to the provider.
+Fichero uses [LiteLLM](https://github.com/BerriAI/litellm) to connect to cloud providers. You supply your own API key. Fichero does not proxy requests through any intermediary; your API calls go directly to the provider.
 
 Available providers include OpenAI, Anthropic (Claude), Google, Mistral, Groq, DeepSeek, OpenRouter, Azure, Amazon Bedrock, and others. See Settings for the full list.
 
@@ -37,7 +37,7 @@ Cloud models are billed by your API provider at their standard rates.
 
 For transcription of historical handwriting or difficult scripts, cloud vision models (GPT-4o, Claude) typically produce better results than local OCR. For entity extraction on clean typed or printed text, Apple Intelligence works well and keeps everything on-device.
 
-If you are processing sensitive materials — unpublished fieldwork, confidential documents, materials with legal or ethical restrictions — use local models.
+If you are processing sensitive materials (unpublished fieldwork, confidential documents, materials with legal or ethical restrictions), use local models.
 
 ---
 
@@ -45,13 +45,13 @@ If you are processing sensitive materials — unpublished fieldwork, confidentia
 
 Fichero AI extracts structured facts from your documents:
 
-- **Entities** — people, places, organizations, events, concepts, dates, keywords
-- **Claims** — statements with subject-verb-object structure, tied to specific pages
-- **Citations** — page-level provenance on every extracted item
+- **Entities**: people, places, organizations, events, concepts, dates, keywords
+- **Claims**: statements with subject-verb-object structure, tied to specific pages
+- **Citations**: page-level provenance on every extracted item
 
 Every extracted item carries provenance: which page it came from, which workflow produced it, which model was used.
 
-You review the output. You can approve, reject, suppress, or merge any entity or claim. Suppression rules persist — if you reject a spurious entity, the suppression applies to future runs on that document.
+You review the output. You can approve, reject, suppress, or merge any entity or claim. Suppression rules persist: if you reject a spurious entity, the suppression applies to future runs on that document.
 
 ## What the AI does not do
 
@@ -63,7 +63,7 @@ The AI is an extraction instrument. Interpretation is yours.
 
 ## iPad and remote access (advanced)
 
-The Fichero engine runs on your Mac only. It binds to `127.0.0.1` (loopback) — it is not reachable from the internet or from other devices on your local network by default.
+The Fichero engine runs on your Mac only. It binds to `127.0.0.1` (loopback), so it is not reachable from the internet or from other devices on your local network by default.
 
 If you want to use Fichero from an iPad or a second Mac, you can expose the loopback engine to your personal [Tailscale](https://tailscale.com) network:
 

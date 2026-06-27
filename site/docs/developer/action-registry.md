@@ -15,7 +15,7 @@ The action registry is the single audited write path for every mutation in Fiche
 
 This pattern was introduced to fix an entire class of bugs at once: the merge-bug class (mutations that silently succeeded but left the UI stale), missing UI verification (no before/after diff available), chat-tool and App Intents invocations that had no audit trail, and the absence of a reliable undo path.
 
-Actions are named `<domain>.<verb>`: `entity.merge`, `document.ingest`, `claim.delete`, and so on. Every domain — documents, entities, claims, folders, workflows, sources, artifacts, tasks — has its actions registered at startup.
+Actions are named `<domain>.<verb>`: `entity.merge`, `document.ingest`, `claim.delete`, and so on. Every domain (documents, entities, claims, folders, workflows, sources, artifacts, tasks) has its actions registered at startup.
 
 ## How to Add a New Action
 
@@ -93,7 +93,7 @@ The `before`/`after` fields make it possible to answer "what changed and when" w
 
 ## Generic Invocation
 
-Any caller — a route handler, a chat tool, an App Intent, a test — can invoke an action through the generic HTTP endpoint:
+Any caller (a route handler, a chat tool, an App Intent, a test) can invoke an action through the generic HTTP endpoint:
 
 ```
 POST /api/actions/invoke
