@@ -73,8 +73,8 @@ struct MacPlainTextEditor: NSViewRepresentable {
     }
 }
 #elseif canImport(UIKit)
-import UIKit
 import SwiftUI
+import UIKit
 
 /// iOS plain text editor using SwiftUI's native TextEditor.
 struct MacPlainTextEditor: View {
@@ -91,4 +91,3 @@ struct MacPlainTextEditor: View {
 }
 
 #endif
-

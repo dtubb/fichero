@@ -796,4 +796,3 @@ private func applyHighlightSpan(
 }
 
 #endif
-
