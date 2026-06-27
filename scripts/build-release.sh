@@ -16,6 +16,7 @@ SCHEME="Fichero"
 CONFIGURATION="Release"
 DERIVED_DATA="$SWIFTUI_ROOT/build/xcode"
 APP_PATH="$DERIVED_DATA/Products/$CONFIGURATION/Fichero.app"
+SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://raw.githubusercontent.com/dtubb/fichero/main/fichero/appcast.xml}"
 
 SKIP_BACKEND=false
 DRY_RUN=false
@@ -105,6 +106,7 @@ fi
 # ── 2. Xcode Release build ──────────────────────────────────────────────────
 # Xcode's CopyFiles build phase copies FicheroBackend.app into Resources
 echo "[2/4] Xcode Release build"
+echo "  Sparkle feed: $SPARKLE_FEED_URL"
 cd "$ROOT_DIR"
 run_or_dry xcodebuild \
   -project "$PROJECT" \
@@ -112,6 +114,7 @@ run_or_dry xcodebuild \
   -configuration "$CONFIGURATION" \
   -derivedDataPath "$DERIVED_DATA" \
   -skipPackagePluginValidation \
+  SPARKLE_FEED_URL="$SPARKLE_FEED_URL" \
   build
 
 if [ "$DRY_RUN" = false ] && [ ! -d "$APP_PATH" ]; then

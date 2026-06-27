@@ -26,6 +26,10 @@ done
 
 DMG_PATH="${POSITIONAL_ARGS[0]:-$ROOT_DIR/build/releases/Fichero.dmg}"
 KEYCHAIN_PROFILE="${FICHERO_NOTARIZE_PROFILE:-notarytool}"
+API_KEY_PATH="${FICHERO_NOTARY_KEY_PATH:-$HOME/Documents/Developer/Certificates/2026-07-5 App Store COnecnt/AuthKey_2MGYUR786H.p8}"
+API_KEY_ID="${FICHERO_NOTARY_KEY_ID:-2MGYUR786H}"
+API_ISSUER="${FICHERO_NOTARY_ISSUER:-6d2cfad9-6a3d-48a0-bdcc-9c75c308f812}"
+NOTARY_AUTH_ARGS=()
 
 # run_or_dry: execute a command or print it in dry-run mode.
 run_or_dry() {
@@ -61,28 +65,27 @@ else
     exit 1
   fi
 
-  if ! xcrun notarytool history --keychain-profile "$KEYCHAIN_PROFILE" >/dev/null 2>&1; then
-    echo "error: notarytool keychain profile '$KEYCHAIN_PROFILE' not found" >&2
-    echo "" >&2
-    echo "Set up credentials with:" >&2
-    echo "  xcrun notarytool store-credentials \"$KEYCHAIN_PROFILE\" \\" >&2
-    echo "    --apple-id \"your@email.com\" \\" >&2
-    echo "    --team-id \"YOUR_TEAM_ID\" \\" >&2
-    echo "    --password \"app-specific-password\"" >&2
-    echo "" >&2
-    echo "Or set FICHERO_NOTARIZE_PROFILE to use a different profile name." >&2
+  if xcrun notarytool history --keychain-profile "$KEYCHAIN_PROFILE" >/dev/null 2>&1; then
+    NOTARY_AUTH_ARGS=(--keychain-profile "$KEYCHAIN_PROFILE")
+    echo "  Keychain profile: $KEYCHAIN_PROFILE"
+  elif [ -f "$API_KEY_PATH" ]; then
+    NOTARY_AUTH_ARGS=(--key "$API_KEY_PATH" --key-id "$API_KEY_ID" --issuer "$API_ISSUER")
+    echo "  Keychain profile unavailable; using App Store Connect API key: $API_KEY_ID"
+  else
+    echo "error: no notarization credentials available" >&2
+    echo "  missing keychain profile: $KEYCHAIN_PROFILE" >&2
+    echo "  missing API key file: $API_KEY_PATH" >&2
     exit 1
   fi
 
   echo "  Developer ID: found"
-  echo "  Keychain profile: $KEYCHAIN_PROFILE"
 fi
 
 # ── 2. Submit for notarization ───────────────────────────────────────────────
 echo "[2/3] Submitting for notarization: $(basename "$DMG_PATH")"
 
 run_or_dry xcrun notarytool submit "$DMG_PATH" \
-  --keychain-profile "$KEYCHAIN_PROFILE" \
+  "${NOTARY_AUTH_ARGS[@]}" \
   --wait
 
 # ── 3. Staple the ticket ────────────────────────────────────────────────────
