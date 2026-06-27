@@ -60,7 +60,6 @@ struct LibraryWorkspaceRoot: View {
                 documentURL: LibraryWorkspaceSelection.documentURL(for: library.url, libraryManager: libraryManager)
             )
             .environmentObject(windowState)
-            .environment(library.documentStore)
             .environmentObject(library.savedSearchServiceGenerated)
             .environmentObject(library.searchService)
             .environmentObject(library.conversationServiceGenerated)
@@ -101,6 +100,7 @@ struct LibraryWorkspaceRoot: View {
                 library.activityStore.start()
             }
         }
+        .environment(library.documentStore)
         #if canImport(UIKit) && !os(macOS)
         .toolbar {
             // Library switcher (#2394) — the registry of libraries the paired Mac

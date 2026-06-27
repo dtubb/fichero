@@ -336,7 +336,7 @@ struct ContentView: View {
                 maxHeight: .infinity
             )
             .popover(
-                item: $detailDocument,
+                item: detailPopoverDocument,
                 attachmentAnchor: .rect(.bounds),
                 arrowEdge: .trailing
             ) { document in
@@ -707,12 +707,9 @@ extension ContentView {
     private var contentPaneToolbarContent: some ToolbarContent {
         if supportsReadingWorkspace {
             ToolbarItemGroup(placement: .automatic) {
-                Button {
-                    showDocumentGrid.toggle()
-                } label: {
-                    Label("Library Pane", systemImage: showDocumentGrid ? "sidebar.left" : "sidebar.left")
+                if showViewModePicker && availableViewDisplayModes.count > 1 {
+                    viewDisplayModeMenu
                 }
-                .help(showDocumentGrid ? "Hide library pane" : "Show library pane")
 
                 Button {
                     setCanvasPaneVisible(!showDocumentCanvas)
@@ -729,6 +726,21 @@ extension ContentView {
                 .help(showReadingPane ? "Hide reading pane" : "Show reading pane")
             }
         }
+    }
+
+    private var viewDisplayModeMenu: some View {
+        Menu {
+            ForEach(availableViewDisplayModes) { mode in
+                Button {
+                    updateViewDisplayMode(mode)
+                } label: {
+                    Label(mode.label, systemImage: mode.icon)
+                }
+            }
+        } label: {
+            Label(viewDisplayMode.label, systemImage: viewDisplayMode.icon)
+        }
+        .help("Choose how library items are shown")
     }
 
     #if !os(macOS)
