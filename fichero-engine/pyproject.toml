@@ -93,7 +93,6 @@ requires = [
     # Document Processing
     "PyMuPDF",
     "Pillow>=12.2.0",
-    "opencv-python-headless",
 ]
 
 [tool.briefcase.app.engine.macOS]
@@ -188,13 +187,10 @@ dependencies = [
     # KG substrate (#899) — rdflib materializes SVO claims as triples
     # so SPARQL queries become available alongside DuckDB joins.
     # spaCy gives deterministic first-pass NER (en + es models).
-    # splink gives probabilistic record linkage on top of vectors.
     "rdflib",
     "spacy",
-    "splink",
     "PyMuPDF",
     "Pillow>=12.2.0",
-    "opencv-python-headless",
 ]
 
 [project.optional-dependencies]
