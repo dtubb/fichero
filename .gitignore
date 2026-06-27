@@ -42,6 +42,10 @@ fichero-engine/src/fichero/cli/generated/
 site/_site/
 site/node_modules/
 
+# MkDocs docs site (build output + local docs venv)
+docs-site-build/
+.venv-docs/
+
 # Swift / Xcode user-local
 **/xcuserdata/
 **/*.xcuserstate
