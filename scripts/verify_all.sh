@@ -120,6 +120,7 @@ if ! "${PYTHON_BIN}" -c "import ruff" >/dev/null 2>&1; then
 fi
 
 fail=0
+FAILED_CHECKS=()
 XCODE_PROJECT="fichero/fichero.xcodeproj"
 XCODE_SCHEME="Fichero"
 VISION_SUPPORTED=0
@@ -199,6 +200,7 @@ run_check() {
   else
     echo "FAIL ${label}"
     fail=1
+    FAILED_CHECKS+=("${label}")
   fi
 }
 
@@ -257,12 +259,14 @@ run_platform_checks() {
     iphone_udid="$(simulator_udid iphone)" || {
       echo "FAIL xcodebuild iPhone Simulator build"
       fail=1
+      FAILED_CHECKS+=("xcodebuild iPhone Simulator build")
       return
     }
 
     ipad_udid="$(simulator_udid ipad)" || {
       echo "FAIL xcodebuild iPad Simulator build"
       fail=1
+      FAILED_CHECKS+=("xcodebuild iPad Simulator build")
       return
     }
 
@@ -321,6 +325,11 @@ echo
 if [[ "$fail" = 0 ]]; then
   echo "verify_all (${tier}): ALL PASS"
 else
-  echo "verify_all (${tier}): FAILURES ABOVE"
+  echo "================ verify_all (${tier}): FAILED CHECKS ================"
+  for failed in "${FAILED_CHECKS[@]}"; do
+    echo "  FAIL ${failed}"
+  done
+  echo "===================================================================="
+  echo "verify_all (${tier}): ${#FAILED_CHECKS[@]} FAILED — see consolidated list above (details inline higher up)"
 fi
 exit "$fail"
