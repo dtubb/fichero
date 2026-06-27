@@ -126,6 +126,7 @@ struct EntityNotesSection: View {
                 }
                 .buttonStyle(.borderless)
                 .foregroundStyle(.red)
+                .help("Delete this note")
             }
         }
     }

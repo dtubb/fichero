@@ -149,6 +149,7 @@ extension ResearchTasksPane {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
+            .help(expandedTaskIds.contains(task.id) ? "Hide this task's steps" : "Show this task's steps")
         }
         .padding(.vertical, 2)
     }
@@ -325,6 +326,7 @@ extension ResearchTasksPane {
                     .font(.title3)
             }
             .buttonStyle(.plain)
+            .help("Submit")
             .disabled(text.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
         .padding(8)
