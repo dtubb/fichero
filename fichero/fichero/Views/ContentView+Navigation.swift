@@ -125,6 +125,7 @@ extension ContentView {
                     selection: $browserSelection,
                     detailDocument: $detailDocument,
                     viewMode: $viewSettings.libraryLayout,
+                    isPaneFocused: focusedPane == .content,
                     displayMode: viewDisplayMode,
                     folderId: sidebarSelectionState.selectedItemId,
                     onRequestFocus: { focusedPane = .content },
