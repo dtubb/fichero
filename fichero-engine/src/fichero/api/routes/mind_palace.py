@@ -169,6 +169,52 @@ class ViewportSaveRequest(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+def _legacy_room_exists(db: Database, room_id: str) -> bool:
+    """True when the legacy spatial-room table still has ``room_id``."""
+    return any(room.id == room_id for room in db._legacy_all_spatial_room_rows())
+
+
+def _room_from_node_or_404(db: Database, room_id: str) -> SpatialRoom:
+    """Read a room from its node-backed representation, never the legacy row."""
+    doc = db.get(Document, room_id)
+    if doc is None:
+        if _legacy_room_exists(db, room_id):
+            raise HTTPException(status_code=404, detail=f"Room node not found: {room_id}")
+        raise HTTPException(status_code=404, detail=f"Room not found: {room_id}")
+    try:
+        return db._spatial_room_from_document(db, doc)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+def _list_rooms_from_nodes(
+    db: Database,
+    *,
+    room_type: RoomType | None = None,
+    owner_id: str | None = None,
+) -> list[SpatialRoom]:
+    """List room nodes, but fail loudly if a legacy room lost its node."""
+    docs = db.query(Document, node_kind="room")
+    by_id: dict[str, SpatialRoom] = {}
+    for doc in docs:
+        room = db._spatial_room_from_document(db, doc)
+        by_id[room.id] = room
+
+    for legacy_room in db._legacy_all_spatial_room_rows():
+        if legacy_room.id not in by_id:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Room node not found: {legacy_room.id}",
+            )
+
+    rows = list(by_id.values())
+    if room_type is not None:
+        rows = [r for r in rows if r.room_type == room_type]
+    if owner_id is not None:
+        rows = [r for r in rows if r.owner_id == owner_id]
+    return rows
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Room Management
 # ─────────────────────────────────────────────────────────────────────────────
@@ -190,7 +236,7 @@ async def create_room(
         updated_at=now,
     )
     db.save(room)
-    return room
+    return _room_from_node_or_404(db, room.id)
 
 
 @router.get("/rooms", response_model=MindPalaceListResponse)
@@ -199,11 +245,7 @@ async def list_rooms(
     owner_id: str | None = None,
     db: Database = Depends(get_library_database),
 ) -> list[SpatialRoom]:
-    rows = db.all(SpatialRoom)
-    if room_type is not None:
-        rows = [r for r in rows if r.room_type == room_type]
-    if owner_id is not None:
-        rows = [r for r in rows if r.owner_id == owner_id]
+    rows = _list_rooms_from_nodes(db, room_type=room_type, owner_id=owner_id)
     return MindPalaceListResponse(items=rows, count=len(rows))
 
 
@@ -212,10 +254,7 @@ async def get_room(
     room_id: str,
     db: Database = Depends(get_library_database),
 ) -> SpatialRoom:
-    room = db.get(SpatialRoom, room_id)
-    if not room:
-        raise HTTPException(status_code=404, detail=f"Room not found: {room_id}")
-    return room
+    return _room_from_node_or_404(db, room_id)
 
 
 @router.patch("/rooms/{room_id}", response_model=SpatialRoom)
@@ -224,16 +263,14 @@ async def update_room(
     request: RoomUpdateRequest,
     db: Database = Depends(get_library_database_for_write),
 ) -> SpatialRoom:
-    room = db.get(SpatialRoom, room_id)
-    if not room:
-        raise HTTPException(status_code=404, detail=f"Room not found: {room_id}")
+    room = _room_from_node_or_404(db, room_id)
 
     updates = request.model_dump(exclude_unset=True, exclude_none=True)
     for key, value in updates.items():
         setattr(room, key, value)
     room.updated_at = datetime.now()
     db.save(room)
-    return room
+    return _room_from_node_or_404(db, room_id)
 
 
 @router.delete("/rooms/{room_id}")
@@ -241,9 +278,7 @@ async def delete_room(
     room_id: str,
     db: Database = Depends(get_library_database_for_write),
 ) -> MindPalaceDeletedResponse:
-    room = db.get(SpatialRoom, room_id)
-    if not room:
-        raise HTTPException(status_code=404, detail=f"Room not found: {room_id}")
+    room = _room_from_node_or_404(db, room_id)
     db.delete(room)
     return MindPalaceDeletedResponse(status="deleted")
 
