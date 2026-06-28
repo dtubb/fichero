@@ -2,7 +2,7 @@
 
 Author: Claude (commits authored as Claude, co-authored Daniel Tubb). **Not pushed** — manager merges + runs verify_all.
 
-Branch base: `55036ddf` (main merge). 6 commits added, one per issue.
+Branch base: `55036ddf` (main merge). 13 commits added (one per issue + a docx follow-up + report). **Not pushed.**
 
 ---
 
@@ -15,8 +15,18 @@ Branch base: `55036ddf` (main merge). 6 commits added, one per issue.
 | 3 | #2286 | `check_applescript_coverage.py` | Bidirectional `Fichero.sdef` ↔ Swift: every advertised `<cocoa class="Fichero*">` has a Swift class, and every `NSScriptCommand` subclass is advertised | **0** (14 classes, 10 commands, lock-step) | ✓ |
 | 4 | #2287 | `check_localization.py` | Bans `Text(verbatim: "<prose>")` — the one SwiftUI escape hatch from `LocalizedStringKey` localization | **0** (no verbatim prose today) | ✓ |
 | 5 | #2270 | `check_import_render_completeness.py` | Every engine `DocType`/`FileType` (importable) is handled by the Swift decoder switch (`convertFromGenerated*` in DocumentServiceGenerated.swift) → renders in ≥1 representation | **0** (clean — decoder handles all; docx folds to word) | ✓ |
+| 6 | #2393 | `check_no_raw_urlsession.py` | Bans raw `URLSession(`/`.shared`/`.data(for:)`/`.bytes(for:)`/… in the OpenAPI client package (`fichero-api-client/Sources/**`) outside the allowlisted pinned-session owner | **0** (only RemoteCertificatePinning.swift, allowlisted) | ✓ |
+| 7 | #2281 | `check_app_intent_action_coverage.py` | Every action an App Intent invokes by string (`invokeAuditedAction("…")`) exists in the action registry (`@action("…")`) | **0** (5 refs all resolve; 129 registered) | ✓ |
 
-Each ships a `test_check_*.py` in `fichero-engine/tests/unit/` (26 tests total, all pass). `--list` and `--help` on every script.
+Each ships a `test_check_*.py` in `fichero-engine/tests/unit/` (40 new tests, all pass). `--list` and `--help` on every script.
+
+## Pre-existing red guardrails RESOLVED this session
+
+| Issue | Guardrail | Fix |
+|-------|-----------|-----|
+| #2712 | `check_openapi_shadow_types.py` | Dropped 2 stale allowlist entries; knowingly allowlisted the 5 Spatial* view-mode shadows with reason + ref. Now 80 known / 0 new. |
+| #2713 | `check_appkit_imports.py` | Dropped 4 stale; allowlisted 7 new platform bridges (iOS UIKit + WKWebView/PDFKit) with reasons (#2101 migration). Now 36 known / 0 new. |
+| #2711 | `test_db_access_guardrail.py` | Allowlisted `execution/batch.py` (BatchManager — a self-contained subsystem persistence store, same shape as the allowlisted workflow stores). |
 
 ### Detail per check
 
@@ -41,9 +51,9 @@ Each ships a `test_check_*.py` in `fichero-engine/tests/unit/` (26 tests total, 
 
 **#2269 — models → shared folder.** Already done: `scripts/check_model_download_location.py` exists and passes. No action.
 
-**#2393 — ban raw URLSession.** Already done: `scripts/check_swift_hand_rolled_urls.py` + `check_swift_transport.py` exist and pass. No action.
+**#2393 — ban raw URLSession.** The app side was already enforced by `check_swift_transport.py` rule 1 (no raw unpinned `URLSession` in `fichero/fichero/**` incl. Services/) + `check_swift_hand_rolled_urls.py`. Added `check_no_raw_urlsession.py` to close the one gap those don't scan: the OpenAPI client package (`fichero-api-client/Sources/**`), allowlisting only the pinned-session owner. Now a new middleware/helper in the package can't bypass pinning.
 
-**#2271 — EPIC: guardrail suite.** Left **open** per instructions. Did concrete child slices (#2285, #2286, #2287, #2270, #2660).
+**#2271 — EPIC: guardrail suite.** Left **open** per instructions. Did concrete child slices (#2285, #2286, #2287, #2270, #2660, #2393, #2281) and resolved the red-allowlist slices (#2711, #2712, #2713). Items 1–7 of the EPIC now have green guardrails; item 8 (#Preview / test coverage) is explicitly *non-blocking/report-only* and already has a `scan_test_coverage_gaps.py` report scanner — not converted to a hard gate.
 
 ---
 
@@ -53,7 +63,7 @@ Each ships a `test_check_*.py` in `fichero-engine/tests/unit/` (26 tests total, 
 
 2. **#2287 Localization — broad enforcement deferred (intentionally not built).** The app has **no localization infra** (0 `String(localized:)`, no string catalog; #1396 not landed). In SwiftUI, `Text`/`Button`/`Label`/interpolated `Text` already localize via `LocalizedStringKey` — they are *not* bypasses. A ratchet over the ~1650 literals would force `String(localized:)` into infrastructure that doesn't exist, blocking all UI work for no benefit. So I shipped only the genuine, zero-friction slice (ban `Text(verbatim:)` prose). Enforcing `String(localized:)` for **non-View** user-facing strings (alerts/errors built in stores/services) should land **with** #1396's catalog.
 
-3. **#2281 — every action reachable from UI+chat+App Intents+MCP — design-blocked, not built.** Analysis:
+3. **#2281 — every action reachable from UI+chat+App Intents+MCP — partially built; forward-coverage still design-blocked.** Shipped the concrete reverse-integrity slice (`check_app_intent_action_coverage.py`: every App Intent action string resolves to a registered action). Forward coverage analysis:
    - **chat**: auto-generated from the action registry (`actions/chat_tools.py::action_tools` iterates `reg.all()`) → 1:1 by construction, can't drift. Also the live `/api/chat` is still single-shot (no agentic tool loop yet), so chat tools aren't wired in. No useful guardrail here.
    - **App Intents** (`Intents/FicheroActionIntents.swift`) and **MCP** (`mcp_*.py`) are **curated subsets** (~5 intents vs ~109 registry actions) — by design, not everything should be a Siri shortcut / MCP tool.
    - A 4-surface matrix therefore needs a **per-action surface policy** (which actions belong on which surface) before a ratchet means anything. Seeding ~100 arbitrary allowlist entries would be inventing that policy, not enforcing it. **Needs Daniel's design decision** (it's `[design]`-flagged in #2271). Did not ship an arbitrary guardrail.
@@ -62,17 +72,17 @@ Each ships a `test_check_*.py` in `fichero-engine/tests/unit/` (26 tests total, 
 
 ## Pre-existing red guardrails (NOT introduced by this branch)
 
-⚠️ **The base commit `55036ddf` already fails 17 guardrails** (verified by running the full `scripts/check_*.py` suite in a throwaway worktree at the base — identical 17-failure set with and without my commits). My work adds **zero** new guardrail failures; all 5 new checks exit 0.
+⚠️ **The base commit `55036ddf` already failed 17 guardrails** (verified by running the full `scripts/check_*.py` suite in a throwaway worktree at the base — identical 17-failure set with and without my commits). My work adds **zero** new failures; all 7 new checks exit 0. This session I **resolved 2** of them (`check_appkit_imports` #2713, `check_openapi_shadow_types` #2712) plus the `test_db_access_guardrail` test (#2711), leaving **15** pre-existing reds.
 
-The 17 pre-existing reds: `check_action_surface_matrix`, `check_appkit_imports`, `check_canonical_renderers`, `check_comment_hygiene`, `check_dead_files`, `check_endpoint_coverage_matrix`, `check_endpoint_usage`, `check_feature_flags`, `check_folder_organization`, `check_native_controls`, `check_observer_pattern`, `check_openapi_shadow_types`, `check_python_comment_hygiene`, `check_service_consistency`, `check_test_assertions`, `check_undo_coverage`, `check_view_endpoint_access`.
+The 15 remaining pre-existing reds (NOT in this milestone's actionable issue set — separate debt/triage): `check_action_surface_matrix`, `check_canonical_renderers`, `check_comment_hygiene`, `check_dead_files`, `check_endpoint_coverage_matrix`, `check_endpoint_usage`, `check_feature_flags`, `check_folder_organization`, `check_native_controls`, `check_observer_pattern`, `check_python_comment_hygiene`, `check_service_consistency`, `check_test_assertions`, `check_undo_coverage`, `check_view_endpoint_access`.
 
 When verify_all runs on this branch these will show red — they are pre-existing and out of scope for this milestone. Worth a separate triage lane.
 
 ---
 
 ## Verification done
-- All 5 new `check_*.py` exit 0.
-- All 26 new unit tests pass (`fichero-engine/tests/unit/test_check_*.py`).
+- All 7 new `check_*.py` exit 0; the 3 resolved guardrails (#2711/#2712/#2713) now green.
+- All 40 new unit tests pass + the 3 resolved guardrail tests pass (54 tests across the touched files).
 - SwiftLint: 41 → 30 (safe subset only).
-- Did **not** run `xcodebuild`/full Swift build (house rule + Xcode lock). The SwiftLint `= nil` analysis was done by reading every call site, not by building.
+- Did **not** run `xcodebuild`/full Swift build (house rule + Xcode lock). The SwiftLint `= nil` analysis and all Swift-side checks were done by reading source, not by building.
 - Did **not** push.
