@@ -14,9 +14,11 @@ struct PDFPageWithToolbar: View {
     let pageIndex: Int
     var onPageIndexChange: ((Int) -> Void)?
     /// Display name shown in the toolbar title slot.
-    var documentTitle: String? = nil
+    /// `= nil` is load-bearing: 3 call sites omit this arg.
+    var documentTitle: String? = nil // swiftlint:disable:this implicit_optional_initialization
     /// Called when the user taps the × close button. Omit to hide the button.
-    var onClose: (() -> Void)? = nil
+    /// `= nil` is load-bearing: 3 call sites omit this arg.
+    var onClose: (() -> Void)? = nil // swiftlint:disable:this implicit_optional_initialization
 
     @StateObject private var zoom = PDFZoomController()
     @StateObject private var pageNav = PDFPageController()
@@ -41,7 +43,7 @@ struct PDFPageWithToolbar: View {
     // Per-pane pin: when pinned, the pane ignores global selection changes
     // and stays on the document and page that were active at pin time.
     @State private var isPinned = false
-    @State private var pinnedDocumentId: String? = nil
+    @State private var pinnedDocumentId: String?
 
     /// Document ID to actually render — pinned value when locked, live prop otherwise.
     private var effectiveDocumentId: String {

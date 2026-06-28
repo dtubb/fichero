@@ -150,8 +150,9 @@ struct DocumentKGSurface: View {
     var zoom: Double = 1.0
     /// Active tab driven by the parent pane. When omitted the surface manages
     /// tab state internally (backward-compat for non-split usages).
-    var externalActiveTab: KGSurfaceTab? = nil
-    var onTabSelected: ((KGSurfaceTab) -> Void)? = nil
+    /// `= nil` is load-bearing: KnowledgeSurface call site omits these args.
+    var externalActiveTab: KGSurfaceTab? = nil // swiftlint:disable:this implicit_optional_initialization
+    var onTabSelected: ((KGSurfaceTab) -> Void)? = nil // swiftlint:disable:this implicit_optional_initialization
 
     @State private var internalActiveTab: KGSurfaceTab = .transcript
     private var activeTab: KGSurfaceTab { externalActiveTab ?? internalActiveTab }
