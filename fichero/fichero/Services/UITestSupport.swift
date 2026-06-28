@@ -24,3 +24,29 @@ func uiTestSupportDirectory() -> URL? {
           !path.isEmpty else { return nil }
     return URL(fileURLWithPath: path, isDirectory: true)
 }
+
+/// Optional seeded library path for XCUITest reading-surface flows (#1242).
+/// Preferred launch form: `--fichero-library /tmp/Seed.fichero`; env fallback
+/// keeps shell-based smoke launches simple.
+func uiTestLibraryOverrideURL(
+    arguments: [String] = ProcessInfo.processInfo.arguments,
+    environment: [String: String] = ProcessInfo.processInfo.environment
+) -> URL? {
+    guard arguments.contains("--uitesting") else { return nil }
+    if let index = arguments.firstIndex(of: "--fichero-library"),
+       arguments.indices.contains(index + 1) {
+        let path = arguments[index + 1]
+        if !path.isEmpty {
+            return URL(fileURLWithPath: path)
+        }
+    }
+    guard let path = environment["FICHERO_UITEST_LIBRARY"],
+          !path.isEmpty else { return nil }
+    return URL(fileURLWithPath: path)
+}
+
+@MainActor
+func openUITestLibraryOverrideIfNeeded() {
+    guard let libraryURL = uiTestLibraryOverrideURL() else { return }
+    LibraryManager.shared.openLibrary(at: libraryURL)
+}
