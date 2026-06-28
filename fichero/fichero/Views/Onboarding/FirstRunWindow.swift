@@ -27,6 +27,17 @@ struct FirstRunWindow: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(width: 760, height: 520)
+        .onAppear { surfaceDefaultLibrary() }
+    }
+
+    /// #2715 — A new user already lands in a working state: the app-managed
+    /// "Local" library (~/Library/Application Support/Fichero/global.fichero) is
+    /// always loaded by `LibraryManager` and auto-assigned to the window. Surface
+    /// it here so library setup reads as optional, not a blocking step.
+    private func surfaceDefaultLibrary() {
+        if selectedLibraryName == nil {
+            selectedLibraryName = libraryManager.globalLibrary?.displayName
+        }
     }
 
     private var sidebar: some View {
@@ -76,9 +87,10 @@ struct FirstRunWindow: View {
                 firstRunCard(
                     FirstRunCardConfig(
                         icon: "books.vertical",
-                        title: "Start with a library",
-                        body: "Choose where your source collection lives, then Fichero can keep scans, PDFs, notes, and graphs together.",
-                        primaryTitle: "Set Up Library",
+                        title: "You're ready to go",
+                        body: "Fichero already set up a local library so you can start right away. "
+                            + "Customize it later — or just begin importing scans, PDFs, notes, and graphs.",
+                        primaryTitle: "Get Started",
                         primaryIcon: "arrow.right",
                         primaryAction: { step = .library }
                     ),
@@ -96,26 +108,22 @@ struct FirstRunWindow: View {
             }
         case .library:
             stepPage(
-                title: "Library Setup",
-                subtitle: "Start with a new package or connect an existing .fichero library.",
+                title: "Library (optional)",
+                subtitle: "You already have a working library. Add another only if you want to.",
                 systemImage: "folder"
             ) {
                 firstRunCard(
                     FirstRunCardConfig(
                         icon: "folder.badge.gearshape",
-                        title: "Choose your working library",
-                        body: selectedLibraryName.map { "Selected library: \($0)" }
-                            ?? "Create a new library package or open an existing folder before importing documents.",
-                        primaryTitle: selectedLibraryName == nil ? "Create Library" : "Continue",
-                        primaryIcon: selectedLibraryName == nil ? "plus" : "arrow.right",
-                        primaryAction: {
-                            if selectedLibraryName == nil {
-                                let library = libraryManager.createNewLibrary()
-                                selectedLibraryName = library.displayName
-                            } else {
-                                step = .permissions
-                            }
+                        title: "Your working library",
+                        body: selectedLibraryName.map {
+                            "Ready to use: \($0). You can create more libraries anytime, "
+                                + "or save this one to a folder of your choice from the File menu."
                         }
+                            ?? "A local library is ready to use. Create more libraries anytime from the File menu.",
+                        primaryTitle: "Continue",
+                        primaryIcon: "arrow.right",
+                        primaryAction: { step = .permissions }
                     ),
                     footer: {
                         LibrarySetupActionsRow(
