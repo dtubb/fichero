@@ -11,7 +11,8 @@ The backend `Document` model now carries three different classification axes:
 - `doc_type`: the structural shape of the node. In current code this is still
   the main hierarchy axis: file, folder, page, chunk, group, and so on.
 - `node_kind`: the behavioral role of the node. The default is `"document"`,
-  but shipped special cases now include `"saved_search"` and `"alias"`.
+  but shipped special cases now include `"saved_search"`, `"alias"`,
+  `"workspace"`, `"plan"`, `"task"`, `"step"`, and `"room"`.
 - `prototype_key`: an optional class/prototype tag. It names a prototype
   definition or a conventional subtype such as `"saved_search"` or
   `"bookmark"`.
@@ -24,20 +25,37 @@ an alias node with `node_kind="alias"` and `prototype_key="bookmark"`.
 ## Prototype definitions and inheritance
 
 Prototype resolution is implemented in
-`fichero-engine/src/fichero/node_prototypes.py`. The current shipped behavior is
-attribute inheritance, not a full behavior system.
+`fichero-engine/src/fichero/node_prototypes.py`, and the built-in prototype
+definitions are seeded from `_BUILTIN_DOCUMENT_PROTOTYPE_SEEDS` in
+`fichero-engine/src/fichero/db.py`. The current shipped behavior is attribute
+inheritance, not a full behavior system.
 
 - A prototype definition is a `ClassificationValue` row with
   `dimension=document_prototype`.
 - Prototypes can point to a parent through `parent_key`.
 - `resolve_prototype_attributes` walks that parent chain, merges attributes
   root to leaf, and lets the child override inherited values.
+- The shipped built-ins include plain types such as `book` and `letter`, plus
+  container/workspace types such as `folder`, `research_workspace`, and `room`.
+- `folder` is the current built-in container base. Its seeded attributes are
+  `container_kind="folder"` and `supports_children=True`.
+- `research_workspace` and `room` both inherit from `folder` through
+  `parent_key="folder"`. The seeded room-specific attributes are
+  `spatial_layout=True` and `workspace_kind="room"`.
 - Unknown keys, missing parents, and cycles raise
   `PrototypeResolutionError` instead of silently returning partial data.
 
 The unit tests in `test_node_prototypes.py` verify the current contract:
 inheritance works across multiple levels, child attributes override parent
 attributes, and invalid chains fail loudly.
+
+Prototype assignment is also shipped as part of the documents API:
+
+- `PUT /api/documents/{doc_id}/prototype` in
+  `fichero-engine/src/fichero/api/routes/documents.py` validates the requested
+  key against seeded/user-defined `ClassificationValue` rows.
+- The same route can apply a prototype to descendants, and can restrict that
+  assignment to descendant page nodes within a page range.
 
 ## Aliases
 
@@ -75,6 +93,41 @@ The public saved-search API still lives under `api/routes/search.py` as
 `/api/search/saved` CRUD and reorder routes. The fold did not replace that API
 surface; it changed the storage representation under it.
 
+## Mind-palace rooms as node-backed folders
+
+Mind-palace rooms now have a node-backed representation in the database layer.
+
+The relevant implementation is split between `fichero-engine/src/fichero/db.py`
+and `fichero-engine/src/fichero/api/routes/mind_palace.py`:
+
+- `Database.save(...)` special-cases `SpatialRoom` and mirrors it through
+  `_save_spatial_room_document`.
+- The mirrored node is written with `node_kind="room"`,
+  `doc_type=DocType.folder`, and `prototype_key="room"`.
+- The room payload lives in `attributes`, including `description`,
+  `room_type`, `owner_id`, and room `metadata`.
+- Reads are symmetric: `Database.get(SpatialRoom, ...)`,
+  `Database.all(SpatialRoom)`, and `Database.query(SpatialRoom, ...)` hydrate
+  from document nodes whose `prototype_key` is `"room"`.
+- Room nodes resolve effective prototype attributes through the same
+  `resolve_prototype_attributes(...)` path as other prototype-backed nodes, so
+  a room inherits the current folder/container attributes from the built-in
+  `room -> folder` chain.
+- On reopen, `_backfill_spatial_room_documents` mirrors legacy `SpatialRoom`
+  rows into room documents if the old table still exists.
+
+F5 slice 1 did not replace the mind-palace room API surface. The existing room
+routes still operate on `SpatialRoom` view models:
+
+- `POST /api/mind-palace/rooms`
+- `GET /api/mind-palace/rooms`
+- `GET /api/mind-palace/rooms/{room_id}`
+- `PATCH /api/mind-palace/rooms/{room_id}`
+- `DELETE /api/mind-palace/rooms/{room_id}`
+
+Those routes now read and write through the node-backed room bridge rather than
+through a room-only storage path.
+
 ## Research workspaces as workspace nodes
 
 Research workspaces are also folded into `Document` rows in the database layer.
@@ -106,29 +159,27 @@ mirror when needed.
 
 ## Research plans, tasks, and steps
 
-Research plans, tasks, and steps are not folded into `Document` rows in the
+Research plans, tasks, and steps are now folded into `Document` rows in the
 current merged code.
 
-What the shipped code actually does today:
+What the shipped code does today:
 
-- `api/routes/research_crud.py` creates and updates `ResearchPlan`,
-  `ResearchTask`, and `ResearchStep` by calling `db.save(...)` on those models
-  directly.
-- `Database.save(...)` has mirror hooks only for `SavedSearch` and
-  `ResearchProject`; there is no corresponding fold helper for
-  `ResearchPlan`, `ResearchTask`, or `ResearchStep`.
-- `Database.get(...)`, `Database.all(...)`, and `Database.query(...)` have
-  folded-document read paths only for `SavedSearch` and `ResearchProject`.
-- The current research hierarchy is therefore model-native:
-  `ResearchTask.plan_id` points to its plan, and `ResearchStep.task_id` points
-  to its task.
-
-Planned, not yet built:
-
-- A `research_plan` prototype fold in the document tree.
-- Child task and step nodes represented through `parent_id`.
-- Prototype-key-backed plan/task/step document hydration analogous to the
-  shipped saved-search and research-workspace folds.
+- `Database.save(...)` mirrors `ResearchPlan`, `ResearchTask`, and
+  `ResearchStep` through `_save_research_plan_document`,
+  `_save_research_task_document`, and `_save_research_step_document`.
+- Plans are mirrored as `node_kind="plan"` plus
+  `prototype_key="research_plan"`.
+- Tasks are mirrored as `node_kind="task"` plus
+  `prototype_key="research_task"`.
+- Steps are mirrored as `node_kind="step"` plus
+  `prototype_key="research_step"`.
+- Containment is represented through `parent_id`: a plan's parent is its
+  project/workspace, a task's parent is its plan, and a step's parent is its
+  task.
+- `Database.get(...)`, `Database.all(...)`, and `Database.query(...)` now have
+  folded-document read paths for all three model types.
+- On reopen, `_backfill_research_plan_task_step_documents` mirrors legacy rows
+  into document nodes if the legacy tables still exist.
 
 Important boundary:
 
@@ -166,14 +217,18 @@ mostly a staging document, not a completion record.
 What is shipped now:
 
 - prototype attribute resolution
+- built-in document-prototype seeding, including `folder`, `room`, and
+  `research_workspace`
 - alias nodes
 - saved-search document folding
+- mind-palace room document folding with the existing `/api/mind-palace/rooms`
+  routes still intact
 - research-workspace document folding
+- research plan/task/step document folding
 - bookmark routes built on alias nodes
 
 What should still be described as planned unless more code lands:
 
 - broader prototype-driven behavior beyond attribute inheritance
-- research plan/task/step document folding
 - SwiftUI bookmark UI wiring
 - the remaining staged subsystem folds described in the architecture note
