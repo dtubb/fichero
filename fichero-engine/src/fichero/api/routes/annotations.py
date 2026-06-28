@@ -42,6 +42,8 @@ class AnnotationCreateRequest(BaseModel):
     char_start: int | None = None
     char_end: int | None = None
     bbox: list[float] | None = None
+    anchor_kind: str | None = None
+    paragraph_index: int | None = None
     text: str | None = None
     rating: int | None = None
     color: str | None = None
@@ -234,6 +236,8 @@ class AnnotationPatchRequest(BaseModel):
     char_start: int | None = None
     char_end: int | None = None
     bbox: list[float] | None = None
+    anchor_kind: str | None = None
+    paragraph_index: int | None = None
     metadata: dict[str, Any] | None = None
 
 
@@ -341,20 +345,14 @@ async def delete_annotation(
     )
 
 
-@router.get(
-    "/{annotation_id}/crop",
-    summary="Cropped content for this annotation (text body or image bytes)",
-    description=(
-        "Returns the annotation's underlying content cropped to its "
-        "anchor: substring for text, PNG bytes for image / PDF region. "
-        "Workflow tools call this to feed only the highlighted region "
-        "to vision / LLM providers instead of the whole document. (#914)"
-    ),
-)
-async def get_crop(
-    annotation_id: str,
-    db: Database = Depends(get_library_database),
-):
+def _crop_response(db: Database, ann: Annotation):
+    """Resolve an annotation's cropped content to an HTTP response.
+
+    Shared by ``GET /{id}/crop`` (a persisted annotation) and the ephemeral
+    ``POST /crop`` (an unsaved region) so both drive identical crop logic
+    (iterate-not-replace, #2256). Works on any in-memory ``Annotation`` — it
+    never touches the annotation table, only the source ``Document``.
+    """
     from fastapi.responses import PlainTextResponse, Response
 
     from fichero.workflows.tools._annotation_input import (
@@ -363,9 +361,6 @@ async def get_crop(
         crop_text,
     )
 
-    ann = db.get(Annotation, annotation_id)
-    if ann is None:
-        raise HTTPException(404, f"Annotation not found: {annotation_id}")
     if ann.document_id is None:
         raise HTTPException(400, "Folder-scoped annotations do not have crop content")
     doc = db.get(Document, ann.document_id)
@@ -388,6 +383,70 @@ async def get_crop(
     if text is None:
         raise HTTPException(404, "No crop available for this annotation")
     return PlainTextResponse(text)
+
+
+@router.get(
+    "/{annotation_id}/crop",
+    summary="Cropped content for this annotation (text body or image bytes)",
+    description=(
+        "Returns the annotation's underlying content cropped to its "
+        "anchor: substring for text, PNG bytes for image / PDF region. "
+        "Workflow tools call this to feed only the highlighted region "
+        "to vision / LLM providers instead of the whole document. (#914)"
+    ),
+)
+async def get_crop(
+    annotation_id: str,
+    db: Database = Depends(get_library_database),
+):
+    ann = db.get(Annotation, annotation_id)
+    if ann is None:
+        raise HTTPException(404, f"Annotation not found: {annotation_id}")
+    return _crop_response(db, ann)
+
+
+class EphemeralCropRequest(BaseModel):
+    """A region to crop WITHOUT persisting an annotation (#2256).
+
+    Lets the reader send the LLM/vision provider just the marked region of a
+    document on the fly — the user is still deciding, so nothing is saved.
+    """
+
+    document_id: str
+    kind: AnnotationKind = AnnotationKind.highlight
+    bbox: list[float] | None = None
+    char_start: int | None = None
+    char_end: int | None = None
+    page_index: int | None = None
+    page_label: str | None = None
+    text: str | None = None
+
+
+@router.post(
+    "/crop",
+    summary="Ephemeral crop for an unsaved region (no annotation persisted)",
+    description=(
+        "Crops a document to a transient region (bbox / char range) and returns "
+        "the content — substring for text, PNG bytes for image / PDF — WITHOUT "
+        "creating an annotation. The reader uses this to feed only the region "
+        "under consideration to a provider before the user commits. (#2256)"
+    ),
+)
+async def crop_ephemeral(
+    request: EphemeralCropRequest,
+    db: Database = Depends(get_library_database),
+):
+    ann = Annotation(
+        document_id=request.document_id,
+        kind=request.kind,
+        bbox=request.bbox,
+        char_start=request.char_start,
+        char_end=request.char_end,
+        page_index=request.page_index,
+        page_label=request.page_label,
+        text=request.text,
+    )
+    return _crop_response(db, ann)
 
 
 class PromoteResponse(BaseModel):

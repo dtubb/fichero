@@ -1354,6 +1354,15 @@ class Annotation(BaseModel):
         default=None,
         description="Bounding box [x, y, width, height] as fractions of source dimensions in [0, 1].",
     )
+    # How this annotation is anchored to its source — lets the reader render the
+    # right control (text highlight vs image box vs a paragraph checkmark) and
+    # lets workflows pick the right crop mode (#2256). Free-form string rather
+    # than an enum so the additive UI vocabulary can grow without a model bump;
+    # expected values today: "char_range", "bbox", "paragraph", "ink".
+    anchor_kind: str | None = None
+    # 0-indexed paragraph within the page, set when anchor_kind == "paragraph"
+    # (paragraph checkmarks). Resolved against page_content paragraph offsets.
+    paragraph_index: int | None = None
 
     kind: AnnotationKind
     text: str | None = None  # note body / comment text / bookmark label
