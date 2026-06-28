@@ -301,6 +301,7 @@ class LibraryManager: ObservableObject {
 
         func reconfigureBackendHost() {
             ficheroClient.reconfigure(baseURL: EngineConfig.host)
+            storageService.clearAll()
         }
     }
 

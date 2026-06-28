@@ -45,14 +45,6 @@ RULE_DOC = "AGENTS.md"
 # Drop entries after registering with scripts/add-swift-file.rb or removing the
 # orphaned file.
 KNOWN_VIOLATIONS: dict[str, str] = {
-    "fichero/fichero/Services/APIEndpoints.swift": "#1941 — existing unregistered Swift file",
-    "fichero/fichero/Services/FolderService.swift": "#1941 — existing unregistered Swift file",
-    "fichero/fichero/Views/Chat/MessageBubble.swift": "#1941 — existing unregistered Swift file",
-    "fichero/fichero/Views/Chat/ScopedDocumentRow.swift": "#1941 — existing unregistered Swift file",
-    "fichero/fichero/Views/Library/ArtifactsBrowserView.swift": "#1941 — existing unregistered Swift file",
-    "fichero/fichero/Views/Library/ConnectionBanner.swift": "#1941 — existing unregistered Swift file",
-    "fichero/fichero/Views/Library/DocumentInspector/DocumentInspectorContentState.swift": "#1941 — existing unregistered Swift file",
-    "fichero/fichero/Views/Workflow/WorkflowNodeView+Preview.swift": "#1941 — existing unregistered Swift file",
 }
 
 OBJECT_HEADER = re.compile(r"^\t\t([A-Za-z0-9_]+)(?: /\* .*? \*/)? = \{$")

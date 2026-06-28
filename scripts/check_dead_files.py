@@ -53,8 +53,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/KnowledgeGraph/OntologyBrowser/ClaimSummaryCard+Provenance.swift": "#1945 — candidate dead file: ProvenanceBadge",
     "Views/KnowledgeGraph/OntologyBrowser/EntityDetailView+Biography.swift": "#1945 — candidate dead file: MentionSummary",
     "Views/KnowledgeGraph/OntologyBrowser/OntologyBrowser+Toolbar.swift": "#1945 — candidate dead file: EntityKindChip",
-    "Views/Library/ArtifactsBrowserView.swift": "#1945 — candidate dead file: ArtifactsBrowserView, ArtifactSortOrder",
-    "Views/Library/ConnectionBanner.swift": "#1945 — candidate dead file: ConnectionBanner",
     "Views/Library/ImageViewer/ImageZoomToolbar.swift": "#1945 — candidate dead file: ImageZoomToolbar",
     "Intents/FicheroShortcuts.swift": "#2017 — App Intents/Shortcuts entry point helper",
     "Views/Library/LibraryView+ColumnConfig.swift": "#1945 — candidate dead file: ColumnDefinition",

@@ -46,6 +46,29 @@ final class RemoteAccessConfigTests: XCTestCase {
         XCTAssertEqual(payload.libraryPath, "/Users/daniel/Archives/Open.fichero")
     }
 
+    func testHostedRemoteURLAcceptsTailscaleMagicDNSHost() throws {
+        let url = try validatedHostedRemoteURL(from: " https://studio.tailnet-name.ts.net/ ")
+
+        XCTAssertEqual(url.absoluteString, "https://studio.tailnet-name.ts.net")
+    }
+
+    func testPairingPayloadCanAdvertiseTailnetHost() throws {
+        let pairingURL = try XCTUnwrap(
+            RemoteAccessConfig.pairingBackendURL(from: "https://studio.tailnet-name.ts.net")
+        )
+        let code = PairingCodeRecord(
+            code: "PAIR-2400",
+            expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        let payload = PairingService(apiRoot: pairingURL).buildQRCodePayload(
+            from: code,
+            spki: validSPKIPin,
+            libraryPath: "/Users/daniel/Archives/Open.fichero"
+        )
+
+        XCTAssertEqual(payload.apiURL, "https://studio.tailnet-name.ts.net")
+    }
+
     func testPairingQRCodePayloadDecoderRoundTripsRemoteHost() throws {
         let apiRoot = URL(string: "https://pairing.example.com/")!
         let code = PairingCodeRecord(

@@ -6,7 +6,7 @@ import FicheroAPIClient
 import SwiftUI
 
 private let hostedRemoteAccessHelpText = """
-Use a private reachable URL such as a literal IP address or a .local hostname.
+Use a private reachable URL such as a literal IP address, .local hostname, or Tailscale .ts.net hostname.
 Bonjour only announces that this Mac is available; the QR code still carries the URL the client should call.
 """
 

@@ -302,7 +302,7 @@ struct MyView: View {
 35 of 37 oversized files refactored across 13 batches:
 - All view files reduced to <200 lines
 - All model/service files reduced to <300 lines
-- 2 files skipped (not in Xcode project): ActionLibraryService.swift, ArtifactsBrowserView.swift
+- Historical note: old audits found skipped files outside the Xcode project; the registration guardrail now owns this check.
 - 1 file blocked: ActionLibraryView.swift (dependency issue)
 - SwiftLint violations reduced from 330 to 69
 

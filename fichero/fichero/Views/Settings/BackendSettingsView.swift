@@ -88,7 +88,11 @@ struct BackendSettingsView: View {
                 }
             }
 
-            AdvancedConnectionSection(engineHost: $engineHost)
+            AdvancedConnectionSection(
+                engineHost: $engineHost,
+                appState: appState,
+                libraryManager: libraryManager
+            )
         }
         .formStyle(.grouped)
         .task {
@@ -129,6 +133,8 @@ struct BackendSettingsView: View {
 
 private struct AdvancedConnectionSection: View {
     @Binding var engineHost: String
+    let appState: AppState
+    let libraryManager: LibraryManager
 
     var body: some View {
         Section {
@@ -143,10 +149,29 @@ private struct AdvancedConnectionSection: View {
                         .textSelection(.enabled)
                 }
 
+                if hostIsInvalid {
+                    Text("Invalid URL")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+
+                Button("Apply") {
+                    appState.reconfigureGeneratedClientsForCurrentHost()
+                    libraryManager.reconfigureGeneratedClientsForCurrentHost()
+                }
+                .disabled(hostIsInvalid)
+
                 Text("Leave blank only when this Mac should use its embedded local engine.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    private var hostIsInvalid: Bool {
+        if case .invalid = EngineConfig.hostConfiguration(from: engineHost) {
+            return true
+        }
+        return false
     }
 }

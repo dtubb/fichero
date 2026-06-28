@@ -102,7 +102,6 @@ KNOWN_VIOLATIONS: dict[str, str] = dict.fromkeys(
         "fichero/fichero/Views/KnowledgeGraph/OntologyBrowser/OntologyBrowser+Toolbar.swift",
         "fichero/fichero/Views/KnowledgeGraph/OntologyBrowser/OntologyBrowser.swift",
         "fichero/fichero/Views/Library/ArtifactEntityViews.swift",
-        "fichero/fichero/Views/Library/ArtifactsBrowserView.swift",
         "fichero/fichero/Views/Library/DisplayAttributesStrip.swift",
         "fichero/fichero/Views/Library/DocumentCanvas.swift",
         "fichero/fichero/Views/Library/DocumentInspector/AttributedTextEditor.swift",

@@ -17,6 +17,10 @@ from fichero.workflows.workflow_store import WorkflowStore
 from fichero.workflows.activity import get_activity_tracker
 from fichero.workflows.activity_types import WorkflowRun
 from fichero.workflows.types import EdgeDef, NodeDef, WorkflowDef
+from fichero.workflows.run_status import (
+    DELETABLE_TERMINAL_STATUSES,
+    is_terminal,
+)
 
 # Module-level (no circular dep — checkpointer.py imports nothing from this
 # package). Must be a module attribute so tests can patch
@@ -574,15 +578,8 @@ async def delete_thread(
                 status_code=404, detail=f"No checkpoint found for thread: {thread_id}"
             )
 
-        terminal_statuses = {
-            "completed",
-            "error",
-            "failed",
-            "cancelled",
-            "stopped",
-            "deleted",
-        }
-        if run and run.status not in terminal_statuses:
+        # #2624: one canonical terminal set (delete also accepts soft-deleted).
+        if run and run.status not in DELETABLE_TERMINAL_STATUSES:
             raise HTTPException(
                 status_code=409,
                 detail=(
@@ -678,7 +675,7 @@ async def cancel_workflow(
         )
 
     current = state.get("status")
-    if current in ("completed", "error", "failed", "cancelled", "stopped"):
+    if is_terminal(current):
         return CancelResponse(
             thread_id=thread_id,
             status="already_terminal",
@@ -726,7 +723,7 @@ async def pause_workflow(
         )
 
     current = state.get("status")
-    if current in ("completed", "error", "failed", "cancelled", "stopped"):
+    if is_terminal(current):
         return PauseResponse(
             thread_id=thread_id,
             status="already_terminal",

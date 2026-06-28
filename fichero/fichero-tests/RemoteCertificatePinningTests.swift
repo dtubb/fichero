@@ -10,6 +10,7 @@ final class RemoteCertificatePinningTests: XCTestCase {
     private let hostTwo = "https://host-two.tailnet.example:8443"
     private let hostOneDefaultPort = "https://host-one.tailnet.example:443/api"
     private let hostedBackendHost = "https://pairing.example.com:9443"
+    private let tailscaleServeHost = "https://studio.tailnet-name.ts.net"
     private let advertisedPin = Data("advertised-spki".utf8).base64EncodedString()
     private let hostOnePin = Data("host-one-spki".utf8).base64EncodedString()
     private let hostTwoPin = Data("host-two-spki".utf8).base64EncodedString()
@@ -22,6 +23,7 @@ final class RemoteCertificatePinningTests: XCTestCase {
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostOne)
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostTwo)
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostedBackendHost)
+        RemoteCertificatePinning.clearPersistedSPKIPin(hostString: tailscaleServeHost)
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostOneDefaultPort)
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: "https://127.0.0.1:8765")
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: "https://pairing.example.com")
@@ -58,6 +60,16 @@ final class RemoteCertificatePinningTests: XCTestCase {
 
         XCTAssertTrue(RemoteCertificatePinning.shouldEnforcePinning(for: URL(string: loopbackHost)!))
         XCTAssertTrue(RemoteCertificatePinning.shouldEnforcePinning(for: URL(string: "https://host.tailnet.example")!))
+    }
+
+    func testTailscaleServeHostsUseDefaultTrustUnlessPinned() throws {
+        RemoteCertificatePinning.clearPersistedSPKIPin(hostString: tailscaleServeHost)
+
+        XCTAssertFalse(RemoteCertificatePinning.shouldEnforcePinning(for: URL(string: tailscaleServeHost)!))
+
+        try RemoteCertificatePinning.persistSPKIPin(hostOnePin, hostString: tailscaleServeHost)
+
+        XCTAssertTrue(RemoteCertificatePinning.shouldEnforcePinning(for: URL(string: tailscaleServeHost)!))
     }
 
     func testPersistedSPKIPinsAreHostScoped() throws {
