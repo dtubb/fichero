@@ -345,6 +345,24 @@ class TestGetChildren:
         assert child1.id in ids
         assert child2.id in ids
 
+    def test_returns_filed_entities_as_children(self, client, db):
+        parent = Document(name="Parent", doc_type=DocType.folder)
+        db.save(parent)
+        entity = KnowledgeEntity(
+            canonical_name="Eldorado",
+            entity_type="location",
+            parent_id=parent.id,
+        )
+        db.save(entity)
+
+        response = client.get(f"/api/documents/{parent.id}/children")
+
+        assert response.status_code == 200
+        items = {item["id"]: item for item in response.json()["items"]}
+        assert entity.id in items
+        assert items[entity.id]["node_kind"] == "entity"
+        assert items[entity.id]["name"] == "Eldorado"
+
     def test_returns_empty_for_leaf(self, client, db):
         doc = _make_doc(db)
         r = client.get(f"/api/documents/{doc.id}/children")
