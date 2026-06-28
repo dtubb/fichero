@@ -8,3 +8,15 @@ Done by f_fichero_claude_swiftui (2026-06-28).
 - Proposed staged fold (S0 audit → S1 naming → S2 search-as-tool → S3 fold Research → S4 Agent). No structural code shipped: collapse touches 3 SHIPPED sidebar modes + KB shortcuts + `@SceneStorage`; canonical name owned by #104 vocabulary table. iterate-never-replace + "don't break shipped surfaces in one step."
 - BLOCKED on #104 (naming) before Stage 1.
 - Docs-only; no build gate (no .swift / no pbxproj). NOT pushed.
+
+## #2571 — Stage 2: search-as-a-tool visible in Chat (additive)
+Done by f_fichero_claude_swiftui (2026-06-28). Commit 72a7210f, authored Claude.
+
+- Chat backend ALWAYS runs RAG retrieval (GraphAwareRetriever); the response already carried document_count / context_count / kg_claims_used / kg_entities_used but the UI discarded all of it (only `sources` was shown).
+- Surfaced it: `ChatAPIResponse` + mapping (`ChatService.swift`, `ChatServiceGenerated.swift`) → `RetrievalInfo` model + `ChatMessage.retrieval` (`SidebarChatTypes.swift`) → captured in `ChatView+Extensions.swift` → rendered as a "Searched library · N documents · M claims" line in `MessageBubble` (`MessageCard.swift`). Now also exposes KG claims/entities the UI previously hid.
+- Additive/reversible: optional field, defaulted backend values, renders only when a search occurred. NO backend/schema change. NOT gated on #104.
+- New test: `fichero-tests/RetrievalInfoTests.swift` (pluralization, didSearch gating, Codable round-trip). Test-target = synced group, no pbxproj edit.
+- No new main-target .swift files (only edits) → no add-swift-file.rb / pbxproj change.
+- swiftlint: clean on changed lines (3 pre-existing warnings in ChatServiceGenerated unrelated to edit).
+- Build gate (isolated DD, CODE_SIGNING_ALLOWED=NO): all Swift sources COMPILED + LINKED (22 Ld steps, 0 swiftc errors). Build's only failure = "Embed Fichero Engine" run-script phase (needs pre-built engine app absent in this worktree) — environmental, not a code defect.
+- NOT pushed.
