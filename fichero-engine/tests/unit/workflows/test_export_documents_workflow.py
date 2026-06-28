@@ -181,3 +181,58 @@ async def test_export_documents_folder_scope(tmp_path: Path):
     assert parent_file.exists()
     assert parent_file.stat().st_size > 0
     assert folder_file.stat().st_size >= parent_file.stat().st_size
+
+
+@pytest.mark.asyncio
+async def test_export_documents_eleventy_site_format(tmp_path: Path):
+    """#2535: the 11ty/Netlify website target is chainable as a workflow node."""
+    library_path, folder_id, _parent_id = _seed_library(tmp_path)
+    workflow = _load_preset_workflow("Export to Desktop (MD + DOCX + XLSX)")
+    destination = tmp_path / "site"
+
+    for node in workflow.nodes:
+        if node.tool == "export_documents":
+            node.config["destination"] = str(destination)
+            node.config["formats"] = ["eleventy"]
+
+    result = await build_graph(workflow, skip_cache=True).ainvoke(
+        _workflow_state(library_path, folder_id, "export-site", str(destination))
+    )
+
+    assert not result.get("error")
+    export_node_id = next(n.id for n in workflow.nodes if n.tool == "export_documents")
+    output = result["outputs"][export_node_id]
+    assert output["count"] > 0
+
+    site_dir = destination / "Export Folder" / "Export Folder_site"
+    # Buildable + deployable 11ty scaffold.
+    assert (site_dir / "package.json").exists()
+    assert (site_dir / ".eleventy.js").exists()
+    assert (site_dir / "netlify.toml").exists()
+    assert (site_dir / "src" / "index.md").exists()
+
+    # Edge: the other formats are NOT produced when only eleventy is requested.
+    assert not (destination / "Export Folder" / "Export Folder.docx").exists()
+    assert not (destination / "Export Folder" / "Export Folder.xlsx").exists()
+
+
+@pytest.mark.asyncio
+async def test_export_documents_eleventy_alongside_other_formats(tmp_path: Path):
+    """Regression: adding eleventy doesn't disturb the existing md/docx/xlsx outputs."""
+    library_path, folder_id, _parent_id = _seed_library(tmp_path)
+    workflow = _load_preset_workflow("Export to Desktop (MD + DOCX + XLSX)")
+    destination = tmp_path / "combo"
+
+    for node in workflow.nodes:
+        if node.tool == "export_documents":
+            node.config["destination"] = str(destination)
+            node.config["formats"] = ["markdown", "eleventy"]
+
+    result = await build_graph(workflow, skip_cache=True).ainvoke(
+        _workflow_state(library_path, folder_id, "export-combo", str(destination))
+    )
+
+    assert not result.get("error")
+    export_dir = destination / "Export Folder"
+    assert (export_dir / "Export Folder_markdown" / "index.md").exists()
+    assert (export_dir / "Export Folder_site" / "package.json").exists()
