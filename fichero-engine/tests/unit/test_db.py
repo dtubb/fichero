@@ -33,6 +33,7 @@ from fichero.research_models import (
     ResearchTask,
     StepTool,
 )
+from fichero.spatial_models import RoomType, SpatialRoom
 from fichero.knowledge_models import (
     ClaimRelationType,
     ClassificationDimension,
@@ -1378,6 +1379,115 @@ class TestResearchWorkspaceFold:
 
         with pytest.raises(PrototypeResolutionError):
             temp_db.get(ResearchProject, doc.id)
+
+
+class TestSpatialRoomFold:
+    def test_save_and_get_spatial_room(self, temp_db):
+        room = SpatialRoom(
+            name="Archive Room",
+            description="A room for sources",
+            room_type=RoomType.synthesis,
+            owner_id="agent",
+            metadata={"theme": "blue"},
+        )
+        temp_db.save(room)
+
+        retrieved = temp_db.get(SpatialRoom, room.id)
+        assert retrieved is not None
+        assert retrieved.name == "Archive Room"
+        assert retrieved.room_type == RoomType.synthesis
+        assert retrieved.owner_id == "agent"
+        assert retrieved.metadata == {"theme": "blue"}
+
+        mirrored = temp_db.get(Document, room.id)
+        assert mirrored is not None
+        assert mirrored.node_kind == "room"
+        assert mirrored.doc_type == DocType.folder
+        assert mirrored.prototype_key == "room"
+        assert mirrored.attributes["description"] == "A room for sources"
+        assert mirrored.attributes["room_type"] == "synthesis"
+        assert mirrored.attributes["owner_id"] == "agent"
+
+    def test_spatial_room_reads_from_folded_document_node(self, temp_db):
+        doc = Document(
+            id="room-doc-1",
+            name="Room Node",
+            node_kind="room",
+            prototype_key="room",
+            doc_type=DocType.folder,
+            attributes={
+                "description": "Node-owned room",
+                "room_type": "presentation",
+                "owner_id": "human",
+                "metadata": {"theme": "gold"},
+            },
+        )
+        temp_db.save(doc)
+
+        room = temp_db.get(SpatialRoom, doc.id)
+        assert room is not None
+        assert room.description == "Node-owned room"
+        assert room.room_type == RoomType.presentation
+        assert room.owner_id == "human"
+        assert room.metadata == {"theme": "gold"}
+
+    def test_spatial_room_inherits_folder_prototype_attributes(self, temp_db):
+        room = SpatialRoom(name="Inherited Room")
+        temp_db.save(room)
+
+        effective = resolve_prototype_attributes(temp_db, "room")
+        assert effective["container_kind"] == "folder"
+        assert effective["supports_children"] is True
+        assert effective["workspace_kind"] == "room"
+
+        mirrored = temp_db.get(Document, room.id)
+        assert mirrored is not None
+        child = Document(
+            id="room-child",
+            name="Room Child",
+            doc_type=DocType.file,
+            parent_id=room.id,
+        )
+        temp_db.save(child)
+        children = temp_db.query(Document, parent_id=mirrored.id)
+        assert [item.id for item in children] == ["room-child"]
+
+    def test_spatial_room_raises_when_document_is_not_room_prototype(self, temp_db):
+        doc = Document(
+            id="bad-room",
+            name="Bad Room",
+            node_kind="room",
+            prototype_key="letter",
+            doc_type=DocType.folder,
+        )
+        temp_db.save(doc)
+
+        with pytest.raises(ValueError, match="room node"):
+            temp_db.get(SpatialRoom, doc.id)
+
+    def test_spatial_room_raises_when_room_prototype_definition_missing(self, temp_db):
+        doc = Document(
+            id="missing-room-proto",
+            name="Broken Room",
+            node_kind="room",
+            prototype_key="room",
+            doc_type=DocType.folder,
+            attributes={"description": "broken"},
+        )
+        temp_db.save(doc)
+
+        room_proto = next(
+            value
+            for value in temp_db.query(
+                ClassificationValue,
+                dimension=ClassificationDimension.document_prototype,
+            )
+            if value.key == "room"
+        )
+        temp_db.delete(room_proto)
+
+        with pytest.raises(PrototypeResolutionError):
+            temp_db.get(SpatialRoom, doc.id)
 
 
 class TestResearchContentFold:
