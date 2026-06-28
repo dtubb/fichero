@@ -1756,3 +1756,49 @@ class TestEmbeddingPrecisionGate:
         )
         rows = db.query(KnowledgeEntity, entity_type=EntityType.location)
         assert len(rows) == 1
+
+
+class TestMergeVectorFailureIsLoud:
+    """#2507: a failed vector refresh on the alias-merge path must be logged
+    loudly (like the new-entity index path), never silently swallowed — a
+    stale vector quietly degrades future fuzzy matches.
+    """
+
+    def test_merge_vector_failure_logs_and_still_merges(
+        self, db, monkeypatch, caplog
+    ):
+        import logging
+
+        from fichero.kg import entity_vectors
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        # Force the SequenceMatcher (Stage 3) fuzzy-merge path: no embedding
+        # decision, and a fuzzy variant (not an exact name) so we land in the
+        # alias-refresh block that re-indexes the vector — not the Stage 1
+        # exact-match early return.
+        monkeypatch.setattr(entity_vectors, "find_similar", lambda **_: [])
+
+        first = upsert_entity(
+            db, canonical_name="San Pablo", entity_type=EntityType.location
+        )
+
+        # The merge-path vector refresh blows up; the catalogue must stay up.
+        def _boom(**_):
+            raise RuntimeError("vector backend down")
+
+        monkeypatch.setattr(entity_vectors, "index_entity", _boom)
+
+        with caplog.at_level(logging.WARNING):
+            # Typo-suffix variant → Stage 3 SequenceMatcher merge, which
+            # re-indexes the vector (the path that used to swallow failures).
+            second = upsert_entity(
+                db, canonical_name="San Pabloo", entity_type=EntityType.location
+            )
+
+        # Merge still happened (same id, catalogue not taken down)...
+        assert first == second
+        # ...and the failure was surfaced loudly, not swallowed.
+        assert any(
+            "failed to refresh merged entity vector" in r.message
+            for r in caplog.records
+        ), "merge-path vector failure must be logged, not silently passed"

@@ -1421,8 +1421,16 @@ def upsert_entity(
                 canonical_name=matched.canonical_name,
                 description=matched.description,
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            # #2507: don't swallow silently — a stale alias-merge vector
+            # degrades future fuzzy matches. Log loudly like the new-entity
+            # index path below; the catalogue stays up either way.
+            logger.warning(
+                "upsert_entity: failed to refresh merged entity vector "
+                "(id=%s): %s",
+                matched.id,
+                exc,
+            )
         _record_source_page(db, matched, source_document_id)  # #1562
         return matched.id
 
