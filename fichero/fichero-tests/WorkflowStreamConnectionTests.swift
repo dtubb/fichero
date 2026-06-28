@@ -143,6 +143,7 @@ final class WorkflowStreamConnectionTests: XCTestCase {
         XCTAssertTrue(source.contains("pathComponents: [\"changes\", \"stream\"]"))
     }
 
+    @MainActor
     func testExecutionStatusMapsStableTerminalStatuses() {
         XCTAssertEqual(WorkflowExecutionService.mapStatus("completed"), .completed)
         XCTAssertEqual(WorkflowExecutionService.mapStatus("error"), .error)
