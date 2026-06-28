@@ -66,7 +66,7 @@ struct MessageBubble: View {
                 if message.role == .user { Spacer() }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(message.content)
+                    MarkdownText(message.content)
                         .padding(12)
                         .background(bubbleBackground)
                         .foregroundColor(message.role == .user ? .white : .primary)
