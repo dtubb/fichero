@@ -170,6 +170,10 @@ _RESEARCH_TASK_NODE_KIND = "task"
 _RESEARCH_TASK_PROTOTYPE_KEY = "research_task"
 _RESEARCH_STEP_NODE_KIND = "step"
 _RESEARCH_STEP_PROTOTYPE_KEY = "research_step"
+_NOTE_NODE_KIND = "note"
+_NOTE_PROTOTYPE_KEY = "note"
+_MILESTONE_NODE_KIND = "milestone"
+_MILESTONE_PROTOTYPE_KEY = "milestone"
 _ENTITY_NODE_KIND = "entity"
 _ROOM_NODE_KIND = "room"
 _FOLDER_PROTOTYPE_KEY = "folder"
@@ -242,6 +246,18 @@ _BUILTIN_DOCUMENT_PROTOTYPE_SEEDS: tuple[dict[str, Any], ...] = (
         "key": "map",
         "label": "Map",
         "color": "#64D2FF",
+        "attributes": {},
+    },
+    {
+        "key": _MILESTONE_PROTOTYPE_KEY,
+        "label": "Milestone",
+        "color": "#FF375F",
+        "attributes": {},
+    },
+    {
+        "key": _NOTE_PROTOTYPE_KEY,
+        "label": "Note",
+        "color": "#FF9500",
         "attributes": {},
     },
     {
@@ -537,6 +553,8 @@ class Database(DatabaseEmbeddingMixin):
         self._seed_builtin_node_classes()
         self._backfill_claim_links_to_library_links()
         self._backfill_filed_entity_documents()
+        self._backfill_note_documents()
+        self._backfill_milestone_documents()
         self._backfill_saved_search_documents()
         self._backfill_spatial_room_documents()
         self._backfill_research_workspace_documents()
@@ -748,6 +766,10 @@ class Database(DatabaseEmbeddingMixin):
         """
         if type(obj).__name__ == "KnowledgeEntity":
             self._validate_entity_parent(obj)
+        if type(obj).__name__ == "Note" and hasattr(obj, "body"):
+            self._validate_note_parent(obj)
+        if type(obj).__name__ == "Milestone":
+            self._validate_milestone_parent(obj)
 
         sql_table = self._sql_table_name(obj)
         self._ensure_table(type(obj))
@@ -804,6 +826,10 @@ class Database(DatabaseEmbeddingMixin):
             self._save_research_task_document(obj)
         if type(obj).__name__ == "ResearchStep":
             self._save_research_step_document(obj)
+        if type(obj).__name__ == "Note" and hasattr(obj, "body"):
+            self._save_note_document(obj)
+        if type(obj).__name__ == "Milestone":
+            self._save_milestone_document(obj)
 
         # Auto-embed if requested and has content
         # ponytail: bulk callers (importers / reindex loops) that save many
@@ -967,6 +993,36 @@ class Database(DatabaseEmbeddingMixin):
             if (hydrated := self._hydrate_row(KnowledgeEntity, columns, row)) is not None
         ]
 
+    def _legacy_all_note_rows(self) -> list[BaseModel]:
+        """Read Note rows without any node-tree bridge logic."""
+        from fichero.knowledge_models import Note
+
+        sql_table = self._sql_table_name(Note)
+        self._ensure_table(Note)
+        with self._lock:
+            rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
+            columns = [desc[0] for desc in self.conn.description]
+        return [
+            hydrated
+            for row in rows
+            if (hydrated := self._hydrate_row(Note, columns, row)) is not None
+        ]
+
+    def _legacy_all_milestone_rows(self) -> list[BaseModel]:
+        """Read Milestone rows without any node-tree bridge logic."""
+        from fichero.knowledge_models import Milestone
+
+        sql_table = self._sql_table_name(Milestone)
+        self._ensure_table(Milestone)
+        with self._lock:
+            rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
+            columns = [desc[0] for desc in self.conn.description]
+        return [
+            hydrated
+            for row in rows
+            if (hydrated := self._hydrate_row(Milestone, columns, row)) is not None
+        ]
+
     @staticmethod
     def _saved_search_from_document(doc: Any) -> BaseModel:
         """Hydrate a SavedSearch view-model from its folded document node."""
@@ -1068,6 +1124,60 @@ class Database(DatabaseEmbeddingMixin):
             raise ValueError(f"Parent not found: {parent_id}")
         if parent.doc_type != DocType.folder:
             raise ValueError(f"Parent is not a folder: {parent_id}")
+
+    def _validate_document_parent(
+        self,
+        parent_id: str,
+        *,
+        allowed_doc_types: set[Any] | None = None,
+        expected_kind: str,
+    ) -> Any:
+        """Resolve and validate a live document parent."""
+        from fichero.models import Document
+
+        parent = self.get(Document, parent_id)
+        if parent is None or getattr(parent, "deleted_at", None) is not None:
+            raise ValueError(f"{expected_kind} parent not found: {parent_id}")
+        if allowed_doc_types is not None and parent.doc_type not in allowed_doc_types:
+            raise ValueError(f"{expected_kind} parent has invalid doc_type: {parent_id}")
+        return parent
+
+    def _note_parent_id(self, note: BaseModel) -> str | None:
+        """Resolve a note's containment parent without changing the route schema."""
+        folder_id = getattr(note, "folder_id", None)
+        page_id = getattr(note, "page_id", None)
+        if folder_id and page_id and folder_id != page_id:
+            raise ValueError(
+                f"Note {note.id} cannot target both folder_id={folder_id} and page_id={page_id}"
+            )
+        return folder_id or page_id
+
+    def _validate_note_parent(self, note: BaseModel) -> None:
+        """Folded notes may target a folder or page, and must resolve cleanly."""
+        from fichero.models import DocType
+
+        parent_id = self._note_parent_id(note)
+        if parent_id is None:
+            return
+        parent = self._validate_document_parent(
+            parent_id,
+            allowed_doc_types={DocType.folder, DocType.page},
+            expected_kind="Note",
+        )
+        if getattr(note, "folder_id", None) is not None and parent.doc_type != DocType.folder:
+            raise ValueError(f"Note folder parent is not a folder: {parent_id}")
+        if getattr(note, "page_id", None) is not None and parent.doc_type != DocType.page:
+            raise ValueError(f"Note page parent is not a page: {parent_id}")
+
+    def _validate_milestone_parent(self, milestone: BaseModel) -> None:
+        """Milestones are folder-contained content nodes."""
+        from fichero.models import DocType
+
+        self._validate_document_parent(
+            milestone.parent_id,
+            allowed_doc_types={DocType.folder},
+            expected_kind="Milestone",
+        )
 
     def _seed_builtin_document_prototypes(self) -> None:
         """Ensure the fold's built-in folder/container prototypes exist."""
@@ -1889,6 +1999,10 @@ class Database(DatabaseEmbeddingMixin):
             self._delete_research_workspace_document(obj.id)
         if type(obj).__name__ in {"ResearchPlan", "ResearchTask", "ResearchStep"}:
             self._delete_research_content_document(obj.id)
+        if type(obj).__name__ == "Note" and hasattr(obj, "body"):
+            self._delete_note_document(obj.id)
+        if type(obj).__name__ == "Milestone":
+            self._delete_milestone_document(obj.id)
 
     def _save_saved_search_document(self, saved: BaseModel) -> None:
         """Mirror a SavedSearch row into the document tree as a smart folder."""
@@ -1942,6 +2056,89 @@ class Database(DatabaseEmbeddingMixin):
         }]
         doc.created_at = saved.created_at
         doc.updated_at = saved.updated_at
+        self.save(doc)
+
+    def _save_note_document(self, note: BaseModel) -> None:
+        """Mirror a note row into the document tree."""
+        from fichero.models import DocType, Document
+
+        existing = self.get(Document, note.id)
+        metadata = (
+            dict(existing.metadata)
+            if existing is not None and isinstance(existing.metadata, dict)
+            else {}
+        )
+        metadata.update({"node_class": _NOTE_NODE_KIND, "note_id": note.id})
+        attributes = (
+            dict(existing.attributes)
+            if existing is not None and isinstance(existing.attributes, dict)
+            else {}
+        )
+        attributes.update({
+            "body": note.body,
+            "kind": note.kind.value,
+            "tags": note.tags,
+            "linked_note_ids": note.linked_note_ids,
+            "linked_entity_ids": note.linked_entity_ids,
+            "linked_claim_ids": note.linked_claim_ids,
+            "linked_document_ids": note.linked_document_ids,
+            "page_id": note.page_id,
+            "folder_id": note.folder_id,
+            "linked_structure_node_id": note.linked_structure_node_id,
+            "address": note.address,
+            "parent_address": note.parent_address,
+            "author_type": note.author_type,
+            "created_by": note.created_by,
+        })
+
+        doc = existing or Document(id=note.id, name=note.title or "Untitled note")
+        doc.parent_id = self._note_parent_id(note)
+        doc.name = note.title or note.address or "Untitled note"
+        doc.node_kind = _NOTE_NODE_KIND
+        doc.doc_type = DocType.file
+        doc.prototype_key = _NOTE_PROTOTYPE_KEY
+        doc.metadata = metadata
+        doc.attributes = attributes
+        doc.created_at = note.created_at
+        doc.updated_at = note.updated_at
+        self.save(doc)
+
+    def _save_milestone_document(self, milestone: BaseModel) -> None:
+        """Mirror a milestone row into the document tree."""
+        from fichero.models import DocType, Document
+
+        existing = self.get(Document, milestone.id)
+        metadata = (
+            dict(existing.metadata)
+            if existing is not None and isinstance(existing.metadata, dict)
+            else {}
+        )
+        metadata.update({
+            "node_class": _MILESTONE_NODE_KIND,
+            "milestone_id": milestone.id,
+        })
+        attributes = (
+            dict(existing.attributes)
+            if existing is not None and isinstance(existing.attributes, dict)
+            else {}
+        )
+        attributes.update({
+            "description": milestone.description,
+            "status": milestone.status,
+            "metadata": milestone.metadata,
+            "created_by": milestone.created_by,
+        })
+
+        doc = existing or Document(id=milestone.id, name=milestone.title)
+        doc.parent_id = milestone.parent_id
+        doc.name = milestone.title
+        doc.node_kind = _MILESTONE_NODE_KIND
+        doc.doc_type = DocType.file
+        doc.prototype_key = _MILESTONE_PROTOTYPE_KEY
+        doc.metadata = metadata
+        doc.attributes = attributes
+        doc.created_at = milestone.created_at
+        doc.updated_at = milestone.updated_at
         self.save(doc)
 
     def _save_filed_entity_document(self, entity: BaseModel) -> None:
@@ -2008,6 +2205,24 @@ class Database(DatabaseEmbeddingMixin):
             return
         self._execute("DELETE FROM documents WHERE id = $id", {"id": entity_id})
 
+    def _delete_note_document(self, note_id: str) -> None:
+        """Remove the mirrored document row for a note, if present."""
+        from fichero.models import Document
+
+        doc = self.get(Document, note_id)
+        if doc is None:
+            return
+        self._execute("DELETE FROM documents WHERE id = $id", {"id": note_id})
+
+    def _delete_milestone_document(self, milestone_id: str) -> None:
+        """Remove the mirrored document row for a milestone, if present."""
+        from fichero.models import Document
+
+        doc = self.get(Document, milestone_id)
+        if doc is None:
+            return
+        self._execute("DELETE FROM documents WHERE id = $id", {"id": milestone_id})
+
     def _backfill_saved_search_documents(self) -> None:
         """Backfill existing saved_searches rows into same-id document nodes."""
         # ponytail: mocked connections in unit tests may only support close().
@@ -2050,6 +2265,48 @@ class Database(DatabaseEmbeddingMixin):
 
         for entity in self._legacy_all_knowledge_entity_rows():
             self._save_filed_entity_document(entity)
+
+    def _backfill_note_documents(self) -> None:
+        """Backfill legacy notes into same-id document nodes."""
+        if not hasattr(self.conn, "execute"):
+            return
+
+        from fichero.knowledge_models import Note
+
+        table_name = self._table_name(Note)
+        table_exists = self.execute_fetchone(
+            """
+            SELECT COUNT(*) FROM information_schema.tables
+            WHERE table_name = $table_name
+            """,
+            {"table_name": table_name},
+        )
+        if not table_exists or int(table_exists[0] or 0) == 0:
+            return
+
+        for note in self._legacy_all_note_rows():
+            self._save_note_document(note)
+
+    def _backfill_milestone_documents(self) -> None:
+        """Backfill legacy milestones into same-id document nodes."""
+        if not hasattr(self.conn, "execute"):
+            return
+
+        from fichero.knowledge_models import Milestone
+
+        table_name = self._table_name(Milestone)
+        table_exists = self.execute_fetchone(
+            """
+            SELECT COUNT(*) FROM information_schema.tables
+            WHERE table_name = $table_name
+            """,
+            {"table_name": table_name},
+        )
+        if not table_exists or int(table_exists[0] or 0) == 0:
+            return
+
+        for milestone in self._legacy_all_milestone_rows():
+            self._save_milestone_document(milestone)
 
     def _save_research_workspace_document(self, project: BaseModel) -> None:
         """Mirror a ResearchProject row into the document tree as a workspace."""

@@ -1297,6 +1297,22 @@ class Note(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.now)
 
 
+class Milestone(BaseModel):
+    """User-authored milestone content that can be filed into the node tree."""
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    title: str
+    description: str = ""
+    parent_id: str
+    status: str = "planned"
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_by: str = "human"
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+
 class NoteLink(BaseModel):
     """Bidirectional link between two Notes — the Zettelkasten edge (#917).
 
