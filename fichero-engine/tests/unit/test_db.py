@@ -1180,6 +1180,10 @@ class TestSavedSearchCRUD:
         assert mirrored is not None
         assert mirrored.node_kind == "saved_search"
         assert mirrored.doc_type == DocType.folder
+        assert mirrored.prototype_key == "saved_search"
+        assert mirrored.attributes["query"] == "unprocessed images"
+        assert mirrored.attributes["filters"]["status"] == "pending"
+        assert mirrored.curated_items[0]["query"] == "unprocessed images"
         assert mirrored.metadata["node_class"] == "smart_folder"
         assert mirrored.metadata["saved_search_query"] == "unprocessed images"
 
@@ -1190,6 +1194,41 @@ class TestSavedSearchCRUD:
 
         all_searches = temp_db.all(SavedSearch)
         assert len(all_searches) == 2
+
+    def test_saved_search_reads_from_folded_document_node(self, temp_db):
+        """SavedSearch reads hydrate from the folded document node, not the table row."""
+        doc = Document(
+            id="saved-doc-1",
+            name="Saved Search Node",
+            node_kind="saved_search",
+            prototype_key="saved_search",
+            doc_type=DocType.folder,
+            sort_order=4,
+            attributes={
+                "query": "node-owned query",
+                "folder_path": "/saved",
+                "search_type": "fulltext",
+                "sort_by": "name",
+                "sort_direction": "asc",
+                "is_smart_search": False,
+                "filters": {"tag": "letters"},
+            },
+            curated_items=[
+                {
+                    "id": "saved-search-query",
+                    "kind": "saved_search_query",
+                    "query": "node-owned query",
+                }
+            ],
+        )
+        temp_db.save(doc)
+
+        saved = temp_db.get(SavedSearch, doc.id)
+        assert saved is not None
+        assert saved.query == "node-owned query"
+        assert saved.folder_path == "/saved"
+        assert saved.sort_order == 4
+        assert saved.filters == {"tag": "letters"}
 
 
 class TestLibraryLinkBackfill:
@@ -1255,6 +1294,8 @@ class TestLibraryLinkBackfill:
                 mirrored = reopened.get(Document, saved.id)
                 assert mirrored is not None
                 assert mirrored.node_kind == "saved_search"
+                assert mirrored.prototype_key == "saved_search"
+                assert mirrored.attributes["query"] == "reopen me"
                 assert mirrored.metadata["saved_search_query"] == "reopen me"
             finally:
                 reopened.close()
