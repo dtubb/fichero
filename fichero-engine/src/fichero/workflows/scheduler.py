@@ -25,6 +25,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.jobstores.memory import MemoryJobStore
+from apscheduler.jobstores.base import JobLookupError
 from apscheduler.executors.asyncio import AsyncIOExecutor
 
 from fichero.workflows.batch import BatchManager
@@ -734,8 +735,9 @@ class WorkflowScheduler:
             # Remove old job
             try:
                 self._scheduler.remove_job(schedule.schedule_id)
-            except Exception:
-                pass
+            except JobLookupError:
+                pass  # Job not registered yet — re-register below. Any OTHER
+                # scheduler error must surface, not be silently swallowed (#2507).
 
             # Register new job
             self._register_job(schedule)
@@ -759,8 +761,9 @@ class WorkflowScheduler:
         # Remove from APScheduler
         try:
             self._scheduler.remove_job(schedule_id)
-        except Exception:
-            pass  # Job might not exist
+        except JobLookupError:
+            pass  # Job might not exist. Any OTHER scheduler error must surface,
+            # not be silently swallowed (#2507).
 
         # Remove from database
         def _delete():
