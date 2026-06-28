@@ -16,8 +16,15 @@ import pytest
 from fichero import storage as storage_module
 from fichero.api.routes import documents as documents_routes
 from fichero.api.routes.documents import related_documents
-from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity, MutationLog
+from fichero.knowledge_models import (
+    ClassificationDimension,
+    ClassificationValue,
+    KnowledgeClaim,
+    KnowledgeEntity,
+    MutationLog,
+)
 from fichero.models import Document, DocType
+from fichero.node_prototypes import resolve_prototype_attributes
 
 
 # ---------------------------------------------------------------------------
@@ -1178,6 +1185,22 @@ class TestGetDocumentParent:
 
 
 class TestDocumentPrototypes:
+    @pytest.mark.parametrize(
+        "prototype_key",
+        ["letter", "book", "folder", "room", "research_workspace"],
+    )
+    def test_assigns_builtin_prototype_keys(self, client, db, prototype_key):
+        doc = _make_doc(db, f"{prototype_key} target")
+
+        response = client.put(
+            f"/api/documents/{doc.id}/prototype",
+            json={"prototype_key": prototype_key},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["updated_count"] == 1
+        assert db.get(Document, doc.id).prototype_key == prototype_key
+
     def test_assigns_builtin_prototype_against_fresh_db_fixture(self, client, db):
         doc = _make_doc(db, "Fresh Fixture Letter")
 
@@ -1200,6 +1223,74 @@ class TestDocumentPrototypes:
         assert payload["updated_count"] == 1
         refreshed = db.get(Document, doc.id)
         assert refreshed.prototype_key == "letter"
+
+    def test_assigns_user_defined_prototype_and_resolves_inherited_attrs(self, client, db):
+        db.save(
+            ClassificationValue(
+                dimension=ClassificationDimension.document_prototype,
+                key="custom_parent",
+                label="Custom Parent",
+                attributes={"container_kind": "folder", "accent": "blue"},
+            )
+        )
+        db.save(
+            ClassificationValue(
+                dimension=ClassificationDimension.document_prototype,
+                key="custom_child",
+                label="Custom Child",
+                parent_key="custom_parent",
+                attributes={"accent": "gold", "chat_enabled": True},
+            )
+        )
+        doc = _make_doc(db, "Custom Proto")
+
+        response = client.put(
+            f"/api/documents/{doc.id}/prototype",
+            json={"prototype_key": "custom_child"},
+        )
+
+        assert response.status_code == 200
+        refreshed = db.get(Document, doc.id)
+        assert refreshed.prototype_key == "custom_child"
+        assert resolve_prototype_attributes(db, refreshed.prototype_key) == {
+            "container_kind": "folder",
+            "accent": "gold",
+            "chat_enabled": True,
+        }
+
+    def test_assign_unknown_prototype_returns_404(self, client, db):
+        doc = _make_doc(db, "Unknown Proto")
+
+        response = client.put(
+            f"/api/documents/{doc.id}/prototype",
+            json={"prototype_key": "not-a-real-prototype"},
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Unknown prototype key: not-a-real-prototype"
+        assert db.get(Document, doc.id).prototype_key is None
+
+    def test_reassignment_overrides_existing_prototype(self, client, db):
+        doc = _make_doc(db, "Reassign Me")
+
+        first = client.put(
+            f"/api/documents/{doc.id}/prototype",
+            json={"prototype_key": "letter"},
+        )
+        assert first.status_code == 200
+
+        second = client.put(
+            f"/api/documents/{doc.id}/prototype",
+            json={"prototype_key": "room"},
+        )
+
+        assert second.status_code == 200
+        refreshed = db.get(Document, doc.id)
+        assert refreshed.prototype_key == "room"
+        effective = resolve_prototype_attributes(db, "room")
+        assert effective["container_kind"] == "folder"
+        assert effective["supports_children"] is True
+        assert effective["workspace_kind"] == "room"
 
     def test_assigns_prototype_to_descendant_page_range(self, client, db):
         folder = _make_doc(db, "Folder")
@@ -1224,6 +1315,50 @@ class TestDocumentPrototypes:
         assert db.get(Document, page1.id).prototype_key is None
         assert db.get(Document, page2.id).prototype_key == "chapter"
         assert db.get(Document, page3.id).prototype_key == "chapter"
+
+    def test_descendant_page_range_reassignment_overrides_only_targeted_pages(self, client, db):
+        db.save(
+            ClassificationValue(
+                dimension=ClassificationDimension.document_prototype,
+                key="chapter",
+                label="Chapter",
+                attributes={"outline_level": 1},
+            )
+        )
+        folder = _make_doc(db, "Folder")
+        page1 = Document(name="p1", doc_type=DocType.page, parent_id=folder.id, sequence=1)
+        page2 = Document(name="p2", doc_type=DocType.page, parent_id=folder.id, sequence=2)
+        page3 = Document(name="p3", doc_type=DocType.page, parent_id=folder.id, sequence=3)
+        db.save(page1)
+        db.save(page2)
+        db.save(page3)
+
+        first = client.put(
+            f"/api/documents/{folder.id}/prototype",
+            json={
+                "prototype_key": "chapter",
+                "include_descendants": True,
+                "page_start": 2,
+                "page_end": 3,
+            },
+        )
+        assert first.status_code == 200
+
+        second = client.put(
+            f"/api/documents/{folder.id}/prototype",
+            json={
+                "prototype_key": "letter",
+                "include_descendants": True,
+                "page_start": 3,
+                "page_end": 3,
+            },
+        )
+
+        assert second.status_code == 200
+        assert second.json()["updated_count"] == 1
+        assert db.get(Document, page1.id).prototype_key is None
+        assert db.get(Document, page2.id).prototype_key == "chapter"
+        assert db.get(Document, page3.id).prototype_key == "letter"
 
 
 class TestDocumentPageRanges:

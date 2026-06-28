@@ -62,6 +62,18 @@ def test_three_level_chain_merges_root_to_leaf(temp_db):
     assert effective == {"a": 99, "b": 2, "c": 3}
 
 
+def test_builtin_room_and_workspace_inherit_folder_attributes(temp_db):
+    room = resolve_prototype_attributes(temp_db, "room")
+    workspace = resolve_prototype_attributes(temp_db, "research_workspace")
+
+    assert room["container_kind"] == "folder"
+    assert room["supports_children"] is True
+    assert room["workspace_kind"] == "room"
+    assert workspace["container_kind"] == "folder"
+    assert workspace["supports_children"] is True
+    assert workspace["workspace_kind"] == "research"
+
+
 def test_four_level_chain_uses_leaf_override_precedence(temp_db):
     _proto(temp_db, "root", attributes={"icon": "square", "theme": "plain", "locked": False})
     _proto(temp_db, "mid_a", parent_key="root", attributes={"theme": "paper"})
