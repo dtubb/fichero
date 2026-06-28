@@ -1,8 +1,13 @@
 # What Fichero Is
 
-Fichero is a document library for researchers. It runs on your Mac. It is built for working with primary sources (scanned archives, PDFs, field notes, historical documents, interview transcripts), the raw material of research.
+Fichero is a document library for researchers. It runs primarily as a macOS app
+with a local backend engine. It is built for working with primary sources
+(scanned archives, PDFs, field notes, historical documents, interview
+transcripts), the raw material of research.
 
-You import your sources, read them, extract structured information from them, annotate them, and write from them. The whole process stays on your computer.
+You import your sources, read them, extract structured information from them,
+annotate them, and write from them. The library and engine are local; AI calls
+stay local when you use local providers.
 
 ---
 
@@ -40,30 +45,33 @@ This layer is **planned, not yet built** (the READ and THINK layers exist today;
 
 ## The AI philosophy
 
-Fichero is not a chatbot. It is not a "sense-making" tool that summarizes your documents and tells you what they mean. That is the researcher's job.
+Fichero is not built around a chatbot as the main interface. Its center of
+gravity is the document library, inspector, search, and workflow surfaces.
 
-The AI in Fichero does one thing: it surfaces what the sources actually say, in a structured form, with provenance. It extracts entities and claims. It transcribes handwriting. It produces structured catalogues. Every output is traceable back to a page.
+The AI in Fichero is there to process source material in inspectable ways. It
+extracts entities and claims, transcribes handwriting, and produces structured
+artifacts such as catalogues. The important part is that outputs stay tied to
+documents, pages, and workflow runs so you can inspect where they came from.
 
 Think of it like a microscope, not a research assistant who tells you what to think. A microscope makes things visible that were hard to see. It does not interpret the slide for you.
 
-The AI does not:
-- interpret your sources for you
-- tell you what the evidence means
-- summarize documents in ways that obscure the original
-- add anything that isn't in the source
-- pretend to be a thinking collaborator
+The AI does not replace your judgment. It should not be treated as an authority
+on what the source means.
 
 You are the analyst. The AI is the instrument.
 
-Fichero runs as much as possible locally and privately. Where possible, use Apple Intelligence or Ollama so your documents never leave your computer. When you use a cloud provider, you choose it, you control the API key, and Fichero makes no other network calls.
+Fichero can run locally and privately. If you use Apple Foundation Models,
+Ollama, LM Studio, or another local provider, your documents stay on your
+machine for those calls. If you use a cloud provider, you choose it and control
+the API key.
 
 ---
 
 ## Privacy
 
-Your data stays on your Mac. Fichero stores everything in a `.fichero` library package on your disk. There is no telemetry, no analytics, no cloud sync, and no account required.
-
-The only network traffic is to the AI provider you choose, and only when you run a workflow. If you run everything locally (Apple Intelligence or Ollama), Fichero makes no network calls at all.
+Fichero stores library data in a `.fichero` package on your disk. It does not
+require an account. If you keep to local providers, your workflow runs stay
+local too.
 
 ---
 

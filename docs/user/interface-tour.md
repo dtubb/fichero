@@ -39,12 +39,11 @@ The modes are:
 - **Search**: run and save searches across the library.
 - **Chat**: ask questions about your documents in a conversation.
 - **Workflows**: build and run the step-by-step processing pipelines.
-- **Chains**: link several workflows into a longer sequence.
 - **Activity**: watch workflow runs in progress and review finished ones.
-- **Automation**: set up schedules and folder triggers that run workflows for you.
-- **Batches**: manage large jobs that process many documents at once.
-- **Model Comparison**: run the same prompt against different AI models and compare
-  the results side by side.
+
+Some builds also expose additional modes such as chains, batches, automation,
+or model comparison. Those surfaces are more in flux than the core library,
+search, chat, workflow, and activity views.
 
 You can switch sidebar modes with the keyboard using Control plus Command plus a
 number key (for example, Control + Command + 1 for Library).
@@ -128,9 +127,9 @@ You will spend most of your time in **Content**, **Annotations**, **Notes**, and
 ## Workflows
 
 Workflows mode is where you build the step-by-step pipelines that process your
-documents, such as transcribe a scan, then extract people and places, then write a
-catalogue entry. You build a workflow visually by placing nodes on a canvas and
-connecting them, and you run it on a document or a whole selection.
+documents, such as transcribe a scan, extract people and places, and produce a
+catalogue-style artifact. You build a workflow visually by placing nodes on a
+canvas and connecting them, and you run it on a document or a whole selection.
 
 *[Screenshot: the workflow editor with nodes connected on the canvas.]*
 
@@ -173,9 +172,9 @@ The full options are covered in [Importing Documents](importing-documents.md).
 
 ## Settings
 
-Settings is where you configure Fichero, most importantly the AI providers and models
-it can use. You add the providers you want (local on-device models, or cloud
-providers with your own API key) and pick which models each workflow step should use.
+Settings is where you configure Fichero, most importantly the AI providers and
+models it can use. You add the providers you want and pick which models each
+workflow step should use.
 
 *[Screenshot: the Settings window open to the Models section.]*
 

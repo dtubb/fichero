@@ -2,9 +2,12 @@
 
 ## Your data stays on your Mac
 
-Fichero stores everything in a `.fichero` library package on your disk. There is no telemetry, no analytics, and no cloud sync. Fichero does not require an account.
+Fichero stores its library data in a `.fichero` package on your disk. It does
+not require an account or a hosted Fichero service.
 
-The only network traffic is to the AI provider you choose, and only when you run a workflow that calls that provider. If you run everything locally, Fichero makes no network calls at all.
+When you use the local engine and local models, your documents stay on your Mac.
+When you choose a cloud AI provider or a remote backend, the content involved in
+that request leaves your machine for that call.
 
 ---
 
@@ -29,7 +32,9 @@ For sensitive research materials, local models are the right choice.
 
 Fichero connects to cloud providers through LangChain provider integrations. You supply your own API key. Fichero does not proxy requests through any intermediary; your API calls go directly to the provider. ([LiteLLM](https://github.com/BerriAI/litellm) is used only to look up model names and estimate cost, not to route or send your content.)
 
-Available providers include OpenAI, Anthropic (Claude), Google, Mistral, Groq, DeepSeek, OpenRouter, Azure, Amazon Bedrock, and others. See Settings for the full list.
+Available providers include OpenAI, Anthropic, Google, Mistral, Groq,
+DeepSeek, OpenRouter, Azure, Amazon Bedrock, and others. See Settings for the
+full list in the build you are running.
 
 Cloud models are billed by your API provider at their standard rates.
 
@@ -55,9 +60,11 @@ You review the output. You can approve, reject, suppress, or merge any entity or
 
 ## What the AI does not do
 
-Fichero AI does not interpret your sources. It does not tell you what the evidence means, summarize documents for you, or generate analysis. Every output is grounded in a specific page of a specific document.
+Fichero's core promise is provenance and inspectability. It can transcribe,
+extract, catalogue, and summarize, but those outputs are meant to stay tied to
+specific documents, pages, and workflow runs so you can review them yourself.
 
-The AI is an extraction instrument. Interpretation is yours.
+Interpretation is yours.
 
 ---
 
