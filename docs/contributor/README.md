@@ -16,12 +16,12 @@ This section explains how the current Fichero codebase works for contributors. I
 
 ## Read This First
 
-Fichero is not a single-process desktop app. The macOS app is a native SwiftUI app over a local fichero-engine server (Python, FastAPI).
+Fichero is not a single-process desktop app. The default macOS path is a native SwiftUI app over a local `fichero-engine` server (Python, FastAPI), while other Apple clients connect to an explicitly configured remote engine host.
 
 The shortest accurate picture is:
 
 ```text
-SwiftUI app -> pinned HTTPS loopback -> FastAPI engine -> DuckDB + LanceDB
+SwiftUI app -> pinned HTTPS transport -> FastAPI engine -> DuckDB + LanceDB
                                                      -> LangGraph workflows
                                                      -> LLM providers via LangChain integrations
 ```
@@ -36,7 +36,7 @@ That architecture shapes almost every contributor task:
 
 For environment setup, build commands, and branch discipline, see [Setup and Contributing](./setup-and-contributing.md). The key mechanics: commit directly to the milestone branch, register new Swift files with `scripts/add-swift-file.rb`, use conventional commits with issue references, and never push to `main` without a PR.
 
-For all backend mutations, the starting point is the action registry. Every write goes through `registry.invoke` rather than directly to DuckDB. See [Action Registry](./action-registry.md) for how to define actions, write the required tests, and use the generic invocation endpoint. The [Security Model](./security-model.md) covers the shared-secret token, multi-user ACL, Tailscale transport, and audit attribution.
+For audited cross-surface mutations, the starting point is the action registry. The registry-backed routes are the shared path for surfaces such as chat tools, App Intents, and undoable action flows, but the backend still has direct `db.save(...)` routes outside that layer today. See [Action Registry](./action-registry.md) for the current architecture and [Security Model](./security-model.md) for the shared-secret token, multi-user ACL, transport, and audit attribution.
 
 ## Core Reference Material In This Repo
 

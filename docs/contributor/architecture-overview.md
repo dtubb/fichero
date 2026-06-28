@@ -16,8 +16,10 @@ Fichero is a two-part system:
 - `fichero-engine/src/fichero/`: the Python FastAPI engine
 
 The Swift app is not the source of truth for data or AI behavior. It is a UI
-layer that talks to the engine over pinned HTTPS on `127.0.0.1:8765` for the
-local macOS path.
+layer that talks to the engine over pinned HTTPS. On macOS, the embedded-engine
+path defaults to `https://127.0.0.1:8765`; `EngineConfig` also supports an
+explicit configured host, and iOS/iPadOS use that remote-host path rather than
+starting a local engine.
 
 ## Frontend Responsibilities
 
@@ -26,7 +28,7 @@ The frontend owns:
 - windows, panes, and navigation
 - document browsing and selection state
 - reading surfaces for images and PDFs
-- inspector tabs for content, notes, annotations, entities, KG, artifacts, and info
+- inspector tabs for content, outline, annotations, notes, interpretation, entities, knowledge graph, citations, edits, and info
 - workflow launch and activity display
 - hand-written service wrappers around the generated OpenAPI client
 
@@ -40,6 +42,7 @@ The backend owns:
 
 - file ingest
 - document and folder persistence
+- folded node-model persistence for saved searches, bookmark aliases, research workspaces, and research plan/task/step nodes
 - annotations and notes APIs
 - search and embedding logic
 - entity and claim storage
@@ -73,8 +76,8 @@ The desktop app is the main user-facing client, but the engine is shared across 
 The same backend is also consumed by:
 
 - the typed `python -m fichero` CLI
-- generated Swift service layers
-- `fichero-mcp`
-- additional Apple-client surfaces that are still in progress
+- the generated Swift OpenAPI client plus hand-written service wrappers
+- the `fichero.mcp_server` / `fichero-mcp` MCP server entrypoint
+- iOS/iPadOS clients that connect to a configured remote engine host
 
 That is why backend behavior should be explained in terms of routes and models, not in terms of one specific screen.
