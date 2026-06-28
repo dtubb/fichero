@@ -34,6 +34,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 import base64
+import logging
 
 # Typed OCR/transcription geometry saved on artifacts.
 from fichero.ocr_geometry import OCRGeometryResult
@@ -56,6 +57,9 @@ if TYPE_CHECKING:
     from fichero.api.routes.activity import ActivityResponse
     from fichero.api.routes.batch import BatchResponse
     from fichero.api.routes.kg_entity_curation import EntityAuditResponse
+
+
+logger = logging.getLogger(__name__)
 
 
 def _new_id() -> str:
@@ -477,7 +481,15 @@ class Document(BaseModel):
         if b64:
             try:
                 return base64.b64decode(b64)
-            except Exception:
+            except Exception as exc:
+                # A stored-but-undecodable bookmark is a real failure (lost
+                # security-scoped access), not "no bookmark" — don't swallow it
+                # silently (#2507).
+                logger.warning(
+                    "Could not decode security-scoped bookmark for document %s: %s",
+                    self.id,
+                    exc,
+                )
                 return None
         return None
 
