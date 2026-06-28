@@ -126,13 +126,14 @@ struct FirstRunWindow: View {
                         primaryAction: { step = .permissions }
                     ),
                     footer: {
-                        LibrarySetupActionsRow(
-                            primaryTitle: "Open Existing",
-                            primaryIcon: "folder",
-                            primaryAction: openExistingLibraryPanel,
-                            selectedLabel: selectedLibraryName
-                        )
-                        .buttonStyle(.bordered)
+                        // #2716 — "Open Existing" lives in File ▸ Open Library (⌘O)
+                        // and Settings, not in first-run onboarding. Keep this step
+                        // focused on the ready-to-use default library.
+                        if let selectedLibraryName {
+                            Label(selectedLibraryName, systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                                .lineLimit(1)
+                        }
                     }
                 )
             }
@@ -297,27 +298,6 @@ struct FirstRunWindow: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
-    }
-
-    private func openLibrary(_ url: URL) {
-        let library = libraryManager.openLibrary(at: url)
-        selectedLibraryName = library.displayName
-    }
-
-    private func openExistingLibraryPanel() {
-        #if os(macOS)
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.prompt = "Open Library"
-        if panel.runModal() == .OK, let url = panel.url {
-            openLibrary(url)
-        }
-        #else
-        // iOS: onboarding uses document picker or a placeholder; no-op for now.
-        documentsPermission = false
-        #endif
     }
 
     private func requestDocumentsAccess() {
