@@ -58,6 +58,7 @@ from fichero.workflows.tools import split_images  # noqa: F401  (#1394)
 # LLM tools
 from fichero.workflows.tools import summarize
 from fichero.workflows.tools import entities
+from fichero.workflows.tools import geo_extract  # noqa: F401  (#2266 registers extract_geo)
 from fichero.workflows.tools import timeline
 from fichero.workflows.tools import key_people
 from fichero.workflows.tools import catalogue

@@ -1,4 +1,3 @@
-// swiftlint:disable file_length
 #if canImport(AppKit)
 import AppKit
 #endif
@@ -14,10 +13,6 @@ struct FirstRunWindow: View {
     @State private var step: FirstRunStep = .welcome
     @State private var selectedLibraryName: String?
     @State private var documentsPermission = false
-    @State private var openRouterKey = ""
-    @State private var isSaving = false
-    @State private var errorMessage: String?
-    @Environment(\.openURL) private var openURL
 
     var body: some View {
         HStack(spacing: 0) {
@@ -27,6 +22,17 @@ struct FirstRunWindow: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(width: 760, height: 520)
+        .onAppear { surfaceDefaultLibrary() }
+    }
+
+    /// #2715 — A new user already lands in a working state: the app-managed
+    /// "Local" library (~/Library/Application Support/Fichero/global.fichero) is
+    /// always loaded by `LibraryManager` and auto-assigned to the window. Surface
+    /// it here so library setup reads as optional, not a blocking step.
+    private func surfaceDefaultLibrary() {
+        if selectedLibraryName == nil {
+            selectedLibraryName = libraryManager.globalLibrary?.displayName
+        }
     }
 
     private var sidebar: some View {
@@ -52,12 +58,6 @@ struct FirstRunWindow: View {
             }
 
             Spacer()
-            if let errorMessage {
-                Text(errorMessage)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
         .padding(20)
         .frame(width: 220)
@@ -76,9 +76,10 @@ struct FirstRunWindow: View {
                 firstRunCard(
                     FirstRunCardConfig(
                         icon: "books.vertical",
-                        title: "Start with a library",
-                        body: "Choose where your source collection lives, then Fichero can keep scans, PDFs, notes, and graphs together.",
-                        primaryTitle: "Set Up Library",
+                        title: "You're ready to go",
+                        body: "Fichero already set up a local library so you can start right away. "
+                            + "Customize it later — or just begin importing scans, PDFs, notes, and graphs.",
+                        primaryTitle: "Get Started",
                         primaryIcon: "arrow.right",
                         primaryAction: { step = .library }
                     ),
@@ -96,35 +97,32 @@ struct FirstRunWindow: View {
             }
         case .library:
             stepPage(
-                title: "Library Setup",
-                subtitle: "Start with a new package or connect an existing .fichero library.",
+                title: "Library (optional)",
+                subtitle: "You already have a working library. Add another only if you want to.",
                 systemImage: "folder"
             ) {
                 firstRunCard(
                     FirstRunCardConfig(
                         icon: "folder.badge.gearshape",
-                        title: "Choose your working library",
-                        body: selectedLibraryName.map { "Selected library: \($0)" }
-                            ?? "Create a new library package or open an existing folder before importing documents.",
-                        primaryTitle: selectedLibraryName == nil ? "Create Library" : "Continue",
-                        primaryIcon: selectedLibraryName == nil ? "plus" : "arrow.right",
-                        primaryAction: {
-                            if selectedLibraryName == nil {
-                                let library = libraryManager.createNewLibrary()
-                                selectedLibraryName = library.displayName
-                            } else {
-                                step = .permissions
-                            }
+                        title: "Your working library",
+                        body: selectedLibraryName.map {
+                            "Ready to use: \($0). You can create more libraries anytime, "
+                                + "or save this one to a folder of your choice from the File menu."
                         }
+                            ?? "A local library is ready to use. Create more libraries anytime from the File menu.",
+                        primaryTitle: "Continue",
+                        primaryIcon: "arrow.right",
+                        primaryAction: { step = .permissions }
                     ),
                     footer: {
-                        LibrarySetupActionsRow(
-                            primaryTitle: "Open Existing",
-                            primaryIcon: "folder",
-                            primaryAction: openExistingLibraryPanel,
-                            selectedLabel: selectedLibraryName
-                        )
-                        .buttonStyle(.bordered)
+                        // #2716 — "Open Existing" lives in File ▸ Open Library (⌘O)
+                        // and Settings, not in first-run onboarding. Keep this step
+                        // focused on the ready-to-use default library.
+                        if let selectedLibraryName {
+                            Label(selectedLibraryName, systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                                .lineLimit(1)
+                        }
                     }
                 )
             }
@@ -139,7 +137,7 @@ struct FirstRunWindow: View {
                         icon: documentsPermission ? "checkmark.shield" : "lock.shield",
                         title: "Authorize source locations",
                         body: documentsPermission
-                            ? "Documents access is ready. Enable Photos or Accessibility later if a workflow needs it."
+                            ? "Folder access is ready. That's the only permission Fichero needs to get started."
                             : "Grant folder access only for the locations Fichero should scan and organize.",
                         primaryTitle: documentsPermission ? "Continue" : "Choose Folder",
                         primaryIcon: documentsPermission ? "arrow.right" : "folder.badge.gearshape",
@@ -152,45 +150,39 @@ struct FirstRunWindow: View {
                         }
                     ),
                     footer: {
-                        HStack(spacing: 10) {
-                            Button {
-                                openSettingsPane("x-apple.systempreferences:com.apple.preference.security?Privacy_Photos")
-                            } label: {
-                                Label("Photos", systemImage: "photo.on.rectangle")
-                            }
-                            Button {
-                                openSettingsPane("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
-                            } label: {
-                                Label("Accessibility", systemImage: "figure.wave")
-                            }
-                            if documentsPermission {
-                                detailPill("Documents ready", icon: "checkmark.circle.fill")
-                            }
+                        // #2717 — Folder access is the only permission Fichero needs.
+                        // The app declares no Accessibility entitlement (removed) and
+                        // no Photos usage string; Photos is requested at import time
+                        // only, never up front.
+                        if documentsPermission {
+                            detailPill("Documents ready", icon: "checkmark.circle.fill")
                         }
                     }
                 )
             }
         case .cloud:
             stepPage(
-                title: "Use the cheapest model that works",
-                subtitle: "Add a cloud fallback only if local providers are not enough.",
-                systemImage: "cloud"
+                title: "AI is optional",
+                subtitle: "Fichero is local-first. Add a provider only when you want AI.",
+                systemImage: "brain"
             ) {
                 firstRunCard(
                     FirstRunCardConfig(
-                        icon: "cloud",
-                        title: "Use the cheapest model that works",
-                        body: "OpenRouter is optional. Add it now if you need cloud models for tasks your local providers cannot handle.",
-                        primaryTitle: openRouterKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                            ? "Finish Without Cloud"
-                            : "Save and Finish",
-                        primaryIcon: "checkmark",
-                        primaryAction: { Task { await saveAndFinish() } }
+                        icon: "cpu",
+                        title: "Choose an AI provider",
+                        body: "Run models locally with Ollama or LM Studio, or connect a cloud "
+                            + "provider like OpenAI, Anthropic, Google, or OpenRouter — and pick "
+                            + "your default models. Everything is optional and changeable in Settings.",
+                        primaryTitle: "Choose a Provider",
+                        primaryIcon: "plus",
+                        primaryAction: { chooseProviderAndFinish() }
                     ),
                     footer: {
-                        SecureField("OpenRouter API key", text: $openRouterKey)
-                            .textFieldStyle(.roundedBorder)
-                        Text("Leave blank to configure cloud models later in Settings.")
+                        // #2718 — local-first, provider-agnostic. Defer to the existing
+                        // Add Provider flow (full catalog + default-model selection),
+                        // which pre-selects a local provider on first launch. No single
+                        // provider is centered.
+                        Text("Prefer to decide later? Skip — you can add providers anytime in Settings.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -231,13 +223,12 @@ struct FirstRunWindow: View {
                     .disabled(step == .welcome)
                 Button(step == .cloud ? "Finish" : "Continue") {
                     if step == .cloud {
-                        Task { await saveAndFinish() }
+                        finish()
                     } else {
                         step = step.next
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(isSaving)
                 .keyboardShortcut(.defaultAction)
             }
         }
@@ -269,7 +260,6 @@ struct FirstRunWindow: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(isSaving)
         }
         .padding(22)
         .frame(maxWidth: .infinity, minHeight: 280, alignment: .leading)
@@ -291,27 +281,6 @@ struct FirstRunWindow: View {
             .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
     }
 
-    private func openLibrary(_ url: URL) {
-        let library = libraryManager.openLibrary(at: url)
-        selectedLibraryName = library.displayName
-    }
-
-    private func openExistingLibraryPanel() {
-        #if os(macOS)
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.prompt = "Open Library"
-        if panel.runModal() == .OK, let url = panel.url {
-            openLibrary(url)
-        }
-        #else
-        // iOS: onboarding uses document picker or a placeholder; no-op for now.
-        documentsPermission = false
-        #endif
-    }
-
     private func requestDocumentsAccess() {
         #if os(macOS)
         let panel = NSOpenPanel()
@@ -327,28 +296,13 @@ struct FirstRunWindow: View {
         #endif
     }
 
-    private func openSettingsPane(_ rawURL: String) {
-        guard let url = URL(string: rawURL) else { return }
-        openURL(url)
-    }
-
-    private func saveAndFinish() async {
-        isSaving = true
-        defer { isSaving = false }
-        let trimmedKey = openRouterKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedKey.isEmpty {
-            do {
-                _ = try await appState.providerService.createProvider(
-                    providerType: "openrouter",
-                    name: "OpenRouter",
-                    apiKey: trimmedKey
-                )
-                await appState.loadProviders()
-            } catch {
-                errorMessage = error.localizedDescription
-                return
-            }
-        }
+    /// #2718 — Finish onboarding, then hand off to the existing local-first Add
+    /// Provider flow (full provider catalog + default-model selection) rather than
+    /// hardcoding any single provider. Setting `isFirstLaunchProviderSetup` makes
+    /// that sheet pre-select a local provider.
+    private func chooseProviderAndFinish() {
+        appState.isFirstLaunchProviderSetup = true
+        appState.showAddProvider = true
         finish()
     }
 
@@ -404,7 +358,7 @@ private enum FirstRunStep: Int, CaseIterable, Identifiable {
         case .welcome: return "Welcome"
         case .library: return "Library"
         case .permissions: return "Permissions"
-        case .cloud: return "Cloud LLM"
+        case .cloud: return "AI"
         }
     }
 
@@ -413,7 +367,7 @@ private enum FirstRunStep: Int, CaseIterable, Identifiable {
         case .welcome: return "sparkles"
         case .library: return "folder"
         case .permissions: return "lock.shield"
-        case .cloud: return "cloud"
+        case .cloud: return "brain"
         }
     }
 

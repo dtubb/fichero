@@ -650,8 +650,8 @@ extension ContentView {
             } label: {
                 Label("Back", systemImage: "chevron.backward")
             }
-            .help("Back (⌘[)")
-            .keyboardShortcut("[", modifiers: [.command])
+            .help("Back (⌘')")
+            .keyboardShortcut("'", modifiers: [.command])
             .disabled(!navigationHistory.canGoBack)
 
             Button {
@@ -659,8 +659,8 @@ extension ContentView {
             } label: {
                 Label("Forward", systemImage: "chevron.forward")
             }
-            .help("Forward (⌘])")
-            .keyboardShortcut("]", modifiers: [.command])
+            .help("Forward (⌘⇧')")
+            .keyboardShortcut("'", modifiers: [.command, .shift])
             .disabled(!navigationHistory.canGoForward)
         }
     }
