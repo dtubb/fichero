@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, ConfigDict, Field
 
+from fichero.api.routes.claims import _descendant_doc_ids
 from fichero.db import Database
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.app_db import get_app_db, AppDatabase
@@ -25,6 +26,7 @@ from fichero.models import (
 )
 from fichero.keychain import has_api_key
 from fichero.llm import LLMConfig, get_langchain_model
+from fichero.node_aliases import DanglingAliasError, is_alias, resolve_alias
 from fichero.providers import get_provider_info
 from fichero.prompts import compose_system_prompt
 from fichero.retrieval.graph_rag import GraphAwareRetriever
@@ -261,6 +263,49 @@ def _build_chat_system_prompt(has_context: bool) -> str:
     return compose_system_prompt(role="chat", extra=extra)
 
 
+def _requested_scope_document_id(request: ChatRequest) -> str | None:
+    """Compatibility bridge for node-backed scope refs on chat requests."""
+    value = getattr(request, "scope_document_id", None)
+    return value if isinstance(value, str) and value else None
+
+
+def _resolve_scope_node(db: Database, scope_document_id: str) -> Document:
+    """Resolve a chat scope node, following aliases and raising on misses."""
+    scope = db.get(Document, scope_document_id)
+    if scope is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Chat scope node not found: {scope_document_id}",
+        )
+    if not is_alias(scope):
+        return scope
+    try:
+        return resolve_alias(db, scope)
+    except DanglingAliasError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+def _effective_scope(
+    db: Database,
+    request: ChatRequest,
+    conv: Conversation,
+) -> tuple[list[str] | None, str | None]:
+    """Resolve retrieval doc ids plus the stored scope node reference."""
+    requested_scope = _requested_scope_document_id(request)
+    if requested_scope:
+        resolved = _resolve_scope_node(db, requested_scope)
+        return sorted(_descendant_doc_ids(db, resolved.id)), requested_scope
+    if request.document_ids is not None:
+        scope_id = request.document_ids[0] if len(request.document_ids) == 1 else None
+        return request.document_ids, scope_id
+    if conv.scope_document_id:
+        resolved = _resolve_scope_node(db, conv.scope_document_id)
+        return sorted(_descendant_doc_ids(db, resolved.id)), conv.scope_document_id
+    if conv.document_ids:
+        return conv.document_ids, None
+    return None, None
+
+
 @router.post("")
 async def chat(
     request: ChatRequest,
@@ -296,6 +341,14 @@ async def chat(
             sort_order=0,
         )
 
+    effective_document_ids, scope_document_id = _effective_scope(db, request, conv)
+    conv.scope_document_id = scope_document_id
+    conv.document_ids = (
+        [scope_document_id]
+        if scope_document_id is not None
+        else list(effective_document_ids or [])
+    )
+
     # Add user message
     conv.messages.append({"role": "user", "content": request.message})
     conv.updated_at = datetime.now()
@@ -313,7 +366,7 @@ async def chat(
             query=request.message,
             max_sources=request.max_sources,
             include_sources=request.include_sources,
-            document_ids=request.document_ids,
+            document_ids=effective_document_ids,
             graph_hops=request.graph_hops,
             max_kg_claims=request.max_kg_claims,
         )
@@ -510,6 +563,7 @@ def duplicate_conversation_impl(db: Database, conversation_id: str) -> Conversat
         provider=original.provider,
         model=original.model,
         document_ids=original.document_ids[:],
+        scope_document_id=original.scope_document_id,
         folder_path=original.folder_path,
         sort_order=original.sort_order,
     )

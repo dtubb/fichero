@@ -64,7 +64,7 @@ def _undo(db, audit_id, ctx):
 
 
 def _mk_conversation(
-    db, title="Chat", folder_path="/", sort_order=0, messages=None
+    db, title="Chat", folder_path="/", sort_order=0, messages=None, scope_document_id=None
 ) -> Conversation:
     conv = Conversation(
         title=title,
@@ -73,6 +73,7 @@ def _mk_conversation(
         messages=messages if messages is not None else [],
         provider="openai",
         model="gpt-4o-mini",
+        scope_document_id=scope_document_id,
     )
     db.save(conv)
     return conv
@@ -213,6 +214,20 @@ class TestConversationDuplicateAction:
 
         reloaded_original = db.get(Conversation, original.id)
         assert reloaded_original.messages == [{"role": "user", "content": "a"}]
+
+    def test_duplicate_preserves_scope_document_id(self, db):
+        ctx = _ctx()
+        original = _mk_conversation(
+            db,
+            title="Scoped",
+            scope_document_id="folder-1",
+        )
+
+        result = registry.invoke(
+            db, "conversation.duplicate", {"conversation_id": original.id}, ctx
+        )
+
+        assert db.get(Conversation, result.result["id"]).scope_document_id == "folder-1"
 
     def test_duplicate_unknown_id_404(self, db):
         with pytest.raises(HTTPException) as exc:
