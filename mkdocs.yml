@@ -108,6 +108,7 @@ nav:
   - Contributor:
       - Overview: contributor/README.md
       - Architecture Overview: contributor/architecture-overview.md
+      - Node Model: contributor/node-model.md
       - OpenAPI & Clients: contributor/openapi-and-clients.md
       - Data, Search & KG: contributor/data-search-and-kg.md
       - Workflows, Activity & Curation: contributor/workflows-activity-and-curation.md
