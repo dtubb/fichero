@@ -170,6 +170,7 @@ _RESEARCH_TASK_NODE_KIND = "task"
 _RESEARCH_TASK_PROTOTYPE_KEY = "research_task"
 _RESEARCH_STEP_NODE_KIND = "step"
 _RESEARCH_STEP_PROTOTYPE_KEY = "research_step"
+_ROOM_NODE_KIND = "room"
 _FOLDER_PROTOTYPE_KEY = "folder"
 _ROOM_PROTOTYPE_KEY = "room"
 
@@ -535,6 +536,7 @@ class Database(DatabaseEmbeddingMixin):
         self._seed_builtin_node_classes()
         self._backfill_claim_links_to_library_links()
         self._backfill_saved_search_documents()
+        self._backfill_spatial_room_documents()
         self._backfill_research_workspace_documents()
         self._backfill_research_plan_task_step_documents()
 
@@ -785,6 +787,8 @@ class Database(DatabaseEmbeddingMixin):
 
         if type(obj).__name__ == "SavedSearch":
             self._save_saved_search_document(obj)
+        if type(obj).__name__ == "SpatialRoom":
+            self._save_spatial_room_document(obj)
         if type(obj).__name__ == "ResearchProject":
             self._save_research_workspace_document(obj)
         if type(obj).__name__ == "ResearchPlan":
@@ -926,6 +930,21 @@ class Database(DatabaseEmbeddingMixin):
             if (hydrated := self._hydrate_row(model_cls, columns, row)) is not None
         ]
 
+    def _legacy_all_spatial_room_rows(self) -> list[BaseModel]:
+        """Read legacy SpatialRoom rows without node folding."""
+        from fichero.spatial_models import SpatialRoom
+
+        sql_table = self._sql_table_name(SpatialRoom)
+        self._ensure_table(SpatialRoom)
+        with self._lock:
+            rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
+            columns = [desc[0] for desc in self.conn.description]
+        return [
+            hydrated
+            for row in rows
+            if (hydrated := self._hydrate_row(SpatialRoom, columns, row)) is not None
+        ]
+
     @staticmethod
     def _saved_search_from_document(doc: Any) -> BaseModel:
         """Hydrate a SavedSearch view-model from its folded document node."""
@@ -969,6 +988,50 @@ class Database(DatabaseEmbeddingMixin):
 
         docs = self.query(Document, node_kind=_SAVED_SEARCH_NODE_KIND)
         return [self._saved_search_from_document(doc) for doc in docs]
+
+    @staticmethod
+    def _spatial_room_from_document(db: "Database", doc: Any) -> BaseModel:
+        """Hydrate a SpatialRoom view-model from its folded room document."""
+        from fichero.spatial_models import RoomType, SpatialRoom
+
+        if doc.prototype_key != _ROOM_PROTOTYPE_KEY:
+            raise ValueError(f"Document {doc.id} is not a room node")
+
+        attrs = db._effective_prototype_attributes(doc)
+        description = attrs.get("description", "")
+        if not isinstance(description, str):
+            raise ValueError(f"Room {doc.id} has invalid description payload")
+        room_type_value = attrs.get("room_type", RoomType.research.value)
+        try:
+            room_type = RoomType(room_type_value)
+        except Exception as exc:
+            raise ValueError(
+                f"Room {doc.id} has invalid room_type payload: {room_type_value!r}"
+            ) from exc
+        owner_id = attrs.get("owner_id", "user")
+        if not isinstance(owner_id, str):
+            raise ValueError(f"Room {doc.id} has invalid owner_id payload")
+        metadata = attrs.get("metadata", {})
+        if not isinstance(metadata, dict):
+            raise ValueError(f"Room {doc.id} has invalid metadata payload")
+
+        return SpatialRoom(
+            id=doc.id,
+            name=doc.name,
+            description=description,
+            room_type=room_type,
+            owner_id=owner_id,
+            metadata=metadata,
+            created_at=doc.created_at,
+            updated_at=doc.updated_at,
+        )
+
+    def _all_folded_spatial_rooms(self) -> list[BaseModel]:
+        """Return all mind-palace rooms from their folded document nodes."""
+        from fichero.models import Document
+
+        docs = self.query(Document, node_kind=_ROOM_NODE_KIND)
+        return [self._spatial_room_from_document(self, doc) for doc in docs]
 
     def _seed_builtin_document_prototypes(self) -> None:
         """Ensure the fold's built-in folder/container prototypes exist."""
@@ -1299,6 +1362,19 @@ class Database(DatabaseEmbeddingMixin):
             if doc is None or doc.node_kind != _SAVED_SEARCH_NODE_KIND:
                 return None
             return cast(T, self._saved_search_from_document(doc))
+        if model.__name__ == "SpatialRoom":
+            from fichero.models import Document
+
+            doc = self.get(Document, id)
+            if doc is None:
+                return None
+            if doc.node_kind == _ROOM_NODE_KIND and doc.prototype_key != _ROOM_PROTOTYPE_KEY:
+                raise ValueError(
+                    f"Document {doc.id} is a room node but has prototype {doc.prototype_key!r}"
+                )
+            if doc.prototype_key != _ROOM_PROTOTYPE_KEY:
+                return None
+            return cast(T, self._spatial_room_from_document(self, doc))
         if model.__name__ == "ResearchProject":
             from fichero.models import Document
 
@@ -1346,6 +1422,8 @@ class Database(DatabaseEmbeddingMixin):
         """Get all objects of a type."""
         if model.__name__ == "SavedSearch":
             return cast(list[T], self._all_folded_saved_searches())
+        if model.__name__ == "SpatialRoom":
+            return cast(list[T], self._all_folded_spatial_rooms())
         if model.__name__ == "ResearchProject":
             return cast(list[T], self._all_folded_research_projects())
         if model.__name__ == "ResearchPlan":
@@ -1375,6 +1453,22 @@ class Database(DatabaseEmbeddingMixin):
         """Query with simple equality filters."""
         if model.__name__ == "SavedSearch":
             rows = self._all_folded_saved_searches()
+            if not filters:
+                return cast(list[T], rows)
+            out: list[BaseModel] = []
+            for row in rows:
+                matches = True
+                for key, value in filters.items():
+                    if not hasattr(row, key):
+                        raise ValueError(f"Invalid column name: {key}")
+                    if getattr(row, key) != value:
+                        matches = False
+                        break
+                if matches:
+                    out.append(row)
+            return cast(list[T], out)
+        if model.__name__ == "SpatialRoom":
+            rows = self._all_folded_spatial_rooms()
             if not filters:
                 return cast(list[T], rows)
             out: list[BaseModel] = []
@@ -1751,6 +1845,8 @@ class Database(DatabaseEmbeddingMixin):
         self._execute(f"DELETE FROM {sql_table} WHERE id = $id", {"id": obj.id})
         if type(obj).__name__ == "SavedSearch":
             self._delete_saved_search_document(obj.id)
+        if type(obj).__name__ == "SpatialRoom":
+            self._delete_spatial_room_document(obj.id)
         if type(obj).__name__ == "ResearchProject":
             self._delete_research_workspace_document(obj.id)
         if type(obj).__name__ in {"ResearchPlan", "ResearchTask", "ResearchStep"}:
@@ -1880,6 +1976,43 @@ class Database(DatabaseEmbeddingMixin):
         doc.updated_at = project.updated_at
         self.save(doc)
 
+    def _save_spatial_room_document(self, room: BaseModel) -> None:
+        """Mirror a SpatialRoom row into the document tree as a room node."""
+        from fichero.models import DocType, Document
+
+        existing = self.get(Document, room.id)
+        metadata = (
+            dict(existing.metadata)
+            if existing is not None and isinstance(existing.metadata, dict)
+            else {}
+        )
+        metadata.update({
+            "node_class": _ROOM_NODE_KIND,
+            "mind_palace_room_id": room.id,
+        })
+        attributes = (
+            dict(existing.attributes)
+            if existing is not None and isinstance(existing.attributes, dict)
+            else {}
+        )
+        attributes.update({
+            "description": room.description,
+            "room_type": room.room_type.value,
+            "owner_id": room.owner_id,
+            "metadata": room.metadata,
+        })
+
+        doc = existing or Document(id=room.id, name=room.name)
+        doc.name = room.name
+        doc.node_kind = _ROOM_NODE_KIND
+        doc.doc_type = DocType.folder
+        doc.prototype_key = _ROOM_PROTOTYPE_KEY
+        doc.metadata = metadata
+        doc.attributes = attributes
+        doc.created_at = room.created_at
+        doc.updated_at = room.updated_at
+        self.save(doc)
+
     def _save_research_plan_document(self, plan: BaseModel) -> None:
         """Mirror a ResearchPlan row into the document tree."""
         from fichero.models import DocType, Document
@@ -2000,6 +2133,15 @@ class Database(DatabaseEmbeddingMixin):
             return
         self._execute("DELETE FROM documents WHERE id = $id", {"id": project_id})
 
+    def _delete_spatial_room_document(self, room_id: str) -> None:
+        """Remove the mirrored document row for a room, if present."""
+        from fichero.models import Document
+
+        doc = self.get(Document, room_id)
+        if doc is None:
+            return
+        self._execute("DELETE FROM documents WHERE id = $id", {"id": room_id})
+
     def _delete_research_content_document(self, doc_id: str) -> None:
         """Remove the mirrored document row for a folded research content node."""
         from fichero.models import Document
@@ -2029,6 +2171,27 @@ class Database(DatabaseEmbeddingMixin):
 
         for project in self._legacy_all_research_project_rows():
             self._save_research_workspace_document(project)
+
+    def _backfill_spatial_room_documents(self) -> None:
+        """Backfill legacy mind-palace rooms into room document nodes."""
+        if not hasattr(self.conn, "execute"):
+            return
+
+        from fichero.spatial_models import SpatialRoom
+
+        table_name = self._table_name(SpatialRoom)
+        table_exists = self.execute_fetchone(
+            """
+            SELECT COUNT(*) FROM information_schema.tables
+            WHERE table_name = $table_name
+            """,
+            {"table_name": table_name},
+        )
+        if not table_exists or int(table_exists[0] or 0) == 0:
+            return
+
+        for room in self._legacy_all_spatial_room_rows():
+            self._save_spatial_room_document(room)
 
     def _backfill_research_plan_task_step_documents(self) -> None:
         """Backfill legacy research plan/task/step rows into document nodes."""

@@ -33,6 +33,7 @@ from fichero.research_models import (
     ResearchTask,
     StepTool,
 )
+from fichero.spatial_models import RoomType, SpatialRoom
 from fichero.knowledge_models import (
     ClaimRelationType,
     ClassificationDimension,
@@ -1243,6 +1244,39 @@ class TestSavedSearchCRUD:
         assert saved.sort_order == 4
         assert saved.filters == {"tag": "letters"}
 
+    def test_saved_search_round_trips_odd_but_valid_payloads(self, temp_db):
+        search = SavedSearch(
+            query="name:odd payload",
+            filters={},
+            folder_path="",
+            sort_order=9,
+        )
+        temp_db.save(search)
+
+        mirrored = temp_db.get(Document, search.id)
+        assert mirrored.attributes["folder_path"] == ""
+        assert mirrored.attributes["filters"] == {}
+
+        retrieved = temp_db.get(SavedSearch, search.id)
+        assert retrieved.folder_path == ""
+        assert retrieved.filters == {}
+        assert retrieved.sort_order == 9
+
+    def test_saved_search_missing_query_payload_raises(self, temp_db):
+        doc = Document(
+            id="saved-doc-bad",
+            name="Bad Saved Search",
+            node_kind="saved_search",
+            prototype_key="saved_search",
+            doc_type=DocType.folder,
+            attributes={"filters": {"tag": "letters"}},
+            curated_items=[],
+        )
+        temp_db.save(doc)
+
+        with pytest.raises(ValueError, match="missing its query payload"):
+            temp_db.get(SavedSearch, doc.id)
+
 
 class TestResearchWorkspaceFold:
     def test_workspace_prototype_inherits_folder_attributes(self, temp_db):
@@ -1354,6 +1388,26 @@ class TestResearchWorkspaceFold:
         assert project.created_by == "human"
         assert project.metadata == {"topic": "archives"}
 
+    def test_research_project_invalid_created_by_payload_raises(self, temp_db):
+        doc = Document(
+            id="ws-doc-bad-created-by",
+            name="Broken Workspace",
+            node_kind="workspace",
+            prototype_key="research_workspace",
+            doc_type=DocType.folder,
+            is_workspace=True,
+            attributes={
+                "description": "broken",
+                "status": "active",
+                "created_by": ["not", "a", "string"],
+                "metadata": {},
+            },
+        )
+        temp_db.save(doc)
+
+        with pytest.raises(ValueError, match="invalid created_by payload"):
+            temp_db.get(ResearchProject, doc.id)
+
     def test_research_project_raises_when_workspace_prototype_definition_missing(self, temp_db):
         doc = Document(
             id="ws-doc-missing-proto",
@@ -1378,6 +1432,115 @@ class TestResearchWorkspaceFold:
 
         with pytest.raises(PrototypeResolutionError):
             temp_db.get(ResearchProject, doc.id)
+
+
+class TestSpatialRoomFold:
+    def test_save_and_get_spatial_room(self, temp_db):
+        room = SpatialRoom(
+            name="Archive Room",
+            description="A room for sources",
+            room_type=RoomType.synthesis,
+            owner_id="agent",
+            metadata={"theme": "blue"},
+        )
+        temp_db.save(room)
+
+        retrieved = temp_db.get(SpatialRoom, room.id)
+        assert retrieved is not None
+        assert retrieved.name == "Archive Room"
+        assert retrieved.room_type == RoomType.synthesis
+        assert retrieved.owner_id == "agent"
+        assert retrieved.metadata == {"theme": "blue"}
+
+        mirrored = temp_db.get(Document, room.id)
+        assert mirrored is not None
+        assert mirrored.node_kind == "room"
+        assert mirrored.doc_type == DocType.folder
+        assert mirrored.prototype_key == "room"
+        assert mirrored.attributes["description"] == "A room for sources"
+        assert mirrored.attributes["room_type"] == "synthesis"
+        assert mirrored.attributes["owner_id"] == "agent"
+
+    def test_spatial_room_reads_from_folded_document_node(self, temp_db):
+        doc = Document(
+            id="room-doc-1",
+            name="Room Node",
+            node_kind="room",
+            prototype_key="room",
+            doc_type=DocType.folder,
+            attributes={
+                "description": "Node-owned room",
+                "room_type": "presentation",
+                "owner_id": "human",
+                "metadata": {"theme": "gold"},
+            },
+        )
+        temp_db.save(doc)
+
+        room = temp_db.get(SpatialRoom, doc.id)
+        assert room is not None
+        assert room.description == "Node-owned room"
+        assert room.room_type == RoomType.presentation
+        assert room.owner_id == "human"
+        assert room.metadata == {"theme": "gold"}
+
+    def test_spatial_room_inherits_folder_prototype_attributes(self, temp_db):
+        room = SpatialRoom(name="Inherited Room")
+        temp_db.save(room)
+
+        effective = resolve_prototype_attributes(temp_db, "room")
+        assert effective["container_kind"] == "folder"
+        assert effective["supports_children"] is True
+        assert effective["workspace_kind"] == "room"
+
+        mirrored = temp_db.get(Document, room.id)
+        assert mirrored is not None
+        child = Document(
+            id="room-child",
+            name="Room Child",
+            doc_type=DocType.file,
+            parent_id=room.id,
+        )
+        temp_db.save(child)
+        children = temp_db.query(Document, parent_id=mirrored.id)
+        assert [item.id for item in children] == ["room-child"]
+
+    def test_spatial_room_raises_when_document_is_not_room_prototype(self, temp_db):
+        doc = Document(
+            id="bad-room",
+            name="Bad Room",
+            node_kind="room",
+            prototype_key="letter",
+            doc_type=DocType.folder,
+        )
+        temp_db.save(doc)
+
+        with pytest.raises(ValueError, match="room node"):
+            temp_db.get(SpatialRoom, doc.id)
+
+    def test_spatial_room_raises_when_room_prototype_definition_missing(self, temp_db):
+        doc = Document(
+            id="missing-room-proto",
+            name="Broken Room",
+            node_kind="room",
+            prototype_key="room",
+            doc_type=DocType.folder,
+            attributes={"description": "broken"},
+        )
+        temp_db.save(doc)
+
+        room_proto = next(
+            value
+            for value in temp_db.query(
+                ClassificationValue,
+                dimension=ClassificationDimension.document_prototype,
+            )
+            if value.key == "room"
+        )
+        temp_db.delete(room_proto)
+
+        with pytest.raises(PrototypeResolutionError):
+            temp_db.get(SpatialRoom, doc.id)
 
 
 class TestResearchContentFold:
@@ -1507,6 +1670,96 @@ class TestResearchContentFold:
         assert temp_db.get(ResearchPlan, "plan-doc").project_id == "ws-root"
         assert temp_db.get(ResearchTask, "task-doc").plan_id == "plan-doc"
         assert temp_db.get(ResearchStep, "step-doc").task_id == "task-doc"
+
+    def test_research_plan_round_trips_with_preserved_parent_edge(self, temp_db):
+        plan = ResearchPlan(
+            project_id="missing-workspace-parent",
+            name="Detached Plan",
+            description="still mirrored",
+            metadata={"odd": []},
+        )
+        temp_db.save(plan)
+
+        mirrored = temp_db.get(Document, plan.id)
+        assert mirrored.parent_id == "missing-workspace-parent"
+
+        retrieved = temp_db.get(ResearchPlan, plan.id)
+        assert retrieved.project_id == "missing-workspace-parent"
+        assert retrieved.metadata == {"odd": []}
+
+    def test_research_plan_missing_parent_id_raises(self, temp_db):
+        doc = Document(
+            id="plan-missing-parent",
+            name="Plan Node",
+            node_kind="plan",
+            prototype_key="research_plan",
+            doc_type=DocType.folder,
+            attributes={"description": "", "status": "draft", "order_index": 0, "metadata": {}},
+        )
+        temp_db.save(doc)
+
+        with pytest.raises(ValueError, match="missing project parent_id"):
+            temp_db.get(ResearchPlan, doc.id)
+
+    def test_research_task_invalid_completed_at_payload_raises(self, temp_db):
+        doc = Document(
+            id="task-bad-completed-at",
+            parent_id="plan-1",
+            name="Task Node",
+            node_kind="task",
+            prototype_key="research_task",
+            doc_type=DocType.folder,
+            attributes={
+                "description": "",
+                "status": "pending",
+                "priority": 0,
+                "assigned_to": None,
+                "metadata": {},
+                "completed_at": "2026-06-28T00:00:00",
+            },
+        )
+        temp_db.save(doc)
+
+        with pytest.raises(ValueError, match="invalid completed_at payload"):
+            temp_db.get(ResearchTask, doc.id)
+
+    def test_research_step_invalid_tool_payload_raises(self, temp_db):
+        doc = Document(
+            id="step-bad-tool",
+            parent_id="task-1",
+            name="Step Node",
+            node_kind="step",
+            prototype_key="research_step",
+            doc_type=DocType.file,
+            attributes={
+                "tool": "unknown_tool",
+                "description": "",
+                "config": {},
+                "status": "pending",
+                "result": {},
+                "error": None,
+                "order_index": 0,
+            },
+        )
+        temp_db.save(doc)
+
+        with pytest.raises(ValueError, match="invalid tool payload"):
+            temp_db.get(ResearchStep, doc.id)
+
+
+class TestRoomRoundTrips:
+    def test_spatial_room_round_trips_odd_metadata_payload(self, temp_db):
+        room = SpatialRoom(
+            name="Odd Room",
+            description="",
+            metadata={"nested": {"items": []}, "flag": False},
+        )
+        temp_db.save(room)
+
+        retrieved = temp_db.get(SpatialRoom, room.id)
+        assert retrieved is not None
+        assert retrieved.description == ""
+        assert retrieved.metadata == {"nested": {"items": []}, "flag": False}
 
 
 class TestLibraryLinkBackfill:

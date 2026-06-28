@@ -62,6 +62,16 @@ def test_three_level_chain_merges_root_to_leaf(temp_db):
     assert effective == {"a": 99, "b": 2, "c": 3}
 
 
+def test_four_level_chain_uses_leaf_override_precedence(temp_db):
+    _proto(temp_db, "root", attributes={"icon": "square", "theme": "plain", "locked": False})
+    _proto(temp_db, "mid_a", parent_key="root", attributes={"theme": "paper"})
+    _proto(temp_db, "mid_b", parent_key="mid_a", attributes={"icon": "tray"})
+    _proto(temp_db, "leaf", parent_key="mid_b", attributes={"theme": "canvas", "locked": True})
+
+    effective = resolve_prototype_attributes(temp_db, "leaf")
+    assert effective == {"icon": "tray", "theme": "canvas", "locked": True}
+
+
 def test_unknown_key_raises(temp_db):
     with pytest.raises(PrototypeResolutionError):
         resolve_prototype_attributes(temp_db, "does-not-exist")
@@ -73,8 +83,26 @@ def test_unknown_parent_raises(temp_db):
         resolve_prototype_attributes(temp_db, "child")
 
 
+def test_unknown_parent_mid_chain_raises(temp_db):
+    _proto(temp_db, "root", attributes={"a": 1})
+    _proto(temp_db, "middle", parent_key="ghost", attributes={"b": 2})
+    _proto(temp_db, "leaf", parent_key="middle", attributes={"c": 3})
+
+    with pytest.raises(PrototypeResolutionError, match="Unknown prototype key"):
+        resolve_prototype_attributes(temp_db, "leaf")
+
+
 def test_cyclic_chain_raises(temp_db):
     _proto(temp_db, "a", parent_key="b")
     _proto(temp_db, "b", parent_key="a")
     with pytest.raises(PrototypeResolutionError):
+        resolve_prototype_attributes(temp_db, "a")
+
+
+def test_three_node_cycle_raises_at_resolution_time(temp_db):
+    _proto(temp_db, "a", parent_key="b")
+    _proto(temp_db, "b", parent_key="c")
+    _proto(temp_db, "c", parent_key="a")
+
+    with pytest.raises(PrototypeResolutionError, match="Cyclic prototype parent chain"):
         resolve_prototype_attributes(temp_db, "a")
