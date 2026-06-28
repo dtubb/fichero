@@ -207,9 +207,10 @@ class WorkflowStreamService: ObservableObject {
             }
         } catch {
             if !Task.isCancelled {
-                logger.error("Stream error: \(error.localizedDescription)")
+                let message = WorkflowStreamError.streamFailureDescription(error: error, streamURL: streamUrl)
+                logger.error("Stream error: \(message)")
                 await MainActor.run {
-                    self.error = error.localizedDescription
+                    self.error = message
                     self.isStreaming = false
                 }
             }

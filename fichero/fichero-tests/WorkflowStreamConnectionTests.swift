@@ -94,6 +94,24 @@ final class WorkflowStreamConnectionTests: XCTestCase {
         XCTAssertTrue(source.contains("baseURL: client.apiBaseURL"))
     }
 
+    func testLocalHTTPSStreamFailureExplainsTLSBackendRequirement() throws {
+        let message = WorkflowStreamError.streamFailureDescription(
+            error: URLError(.cannotConnectToHost),
+            streamURL: URL(string: "https://127.0.0.1:8765/api/workflow-execution/stream/thread-123")!
+        )
+
+        XCTAssertTrue(message.contains("not reachable over HTTPS"))
+        XCTAssertTrue(message.contains("fichero-engine/scripts/start_backend.sh"))
+        XCTAssertTrue(message.contains("TLS and pinning"))
+    }
+
+    func testPlainHTTPDevEngineHostRemainsInvalid() {
+        XCTAssertEqual(
+            EngineConfig.hostConfiguration(from: "http://127.0.0.1:8765"),
+            .invalid("http://127.0.0.1:8765")
+        )
+    }
+
     func testWorkflowStreamStopRequestsCancelNotCheckpointDelete() throws {
         let source = try Self.appSource("Services/WorkflowStreamService.swift")
         let stopRange = try XCTUnwrap(source.range(of: "func stopWorkflow(threadId: String) async throws"))

@@ -201,6 +201,20 @@ enum WorkflowStreamError: LocalizedError {
             return "Parse error: \(message)"
         }
     }
+
+    static func streamFailureDescription(error: Error, streamURL: URL) -> String {
+        guard streamURL.scheme?.lowercased() == "https",
+              let host = streamURL.host?.lowercased(),
+              host == "127.0.0.1" || host == "localhost" || host == "::1" else {
+            return error.localizedDescription
+        }
+
+        return """
+        Engine stream is not reachable over HTTPS at \(streamURL.absoluteString). \
+        Start the dev engine with fichero-engine/scripts/start_backend.sh so TLS and pinning are available. \
+        Underlying error: \(error.localizedDescription)
+        """
+    }
 }
 
 // MARK: - AnyCodableValue Extensions
