@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import pytest
 
+import fichero.api.routes.claims  # noqa: F401
+import fichero.api.routes.documents  # noqa: F401
 import fichero.api.routes.notes  # noqa: F401
 import fichero.api.routes.search  # noqa: F401
 from fichero.actions.registry import ActionContext, registry
-from fichero.knowledge_models import Milestone, NoteKind
+from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity, Milestone, NoteKind
 from fichero.models import ActionAudit, DocType, Document
 
 
@@ -64,6 +66,115 @@ def test_note_create_action_writes_action_audit(db):
     assert audit.target_ids == [result.result["id"]]
 
 
+def test_claim_create_action_writes_action_audit(db):
+    result = registry.invoke(
+        db,
+        "claim.create",
+        {"text": "Manual claim from action layer"},
+        _ctx(),
+    )
+
+    audit = db.get(ActionAudit, result.audit_id)
+    assert audit is not None
+    assert audit.actor == "ui"
+    assert audit.action_name == "claim.create"
+    assert audit.target_ids == [result.result["id"]]
+
+
+def test_claim_patch_action_writes_action_audit(db):
+    claim = KnowledgeClaim(text="Before patch")
+    db.save(claim)
+
+    result = registry.invoke(
+        db,
+        "claim.patch",
+        {"claim_id": claim.id, "patch": {"text": "After patch"}},
+        _ctx(),
+    )
+
+    audit = db.get(ActionAudit, result.audit_id)
+    assert audit is not None
+    assert audit.actor == "ui"
+    assert audit.action_name == "claim.patch"
+    assert audit.target_ids == [claim.id]
+
+
+def test_claim_delete_action_writes_action_audit(db):
+    claim = KnowledgeClaim(text="Delete me")
+    db.save(claim)
+
+    result = registry.invoke(db, "claim.delete", {"claim_id": claim.id}, _ctx())
+
+    audit = db.get(ActionAudit, result.audit_id)
+    assert audit is not None
+    assert audit.actor == "ui"
+    assert audit.action_name == "claim.delete"
+    assert audit.target_ids == [claim.id]
+
+
+def test_document_create_action_writes_action_audit(db):
+    result = registry.invoke(
+        db,
+        "document.create",
+        {"name": "Action Doc"},
+        _ctx(),
+    )
+
+    audit = db.get(ActionAudit, result.audit_id)
+    assert audit is not None
+    assert audit.actor == "ui"
+    assert audit.action_name == "document.create"
+    assert audit.target_ids == [result.result["id"]]
+
+
+def test_folder_create_action_writes_action_audit(db):
+    result = registry.invoke(
+        db,
+        "document.create",
+        {"name": "Action Folder", "doc_type": "folder"},
+        _ctx(),
+    )
+
+    audit = db.get(ActionAudit, result.audit_id)
+    assert audit is not None
+    assert audit.actor == "ui"
+    assert audit.action_name == "document.create"
+    assert audit.target_ids == [result.result["id"]]
+
+
+def test_document_move_action_writes_action_audit(db):
+    parent = Document(name="Parent", doc_type=DocType.folder)
+    child = Document(name="Child", doc_type=DocType.file)
+    db.save(parent)
+    db.save(child)
+
+    result = registry.invoke(
+        db,
+        "document.move",
+        {"doc_id": child.id, "parent_id": parent.id},
+        _ctx(),
+    )
+
+    audit = db.get(ActionAudit, result.audit_id)
+    assert audit is not None
+    assert audit.actor == "ui"
+    assert audit.action_name == "document.move"
+    assert audit.target_ids == [child.id]
+
+
+def test_document_delete_action_writes_action_audit(db):
+    doc = Document(name="Delete Doc", doc_type=DocType.file)
+    db.save(doc)
+
+    result = registry.invoke(db, "document.delete", {"doc_id": doc.id}, _ctx())
+
+    audit = db.get(ActionAudit, result.audit_id)
+    assert audit is not None
+    assert audit.actor == "ui"
+    assert audit.action_name == "document.delete"
+    assert audit.target_ids == [doc.id]
+
+
 @pytest.mark.xfail(
     strict=True,
     reason="POST /api/search/saved still calls save_search_impl directly and writes no ActionAudit row.",
@@ -112,6 +223,58 @@ def test_note_create_route_writes_action_audit(client, db):
 
 @pytest.mark.xfail(
     strict=True,
+    reason="POST /api/claims still calls create_claim_impl directly and writes no ActionAudit row.",
+)
+def test_claim_create_route_writes_action_audit(client, db):
+    response = client.post("/api/claims", json={"text": "Route claim"})
+    assert response.status_code == 200
+
+    claim_id = response.json()["id"]
+    audits = _audits_for_target(db, claim_id)
+    assert len(audits) == 1
+    assert audits[0].actor == "system"
+    assert audits[0].action_name == "claim.create"
+    assert audits[0].target_ids == [claim_id]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="PATCH /api/claims/{claim_id} still calls patch_claim_impl directly and writes no ActionAudit row.",
+)
+def test_claim_patch_route_writes_action_audit(client, db):
+    claim = KnowledgeClaim(text="Before route patch")
+    db.save(claim)
+
+    response = client.patch(f"/api/claims/{claim.id}", json={"text": "After route patch"})
+    assert response.status_code == 200
+
+    audits = _audits_for_target(db, claim.id)
+    assert len(audits) == 1
+    assert audits[0].actor == "system"
+    assert audits[0].action_name == "claim.patch"
+    assert audits[0].target_ids == [claim.id]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="DELETE /api/claims/{claim_id} still calls delete_claim_impl directly and writes no ActionAudit row.",
+)
+def test_claim_delete_route_writes_action_audit(client, db):
+    claim = KnowledgeClaim(text="Delete via route")
+    db.save(claim)
+
+    response = client.delete(f"/api/claims/{claim.id}")
+    assert response.status_code == 204
+
+    audits = _audits_for_target(db, claim.id)
+    assert len(audits) == 1
+    assert audits[0].actor == "system"
+    assert audits[0].action_name == "claim.delete"
+    assert audits[0].target_ids == [claim.id]
+
+
+@pytest.mark.xfail(
+    strict=True,
     reason="POST /api/bookmarks creates alias-backed bookmark nodes directly; no bookmark.create audited action exists yet.",
 )
 def test_bookmark_create_route_writes_action_audit(client, db):
@@ -130,6 +293,134 @@ def test_bookmark_create_route_writes_action_audit(client, db):
     assert audits[0].actor == "system"
     assert audits[0].action_name == "bookmark.create"
     assert audits[0].target_ids == [bookmark_id]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="POST /api/documents still calls create_document_impl directly and writes no ActionAudit row.",
+)
+def test_document_create_route_writes_action_audit(client, db):
+    response = client.post("/api/documents", json={"name": "Route Doc"})
+    assert response.status_code == 201
+
+    doc_id = response.json()["id"]
+    audits = _audits_for_target(db, doc_id)
+    assert len(audits) == 1
+    assert audits[0].actor == "system"
+    assert audits[0].action_name == "document.create"
+    assert audits[0].target_ids == [doc_id]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="POST /api/documents with doc_type=folder still calls create_document_impl directly and writes no ActionAudit row.",
+)
+def test_folder_create_route_writes_action_audit(client, db):
+    response = client.post(
+        "/api/documents",
+        json={"name": "Route Folder", "doc_type": "folder"},
+    )
+    assert response.status_code == 201
+
+    folder_id = response.json()["id"]
+    audits = _audits_for_target(db, folder_id)
+    assert len(audits) == 1
+    assert audits[0].actor == "system"
+    assert audits[0].action_name == "document.create"
+    assert audits[0].target_ids == [folder_id]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="PUT /api/documents/{doc_id}/move still calls move_document_impl directly and writes no ActionAudit row.",
+)
+def test_document_move_route_writes_action_audit(client, db):
+    parent = Document(name="Route Parent", doc_type=DocType.folder)
+    child = Document(name="Route Child", doc_type=DocType.file)
+    db.save(parent)
+    db.save(child)
+
+    response = client.put(f"/api/documents/{child.id}/move?parent_id={parent.id}")
+    assert response.status_code == 200
+
+    audits = _audits_for_target(db, child.id)
+    assert len(audits) == 1
+    assert audits[0].actor == "system"
+    assert audits[0].action_name == "document.move"
+    assert audits[0].target_ids == [child.id]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="DELETE /api/documents/{doc_id} still calls delete_document_impl directly and writes no ActionAudit row.",
+)
+def test_document_delete_route_writes_action_audit(client, db):
+    doc = Document(name="Route Delete Doc", doc_type=DocType.file)
+    db.save(doc)
+
+    response = client.delete(f"/api/documents/{doc.id}")
+    assert response.status_code == 204
+
+    audits = _audits_for_target(db, doc.id)
+    assert len(audits) == 1
+    assert audits[0].actor == "system"
+    assert audits[0].action_name == "document.delete"
+    assert audits[0].target_ids == [doc.id]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="POST /api/entities creates entities directly and no entity.create audited action exists yet.",
+)
+def test_entity_create_route_writes_action_audit(client, db):
+    response = client.post("/api/entities", json={"canonical_name": "Asprilla"})
+    assert response.status_code == 200
+
+    entity_id = response.json()["id"]
+    audits = _audits_for_target(db, entity_id)
+    assert len(audits) == 1
+    assert audits[0].actor == "system"
+    assert audits[0].action_name == "entity.create"
+    assert audits[0].target_ids == [entity_id]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="PATCH /api/entities/{entity_id} updates entities directly and no entity.update audited action exists yet.",
+)
+def test_entity_patch_route_writes_action_audit(client, db):
+    entity = KnowledgeEntity(canonical_name="Before Patch")
+    db.save(entity)
+
+    response = client.patch(
+        f"/api/entities/{entity.id}",
+        json={"canonical_name": "After Patch"},
+    )
+    assert response.status_code == 200
+
+    audits = _audits_for_target(db, entity.id)
+    assert len(audits) == 1
+    assert audits[0].actor == "system"
+    assert audits[0].action_name == "entity.update"
+    assert audits[0].target_ids == [entity.id]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="DELETE /api/entities/{entity_id} deletes entities directly and no entity.delete audited action exists yet.",
+)
+def test_entity_delete_route_writes_action_audit(client, db):
+    entity = KnowledgeEntity(canonical_name="Delete Me")
+    db.save(entity)
+
+    response = client.delete(f"/api/entities/{entity.id}")
+    assert response.status_code == 204
+
+    audits = _audits_for_target(db, entity.id)
+    assert len(audits) == 1
+    assert audits[0].actor == "system"
+    assert audits[0].action_name == "entity.delete"
+    assert audits[0].target_ids == [entity.id]
 
 
 @pytest.mark.xfail(
