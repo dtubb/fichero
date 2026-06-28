@@ -232,3 +232,65 @@ What should still be described as planned unless more code lands:
 - broader prototype-driven behavior beyond attribute inheritance
 - SwiftUI bookmark UI wiring
 - the remaining staged subsystem folds described in the architecture note
+
+## Fold status
+
+This is the current closeout status for EPIC #2591, based on merged backend
+code rather than the original staging plan.
+
+Folded into the node model now:
+
+- F1 saved searches: `Database.save(SavedSearch)` mirrors each saved search into
+  a `Document` with `node_kind="saved_search"` and
+  `prototype_key="saved_search"`, and the database read paths route both the
+  legacy model and the folded node through that bridge.
+- F2 research workspaces: `Database.save(ResearchProject)` mirrors each
+  workspace into a `Document` with `node_kind="workspace"` and
+  `prototype_key="research_workspace"`, and the built-in
+  `research_workspace` prototype inherits from `folder`.
+- F3 research plans, tasks, and steps: `Database.save(...)` folds
+  `ResearchPlan`, `ResearchTask`, and `ResearchStep` into document nodes with
+  `parent_id` containment linking workspace -> plan -> task -> step.
+- F4 bookmarks: `POST /api/bookmarks` creates alias nodes through
+  `make_alias(...)`, and bookmark listing / resolution is implemented by
+  filtering alias nodes with `prototype_key="bookmark"`.
+- P3 notes and milestones: `Database.save(Note)` and `Database.save(Milestone)`
+  mirror both models into `Document` rows with `prototype_key="note"` and
+  `prototype_key="milestone"`, and those nodes appear in document-child reads.
+- P4 entities filable in folders: a `KnowledgeEntity` only gets a mirrored
+  `Document` row when it has a `parent_id`; moving or clearing that `parent_id`
+  updates or removes the folded node, so filing is represented through normal
+  document containment.
+- P5 folder and room prototypes: built-in prototype seeds now include `folder`
+  and `room`, and `node_prototypes.py` resolves inherited attributes through
+  the parent chain rather than hard-coding per-type behavior.
+- F5 slice 1 room-node bridge: `Database.save(SpatialRoom)` mirrors each room
+  into a `Document` with `node_kind="room"` and `prototype_key="room"`, while
+  the existing `/api/mind-palace/rooms*` routes keep reading and writing the
+  legacy `SpatialRoom` model through that bridge.
+
+Intentionally not folded:
+
+- `BackgroundTask` in
+  `fichero-engine/src/fichero/workflows/task_types.py` and
+  `fichero-engine/src/fichero/workflows/tasks.py` is task-queue
+  infrastructure, not a node-model task type.
+- The workflow runner in `fichero-engine/src/fichero/execution/runner.py` and
+  the workflow execution routes remain execution infrastructure, not document
+  nodes.
+- The action registry in `fichero-engine/src/fichero/actions/registry.py`
+  remains the audited write path for mutations; it is not a node fold.
+- Provider configuration in `fichero-engine/src/fichero/providers.py` remains
+  backend/provider infrastructure, not document content.
+- Authorization and ACL enforcement in `fichero-engine/src/fichero/authz.py`
+  remain access-control infrastructure, not part of the node hierarchy.
+
+Still in progress or pending:
+
+- P6 chat scopes are not fully folded yet. The shipped code only seeds a
+  `chat_scope="container"` prototype attribute on `research_workspace`; broader
+  chat-scope folding should still be described as in progress until more code
+  lands.
+- F5 retirement of the `/api/mind-palace/rooms*` endpoints is still pending.
+  Those routes are live in `fichero-engine/src/fichero/api/routes/mind_palace.py`
+  and currently depend on the room <-> room-node bridge for behavior parity.
