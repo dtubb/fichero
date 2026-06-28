@@ -13,6 +13,8 @@ from typing import Any, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
+from fichero.actions.registry import registry
+from fichero.api.auth import action_context
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.api.routes.kg_claim_search import search_claims_semantic_impl
 from fichero.api.routes.kg_entity_curation import search_entities_semantic_impl
@@ -1125,10 +1127,18 @@ def save_search_impl(db: Database, request: SavedSearchCreate) -> SavedSearch:
 
 @router.post("/saved")
 async def save_search(
-    request: SavedSearchCreate, db: Database = Depends(get_library_database_for_write)
+    request: SavedSearchCreate,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> SavedSearchResponse:
     """Save a search for later."""
-    return _saved_search_response(save_search_impl(db, request))
+    result = registry.invoke(
+        db,
+        "savedsearch.save",
+        request.model_dump(mode="json"),
+        ctx,
+    )
+    return SavedSearchResponse.model_validate(result.result)
 
 
 @router.get("/saved", response_model=SavedSearchListResponse)

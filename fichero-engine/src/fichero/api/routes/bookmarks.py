@@ -11,9 +11,12 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from fichero.actions.registry import ActionContext, ChangeSpec, action, registry
+from fichero.api.auth import action_context
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
-from fichero.models import Document, DocumentListResponse
+from fichero.knowledge_models import Milestone
+from fichero.models import DocType, Document, DocumentListResponse
 from fichero.node_aliases import (
     ALIAS_NODE_KIND,
     DanglingAliasError,
@@ -59,6 +62,16 @@ def create_bookmark_impl(db: Database, request: BookmarkCreate) -> Document:
     return bookmark
 
 
+def create_milestone_impl(db: Database, milestone: Milestone) -> Milestone:
+    parent = db.get(Document, milestone.parent_id)
+    if parent is None:
+        raise HTTPException(status_code=404, detail="Milestone parent not found")
+    if parent.doc_type != DocType.folder:
+        raise HTTPException(status_code=400, detail="Milestone parent must be a folder")
+    db.save(milestone)
+    return milestone
+
+
 def list_bookmarks_impl(
     db: Database, *, parent_id: str | None = None
 ) -> list[Document]:
@@ -84,9 +97,16 @@ def resolve_bookmark_impl(db: Database, bookmark_id: str) -> Document:
 async def create_bookmark(
     request: BookmarkCreate,
     db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
 ) -> Document:
     """Create a bookmark node that references another document."""
-    return create_bookmark_impl(db, request)
+    result = registry.invoke(
+        db,
+        "bookmark.create",
+        request.model_dump(mode="json"),
+        ctx,
+    )
+    return Document.model_validate(result.result)
 
 
 @router.get("", response_model=DocumentListResponse)
@@ -106,3 +126,49 @@ async def resolve_bookmark(
 ) -> Document:
     """Resolve a bookmark node to its live target document."""
     return resolve_bookmark_impl(db, bookmark_id)
+
+
+def _bookmark_snapshot(bookmark: Document) -> dict:
+    return bookmark.model_dump(mode="json")
+
+
+@action(
+    "bookmark.create",
+    BookmarkCreate,
+    domains=["bookmark", "document"],
+)
+def _action_create_bookmark(
+    db: Database, params: BookmarkCreate, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    bookmark = create_bookmark_impl(db, params)
+    after = _bookmark_snapshot(bookmark)
+    spec = ChangeSpec(
+        domains=["bookmark", "document"],
+        target_ids=[bookmark.id],
+        before=None,
+        after=after,
+        emit_type="document.created",
+        document_ids=[bookmark.id],
+    )
+    return after, spec
+
+
+@action(
+    "milestone.create",
+    Milestone,
+    domains=["milestone", "document"],
+)
+def _action_create_milestone(
+    db: Database, params: Milestone, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    milestone = create_milestone_impl(db, params)
+    after = milestone.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["milestone", "document"],
+        target_ids=[milestone.id],
+        before=None,
+        after=after,
+        emit_type="document.created",
+        document_ids=[milestone.id],
+    )
+    return after, spec

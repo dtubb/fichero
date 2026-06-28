@@ -15,9 +15,10 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from fichero.api.library_header import require_library_path
-from fichero.api.auth import request_actor
+from fichero.api.auth import action_context, request_actor
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database, get_library_database_for_write
+from fichero.actions.registry import registry
 from fichero.db import Database
 from fichero.knowledge_models import Note, NoteKind, NoteLink
 from fichero.models import DocType, Document, NoteListResponse
@@ -102,6 +103,24 @@ def _note_scope_document_ids(note: Note | None) -> list[str]:
     ]
 
 
+def _emit_note_change_ctx(
+    ctx: "ActionContext",
+    *,
+    event_type: str,
+    document_ids: list[str],
+) -> None:
+    if not ctx.library_path:
+        return
+    emit_change(
+        ctx.library_path,
+        type=event_type,
+        document_ids=document_ids,
+        actor=ctx.actor,
+        origin_window=ctx.origin_window,
+        origin_user=ctx.actor,
+    )
+
+
 def create_note_impl(db: Database, request: NoteCreateRequest) -> Note:
     """Validate scope, fold the page/folder into linked_document_ids, persist.
 
@@ -124,22 +143,15 @@ def create_note_impl(db: Database, request: NoteCreateRequest) -> Note:
 async def create_note(
     request: NoteCreateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> Note:
-    note = create_note_impl(db, request)
-    emit_change(
-        x_fichero_library_path,
-        type="note.created",
-        document_ids=_note_scope_document_ids(note),
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
+    result = registry.invoke(
+        db,
+        "note.create",
+        request.model_dump(mode="json"),
+        ctx,
     )
-    return note
+    return Note.model_validate(result.result)
 
 
 @router.get("", response_model=NoteListResponse)
@@ -570,12 +582,16 @@ def _action_create_note(
 ) -> tuple[dict, ChangeSpec]:
     note = create_note_impl(db, params)
     after = note.model_dump(mode="json")
+    _emit_note_change_ctx(
+        ctx,
+        event_type="note.created",
+        document_ids=_note_scope_document_ids(note),
+    )
     spec = ChangeSpec(
         domains=["note"],
         target_ids=[note.id],
         before=None,
         after=after,
-        emit_type="note.created",
         document_ids=_note_scope_document_ids(note),
     )
     return after, spec
@@ -593,12 +609,16 @@ def _action_update_note(
 ) -> tuple[dict, ChangeSpec]:
     note, before = patch_note_impl(db, params.note_id, params.update)
     after = note.model_dump(mode="json")
+    _emit_note_change_ctx(
+        ctx,
+        event_type="note.updated",
+        document_ids=_note_scope_document_ids(note),
+    )
     spec = ChangeSpec(
         domains=["note"],
         target_ids=[note.id],
         before=before,
         after=after,
-        emit_type="note.updated",
         document_ids=_note_scope_document_ids(note),
     )
     return after, spec
@@ -615,12 +635,16 @@ def _action_delete_note(
     db: Database, params: NoteIdParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
     document_ids, before = delete_note_impl(db, params.note_id)
+    _emit_note_change_ctx(
+        ctx,
+        event_type="note.deleted",
+        document_ids=document_ids,
+    )
     spec = ChangeSpec(
         domains=["note"],
         target_ids=[params.note_id],
         before=before,
         after=None,
-        emit_type="note.deleted",
         document_ids=document_ids,
     )
     return before, spec
