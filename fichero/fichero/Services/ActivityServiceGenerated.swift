@@ -1,7 +1,6 @@
 import FicheroAPIClient
 import Foundation
 import OpenAPIRuntime
-import OpenAPIURLSession
 import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "ActivityServiceGenerated")
