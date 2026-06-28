@@ -4,7 +4,7 @@ Fichero is built openly with the help of AI coding agents. This page documents
 how that actually works, as the concrete process
 the project follows. It is grounded in the workflow files that live in the
 repository: `AGENTS.md` (the canonical agent constitution + operational manual),
-`CLAUDE.md`, `MEMORY.md`, and the skills under `agents/skills/` and `docs/agent-workflow/`.
+`CLAUDE.md`, `MEMORY.md`, and the skills under `agents/skills/` and `agent-work/agent-workflow/`.
 
 ## Why document this
 
@@ -17,7 +17,7 @@ unreviewed code.
 ## The two core roles
 
 Work is organized around a **manager / worker** split, defined as session-start
-skills in `docs/agent-workflow/skills/`:
+skills in `agent-work/agent-workflow/skills/`:
 
 - **Manager** (`session-start-manager`): the control lane. It reads project
   state and the roadmap, triages GitHub issues, decides what to do next, and
@@ -67,12 +67,12 @@ A few hard rules keep the machine usable while agents run:
   guards (`swiftlint`, stdlib `scripts/check_*` checks).
 - Build, lint, and test logs are pushed **off** the lead agent's context: the
   lead reads a pass/fail verdict, not the full log. This is the "the lead reads a
-  verdict, not a log" rule from `docs/agent-workflow/parallel-execution.md`.
+  verdict, not a log" rule from `agent-work/agent-workflow/parallel-execution.md`.
 
 ## Three execution modes
 
 The workflow picks the lightest tool that fits the task
-(`docs/agent-workflow/parallel-execution.md`):
+(`agent-work/agent-workflow/parallel-execution.md`):
 
 | Mode | What it is | Use when |
 |---|---|---|
@@ -119,5 +119,5 @@ those lessons down at the end of a working session.
 ---
 
 *This page describes the development workflow, not a feature of the app. For the
-full operational detail, see `docs/agent-workflow/parallel-execution.md` and the
-skills in `docs/agent-workflow/skills/`.*
+full operational detail, see `agent-work/agent-workflow/parallel-execution.md` and the
+skills in `agent-work/agent-workflow/skills/`.*

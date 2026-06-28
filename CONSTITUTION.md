@@ -67,7 +67,7 @@ These don't change:
 Execution tracking and planning are governed in GitHub:
 
 - **Source of truth**: GitHub Issues + Milestones + Project board
-- **Not source of truth**: local planning files (`PLAN.md`, `TASKS.md`, `docs/agent-workflow/` notes)
+- **Not source of truth**: local planning files (`PLAN.md`, `TASKS.md`, `agent-work/agent-workflow/` notes)
 - **Local exception**: `STATE.md` is maintained for session continuity/handoff only
 
 ## Versioning
