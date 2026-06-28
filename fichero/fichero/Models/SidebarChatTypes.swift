@@ -49,6 +49,10 @@ struct ChatMessage: Identifiable, Codable, Hashable {
     var role: ChatRole
     var content: String
     var sources: [DocumentSource]?
+    // Retrieval done for THIS message (search-as-a-tool). Optional + ephemeral:
+    // the backend stores only role/content, so — like `sources` — it is present
+    // for a just-sent message and nil after a conversation reload.
+    var retrieval: RetrievalInfo?
     var timestamp: Date
 
     init(
@@ -56,13 +60,44 @@ struct ChatMessage: Identifiable, Codable, Hashable {
         role: ChatRole,
         content: String,
         sources: [DocumentSource]? = nil,
+        retrieval: RetrievalInfo? = nil,
         timestamp: Date = Date()
     ) {
         self.id = id
         self.role = role
         self.content = content
         self.sources = sources
+        self.retrieval = retrieval
         self.timestamp = timestamp
+    }
+}
+
+/// What the chat's library search retrieved for one assistant message.
+/// Makes the always-on RAG retrieval visible in the UI.
+struct RetrievalInfo: Codable, Hashable {
+    var documentCount: Int
+    var contextCount: Int
+    var kgClaimsUsed: Int
+    var kgEntitiesUsed: Int
+
+    /// True when the assistant actually pulled context from the library.
+    var didSearch: Bool {
+        contextCount > 0 || documentCount > 0 || kgClaimsUsed > 0 || kgEntitiesUsed > 0
+    }
+
+    /// Human summary, e.g. "Searched library · 5 documents · 3 claims".
+    var summary: String {
+        var parts = ["Searched library"]
+        if documentCount > 0 {
+            parts.append("\(documentCount) document\(documentCount == 1 ? "" : "s")")
+        }
+        if kgClaimsUsed > 0 {
+            parts.append("\(kgClaimsUsed) claim\(kgClaimsUsed == 1 ? "" : "s")")
+        }
+        if kgEntitiesUsed > 0 {
+            parts.append("\(kgEntitiesUsed) entit\(kgEntitiesUsed == 1 ? "y" : "ies")")
+        }
+        return parts.joined(separator: " · ")
     }
 }
 

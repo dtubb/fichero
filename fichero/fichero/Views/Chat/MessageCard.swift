@@ -24,6 +24,14 @@ struct MessageCard: View {
                 .foregroundColor(.primary)
                 .lineLimit(4)
 
+            // Retrieval step (search-as-a-tool) made visible.
+            if let retrieval = message.retrieval, retrieval.didSearch {
+                Label(retrieval.summary, systemImage: "magnifyingglass")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
             // Sources indicator
             if let sources = message.sources, !sources.isEmpty {
                 HStack(spacing: 4) {
@@ -63,6 +71,14 @@ struct MessageBubble: View {
                         .background(bubbleBackground)
                         .foregroundColor(message.role == .user ? .white : .primary)
                         .cornerRadius(16)
+
+                    // Retrieval step (search-as-a-tool) made visible.
+                    if let retrieval = message.retrieval, retrieval.didSearch {
+                        Label(retrieval.summary, systemImage: "magnifyingglass")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .padding(.leading, 12)
+                    }
 
                     // Sources (for assistant messages)
                     if let sources = message.sources, !sources.isEmpty {
@@ -136,15 +152,25 @@ struct MessageMapCard: View {
                 .multilineTextAlignment(.center)
                 .frame(width: 140)
 
-            // Sources badge
-            if let sources = message.sources, !sources.isEmpty {
-                Text("\(sources.count) sources")
-                    .font(.caption2)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.gray)
-                    .clipShape(Capsule())
+            // Retrieval + sources badges. Space is tight (160×130), so the
+            // search step shows as a compact icon + label rather than the full
+            // summary; the source count keeps its own badge.
+            HStack(spacing: 4) {
+                if let retrieval = message.retrieval, retrieval.didSearch {
+                    Label("Searched", systemImage: "magnifyingglass")
+                        .labelStyle(.iconOnly)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                if let sources = message.sources, !sources.isEmpty {
+                    Text("\(sources.count) sources")
+                        .font(.caption2)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.gray)
+                        .clipShape(Capsule())
+                }
             }
         }
         .padding(10)

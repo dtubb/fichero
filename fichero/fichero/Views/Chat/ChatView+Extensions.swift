@@ -110,11 +110,20 @@ extension ChatView {
                 // Convert API sources to local model
                 let sources = response.sources.map { $0.toDocumentSource() }
 
+                // Capture what the library search retrieved for this message.
+                let retrieval = RetrievalInfo(
+                    documentCount: response.documentCount,
+                    contextCount: response.contextCount,
+                    kgClaimsUsed: response.kgClaimsUsed,
+                    kgEntitiesUsed: response.kgEntitiesUsed
+                )
+
                 // Create assistant message
                 let assistantMessage = ChatMessage(
                     role: .assistant,
                     content: response.message,
-                    sources: sources
+                    sources: sources,
+                    retrieval: retrieval
                 )
 
                 await MainActor.run {
