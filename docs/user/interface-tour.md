@@ -13,11 +13,11 @@ list in the middle, the reading area, and the inspector on the right.]*
 
 A Fichero window has four main regions, left to right:
 
-1. **Sidebar** — the navigator that switches between Library, Search, Chat,
+1. **Sidebar**: the navigator that switches between Library, Search, Chat,
    Workflows, and the other modes.
-2. **Library list** — the documents and folders in the current view.
-3. **Reading area** — the page, scan, or PDF you are looking at.
-4. **Inspector** — the tabbed panel that shows everything Fichero knows about the
+2. **Library list**: the documents and folders in the current view.
+3. **Reading area**: the page, scan, or PDF you are looking at.
+4. **Inspector**: the tabbed panel that shows everything Fichero knows about the
    selected document.
 
 You can resize each region by dragging the dividers between them, and you can hide
@@ -34,16 +34,16 @@ where you expect them.
 
 The modes are:
 
-- **Library** — browse your documents and folders. This is the default and where
+- **Library**: browse your documents and folders. This is the default and where
   you spend most of your time.
-- **Search** — run and save searches across the library.
-- **Chat** — ask questions about your documents in a conversation.
-- **Workflows** — build and run the step-by-step processing pipelines.
-- **Chains** — link several workflows into a longer sequence.
-- **Activity** — watch workflow runs in progress and review finished ones.
-- **Automation** — set up schedules and folder triggers that run workflows for you.
-- **Batches** — manage large jobs that process many documents at once.
-- **Model Comparison** — run the same prompt against different AI models and compare
+- **Search**: run and save searches across the library.
+- **Chat**: ask questions about your documents in a conversation.
+- **Workflows**: build and run the step-by-step processing pipelines.
+- **Chains**: link several workflows into a longer sequence.
+- **Activity**: watch workflow runs in progress and review finished ones.
+- **Automation**: set up schedules and folder triggers that run workflows for you.
+- **Batches**: manage large jobs that process many documents at once.
+- **Model Comparison**: run the same prompt against different AI models and compare
   the results side by side.
 
 You can switch sidebar modes with the keyboard using Control plus Command plus a
@@ -55,11 +55,11 @@ In Library mode, the middle pane shows the documents and folders in the current
 view. The same set of documents can be shown in four layouts, which you choose from
 the toolbar:
 
-- **Icon** — large thumbnails, best for skimming scans and images.
-- **List** — a compact vertical list with small previews.
-- **Table** — columns of details such as name, type, and dates, with sortable
+- **Icon**: large thumbnails, best for skimming scans and images.
+- **List**: a compact vertical list with small previews.
+- **Table**: columns of details such as name, type, and dates, with sortable
   headers.
-- **Map** — pins for documents that carry a place, useful for fieldwork material.
+- **Map**: pins for documents that carry a place, useful for fieldwork material.
 
 *[Screenshot: the library list in icon layout and again in table layout.]*
 
@@ -85,9 +85,9 @@ file:
 A small control in the toolbar changes how the reading area and its preview are
 arranged. The three layouts are:
 
-- **None** — content only, no preview pane (keyboard: Command + 0).
-- **Standard** — content and preview side by side (Command + 1).
-- **Widescreen** — content and preview stacked, with room for the library list, the
+- **None**: content only, no preview pane (keyboard: Command + 0).
+- **Standard**: content and preview side by side (Command + 1).
+- **Widescreen**: content and preview stacked, with room for the library list, the
   document canvas, and the reading pane together (Command + 2).
 
 *[Screenshot: the reading area in Standard layout next to the same document in
@@ -104,23 +104,23 @@ the structured results, references, edit tools, and finally the file details.
 
 The tabs are:
 
-- **Content** — read the document's extracted text and page contents. This is the
+- **Content**: read the document's extracted text and page contents. This is the
   quickest place to read what Fichero pulled out of a scan or PDF.
-- **Outline** — drill down the document's structure: chapters, sections, and pages,
+- **Outline**: drill down the document's structure: chapters, sections, and pages,
   and what is on each.
-- **Annotations** — view and edit the highlights and margin notes you have made on
+- **Annotations**: view and edit the highlights and margin notes you have made on
   the document.
-- **Notes** — free-text research notes linked to the document. Use this for your own
+- **Notes**: free-text research notes linked to the document. Use this for your own
   thinking, kept separate from the source text.
-- **Entities** — the people, places, organizations, and concepts that Fichero
+- **Entities**: the people, places, organizations, and concepts that Fichero
   extracted from the document.
-- **Knowledge Graph** — the structured claims (who did what, where, and when) and
+- **Knowledge Graph**: the structured claims (who did what, where, and when) and
   interpretations tied to the document.
-- **Citations** — the documents this one cites and the documents that cite it, plus
+- **Citations**: the documents this one cites and the documents that cite it, plus
   the extracted bibliography.
-- **Edits** — non-destructive image and page edit operations, so you can adjust a
+- **Edits**: non-destructive image and page edit operations, so you can adjust a
   scan without altering the original.
-- **Info** — the file details: type, size, dates, and where the document is stored.
+- **Info**: the file details: type, size, dates, and where the document is stored.
 
 You will spend most of your time in **Content**, **Annotations**, **Notes**, and
 **Entities**. The others are there when you need them.

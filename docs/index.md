@@ -158,7 +158,7 @@ Until Fichero hits version 1.0:
   calls are the AI provider you chose (or none, if you use Apple Vision + Apple
   Intelligence).
 
-*Full changelog: [CHANGELOG.md on GitHub](https://github.com/dtubb/fichero/blob/main/CHANGELOG.md)*
+*Full release notes: [RELEASE_NOTES.md on GitHub](https://github.com/dtubb/fichero/blob/main/RELEASE_NOTES.md)*
 
 ---
 

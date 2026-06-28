@@ -34,6 +34,28 @@ Fichero is a work in progress. It is 100% coded by Claude, Codex, and other mode
 
 **One engine, many surfaces.**
 
+## Installing and using Fichero
+
+Fichero is a Mac app, with an iPad and iPhone app in the same project (in progress).
+
+1. **Download** the latest Alpha for macOS from the
+   [releases page](https://github.com/dtubb/fichero-releases/releases/latest).
+2. **Requirements:** macOS 26 Tahoe or later, on Apple Silicon (M1 or later).
+3. **Open it**, create a library, and import your documents by dragging files
+   and folders in. The embedded engine starts automatically, so there is no
+   server to install.
+
+From there you read and transcribe sources, search by meaning, extract entities,
+and run workflows across a whole collection. The user manual walks through every
+part of the app:
+
+- [Getting Started](docs/user/getting-started.md): create a library and learn the window.
+- [The Interface (Window Tour)](docs/user/interface-tour.md): every major UI element.
+- [Importing Documents](docs/user/importing-documents.md), [Reading & Editing](docs/user/reading-and-editing.md), [Search & Knowledge Graph](docs/user/search-knowledge-graph.md), and [AI & Privacy](docs/user/ai-and-privacy.md).
+
+Fichero is Alpha software in active daily development. Keep originals of anything
+you import, and treat each release as an experiment.
+
 ## Architecture
 
 fichero-engine is a single server that holds the logic; the Fichero app and the other surfaces sit on top of it and display what it returns.
@@ -62,7 +84,7 @@ fichero-engine is a single server that holds the logic; the Fichero app and the 
 ```
 
 > LLM calls go through LangChain provider integrations (one per provider).
-> LiteLLM is used **only** for model discovery and cost/pricing — not for
+> LiteLLM is used **only** for model discovery and cost/pricing, not for
 > routing or inference.
 
 ### Surfaces
@@ -96,7 +118,11 @@ All surfaces sit on top of fichero-engine. They render and accept input; they do
                                     Library]
 ```
 
-## Running
+## Building from source (for developers)
+
+Most people should just download the app (see [Installing and using
+Fichero](#installing-and-using-fichero) above). This section is for working on
+Fichero itself.
 
 **Start fichero-engine** (serves HTTPS on `127.0.0.1:8765`; the app pins it fail-closed, so a plain-HTTP engine cannot connect):
 ```bash
@@ -106,7 +132,7 @@ bash fichero-engine/scripts/start_backend.sh
 **Run the SwiftUI app:**
 Open `fichero/fichero.xcodeproj` in Xcode and run.
 
-To launch an already-built `.app` from the terminal, use the helper — **not**
+To launch an already-built `.app` from the terminal, use the helper, **not**
 a direct exec of the binary:
 ```bash
 scripts/launch-release.sh            # Release build
@@ -114,7 +140,7 @@ scripts/launch-release.sh --debug    # Debug build
 ```
 > **Debugging note (#760):** direct-exec'ing the binary
 > (`./fichero/build/xcode/Products/Release/Fichero.app/Contents/MacOS/Fichero &`)
-> from a terminal does **not** draw a window on macOS 26 — AppKit's scene
+> from a terminal does **not** draw a window on macOS 26; AppKit's scene
 > activation runs but nothing appears, and the embedded engine never spawns.
 > This is a known macOS behavior for GUI apps exec'd by a non-Aqua parent.
 > Launch through `open` (which the helper does) or via Finder/Spotlight/Dock.
@@ -187,9 +213,10 @@ docs = ingest_folder(
 
 ## Project Structure
 
-- `fichero-engine/` — the server (FastAPI), workflow runner, KG, ingest ([README](fichero-engine/README.md))
-- `fichero/` — SwiftUI app, Xcode project, and `fichero` CLI under `fichero-engine/src/fichero/cli/`
-- `docs/agent-workflow/` — Agent workflow docs, task list, and templates
+- `fichero-engine/`: the server (FastAPI), workflow runner, KG, ingest ([README](fichero-engine/README.md))
+- `fichero/`: SwiftUI app, Xcode project, and `fichero` CLI under `fichero-engine/src/fichero/cli/`
+- `docs/`: published documentation site and contributor reference
+- `agent-work/`: agent working material (notes, handoffs, proposals); not published
 
 ## Contributing
 
@@ -203,7 +230,7 @@ rules. Folder-specific notes live in [fichero/AGENTS.md](fichero/AGENTS.md) and
 - `generated/local`: `.build/`, `build/`, `dist/`, `logs/`, `fichero/derived_data/`
 - `reference`: `docs/`
 
-### fichero-engine — Python server (`fichero-engine/src/fichero/`)
+### fichero-engine: Python server (`fichero-engine/src/fichero/`)
 
 ```
 api/               # FastAPI routes (documents, search, chat, workflows, kg, providers)
@@ -240,7 +267,7 @@ App/               # FicheroApp entry, AppState, window scaffolding
 
 ### CLI (`fichero-engine/src/fichero/cli/`)
 
-Typed Python CLI mirroring the engine's HTTP surface. Used as the engine-quality comparison loop against the SwiftUI app — every endpoint reachable from the app should be reachable from the CLI.
+Typed Python CLI mirroring the engine's HTTP surface. Used as the engine-quality comparison loop against the SwiftUI app. Every endpoint reachable from the app should be reachable from the CLI.
 
 ## Tests
 
@@ -265,11 +292,11 @@ See `docs/VALIDATION.md` for details and current known blockers.
 
 ## Documentation
 
-- **End users**: [`docs/user/`](docs/user/) — getting started, importing, reading & editing, search & knowledge graph, AI & privacy. (Published on the docs site.)
+- **End users**: [`docs/user/`](docs/user/), getting started, importing, reading & editing, search & knowledge graph, AI & privacy. (Published on the docs site.)
 - **Developers / contributors**: [`docs/contributor/`](docs/contributor/), architecture overview, setup & contributing, OpenAPI & clients, security model, workflows, the action registry. (Published on the docs site.)
 - **Architecture deep-dives**: [`docs/architecture/`](docs/architecture/) and the canonical agent guide [`docs/CLAUDE.md`](docs/CLAUDE.md).
 - Component READMEs: [`fichero/`](fichero/README.md) (SwiftUI app) and [`fichero-engine/`](fichero-engine/README.md) (Python engine).
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE). Copyright (c) 2025 Daniel Tubb.
+MIT. See [`LICENSE`](LICENSE). Copyright (c) 2025 Daniel Tubb.

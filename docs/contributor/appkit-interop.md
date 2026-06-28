@@ -1,7 +1,7 @@
 # AppKit Interop — "Mac-assed" Behavioral Fidelity
 
 **Status:** Adopted 2026-06-08 (Daniel directive)
-**Extends:** `SWIFTUI_PRINCIPLES.md` §8 ("Avoid AppKit Unless Absolutely Necessary")
+**Extends:** `swiftui-principles.md` §8 ("Avoid AppKit Unless Absolutely Necessary")
 **Goal of record:** Fichero should be a *Mac-assed app* — native controls, system conventions,
 keyboard-first, impeccable OS integration — while staying SwiftUI-first.
 
@@ -49,7 +49,7 @@ because that's the surface Daniel lives in. Scope each bridge to the single fail
   business logic. No data ownership migrates into AppKit.
 - New `.swift` files must be registered with `ruby scripts/add-swift-file.rb`.
 - Before each new bridge: check Sosumi/Ref for a real SwiftUI API first; only bridge a *confirmed*
-  gap; add it to the table in `SWIFTUI_PRINCIPLES.md` §8 once it ships.
+  gap; add it to the table in `swiftui-principles.md` §8 once it ships.
 - Swift 6 concurrency rules apply inside the bridge (`@MainActor`, no `DispatchQueue.main`).
 
 ## What this is NOT
