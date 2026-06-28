@@ -65,7 +65,7 @@ When an agent runs **inside Xcode** (Claude-in-Xcode / the `xcode-tools` MCP ser
 - **The three-leg Swift check** before declaring SwiftUI work done, in order: (1) `swiftlint lint fichero/fichero/` clean; (2) `BuildProject` succeeds; (3) `RunAllTests` passes. A build log alone is not done; a green test run alone is not done. `XcodeRefreshCodeIssuesInFile` gives fast per-file diagnostics for the inner loop but does NOT substitute for a full build. Use `RenderPreview` / visual capture for rendered-UI changes.
 - **Limit changes to the requested task** — don't make unrelated edits.
 
-MCP/build notes live in `docs/CLAUDE.md` (`## MCP Tools`, `## Development Commands`); the SwiftUI code-style guidelines live in `docs/architecture/swiftui/development_standards.md`.
+MCP/build notes live in `docs/CLAUDE.md` (`## MCP Tools`, `## Development Commands`); the SwiftUI code-style guidelines live in `docs/contributor/swiftui-development-standards.md`.
 
 ---
 
@@ -195,7 +195,7 @@ internal design docs out of `nav` rather than out of `docs/`.
 
 Read `docs/architecture/` first — specifically:
 - `docs/architecture/swiftui/api_client.md` for the OpenAPI round-trip contract.
-- `docs/architecture/api/development_standards.md` for backend conventions.
-- `docs/architecture/swiftui/development_standards.md` for Swift conventions.
+- `docs/contributor/backend-development-standards.md` for backend conventions.
+- `docs/contributor/swiftui-development-standards.md` for Swift conventions.
 
 `docs/CLAUDE.md` is the canonical detailed guidance and also references these.

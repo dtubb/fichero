@@ -83,6 +83,6 @@ The repo-wide rules (registering new `.swift` files with `add-swift-file.rb`, sy
 the OpenAPI schema after backend changes, the three-leg Swift check) live in the root
 [AGENTS.md](../AGENTS.md). Component-specific references:
 
-- Swift conventions: [docs/architecture/swiftui/development_standards.md](../docs/architecture/swiftui/development_standards.md).
+- Swift conventions: [docs/contributor/swiftui-development-standards.md](../docs/contributor/swiftui-development-standards.md).
 - OpenAPI round-trip contract: [docs/architecture/swiftui/api_client.md](../docs/architecture/swiftui/api_client.md).
 - Sparkle updater release setup: [docs/release/sparkle-release.md](../docs/release/sparkle-release.md).

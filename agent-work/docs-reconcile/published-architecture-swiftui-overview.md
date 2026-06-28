@@ -1,7 +1,7 @@
 # Frontend Overview
 
 **Last Updated**: 2026-05-24
-**Status**: ✅ Swift 6 Compatible | SwiftUI-first (AppKit only behind contained `NSViewRepresentable` bridges; see `SWIFTUI_PRINCIPLES.md` §8)
+**Status**: ✅ Swift 6 Compatible | SwiftUI-first (AppKit only behind contained `NSViewRepresentable` bridges; see `swiftui-principles.md` §8)
 
 ## What Fichero Frontend Does
 
@@ -361,8 +361,8 @@ SwiftUI ← @Observable ← Service ← APIClient ← HTTP Response
 
 ## Resources
 
-- **SwiftUI Principles**: `docs/architecture/swiftui/SWIFTUI_PRINCIPLES.md`
-- **Development Standards**: `docs/architecture/swiftui/development_standards.md`
+- **SwiftUI Principles**: `../../contributor/swiftui-principles.md`
+- **Development Standards**: `../../contributor/swiftui-development-standards.md`
 - **Key Files**: `docs/architecture/swiftui/key_files.md`
 - **Workflow Checklist**: `docs/architecture/swiftui/workflow_checklist.md`
 - **Sample Code**: `fichero/sample_code`

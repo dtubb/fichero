@@ -1,6 +1,6 @@
 # Frontend Development Standards
 
-**⚠️ IMPORTANT**: Fichero is **SwiftUI-first**. See `SWIFTUI_PRINCIPLES.md` for mandatory guidelines.
+**⚠️ IMPORTANT**: Fichero is **SwiftUI-first**. See `swiftui-principles.md` for mandatory guidelines.
 
 > **Updated 2026-06-06:** "100% SwiftUI / NO AppKit" is aspirational, not
 > literal. The current codebase keeps ~8 *sanctioned* `NSViewRepresentable`
@@ -28,7 +28,7 @@
 
 ### SwiftUI Development (Mandatory)
 - **100% SwiftUI**: No AppKit unless absolutely unavoidable
-- **@FocusedValue for Menus**: Never use NotificationCenter (see SWIFTUI_PRINCIPLES.md)
+- **@FocusedValue for Menus**: Never use NotificationCenter (see swiftui-principles.md)
 - **Cache Computations**: Don't rebuild hierarchies on every view update
 - **Handle Cancellation**: All .task {} blocks must check Task.isCancelled
 - **View Composition**: Break complex views into < 300 line files
