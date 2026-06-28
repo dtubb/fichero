@@ -75,6 +75,17 @@ def test_release_tier_promotes_mind_palace_and_research_agents():
     )
 
 
+def test_iiif_server_mode_is_dev_tier_only():
+    assert not any(
+        prefix == "/api/iiif" and "iiif" in tags
+        for _, prefix, tags in get_route_specs_for_tier("release")
+    )
+    assert any(
+        prefix == "/api/iiif" and "iiif" in tags
+        for _, prefix, tags in get_route_specs_for_tier("dev")
+    )
+
+
 def test_invalid_tier_defaults_to_release(monkeypatch):
     monkeypatch.setenv("FICHERO_FEATURE_TIER", "invalid-tier")
     assert resolve_feature_tier() == "release"

@@ -1374,7 +1374,6 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (mind_palace.router, "/api/mind-palace", ["mind-palace"]),
     (mindpalace_render.router, "/api", ["mind-palace"]),
     (research_agents.router, "/api/research", ["research"]),
-    (iiif.router, "/api/iiif", ["iiif"]),
     # Action layer registry (EPIC #1848 keystone #2013). Registered BEFORE
     # actions.router so its static /actions/{invoke,registry,audit/...} paths win
     # over the Action Library's /actions/{action_id} dynamic segment.
@@ -1393,7 +1392,9 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
 # (Daniel 2026-05-28). Kept as an empty list so the tier plumbing
 # (get_route_specs_for_tier) stays intact; re-add a spec here to demote a
 # feature back to dev-only.
-_DEV_ROUTE_SPECS: list[RouteSpec] = []
+_DEV_ROUTE_SPECS: list[RouteSpec] = [
+    (iiif.router, "/api/iiif", ["iiif"]),
+]
 
 
 def resolve_feature_tier() -> str:
