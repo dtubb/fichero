@@ -1316,6 +1316,10 @@ class TestNoteAndMilestoneFold:
 
         temp_db.save(note)
 
+        retrieved = temp_db.get(Note, note.id)
+        assert retrieved is not None
+        assert retrieved.page_id == page.id
+
         mirrored = temp_db.get(Document, note.id)
         assert mirrored is not None
         assert mirrored.parent_id == page.id
@@ -1741,6 +1745,10 @@ class TestFiledEntityFold:
         assert mirrored.node_kind == "entity"
         assert mirrored.name == "Louise Livingstone"
         assert mirrored.attributes["entity_type"] == "person"
+        retrieved = temp_db.get(KnowledgeEntity, entity.id)
+        assert retrieved is not None
+        assert retrieved.parent_id == folder.id
+        assert retrieved.canonical_name == "Louise Livingstone"
 
     def test_refile_entity_moves_document_node(self, temp_db):
         first = Document(id="folder-1", name="Folder 1", doc_type=DocType.folder)
@@ -1761,6 +1769,9 @@ class TestFiledEntityFold:
         mirrored = temp_db.get(Document, entity.id)
         assert mirrored is not None
         assert mirrored.parent_id == second.id
+        retrieved = temp_db.get(KnowledgeEntity, entity.id)
+        assert retrieved is not None
+        assert retrieved.parent_id == second.id
 
     def test_unfiled_entity_has_no_document_node(self, temp_db):
         entity = KnowledgeEntity(canonical_name="Mining", entity_type=EntityType.concept)
