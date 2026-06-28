@@ -179,6 +179,7 @@ if [ "$SKIP_VALIDATION" = false ]; then
   "$PYTHON_BIN" "$API_ROOT/scripts/validate_model_sync.py"
 fi
 
+export FICHERO_FEATURE_TIER="${FICHERO_FEATURE_TIER:-dev}"
 export FICHERO_VALIDATE_MODELS=1
 if [ "$RELOAD" = true ]; then
   # Scope --reload to the engine source ONLY. A bare --reload watches the CWD

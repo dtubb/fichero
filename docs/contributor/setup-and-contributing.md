@@ -108,7 +108,7 @@ Do not add `ALTER TABLE ADD COLUMN` migration functions for columns that are alr
 
 ### Feature tier
 
-If your work is only active under `FICHERO_FEATURE_TIER=dev`, say so in your PR description. Core routes must work in `release` tier. The `dev` tier adds staged features (`/api/kg/*`, research, graph, mind-palace, etc.) that are not yet exposed in production builds.
+`bash fichero-engine/scripts/start_backend.sh` defaults to `FICHERO_FEATURE_TIER=dev` so local testing shows staged surfaces. Override with `FICHERO_FEATURE_TIER=release` when checking release-tier behavior. If your work is only active under `FICHERO_FEATURE_TIER=dev`, say so in your PR description. Core routes must work in `release` tier.
 
 ## Expanding the Action Registry
 
