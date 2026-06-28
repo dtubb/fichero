@@ -189,6 +189,14 @@ class Document(BaseModel):
     bbox: tuple[int, int, int, int] | None = None  # x, y, width, height
     prototype_key: str | None = None  # user-assigned document prototype/class key
 
+    # Alias / reference node (#2591 P2, node-model fold). When set, this node is
+    # a *reference* to another node (Tinderbox-style alias): it appears inside a
+    # container via ``parent_id`` but never duplicates the target's content. The
+    # convention is ``node_kind == "alias"`` together with ``alias_target_id``
+    # pointing at the referenced node. Resolution lives in ``node_aliases.py`` and
+    # *raises* on a dangling target rather than silently substituting (prefer-raise).
+    alias_target_id: str | None = None
+
     # Content (LangChain compatible)
     page_content: str | None = None
 
