@@ -170,6 +170,7 @@ _RESEARCH_TASK_NODE_KIND = "task"
 _RESEARCH_TASK_PROTOTYPE_KEY = "research_task"
 _RESEARCH_STEP_NODE_KIND = "step"
 _RESEARCH_STEP_PROTOTYPE_KEY = "research_step"
+_ENTITY_NODE_KIND = "entity"
 _ROOM_NODE_KIND = "room"
 _FOLDER_PROTOTYPE_KEY = "folder"
 _ROOM_PROTOTYPE_KEY = "room"
@@ -535,6 +536,7 @@ class Database(DatabaseEmbeddingMixin):
         self._seed_builtin_document_prototypes()
         self._seed_builtin_node_classes()
         self._backfill_claim_links_to_library_links()
+        self._backfill_filed_entity_documents()
         self._backfill_saved_search_documents()
         self._backfill_spatial_room_documents()
         self._backfill_research_workspace_documents()
@@ -744,6 +746,9 @@ class Database(DatabaseEmbeddingMixin):
             obj: Pydantic model instance to save
             auto_embed: If True, create embedding when obj has page_content
         """
+        if type(obj).__name__ == "KnowledgeEntity":
+            self._validate_entity_parent(obj)
+
         sql_table = self._sql_table_name(obj)
         self._ensure_table(type(obj))
 
@@ -787,6 +792,8 @@ class Database(DatabaseEmbeddingMixin):
 
         if type(obj).__name__ == "SavedSearch":
             self._save_saved_search_document(obj)
+        if type(obj).__name__ == "KnowledgeEntity":
+            self._save_filed_entity_document(obj)
         if type(obj).__name__ == "SpatialRoom":
             self._save_spatial_room_document(obj)
         if type(obj).__name__ == "ResearchProject":
@@ -945,6 +952,21 @@ class Database(DatabaseEmbeddingMixin):
             if (hydrated := self._hydrate_row(SpatialRoom, columns, row)) is not None
         ]
 
+    def _legacy_all_knowledge_entity_rows(self) -> list[BaseModel]:
+        """Read KnowledgeEntity rows without any node-tree bridge logic."""
+        from fichero.knowledge_models import KnowledgeEntity
+
+        sql_table = self._sql_table_name(KnowledgeEntity)
+        self._ensure_table(KnowledgeEntity)
+        with self._lock:
+            rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
+            columns = [desc[0] for desc in self.conn.description]
+        return [
+            hydrated
+            for row in rows
+            if (hydrated := self._hydrate_row(KnowledgeEntity, columns, row)) is not None
+        ]
+
     @staticmethod
     def _saved_search_from_document(doc: Any) -> BaseModel:
         """Hydrate a SavedSearch view-model from its folded document node."""
@@ -1032,6 +1054,20 @@ class Database(DatabaseEmbeddingMixin):
 
         docs = self.query(Document, node_kind=_ROOM_NODE_KIND)
         return [self._spatial_room_from_document(self, doc) for doc in docs]
+
+    def _validate_entity_parent(self, entity: BaseModel) -> None:
+        """Filed entities must point at a live folder node."""
+        parent_id = getattr(entity, "parent_id", None)
+        if parent_id is None:
+            return
+
+        from fichero.models import DocType, Document
+
+        parent = self.get(Document, parent_id)
+        if parent is None or getattr(parent, "deleted_at", None) is not None:
+            raise ValueError(f"Parent not found: {parent_id}")
+        if parent.doc_type != DocType.folder:
+            raise ValueError(f"Parent is not a folder: {parent_id}")
 
     def _seed_builtin_document_prototypes(self) -> None:
         """Ensure the fold's built-in folder/container prototypes exist."""
@@ -1845,6 +1881,8 @@ class Database(DatabaseEmbeddingMixin):
         self._execute(f"DELETE FROM {sql_table} WHERE id = $id", {"id": obj.id})
         if type(obj).__name__ == "SavedSearch":
             self._delete_saved_search_document(obj.id)
+        if type(obj).__name__ == "KnowledgeEntity":
+            self._delete_filed_entity_document(obj.id)
         if type(obj).__name__ == "SpatialRoom":
             self._delete_spatial_room_document(obj.id)
         if type(obj).__name__ == "ResearchProject":
@@ -1906,6 +1944,52 @@ class Database(DatabaseEmbeddingMixin):
         doc.updated_at = saved.updated_at
         self.save(doc)
 
+    def _save_filed_entity_document(self, entity: BaseModel) -> None:
+        """Mirror a filed KnowledgeEntity into the document tree."""
+        from fichero.models import DocType, Document
+
+        if getattr(entity, "parent_id", None) is None:
+            self._delete_filed_entity_document(entity.id)
+            return
+
+        existing = self.get(Document, entity.id)
+        metadata = (
+            dict(existing.metadata)
+            if existing is not None and isinstance(existing.metadata, dict)
+            else {}
+        )
+        metadata.update({
+            "node_class": _ENTITY_NODE_KIND,
+            "knowledge_entity_id": entity.id,
+        })
+        attributes = (
+            dict(existing.attributes)
+            if existing is not None and isinstance(existing.attributes, dict)
+            else {}
+        )
+        attributes.update({
+            "entity_type": entity.entity_type.value,
+            "aliases": entity.aliases,
+            "description": entity.description,
+            "language": entity.language,
+            "entity_metadata": entity.metadata,
+            "curation_state": entity.curation_state.value,
+            "corroboration_count": entity.corroboration_count,
+            "merged_into_id": entity.merged_into_id,
+            "source_document_ids": entity.source_document_ids,
+        })
+
+        doc = existing or Document(id=entity.id, name=entity.canonical_name)
+        doc.parent_id = entity.parent_id
+        doc.name = entity.canonical_name
+        doc.node_kind = _ENTITY_NODE_KIND
+        doc.doc_type = DocType.file
+        doc.metadata = metadata
+        doc.attributes = attributes
+        doc.created_at = entity.created_at
+        doc.updated_at = entity.updated_at
+        self.save(doc)
+
     def _delete_saved_search_document(self, saved_search_id: str) -> None:
         """Remove the mirrored document row for a saved search, if present."""
         from fichero.models import Document
@@ -1914,6 +1998,15 @@ class Database(DatabaseEmbeddingMixin):
         if doc is None:
             return
         self._execute("DELETE FROM documents WHERE id = $id", {"id": saved_search_id})
+
+    def _delete_filed_entity_document(self, entity_id: str) -> None:
+        """Remove the mirrored document row for a filed entity, if present."""
+        from fichero.models import Document
+
+        doc = self.get(Document, entity_id)
+        if doc is None:
+            return
+        self._execute("DELETE FROM documents WHERE id = $id", {"id": entity_id})
 
     def _backfill_saved_search_documents(self) -> None:
         """Backfill existing saved_searches rows into same-id document nodes."""
@@ -1936,6 +2029,27 @@ class Database(DatabaseEmbeddingMixin):
 
         for saved in self._legacy_all_saved_search_rows():
             self._save_saved_search_document(saved)
+
+    def _backfill_filed_entity_documents(self) -> None:
+        """Backfill filed entities into same-id document nodes."""
+        if not hasattr(self.conn, "execute"):
+            return
+
+        from fichero.knowledge_models import KnowledgeEntity
+
+        table_name = self._table_name(KnowledgeEntity)
+        table_exists = self.execute_fetchone(
+            """
+            SELECT COUNT(*) FROM information_schema.tables
+            WHERE table_name = $table_name
+            """,
+            {"table_name": table_name},
+        )
+        if not table_exists or int(table_exists[0] or 0) == 0:
+            return
+
+        for entity in self._legacy_all_knowledge_entity_rows():
+            self._save_filed_entity_document(entity)
 
     def _save_research_workspace_document(self, project: BaseModel) -> None:
         """Mirror a ResearchProject row into the document tree as a workspace."""
