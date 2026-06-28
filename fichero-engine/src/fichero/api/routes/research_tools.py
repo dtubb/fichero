@@ -30,6 +30,7 @@ Internal/private IP ranges and blocked URL schemes are rejected at the boundary.
 
 import ipaddress
 import asyncio
+import logging
 import re
 import socket
 import time
@@ -56,6 +57,7 @@ from fichero.research_models import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # URL schemes that are never allowed in sandboxed requests
 _SANDBOX_BLOCKED_SCHEMES = frozenset(
@@ -465,11 +467,16 @@ async def execute_document_fetch(
 
     # Optionally create a Layer 1 Source document
     source_id = None
+    save_error: str | None = None
     if request.create_as_source:
         try:
             doc = Document(
                 name=title[:255] if title else request.url,
-                doc_type=DocType.web_capture,
+                # A fetched web page is a file-type document. (#2507: the old
+                # value was a non-existent DocType member, so this save always
+                # raised AttributeError — silently swallowed, making "save as
+                # source" a no-op until now.)
+                doc_type=DocType.file,
                 path=request.url,
                 page_content=content[:50000],  # store truncated content
                 metadata={
@@ -482,9 +489,18 @@ async def execute_document_fetch(
             )
             db.save(doc)
             source_id = doc.id
-        except Exception:
-            # Don't fail the fetch if save fails
-            pass
+        except Exception as exc:
+            # #2507: the fetch itself succeeded, but the optional source save
+            # failed. Never swallow it silently (the caller would believe the
+            # page was saved). Log loudly and surface the failure in the
+            # response so source_id=None is explained, not masked.
+            logger.warning(
+                "fetch_document: fetched %s but failed to save it as a "
+                "source document: %s",
+                request.url,
+                exc,
+            )
+            save_error = f"Fetched but failed to save as source: {exc}"
 
     return DocumentFetchResponse(
         url=request.url,
@@ -493,7 +509,7 @@ async def execute_document_fetch(
         content_type=content_type,
         source_id=source_id,
         success=True,
-        error=None,
+        error=save_error,
     )
 
 
