@@ -12,6 +12,7 @@ from typing import Any
 
 from fichero.db import db_manager
 from fichero.export_service import (
+    export_eleventy_site,
     export_markdown_folder,
     export_word_docx,
     export_excel_xlsx,
@@ -28,10 +29,13 @@ EXPORT_DOCUMENTS_CONFIG = {
         "type": "array",
         "items": {
             "type": "string",
-            "enum": ["markdown", "docx", "xlsx"],
+            "enum": ["markdown", "docx", "xlsx", "eleventy"],
         },
         "default": ["markdown", "docx", "xlsx"],
-        "description": "Export formats to produce.",
+        "description": (
+            "Export formats to produce. 'eleventy' publishes an 11ty/Netlify "
+            "static website (collections = folders)."
+        ),
     },
     "destination": {
         "type": "string",
@@ -165,6 +169,19 @@ async def export_documents(
             overwrite=True,
         )
         written.append(str(result.output_path))
+
+    if "eleventy" in requested_formats:
+        # 11ty/Netlify static-site target (#2535), chainable as a workflow node.
+        site_dir = export_dir / f"{export_name}_site"
+        result = export_eleventy_site(
+            db,
+            output_path=site_dir,
+            target_id=source_id,
+            recursive=True,
+            overwrite=True,
+        )
+        written.extend(str(f.path) for f in result.files)
+        written.extend(str(a.path) for a in result.assets)
 
     return {"files": written, "count": len(written)}
 

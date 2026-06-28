@@ -6637,6 +6637,49 @@
         }
       }
     },
+    "/api/documents/{doc_id}/geo": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "List geocoded points for a document",
+        "description": "Aggregate a document's geo points for the world-map / globe representations.\n\nSources, in order: the document's own ``metadata['geo_points']`` (written by\nthe ``extract_geo`` tool #2266), its page children's metadata, and the\n``claim_geo`` / ``place_values`` of knowledge claims sourced from this\ndocument. Duplicate coordinates collapse to one point.",
+        "operationId": "list_document_geo_api_documents__doc_id__geo_get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocGeoResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/{doc_id}/workflow-runs": {
       "get": {
         "tags": [
@@ -27823,247 +27866,6 @@
         }
       }
     },
-    "/api/iiif/iiif/{identifier}/info.json": {
-      "get": {
-        "tags": [
-          "iiif",
-          "iiif"
-        ],
-        "summary": "IIIF Image Information",
-        "description": "Returns IIIF Image API information (info.json).",
-        "operationId": "get_image_info_api_iiif_iiif__identifier__info_json_get",
-        "parameters": [
-          {
-            "name": "identifier",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Identifier"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ImageInfoResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/iiif/iiif/{identifier}/{region}/{size}/{rotation}/{quality}.{format}": {
-      "get": {
-        "tags": [
-          "iiif",
-          "iiif"
-        ],
-        "summary": "IIIF Image Request",
-        "description": "Serve image region via IIIF Image API. Reference: https://iiif.io/api/image/2.1/",
-        "operationId": "serve_iiif_image_api_iiif_iiif__identifier___region___size___rotation___quality___format__get",
-        "parameters": [
-          {
-            "name": "identifier",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Identifier"
-            }
-          },
-          {
-            "name": "region",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Region"
-            }
-          },
-          {
-            "name": "size",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Size"
-            }
-          },
-          {
-            "name": "rotation",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Rotation"
-            }
-          },
-          {
-            "name": "quality",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Quality"
-            }
-          },
-          {
-            "name": "format",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Format"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/iiif/iiif/manifest/{document_id}": {
-      "get": {
-        "tags": [
-          "iiif",
-          "iiif"
-        ],
-        "summary": "IIIF Manifest",
-        "description": "Returns IIIF Presentation API manifest for document.",
-        "operationId": "get_iiif_manifest_api_iiif_iiif_manifest__document_id__get",
-        "parameters": [
-          {
-            "name": "document_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Document Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/IIIFManifest"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/iiif/iiif/image/{document_id}": {
-      "get": {
-        "tags": [
-          "iiif",
-          "iiif"
-        ],
-        "summary": "Direct Image Access",
-        "description": "Direct access to document image (non-IIIF, for convenience).",
-        "operationId": "get_document_image_api_iiif_iiif_image__document_id__get",
-        "parameters": [
-          {
-            "name": "document_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Document Id"
-            }
-          },
-          {
-            "name": "width",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 4096,
-              "minimum": 50,
-              "nullable": true,
-              "title": "Width"
-            }
-          },
-          {
-            "name": "height",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 4096,
-              "minimum": 50,
-              "nullable": true,
-              "title": "Height"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/actions/invoke": {
       "post": {
         "tags": [
@@ -31831,6 +31633,247 @@
                 "schema": {
                   "$ref": "#/components/schemas/TriggerListResponse"
                 }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/iiif/iiif/{identifier}/info.json": {
+      "get": {
+        "tags": [
+          "iiif",
+          "iiif"
+        ],
+        "summary": "IIIF Image Information",
+        "description": "Returns IIIF Image API information (info.json).",
+        "operationId": "get_image_info_api_iiif_iiif__identifier__info_json_get",
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identifier"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageInfoResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/iiif/iiif/{identifier}/{region}/{size}/{rotation}/{quality}.{format}": {
+      "get": {
+        "tags": [
+          "iiif",
+          "iiif"
+        ],
+        "summary": "IIIF Image Request",
+        "description": "Serve image region via IIIF Image API. Reference: https://iiif.io/api/image/2.1/",
+        "operationId": "serve_iiif_image_api_iiif_iiif__identifier___region___size___rotation___quality___format__get",
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identifier"
+            }
+          },
+          {
+            "name": "region",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Region"
+            }
+          },
+          {
+            "name": "size",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Size"
+            }
+          },
+          {
+            "name": "rotation",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rotation"
+            }
+          },
+          {
+            "name": "quality",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Quality"
+            }
+          },
+          {
+            "name": "format",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Format"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/iiif/iiif/manifest/{document_id}": {
+      "get": {
+        "tags": [
+          "iiif",
+          "iiif"
+        ],
+        "summary": "IIIF Manifest",
+        "description": "Returns IIIF Presentation API manifest for document.",
+        "operationId": "get_iiif_manifest_api_iiif_iiif_manifest__document_id__get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IIIFManifest"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/iiif/iiif/image/{document_id}": {
+      "get": {
+        "tags": [
+          "iiif",
+          "iiif"
+        ],
+        "summary": "Direct Image Access",
+        "description": "Direct access to document image (non-IIIF, for convenience).",
+        "operationId": "get_document_image_api_iiif_iiif_image__document_id__get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "width",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 4096,
+              "minimum": 50,
+              "nullable": true,
+              "title": "Width"
+            }
+          },
+          {
+            "name": "height",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 4096,
+              "minimum": 50,
+              "nullable": true,
+              "title": "Height"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           },
@@ -39196,6 +39239,66 @@
         ],
         "title": "DiskUsageResponse",
         "description": "Disk usage broken down by model type."
+      },
+      "DocGeoPoint": {
+        "properties": {
+          "lat": {
+            "type": "number",
+            "title": "Lat"
+          },
+          "lon": {
+            "type": "number",
+            "title": "Lon"
+          },
+          "place_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Place Name"
+          },
+          "precision_m": {
+            "type": "number",
+            "nullable": true,
+            "title": "Precision M"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lat",
+          "lon",
+          "source"
+        ],
+        "title": "DocGeoPoint",
+        "description": "One geocoded point contributing to a document's map/globe view (#2266)."
+      },
+      "DocGeoResponse": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/DocGeoPoint"
+            },
+            "type": "array",
+            "title": "Points"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "points",
+          "count"
+        ],
+        "title": "DocGeoResponse"
       },
       "DocType": {
         "type": "string",
@@ -53037,6 +53140,10 @@
             "type": "object",
             "nullable": true,
             "title": "Inputs"
+          },
+          "answer": {
+            "nullable": true,
+            "title": "Answer"
           }
         },
         "type": "object",
