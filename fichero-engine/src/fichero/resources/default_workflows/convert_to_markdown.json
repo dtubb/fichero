@@ -1,0 +1,18 @@
+{
+  "name": "Convert to Markdown",
+  "description": "Convert each image/page to clean Markdown using vision — preserving headings, lists, and layout where possible. Feeds the Markdown representation in the document viewer. The model alias and layout options are editable on the Convert node.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Convert",
+  "tags": ["preset", "convert", "markdown", "representation"],
+  "config": {"preset_version": 1},
+  "nodes": [
+    {"id": "files-source", "tool": "files", "label": "Files", "position_x": 80, "position_y": 200, "inputs": {}, "config": {}},
+    {"id": "convert", "tool": "convert", "label": "Convert to Markdown", "position_x": 320, "position_y": 200, "inputs": {}, "config": {"target_format": "markdown", "preserve_layout": true}}
+  ],
+  "edges": [
+    {"id": "edge-files-convert", "source": "files-source", "target": "convert", "source_port": "files", "target_port": "files"},
+    {"id": "edge-files-convert-documents", "source": "files-source", "target": "convert", "source_port": "documents", "target_port": "documents"}
+  ]
+}
