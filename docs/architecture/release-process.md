@@ -135,18 +135,22 @@ The `/release` skill:
 
 ## Parallel Release Workflow
 
-While Daniel tests release N, Claude works on N+1 in a separate git worktree:
+While Daniel tests release N, agents can work on N+1 in a separate git worktree:
 
 ```
-Daniel testing:  0.0.3    (branch: 0.0.3)
-Claude building: 0.0.4    (worktree: ../fichero-0.0.4)
+Daniel testing:  current candidate
+Agent building:  next milestone branch
 Queued:          0.0.5, 0.0.6, ...
 ```
 
-When Daniel approves 0.0.3 and `/release 0.0.3` runs:
-1. 0.0.3 tagged + released
-2. 0.0.4 worktree rebased onto 0.0.3 tag
-3. Claude begins 0.0.5 in a new worktree
+Rules:
+
+1. Worktrees live only under `~/code/fichero-worktrees/<name>`.
+2. Agents commit directly to the milestone branch for that worktree; no per-task branches.
+3. Daniel must explicitly approve the release command before tagging or merging forward.
+4. After release, the next lane resets/rebases from the approved mainline before continuing.
+
+Never create or remove bare `~/code/fichero-*` sibling directories for release lanes.
 
 ---
 
