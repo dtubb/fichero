@@ -1,0 +1,1 @@
+2026-06-28: #2789 slice 1 routed note/bookmark/saved-search and milestone create mutations through `registry.invoke`, removed the matching audit xfails, and passed targeted audit + note/bookmark route tests.

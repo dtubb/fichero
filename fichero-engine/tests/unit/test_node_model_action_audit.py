@@ -8,12 +8,13 @@ from __future__ import annotations
 
 import pytest
 
+import fichero.api.routes.bookmarks  # noqa: F401
 import fichero.api.routes.claims  # noqa: F401
 import fichero.api.routes.documents  # noqa: F401
 import fichero.api.routes.notes  # noqa: F401
 import fichero.api.routes.search  # noqa: F401
 from fichero.actions.registry import ActionContext, registry
-from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity, Milestone, NoteKind
+from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity, NoteKind
 from fichero.models import ActionAudit, DocType, Document
 
 
@@ -175,10 +176,6 @@ def test_document_delete_action_writes_action_audit(db):
     assert audit.target_ids == [doc.id]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="POST /api/search/saved still calls save_search_impl directly and writes no ActionAudit row.",
-)
 def test_saved_search_create_route_writes_action_audit(client, db):
     response = client.post(
         "/api/search/saved",
@@ -194,10 +191,6 @@ def test_saved_search_create_route_writes_action_audit(client, db):
     assert audits[0].target_ids == [saved_id]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="POST /api/notes still calls create_note_impl directly and writes no ActionAudit row.",
-)
 def test_note_create_route_writes_action_audit(client, db):
     folder = Document(name="Folder", doc_type=DocType.folder)
     db.save(folder)
@@ -273,10 +266,6 @@ def test_claim_delete_route_writes_action_audit(client, db):
     assert audits[0].target_ids == [claim.id]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="POST /api/bookmarks creates alias-backed bookmark nodes directly; no bookmark.create audited action exists yet.",
-)
 def test_bookmark_create_route_writes_action_audit(client, db):
     target = Document(name="Target", doc_type=DocType.file)
     db.save(target)
@@ -423,19 +412,20 @@ def test_entity_delete_route_writes_action_audit(client, db):
     assert audits[0].target_ids == [entity.id]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Milestones fold into Document rows on db.save, but no milestone.create audited action or route exists yet.",
-)
 def test_milestone_create_writes_action_audit(db):
     parent = Document(name="Parent Folder", doc_type=DocType.folder)
     db.save(parent)
 
-    milestone = Milestone(title="Phase 1", parent_id=parent.id, status="active")
-    db.save(milestone)
+    result = registry.invoke(
+        db,
+        "milestone.create",
+        {"title": "Phase 1", "parent_id": parent.id, "status": "active"},
+        _ctx(),
+    )
 
-    audits = _audits_for_target(db, milestone.id)
+    milestone_id = result.result["id"]
+    audits = _audits_for_target(db, milestone_id)
     assert len(audits) == 1
     assert audits[0].actor == "ui"
     assert audits[0].action_name == "milestone.create"
-    assert audits[0].target_ids == [milestone.id]
+    assert audits[0].target_ids == [milestone_id]
