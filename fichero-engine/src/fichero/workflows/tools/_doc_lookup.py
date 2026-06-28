@@ -52,6 +52,32 @@ def find_document_by_path(
     return None
 
 
+def register_path_mapping(
+    path_to_doc: dict[str, Any],
+    key: str,
+    doc_id: Any,
+) -> None:
+    """Record ``key -> doc_id`` in a path map, loud on a conflicting overwrite.
+
+    The per-tool ``path_to_doc`` maps drive artifact routing. Two documents
+    sharing a path would silently overwrite (last-wins) and could route a later
+    save to the wrong document — the #2430 class of bug. We can't tell which the
+    caller meant, so we keep last-wins behaviour but log a warning naming both
+    ids when an existing key is overwritten with a *different* id (#2507).
+    """
+    existing = path_to_doc.get(key)
+    if existing is not None and existing != doc_id:
+        logger.warning(
+            "path_to_doc: path %r already mapped to %s — overwriting with %s "
+            "(ambiguous duplicate paths; downstream artifact routing may pick "
+            "the wrong document)",
+            key,
+            existing,
+            doc_id,
+        )
+    path_to_doc[key] = doc_id
+
+
 def resolve_path_to_doc(path_to_doc: dict[str, Any], file_path: str | None) -> Any:
     """Look up a doc id in a path->id map, tolerating absolute vs relative keys.
 

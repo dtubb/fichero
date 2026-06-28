@@ -14,6 +14,7 @@ from types import SimpleNamespace
 from fichero.workflows.tools._doc_lookup import (
     find_document_by_path,
     iter_document_lookup_paths,
+    register_path_mapping,
     resolve_path_to_doc,
 )
 
@@ -86,6 +87,39 @@ def test_single_match_does_not_warn(caplog):
     with caplog.at_level(logging.WARNING):
         find_document_by_path(db, object, "files/a.pdf")
     assert not caplog.records
+
+
+# --- register_path_mapping ---------------------------------------------------
+
+def test_register_first_mapping_is_silent(caplog):
+    m: dict = {}
+    with caplog.at_level(logging.WARNING):
+        register_path_mapping(m, "files/a.pdf", "d1")
+    assert m == {"files/a.pdf": "d1"}
+    assert not caplog.records
+
+
+def test_register_same_id_again_is_silent(caplog):
+    m = {"files/a.pdf": "d1"}
+    with caplog.at_level(logging.WARNING):
+        register_path_mapping(m, "files/a.pdf", "d1")
+    assert m == {"files/a.pdf": "d1"}
+    assert not caplog.records
+
+
+def test_register_conflicting_overwrite_warns_and_last_wins(caplog):
+    m = {"files/a.pdf": "d1"}
+    with caplog.at_level(logging.WARNING):
+        register_path_mapping(m, "files/a.pdf", "d2")
+    # Last-wins behaviour preserved...
+    assert m == {"files/a.pdf": "d2"}
+    # ...but the silent overwrite is now loud, naming both ids.
+    assert any(
+        rec.levelno == logging.WARNING
+        and "already mapped to d1" in rec.getMessage()
+        and "d2" in rec.getMessage()
+        for rec in caplog.records
+    ), caplog.records
 
 
 # --- resolve_path_to_doc -----------------------------------------------------

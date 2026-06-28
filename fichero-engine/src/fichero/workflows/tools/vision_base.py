@@ -85,6 +85,7 @@ from fichero.workflows.tools.llm_base import (
 from fichero.workflows.tools._doc_lookup import (
     find_document_by_path,
     iter_document_lookup_paths,
+    register_path_mapping,
     resolve_path_to_doc,
 )
 from fichero.workflows.circuit_breaker import (
@@ -1461,7 +1462,7 @@ async def process_vision(
         for doc in documents:
             if isinstance(doc, dict) and doc.get("path"):
                 for path_key in iter_document_lookup_paths(doc["path"]):
-                    path_to_doc[path_key] = doc.get("id")
+                    register_path_mapping(path_to_doc, path_key, doc.get("id"))
     # Per-page fan-out (#891) pairs files[i] with documents[i] — for a
     # parent PDF expanded into N page children, every file_path is the
     # parent path and the unique info lives in the document dict (its
