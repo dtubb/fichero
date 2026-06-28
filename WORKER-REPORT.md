@@ -209,6 +209,32 @@ left untouched here since it is the large internal architecture guide and out of
 for this lane. Flagged for a follow-up pass if you want it aligned with the
 LangChain-integrations / LiteLLM-cost-only framing.
 
+## Extra — user manual buildout (#1796) + accuracy polish
+
+- **New `site/docs/user/interface-tour.md`** — an element-by-element tour of the
+  window for end users: the four regions, the sidebar modes
+  (Library/Search/Chat/Workflows/Chains/Activity/Automation/Batches/Model Comparison),
+  the library layouts (icon/list/table/map), the reading area and its reading layouts
+  (None/Standard/Widescreen), the full inspector tab set
+  (Content/Outline/Annotations/Notes/Entities/Knowledge Graph/Citations/Edits/Info),
+  plus workflows, chat, search, import, and settings. Plain language, app-not-backend,
+  with `[Screenshot: …]` placeholders marking where art goes. Added to nav. Names
+  grounded against `InspectorTab.swift`, `LayoutMode.swift`, `SidebarViewTypes.swift`.
+- **Accuracy sweep across the published site** (fix-then-sweep):
+  - Dropped the stale `Artifacts` inspector tab from `reading-and-editing.md` and the
+    user index; added the real Entities / Knowledge Graph / Citations tabs.
+  - Replaced the "vibe-coded" framing on the home page (`index.md`) with the honest
+    manager-with-workers description, matching FAQ + How It's Built.
+  - Corrected the LiteLLM-routing framing everywhere it appeared in published docs
+    (`ai-and-privacy.md`, `architecture/api/overview.md`,
+    `architecture/swiftui/overview.md`, `contributor/README.md`): calls go through
+    LangChain provider integrations; LiteLLM is for model discovery + cost only.
+- **Flagged:** the user index links `Tailscale Private Transport` at
+  `../remote-backend-tailscale.md`, which lives in the unpublished internal `docs/`
+  tree, so it 404s for public-site visitors. Pre-existing; left in place rather than
+  remove Daniel's link. Decide whether to publish a user-facing remote-access page or
+  drop the link.
+
 ## Voice + verification
 
 - No em dashes and no "not-X-but-Y" in authored prose. Folded `CHANGELOG`/`RELEASE_NOTES`
