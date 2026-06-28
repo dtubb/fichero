@@ -10,6 +10,7 @@ import pytest
 from fichero.spatial_models import (
     NodeType,
     ConnectionType,
+    RoomType,
     SpatialRoom,
     SpatialNode,
 )
@@ -26,6 +27,13 @@ BASE = "/api/mind-palace"
 
 def _make_room(room_id: str = "room-1", name: str = "Research Room") -> SpatialRoom:
     return SpatialRoom(id=room_id, name=name)
+
+
+def _legacy_room(db, room_id: str) -> SpatialRoom | None:
+    for room in db._legacy_all_spatial_room_rows():
+        if room.id == room_id:
+            return room
+    return None
 
 
 def _make_node(
@@ -70,6 +78,10 @@ class TestCreateRoom:
         assert mirrored.node_kind == "room"
         assert mirrored.prototype_key == "room"
         assert mirrored.doc_type == "folder"
+        legacy = _legacy_room(db, room_id)
+        assert legacy is not None
+        assert legacy.name == "Node Backed Room"
+        assert legacy.room_type == RoomType.research
 
 
 # ---------------------------------------------------------------------------
@@ -125,6 +137,54 @@ class TestListRooms:
         assert filtered.json()["count"] == 1
         assert filtered.json()["items"][0]["id"] == "room-doc-b"
 
+    def test_list_room_shape_matches_get_shape(self, client):
+        created = client.post(
+            f"{BASE}/rooms",
+            json={"name": "Parity Room", "room_type": "research", "description": "shape"},
+        )
+        assert created.status_code == 200
+
+        room_id = created.json()["id"]
+        listed = client.get(f"{BASE}/rooms")
+        fetched = client.get(f"{BASE}/rooms/{room_id}")
+
+        assert listed.status_code == 200
+        assert fetched.status_code == 200
+        listed_item = next(item for item in listed.json()["items"] if item["id"] == room_id)
+        assert listed_item == fetched.json()
+
+    def test_list_prefers_node_backed_room_values_over_legacy_row(self, client, db):
+        room = SpatialRoom(
+            id="room-diverged-list",
+            name="Node Name",
+            description="Node Description",
+            room_type=RoomType.research,
+            owner_id="user",
+            metadata={"theme": "blue"},
+        )
+        db.save(room)
+        db._execute(
+            """
+            UPDATE spatialrooms
+            SET name = $name, description = $description, metadata = $metadata
+            WHERE id = $id
+            """,
+            {
+                "id": room.id,
+                "name": "Legacy Name",
+                "description": "Legacy Description",
+                "metadata": '{"theme":"legacy"}',
+            },
+        )
+
+        response = client.get(f"{BASE}/rooms")
+
+        assert response.status_code == 200
+        item = next(item for item in response.json()["items"] if item["id"] == room.id)
+        assert item["name"] == "Node Name"
+        assert item["description"] == "Node Description"
+        assert item["metadata"] == {"theme": "blue"}
+
     @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_returns_rooms(self, client, db):
         db.save(_make_room("r-1", "Room A"))
@@ -164,6 +224,41 @@ class TestGetRoom:
         assert r.json()["name"] == "Node-Owned Room"
         assert r.json()["room_type"] == "presentation"
         assert r.json()["metadata"] == {"theme": "amber"}
+
+    def test_get_prefers_node_backed_room_values_over_legacy_row(self, client, db):
+        room = SpatialRoom(
+            id="room-diverged-get",
+            name="Node Truth",
+            description="From node",
+            room_type=RoomType.presentation,
+            owner_id="human",
+            metadata={"theme": "amber"},
+        )
+        db.save(room)
+        db._execute(
+            """
+            UPDATE spatialrooms
+            SET name = $name, description = $description
+            WHERE id = $id
+            """,
+            {"id": room.id, "name": "Legacy Drift", "description": "From legacy"},
+        )
+
+        response = client.get(f"{BASE}/rooms/{room.id}")
+
+        assert response.status_code == 200
+        assert response.json()["name"] == "Node Truth"
+        assert response.json()["description"] == "From node"
+
+    def test_get_room_raises_when_legacy_room_lost_its_node(self, client, db):
+        room = SpatialRoom(id="room-missing-node", name="Legacy Only")
+        db.save(room)
+        db._execute("DELETE FROM documents WHERE id = $id", {"id": room.id})
+
+        response = client.get(f"{BASE}/rooms/{room.id}")
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == f"Room node not found: {room.id}"
 
     @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_get_existing_room(self, client, db):
@@ -226,6 +321,40 @@ class TestUpdateRoom:
         assert mirrored.attributes["room_type"] == "presentation"
         assert mirrored.attributes["metadata"] == {"theme": "gold"}
 
+    def test_update_room_writes_through_node_and_legacy_storage(self, client, db):
+        room = SpatialRoom(
+            id="room-write-through",
+            name="Before",
+            description="Before update",
+            room_type=RoomType.research,
+            owner_id="user",
+            metadata={"theme": "blue"},
+        )
+        db.save(room)
+
+        response = client.patch(
+            f"{BASE}/rooms/{room.id}",
+            json={
+                "name": "After",
+                "description": "After update",
+                "room_type": "presentation",
+                "metadata": {"theme": "gold"},
+            },
+        )
+
+        assert response.status_code == 200
+        mirrored = db.get(Document, room.id)
+        legacy = _legacy_room(db, room.id)
+        assert mirrored is not None
+        assert mirrored.name == "After"
+        assert mirrored.attributes["description"] == "After update"
+        assert mirrored.attributes["room_type"] == "presentation"
+        assert legacy is not None
+        assert legacy.name == "After"
+        assert legacy.description == "After update"
+        assert legacy.room_type == RoomType.presentation
+        assert legacy.metadata == {"theme": "gold"}
+
     @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_update_room_name(self, client, db):
         db.save(_make_room("r-upd", "Old Name"))
@@ -250,6 +379,8 @@ class TestDeleteRoom:
 
         r = client.delete(f"{BASE}/rooms/r-del")
         assert r.status_code == 200
+        assert db.get(Document, "r-del") is None
+        assert _legacy_room(db, "r-del") is None
 
     def test_delete_missing_room_returns_404(self, client):
         r = client.delete(f"{BASE}/rooms/no-such")
