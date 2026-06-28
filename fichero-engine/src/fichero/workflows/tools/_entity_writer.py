@@ -412,11 +412,20 @@ def _source_authority_weight(db: Database, doc_id: str) -> float:
 
     doc = db.get(Document, doc_id)
     if doc is None:
+        _warn_missing_source_document(doc_id, context="source authority")
         return 1.0
     authority = getattr(doc.source_authority, "value", doc.source_authority)
     if not isinstance(authority, str):
         authority = "unknown"
     return AUTHORITY_WEIGHTS.get(authority, 1.0)
+
+
+def _warn_missing_source_document(doc_id: str, *, context: str) -> None:
+    logger.warning(
+        "Missing source document %s while deriving %s; using no substitute document.",
+        doc_id,
+        context,
+    )
 
 
 def _weighted_corroboration_count(db: Database, source_ids: set[str]) -> float:
@@ -656,6 +665,7 @@ def _first_source_date_anchor(
 
     doc = db.get(Document, source_document_id)
     if doc is None:
+        _warn_missing_source_document(source_document_id, context="evidential date")
         return None
 
     source_metadata = doc.source_metadata or {}
@@ -688,6 +698,7 @@ def _first_source_place_anchor(
 
     doc = db.get(Document, source_document_id)
     if doc is None:
+        _warn_missing_source_document(source_document_id, context="evidential place")
         return None
 
     for field_name, metadata in (
@@ -719,6 +730,7 @@ def _first_source_recorder_anchor(
 
     doc = db.get(Document, source_document_id)
     if doc is None:
+        _warn_missing_source_document(source_document_id, context="source recorder")
         return None
 
     for index, step in enumerate(doc.provenance_chain or []):

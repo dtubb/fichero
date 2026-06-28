@@ -9,6 +9,7 @@ caller-supplied values always win over the heuristic.
 
 from __future__ import annotations
 
+import logging
 import tempfile
 from pathlib import Path
 
@@ -19,6 +20,7 @@ from fichero.workflows.tools._entity_writer import (
     _detect_audience,
     _detect_quotation_kind,
     _detect_speaker,
+    _source_authority_weight,
     save_claim,
 )
 
@@ -266,6 +268,35 @@ class TestSaveClaimAutoAttribution:
             assert loaded.speaker_name is None
             assert loaded.quotation_kind is None
             assert loaded.audience is None
+
+    def test_missing_source_document_warns_without_substitution(self, caplog):
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Database(Path(tmp) / "test.fichero")
+
+            caplog.set_level(logging.WARNING, logger="fichero.workflows.tools._entity_writer")
+            claim_id = save_claim(
+                db,
+                text="Pedro owned the mine.",
+                source_document_id="missing-doc",
+                predicate_verb="owned",
+            )
+
+            loaded = db.get(KnowledgeClaim, claim_id)
+            assert loaded is not None
+            assert loaded.source_document_id == "missing-doc"
+            assert loaded.corroborating_source_ids == ["missing-doc"]
+            assert "Missing source document missing-doc" in caplog.text
+            assert "using no substitute document" in caplog.text
+
+    def test_missing_source_authority_warns_before_neutral_weight(self, caplog):
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Database(Path(tmp) / "test.fichero")
+
+            caplog.set_level(logging.WARNING, logger="fichero.workflows.tools._entity_writer")
+            assert _source_authority_weight(db, "missing-doc") == 1.0
+
+            assert "Missing source document missing-doc" in caplog.text
+            assert "source authority" in caplog.text
 
 
 class TestSaveClaimRecordedAt:
