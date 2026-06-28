@@ -694,6 +694,7 @@ class KnowledgeEntity(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="allow")
 
     id: str = Field(default_factory=_new_id)
+    parent_id: str | None = None
     canonical_name: str
     entity_type: EntityType = EntityType.other
     aliases: list[str] = Field(default_factory=list)

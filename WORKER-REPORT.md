@@ -1,0 +1,1 @@
+2026-06-28 Codex: P4 shipped on this worktree — `KnowledgeEntity` now supports folder filing via `parent_id` with same-id document mirrors for tree reachability, prefer-raise parent validation, and full unit+contracts passed locally.

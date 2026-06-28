@@ -1615,6 +1615,76 @@ class TestSpatialRoomFold:
             temp_db.get(SpatialRoom, doc.id)
 
 
+class TestFiledEntityFold:
+    def test_save_filed_entity_creates_document_node(self, temp_db):
+        folder = Document(id="folder-a", name="Folder A", doc_type=DocType.folder)
+        temp_db.save(folder)
+        entity = KnowledgeEntity(
+            canonical_name="Louise Livingstone",
+            entity_type=EntityType.person,
+            parent_id=folder.id,
+            aliases=["L. Livingstone"],
+            metadata={"topic": "archives"},
+        )
+
+        temp_db.save(entity)
+
+        mirrored = temp_db.get(Document, entity.id)
+        assert mirrored is not None
+        assert mirrored.parent_id == folder.id
+        assert mirrored.node_kind == "entity"
+        assert mirrored.name == "Louise Livingstone"
+        assert mirrored.attributes["entity_type"] == "person"
+
+    def test_refile_entity_moves_document_node(self, temp_db):
+        first = Document(id="folder-1", name="Folder 1", doc_type=DocType.folder)
+        second = Document(id="folder-2", name="Folder 2", doc_type=DocType.folder)
+        temp_db.save(first)
+        temp_db.save(second)
+        entity = KnowledgeEntity(
+            id="entity-move",
+            canonical_name="Deloro",
+            entity_type=EntityType.location,
+            parent_id=first.id,
+        )
+        temp_db.save(entity)
+
+        entity.parent_id = second.id
+        temp_db.save(entity)
+
+        mirrored = temp_db.get(Document, entity.id)
+        assert mirrored is not None
+        assert mirrored.parent_id == second.id
+
+    def test_unfiled_entity_has_no_document_node(self, temp_db):
+        entity = KnowledgeEntity(canonical_name="Mining", entity_type=EntityType.concept)
+        temp_db.save(entity)
+
+        assert temp_db.get(Document, entity.id) is None
+
+    def test_filed_entity_parent_missing_raises(self, temp_db):
+        entity = KnowledgeEntity(
+            canonical_name="Orphaned",
+            entity_type=EntityType.other,
+            parent_id="missing-folder",
+        )
+
+        with pytest.raises(ValueError, match="Parent not found"):
+            temp_db.save(entity)
+
+    def test_filed_entity_non_folder_parent_raises(self, temp_db):
+        page = Document(id="page-parent", name="Page", doc_type=DocType.page)
+        temp_db.save(page)
+        entity = KnowledgeEntity(
+            canonical_name="Bad Parent",
+            entity_type=EntityType.other,
+            parent_id=page.id,
+        )
+
+        with pytest.raises(ValueError, match="Parent is not a folder"):
+            temp_db.save(entity)
+
+
 class TestResearchContentFold:
     def test_save_and_get_plan_task_step(self, temp_db):
         project = ResearchProject(name="Workspace Root")
