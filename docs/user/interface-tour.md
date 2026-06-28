@@ -41,9 +41,9 @@ The modes are:
 - **Workflows**: build and run the step-by-step processing pipelines.
 - **Activity**: watch workflow runs in progress and review finished ones.
 
-Some builds also expose additional modes such as chains, batches, automation,
-or model comparison. Those surfaces are more in flux than the core library,
-search, chat, workflow, and activity views.
+Some builds also expose additional modes such as Research, Knowledge Graph,
+chains, batches, automation, or model comparison. Those surfaces are more in
+flux than the core library, search, chat, workflow, and activity views.
 
 You can switch sidebar modes with the keyboard using Control plus Command plus a
 number key (for example, Control + Command + 1 for Library).
@@ -111,6 +111,8 @@ The tabs are:
   the document.
 - **Notes**: free-text research notes linked to the document. Use this for your own
   thinking, kept separate from the source text.
+- **Interpretation**: your own reading of the document, kept separate from the
+  extracted facts and quotations.
 - **Entities**: the people, places, organizations, and concepts that Fichero
   extracted from the document.
 - **Knowledge Graph**: the structured claims (who did what, where, and when) and

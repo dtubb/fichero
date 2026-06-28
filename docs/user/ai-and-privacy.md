@@ -13,7 +13,8 @@ that request leaves your machine for that call.
 
 ## Choosing a model
 
-When you configure a workflow, Fichero shows you which model it will use. Providers are configured in **Settings > Providers**.
+When you configure a workflow, Fichero shows you which model it will use.
+Provider and model setup lives in **Settings > AI > Models & Providers**.
 
 ### Local and private options
 
@@ -85,4 +86,4 @@ Tailscale is only the private transport. It does not replace Fichero's API token
 
 See [Tailscale private transport for Fichero](../remote-backend-tailscale.md) for setup details and the exact bind-host safety rules.
 
-This is an advanced workflow. The iPad client is in development; not all features available on macOS are available on iPad yet.
+This is an advanced workflow.
