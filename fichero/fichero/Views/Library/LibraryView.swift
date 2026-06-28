@@ -87,6 +87,8 @@ struct LibraryView: View {
     /// Document pending presentation in the Add-to-Workspace picker (#1494).
     /// Non-nil drives the `.sheet(item:)` below.
     @State var workspacePickerDocument: Document?
+    /// Non-nil presents the bookmark sheet for this document (#2755).
+    @State var bookmarkPickerDocument: Document?
 
     @EnvironmentObject var libraryManager: LibraryManager
     @EnvironmentObject var windowState: WindowState
@@ -313,6 +315,9 @@ struct LibraryView: View {
             .sheet(item: $workspacePickerDocument) { document in
                 WorkspaceItemPicker(document: document)
                     .environment(executionObserver)
+            }
+            .sheet(item: $bookmarkPickerDocument) { document in
+                BookmarksView(document: document, onOpen: { openDocument($0) })
             }
             .focusedSceneValue(
                 \.runWorkflowOnSelection,

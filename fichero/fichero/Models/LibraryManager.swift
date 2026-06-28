@@ -62,6 +62,7 @@ class LibraryManager: ObservableObject {
         let ficheroClient: FicheroClient  // Generated API client
         let documentStore: DocumentStore
         let savedSearchServiceGenerated: SavedSearchServiceGenerated  // Generated saved search service
+        let bookmarkServiceGenerated: BookmarkServiceGenerated  // Generated bookmark service (#2755)
         let searchService: SearchServiceGenerated
         let conversationServiceGenerated: ConversationServiceGenerated  // Generated conversation service
         let chatServiceGenerated: ChatServiceGenerated  // Generated chat service
@@ -251,6 +252,7 @@ class LibraryManager: ObservableObject {
             // Initialize all services with the library's APIClient
             self.documentStore = documentStore ?? DocumentStore(apiClient: self.apiClient)
             self.savedSearchServiceGenerated = SavedSearchServiceGenerated(ficheroClient: self.ficheroClient)
+            self.bookmarkServiceGenerated = BookmarkServiceGenerated(ficheroClient: self.ficheroClient)
             self.searchService = searchService ?? SearchServiceGenerated(ficheroClient: self.ficheroClient)
             self.conversationServiceGenerated = ConversationServiceGenerated(ficheroClient: self.ficheroClient)
             self.chatServiceGenerated = ChatServiceGenerated(ficheroClient: self.ficheroClient)

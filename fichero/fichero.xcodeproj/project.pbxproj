@@ -40,6 +40,7 @@
 		047 /* ChatServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 146 /* ChatServiceGenerated.swift */; };
 		048 /* WorkflowExecutionObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149 /* WorkflowExecutionObserver.swift */; };
 		049 /* DocumentServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 148 /* DocumentServiceGenerated.swift */; };
+		04EC79C508ADFCB840661C01 /* BookmarksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EA02CD36EF110174B8E2206 /* BookmarksView.swift */; };
 		05B00350827A7FD40C53676B /* FocusedCitation.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFF948011DDF9E51FDC3995D /* FocusedCitation.swift */; };
 		079E7B626FA4EE5877BB24B0 /* FicheroApp_iOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29941DE439073B7364322ECF /* FicheroApp_iOS.swift */; };
 		08A233915452687AD06DA9DE /* DocumentInspectorArtifactsTab+Previews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73BB27716102361159F020CD /* DocumentInspectorArtifactsTab+Previews.swift */; };
@@ -494,6 +495,7 @@
 		C994E1D675749951376E8FEA /* FocusedAnnotation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5004AD7FDB9A8BE0953643C5 /* FocusedAnnotation.swift */; };
 		CB8C5EB090F3F95C861D1A2E /* InspectorPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD8FD4EEA01D859C3DB5EADB /* InspectorPresenter.swift */; };
 		CC357CD884EE29BAE8A64F4B /* PlatformPasteboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 772A6A57C4986C2765A174EE /* PlatformPasteboard.swift */; };
+		CC8B35B398A7393E4D687941 /* BookmarkServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3133E93619FB262825F4F55 /* BookmarkServiceGenerated.swift */; };
 		CFC9C70DBE40510A012E46EE /* WorkflowExecutionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 669F81AC0106B415218C419D /* WorkflowExecutionStore.swift */; };
 		D0D540A3F924325236C1E440 /* DocumentInspectorArtifactsTab+Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FDDBCA3101A6E468A3105D2 /* DocumentInspectorArtifactsTab+Shared.swift */; };
 		D2A64087B8C786EE95E842A5 /* LocalModelsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F4F4939BDACA726554E086D /* LocalModelsSettingsView.swift */; };
@@ -764,6 +766,7 @@
 		3D455270E3396946CF4F1939 /* NodeComparisonSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NodeComparisonSheet.swift; sourceTree = "<group>"; };
 		3DC44420C3D37275174DF38F /* Spatial2DCanvasGestures.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Spatial2DCanvasGestures.swift; sourceTree = "<group>"; };
 		3E8C3EFBCE91C295309468AB /* ThinkingModePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThinkingModePicker.swift; sourceTree = "<group>"; };
+		3EA02CD36EF110174B8E2206 /* BookmarksView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BookmarksView.swift; sourceTree = "<group>"; };
 		4119 /* CacheModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheModel.swift; sourceTree = "<group>"; };
 		4121 /* PerformanceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceService.swift; sourceTree = "<group>"; };
 		4123 /* ErrorService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorService.swift; sourceTree = "<group>"; };
@@ -1104,6 +1107,7 @@
 		F1CE0962968DEE7EAB60E454 /* ClaimSummaryCard+Provenance.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ClaimSummaryCard+Provenance.swift"; sourceTree = "<group>"; };
 		F23C597BA2DF9A27BE94F609 /* DocumentInspectorArtifactsTab+KGModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "DocumentInspectorArtifactsTab+KGModels.swift"; sourceTree = "<group>"; };
 		F259EE92E81B78CBE35C9947 /* DocumentInspectorArtifactsTab+CurationHistory.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "DocumentInspectorArtifactsTab+CurationHistory.swift"; sourceTree = "<group>"; };
+		F3133E93619FB262825F4F55 /* BookmarkServiceGenerated.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BookmarkServiceGenerated.swift; sourceTree = "<group>"; };
 		F348C1F78D105C8017210F17 /* SourceOutlineView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SourceOutlineView.swift; sourceTree = "<group>"; };
 		F4189C51250E0B39E05CD87B /* AISettingsView+Tabs.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "AISettingsView+Tabs.swift"; sourceTree = "<group>"; };
 		F42C41E0F485064FDA5EAEB9 /* InterpretationStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InterpretationStore.swift; sourceTree = "<group>"; };
@@ -1629,6 +1633,7 @@
 				28B629229088E72B485569FC /* LibraryChangeStream.swift */,
 				6175F28D959ABB4DB0C2F4CD /* ActionInvokeService.swift */,
 				44352F043915E2760BB0DD30 /* ImportServiceGenerated+Upload.swift */,
+				F3133E93619FB262825F4F55 /* BookmarkServiceGenerated.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -1956,6 +1961,7 @@
 				032AA7721B1C054A6CD89D4C /* AnnotatableTextView.swift */,
 				382D17DD3ECD79ED5E9AAE08 /* BoundingBoxOverlay.swift */,
 				DE5606100E6EBCE163DFA3D7 /* DocumentTextReader.swift */,
+				3EA02CD36EF110174B8E2206 /* BookmarksView.swift */,
 			);
 			path = Library;
 			sourceTree = "<group>";
@@ -2831,6 +2837,8 @@
 				58D2706E3737EB46CA0979B9 /* BoundingBoxOverlay.swift in Sources */,
 				538B4B2C658DECF4B98FA0CD /* PDFRegionGeometry.swift in Sources */,
 				585BEF3C8DF7D89644E44302 /* DocumentTextReader.swift in Sources */,
+				CC8B35B398A7393E4D687941 /* BookmarkServiceGenerated.swift in Sources */,
+				04EC79C508ADFCB840661C01 /* BookmarksView.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {

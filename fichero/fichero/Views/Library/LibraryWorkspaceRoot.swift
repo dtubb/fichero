@@ -61,6 +61,7 @@ struct LibraryWorkspaceRoot: View {
             )
             .environmentObject(windowState)
             .environmentObject(library.savedSearchServiceGenerated)
+            .environmentObject(library.bookmarkServiceGenerated)
             .environmentObject(library.searchService)
             .environmentObject(library.conversationServiceGenerated)
             .environmentObject(library.chatServiceGenerated)
