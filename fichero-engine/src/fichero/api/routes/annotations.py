@@ -42,6 +42,8 @@ class AnnotationCreateRequest(BaseModel):
     char_start: int | None = None
     char_end: int | None = None
     bbox: list[float] | None = None
+    anchor_kind: str | None = None
+    paragraph_index: int | None = None
     text: str | None = None
     rating: int | None = None
     color: str | None = None
@@ -234,6 +236,8 @@ class AnnotationPatchRequest(BaseModel):
     char_start: int | None = None
     char_end: int | None = None
     bbox: list[float] | None = None
+    anchor_kind: str | None = None
+    paragraph_index: int | None = None
     metadata: dict[str, Any] | None = None
 
 
