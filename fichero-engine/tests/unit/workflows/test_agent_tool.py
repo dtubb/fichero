@@ -1,13 +1,7 @@
-"""
-Tests for Agent Tool
-
-Tests the react_agent tool that uses LangGraph's create_react_agent.
-"""
+"""Tests for the react_agent workflow tool."""
 
 import pytest
 from unittest.mock import AsyncMock, Mock, patch
-
-from langchain_core.messages import SystemMessage
 
 from fichero.workflows.tools.agent import react_agent
 from fichero.workflows.types import State
@@ -27,32 +21,22 @@ async def test_react_agent_basic():
     state: State = {}
     llm_config = LLMConfig(provider="openai", model="gpt-4o-mini")
 
-    # Mock the LangGraph agent
-    with patch("fichero.workflows.tools.agent.create_react_agent") as mock_create:
-        with patch("fichero.workflows.tools.agent.get_langchain_model") as mock_get_model:
-            # Setup mocks
-            mock_model = Mock()
-            mock_get_model.return_value = mock_model
+    with patch(
+        "fichero.workflows.tools.agent.chat_workflow",
+        new=AsyncMock(return_value="Hello! How can I help you today?"),
+    ) as mock_chat:
+        result = await react_agent(inputs, state, llm_config)
 
-            mock_agent = Mock()
-            mock_agent.ainvoke = AsyncMock(return_value={
-                "messages": [
-                    {"type": "human", "content": "Say hello"},
-                    {"type": "ai", "content": "Hello! How can I help you today?"},
-                ]
-            })
-            mock_create.return_value = mock_agent
-
-            # Execute
-            result = await react_agent(inputs, state, llm_config)
-
-            # Verify
-            assert "result" in result
-            assert result["result"] == "Hello! How can I help you today?"
-            assert "messages" in result
-            assert len(result["messages"]) == 2
-            assert "tool_calls" in result
-            assert result["tool_calls"] == []
+    assert "result" in result
+    assert result["result"] == "Hello! How can I help you today?"
+    assert "messages" in result
+    assert len(result["messages"]) == 3
+    assert result["messages"][0]["role"] == "system"
+    assert result["messages"][-1]["role"] == "ai"
+    assert "tool_calls" in result
+    assert result["tool_calls"] == []
+    assert mock_chat.await_count == 1
+    assert "tools" not in mock_chat.await_args.kwargs
 
 
 @pytest.mark.asyncio
@@ -64,33 +48,20 @@ async def test_react_agent_composes_integrity_system_prompt():
     }
     state: State = {}
     llm_config = LLMConfig(provider="openai", model="gpt-4o-mini")
-    captured: dict[str, object] = {}
+    async def _capture_messages(messages, *_args, **_kwargs):
+        return "Done."
 
-    with patch("fichero.workflows.tools.agent.create_react_agent") as mock_create:
-        with patch("fichero.workflows.tools.agent.get_langchain_model") as mock_get_model:
-            mock_get_model.return_value = Mock()
+    with patch(
+        "fichero.workflows.tools.agent.chat_workflow",
+        new=AsyncMock(side_effect=_capture_messages),
+    ) as mock_chat:
+        await react_agent(inputs, state, llm_config)
 
-            mock_agent = Mock()
-
-            async def _ainvoke(agent_state):
-                captured["messages"] = agent_state["messages"]
-                return {
-                    "messages": [
-                        {"type": "human", "content": "Inspect the records"},
-                        {"type": "ai", "content": "Done."},
-                    ]
-                }
-
-            mock_agent.ainvoke = _ainvoke
-            mock_create.return_value = mock_agent
-
-            await react_agent(inputs, state, llm_config)
-
-    messages = captured["messages"]
+    messages = mock_chat.await_args.args[0]
     assert isinstance(messages, list)
-    assert isinstance(messages[0], SystemMessage)
-    assert "transparent, local instrument" in messages[0].content
-    assert "Use the archive lookup tool before answering." in messages[0].content
+    assert messages[0]["role"] == "system"
+    assert "transparent, local instrument" in messages[0]["content"]
+    assert "Use the archive lookup tool before answering." in messages[0]["content"]
 
 
 @pytest.mark.asyncio
@@ -105,66 +76,56 @@ async def test_react_agent_with_tools():
     state: State = {}
     llm_config = LLMConfig(provider="openai", model="gpt-4o-mini")
 
-    # Mock the LangGraph agent
-    with patch("fichero.workflows.tools.agent.create_react_agent") as mock_create:
-        with patch("fichero.workflows.tools.agent.get_langchain_model") as mock_get_model:
-            with patch("fichero.workflows.tools.agent.get_tool") as mock_get_tool:
-                with patch("fichero.workflows.registry.TOOL_DEFS") as mock_tool_defs:
-                    # Setup mocks
-                    mock_model = Mock()
-                    mock_get_model.return_value = mock_model
+    with patch("fichero.workflows.tools.agent.get_tool") as mock_get_tool:
+        with patch("fichero.workflows.registry.TOOL_DEFS") as mock_tool_defs:
+            async def multiply_tool(inputs, state, llm_config):
+                a = inputs.get("a", 0)
+                b = inputs.get("b", 0)
+                return {"result": a * b}
 
-                    # Mock tool
-                    async def multiply_tool(inputs, state, llm_config):
-                        a = inputs.get("a", 0)
-                        b = inputs.get("b", 0)
-                        return {"result": a * b}
+            mock_get_tool.return_value = multiply_tool
 
-                    mock_get_tool.return_value = multiply_tool
+            from fichero.workflows.types import ToolDef, PortDef, DataType
 
-                    # Mock tool definition
-                    from fichero.workflows.types import ToolDef, PortDef, DataType
-                    mock_tool_def = ToolDef(
-                        name="multiply",
-                        display_name="Multiply",
-                        description="Multiply two numbers",
-                        category="math",
-                        icon="number",
-                        color="blue",
-                        input_ports=[
-                            PortDef(id="a", name="A", port_type="input", data_type=DataType.NUMBER, required=True),
-                            PortDef(id="b", name="B", port_type="input", data_type=DataType.NUMBER, required=True),
-                        ],
-                        output_ports=[],
-                        config_schema={},
-                    )
-                    mock_tool_defs.get = Mock(return_value=mock_tool_def)
+            mock_tool_def = ToolDef(
+                name="multiply",
+                display_name="Multiply",
+                description="Multiply two numbers",
+                category="math",
+                icon="number",
+                color="blue",
+                input_ports=[
+                    PortDef(id="a", name="A", port_type="input", data_type=DataType.NUMBER, required=True),
+                    PortDef(id="b", name="B", port_type="input", data_type=DataType.NUMBER, required=True),
+                ],
+                output_ports=[],
+                config_schema={},
+            )
+            mock_tool_defs.get = Mock(return_value=mock_tool_def)
 
-                    # Mock agent with tool calls
-                    mock_agent = Mock()
-                    mock_agent.ainvoke = AsyncMock(return_value={
-                        "messages": [
-                            {"type": "human", "content": "Calculate 5 * 3"},
-                            {
-                                "type": "ai",
-                                "content": "",
-                                "tool_calls": [{"name": "multiply", "args": {"a": 5, "b": 3}}]
-                            },
-                            {"type": "tool", "content": "15"},
-                            {"type": "ai", "content": "The result is 15."},
-                        ]
-                    })
-                    mock_create.return_value = mock_agent
+            with patch(
+                "fichero.workflows.tools.agent.chat_workflow",
+                new=AsyncMock(
+                    side_effect=[
+                        {
+                            "content": "",
+                            "tool_calls": [{"id": "call-1", "name": "multiply", "args": {"a": 5, "b": 3}}],
+                        },
+                        {
+                            "content": "The result is 15.",
+                            "tool_calls": [],
+                        },
+                    ]
+                ),
+            ) as mock_chat:
+                result = await react_agent(inputs, state, llm_config)
 
-                    # Execute
-                    result = await react_agent(inputs, state, llm_config)
-
-                    # Verify
-                    assert "result" in result
-                    assert "15" in result["result"]
-                    assert "tool_calls" in result
-                    assert len(result["tool_calls"]) == 1
-                    assert result["tool_calls"][0]["tool"] == "multiply"
+    assert "15" in result["result"]
+    assert len(result["tool_calls"]) == 1
+    assert result["tool_calls"][0]["tool"] == "multiply"
+    assert mock_chat.await_count == 2
+    assert "tools" in mock_chat.await_args_list[0].kwargs
+    assert any(msg["role"] == "tool" for msg in mock_chat.await_args_list[1].args[0])
 
 
 @pytest.mark.asyncio
@@ -199,29 +160,16 @@ async def test_react_agent_with_context():
     state: State = {}
     llm_config = LLMConfig(provider="openai", model="gpt-4o-mini")
 
-    with patch("fichero.workflows.tools.agent.create_react_agent") as mock_create:
-        with patch("fichero.workflows.tools.agent.get_langchain_model") as mock_get_model:
-            # Setup mocks
-            mock_model = Mock()
-            mock_get_model.return_value = mock_model
+    with patch(
+        "fichero.workflows.tools.agent.chat_workflow",
+        new=AsyncMock(return_value="Summary of test data."),
+    ) as mock_chat:
+        result = await react_agent(inputs, state, llm_config)
 
-            mock_agent = Mock()
-            mock_agent.ainvoke = AsyncMock(return_value={
-                "messages": [
-                    {"type": "system", "content": "Context: data: Test data here\nformat: concise"},
-                    {"type": "human", "content": "Summarize the data"},
-                    {"type": "ai", "content": "Summary of test data."},
-                ]
-            })
-            mock_create.return_value = mock_agent
-
-            # Execute
-            result = await react_agent(inputs, state, llm_config)
-
-            # Verify
-            assert "result" in result
-            assert len(result["messages"]) == 3
-            # Context should be included as system message
+    assert "result" in result
+    assert len(result["messages"]) == 4
+    prompt_messages = mock_chat.await_args.args[0]
+    assert prompt_messages[1]["content"] == "Context:\ndata: Test data here\nformat: concise"
 
 
 @pytest.mark.asyncio
@@ -230,47 +178,47 @@ async def test_react_agent_max_iterations():
     # Setup
     inputs = {
         "task": "Count to 100",
-        "tools": [],
+        "tools": ["count"],
         "max_iterations": 3,
     }
     state: State = {}
     llm_config = LLMConfig(provider="openai", model="gpt-4o-mini")
 
-    with patch("fichero.workflows.tools.agent.create_react_agent") as mock_create:
-        with patch("fichero.workflows.tools.agent.get_langchain_model") as mock_get_model:
-            # Setup mocks
-            mock_model = Mock()
-            mock_get_model.return_value = mock_model
+    with patch(
+        "fichero.workflows.tools.agent.chat_workflow",
+        new=AsyncMock(
+            side_effect=[
+                {"content": "Iteration 1", "tool_calls": [{"id": "1", "name": "count", "args": {}}]},
+                {"content": "Iteration 2", "tool_calls": [{"id": "2", "name": "count", "args": {}}]},
+                {"content": "Iteration 3", "tool_calls": [{"id": "3", "name": "count", "args": {}}]},
+            ]
+        ),
+    ):
+        with patch("fichero.workflows.tools.agent.get_tool") as mock_get_tool:
+            with patch("fichero.workflows.registry.TOOL_DEFS") as mock_tool_defs:
+                async def count_tool(inputs, state, llm_config):
+                    return {"ok": True}
 
-            # Mock agent that keeps making tool calls
-            call_count = 0
+                mock_get_tool.return_value = count_tool
+                from fichero.workflows.types import ToolDef
 
-            async def mock_invoke(state):
-                nonlocal call_count
-                call_count += 1
-                if call_count < 5:  # Simulate infinite loop
-                    # Return message with tool calls
-                    mock_msg = Mock()
-                    mock_msg.content = f"Iteration {call_count}"
-                    mock_msg.tool_calls = [{"name": "count", "args": {}}]
-                    return {"messages": [mock_msg]}
-                else:
-                    # Eventually finish
-                    mock_msg = Mock()
-                    mock_msg.content = "Done counting"
-                    mock_msg.tool_calls = []
-                    return {"messages": [mock_msg]}
+                mock_tool_defs.get = Mock(
+                    return_value=ToolDef(
+                        name="count",
+                        display_name="Count",
+                        description="Count",
+                        category="math",
+                        icon="number",
+                        color="blue",
+                        input_ports=[],
+                        output_ports=[],
+                        config_schema={},
+                    )
+                )
+                result = await react_agent(inputs, state, llm_config)
 
-            mock_agent = Mock()
-            mock_agent.ainvoke = mock_invoke
-            mock_create.return_value = mock_agent
-
-            # Execute
-            result = await react_agent(inputs, state, llm_config)
-
-            # Verify - should stop after max_iterations
-            assert "iterations" in result
-            assert result["iterations"] == 3  # Should stop at max
+    assert "iterations" in result
+    assert result["iterations"] == 3
 
 
 @pytest.mark.asyncio
@@ -284,23 +232,15 @@ async def test_react_agent_error_handling():
     state: State = {}
     llm_config = LLMConfig(provider="openai", model="gpt-4o-mini")
 
-    with patch("fichero.workflows.tools.agent.create_react_agent") as mock_create:
-        with patch("fichero.workflows.tools.agent.get_langchain_model") as mock_get_model:
-            # Setup mocks to raise error
-            mock_model = Mock()
-            mock_get_model.return_value = mock_model
+    with patch(
+        "fichero.workflows.tools.agent.chat_workflow",
+        new=AsyncMock(side_effect=Exception("API Error")),
+    ):
+        result = await react_agent(inputs, state, llm_config)
 
-            mock_agent = Mock()
-            mock_agent.ainvoke = AsyncMock(side_effect=Exception("API Error"))
-            mock_create.return_value = mock_agent
-
-            # Execute
-            result = await react_agent(inputs, state, llm_config)
-
-            # Verify
-            assert "error" in result
-            assert "API Error" in result["error"]
-            assert result["result"] == ""
+    assert "error" in result
+    assert "API Error" in result["error"]
+    assert result["result"] == ""
 
 
 @pytest.mark.asyncio
@@ -314,31 +254,16 @@ async def test_react_agent_tool_not_found():
     state: State = {}
     llm_config = LLMConfig(provider="openai", model="gpt-4o-mini")
 
-    with patch("fichero.workflows.tools.agent.create_react_agent") as mock_create:
-        with patch("fichero.workflows.tools.agent.get_langchain_model") as mock_get_model:
-            with patch("fichero.workflows.tools.agent.get_tool") as mock_get_tool:
-                # Setup mocks
-                mock_model = Mock()
-                mock_get_model.return_value = mock_model
+    with patch("fichero.workflows.tools.agent.get_tool", return_value=None):
+        with patch(
+            "fichero.workflows.tools.agent.chat_workflow",
+            new=AsyncMock(return_value="I can help with that."),
+        ) as mock_chat:
+            result = await react_agent(inputs, state, llm_config)
 
-                # Tool not found
-                mock_get_tool.return_value = None
-
-                mock_agent = Mock()
-                mock_agent.ainvoke = AsyncMock(return_value={
-                    "messages": [
-                        {"type": "human", "content": "Test task"},
-                        {"type": "ai", "content": "I can help with that."},
-                    ]
-                })
-                mock_create.return_value = mock_agent
-
-                # Execute - should work but without the tool
-                result = await react_agent(inputs, state, llm_config)
-
-                # Verify - should still work, just without tools
-                assert "result" in result
-                # Agent was created with empty tools list
+    assert "result" in result
+    assert mock_chat.await_count == 1
+    assert "tools" not in mock_chat.await_args.kwargs
 
 
 def test_agent_tool_registration():

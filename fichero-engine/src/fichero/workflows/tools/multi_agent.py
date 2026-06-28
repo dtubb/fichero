@@ -13,14 +13,11 @@ import asyncio
 import logging
 from typing import Any
 
-from langgraph.prebuilt import create_react_agent
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-
 from fichero.workflows.types import State, PortDef, DataType
 from fichero.workflows.registry import register_tool, get_tool
-from fichero.llm import get_langchain_model, LLMConfig
+from fichero.llm import LLMConfig, chat_workflow
 from fichero.prompts import compose_system_prompt
-from fichero.workflows.tools.agent import _wrap_workflow_tool
+from fichero.workflows.tools.agent import _run_agent_loop, _wrap_workflow_tool
 
 logger = logging.getLogger(__name__)
 
@@ -204,27 +201,25 @@ async def supervisor_agent(
             "{workers_description}", workers_desc
         )
 
-        # Get supervisor model
-        model = get_langchain_model(llm_config)
-
         # Create supervisor decision function
         async def get_supervisor_decision(
             task_text: str, context_dict: dict, previous_results: dict
         ) -> dict:
             """Get supervisor's delegation decision."""
             messages = [
-                SystemMessage(
-                    content=compose_system_prompt(
+                {
+                    "role": "system",
+                    "content": compose_system_prompt(
                         role="agent",
                         extra=formatted_prompt,
-                    )
-                ),
+                    ),
+                },
             ]
 
             # Add context if provided
             if context_dict:
                 context_str = "\n".join(f"{k}: {v}" for k, v in context_dict.items())
-                messages.append(SystemMessage(content=f"Context:\n{context_str}"))
+                messages.append({"role": "system", "content": f"Context:\n{context_str}"})
 
             # Add previous results if any
             if previous_results:
@@ -232,26 +227,30 @@ async def supervisor_agent(
                     f"{k}: {v}" for k, v in previous_results.items()
                 )
                 messages.append(
-                    SystemMessage(content=f"Previous worker results:\n{results_str}")
+                    {
+                        "role": "system",
+                        "content": f"Previous worker results:\n{results_str}",
+                    }
                 )
 
             messages.append(
-                HumanMessage(
-                    content=f"Task: {task_text}\n\nDecide which worker(s) should handle this task."
-                )
+                {
+                    "role": "user",
+                    "content": f"Task: {task_text}\n\nDecide which worker(s) should handle this task.",
+                }
             )
 
-            response = await model.ainvoke(messages)
+            response = await chat_workflow(messages, llm_config)
 
             # Parse delegation decision (simplified - in production, use structured output)
             decision = {
-                "reasoning": response.content,
+                "reasoning": response,
                 "workers": [],
                 "done": False,
             }
 
             # Check for worker mentions in response
-            content_lower = response.content.lower()
+            content_lower = response.lower()
             for worker in workers_config:
                 if worker["name"].lower() in content_lower:
                     decision["workers"].append(worker["name"])
@@ -275,39 +274,28 @@ async def supervisor_agent(
             for tool_name in worker_config.get("tools", []):
                 tool_fn = get_tool(tool_name)
                 if tool_fn:
-                    wrapped = _wrap_workflow_tool(tool_name, tool_fn, llm_config)
-                    worker_tools.append(wrapped)
+                    worker_tools.append(
+                        {
+                            "name": tool_name,
+                            "tool_fn": tool_fn,
+                            "wrapped": _wrap_workflow_tool(
+                                tool_name, tool_fn, llm_config
+                            ),
+                        }
+                    )
 
             worker_prompt = worker_config.get(
                 "system_prompt",
                 f"You are the {worker_config['name']} agent. {worker_config.get('description', '')}",
             )
-            worker_system_prompt = compose_system_prompt(
-                role="agent",
-                extra=worker_prompt,
+            response_text, final_messages, _, _ = await _run_agent_loop(
+                task=task_text,
+                context=ctx,
+                system_prompt=worker_prompt,
+                tool_specs=worker_tools,
+                llm_config=llm_config,
+                max_iterations=10,
             )
-
-            worker_model = get_langchain_model(llm_config)
-            worker_graph = create_react_agent(
-                model=worker_model,
-                tools=worker_tools,
-            )
-
-            messages = [SystemMessage(content=worker_system_prompt)]
-            if ctx:
-                ctx_str = "\n".join(f"{k}: {v}" for k, v in ctx.items())
-                messages.append(SystemMessage(content=f"Context:\n{ctx_str}"))
-            messages.append(HumanMessage(content=task_text))
-
-            result = await worker_graph.ainvoke({"messages": messages})
-
-            # Extract final response
-            final_messages = result.get("messages", [])
-            response_text = ""
-            for msg in reversed(final_messages):
-                if isinstance(msg, AIMessage):
-                    response_text = msg.content
-                    break
 
             return {
                 "worker": worker_config["name"],
@@ -434,18 +422,19 @@ async def supervisor_agent(
 
             # Get supervisor to synthesize final result
             final_messages = [
-                SystemMessage(
-                    content=compose_system_prompt(
+                {
+                    "role": "system",
+                    "content": compose_system_prompt(
                         role="agent",
                         extra="Synthesize the worker results into a final comprehensive response.",
-                    )
-                ),
-                HumanMessage(
-                    content=f"Original task: {task}\n\nWorker results:\n{results_summary}"
-                ),
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": f"Original task: {task}\n\nWorker results:\n{results_summary}",
+                },
             ]
-            final_response = await model.ainvoke(final_messages)
-            final_result = final_response.content
+            final_result = await chat_workflow(final_messages, llm_config)
         else:
             final_result = "No workers executed successfully."
 
@@ -612,8 +601,15 @@ async def swarm_agent(
             for tool_name in current_agent.get("tools", []):
                 tool_fn = get_tool(tool_name)
                 if tool_fn:
-                    wrapped = _wrap_workflow_tool(tool_name, tool_fn, llm_config)
-                    agent_tools.append(wrapped)
+                    agent_tools.append(
+                        {
+                            "name": tool_name,
+                            "tool_fn": tool_fn,
+                            "wrapped": _wrap_workflow_tool(
+                                tool_name, tool_fn, llm_config
+                            ),
+                        }
+                    )
 
             # Build system prompt with handoff instructions
             available_handoffs = current_agent.get("can_handoff_to", [])
@@ -636,35 +632,16 @@ Available agents to hand off to:
             system_prompt = current_agent.get(
                 "system_prompt", f"You are the {current_agent['name']} agent."
             )
-            full_prompt = compose_system_prompt(
-                role="agent",
-                extra=f"{system_prompt}\n{handoff_instructions}".strip(),
+            full_prompt = f"{system_prompt}\n{handoff_instructions}".strip()
+
+            response_text, _, _, _ = await _run_agent_loop(
+                task=current_task,
+                context=shared_context,
+                system_prompt=full_prompt,
+                tool_specs=agent_tools,
+                llm_config=llm_config,
+                max_iterations=10,
             )
-
-            # Create and run agent
-            model = get_langchain_model(llm_config)
-            agent_graph = create_react_agent(
-                model=model,
-                tools=agent_tools,
-            )
-
-            # Build messages
-            messages = [SystemMessage(content=full_prompt)]
-            if shared_context:
-                ctx_str = "\n".join(f"{k}: {v}" for k, v in shared_context.items())
-                messages.append(SystemMessage(content=f"Shared context:\n{ctx_str}"))
-            messages.append(HumanMessage(content=current_task))
-
-            # Execute agent
-            result = await agent_graph.ainvoke({"messages": messages})
-
-            # Get response
-            final_messages = result.get("messages", [])
-            response_text = ""
-            for msg in reversed(final_messages):
-                if isinstance(msg, AIMessage):
-                    response_text = msg.content
-                    break
 
             # Record in handoff chain
             handoff_chain.append(
@@ -865,40 +842,27 @@ async def agent_coordinator(
             for tool_name in agent_config.get("tools", []):
                 tool_fn = get_tool(tool_name)
                 if tool_fn:
-                    wrapped = _wrap_workflow_tool(tool_name, tool_fn, llm_config)
-                    agent_tools.append(wrapped)
+                    agent_tools.append(
+                        {
+                            "name": tool_name,
+                            "tool_fn": tool_fn,
+                            "wrapped": _wrap_workflow_tool(
+                                tool_name, tool_fn, llm_config
+                            ),
+                        }
+                    )
 
             system_prompt = agent_config.get(
                 "system_prompt", f"You are agent {agent_config['name']}."
             )
-            effective_system_prompt = compose_system_prompt(
-                role="agent",
-                extra=system_prompt,
+            response_text, _, _, _ = await _run_agent_loop(
+                task=task,
+                context=context,
+                system_prompt=system_prompt,
+                tool_specs=agent_tools,
+                llm_config=llm_config,
+                max_iterations=10,
             )
-
-            model = get_langchain_model(llm_config)
-            agent_graph = create_react_agent(
-                model=model,
-                tools=agent_tools,
-            )
-
-            messages = [SystemMessage(content=effective_system_prompt)]
-            if context:
-                ctx_str = (
-                    "\n".join(f"{k}: {v}" for k, v in context.items())
-                    if isinstance(context, dict)
-                    else str(context)
-                )
-                messages.append(SystemMessage(content=f"Context:\n{ctx_str}"))
-            messages.append(HumanMessage(content=task))
-
-            result = await agent_graph.ainvoke({"messages": messages})
-
-            response_text = ""
-            for msg in reversed(result.get("messages", [])):
-                if isinstance(msg, AIMessage):
-                    response_text = msg.content
-                    break
 
             return {
                 "name": agent_config["name"],
@@ -967,23 +931,21 @@ async def agent_coordinator(
 
         else:  # synthesis
             # Use LLM to synthesize all results
-            model = get_langchain_model(llm_config)
-
             results_str = "\n\n".join(
                 [f"**{r['name']}**:\n{r['result']}" for r in successful_results]
             )
 
             synthesis_messages = [
-                SystemMessage(
-                    content="Synthesize the following agent responses into a single comprehensive answer. Identify common themes and note any disagreements."
-                ),
-                HumanMessage(
-                    content=f"Original task: {task}\n\nAgent responses:\n{results_str}"
-                ),
+                {
+                    "role": "system",
+                    "content": "Synthesize the following agent responses into a single comprehensive answer. Identify common themes and note any disagreements.",
+                },
+                {
+                    "role": "user",
+                    "content": f"Original task: {task}\n\nAgent responses:\n{results_str}",
+                },
             ]
-
-            synthesis_response = await model.ainvoke(synthesis_messages)
-            combined_result = synthesis_response.content
+            combined_result = await chat_workflow(synthesis_messages, llm_config)
 
         return {
             "combined_result": combined_result,

@@ -1976,7 +1976,12 @@ async def _stream_chat_langchain(
 
 def _convert_to_langchain_messages(messages: list[dict]) -> list:
     """Convert OpenAI-format messages to LangChain message objects."""
-    from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+    from langchain_core.messages import (
+        AIMessage,
+        HumanMessage,
+        SystemMessage,
+        ToolMessage,
+    )
 
     result = []
     for msg in messages:
@@ -1986,7 +1991,20 @@ def _convert_to_langchain_messages(messages: list[dict]) -> list:
         if role == "system":
             result.append(SystemMessage(content=content))
         elif role == "assistant":
-            result.append(AIMessage(content=content))
+            result.append(
+                AIMessage(
+                    content=content,
+                    tool_calls=msg.get("tool_calls", []),
+                )
+            )
+        elif role == "tool":
+            result.append(
+                ToolMessage(
+                    content=content,
+                    tool_call_id=msg.get("tool_call_id", ""),
+                    name=msg.get("name"),
+                )
+            )
         else:  # user or default
             result.append(HumanMessage(content=content))
 
@@ -2570,6 +2588,48 @@ async def chat_with_tools(
         "content": response.content,
         "tool_calls": tool_calls,
     }
+
+
+def _prepend_system_message(
+    prompt: str | list[dict[str, Any]],
+    system: str | None,
+) -> str | list[dict[str, Any]]:
+    if system is None:
+        return prompt
+    if isinstance(prompt, str):
+        return [
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt},
+        ]
+    return [{"role": "system", "content": system}, *prompt]
+
+
+async def chat_workflow(
+    prompt: str | list[dict[str, Any]],
+    config: LLMConfig,
+    *,
+    system: str | None = None,
+    schema: type[BaseModel] | None = None,
+    tools: list[Any] | None = None,
+) -> Any:
+    """Single workflow/tool entry point for LangChain-backed LLM calls."""
+    if schema is not None and tools is not None:
+        raise ValueError("Structured output and tools cannot be requested together")
+
+    if schema is not None:
+        if not isinstance(prompt, str):
+            raise ValueError("Structured workflow chat requires a string prompt")
+        return await chat_structured(
+            prompt,
+            schema,
+            config,
+            system=system,
+        )
+
+    effective_prompt = _prepend_system_message(prompt, system)
+    if tools is not None:
+        return await chat_with_tools(effective_prompt, tools, config)
+    return await chat(effective_prompt, config)
 
 
 # =============================================================================

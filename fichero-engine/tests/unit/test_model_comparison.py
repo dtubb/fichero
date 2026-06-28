@@ -146,13 +146,10 @@ class TestModelComparisonEngine:
     @pytest.mark.asyncio
     async def test_compare_single_model(self):
         """Test comparison with single model."""
-        mock_model = MagicMock()
-        mock_response = MagicMock()
-        mock_response.content = "Test response"
-        mock_response.response_metadata = {}
-        mock_model.ainvoke = AsyncMock(return_value=mock_response)
-
-        with patch("fichero.workflows.model_comparison.get_langchain_model", return_value=mock_model):
+        with patch(
+            "fichero.workflows.model_comparison.chat_workflow",
+            new=AsyncMock(return_value="Test response"),
+        ):
             engine = ModelComparisonEngine()
             request = ComparisonRequest(
                 prompt="Hello",
@@ -167,13 +164,10 @@ class TestModelComparisonEngine:
     @pytest.mark.asyncio
     async def test_compare_multiple_models(self):
         """Test comparison with multiple models."""
-        mock_model = MagicMock()
-        mock_response = MagicMock()
-        mock_response.content = "Response"
-        mock_response.response_metadata = {}
-        mock_model.ainvoke = AsyncMock(return_value=mock_response)
-
-        with patch("fichero.workflows.model_comparison.get_langchain_model", return_value=mock_model):
+        with patch(
+            "fichero.workflows.model_comparison.chat_workflow",
+            new=AsyncMock(return_value="Response"),
+        ):
             engine = ModelComparisonEngine()
             request = ComparisonRequest(
                 prompt="Test",
@@ -192,14 +186,14 @@ class TestModelComparisonEngine:
         """Test comparison handles timeout gracefully."""
         import asyncio
 
-        async def slow_response(*args):
+        async def slow_response(*args, **kwargs):
             await asyncio.sleep(10)
-            return MagicMock(content="Slow")
+            return "Slow"
 
-        mock_model = MagicMock()
-        mock_model.ainvoke = slow_response
-
-        with patch("fichero.workflows.model_comparison.get_langchain_model", return_value=mock_model):
+        with patch(
+            "fichero.workflows.model_comparison.chat_workflow",
+            new=AsyncMock(side_effect=slow_response),
+        ):
             engine = ModelComparisonEngine()
             request = ComparisonRequest(
                 prompt="Test",
@@ -214,10 +208,10 @@ class TestModelComparisonEngine:
     @pytest.mark.asyncio
     async def test_compare_handles_error(self):
         """Test comparison handles errors gracefully."""
-        mock_model = MagicMock()
-        mock_model.ainvoke = AsyncMock(side_effect=Exception("API Error"))
-
-        with patch("fichero.workflows.model_comparison.get_langchain_model", return_value=mock_model):
+        with patch(
+            "fichero.workflows.model_comparison.chat_workflow",
+            new=AsyncMock(side_effect=Exception("API Error")),
+        ):
             engine = ModelComparisonEngine()
             request = ComparisonRequest(
                 prompt="Test",
@@ -560,13 +554,10 @@ class TestModelComparisonTool:
     @pytest.mark.asyncio
     async def test_model_comparison_with_prompt(self, llm_config, mock_state):
         """Test tool with prompt and models."""
-        mock_model = MagicMock()
-        mock_response = MagicMock()
-        mock_response.content = "Test response"
-        mock_response.response_metadata = {}
-        mock_model.ainvoke = AsyncMock(return_value=mock_response)
-
-        with patch("fichero.workflows.model_comparison.get_langchain_model", return_value=mock_model):
+        with patch(
+            "fichero.workflows.model_comparison.chat_workflow",
+            new=AsyncMock(return_value="Test response"),
+        ):
             result = await model_comparison(
                 inputs={
                     "prompt": "Hello",
