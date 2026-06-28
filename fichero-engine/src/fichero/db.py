@@ -164,6 +164,12 @@ _SAVED_SEARCH_PROTOTYPE_KEY = "saved_search"
 _SAVED_SEARCH_QUERY_ITEM_ID = "saved-search-query"
 _RESEARCH_WORKSPACE_NODE_KIND = "workspace"
 _RESEARCH_WORKSPACE_PROTOTYPE_KEY = "research_workspace"
+_RESEARCH_PLAN_NODE_KIND = "plan"
+_RESEARCH_PLAN_PROTOTYPE_KEY = "research_plan"
+_RESEARCH_TASK_NODE_KIND = "task"
+_RESEARCH_TASK_PROTOTYPE_KEY = "research_task"
+_RESEARCH_STEP_NODE_KIND = "step"
+_RESEARCH_STEP_PROTOTYPE_KEY = "research_step"
 
 
 def _is_content_marker_only(text: str) -> bool:
@@ -443,6 +449,7 @@ class Database(DatabaseEmbeddingMixin):
         self._backfill_claim_links_to_library_links()
         self._backfill_saved_search_documents()
         self._backfill_research_workspace_documents()
+        self._backfill_research_plan_task_step_documents()
 
     def _connect(self) -> duckdb.DuckDBPyConnection:
         """Open a DuckDB connection for this library path."""
@@ -693,6 +700,12 @@ class Database(DatabaseEmbeddingMixin):
             self._save_saved_search_document(obj)
         if type(obj).__name__ == "ResearchProject":
             self._save_research_workspace_document(obj)
+        if type(obj).__name__ == "ResearchPlan":
+            self._save_research_plan_document(obj)
+        if type(obj).__name__ == "ResearchTask":
+            self._save_research_task_document(obj)
+        if type(obj).__name__ == "ResearchStep":
+            self._save_research_step_document(obj)
 
         # Auto-embed if requested and has content
         # ponytail: bulk callers (importers / reindex loops) that save many
@@ -813,6 +826,19 @@ class Database(DatabaseEmbeddingMixin):
             if (hydrated := self._hydrate_row(ResearchProject, columns, row)) is not None
         ]
 
+    def _legacy_all_research_rows(self, model_cls: type[BaseModel]) -> list[BaseModel]:
+        """Read legacy research rows without node folding."""
+        sql_table = self._sql_table_name(model_cls)
+        self._ensure_table(model_cls)
+        with self._lock:
+            rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
+            columns = [desc[0] for desc in self.conn.description]
+        return [
+            hydrated
+            for row in rows
+            if (hydrated := self._hydrate_row(model_cls, columns, row)) is not None
+        ]
+
     @staticmethod
     def _saved_search_from_document(doc: Any) -> BaseModel:
         """Hydrate a SavedSearch view-model from its folded document node."""
@@ -911,6 +937,173 @@ class Database(DatabaseEmbeddingMixin):
         docs = self.query(Document, prototype_key=_RESEARCH_WORKSPACE_PROTOTYPE_KEY)
         return [self._research_project_from_document(doc) for doc in docs]
 
+    @staticmethod
+    def _research_plan_from_document(doc: Any) -> BaseModel:
+        """Hydrate a ResearchPlan view-model from its document node."""
+        from fichero.research_models import PlanStatus, ResearchPlan
+
+        if doc.prototype_key != _RESEARCH_PLAN_PROTOTYPE_KEY:
+            raise ValueError(f"Document {doc.id} is not a research plan node")
+        if not doc.parent_id:
+            raise ValueError(f"Research plan {doc.id} is missing project parent_id")
+
+        attrs = doc.attributes if isinstance(doc.attributes, dict) else {}
+        description = attrs.get("description", "")
+        if not isinstance(description, str):
+            raise ValueError(f"Research plan {doc.id} has invalid description payload")
+        status_value = attrs.get("status", PlanStatus.draft.value)
+        try:
+            status = PlanStatus(status_value)
+        except Exception as exc:
+            raise ValueError(
+                f"Research plan {doc.id} has invalid status payload: {status_value!r}"
+            ) from exc
+        order_index = attrs.get("order_index", 0)
+        if not isinstance(order_index, int):
+            raise ValueError(f"Research plan {doc.id} has invalid order_index payload")
+        metadata = attrs.get("metadata", {})
+        if not isinstance(metadata, dict):
+            raise ValueError(f"Research plan {doc.id} has invalid metadata payload")
+
+        return ResearchPlan(
+            id=doc.id,
+            project_id=doc.parent_id,
+            name=doc.name,
+            description=description,
+            status=status,
+            order_index=order_index,
+            metadata=metadata,
+            created_at=doc.created_at,
+            updated_at=doc.updated_at,
+        )
+
+    @staticmethod
+    def _research_task_from_document(doc: Any) -> BaseModel:
+        """Hydrate a ResearchTask view-model from its document node."""
+        from fichero.research_models import ResearchTask, TaskStatus
+
+        if doc.prototype_key != _RESEARCH_TASK_PROTOTYPE_KEY:
+            raise ValueError(f"Document {doc.id} is not a research task node")
+        if not doc.parent_id:
+            raise ValueError(f"Research task {doc.id} is missing plan parent_id")
+
+        attrs = doc.attributes if isinstance(doc.attributes, dict) else {}
+        description = attrs.get("description", "")
+        if not isinstance(description, str):
+            raise ValueError(f"Research task {doc.id} has invalid description payload")
+        status_value = attrs.get("status", TaskStatus.pending.value)
+        try:
+            status = TaskStatus(status_value)
+        except Exception as exc:
+            raise ValueError(
+                f"Research task {doc.id} has invalid status payload: {status_value!r}"
+            ) from exc
+        priority = attrs.get("priority", 0)
+        if not isinstance(priority, int):
+            raise ValueError(f"Research task {doc.id} has invalid priority payload")
+        assigned_to = attrs.get("assigned_to")
+        if assigned_to is not None and not isinstance(assigned_to, str):
+            raise ValueError(f"Research task {doc.id} has invalid assigned_to payload")
+        metadata = attrs.get("metadata", {})
+        if not isinstance(metadata, dict):
+            raise ValueError(f"Research task {doc.id} has invalid metadata payload")
+        completed_at = attrs.get("completed_at")
+        if completed_at is not None and not hasattr(completed_at, "isoformat"):
+            # Parsed DB datetimes arrive as datetimes; raw malformed payloads fail loud.
+            raise ValueError(f"Research task {doc.id} has invalid completed_at payload")
+
+        return ResearchTask(
+            id=doc.id,
+            plan_id=doc.parent_id,
+            name=doc.name,
+            description=description,
+            status=status,
+            priority=priority,
+            assigned_to=assigned_to,
+            metadata=metadata,
+            created_at=doc.created_at,
+            updated_at=doc.updated_at,
+            completed_at=completed_at,
+        )
+
+    @staticmethod
+    def _research_step_from_document(doc: Any) -> BaseModel:
+        """Hydrate a ResearchStep view-model from its document node."""
+        from fichero.research_models import ResearchStep, StepStatus, StepTool
+
+        if doc.prototype_key != _RESEARCH_STEP_PROTOTYPE_KEY:
+            raise ValueError(f"Document {doc.id} is not a research step node")
+        if not doc.parent_id:
+            raise ValueError(f"Research step {doc.id} is missing task parent_id")
+
+        attrs = doc.attributes if isinstance(doc.attributes, dict) else {}
+        tool_value = attrs.get("tool")
+        try:
+            tool = StepTool(tool_value)
+        except Exception as exc:
+            raise ValueError(
+                f"Research step {doc.id} has invalid tool payload: {tool_value!r}"
+            ) from exc
+        description = attrs.get("description", "")
+        if not isinstance(description, str):
+            raise ValueError(f"Research step {doc.id} has invalid description payload")
+        config = attrs.get("config", {})
+        if not isinstance(config, dict):
+            raise ValueError(f"Research step {doc.id} has invalid config payload")
+        status_value = attrs.get("status", StepStatus.pending.value)
+        try:
+            status = StepStatus(status_value)
+        except Exception as exc:
+            raise ValueError(
+                f"Research step {doc.id} has invalid status payload: {status_value!r}"
+            ) from exc
+        result = attrs.get("result", {})
+        if not isinstance(result, dict):
+            raise ValueError(f"Research step {doc.id} has invalid result payload")
+        error = attrs.get("error")
+        if error is not None and not isinstance(error, str):
+            raise ValueError(f"Research step {doc.id} has invalid error payload")
+        order_index = attrs.get("order_index", 0)
+        if not isinstance(order_index, int):
+            raise ValueError(f"Research step {doc.id} has invalid order_index payload")
+        completed_at = attrs.get("completed_at")
+        if completed_at is not None and not hasattr(completed_at, "isoformat"):
+            raise ValueError(f"Research step {doc.id} has invalid completed_at payload")
+
+        return ResearchStep(
+            id=doc.id,
+            task_id=doc.parent_id,
+            tool=tool,
+            label=doc.name,
+            description=description,
+            config=config,
+            status=status,
+            result=result,
+            error=error,
+            order_index=order_index,
+            created_at=doc.created_at,
+            updated_at=doc.updated_at,
+            completed_at=completed_at,
+        )
+
+    def _all_folded_research_plans(self) -> list[BaseModel]:
+        from fichero.models import Document
+
+        docs = self.query(Document, prototype_key=_RESEARCH_PLAN_PROTOTYPE_KEY)
+        return [self._research_plan_from_document(doc) for doc in docs]
+
+    def _all_folded_research_tasks(self) -> list[BaseModel]:
+        from fichero.models import Document
+
+        docs = self.query(Document, prototype_key=_RESEARCH_TASK_PROTOTYPE_KEY)
+        return [self._research_task_from_document(doc) for doc in docs]
+
+    def _all_folded_research_steps(self) -> list[BaseModel]:
+        from fichero.models import Document
+
+        docs = self.query(Document, prototype_key=_RESEARCH_STEP_PROTOTYPE_KEY)
+        return [self._research_step_from_document(doc) for doc in docs]
+
     def get(self, model: Type[T], id: str) -> T | None:
         """Get a single object by ID."""
         if model.__name__ == "SavedSearch":
@@ -927,6 +1120,27 @@ class Database(DatabaseEmbeddingMixin):
             if doc is None or doc.prototype_key != _RESEARCH_WORKSPACE_PROTOTYPE_KEY:
                 return None
             return cast(T, self._research_project_from_document(doc))
+        if model.__name__ == "ResearchPlan":
+            from fichero.models import Document
+
+            doc = self.get(Document, id)
+            if doc is None or doc.prototype_key != _RESEARCH_PLAN_PROTOTYPE_KEY:
+                return None
+            return cast(T, self._research_plan_from_document(doc))
+        if model.__name__ == "ResearchTask":
+            from fichero.models import Document
+
+            doc = self.get(Document, id)
+            if doc is None or doc.prototype_key != _RESEARCH_TASK_PROTOTYPE_KEY:
+                return None
+            return cast(T, self._research_task_from_document(doc))
+        if model.__name__ == "ResearchStep":
+            from fichero.models import Document
+
+            doc = self.get(Document, id)
+            if doc is None or doc.prototype_key != _RESEARCH_STEP_PROTOTYPE_KEY:
+                return None
+            return cast(T, self._research_step_from_document(doc))
 
         sql_table = self._sql_table_name(model)
         self._ensure_table(model)
@@ -948,6 +1162,12 @@ class Database(DatabaseEmbeddingMixin):
             return cast(list[T], self._all_folded_saved_searches())
         if model.__name__ == "ResearchProject":
             return cast(list[T], self._all_folded_research_projects())
+        if model.__name__ == "ResearchPlan":
+            return cast(list[T], self._all_folded_research_plans())
+        if model.__name__ == "ResearchTask":
+            return cast(list[T], self._all_folded_research_tasks())
+        if model.__name__ == "ResearchStep":
+            return cast(list[T], self._all_folded_research_steps())
 
         sql_table = self._sql_table_name(model)
         self._ensure_table(model)
@@ -985,6 +1205,27 @@ class Database(DatabaseEmbeddingMixin):
             return cast(list[T], out)
         if model.__name__ == "ResearchProject":
             rows = self._all_folded_research_projects()
+            if not filters:
+                return cast(list[T], rows)
+            out: list[BaseModel] = []
+            for row in rows:
+                matches = True
+                for key, value in filters.items():
+                    if not hasattr(row, key):
+                        raise ValueError(f"Invalid column name: {key}")
+                    if getattr(row, key) != value:
+                        matches = False
+                        break
+                if matches:
+                    out.append(row)
+            return cast(list[T], out)
+        if model.__name__ in {"ResearchPlan", "ResearchTask", "ResearchStep"}:
+            folded_lookup = {
+                "ResearchPlan": self._all_folded_research_plans,
+                "ResearchTask": self._all_folded_research_tasks,
+                "ResearchStep": self._all_folded_research_steps,
+            }
+            rows = folded_lookup[model.__name__]()
             if not filters:
                 return cast(list[T], rows)
             out: list[BaseModel] = []
@@ -1326,6 +1567,8 @@ class Database(DatabaseEmbeddingMixin):
             self._delete_saved_search_document(obj.id)
         if type(obj).__name__ == "ResearchProject":
             self._delete_research_workspace_document(obj.id)
+        if type(obj).__name__ in {"ResearchPlan", "ResearchTask", "ResearchStep"}:
+            self._delete_research_content_document(obj.id)
 
     def _save_saved_search_document(self, saved: BaseModel) -> None:
         """Mirror a SavedSearch row into the document tree as a smart folder."""
@@ -1451,6 +1694,117 @@ class Database(DatabaseEmbeddingMixin):
         doc.updated_at = project.updated_at
         self.save(doc)
 
+    def _save_research_plan_document(self, plan: BaseModel) -> None:
+        """Mirror a ResearchPlan row into the document tree."""
+        from fichero.models import DocType, Document
+
+        existing = self.get(Document, plan.id)
+        metadata = (
+            dict(existing.metadata)
+            if existing is not None and isinstance(existing.metadata, dict)
+            else {}
+        )
+        metadata.update({"node_class": "research_plan", "research_plan_id": plan.id})
+        attributes = (
+            dict(existing.attributes)
+            if existing is not None and isinstance(existing.attributes, dict)
+            else {}
+        )
+        attributes.update({
+            "description": plan.description,
+            "status": plan.status.value,
+            "order_index": plan.order_index,
+            "metadata": plan.metadata,
+        })
+
+        doc = existing or Document(id=plan.id, name=plan.name)
+        doc.parent_id = plan.project_id
+        doc.name = plan.name
+        doc.node_kind = _RESEARCH_PLAN_NODE_KIND
+        doc.doc_type = DocType.folder
+        doc.prototype_key = _RESEARCH_PLAN_PROTOTYPE_KEY
+        doc.metadata = metadata
+        doc.attributes = attributes
+        doc.created_at = plan.created_at
+        doc.updated_at = plan.updated_at
+        self.save(doc)
+
+    def _save_research_task_document(self, task: BaseModel) -> None:
+        """Mirror a ResearchTask row into the document tree."""
+        from fichero.models import DocType, Document
+
+        existing = self.get(Document, task.id)
+        metadata = (
+            dict(existing.metadata)
+            if existing is not None and isinstance(existing.metadata, dict)
+            else {}
+        )
+        metadata.update({"node_class": "research_task", "research_task_id": task.id})
+        attributes = (
+            dict(existing.attributes)
+            if existing is not None and isinstance(existing.attributes, dict)
+            else {}
+        )
+        attributes.update({
+            "description": task.description,
+            "status": task.status.value,
+            "priority": task.priority,
+            "assigned_to": task.assigned_to,
+            "metadata": task.metadata,
+            "completed_at": task.completed_at,
+        })
+
+        doc = existing or Document(id=task.id, name=task.name)
+        doc.parent_id = task.plan_id
+        doc.name = task.name
+        doc.node_kind = _RESEARCH_TASK_NODE_KIND
+        doc.doc_type = DocType.folder
+        doc.prototype_key = _RESEARCH_TASK_PROTOTYPE_KEY
+        doc.metadata = metadata
+        doc.attributes = attributes
+        doc.created_at = task.created_at
+        doc.updated_at = task.updated_at
+        self.save(doc)
+
+    def _save_research_step_document(self, step: BaseModel) -> None:
+        """Mirror a ResearchStep row into the document tree."""
+        from fichero.models import DocType, Document
+
+        existing = self.get(Document, step.id)
+        metadata = (
+            dict(existing.metadata)
+            if existing is not None and isinstance(existing.metadata, dict)
+            else {}
+        )
+        metadata.update({"node_class": "research_step", "research_step_id": step.id})
+        attributes = (
+            dict(existing.attributes)
+            if existing is not None and isinstance(existing.attributes, dict)
+            else {}
+        )
+        attributes.update({
+            "tool": step.tool.value,
+            "description": step.description,
+            "config": step.config,
+            "status": step.status.value,
+            "result": step.result,
+            "error": step.error,
+            "order_index": step.order_index,
+            "completed_at": step.completed_at,
+        })
+
+        doc = existing or Document(id=step.id, name=step.label)
+        doc.parent_id = step.task_id
+        doc.name = step.label
+        doc.node_kind = _RESEARCH_STEP_NODE_KIND
+        doc.doc_type = DocType.file
+        doc.prototype_key = _RESEARCH_STEP_PROTOTYPE_KEY
+        doc.metadata = metadata
+        doc.attributes = attributes
+        doc.created_at = step.created_at
+        doc.updated_at = step.updated_at
+        self.save(doc)
+
     def _delete_research_workspace_document(self, project_id: str) -> None:
         """Remove the mirrored document row for a research workspace, if present."""
         from fichero.models import Document
@@ -1459,6 +1813,15 @@ class Database(DatabaseEmbeddingMixin):
         if doc is None:
             return
         self._execute("DELETE FROM documents WHERE id = $id", {"id": project_id})
+
+    def _delete_research_content_document(self, doc_id: str) -> None:
+        """Remove the mirrored document row for a folded research content node."""
+        from fichero.models import Document
+
+        doc = self.get(Document, doc_id)
+        if doc is None:
+            return
+        self._execute("DELETE FROM documents WHERE id = $id", {"id": doc_id})
 
     def _backfill_research_workspace_documents(self) -> None:
         """Backfill legacy research projects into workspace documents."""
@@ -1480,6 +1843,31 @@ class Database(DatabaseEmbeddingMixin):
 
         for project in self._legacy_all_research_project_rows():
             self._save_research_workspace_document(project)
+
+    def _backfill_research_plan_task_step_documents(self) -> None:
+        """Backfill legacy research plan/task/step rows into document nodes."""
+        if not hasattr(self.conn, "execute"):
+            return
+
+        from fichero.research_models import ResearchPlan, ResearchStep, ResearchTask
+
+        for model_cls, saver in (
+            (ResearchPlan, self._save_research_plan_document),
+            (ResearchTask, self._save_research_task_document),
+            (ResearchStep, self._save_research_step_document),
+        ):
+            table_name = self._table_name(model_cls)
+            table_exists = self.execute_fetchone(
+                """
+                SELECT COUNT(*) FROM information_schema.tables
+                WHERE table_name = $table_name
+                """,
+                {"table_name": table_name},
+            )
+            if not table_exists or int(table_exists[0] or 0) == 0:
+                continue
+            for row in self._legacy_all_research_rows(model_cls):
+                saver(row)
 
     def _backfill_claim_links_to_library_links(self) -> None:
         """Mirror legacy claim-link rows into generic library-link rows."""

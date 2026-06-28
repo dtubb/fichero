@@ -26,7 +26,13 @@ from fichero.models import (
     DocType, FileType, Status, RunStatus, SavedSearch
 )
 from fichero.db import Database
-from fichero.research_models import ResearchProject
+from fichero.research_models import (
+    ResearchPlan,
+    ResearchProject,
+    ResearchStep,
+    ResearchTask,
+    StepTool,
+)
 from fichero.knowledge_models import (
     ClaimRelationType,
     EntityType,
@@ -1286,6 +1292,135 @@ class TestResearchWorkspaceFold:
         assert project.metadata == {"topic": "archives"}
 
 
+class TestResearchContentFold:
+    def test_save_and_get_plan_task_step(self, temp_db):
+        project = ResearchProject(name="Workspace Root")
+        temp_db.save(project)
+        plan = ResearchPlan(
+            project_id=project.id,
+            name="Plan A",
+            description="Outline",
+            order_index=2,
+            metadata={"term": "gold"},
+        )
+        temp_db.save(plan)
+        task = ResearchTask(
+            plan_id=plan.id,
+            name="Task A",
+            description="Search archive",
+            priority=3,
+            assigned_to="agent",
+            metadata={"lane": "research"},
+        )
+        temp_db.save(task)
+        step = ResearchStep(
+            task_id=task.id,
+            tool=StepTool.web_search,
+            label="Search Web",
+            description="Do search",
+            config={"query": "gold archive"},
+            result={"hits": 3},
+            order_index=1,
+        )
+        temp_db.save(step)
+
+        assert temp_db.get(ResearchPlan, plan.id).project_id == project.id
+        assert temp_db.get(ResearchTask, task.id).plan_id == plan.id
+        assert temp_db.get(ResearchStep, step.id).task_id == task.id
+
+        plan_doc = temp_db.get(Document, plan.id)
+        assert plan_doc is not None
+        assert plan_doc.parent_id == project.id
+        assert plan_doc.prototype_key == "research_plan"
+        assert plan_doc.node_kind == "plan"
+
+        task_doc = temp_db.get(Document, task.id)
+        assert task_doc is not None
+        assert task_doc.parent_id == plan.id
+        assert task_doc.prototype_key == "research_task"
+        assert task_doc.node_kind == "task"
+
+        step_doc = temp_db.get(Document, step.id)
+        assert step_doc is not None
+        assert step_doc.parent_id == task.id
+        assert step_doc.prototype_key == "research_step"
+        assert step_doc.node_kind == "step"
+        assert step_doc.attributes["tool"] == "web_search"
+
+    def test_research_content_reads_from_folded_document_nodes(self, temp_db):
+        project_doc = Document(
+            id="ws-root",
+            name="Workspace Root",
+            node_kind="workspace",
+            prototype_key="research_workspace",
+            doc_type=DocType.folder,
+            is_workspace=True,
+            attributes={
+                "description": "",
+                "status": "active",
+                "created_by": "human",
+                "library_destination_folder_id": None,
+                "metadata": {},
+            },
+        )
+        plan_doc = Document(
+            id="plan-doc",
+            parent_id="ws-root",
+            name="Plan Node",
+            node_kind="plan",
+            prototype_key="research_plan",
+            doc_type=DocType.folder,
+            attributes={
+                "description": "node plan",
+                "status": "active",
+                "order_index": 7,
+                "metadata": {"topic": "letters"},
+            },
+        )
+        task_doc = Document(
+            id="task-doc",
+            parent_id="plan-doc",
+            name="Task Node",
+            node_kind="task",
+            prototype_key="research_task",
+            doc_type=DocType.folder,
+            attributes={
+                "description": "node task",
+                "status": "in_progress",
+                "priority": 4,
+                "assigned_to": "agent",
+                "metadata": {"role": "search"},
+                "completed_at": None,
+            },
+        )
+        step_doc = Document(
+            id="step-doc",
+            parent_id="task-doc",
+            name="Step Node",
+            node_kind="step",
+            prototype_key="research_step",
+            doc_type=DocType.file,
+            attributes={
+                "tool": "web_search",
+                "description": "node step",
+                "config": {"query": "letters"},
+                "status": "completed",
+                "result": {"hits": 2},
+                "error": None,
+                "order_index": 1,
+                "completed_at": None,
+            },
+        )
+        temp_db.save(project_doc)
+        temp_db.save(plan_doc)
+        temp_db.save(task_doc)
+        temp_db.save(step_doc)
+
+        assert temp_db.get(ResearchPlan, "plan-doc").project_id == "ws-root"
+        assert temp_db.get(ResearchTask, "task-doc").plan_id == "plan-doc"
+        assert temp_db.get(ResearchStep, "step-doc").task_id == "task-doc"
+
+
 class TestLibraryLinkBackfill:
     def test_reopen_backfills_claim_links_into_library_links(self):
         """Legacy claim-link rows should appear in the generic library-link table."""
@@ -1377,6 +1512,44 @@ class TestLibraryLinkBackfill:
                 assert mirrored.prototype_key == "research_workspace"
                 assert mirrored.is_workspace is True
                 assert mirrored.attributes["description"] == ""
+            finally:
+                reopened.close()
+        finally:
+            shutil.rmtree(tmpdir)
+
+    def test_reopen_backfills_research_content_documents(self):
+        """Existing research plan/task/step rows are backfilled into document nodes on open."""
+        tmpdir = tempfile.mkdtemp()
+        db_path = Path(tmpdir) / "test.duckdb"
+        db = Database(db_path)
+        try:
+            project = ResearchProject(name="Workspace Root")
+            db.save(project)
+            plan = ResearchPlan(project_id=project.id, name="Plan Backfill")
+            task = ResearchTask(plan_id=plan.id, name="Task Backfill")
+            step = ResearchStep(
+                task_id=task.id,
+                tool=StepTool.web_search,
+                label="Step Backfill",
+            )
+            db.save(plan)
+            db.save(task)
+            db.save(step)
+            db._execute(
+                "DELETE FROM documents WHERE id IN ($plan_id, $task_id, $step_id)",
+                {
+                    "plan_id": plan.id,
+                    "task_id": task.id,
+                    "step_id": step.id,
+                },
+            )
+            db.close()
+
+            reopened = Database(db_path)
+            try:
+                assert reopened.get(Document, plan.id).prototype_key == "research_plan"
+                assert reopened.get(Document, task.id).prototype_key == "research_task"
+                assert reopened.get(Document, step.id).prototype_key == "research_step"
             finally:
                 reopened.close()
         finally:
