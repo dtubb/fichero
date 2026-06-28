@@ -280,25 +280,29 @@ enum EngineHarness {
 
     // MARK: - Repo root
 
-    /// FICHERO_REPO_ROOT if set, else walk up from the test bundle looking for
-    /// a dir that contains both `.venv` and `fichero-engine`.
+    /// FICHERO_REPO_ROOT if set, else walk up looking for a dir that contains both
+    /// `.venv` and `fichero-engine`. Discovery is checkout-directory-name agnostic:
+    /// it probes up from the loaded test bundle AND from this source file's
+    /// compile-time path (`#filePath`), which always lives inside the repo, so the
+    /// harness works regardless of what the checkout directory is named.
     static func repoRoot() -> URL? {
         let fileManager = FileManager.default
         if let env = ProcessInfo.processInfo.environment["FICHERO_REPO_ROOT"], !env.isEmpty {
             let url = URL(fileURLWithPath: env)
             if looksLikeRepo(url) { return url }
         }
-        var dir = Bundle(for: _HarnessAnchor.self).bundleURL
-        for _ in 0..<12 {
-            if looksLikeRepo(dir) { return dir }
-            // The repo is `fichero-0.0.2/` and the Xcode project lives in
-            // `fichero-0.0.2/fichero/`, so also probe the parent each step.
-            let inner = dir.appendingPathComponent("fichero-0.0.2")
-            if looksLikeRepo(inner) { return inner }
-            dir = dir.deletingLastPathComponent()
+        // `#filePath` = <repo>/fichero/fichero-tests/EngineHarness.swift, so walking up
+        // from it reaches the repo even when the test bundle lives in DerivedData.
+        for start in [Bundle(for: _HarnessAnchor.self).bundleURL,
+                      URL(fileURLWithPath: #filePath)] {
+            var dir = start
+            for _ in 0..<12 {
+                if looksLikeRepo(dir) { return dir }
+                dir = dir.deletingLastPathComponent()
+            }
         }
-        // Last resort for local dev machines.
-        let fallback = fileManager.homeDirectoryForCurrentUser.appendingPathComponent("code/fichero-0.0.2")
+        // Last resort for local dev machines (repo was renamed fichero-0.0.2 → fichero).
+        let fallback = fileManager.homeDirectoryForCurrentUser.appendingPathComponent("code/fichero")
         return looksLikeRepo(fallback) ? fallback : nil
     }
 
