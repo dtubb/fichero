@@ -1,1 +1,0 @@
-2026-06-28: #1825 centralized workflow/tool LangChain calls through `chat_workflow`/`chat`/`chat_structured`, updated agent + multi-agent + model-comparison call sites, and passed targeted `ruff` plus 55 unit tests.
