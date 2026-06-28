@@ -633,10 +633,48 @@ async def _watch_parent_process() -> None:
             return
 
 
+def _auth_enabled() -> bool:
+    """True when the shared-secret middleware is active (auth not disabled)."""
+    return os.environ.get("FICHERO_DISABLE_AUTH", "").lower() not in {
+        "1",
+        "true",
+        "yes",
+    }
+
+
+# Bootstrap secret, populated at server startup (NOT at import — #2388). Used by
+# _with_server_proof to HMAC the health nonce so a client can verify it reached
+# the genuine engine during pairing. Stays None on a bare import (e.g. the CLI).
+_api_token: str | None = None
+
+
+def _ensure_bootstrap_token_written() -> None:
+    """Write/rotate the bootstrap auth token at server startup.
+
+    The middleware resolves the token lazily so bare imports stay DB-free
+    (the CLI's `fichero --help`, #2388). The server, however, must persist the
+    token file before it serves, or the Swift app would wait forever for a
+    `.api-key` that is never written. Called from the lifespan, which only runs
+    when the engine truly serves — never on a plain import. Also caches the
+    secret in the module global so the health server-proof keeps working.
+    """
+    global _api_token
+    if not _auth_enabled():
+        return
+    from fichero.api.auth import initialize_token
+
+    _api_token = initialize_token()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
     import asyncio
+
+    # Write/rotate the bootstrap auth token NOW that the server is actually
+    # starting, so the Swift app can read ~/Library/Application Support/Fichero/
+    # .api-key before its first authenticated request (#2388).
+    _ensure_bootstrap_token_written()
 
     # Startup: optionally validate model sync
     if os.environ.get("FICHERO_VALIDATE_MODELS") == "1":
@@ -744,15 +782,18 @@ app = FastAPI(
 )
 
 
-# Local-host shared-secret authentication (#742). Initialized once at module
-# import; the token is also written to ~/Library/Application Support/Fichero/.api-key
-# (mode 0600) so the Swift app can read it. Tests can disable by setting
+# Local-host shared-secret authentication (#742). The middleware is attached at
+# import, but the token is resolved LAZILY on the first authenticated request —
+# the token file (~/Library/Application Support/Fichero/.api-key, mode 0600) is
+# written/rotated then, not at import. This keeps a second process that imports
+# this module only for its route response models (the CLI — `fichero --help`)
+# from calling initialize_token() and fighting the running engine for the
+# app.duckdb lock (#2388). Tests can disable auth entirely with
 # FICHERO_DISABLE_AUTH=1 before importing this module.
 if os.environ.get("FICHERO_DISABLE_AUTH", "").lower() not in {"1", "true", "yes"}:
     from fichero.api.auth import attach_auth_middleware, initialize_token
 
-    _api_token = initialize_token()
-    attach_auth_middleware(app, _api_token)
+    attach_auth_middleware(app, token_provider=initialize_token)
 
 
 # CORS configuration

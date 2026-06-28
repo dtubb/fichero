@@ -145,6 +145,15 @@ KNOWN_VIOLATIONS: dict[str, str] = dict.fromkeys(
         "fichero/fichero/Views/Settings/BackendSettingsView.swift",
         "fichero/fichero/Views/Settings/LocalModelsSettingsView.swift",
         "fichero/fichero/Views/Settings/SettingsView.swift",
+        # Settings sections exposed by the QR-pairing / sharing work — staged
+        # @EnvironmentObject → @Environment(@Observable) migration (#2378).
+        "fichero/fichero/Views/Settings/AISettingsView+Tabs.swift",
+        "fichero/fichero/Views/Settings/AuditHistoryView.swift",
+        "fichero/fichero/Views/Settings/BackupsView.swift",
+        "fichero/fichero/Views/Settings/CaptureSettingsView.swift",
+        "fichero/fichero/Views/Settings/EngineSettingsView.swift",
+        "fichero/fichero/Views/Settings/ShareSettingsView.swift",
+        "fichero/fichero/Views/Settings/UsersSettingsView.swift",
         "fichero/fichero/Views/Sheets/DocumentPickerSheet.swift",
         "fichero/fichero/Views/Sheets/WorkflowPickerSheet.swift",
         "fichero/fichero/Views/Sidebar/Components/SidebarObservers.swift",
