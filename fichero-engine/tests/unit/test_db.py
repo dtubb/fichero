@@ -26,6 +26,7 @@ from fichero.models import (
     DocType, FileType, Status, RunStatus, SavedSearch
 )
 from fichero.db import Database
+from fichero.research_models import ResearchProject
 from fichero.knowledge_models import (
     ClaimRelationType,
     EntityType,
@@ -1231,6 +1232,60 @@ class TestSavedSearchCRUD:
         assert saved.filters == {"tag": "letters"}
 
 
+class TestResearchWorkspaceFold:
+    def test_save_and_get_research_project(self, temp_db):
+        project = ResearchProject(
+            name="Archive Hunt",
+            description="Primary-source workspace",
+            created_by="agent",
+            library_destination_folder_id="folder-42",
+            metadata={"topic": "mining"},
+        )
+        temp_db.save(project)
+
+        retrieved = temp_db.get(ResearchProject, project.id)
+        assert retrieved is not None
+        assert retrieved.name == "Archive Hunt"
+        assert retrieved.library_destination_folder_id == "folder-42"
+        assert retrieved.metadata == {"topic": "mining"}
+
+        mirrored = temp_db.get(Document, project.id)
+        assert mirrored is not None
+        assert mirrored.node_kind == "workspace"
+        assert mirrored.prototype_key == "research_workspace"
+        assert mirrored.is_workspace is True
+        assert mirrored.attributes["description"] == "Primary-source workspace"
+        assert mirrored.attributes["status"] == "active"
+        assert mirrored.attributes["created_by"] == "agent"
+        assert mirrored.attributes["library_destination_folder_id"] == "folder-42"
+        assert mirrored.attributes["metadata"] == {"topic": "mining"}
+
+    def test_research_project_reads_from_folded_document_node(self, temp_db):
+        doc = Document(
+            id="ws-doc-1",
+            name="Workspace Node",
+            node_kind="workspace",
+            prototype_key="research_workspace",
+            doc_type=DocType.folder,
+            is_workspace=True,
+            attributes={
+                "description": "Node-owned workspace",
+                "status": "paused",
+                "created_by": "human",
+                "library_destination_folder_id": "dest-1",
+                "metadata": {"topic": "archives"},
+            },
+        )
+        temp_db.save(doc)
+
+        project = temp_db.get(ResearchProject, doc.id)
+        assert project is not None
+        assert project.description == "Node-owned workspace"
+        assert project.status.value == "paused"
+        assert project.library_destination_folder_id == "dest-1"
+        assert project.metadata == {"topic": "archives"}
+
+
 class TestLibraryLinkBackfill:
     def test_reopen_backfills_claim_links_into_library_links(self):
         """Legacy claim-link rows should appear in the generic library-link table."""
@@ -1297,6 +1352,31 @@ class TestLibraryLinkBackfill:
                 assert mirrored.prototype_key == "saved_search"
                 assert mirrored.attributes["query"] == "reopen me"
                 assert mirrored.metadata["saved_search_query"] == "reopen me"
+            finally:
+                reopened.close()
+        finally:
+            shutil.rmtree(tmpdir)
+
+    def test_reopen_backfills_research_workspace_document(self):
+        """Existing research-project rows are backfilled into workspace nodes on open."""
+        tmpdir = tempfile.mkdtemp()
+        db_path = Path(tmpdir) / "test.duckdb"
+        db = Database(db_path)
+        try:
+            project = ResearchProject(name="Reopen Workspace")
+            db.save(project)
+            db._execute("DELETE FROM documents WHERE id = $id", {"id": project.id})
+            assert db.get(Document, project.id) is None
+            db.close()
+
+            reopened = Database(db_path)
+            try:
+                mirrored = reopened.get(Document, project.id)
+                assert mirrored is not None
+                assert mirrored.node_kind == "workspace"
+                assert mirrored.prototype_key == "research_workspace"
+                assert mirrored.is_workspace is True
+                assert mirrored.attributes["description"] == ""
             finally:
                 reopened.close()
         finally:

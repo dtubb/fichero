@@ -6,7 +6,9 @@ plans contain tasks, tasks contain steps. Routes live at /api/research/...
 """
 
 import pytest
+from fastapi import HTTPException
 
+from fichero.models import DocType, Document
 from fichero.research_models import (
     ResearchPlan,
     ResearchProject,
@@ -255,6 +257,11 @@ class TestProjectFolderDestinationHandlers:
         assert project.library_destination_folder_id == "folder-abc"
         # Re-read from the DB to confirm it was actually written.
         assert db.get(ResearchProject, project.id).library_destination_folder_id == "folder-abc"
+        workspace = db.get(Document, project.id)
+        assert workspace is not None
+        assert workspace.prototype_key == "research_workspace"
+        assert workspace.is_workspace is True
+        assert workspace.attributes["library_destination_folder_id"] == "folder-abc"
 
     async def test_update_changes_library_destination_folder_id(self, db):
         from fichero.api.routes.research_crud import (
@@ -270,6 +277,79 @@ class TestProjectFolderDestinationHandlers:
         )
         assert updated.library_destination_folder_id == "folder-xyz"
         assert db.get(ResearchProject, "p-folder").library_destination_folder_id == "folder-xyz"
+
+    async def test_list_projects_reads_folded_workspace_nodes(self, db):
+        from fichero.api.routes.research_crud import list_projects
+
+        db.save(
+            Document(
+                id="ws-proj-1",
+                name="Workspace Alpha",
+                doc_type=DocType.folder,
+                node_kind="workspace",
+                prototype_key="research_workspace",
+                is_workspace=True,
+                attributes={
+                    "description": "alpha",
+                    "status": "active",
+                    "created_by": "human",
+                    "library_destination_folder_id": "folder-a",
+                    "metadata": {"topic": "letters"},
+                },
+            )
+        )
+
+        result = await list_projects(db=db)
+        assert result.count >= 1
+        project = next(item for item in result.items if item.id == "ws-proj-1")
+        assert project.name == "Workspace Alpha"
+        assert project.library_destination_folder_id == "folder-a"
+        assert project.metadata == {"topic": "letters"}
+
+    def test_workspace_items_route_works_for_research_project_node(self, client, db):
+        workspace = Document(
+            id="ws-proj-2",
+            name="Workspace Beta",
+            doc_type=DocType.folder,
+            node_kind="workspace",
+            prototype_key="research_workspace",
+            is_workspace=True,
+        )
+        target = Document(id="doc-target", name="Source Doc", doc_type=DocType.file)
+        db.save(workspace)
+        db.save(target)
+
+        patched = client.patch(
+            f"/api/documents/{workspace.id}/workspace",
+            json={
+                "add": [
+                    {
+                        "id": "item-1",
+                        "target_type": "document",
+                        "target_id": target.id,
+                        "role": "source",
+                    }
+                ]
+            },
+        )
+        assert patched.status_code == 200
+
+        fetched = client.get(f"/api/documents/{workspace.id}/workspace/items")
+        assert fetched.status_code == 200
+        payload = fetched.json()
+        assert payload["count"] == 1
+        assert payload["items"][0]["target"]["id"] == target.id
+
+    async def test_missing_folded_workspace_raises_not_found(self, db):
+        from fichero.api.routes.research_crud import get_project
+
+        db.save(_make_project("legacy-only", "Legacy Only"))
+        db._execute("DELETE FROM documents WHERE id = $id", {"id": "legacy-only"})
+
+        with pytest.raises(HTTPException) as exc:
+            await get_project("legacy-only", db=db)
+
+        assert exc.value.status_code == 404
 
 
 class TestListProjectTasksHandler:
