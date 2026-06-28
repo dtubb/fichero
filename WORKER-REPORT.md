@@ -19,3 +19,10 @@ Commit c04b58f2, authored Claude.
 - No code written. Held per Daniel's call. Findings posted to issue #1846.
 
 Net: 1 of 3 shipped (#2639); #2034 + #1846 held on the unresolved §7.10 chat-placement decision. Awaiting Daniel.
+
+### #1891 — ComparisonDetailView URLSession + custom transcript modes — DONE
+Commit ea330da2, authored Claude.
+- URLSession: ALREADY migrated. ComparisonDetailView+Actions.loadComparison() uses the generated client (client.api.getComparison…). Swept chat + ModelComparison dirs: NO raw URLSession/URLRequest/dataTask. Mandate met.
+- Transcript modes: the icon/table/map oddity was in ChatMessagesList (NOT ComparisonDetailView, which has no view-mode switch). ChatMessagesList now always renders native bubbles. Removed unused MessageCard + MessageMapCard structs + the dead displayMode param through ChatView → ChatMessagesList + 3 call sites (preview, ResearchChatPane, ContentView+Navigation).
+- ChatMapGrid.swift now unreferenced (map mode only) — left in place (no safe pbxproj remove tool; never hand-edit pbxproj); flagged for a follow-up file-removal sweep on issue #1891.
+- swiftlint clean. Isolated build: 0 swiftc errors, all changed files compiled + linked; only failure = environmental engine-embed phase. NOT pushed.
