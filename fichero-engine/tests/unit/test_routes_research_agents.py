@@ -334,6 +334,62 @@ class TestProjectFolderDestinationHandlers:
         assert project.created_by == "human"
         assert project.metadata == {"topic": "letters"}
 
+    async def test_create_list_get_workspace_round_trip_and_contained_items(self, client, db):
+        from fichero.api.routes.research_crud import (
+            ProjectCreateRequest,
+            create_project,
+            get_project,
+            list_projects,
+        )
+
+        project = await create_project(
+            ProjectCreateRequest(
+                name="Workspace Fold",
+                description="fold me",
+                library_destination_folder_id="folder-fold",
+                metadata={"topic": "maps"},
+            ),
+            db=db,
+        )
+
+        workspace = db.get(Document, project.id)
+        assert workspace is not None
+        assert workspace.node_kind == "workspace"
+        assert workspace.prototype_key == "research_workspace"
+        assert workspace.is_workspace is True
+
+        listed = await list_projects(db=db)
+        listed_project = next(item for item in listed.items if item.id == project.id)
+        assert listed_project.name == "Workspace Fold"
+        assert listed_project.library_destination_folder_id == "folder-fold"
+
+        fetched = await get_project(project.id, db=db)
+        assert fetched.description == "fold me"
+        assert fetched.metadata == {"topic": "maps"}
+
+        target = Document(id="workspace-item-target", name="Source Doc", doc_type=DocType.file)
+        db.save(target)
+
+        patched = client.patch(
+            f"/api/documents/{project.id}/workspace",
+            json={
+                "add": [
+                    {
+                        "id": "item-workspace-1",
+                        "target_type": "document",
+                        "target_id": target.id,
+                        "role": "source",
+                    }
+                ]
+            },
+        )
+        assert patched.status_code == 200
+
+        items = client.get(f"/api/documents/{project.id}/workspace/items")
+        assert items.status_code == 200
+        assert items.json()["count"] == 1
+        assert items.json()["items"][0]["target"]["id"] == target.id
+
     def test_workspace_items_route_works_for_research_project_node(self, client, db):
         workspace = Document(
             id="ws-proj-2",
@@ -595,3 +651,25 @@ class TestResearchContentHandlers:
             await get_plan("legacy-plan", db=db)
 
         assert exc.value.status_code == 404
+
+    async def test_folded_plan_missing_parent_raises(self, db):
+        from fichero.api.routes.research_crud import get_plan
+
+        db.save(
+            Document(
+                id="plan-missing-parent",
+                name="Broken Plan",
+                doc_type=DocType.folder,
+                node_kind="plan",
+                prototype_key="research_plan",
+                attributes={
+                    "description": "",
+                    "status": "draft",
+                    "order_index": 0,
+                    "metadata": {},
+                },
+            )
+        )
+
+        with pytest.raises(ValueError, match="missing project parent_id"):
+            await get_plan("plan-missing-parent", db=db)

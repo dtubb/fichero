@@ -775,11 +775,73 @@ class TestSaveSearch:
         assert mirrored.metadata["node_class"] == "smart_folder"
         assert mirrored.metadata["saved_search_query"] == "my search"
 
+    def test_saved_search_create_list_and_folded_retrieve_round_trip(self, client, db):
+        created = client.post(
+            "/api/search/saved",
+            json={
+                "query": "letters from cartagena",
+                "filters": {"tag": "letters"},
+                "search_type": "hybrid",
+                "sort_by": "relevance",
+                "sort_direction": "desc",
+                "folder_path": "/research",
+                "sort_order": 4,
+            },
+        )
+
+        assert created.status_code == 200
+        saved_id = created.json()["id"]
+
+        listing = client.get("/api/search/saved")
+        assert listing.status_code == 200
+        listed = next(item for item in listing.json()["items"] if item["id"] == saved_id)
+        assert listed["query"] == "letters from cartagena"
+        assert listed["filters"] == {"tag": "letters"}
+        assert listed["folder_path"] == "/research"
+        assert listed["sort_order"] == 4
+
+        folded = db.get(SavedSearch, saved_id)
+        assert folded is not None
+        assert folded.query == "letters from cartagena"
+        assert folded.filters == {"tag": "letters"}
+        assert folded.folder_path == "/research"
+
+        mirrored = db.get(Document, saved_id)
+        assert mirrored is not None
+        assert mirrored.node_kind == "saved_search"
+        assert mirrored.prototype_key == "saved_search"
+        assert mirrored.curated_items[0]["kind"] == "saved_search_query"
+        assert mirrored.curated_items[0]["query"] == "letters from cartagena"
+
     def test_saved_search_appears_in_list(self, client):
         client.post("/api/search/saved", json={"query": "find this"})
         r = client.get("/api/search/saved")
         queries = [s["query"] for s in r.json()["items"]]
         assert "find this" in queries
+
+    def test_list_saved_searches_raises_for_malformed_folded_query_payload(self, db):
+        db.save(
+            Document(
+                id="saved-bad-query",
+                name="Broken Saved Search",
+                doc_type=DocType.folder,
+                node_kind="saved_search",
+                prototype_key="saved_search",
+                attributes={
+                    "query": "",
+                    "filters": None,
+                    "is_smart_search": True,
+                    "search_type": "hybrid",
+                    "sort_by": "relevance",
+                    "sort_direction": "desc",
+                    "folder_path": "/",
+                },
+                curated_items=[],
+            )
+        )
+
+        with pytest.raises(ValueError, match="missing its query payload"):
+            asyncio.run(search_routes.list_saved_searches(db=db))
 
 
 # ---------------------------------------------------------------------------
