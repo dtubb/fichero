@@ -5,6 +5,11 @@ name: fichero-release-prep
 
 # /fichero-release-prep
 
+> **⚠️ STALE — verify before use.** The build steps below reference the old `fichero-api`
+> directory + `.briefcase-venv` + `scripts/build-release-dmg.sh`. The canonical release lane is
+> now `scripts/release-all.sh`, documented in `docs/release/release-lane.md`. Treat the commands
+> here as historical until reconciled (tracked in `PLAN-GOVERNANCE.md` §5).
+
 Prepare everything for a release. Does NOT publish — produces artifacts for Daniel to review.
 
 ## Steps
