@@ -14,6 +14,7 @@ import logging
 import time
 import uuid
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from typing import Any
 from datetime import datetime
 
@@ -24,7 +25,7 @@ from pydantic import BaseModel, Field
 from fichero.llm import (
     AppleUnavailableError,
     LLMConfig,
-    get_langchain_model,
+    chat_workflow,
     resolve_model_alias,
     vision,
 )
@@ -516,16 +517,12 @@ class ModelComparisonEngine:
             temperature=spec.temperature,
             max_tokens=spec.max_tokens,
         )
-        model = get_langchain_model(config)
-
-        from langchain_core.messages import HumanMessage, SystemMessage
-
-        messages = []
-        if system_prompt:
-            messages.append(SystemMessage(content=system_prompt))
-        messages.append(HumanMessage(content=prompt))
-
-        return await asyncio.wait_for(model.ainvoke(messages), timeout=timeout_seconds)
+        messages = [{"role": "user", "content": prompt}]
+        content = await asyncio.wait_for(
+            chat_workflow(messages, config, system=system_prompt),
+            timeout=timeout_seconds,
+        )
+        return SimpleNamespace(content=content, response_metadata={})
 
     def get_history(self, limit: int = 10) -> list[dict]:
         """Get recent comparison history."""

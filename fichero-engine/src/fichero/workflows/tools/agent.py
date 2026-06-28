@@ -7,15 +7,13 @@ Uses LangGraph's create_react_agent for tool-calling agents.
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
-from langgraph.prebuilt import create_react_agent
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-
 from fichero.workflows.types import State, PortDef, DataType
 from fichero.workflows.registry import register_tool, get_tool
-from fichero.llm import get_langchain_model, LLMConfig
+from fichero.llm import LLMConfig, chat_workflow
 from fichero.prompts import compose_system_prompt
 
 logger = logging.getLogger(__name__)
@@ -23,6 +21,121 @@ logger = logging.getLogger(__name__)
 _DEFAULT_AGENT_SYSTEM_PROMPT = (
     "You are a helpful AI assistant. Use the available tools to accomplish the task."
 )
+
+
+def _build_agent_messages(
+    task: str,
+    context: Any,
+    system_prompt: str,
+) -> list[dict[str, Any]]:
+    effective_system_prompt = compose_system_prompt(
+        role="agent",
+        extra=system_prompt,
+    )
+    messages: list[dict[str, Any]] = [
+        {"role": "system", "content": effective_system_prompt}
+    ]
+
+    if context:
+        if isinstance(context, str):
+            messages.append({"role": "system", "content": f"Context: {context}"})
+        elif isinstance(context, dict):
+            context_str = "\n".join(f"{k}: {v}" for k, v in context.items())
+            messages.append({"role": "system", "content": f"Context:\n{context_str}"})
+
+    messages.append({"role": "user", "content": task})
+    return messages
+
+
+def _tool_result_to_message_content(result: Any) -> str:
+    if isinstance(result, str):
+        return result
+    return json.dumps(result, default=str)
+
+
+def _serialize_agent_messages(
+    messages: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    role_map = {
+        "assistant": "ai",
+        "user": "human",
+    }
+    serialized = []
+    for msg in messages:
+        serialized_msg = {
+            "role": role_map.get(msg.get("role", ""), msg.get("role", "")),
+            "content": msg.get("content", ""),
+        }
+        if "tool_calls" in msg:
+            serialized_msg["tool_calls"] = msg["tool_calls"]
+        if msg.get("role") == "tool" and "name" in msg:
+            serialized_msg["name"] = msg["name"]
+        serialized.append(serialized_msg)
+    return serialized
+
+
+async def _run_agent_loop(
+    task: str,
+    context: Any,
+    system_prompt: str,
+    tool_specs: list[dict[str, Any]],
+    llm_config: LLMConfig,
+    max_iterations: int,
+) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]], int]:
+    messages = _build_agent_messages(task, context, system_prompt)
+    tool_history: list[dict[str, Any]] = []
+    tool_map = {tool["name"]: tool for tool in tool_specs}
+    iteration = 0
+
+    if not tool_specs:
+        response_text = await chat_workflow(messages, llm_config)
+        messages.append({"role": "assistant", "content": response_text})
+        return response_text, messages, tool_history, iteration
+
+    while iteration < max_iterations:
+        response = await chat_workflow(
+            messages,
+            llm_config,
+            tools=[tool["wrapped"] for tool in tool_specs],
+        )
+        tool_calls = response.get("tool_calls", [])
+        messages.append(
+            {
+                "role": "assistant",
+                "content": response.get("content", ""),
+                "tool_calls": tool_calls,
+            }
+        )
+
+        if not tool_calls:
+            return response.get("content", ""), messages, tool_history, iteration
+
+        for tool_call in tool_calls:
+            tool_name = tool_call.get("name")
+            tool_spec = tool_map.get(tool_name)
+            if tool_spec is None:
+                raise ValueError(f"Tool not found: {tool_name}")
+
+            tool_args = tool_call.get("args", {}) or {}
+            tool_result = await tool_spec["tool_fn"](
+                inputs=tool_args,
+                state={},
+                llm_config=llm_config,
+            )
+            tool_history.append({"tool": tool_name, "args": tool_args})
+            messages.append(
+                {
+                    "role": "tool",
+                    "name": tool_name,
+                    "tool_call_id": tool_call.get("id", tool_name),
+                    "content": _tool_result_to_message_content(tool_result),
+                }
+            )
+
+        iteration += 1
+
+    logger.warning(f"Agent reached max iterations ({max_iterations})")
+    return "", messages, tool_history, iteration
 
 
 @register_tool(
@@ -141,116 +254,33 @@ async def react_agent(
         for tool_name in tool_names:
             tool_fn = get_tool(tool_name)
             if tool_fn:
-                # Wrap workflow tool for LangChain compatibility
-                wrapped_tool = _wrap_workflow_tool(tool_name, tool_fn, llm_config)
-                agent_tools.append(wrapped_tool)
+                agent_tools.append(
+                    {
+                        "name": tool_name,
+                        "tool_fn": tool_fn,
+                        "wrapped": _wrap_workflow_tool(
+                            tool_name, tool_fn, llm_config
+                        ),
+                    }
+                )
             else:
                 logger.warning(f"Tool not found: {tool_name}")
 
         if not agent_tools:
             logger.warning("No tools available for agent, proceeding without tools")
 
-        # Get LangChain model
-        model = get_langchain_model(llm_config)
-
-        # Build message list
-        effective_system_prompt = compose_system_prompt(
-            role="agent",
-            extra=system_prompt,
+        result_text, final_messages, tool_calls, iteration = await _run_agent_loop(
+            task=task,
+            context=context,
+            system_prompt=system_prompt,
+            tool_specs=agent_tools,
+            llm_config=llm_config,
+            max_iterations=max_iterations,
         )
-        messages = [SystemMessage(content=effective_system_prompt)]
-
-        # Add context if provided
-        if context:
-            if isinstance(context, str):
-                messages.append(SystemMessage(content=f"Context: {context}"))
-            elif isinstance(context, dict):
-                context_str = "\n".join(f"{k}: {v}" for k, v in context.items())
-                messages.append(SystemMessage(content=f"Context:\n{context_str}"))
-
-        # Add user task
-        messages.append(HumanMessage(content=task))
-        agent_graph = create_react_agent(
-            model=model,
-            tools=agent_tools if agent_tools else [],
-        )
-
-        # Execute agent with iteration limit
-        agent_state = {"messages": messages}
-
-        # Track iterations to prevent infinite loops
-        iteration = 0
-        while iteration < max_iterations:
-            result = await agent_graph.ainvoke(agent_state)
-
-            # Check if agent is done (no more tool calls)
-            last_message = result["messages"][-1] if result["messages"] else None
-            if (
-                not last_message
-                or not hasattr(last_message, "tool_calls")
-                or not last_message.tool_calls
-            ):
-                # Agent is done
-                agent_state = result
-                break
-
-            # Continue with updated state
-            agent_state = result
-            iteration += 1
-
-        if iteration >= max_iterations:
-            logger.warning(f"Agent reached max iterations ({max_iterations})")
-
-        # Extract result from messages
-        final_messages = agent_state.get("messages", [])
-
-        # Get the last AI message as the result
-        result_text = ""
-        for msg in reversed(final_messages):
-            if isinstance(msg, AIMessage):
-                result_text = msg.content
-                break
-            elif isinstance(msg, dict) and msg.get("type") == "ai":
-                result_text = msg.get("content", "")
-                break
-
-        # Extract tool call history
-        tool_calls = []
-        for msg in final_messages:
-            if isinstance(msg, AIMessage) and hasattr(msg, "tool_calls"):
-                for tc in msg.tool_calls:
-                    tool_calls.append(
-                        {
-                            "tool": tc.get("name", "unknown"),
-                            "args": tc.get("args", {}),
-                        }
-                    )
-            elif isinstance(msg, dict) and "tool_calls" in msg:
-                for tc in msg["tool_calls"]:
-                    tool_calls.append(
-                        {
-                            "tool": tc.get("name", "unknown"),
-                            "args": tc.get("args", {}),
-                        }
-                    )
-
-        # Convert messages to serializable format
-        serializable_messages = []
-        for msg in final_messages:
-            if isinstance(msg, (HumanMessage, AIMessage, SystemMessage)):
-                serializable_messages.append(
-                    {
-                        "role": msg.type,
-                        "content": msg.content,
-                    }
-                )
-            elif isinstance(msg, dict):
-                # Already in dict format (from tests or other sources)
-                serializable_messages.append(msg)
 
         return {
             "result": result_text,
-            "messages": serializable_messages,
+            "messages": _serialize_agent_messages(final_messages),
             "tool_calls": tool_calls,
             "iterations": iteration,
         }
