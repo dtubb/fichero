@@ -21,6 +21,7 @@ isn't 127.0.0.1.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime, timedelta
 import logging
 import os
@@ -265,12 +266,38 @@ def action_context(
     )
 
 
-def attach_auth_middleware(app: FastAPI, token: str) -> None:
+def attach_auth_middleware(
+    app: FastAPI,
+    token: str | None = None,
+    *,
+    token_provider: Callable[[], str] | None = None,
+) -> None:
     """Add a middleware that requires `Authorization: Bearer <token>` on
     every request not in `_UNAUTHENTICATED_PATHS`, and that the request
     came from 127.0.0.1.
+
+    Pass a literal ``token`` (tests, embedded launch) to pin the expected
+    secret eagerly. Pass ``token_provider`` instead to resolve the secret
+    lazily on the FIRST authenticated request — this keeps merely importing
+    the app (e.g. the CLI pulling route response models out of
+    ``fichero.api``) from running ``initialize_token()`` and grabbing the
+    ``app.duckdb`` lock at import time (#2388).
     """
-    expected_header = f"Bearer {token}"
+    if token is None and token_provider is None:
+        raise ValueError("attach_auth_middleware needs token or token_provider")
+
+    # ponytail: single-slot cache; initialize_token() is idempotent so a
+    # concurrent first-request race just resolves the same file twice.
+    resolved: dict[str, str] = {}
+    if token is not None:
+        resolved["header"] = f"Bearer {token}"
+
+    def _expected_header() -> str:
+        header = resolved.get("header")
+        if header is None:
+            header = f"Bearer {token_provider()}"  # type: ignore[misc]
+            resolved["header"] = header
+        return header
 
     @app.middleware("http")
     async def _enforce_auth(request: Request, call_next):
@@ -280,6 +307,7 @@ def attach_auth_middleware(app: FastAPI, token: str) -> None:
         ):
             return await call_next(request)
 
+        expected_header = _expected_header()
         is_loopback = _is_loopback_request(request)
         if not _use_multiuser_auth():
             provided = request.headers.get("authorization", "")
