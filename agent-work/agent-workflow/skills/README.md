@@ -48,6 +48,7 @@ orchestration, and [`status`](status.md) for a quick project pulse check.
 
 | Skill | Role |
 |-------|------|
+| [bug](bug.md) | File a structured bug report |
 | [choose-next](choose-next.md) | Pick the next batch from the roadmap |
 | [dispatch-worker](dispatch-worker.md) | Spawn an isolated coding worker in a worktree |
 | [session-end](session-end.md) | Wrap up and leave durable state/memory |
