@@ -108,7 +108,11 @@ class ChatServiceGenerated: ObservableObject {
                 )
             },
             conversationId: response.conversationId,
-            modelUsed: response.modelUsed
+            modelUsed: response.modelUsed,
+            documentCount: response.documentCount ?? 0,
+            contextCount: response.contextCount ?? 0,
+            kgClaimsUsed: response.kgClaimsUsed ?? 0,
+            kgEntitiesUsed: response.kgEntitiesUsed ?? 0
         )
     }
 

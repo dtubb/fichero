@@ -64,6 +64,14 @@ struct MessageBubble: View {
                         .foregroundColor(message.role == .user ? .white : .primary)
                         .cornerRadius(16)
 
+                    // Retrieval step (search-as-a-tool) made visible.
+                    if let retrieval = message.retrieval, retrieval.didSearch {
+                        Label(retrieval.summary, systemImage: "magnifyingglass")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .padding(.leading, 12)
+                    }
+
                     // Sources (for assistant messages)
                     if let sources = message.sources, !sources.isEmpty {
                         sourcesView(sources)

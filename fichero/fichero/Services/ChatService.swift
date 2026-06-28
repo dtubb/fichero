@@ -8,12 +8,22 @@ struct ChatAPIResponse: Codable {
     let sources: [DocumentSourceAPI]
     let conversationId: String
     let modelUsed: String?
+    // Retrieval telemetry — the search-as-a-tool step the chat backend always
+    // runs (GraphAwareRetriever). Surfaced so the UI can show what was searched.
+    let documentCount: Int
+    let contextCount: Int
+    let kgClaimsUsed: Int
+    let kgEntitiesUsed: Int
 
     enum CodingKeys: String, CodingKey {
         case message
         case sources
         case conversationId = "conversation_id"
         case modelUsed = "model_used"
+        case documentCount = "document_count"
+        case contextCount = "context_count"
+        case kgClaimsUsed = "kg_claims_used"
+        case kgEntitiesUsed = "kg_entities_used"
     }
 }
 
