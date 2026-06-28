@@ -98,6 +98,7 @@ struct EditorView: View {
         case container
         case storageDisplay(documentId: String)
         case imageEditor(documentId: String)
+        case text(content: String)
         case quickLook
 
         var usesImageEditingPreviewForViewing: Bool {
@@ -131,6 +132,12 @@ struct EditorView: View {
                 return .imageEditor(documentId: doc.id)
             }
             return .storageDisplay(documentId: doc.id)
+        }
+        // Text-bearing documents (txt / docx / md) render as annotatable text
+        // so highlight + note work on the body (#2458 slice 3). Falls back to
+        // Quick Look when there's no extracted text.
+        if let content = doc.pageContent, !content.isEmpty {
+            return .text(content: content)
         }
         return .quickLook
     }
@@ -183,6 +190,8 @@ struct EditorView: View {
                 onNavigate: onNavigateToDocument,
                 selectedDocumentIDs: selectedDocumentIDs
             )
+        case .text(let content):
+            DocumentTextReader(document: doc, content: content)
         case .quickLook:
             QuickLookDownloadView(document: doc)
         }
