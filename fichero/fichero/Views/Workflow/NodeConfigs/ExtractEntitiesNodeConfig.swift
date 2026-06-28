@@ -111,8 +111,13 @@ struct ExtractEntitiesNodeConfig: View {
 
     private func loadRegistryTypes() async {
         guard let svc = LibraryManager.shared.globalLibrary?.entityService else { return }
-        guard let types = try? await svc.listLibraryEntityTypes() else { return }
-        await MainActor.run { customTypes = types }
+        do {
+            let types = try await svc.listLibraryEntityTypes()
+            await MainActor.run { customTypes = types; addError = nil }
+        } catch {
+            // Surface the failure instead of rendering empty chips (#1672).
+            await MainActor.run { addError = "Couldn't load entity types: \(error.localizedDescription)" }
+        }
     }
 
     private func addCustomType() async {
@@ -142,12 +147,18 @@ struct ExtractEntitiesNodeConfig: View {
 
     private func removeCustomType(_ key: String) async {
         guard let svc = LibraryManager.shared.globalLibrary?.entityService else { return }
-        try? await svc.removeLibraryEntityType(key: key)
-        await MainActor.run {
-            customTypes.removeAll { $0.entityTypeKey == key }
-            entityTypes.remove(key)
-            writeConfig(key: "entity_types",
-                        value: .array(entityTypes.sorted().map { .string($0) }))
+        do {
+            try await svc.removeLibraryEntityType(key: key)
+            await MainActor.run {
+                // Only drop the chip once the backend confirms the delete (#1672).
+                customTypes.removeAll { $0.entityTypeKey == key }
+                entityTypes.remove(key)
+                writeConfig(key: "entity_types",
+                            value: .array(entityTypes.sorted().map { .string($0) }))
+                addError = nil
+            }
+        } catch {
+            await MainActor.run { addError = "Couldn't remove \(key): \(error.localizedDescription)" }
         }
     }
 

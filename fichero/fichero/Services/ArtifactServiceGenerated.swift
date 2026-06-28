@@ -1430,15 +1430,23 @@ final class EntityServiceGenerated: ObservableObject {
     // MARK: - Library entity-type registry (#874 / #1372)
 
     func listLibraryEntityTypes() async throws -> [LibraryEntityTypeItem] {
-        guard let lib = client.currentLibraryPath, !lib.isEmpty else { return [] }
+        guard let lib = client.currentLibraryPath, !lib.isEmpty else {
+            throw ServiceError.validationError("No library selected")
+        }
         let encoded = lib.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? lib
         guard let url = URL(string: "\(client.baseURL)/api/libraries/\(encoded)/entity-types") else {
-            return []
+            throw ServiceError.validationError("Invalid entity-types URL")
         }
         var req = URLRequest(url: url)
         req.addEngineAuth(libraryPath: lib)
-        let (data, _) = try await RemoteCertificatePinning.configuredSession().data(for: req)
-        return (try? JSONDecoder().decode(EntityTypeListPayload.self, from: data))?.items ?? []
+        // Non-silent: surface non-2xx and decode failures instead of returning []
+        // (which silently drops custom ontology types and changes extractor
+        // behaviour without telling the user — #1672).
+        let (data, response) = try await RemoteCertificatePinning.configuredSession().data(for: req)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw ServiceError.unexpectedResponse(http.statusCode)
+        }
+        return try JSONDecoder().decode(EntityTypeListPayload.self, from: data).items
     }
 
     @discardableResult
@@ -1461,16 +1469,23 @@ final class EntityServiceGenerated: ObservableObject {
     }
 
     func removeLibraryEntityType(key: String) async throws {
-        guard let lib = client.currentLibraryPath, !lib.isEmpty else { return }
+        guard let lib = client.currentLibraryPath, !lib.isEmpty else {
+            throw ServiceError.validationError("No library selected")
+        }
         let encoded = lib.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? lib
         let keyEncoded = key.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? key
         guard let url = URL(string: "\(client.baseURL)/api/libraries/\(encoded)/entity-types/\(keyEncoded)") else {
-            return
+            throw ServiceError.validationError("Invalid entity-type URL")
         }
         var req = URLRequest(url: url)
         req.httpMethod = "DELETE"
         req.addEngineAuth(libraryPath: lib)
-        _ = try? await RemoteCertificatePinning.configuredSession().data(for: req)
+        // Non-silent: a rejected delete must throw so the UI keeps the chip
+        // instead of appearing to succeed (#1672).
+        let (_, response) = try await RemoteCertificatePinning.configuredSession().data(for: req)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw ServiceError.unexpectedResponse(http.statusCode)
+        }
     }
 
     // MARK: - Document workflow provenance (#1434)
