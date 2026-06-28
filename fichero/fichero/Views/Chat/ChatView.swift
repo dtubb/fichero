@@ -5,7 +5,6 @@ struct ChatView: View {
     let conversation: Conversation?
     @Binding var selectedDocuments: Set<String>
     var onConversationUpdated: (() -> Void)?
-    let displayMode: ViewDisplayMode  // Universal view mode from toolbar
 
     @State var currentConversation: Conversation
     // Tracks the backend-confirmed conversation ID. Nil until the first
@@ -29,13 +28,11 @@ struct ChatView: View {
     init(
         conversation: Conversation?,
         selectedDocuments: Binding<Set<String>>,
-        onConversationUpdated: (() -> Void)? = nil,
-        displayMode: ViewDisplayMode = .icon
+        onConversationUpdated: (() -> Void)? = nil
     ) {
         self.conversation = conversation
         self._selectedDocuments = selectedDocuments
         self.onConversationUpdated = onConversationUpdated
-        self.displayMode = displayMode
         self._currentConversation = State(initialValue: conversation ?? Conversation())
     }
 
@@ -56,7 +53,6 @@ struct ChatView: View {
             // Messages list
             ChatMessagesList(
                 conversation: currentConversation,
-                displayMode: displayMode,
                 isLoading: isLoading,
                 errorMessage: errorMessage,
                 inputText: $inputText
@@ -95,8 +91,7 @@ struct ChatView: View {
 #Preview {
     ChatView(
         conversation: nil,
-        selectedDocuments: .constant([]),
-        displayMode: .icon
+        selectedDocuments: .constant([])
     )
     .frame(width: 600, height: 500)
 }
