@@ -486,7 +486,7 @@ struct SSEEventDataDecodingTests {
 
     @Test("Decode minimal SSE event data")
     func decodeMinimalEvent() throws {
-        let json = """
+        let json = Data("""
         {
             "event": "start",
             "thread_id": "t-1",
@@ -509,7 +509,7 @@ struct SSEEventDataDecodingTests {
 
     @Test("Decode SSE event with all parallel fields")
     func decodeParallelFields() throws {
-        let json = """
+        let json = Data("""
         {
             "event": "file_start",
             "thread_id": "t-1",
@@ -534,7 +534,7 @@ struct SSEEventDataDecodingTests {
 
     @Test("Decode SSE event with nested data values")
     func decodeNestedData() throws {
-        let json = """
+        let json = Data("""
         {
             "event": "node_end",
             "thread_id": "t-1",
@@ -559,7 +559,7 @@ struct ExecuteAcceptedResponseTests {
 
     @Test("Decode execute accepted response")
     func decodeResponse() throws {
-        let json = """
+        let json = Data("""
         {
             "thread_id": "t-abc",
             "workflow_id": "w-123",
