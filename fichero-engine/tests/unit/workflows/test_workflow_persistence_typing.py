@@ -231,3 +231,34 @@ def test_all_shipped_presets_load_and_validate():
             # every edge has the canonical endpoint key after normalization
             assert "source" in edge
             assert "source_port" in edge
+
+
+def test_all_shipped_presets_compile_to_runtime_graph():
+    """Every bundled preset must also survive the runtime EdgeDef graph build.
+
+    The seed/storage boundary above validates edges, but the executable path
+    (`to_workflow_def` -> `EdgeDef`) is where a route-style edge with a missing
+    `target`/`route_map` blows up with
+    'EdgeDef.target is required for non-route_map edges' (#2720). Sweep every
+    preset through that path so a malformed route edge can never ship again.
+    """
+    from fichero.workflows.runtime import to_workflow_def
+
+    files = _preset_files()
+    assert files, "expected packaged preset JSON to exist"
+    for path in files:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not data.get("name"):
+            continue
+        wf = Workflow(
+            name=data["name"],
+            nodes=data.get("nodes", []),
+            edges=data.get("edges", []),
+            format=data.get("format", "nodes"),
+        )
+        wd = to_workflow_def(wf)
+        for edge in wd.edges:
+            # A route edge declares route_map; a plain edge must name a target.
+            assert edge.route_map is not None or edge.target, (
+                f"{path.name}: edge {edge.id!r} has neither target nor route_map"
+            )
