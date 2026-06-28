@@ -71,6 +71,15 @@ def test_preview_named_file_still_scanned(tmp_path):
     assert "QuickLookPreviewViews.swift" in found
 
 
+def test_appkit_audit_doc_covers_every_known_importer():
+    audit = (_SCRIPT.parents[1] / _mod.RULE_DOC).read_text(encoding="utf-8")
+    missing = [
+        path for path in _mod.KNOWN_VIOLATIONS
+        if f"`{path}`" not in audit
+    ]
+    assert not missing
+
+
 # ---------------------------------------------------------------------------
 # Real repo gate
 # ---------------------------------------------------------------------------
