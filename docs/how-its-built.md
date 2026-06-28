@@ -4,7 +4,9 @@ Fichero is built openly with the help of AI coding agents. This page documents
 how that actually works, as the concrete process
 the project follows. It is grounded in the workflow files that live in the
 repository: `AGENTS.md` (the canonical agent constitution + operational manual),
-`CLAUDE.md`, `MEMORY.md`, and the skills under `agents/skills/` and `agent-work/agent-workflow/`.
+`CLAUDE.md`, `MEMORY.md`, `docs/ROADMAP.md`, and the skills under
+`agents/skills/`, with older background notes still preserved under
+`agent-work/agent-workflow/`.
 
 ## Why document this
 
@@ -62,10 +64,11 @@ collides:
 
 A few hard rules keep the machine usable while agents run:
 
-- **Workers write tests but do not run the heavy suites.** The fichero-engine `pytest`
-  suite loads the embedding model and several gigabytes of dependencies; the **manager**
-  runs the fichero-engine test suite serially, one lane at a time. Workers may run cheap
-  guards (`swiftlint`, stdlib `scripts/check_*` checks).
+- **Workers verify their own diff; integrators own the full gate.** Backend
+  workers run focused `ruff` and `pytest` on the area they changed. Swift
+  workers run `swiftlint` on the touched surface. The manager/integrator owns
+  the full Xcode build, the full `FicheroTests` run, and the cross-stack
+  verification gate before merge.
 - Build, lint, and test logs are pushed **off** the lead agent's context: the
   lead reads a pass/fail verdict, not the full log. This is the "the lead reads a
   verdict, not a log" rule from `agent-work/agent-workflow/parallel-execution.md`.
@@ -85,15 +88,9 @@ reference note for that pattern):
 ## The QA review gate
 
 Before a sweep of changes is committed, the project runs a **review gate** rather
-than self-certifying. A small review team inspects the staged diff through
-distinct, non-overlapping lenses, for example:
-
-- **backend-reviewer**: correctness and the recurring bug patterns recorded in
-  `MEMORY.md`;
-- **silent-failure-hunter**: catch blocks, fallbacks, and "success" returned on
-  systemic failure;
-- **code-reviewer**: style, conventions, and the standards in
-  `docs/architecture/`.
+than self-certifying. The current workflow files point the manager at distinct
+review passes before merge, including a code-review pass, a simplification
+pass, and then the build/test integration gate.
 
 The lead **synthesizes** the findings, applies fixes, and only then commits. In
 autonomous (unattended) runs, this review team *is* the gate, since there is no

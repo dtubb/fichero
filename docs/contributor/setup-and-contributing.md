@@ -33,14 +33,14 @@ swiftlint lint fichero/fichero/
 
 ## Backend First
 
-The frontend depends on the local engine being available. For normal app development:
+The frontend depends on the engine being available. For the default macOS development path:
 
 1. start the backend on port `8765`
    via `bash fichero-engine/scripts/start_backend.sh`
 2. open `fichero/fichero.xcodeproj`
 3. build and run the macOS app against that engine
 
-This is the default mental model for the project. The app is not designed as a separate disconnected client.
+This is the default mental model for embedded-macOS development. iOS/iPadOS do not start a local engine; they connect to an explicit remote host configured through `EngineConfig`.
 
 ## OpenAPI Sync Discipline
 
@@ -107,7 +107,7 @@ All work goes through a PR. Create it and merge it yourself once the build gate 
 
 Backend schema changes go into `db.py` `_ensure_table` via the Pydantic model field. Fresh databases pick up new columns automatically.
 
-Do not add `ALTER TABLE ADD COLUMN` migration functions for columns that are already declared in the model. Only structural historical changes (table renames, data backfills) belong in `db_migrations.py`. This rule applies for the entire 0.0.x series and will change when 0.1.0 ships to real users.
+Do not add `ALTER TABLE ADD COLUMN` migration functions for columns that are already declared in the model when you are only targeting fresh databases. Persisted libraries still need idempotent `ALTER` and backfill work in `db_migrations.py` when a new column or structural change must land against real existing data.
 
 ### Feature tier
 
@@ -115,16 +115,16 @@ Do not add `ALTER TABLE ADD COLUMN` migration functions for columns that are alr
 
 ## Expanding the Action Registry
 
-All backend mutations go through `registry.invoke`. Do not write to DuckDB directly from a route handler.
+Not every backend mutation goes through `registry.invoke` today. The action registry is the audited path for the domains that have been folded into it, especially the shared mutation path used by chat tools, App Intents, and undo/audit flows. Many route handlers still persist directly with `db.save(...)`.
 
-Route handlers should look like this:
+When you are extending an action-backed mutation surface, route handlers should look like this:
 
 ```python
 ctx = ActionContext(actor=request.state.user, origin_window=request.headers.get("X-Window-Id"))
-result = await registry.invoke("document.tag", {"doc_id": doc_id, "tag": tag}, ctx)
+result = registry.invoke(db, "document.tag", {"doc_id": doc_id, "tag": tag}, ctx)
 return result
 ```
 
-If you are adding a new mutation, define it as a named action in the registry. This gives it an automatic audit record, change-event emission, and an undo path at no extra cost.
+If you are adding a new shared, audited mutation, define it as a named action in the registry instead of inventing a parallel path. That gives it an audit record, change-event emission, and an undo hook where the action domain supports inversion.
 
 See [action-registry.md](./action-registry.md) for the full guide: how to define an action, implement invert, write the required tests, and use the generic invocation endpoint.
