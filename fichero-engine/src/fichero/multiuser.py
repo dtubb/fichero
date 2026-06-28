@@ -24,12 +24,21 @@ def _truthy(value: str | None) -> bool:
 def multiuser_enabled(env: Mapping[str, str] | None = None) -> bool:
     """Return True when per-user auth/pairing should be active.
 
-    Multi-user auth is enabled by default. Explicit `FICHERO_MULTIUSER=0` is
-    the off switch for development/tests that need the legacy single-user
-    behavior. Remote-facing deployment signals also force it on:
+    Multi-user auth is **opt-in**. A fresh single-user local launch has no
+    account/ACL rows, so turning the per-user authorizer on by default denied
+    the Mac owner read/write to its own library (401 on app-wide routes, 403
+    on library routes — #2721). Single-user local therefore defaults OFF and
+    keeps the loopback + bootstrap-token trust model (#742); the ACL layer
+    only matters once real accounts exist.
+
+    It turns ON when explicitly requested (`FICHERO_MULTIUSER=1`) or when a
+    genuinely network-facing deployment signal is present:
     - Bonjour advertisement
     - a configured public/private reachable URL for clients
     - a deliberate non-loopback bind host
+
+    Explicit `FICHERO_MULTIUSER=0` forces it off even under those signals
+    (development/tests).
     """
 
     source = env if env is not None else os.environ
@@ -48,4 +57,4 @@ def multiuser_enabled(env: Mapping[str, str] | None = None) -> bool:
         if host and not _is_loopback_host(host):
             return True
 
-    return True
+    return False
