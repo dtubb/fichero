@@ -390,3 +390,91 @@ async def test_scheduled_snapshots_enforce_retention(
         assert len(snapshot_dirs) == 2
     finally:
         await storage_snapshots.stop_periodic_snapshot_task(task)
+
+
+# ---------------------------------------------------------------------------
+# Silent-fallback hardening: registry loading must log, not silently swallow (#2507)
+# ---------------------------------------------------------------------------
+
+
+def test_corrupt_registry_logs_warning_and_returns_empty(
+    tmp_path: Path,
+    monkeypatch,
+    caplog,
+) -> None:
+    """A corrupt registry JSON must surface a warning, not silently read as
+    'no snapshots' (which masks data loss). Behaviour stays resilient: []."""
+    _use_snapshot_state(monkeypatch, tmp_path)
+    records_path = storage_snapshots._snapshot_records_path()
+    records_path.parent.mkdir(parents=True, exist_ok=True)
+    records_path.write_text("{ this is not valid json ]")
+
+    with caplog.at_level("WARNING"):
+        result = storage_snapshots._load_all_snapshot_records()
+
+    assert result == []
+    assert any(
+        "Could not read snapshot registry" in rec.message for rec in caplog.records
+    ), "corrupt registry must be logged, not swallowed silently"
+
+
+def test_corrupt_record_is_skipped_with_warning(
+    tmp_path: Path,
+    monkeypatch,
+    caplog,
+) -> None:
+    """One malformed record must be skipped WITH a warning naming it, while the
+    valid records still load — resilience without silence."""
+    _use_snapshot_state(monkeypatch, tmp_path)
+    records_path = storage_snapshots._snapshot_records_path()
+    records_path.parent.mkdir(parents=True, exist_ok=True)
+    good = LibrarySnapshot(
+        id="good-1",
+        library_path=str(tmp_path / "lib.fichero"),
+        library_name="Lib",
+        snapshot_path=str(tmp_path / "snap"),
+        duckdb_path="db.duckdb.export",
+        lance_path="vectors",
+        initiator=SnapshotInitiatorType.user,
+    )
+    # Corrupt record: valid initiator (passes the enum coercion) but missing the
+    # required library_path/library_name, so LibrarySnapshot(**raw) raises.
+    bad = {"id": "bad-1", "initiator": "user"}
+    records_path.write_text(json.dumps([good.model_dump(mode="json"), bad]))
+
+    with caplog.at_level("WARNING"):
+        result = storage_snapshots._load_all_snapshot_records()
+
+    assert [s.id for s in result] == ["good-1"]
+    assert any(
+        "Skipping corrupted snapshot record bad-1" in rec.message
+        for rec in caplog.records
+    ), "a dropped record must be logged with its id, not skipped silently"
+
+
+def test_valid_registry_loads_without_warnings(
+    tmp_path: Path,
+    monkeypatch,
+    caplog,
+) -> None:
+    """Regression: a healthy registry must NOT emit the new warnings."""
+    _use_snapshot_state(monkeypatch, tmp_path)
+    snap = LibrarySnapshot(
+        id="ok-1",
+        library_path=str(tmp_path / "lib.fichero"),
+        library_name="Lib",
+        snapshot_path=str(tmp_path / "snap"),
+        duckdb_path="db.duckdb.export",
+        lance_path="vectors",
+        initiator=SnapshotInitiatorType.user,
+    )
+    storage_snapshots._save_snapshot_record(snap)
+
+    with caplog.at_level("WARNING"):
+        result = storage_snapshots._load_all_snapshot_records()
+
+    assert [s.id for s in result] == ["ok-1"]
+    assert not any(
+        "corrupt" in rec.message.lower() or "Could not read" in rec.message
+        for rec in caplog.records
+    )

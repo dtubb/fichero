@@ -514,7 +514,13 @@ def _load_all_snapshot_records() -> list["LibrarySnapshot"]:
 
     try:
         data = json.loads(records_path.read_text())
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError) as exc:
+        # An unreadable/corrupt registry is NOT the same as "no snapshots" —
+        # silently returning [] masks data loss (the #2430 class of bug, #2507).
+        # Log it loudly; callers still get a resilient empty list.
+        logger.warning(
+            "Could not read snapshot registry at %s: %s", records_path, exc
+        )
         return []
 
     snapshots = []
@@ -522,8 +528,15 @@ def _load_all_snapshot_records() -> list["LibrarySnapshot"]:
         raw["initiator"] = SnapshotInitiatorType(raw.get("initiator", "user"))
         try:
             snapshots.append(LibrarySnapshot(**raw))
-        except Exception:
-            continue  # Skip corrupted records
+        except Exception as exc:
+            # Skip a corrupted record, but say which one — dropping it silently
+            # hides the data problem from the user (#2507).
+            logger.warning(
+                "Skipping corrupted snapshot record %s: %s",
+                raw.get("id", "<unknown>"),
+                exc,
+            )
+            continue
     return snapshots
 
 

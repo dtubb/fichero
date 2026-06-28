@@ -243,6 +243,36 @@ class TestUpsertEntity:
         assert r.json()["canonical_name"] == "New Name"
         assert r.json()["id"] == entity.id
 
+    def test_upsert_with_unknown_id_returns_404_not_silent_create(self, client):
+        """#2507: a specific id requested for update but absent must 404, never
+        silently create a NEW entity under a different auto-generated id."""
+        r = client.post("/api/entities", json={
+            "id": "no-such-entity-id",
+            "canonical_name": "Ghost",
+            "entity_type": "person",
+        })
+        assert r.status_code == 404
+        # And nothing was written: no substitute row appears in the list.
+        listing = client.get("/api/entities")
+        assert listing.status_code == 200
+        entities = listing.json()["items"]
+        assert all(e["id"] != "no-such-entity-id" for e in entities)
+        assert all(e["canonical_name"] != "Ghost" for e in entities)
+
+    def test_upsert_unknown_id_leaves_other_entities_untouched(self, client, db):
+        """The failed upsert must not create a substitute row alongside real data."""
+        keep = _make_entity(db, "Keeper")
+        before = client.get("/api/entities").json()["items"]
+        r = client.post("/api/entities", json={
+            "id": "missing-id",
+            "canonical_name": "Substitute",
+            "entity_type": "person",
+        })
+        assert r.status_code == 404
+        after = client.get("/api/entities").json()["items"]
+        assert {e["id"] for e in after} == {e["id"] for e in before}
+        assert any(e["id"] == keep.id for e in after)
+
     def test_garbage_name_timestamp_rejected(self, client):
         """Timestamp-shaped names like '12:10' contain no letters and must be rejected."""
         r = client.post("/api/entities", json={

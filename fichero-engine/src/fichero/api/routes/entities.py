@@ -340,7 +340,21 @@ async def upsert_entity(
                 "and cannot be stored as an entity name"
             ),
         )
-    entity = db.get(KnowledgeEntity, request.id) if request.id else None
+    if request.id:
+        entity = db.get(KnowledgeEntity, request.id)
+        if entity is None:
+            # A specific entity id was requested for update but does not exist.
+            # Do NOT silently create a NEW entity under a different
+            # (auto-generated) id: that substitutes a different target than the
+            # caller asked for and hides the real "it's gone / wrong id"
+            # condition (#2507, same class as the #2430 parent-reroute). This
+            # matches the PATCH route, which already 404s on a missing id.
+            raise HTTPException(
+                status_code=404,
+                detail=f"entity {request.id!r} not found",
+            )
+    else:
+        entity = None
     is_create = entity is None
     now = datetime.now()
     if entity is None:
