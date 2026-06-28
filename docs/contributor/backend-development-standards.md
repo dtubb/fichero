@@ -105,6 +105,43 @@ Two backends, one Python API:
 | Free-form prose (catalogue narrative, summaries) | `chat_with_fallback(prompt, config, system=...)` |
 | Streaming, multi-turn chat, agent loops | `chat(prompt, config, stream=...)` |
 
+### Centralized workflow/tool LLM path
+
+Workflow and tool code should not construct provider clients directly.
+
+The current shipped path is centralized in `fichero-engine/src/fichero/llm.py`:
+
+- workflow/tool callers use `chat_workflow(...)` as the workflow-facing shim
+- `chat_workflow(...)` dispatches into the shared `chat(...)`,
+  `chat_structured(...)`, or `chat_with_tools(...)` entry points
+- those shared functions call `get_langchain_model(...)` inside `llm.py`
+
+That is the important architectural change from the older "each workflow grabs
+its own model" shape: provider/model construction now lives behind the central
+LLM helpers, not in individual workflow tools.
+
+The shipped agent tools show the pattern directly:
+
+- `fichero-engine/src/fichero/workflows/tools/agent.py` imports
+  `chat_workflow` and uses it for both plain chat and tool-calling turns
+- `fichero-engine/src/fichero/workflows/tools/multi_agent.py` also uses
+  `chat_workflow` for supervisor decisions, worker synthesis, and final
+  aggregation
+
+### LangChain vs LiteLLM
+
+This is a common confusion in the repo history, so be explicit:
+
+- **LangChain is the provider integration and routing layer for chat/tool
+  calls.** `llm.py` builds provider clients through LangChain integrations such
+  as `init_chat_model(...)`, `ChatOpenAI`, `AzureChatOpenAI`, and the Apple
+  adapter.
+- **LiteLLM is not the runtime chat router here.** In the current `llm.py`, it
+  is only used for model discovery and pricing/cost metadata.
+
+If you are changing how a workflow or tool talks to an LLM, the code path to
+read first is `llm.py`, not `providers.py`.
+
 ### Authoring schemas
 
 Pydantic models live **alongside their tool**, not in a shared schemas
@@ -246,7 +283,21 @@ Wired ON only for synthesis-style calls (catalogue narrative). Mechanical
 extraction (extract_all, cleanup) keeps reasoning OFF — pattern matching
 doesn't benefit and adds latency.
 
-### 4. `_pydantic_to_apple_schema` fail-loud contract (#856)
+### 4. MLX / oMLX local path
+
+The local MLX path is the OpenAI-compatible provider path, not a separate
+workflow integration.
+
+- `providers.py` exposes `omlx` as a provider type
+- `llm.py` treats `omlx` as an OpenAI-compatible local provider with default
+  base URL `http://localhost:8000/v1`
+- `get_langchain_model(...)` builds that path with `langchain_openai.ChatOpenAI`
+  and a base URL override
+
+In practice, MLX here means an `mlx-lm`-style local server speaking the OpenAI
+API, reached through LangChain's OpenAI-compatible client layer.
+
+### 5. `_pydantic_to_apple_schema` fail-loud contract (#856)
 
 The converter now raises `ValueError` with field-pointing messages on:
 
@@ -260,7 +311,7 @@ Optional[T] (anyOf with 1 non-null + null) and `$ref/$defs` inlining
 still work. If you're authoring a tool schema and hit a converter
 error, decompose into supported primitives or extend the converter.
 
-### 5. fm-bridge is the canonical Apple path (#870)
+### 6. fm-bridge is the canonical Apple path (#870)
 
 Closed: `apple-fm-sdk` migration deferred to its 1.0 release. The
 fm-bridge subprocess is the production path — `bin/fm-bridge/FmBridge.swift`
@@ -270,7 +321,7 @@ add a second Apple path without explicit approval.
 `apple_intelligence_supports_locale(locale)` is async (#857). Call it
 from async contexts; do not wrap with `asyncio.run()` from sync code.
 
-### 6. `collect_usage()` for cost tracking (#852)
+### 7. `collect_usage()` for cost tracking (#852)
 
 Workflow runners and any code path that wants per-call token attribution
 wraps execution in:
