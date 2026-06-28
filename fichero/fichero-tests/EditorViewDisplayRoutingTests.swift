@@ -109,6 +109,49 @@ final class EditorViewDisplayRoutingTests: XCTestCase {
         XCTAssertFalse(route.usesImageEditingPreviewForViewing)
     }
 
+    func testDocxWithExtractedTextRoutesToAnnotatableText() {
+        let doc = Document(
+            id: "docx-1",
+            docType: .file,
+            fileType: .word,
+            name: "Report.docx",
+            path: "files/report.docx",
+            pageContent: "Body text to annotate."
+        )
+
+        let route = EditorView.previewRoute(for: doc, isEditing: false)
+
+        XCTAssertEqual(route, .text(content: "Body text to annotate."))
+    }
+
+    func testDocxWithoutTextFallsBackToQuickLook() {
+        let doc = Document(
+            id: "docx-2",
+            docType: .file,
+            fileType: .word,
+            name: "Empty.docx",
+            path: "files/empty.docx",
+            pageContent: nil
+        )
+
+        XCTAssertEqual(EditorView.previewRoute(for: doc, isEditing: false), .quickLook)
+    }
+
+    func testPDFFileIsNotDivertedToTextEvenWithContent() {
+        // A PDF file routes to its storage display, not the text reader, even if
+        // page_content happens to be populated.
+        let doc = Document(
+            id: "pdf-file-1",
+            docType: .file,
+            fileType: .pdf,
+            name: "Doc.pdf",
+            path: "files/doc.pdf",
+            pageContent: "extracted"
+        )
+
+        XCTAssertEqual(EditorView.previewRoute(for: doc, isEditing: false), .storageDisplay(documentId: "pdf-file-1"))
+    }
+
     func testImageEditingRouteIsOptIn() {
         let doc = Document(
             id: "image-1",

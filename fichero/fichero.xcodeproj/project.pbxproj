@@ -213,6 +213,7 @@
 		56B06FF519C1F4B9CD4E6214 /* ActionInvokeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6175F28D959ABB4DB0C2F4CD /* ActionInvokeService.swift */; };
 		56DCD53ACD6483561CF542B3 /* KGTemporalSpatial.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43EAB861267206E7A929830F /* KGTemporalSpatial.swift */; };
 		57EFBE5436C18075ECE90EFC /* ClaimStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C527476477074D83F628468 /* ClaimStore.swift */; };
+		585BEF3C8DF7D89644E44302 /* DocumentTextReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE5606100E6EBCE163DFA3D7 /* DocumentTextReader.swift */; };
 		58D2706E3737EB46CA0979B9 /* BoundingBoxOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 382D17DD3ECD79ED5E9AAE08 /* BoundingBoxOverlay.swift */; };
 		5D064ECAAD353BDB778B8580 /* AnnotationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61D7DC57117008EBCFE607A9 /* AnnotationService.swift */; };
 		5D621E99ED66F859FD195491 /* AnnotatableTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 032AA7721B1C054A6CD89D4C /* AnnotatableTextView.swift */; };
@@ -1081,6 +1082,7 @@
 		DAE9F6E549990F086C442F3B /* BreadcrumbBuilder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BreadcrumbBuilder.swift; sourceTree = "<group>"; };
 		DD03402A88F98251F388870F /* DocumentInspectorInfoTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorInfoTab.swift; path = fichero/Views/Library/DocumentInspector/DocumentInspectorInfoTab.swift; sourceTree = SOURCE_ROOT; };
 		DD96D53320D07109835C90BF /* EntityDetailView+Notes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "EntityDetailView+Notes.swift"; sourceTree = "<group>"; };
+		DE5606100E6EBCE163DFA3D7 /* DocumentTextReader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocumentTextReader.swift; sourceTree = "<group>"; };
 		DF5FD0D414191E6FFC18E8BC /* SpatialNodeThumbnail.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpatialNodeThumbnail.swift; sourceTree = "<group>"; };
 		DF77122ADD78F941D7F1968D /* KGTimelineView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KGTimelineView.swift; sourceTree = "<group>"; };
 		E0AF1F41099C45462F7D7658 /* AnnotationToolbar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnnotationToolbar.swift; sourceTree = "<group>"; };
@@ -1953,6 +1955,7 @@
 				E0AF1F41099C45462F7D7658 /* AnnotationToolbar.swift */,
 				032AA7721B1C054A6CD89D4C /* AnnotatableTextView.swift */,
 				382D17DD3ECD79ED5E9AAE08 /* BoundingBoxOverlay.swift */,
+				DE5606100E6EBCE163DFA3D7 /* DocumentTextReader.swift */,
 			);
 			path = Library;
 			sourceTree = "<group>";
@@ -2827,6 +2830,7 @@
 				9F8F3883E8324E76A746FAF8 /* BoundingBoxGeometry.swift in Sources */,
 				58D2706E3737EB46CA0979B9 /* BoundingBoxOverlay.swift in Sources */,
 				538B4B2C658DECF4B98FA0CD /* PDFRegionGeometry.swift in Sources */,
+				585BEF3C8DF7D89644E44302 /* DocumentTextReader.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
