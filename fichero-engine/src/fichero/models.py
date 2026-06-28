@@ -202,6 +202,13 @@ class Document(BaseModel):
 
     # Extensible metadata - see properties below for common keys
     metadata: dict[str, Any] = Field(default_factory=dict)
+    attributes: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Prototype-scoped node attributes. Saved-search nodes use this for "
+            "their folded query/filter payload (#2591 F1)."
+        ),
+    )
 
     # Source authority for KG weighting (#903). Defaults to ``unknown``
     # so existing libraries don't suddenly down-weight every claim

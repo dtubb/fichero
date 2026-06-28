@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock
 
+import pytest
 from fastapi import HTTPException
 
 from fichero.api.routes import search as search_routes
@@ -768,6 +769,9 @@ class TestSaveSearch:
         assert mirrored is not None
         assert mirrored.node_kind == "saved_search"
         assert mirrored.doc_type == DocType.folder
+        assert mirrored.prototype_key == "saved_search"
+        assert mirrored.attributes["query"] == "my search"
+        assert mirrored.curated_items[0]["query"] == "my search"
         assert mirrored.metadata["node_class"] == "smart_folder"
         assert mirrored.metadata["saved_search_query"] == "my search"
 
@@ -817,6 +821,17 @@ class TestUpdateSavedSearch:
     def test_update_missing_returns_404(self, client):
         r = client.put("/api/search/saved/no-such-id", json={"query": "x"})
         assert r.status_code == 404
+
+    def test_update_raises_when_legacy_row_exists_but_folded_node_is_missing(self, db):
+        saved = _make_saved_search(db, "orphaned")
+        db._execute("DELETE FROM documents WHERE id = $id", {"id": saved.id})
+
+        with pytest.raises(HTTPException) as exc:
+            search_routes.update_saved_search_impl(
+                db, saved.id, search_routes.SavedSearchUpdate(query="updated")
+            )
+
+        assert exc.value.status_code == 404
 
 
 # ---------------------------------------------------------------------------

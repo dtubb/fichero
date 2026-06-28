@@ -5,8 +5,6 @@ Folders are not stored as separate rows — they are derived from folder_path fi
 on model instances. SwiftUI uses these routes to render the sidebar folder tree.
 """
 
-import pytest
-
 from fichero.models import Conversation, SavedSearch, Workflow
 
 

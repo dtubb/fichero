@@ -37,9 +37,11 @@ Usage:
     db.delete(doc)
 """
 
+from __future__ import annotations
+
 from pathlib import Path
 from types import UnionType
-from typing import TypeVar, Type, get_origin, get_args, Union, Any, Sequence
+from typing import TypeVar, Type, get_origin, get_args, Union, Any, Sequence, cast
 from dataclasses import dataclass, field
 from datetime import datetime
 import math
@@ -156,6 +158,10 @@ _MARKER_PATTERNS = (
     "[empty]",
     "[unreadable]",
 )
+
+_SAVED_SEARCH_NODE_KIND = "saved_search"
+_SAVED_SEARCH_PROTOTYPE_KEY = "saved_search"
+_SAVED_SEARCH_QUERY_ITEM_ID = "saved-search-query"
 
 
 def _is_content_marker_only(text: str) -> bool:
@@ -772,8 +778,75 @@ class Database(DatabaseEmbeddingMixin):
                     time.sleep(delay)
             raise RuntimeError("save_many retry loop exited unexpectedly")
 
+    def _legacy_all_saved_search_rows(self) -> list[BaseModel]:
+        """Read SavedSearch rows from the legacy table without node folding."""
+        from fichero.models import SavedSearch
+
+        sql_table = self._sql_table_name(SavedSearch)
+        self._ensure_table(SavedSearch)
+        with self._lock:
+            rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
+            columns = [desc[0] for desc in self.conn.description]
+        return [
+            hydrated
+            for row in rows
+            if (hydrated := self._hydrate_row(SavedSearch, columns, row)) is not None
+        ]
+
+    @staticmethod
+    def _saved_search_from_document(doc: Any) -> BaseModel:
+        """Hydrate a SavedSearch view-model from its folded document node."""
+        from fichero.models import SavedSearch
+
+        if doc.node_kind != _SAVED_SEARCH_NODE_KIND:
+            raise ValueError(f"Document {doc.id} is not a saved-search node")
+
+        attrs = doc.attributes if isinstance(doc.attributes, dict) else {}
+        query = attrs.get("query")
+        if not isinstance(query, str) or not query.strip():
+            for item in doc.curated_items or []:
+                if (
+                    isinstance(item, dict)
+                    and item.get("id") == _SAVED_SEARCH_QUERY_ITEM_ID
+                    and isinstance(item.get("query"), str)
+                    and item["query"].strip()
+                ):
+                    query = item["query"]
+                    break
+        if not isinstance(query, str) or not query.strip():
+            raise ValueError(f"Saved-search node {doc.id} is missing its query payload")
+
+        return SavedSearch(
+            id=doc.id,
+            query=query,
+            is_smart_search=bool(attrs.get("is_smart_search", True)),
+            filters=attrs.get("filters"),
+            search_type=str(attrs.get("search_type", "hybrid")),
+            sort_by=str(attrs.get("sort_by", "relevance")),
+            sort_direction=str(attrs.get("sort_direction", "desc")),
+            folder_path=str(attrs.get("folder_path", "/")),
+            sort_order=doc.sort_order,
+            created_at=doc.created_at,
+            updated_at=doc.updated_at,
+        )
+
+    def _all_folded_saved_searches(self) -> list[BaseModel]:
+        """Return all saved searches from their folded document nodes."""
+        from fichero.models import Document
+
+        docs = self.query(Document, node_kind=_SAVED_SEARCH_NODE_KIND)
+        return [self._saved_search_from_document(doc) for doc in docs]
+
     def get(self, model: Type[T], id: str) -> T | None:
         """Get a single object by ID."""
+        if model.__name__ == "SavedSearch":
+            from fichero.models import Document
+
+            doc = self.get(Document, id)
+            if doc is None or doc.node_kind != _SAVED_SEARCH_NODE_KIND:
+                return None
+            return cast(T, self._saved_search_from_document(doc))
+
         sql_table = self._sql_table_name(model)
         self._ensure_table(model)
 
@@ -790,6 +863,9 @@ class Database(DatabaseEmbeddingMixin):
 
     def all(self, model: Type[T]) -> list[T]:
         """Get all objects of a type."""
+        if model.__name__ == "SavedSearch":
+            return cast(list[T], self._all_folded_saved_searches())
+
         sql_table = self._sql_table_name(model)
         self._ensure_table(model)
 
@@ -808,6 +884,23 @@ class Database(DatabaseEmbeddingMixin):
 
     def query(self, model: Type[T], **filters) -> list[T]:
         """Query with simple equality filters."""
+        if model.__name__ == "SavedSearch":
+            rows = self._all_folded_saved_searches()
+            if not filters:
+                return cast(list[T], rows)
+            out: list[BaseModel] = []
+            for row in rows:
+                matches = True
+                for key, value in filters.items():
+                    if not hasattr(row, key):
+                        raise ValueError(f"Invalid column name: {key}")
+                    if getattr(row, key) != value:
+                        matches = False
+                        break
+                if matches:
+                    out.append(row)
+            return cast(list[T], out)
+
         sql_table = self._sql_table_name(model)
         self._ensure_table(model)
 
@@ -1155,12 +1248,34 @@ class Database(DatabaseEmbeddingMixin):
             "saved_search_folder_path": saved.folder_path,
         })
 
+        attributes = (
+            dict(existing.attributes)
+            if existing is not None and isinstance(existing.attributes, dict)
+            else {}
+        )
+        attributes.update({
+            "query": saved.query,
+            "filters": saved.filters,
+            "is_smart_search": saved.is_smart_search,
+            "search_type": saved.search_type,
+            "sort_by": saved.sort_by,
+            "sort_direction": saved.sort_direction,
+            "folder_path": saved.folder_path,
+        })
+
         doc = existing or Document(id=saved.id, name=saved.query)
         doc.name = saved.query
-        doc.node_kind = "saved_search"
+        doc.node_kind = _SAVED_SEARCH_NODE_KIND
         doc.doc_type = DocType.folder
+        doc.prototype_key = _SAVED_SEARCH_PROTOTYPE_KEY
         doc.sort_order = saved.sort_order
         doc.metadata = metadata
+        doc.attributes = attributes
+        doc.curated_items = [{
+            "id": _SAVED_SEARCH_QUERY_ITEM_ID,
+            "kind": "saved_search_query",
+            "query": saved.query,
+        }]
         doc.created_at = saved.created_at
         doc.updated_at = saved.updated_at
         self.save(doc)
@@ -1193,7 +1308,7 @@ class Database(DatabaseEmbeddingMixin):
         if not table_exists or int(table_exists[0] or 0) == 0:
             return
 
-        for saved in self.all(SavedSearch):
+        for saved in self._legacy_all_saved_search_rows():
             self._save_saved_search_document(saved)
 
     def _backfill_claim_links_to_library_links(self) -> None:
