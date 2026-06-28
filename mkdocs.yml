@@ -33,6 +33,12 @@ edit_uri: edit/main/docs/
 docs_dir: docs
 site_dir: _site_build
 
+# docs/README.md is the GitHub folder landing for `docs/`; the published home is
+# index.md. Exclude the README from the build so it does not conflict with
+# index.md (mkdocs would otherwise warn, failing --strict).
+exclude_docs: |
+  /README.md
+
 theme:
   name: material
   logo: assets/icon.png
@@ -93,20 +99,21 @@ nav:
       - What Fichero Is: user/what-fichero-is.md
       - Installing Fichero: user/install.md
       - Getting Started: user/getting-started.md
+      - The Interface (Window Tour): user/interface-tour.md
       - Importing Documents: user/importing-documents.md
       - Reading & Editing: user/reading-and-editing.md
       - Search & Knowledge Graph: user/search-knowledge-graph.md
       - Curation, Notes & Workflows: user/curation-notes-workflows.md
       - AI & Privacy: user/ai-and-privacy.md
-  - Developer:
-      - Overview: developer/README.md
-      - Architecture Overview: developer/architecture-overview.md
-      - OpenAPI & Clients: developer/openapi-and-clients.md
-      - Data, Search & KG: developer/data-search-and-kg.md
-      - Workflows, Activity & Curation: developer/workflows-activity-and-curation.md
-      - Action Registry: developer/action-registry.md
-      - Security Model: developer/security-model.md
-      - Setup & Contributing: developer/setup-and-contributing.md
+  - Contributor:
+      - Overview: contributor/README.md
+      - Architecture Overview: contributor/architecture-overview.md
+      - OpenAPI & Clients: contributor/openapi-and-clients.md
+      - Data, Search & KG: contributor/data-search-and-kg.md
+      - Workflows, Activity & Curation: contributor/workflows-activity-and-curation.md
+      - Action Registry: contributor/action-registry.md
+      - Security Model: contributor/security-model.md
+      - Setup & Contributing: contributor/setup-and-contributing.md
       - Architecture Notes:
           - System Overview: architecture/overview.md
           - Backend API Overview: architecture/api/overview.md

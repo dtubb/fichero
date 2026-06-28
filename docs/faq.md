@@ -14,11 +14,11 @@ Fichero has two parts: the Fichero app, a native SwiftUI app for browsing and ma
 
 ### What AI models does it support?
 
-Fichero connects to AI models through LangChain and LiteLLM, which means it supports 100+ providers including OpenAI, Anthropic, Google, Ollama (local), and many more. For offline use, connect to Ollama and run models entirely on your Mac.
+Many. Fichero is model-agnostic and you pick the provider per workflow. AI calls go through LangChain provider integrations (LiteLLM is used only for model discovery and cost estimates, not for routing). Local, on-device options include Apple Foundation Models (Apple Intelligence), MLX, LM Studio, and Ollama. Cloud options include OpenAI, Anthropic, and Google. Run everything locally, or bring your own cloud API key, or mix the two.
 
 ### Does it work offline?
 
-Yes. Fichero is designed for offline-first use. Your documents are stored locally in DuckDB and LanceDB. When connected to Ollama, all AI processing happens on your machine with no internet required.
+Yes. Fichero is designed for offline-first use. Your documents are stored locally in DuckDB and LanceDB. With a local provider (Apple Foundation Models, MLX, LM Studio, or Ollama), all AI processing happens on your machine with no internet required.
 
 ### What macOS version is required?
 
@@ -26,11 +26,13 @@ Fichero requires macOS 26 (Tahoe) or later.
 
 ### Is my data secure?
 
-Fichero runs entirely on your Mac. Your documents and databases stay local. AI processing with Ollama happens on-device. When using cloud AI providers, only the content you explicitly send for processing leaves your machine.
+Fichero runs entirely on your Mac. Your documents and databases stay local. With a local provider (Apple Foundation Models, MLX, LM Studio, or Ollama), AI processing happens on-device. When using cloud AI providers, only the content you explicitly send for processing leaves your machine.
 
-### Where can I report bugs or request features?
+### Where can I report bugs, ask questions, or request features?
 
-Please open an issue on the [GitHub repository](https://github.com/dtubb/fichero/issues).
+For questions, feedback, and feature ideas, use [GitHub Discussions](https://github.com/dtubb/fichero/discussions). That is the place for users to reach the project.
+
+GitHub Issues is the development backlog, where the AI coding agents track their work. It is not a user support channel, so start in Discussions and the team will open an issue if your report needs one.
 
 ### Is Fichero free?
 
@@ -38,7 +40,9 @@ Fichero is currently free during early development. Pricing for future versions 
 
 ### How is Fichero built?
 
-Fichero is vibe-coded. Daniel is an anthropologist rather than a software engineer, and he doesn't write Swift or Python from scratch. Instead, he sits down with [Claude](https://www.anthropic.com/claude) (Anthropic's AI assistant) and describes what he wants in plain language. Claude does the typing; Daniel directs: what the app should do, where it's broken, what to work on next. Sessions are conversational and long, and code, tests, and commits all come out the other end.
+Fichero is written by AI coding agents that Daniel directs. Daniel is an anthropologist, not a software engineer, so he does not write Swift or Python from scratch. He describes what he wants in plain language and decides what to build next, what is broken, and what ships.
+
+The work runs through a manager agent that orchestrates worker agents, each in its own isolated git worktree. A worker implements a GitHub issue, then the change is build-tested and gated before it merges. Daniel reviews the result and judges every release by using the app himself. See [How It's Built](how-its-built.md) for the full picture.
 
 ### What is the relationship between Fichero and Fichero Toolbox?
 
