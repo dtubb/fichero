@@ -10,18 +10,17 @@ humanities researcher's needs.
 
 Daniel works with primary sources: scanned archives, field notes, interview
 transcripts, historical documents. Fichero is the tool he wanted for that work.
-He directs what gets built and how it should feel, and he builds it
-conversationally with AI coding agents (see [How It's Built](docs/how-its-built.md)
-and the [FAQ](docs/faq.md)). He does not write the code by hand, and he
-judges every release by using the app on his own Mac. Direction comes in plain
-language: what the app should do, where it feels wrong, what to work on next.
+He directs what gets built and how it should feel, using the app on his own Mac
+and steering development through issues, review, and day-to-day use. The
+project's development workflow is documented in
+[How It's Built](docs/how-its-built.md) and the [FAQ](docs/faq.md).
 
 ## What he cares about
 
 - **It actually works.** Solid over flashy, and honest about what is real and
   what is still half-built. Fichero is alpha software, and it says so.
-- **Native Mac quality.** SwiftUI, fast, and light. Not Electron, not a web
-  wrapper.
+- **Native Apple quality.** SwiftUI first, with macOS as the primary surface
+  today.
 - **The researcher stays in charge.** Fichero processes documents and surfaces
   what the sources say. It does not write your prose or interpret your evidence
   for you. That work is yours.

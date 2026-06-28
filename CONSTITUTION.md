@@ -2,77 +2,100 @@
 
 ## What This Is
 
-*Fichero* (Spanish: file cabinet, card index) is a native macOS document management system with AI processing. It gives a researcher's document corpus (PDFs, fieldwork notes, audio recordings, images, transcripts, references) a single home with semantic understanding. You can ask a question and find the relevant passage by its content.
+Fichero is a native Apple document-workbench for researchers. The shipped shape
+in this repository is a macOS app backed by a local FastAPI engine, with a
+typed CLI and an MCP server over the same backend. The app is for reading,
+organizing, searching, and processing research materials such as PDFs, scanned
+images, notes, audio, and video.
 
-## The Problem
+## What Is Built Now
 
-A researcher accumulates a large, heterogeneous document corpus over years of fieldwork: PDFs, fieldwork notes, audio, transcripts, references. These files are scattered across tools and folders. Finding something means remembering where you put it. Connecting a document to a manuscript note means manual work. There is no single place that understands what the documents contain. Fichero solves this: import everything, extract text and meaning, make it searchable by content, and connect it to the rest of the research stack.
+The codebase already implements these core capabilities:
 
-## Where Fichero Fits
+1. **Document ingest.** The engine imports 37 file extensions across images,
+   documents, word-processing files, ebooks, audio, and video.
+2. **Reader and library UI.** The app browses a document library and renders
+   PDFs, page images, extracted text, artifacts, and inspector panes.
+3. **Semantic search.** The engine stores embeddings in LanceDB and exposes
+   search routes the app and CLI use.
+4. **Knowledge graph.** The engine extracts and stores entities, claims, and
+   graph relationships with provenance back to source documents.
+5. **AI workflows.** Workflow definitions, execution routes, and a SwiftUI
+   workflow editor all exist in the current tree.
+6. **Chat and model tools.** The backend exposes chat and provider routes, and
+   the app includes chat and model-management surfaces.
+7. **Multiple clients.** The same engine is consumed by the macOS app, the
+   `python -m fichero` CLI, and `fichero-mcp`.
 
-Fichero begins as the **document layer**. It imports, provides semantic search, and AI workflows over the full corpus, and allows for a knowledge graph. As the product matures, it also grows a native note, spatial knowledge layer: first-class notes created by the user or AI, plus map/spatial views that help surface relationships across the library. That turns Fichero from a pure archive into a research workspace without making it the manuscript-writing tool.
+## In Progress
 
-## What v1.0 Looks Like
+These directions are visible in the repository but are not the stable shipped
+core yet:
 
-A macOS app a researcher actually uses daily:
-
-1. **Imports any document type** in a research corpus (37+ formats: PDF, DOCX, audio, video, images, archives)
-2. **Semantic search** across the full corpus: find documents by their content and meaning
-3. **Graph and RAG-based Q&A**: ask questions about documents, get answers with source citations
-4. **Native notes + AI workspace**: first-class notes created by the user or AI, with explicit links and provenance
-5. **Spatial knowledge layer**: list, icon, table, map, and future spatial/3D views over the same research model
-6. **AI workflows**: visual node editor for document processing pipelines (LangGraph)
-7. **Offline-first**: works with local models (Apple Intelligence, embedded, Ollama, OMLX, LM Studio) without internet; cloud providers optional
-8. **Native Mac quality**: SwiftUI for front end, Python for engine.
+- **iOS / iPadOS / visionOS client work.** The Xcode project contains those
+  targets and cross-platform code paths, but macOS remains the primary, most
+  complete surface.
+- **Spatial / Mind Palace tooling.** Backend and MCP support exists, but this is
+  still an evolving surface, not the central product story.
+- **Release packaging and public docs polish.** The repo contains release,
+  signing, Sparkle, and docs-site machinery that is still being hardened.
 
 ## How It Works
 
-One engine, many surfaces.
+One engine, many clients:
 
 ```
-SwiftUI app    fichero CLI    MCP server    (iPad / web: future)
-       ↘           ↓            ↙
-   HTTPS on 127.0.0.1:8765  (TLS, pinned fail-closed)
-                 ↓
-         FastAPI engine
-         (fichero-engine/src/fichero)
-            ├── DuckDB (structured metadata)
-            ├── LanceDB (vector embeddings)
-            ├── LangGraph (workflow execution)
-            ├── KG (entities, claims, relationships)
-            └── LangChain (100+ LLM providers via provider integrations;
-                           LiteLLM is cost/pricing only, not routing)
+SwiftUI app    fichero CLI    MCP server
+       \           |            /
+        \          |           /
+         HTTPS on 127.0.0.1:8765
+                 (TLS, pinned)
+                   |
+                   v
+            FastAPI engine
+        (fichero-engine/src/fichero)
+           | DuckDB + LanceDB
+           | workflows
+           | knowledge graph
+           | provider integrations
 ```
 
-- **`fichero-engine/`**: Python FastAPI engine. All logic lives here: storage, AI processing, search, workflow execution, knowledge graph, LLM orchestration.
-- **`fichero/`**: SwiftUI macOS app (Xcode project at `fichero/fichero.xcodeproj`).
-- **`fichero` CLI**: typed Python CLI at `fichero-engine/src/fichero/cli/` (ships inside the engine package; invoked as `python -m fichero`).
-- **MCP server**: live (`fichero-mcp` entry point at `fichero-engine/src/fichero/mcp_server.py`); another thin client on the engine.
-
-- **OpenAPI schema**: the contract between the engine and every surface. The Swift client is auto-generated from the engine's schema; the CLI is typed against it. When the engine changes, regenerate. Never edit generated code by hand.
+- **`fichero-engine/`** owns ingest, storage, workflows, search, knowledge
+  graph, and model/provider orchestration.
+- **`fichero/`** is the native Apple client. On macOS it prefers the embedded
+  local engine; non-macOS targets currently connect to an external backend.
+- **`python -m fichero`** is a typed CLI over the same HTTP surface.
+- **`fichero-mcp`** exposes that same surface to MCP-aware tools and agents.
+- **OpenAPI** is the contract between engine and clients. Generated client code
+  is derived from the backend schema, not edited by hand.
 
 ## Hard Constraints
 
-These don't change:
+These do not change:
 
-1. **Native macOS only.** For Mac App, use SwiftUI, and if necessary AppKit. Not Electron, not a web app.
-2. **Offline-first.** Must work without internet via local models (Ollama). Cloud providers are optional.
-3. **The researcher writes; Fichero processes.** The app never writes prose in the user's voice.
-4. **No data leaves the machine by default.** Cloud LLM providers are opt-in, clearly labeled.
-5. **Stability before features.** What works must keep working. New features don't break existing ones.
-6. **All logic lives in the engine; clients render only.** Aggregation, dedup, scoping, summarization, KG/entity logic, and validation all live in the backend. A surface (SwiftUI, CLI, MCP, future iPad/web) calls an endpoint and displays the result. If a surface needs to compute something that another surface would also need, it belongs in the engine.
+1. **Native clients, not a web wrapper.** The app is built with SwiftUI first,
+   with AppKit or UIKit bridges only where needed.
+2. **The engine owns the logic.** Storage, ingest, search, workflows, KG, and
+   validation live in the backend; clients render and collect input.
+3. **The researcher stays in charge.** Fichero helps process and surface source
+   material; it does not replace the user's interpretation.
+4. **Privacy is explicit.** Local-model use is supported. Cloud providers are
+   opt-in and user-configured.
+5. **Honesty over aspiration.** Public docs describe built behavior first and
+   mark incomplete work as planned or in progress.
+6. **Stability before expansion.** New features do not justify silent breakage
+   in ingest, reading, search, or existing workflows.
 
 ## Execution Governance
 
-Execution tracking and planning are governed in GitHub:
+Execution tracking lives in GitHub:
 
-- **Source of truth**: GitHub Issues + Milestones + Project board
-- **Not source of truth**: local planning files (`PLAN.md`, `TASKS.md`, `agent-work/agent-workflow/` notes)
-- **Local exception**: `STATE.md` is maintained for session continuity/handoff only
+- **Source of truth:** GitHub Issues, Milestones, and the project board
+- **Local continuity only:** `STATE.md`, `MEMORY.md`, and `agent-work/`
 
-## Versioning
+## Release State
 
-The destination is **dated releases** (CalVer, e.g. `2026.05.01`). A dated snapshot is a known-good build with document management, workflows, KG, CLI, and the autonomous loops working together. That's the model for the **final release**; it is not fully in place yet. Current development runs on `main` (the `0.0.2` working line was merged to `main` via PR #2652 on 2026-06-26), and day-to-day work is organized per worker/lane.
-
-- Current working branch + worktree mechanics → `AGENTS.md` ("Rules I Don't Break")
-- Release / packaging process (signing, notarize, Sparkle, DMG) → `docs/architecture/release-process.md` (the pipeline itself lives in the separate `fichero-releases` repo)
+Fichero is alpha software under active development. The repository contains the
+app, engine, docs site, release scripts, and worker workflow used to ship dated
+builds, but the right way to describe the product is still: built, usable,
+in-progress software, not a finished platform.
