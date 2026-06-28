@@ -1,0 +1,1 @@
+2026-06-28: Added route-level bookmark fold tests in `fichero-engine/tests/unit/test_routes_bookmarks.py`: create -> list -> resolve -> delete/purge cycle through the shipped routes, missing-target create returning 404, and the dangling-resolve prefer-raise path. Verified with `PYTHONPATH=fichero-engine/src pytest fichero-engine/tests/unit/test_routes_bookmarks.py -q` (green).

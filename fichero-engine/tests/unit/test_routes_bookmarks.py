@@ -95,3 +95,60 @@ def test_resolve_dangling_bookmark_raises_404(client, db):
 
     assert response.status_code == 404
     assert response.json()["detail"] == f"Alias {bookmark.id} references missing node {target.id}"
+
+
+def test_bookmark_full_route_cycle_create_list_resolve_delete(client, db):
+    folder = Document(id="bookmark-folder", name="Bookmarks", doc_type=DocType.folder)
+    target = Document(id="target-cycle", name="Cycle Target", doc_type=DocType.file)
+    db.save(folder)
+    db.save(target)
+
+    created = client.post(
+        "/api/bookmarks",
+        json={
+            "target_id": target.id,
+            "parent_id": folder.id,
+            "name": "Pinned Cycle Target",
+        },
+    )
+
+    assert created.status_code == 201
+    bookmark_id = created.json()["id"]
+    assert created.json()["prototype_key"] == "bookmark"
+    assert created.json()["alias_target_id"] == target.id
+    assert created.json()["parent_id"] == folder.id
+
+    listing = client.get(f"/api/bookmarks?parent_id={folder.id}")
+    assert listing.status_code == 200
+    assert listing.json()["count"] == 1
+    assert listing.json()["items"][0]["id"] == bookmark_id
+
+    resolved = client.get(f"/api/bookmarks/{bookmark_id}/resolve")
+    assert resolved.status_code == 200
+    assert resolved.json()["id"] == target.id
+    assert resolved.json()["name"] == "Cycle Target"
+
+    deleted = client.delete(f"/api/documents/{bookmark_id}")
+    assert deleted.status_code == 204
+    assert db.get(Document, bookmark_id).deleted_at is not None
+
+    purged = client.delete(f"/api/documents/{bookmark_id}/purge")
+    assert purged.status_code == 204
+
+    after_delete = client.get(f"/api/bookmarks?parent_id={folder.id}")
+    assert after_delete.status_code == 200
+    assert after_delete.json()["count"] == 0
+
+    resolve_deleted = client.get(f"/api/bookmarks/{bookmark_id}/resolve")
+    assert resolve_deleted.status_code == 404
+    assert resolve_deleted.json()["detail"] == "Bookmark not found"
+
+
+def test_create_bookmark_missing_target_returns_404(client):
+    response = client.post(
+        "/api/bookmarks",
+        json={"target_id": "missing-target", "name": "Broken Bookmark"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Bookmark target not found"
