@@ -301,7 +301,7 @@ enum EngineHarness {
                 dir = dir.deletingLastPathComponent()
             }
         }
-        // Last resort for local dev machines (repo was renamed fichero-0.0.2 → fichero).
+        // Last resort for local dev machines: the conventional checkout under ~/code/fichero.
         let fallback = fileManager.homeDirectoryForCurrentUser.appendingPathComponent("code/fichero")
         return looksLikeRepo(fallback) ? fallback : nil
     }
