@@ -44,13 +44,53 @@ struct ZoomableImagePreview: View {
         self.isEditing = isEditing
     }
 
-    /// Annotation tools are present in the unified reader toolbar but their
-    /// region-anchored creation + on-canvas rendering is owned by **#2458**.
-    /// Stub until that lands so the section is visible without orphan writes.
+    /// Annotation tools from the reader toolbar (#2458). Highlight/Note arm a
+    /// region draw over the image; the resulting normalized box is persisted as
+    /// a bounding-box annotation. Bookmark is a whole-image marker (no region).
     private func requestAnnotation(_ tool: ReaderAnnotationTool) {
-        Self.logger.info(
-            "Reader annotation '\(tool.rawValue, privacy: .public)' on image — pending region capture + rendering (#2458)"
-        )
+        switch tool {
+        case .highlight, .note:
+            pendingAnnotationTool = tool
+            isDrawingRegion = true
+        case .bookmark:
+            isDrawingRegion = false
+            createAnnotation(box: nil, tool: .bookmark)
+        }
+    }
+
+    /// Persist a region (or whole-image bookmark) via the typed AnnotationStore.
+    private func createAnnotation(box: [Double]?, tool: ReaderAnnotationTool) {
+        guard let documentId else { return }
+        let kind: AnnotationKind = {
+            switch tool {
+            case .highlight: return .highlight
+            case .note: return .note
+            case .bookmark: return .bookmark
+            }
+        }()
+        isDrawingRegion = false
+        Task {
+            _ = await annotationStore.addNote(
+                scope: .document(documentId),
+                text: "",
+                bbox: box,
+                kind: kind
+            )
+            await annotationStore.loadAnnotations(for: .document(documentId), force: true)
+        }
+    }
+
+    /// Saved region boxes (normalized `[x,y,w,h]`) for the shown image.
+    private var regionBoxes: [[Double]] {
+        guard let documentId else { return [] }
+        return annotationStore.annotations
+            .filter { ($0.documentId == documentId || $0.pageId == documentId) && $0.hasRegion }
+            .compactMap(\.bbox)
+    }
+
+    private func loadAnnotations() {
+        guard let documentId else { return }
+        Task { await annotationStore.loadAnnotations(for: .document(documentId), force: true) }
     }
 
     private static let logger = Logger(subsystem: "app.fichero.fichero", category: "ZoomableImagePreview")
@@ -82,6 +122,12 @@ struct ZoomableImagePreview: View {
     @AppStorage("imagePreview.loupeLocked") private var loupeLocked = false
 
     @EnvironmentObject private var storageService: StorageServiceGenerated
+    @Environment(AnnotationStore.self) private var annotationStore: AnnotationStore
+
+    // Bounding-box annotation state (#2458). `isDrawingRegion` arms the overlay
+    // drag; `pendingAnnotationTool` carries the tool kind into the saved box.
+    @State private var isDrawingRegion = false
+    @State private var pendingAnnotationTool: ReaderAnnotationTool = .highlight
 
     @State private var scale: CGFloat = 1.0
     @State private var minScale: CGFloat = 0.01
@@ -155,6 +201,18 @@ struct ZoomableImagePreview: View {
                             coordinator: $imageCoordinator
                         )
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                        .overlay {
+                            // Saved bounding boxes + the region-draw layer (#2458).
+                            // Shown whenever there are boxes or the tool is armed.
+                            if !regionBoxes.isEmpty || isDrawingRegion {
+                                BoundingBoxOverlay(
+                                    boxes: regionBoxes,
+                                    visible: visibleRect == .zero ? CGRect(x: 0, y: 0, width: 1, height: 1) : visibleRect,
+                                    isDrawing: isDrawingRegion,
+                                    onCreate: { box in createAnnotation(box: box, tool: pendingAnnotationTool) }
+                                )
+                            }
+                        }
                     } else {
                         ProgressView()
                             .controlSize(.small)
@@ -227,6 +285,14 @@ struct ZoomableImagePreview: View {
                     scale = saved
                 }
             }
+            loadAnnotations()
+        }
+        .onChange(of: documentId) { _, _ in
+            isDrawingRegion = false
+            loadAnnotations()
+        }
+        .onChange(of: annotationStore.changeToken) { _, _ in
+            loadAnnotations()
         }
         .onChange(of: url) { _, newURL in
             image = renderedImage ?? newURL.flatMap { NSImage(contentsOf: $0) }
