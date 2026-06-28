@@ -105,8 +105,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Services/ChatService.swift::ExtractTextResponse": "§6b baseline — struct shadows Components.Schemas.ExtractTextResponse",
     "Services/CheckpointTypes.swift::CheckpointHistoryResponse": "§6b baseline — struct shadows Components.Schemas.CheckpointHistoryResponse",
     "Services/CheckpointTypes.swift::CheckpointSnapshot": "§6b baseline — struct shadows Components.Schemas.CheckpointSnapshot",
-    "Services/FolderService.swift::FolderViewInfo": "§6b baseline — struct shadows Components.Schemas.FolderViewInfo",
-    "Services/FolderService.swift::FolderViewsResponse": "§6b baseline — struct shadows Components.Schemas.FolderViewsResponse",
     "Services/ImportService.swift::IngestFileRequest": "§6b baseline — struct shadows Components.Schemas.IngestFileRequest",
     "Services/ImportService.swift::IngestFolderRequest": "§6b baseline — struct shadows Components.Schemas.IngestFolderRequest",
     "Services/ImportServiceGenerated.swift::IngestTaskStatus": "§6b baseline — struct shadows Components.Schemas.IngestTaskStatus",

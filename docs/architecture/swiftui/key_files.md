@@ -30,14 +30,13 @@ via `@SceneStorage`. The reading layout and page navigation live in
 - `DocumentInspector.swift` (~1,150 lines) + `DocumentInspector/` folder — **inspector V2**, tabbed:
   - `DocumentInspectorInfoTab.swift`, `DocumentInspectorMetadataTab.swift`,
     `DocumentInspectorContentTab.swift`, `DocumentInspectorArtifactsTab.swift`
-  - `DocumentInspectorContentState.swift` — shared content/edit state
   - `AttributedTextEditor.swift` — rich-text editor (`NSViewRepresentable`)
 - `PDFThumbnailView.swift` (~850 lines) — PDF rendering, page thumbnails, reading-view plumbing (PDFKit bridge)
 - `LibraryView.swift` + extensions (`+DisplayModes`, `+ColumnConfig`, `+Sorting`, `+FilterAndBatch`, `+InlineEditing`, `+KeyboardShortcuts`) and `LibraryViewComponents.swift` — grid/list/table browser
 - `EditorView.swift` (~360 lines) — document editor surface
 - `ImageViewer/`, `ImageViewerComponents.swift`, `MagnifierPanel.swift`, `ScrollWheelZoom.swift` — image preview + magnifier (AppKit bridges)
 - `QuickLookComponents.swift`, `FolderAccessManager.swift` — Quick Look + security-scoped bookmark access
-- `ArtifactsBrowserView.swift`, `FolderContentsGrid.swift`, `NavigatorMiniMap.swift`
+- `FolderContentsGrid.swift`, `NavigatorMiniMap.swift`
 
 ### Sidebar (`Views/Sidebar/`) — multi-mode navigation
 - `SidebarView+ViewComponents.swift` (~760 lines), `SidebarItemRow.swift` (~680), `SidebarItemRow+DropHandlers.swift`, `SidebarViewExtensions.swift`

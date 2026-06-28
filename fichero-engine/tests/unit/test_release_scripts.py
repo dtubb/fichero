@@ -26,6 +26,7 @@ BUILD_RELEASE = SCRIPTS_DIR / "build-release.sh"
 BUILD_AND_VALIDATE = SCRIPTS_DIR / "build-and-validate.sh"
 NOTARIZE = SCRIPTS_DIR / "notarize.sh"
 CREATE_RELEASE = SCRIPTS_DIR / "create-github-release.sh"
+START_BACKEND = REPO_ROOT / "fichero-engine" / "scripts" / "start_backend.sh"
 
 ALL_SCRIPTS = [BUILD_RELEASE, BUILD_AND_VALIDATE, NOTARIZE, CREATE_RELEASE]
 
@@ -144,6 +145,12 @@ def test_create_release_references_sparkle_tools() -> None:
 def test_create_release_updates_appcast() -> None:
     text = _script_text(CREATE_RELEASE)
     assert "appcast.xml" in text
+
+
+def test_start_backend_defaults_to_dev_feature_tier() -> None:
+    text = _script_text(START_BACKEND)
+
+    assert 'export FICHERO_FEATURE_TIER="${FICHERO_FEATURE_TIER:-dev}"' in text
 
 
 # ---------------------------------------------------------------------------
