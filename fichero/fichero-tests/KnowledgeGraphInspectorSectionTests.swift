@@ -640,6 +640,22 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertFalse(attributesStrip.contains(staleDefault))
     }
 
+    /// #2696: the Content-pane top attributes should surface interesting
+    /// artefacts as they're added — the entities summary defaults ON and the
+    /// row is gated on a non-zero count so it appears only when the page has
+    /// entities.
+    func testAttributesStripSurfacesEntitiesByDefault() throws {
+        let strip = try Self.appSource("Views/Library/DisplayAttributesStrip.swift")
+        XCTAssertTrue(
+            strip.contains(#"@AppStorage("inspector.attributeStrip.kg") private var shownKGRaw: String = "entities""#),
+            "KG summaries must default to surfacing entities (#2696)"
+        )
+        XCTAssertTrue(
+            strip.contains("$0 != .entities || (entityCount ?? 0) > 0"),
+            "the entities row must be gated on a non-zero count so it appears as added (#2696)"
+        )
+    }
+
     private func makeDocument(
         docType: DocType,
         fileType: FileType?,
