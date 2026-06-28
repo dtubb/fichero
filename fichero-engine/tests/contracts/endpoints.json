@@ -787,6 +787,16 @@
         "response_model": "Annotation"
       },
       {
+        "method": "POST",
+        "path": "/annotations/crop",
+        "operation_id": "crop_ephemeral_api_annotations_crop_post",
+        "summary": "Ephemeral crop for an unsaved region (no annotation persisted)",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "EphemeralCropRequest",
+        "response_model": null
+      },
+      {
         "method": "DELETE",
         "path": "/annotations/{annotation_id}",
         "operation_id": "delete_annotation_api_annotations__annotation_id__delete",
@@ -1244,6 +1254,46 @@
         ],
         "request_model": "ResolveRequest",
         "response_model": "MetadataResponse"
+      }
+    ],
+    "bookmarks": [
+      {
+        "method": "GET",
+        "path": "/bookmarks",
+        "operation_id": "list_bookmarks_api_bookmarks_get",
+        "summary": "List Bookmarks",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "parent_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "fichero__models__DocumentListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/bookmarks",
+        "operation_id": "create_bookmark_api_bookmarks_post",
+        "summary": "Create Bookmark",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "BookmarkCreate",
+        "response_model": "Document"
+      },
+      {
+        "method": "GET",
+        "path": "/bookmarks/{bookmark_id}/resolve",
+        "operation_id": "resolve_bookmark_api_bookmarks__bookmark_id__resolve_get",
+        "summary": "Resolve Bookmark",
+        "path_params": [
+          "bookmark_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "Document"
       }
     ],
     "chains": [

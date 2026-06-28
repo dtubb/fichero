@@ -1924,6 +1924,46 @@
         }
       }
     },
+    "/api/annotations/crop": {
+      "post": {
+        "tags": [
+          "annotations"
+        ],
+        "summary": "Ephemeral crop for an unsaved region (no annotation persisted)",
+        "description": "Crops a document to a transient region (bbox / char range) and returns the content \u2014 substring for text, PNG bytes for image / PDF \u2014 WITHOUT creating an annotation. The reader uses this to feed only the region under consideration to a provider before the user commits. (#2256)",
+        "operationId": "crop_ephemeral_api_annotations_crop_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EphemeralCropRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/annotations/{annotation_id}/promote-to-claim": {
       "post": {
         "tags": [
@@ -3333,6 +3373,135 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bookmarks": {
+      "post": {
+        "tags": [
+          "bookmarks"
+        ],
+        "summary": "Create Bookmark",
+        "description": "Create a bookmark node that references another document.",
+        "operationId": "create_bookmark_api_bookmarks_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookmarkCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "bookmarks"
+        ],
+        "summary": "List Bookmarks",
+        "description": "List bookmark nodes.",
+        "operationId": "list_bookmarks_api_bookmarks_get",
+        "parameters": [
+          {
+            "name": "parent_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Filter by parent bookmark container",
+              "title": "Parent Id"
+            },
+            "description": "Filter by parent bookmark container"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/fichero__models__DocumentListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bookmarks/{bookmark_id}/resolve": {
+      "get": {
+        "tags": [
+          "bookmarks"
+        ],
+        "summary": "Resolve Bookmark",
+        "description": "Resolve a bookmark node to its live target document.",
+        "operationId": "resolve_bookmark_api_bookmarks__bookmark_id__resolve_get",
+        "parameters": [
+          {
+            "name": "bookmark_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Bookmark Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -33320,6 +33489,16 @@
             "title": "Bbox",
             "description": "Bounding box [x, y, width, height] as fractions of source dimensions in [0, 1]."
           },
+          "anchor_kind": {
+            "type": "string",
+            "nullable": true,
+            "title": "Anchor Kind"
+          },
+          "paragraph_index": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Paragraph Index"
+          },
           "kind": {
             "$ref": "#/components/schemas/AnnotationKind"
           },
@@ -33445,6 +33624,16 @@
             "type": "array",
             "nullable": true,
             "title": "Bbox"
+          },
+          "anchor_kind": {
+            "type": "string",
+            "nullable": true,
+            "title": "Anchor Kind"
+          },
+          "paragraph_index": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Paragraph Index"
           },
           "text": {
             "type": "string",
@@ -33619,6 +33808,16 @@
             "type": "array",
             "nullable": true,
             "title": "Bbox"
+          },
+          "anchor_kind": {
+            "type": "string",
+            "nullable": true,
+            "title": "Anchor Kind"
+          },
+          "paragraph_index": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Paragraph Index"
           },
           "metadata": {
             "additionalProperties": true,
@@ -34742,6 +34941,29 @@
           "file"
         ],
         "title": "Body_import_file_api_documents_import_post"
+      },
+      "BookmarkCreate": {
+        "properties": {
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "parent_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Id"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "target_id"
+        ],
+        "title": "BookmarkCreate"
       },
       "BrowserNavigateRequest": {
         "properties": {
@@ -37749,6 +37971,12 @@
             "title": "Parent Key",
             "description": "Optional hierarchy: 'binding' parent of 'constitutional'."
           },
+          "attributes": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Attributes",
+            "description": "Prototype definition attributes (node-model P1, #2591). For dimension=document_prototype these are inheritable defaults a node of this prototype carries; resolved via node_prototypes.py, where a child prototype's attributes override its parent_key chain. Other dimensions leave this empty."
+          },
           "color": {
             "type": "string",
             "nullable": true,
@@ -39382,6 +39610,11 @@
             "nullable": true,
             "title": "Prototype Key"
           },
+          "alias_target_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Alias Target Id"
+          },
           "page_content": {
             "type": "string",
             "nullable": true,
@@ -39391,6 +39624,12 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Metadata"
+          },
+          "attributes": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Attributes",
+            "description": "Prototype-scoped node attributes. Saved-search nodes use this for their folded query/filter payload (#2591 F1)."
           },
           "source_authority": {
             "$ref": "#/components/schemas/SourceAuthority",
@@ -41605,6 +41844,57 @@
         ],
         "title": "EntityUpsertRequest",
         "description": "Request to create or update a knowledge entity."
+      },
+      "EphemeralCropRequest": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AnnotationKind",
+            "default": "highlight"
+          },
+          "bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Bbox"
+          },
+          "char_start": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char Start"
+          },
+          "char_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char End"
+          },
+          "page_index": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Page Index"
+          },
+          "page_label": {
+            "type": "string",
+            "nullable": true,
+            "title": "Page Label"
+          },
+          "text": {
+            "type": "string",
+            "nullable": true,
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id"
+        ],
+        "title": "EphemeralCropRequest",
+        "description": "A region to crop WITHOUT persisting an annotation (#2256).\n\nLets the reader send the LLM/vision provider just the marked region of a\ndocument on the fly \u2014 the user is still deciding, so nothing is saved."
       },
       "EpistemicStatus": {
         "type": "string",

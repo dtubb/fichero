@@ -739,6 +739,20 @@ def register_generated_openapi_commands(
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("ephemeral-crop-for-an-unsaved-region-no-persisted")
+    def annotations_ephemeral_crop_for_an_unsaved_region_no_persisted_post(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Ephemeral crop for an unsaved region (no annotation persisted) (POST /api/annotations/crop)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/annotations/crop"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("delete")
     def annotations_delete_delete(
         ctx: typer.Context,
@@ -1211,6 +1225,51 @@ def register_generated_openapi_commands(
             }
             payload = _load_json_payload(body, body_file, required=True)
             return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    target_app = existing_apps.get('bookmarks')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for bookmarks endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='bookmarks')
+
+    @target_app.command("list")
+    def bookmarks_list_get(
+        ctx: typer.Context,
+        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Query parameter: parent_id."),
+    ) -> None:
+        """List Bookmarks (GET /api/bookmarks)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/bookmarks"
+            params = {
+                "parent_id": parent_id,
+            }
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("create")
+    def bookmarks_create_post(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Create Bookmark (POST /api/bookmarks)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/bookmarks"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("resolve")
+    def bookmarks_resolve_get(
+        ctx: typer.Context,
+        bookmark_id: str = typer.Argument(..., help="Path parameter: bookmark_id."),
+    ) -> None:
+        """Resolve Bookmark (GET /api/bookmarks/{bookmark_id}/resolve)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/bookmarks/{bookmark_id}/resolve"
+            params = None
+            return client.request("GET", path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('chains')
