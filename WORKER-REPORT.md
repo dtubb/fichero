@@ -46,3 +46,15 @@ Commit 7f067402, authored Claude.
 ### STOPPED HERE (Slice 2b + Slice 3 remaining):
 - Slice 2b — PDF page regions: render saved regions as native PDFAnnotations in PDFPageView (PDFKit handles page coords; reuse existing claim-source PDFAnnotation pattern ~PDFPageView L490/789) + creation via PDFKit selection. Needs PDFPageView page↔view geometry + device visual check.
 - Slice 3 — docx reader text-range highlight/note (reuse AnnotatableTextView).
+
+### #2458 SLICE 2b — PDF page-region bounding-box annotations — DONE
+Commit eadbe6af, authored Claude.
+- Implemented PDF reader-toolbar annotation stub (PDFPageWithToolbar.requestAnnotation). Highlight/Note arm a region drag → normalized page coords (pdfView.convert) → persisted as bbox annotation scoped to document + page_index (#2396). Bookmark = whole-page. Saved regions render as native PDFKit .square annotations (PDFKit handles zoom positioning).
+- NEW: PDFRegionGeometry (pure: normalized top-left ↔ PDFKit bottom-left page rect with Y-flip + clamp/order). Tests: PDFRegionGeometryTests (6 cases incl. round-trip).
+- ADDITIVE: DocumentAnnotation/AnnotationService/AnnotationStore gain page_index (decode + addNote param + request); annotation(from:) maps it.
+- Region-draw = branch of existing pan recognizer (no page-turn conflict). iOS PDFPageView takes params inertly (macOS = annotation surface, #if-guarded).
+- Refactor: extracted performRegionDraw + registerObservers to keep handlePan/makeNSView under lint budgets.
+- Verification: app build green (isolated xcodebuild, scratch DD, no signing); my source + test compile ZERO diagnostics. Only test-target blocker = PRE-EXISTING SpatialScene3DTests fileprivate break (still on main; dedicated repair task recommended). Suite not RUN. NOT pushed.
+- NOTE: on-page pixel alignment needs device visual-verification (math tested).
+
+### REMAINING: Slice 3 — docx reader text-range highlight/note (reuse AnnotatableTextView).
