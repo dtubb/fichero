@@ -49,7 +49,7 @@ private func loadSDRImage(from url: URL) -> NSImage? {
 struct ImageWithCursorTracking: NSViewRepresentable {
     private static let logger = Logger(subsystem: "app.fichero.fichero", category: "ImageWithCursorTracking")
 
-    let url: URL
+    let url: URL?
     /// When non-nil, this image is used directly instead of loading from `url`.
     /// Enables editor mode where the canvas shows a backend-rendered preview (#1402).
     var overrideImage: PlatformImage? = nil
@@ -132,7 +132,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         imageView.loupeMagnification = loupeMagnification
         imageView.loupeSize = loupeSize
 
-        let initialImage = overrideImage ?? loadSDRImage(from: url)
+        let initialImage = overrideImage ?? url.flatMap(loadSDRImage)
         if let image = initialImage {
             imageView.image = image
             imageView.frame = NSRect(origin: .zero, size: image.size)
@@ -141,7 +141,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
                 self.imageSize = image.size
             }
         } else {
-            Self.logger.error("makeNSView: Failed to load image from: \(url.lastPathComponent)")
+            Self.logger.error("makeNSView: Failed to load image")
         }
         context.coordinator.currentOverrideImage = overrideImage
 
@@ -236,7 +236,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             let needsImageUpdate = overrideImage != nil ? overrideChanged : urlChanged
 
             if needsImageUpdate {
-                let newImage = overrideImage ?? loadSDRImage(from: url)
+                let newImage = overrideImage ?? url.flatMap(loadSDRImage)
                 if let image = newImage {
                     imageView.image = image
                     imageView.frame = NSRect(origin: .zero, size: image.size)
@@ -652,7 +652,7 @@ private func loadSDRImage(from url: URL) -> PlatformImage? {
 struct ImageWithCursorTracking: UIViewRepresentable {
     private static let logger = Logger(subsystem: "app.fichero.fichero", category: "ImageWithCursorTracking")
 
-    let url: URL
+    let url: URL?
     var overrideImage: PlatformImage? = nil
     @Binding var scale: CGFloat
     @Binding var cursorPosition: CGPoint
@@ -703,7 +703,7 @@ struct ImageWithCursorTracking: UIViewRepresentable {
         imageView.loupeMagnification = loupeMagnification
         imageView.loupeSize = loupeSize
 
-        let initialImage = overrideImage ?? loadSDRImage(from: url)
+        let initialImage = overrideImage ?? url.flatMap(loadSDRImage)
         if let image = initialImage {
             imageView.image = image
             imageView.frame = CGRect(origin: .zero, size: image.size)
@@ -713,7 +713,7 @@ struct ImageWithCursorTracking: UIViewRepresentable {
                 self.imageSize = image.size
             }
         } else {
-            Self.logger.error("makeUIView: Failed to load image from: \(url.lastPathComponent)")
+            Self.logger.error("makeUIView: Failed to load image")
         }
         context.coordinator.currentOverrideImage = overrideImage
 
@@ -784,7 +784,7 @@ struct ImageWithCursorTracking: UIViewRepresentable {
             let needsImageUpdate = overrideImage != nil ? overrideChanged : urlChanged
 
             if needsImageUpdate {
-                let newImage = overrideImage ?? loadSDRImage(from: url)
+                let newImage = overrideImage ?? url.flatMap(loadSDRImage)
                 if let image = newImage {
                     imageView.image = image
                     imageView.frame = CGRect(origin: .zero, size: image.size)
@@ -961,4 +961,3 @@ struct ImageWithCursorTracking: UIViewRepresentable {
 }
 
 #endif
-

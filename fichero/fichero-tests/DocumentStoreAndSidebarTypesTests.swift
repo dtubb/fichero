@@ -305,6 +305,18 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(storageSource.contains("func clearAll()"))
     }
 
+    func testRemotePreviewSurfacesDoNotInventLocalFileURLs() throws {
+        let imageViewerSource = try Self.appSource("Views/Library/ImageViewerComponents.swift")
+        let activitySource = try Self.appSource("Views/Activity/ActivityProgressView+HistoricalProgress.swift")
+        let trackingSource = try Self.appSource("Views/Library/ImageViewer/ImageWithCursorTracking.swift")
+
+        XCTAssertFalse(imageViewerSource.contains("URL(fileURLWithPath: \"/\")"))
+        XCTAssertFalse(activitySource.contains("URL(fileURLWithPath: filePath)"))
+        XCTAssertTrue(activitySource.contains("(filePath as NSString).lastPathComponent"))
+        XCTAssertTrue(trackingSource.contains("let url: URL?"))
+        XCTAssertTrue(trackingSource.contains("url.flatMap(loadSDRImage)"))
+    }
+
     func testNotesLiveInDocumentInspectorAndStandaloneBrowserRetired() throws {
         // Notes moved into the per-document inspector (Notes tab → DocumentNotesTab,
         // #1500). The standalone library-wide browser sheet and its Data-menu entry
