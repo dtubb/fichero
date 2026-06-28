@@ -125,5 +125,6 @@ nav:
           - Backend API Overview: architecture/api/overview.md
           - SwiftUI Overview: architecture/swiftui/overview.md
           - Release Process: architecture/release-process.md
+          - 0.1.0 QA Sign-Off: release/qa-signoff-0.1.0.md
   - API Reference: api-reference/index.md
   - How It's Built: how-its-built.md
