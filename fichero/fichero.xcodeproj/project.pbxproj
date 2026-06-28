@@ -212,6 +212,7 @@
 		56B06FF519C1F4B9CD4E6214 /* ActionInvokeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6175F28D959ABB4DB0C2F4CD /* ActionInvokeService.swift */; };
 		56DCD53ACD6483561CF542B3 /* KGTemporalSpatial.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43EAB861267206E7A929830F /* KGTemporalSpatial.swift */; };
 		57EFBE5436C18075ECE90EFC /* ClaimStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C527476477074D83F628468 /* ClaimStore.swift */; };
+		58D2706E3737EB46CA0979B9 /* BoundingBoxOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 382D17DD3ECD79ED5E9AAE08 /* BoundingBoxOverlay.swift */; };
 		5D064ECAAD353BDB778B8580 /* AnnotationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61D7DC57117008EBCFE607A9 /* AnnotationService.swift */; };
 		5D621E99ED66F859FD195491 /* AnnotatableTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 032AA7721B1C054A6CD89D4C /* AnnotatableTextView.swift */; };
 		5E8 /* SidebarItemBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9 /* SidebarItemBuilder.swift */; };
@@ -279,6 +280,7 @@
 		9C60CF320CB5560D66695318 /* ArtifactListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 935EF9A7E6549E855A80EA21 /* ArtifactListView.swift */; };
 		9D71A811170D438B938FC1DA /* LibraryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */; };
 		9F50071471DB4B1EA1618E6E /* ActivityMonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C939F2EE06FF349761CA2F /* ActivityMonitorView.swift */; };
+		9F8F3883E8324E76A746FAF8 /* BoundingBoxGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D870DB81D42B1614D58CE3F /* BoundingBoxGeometry.swift */; };
 		9FB2B2B858EA25B4757ECFEC /* EntitySourceGroupsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8B0073490980740B06C80D7 /* EntitySourceGroupsView.swift */; };
 		A0DB690A7FF2BA11F0D05AE7 /* DocumentInspectorArtifactsTab+KGSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B7EC6F2955D032D3FA13E30 /* DocumentInspectorArtifactsTab+KGSection.swift */; };
 		A13E7C1F2F27E01E00EC9EE1 /* ActivityRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C122F27E01E00EC9EE1 /* ActivityRun.swift */; };
@@ -749,6 +751,7 @@
 		375F58443D6F498C1FEDD3E3 /* ResearchStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ResearchStore.swift; sourceTree = "<group>"; };
 		376E2EE5F22D7B7127D9CB2A /* OntologyBrowser+List.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "OntologyBrowser+List.swift"; sourceTree = "<group>"; };
 		377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryManager.swift; sourceTree = "<group>"; };
+		382D17DD3ECD79ED5E9AAE08 /* BoundingBoxOverlay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoundingBoxOverlay.swift; sourceTree = "<group>"; };
 		38753C6C4C3EECE670188B92 /* ComparisonDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComparisonDetailView.swift; sourceTree = "<group>"; };
 		38E23447A5C31CE397D337CC /* ResearchChatPane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ResearchChatPane.swift; sourceTree = "<group>"; };
 		397DBEE7CB99C18C680AB85E /* UITestSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UITestSupport.swift; sourceTree = "<group>"; };
@@ -793,6 +796,7 @@
 		5BAA47F1959AD79AA6C2E3EF /* TriggerEditorPreviewPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TriggerEditorPreviewPanel.swift; path = fichero/Views/Automation/TriggerEditorView/TriggerEditorPreviewPanel.swift; sourceTree = SOURCE_ROOT; };
 		5C8EFF7D9BC634BAE18E0F47 /* ImageEditorView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImageEditorView.swift; sourceTree = "<group>"; };
 		5D0B24DE95228CEA6B853324 /* SplittablePane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SplittablePane.swift; sourceTree = "<group>"; };
+		5D870DB81D42B1614D58CE3F /* BoundingBoxGeometry.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoundingBoxGeometry.swift; sourceTree = "<group>"; };
 		5E980A75F8C3912DD4B196DA /* SpatialScene3D.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpatialScene3D.swift; sourceTree = "<group>"; };
 		5ECF56D87D8211DDC932955B /* AnnotationsInspectorPane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnnotationsInspectorPane.swift; sourceTree = "<group>"; };
 		60A05B7F3C09F6A27BE55971 /* FicheroActionIntents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FicheroActionIntents.swift; sourceTree = "<group>"; };
@@ -1551,6 +1555,7 @@
 				166A5110A8453E7D73BF1EEA /* RepresentationStore.swift */,
 				74ECCAE0282E67AA4A150871 /* CoalescingSaveRunner.swift */,
 				6D4DEA1D7E10749DA258D26F /* AnnotationHighlight.swift */,
+				5D870DB81D42B1614D58CE3F /* BoundingBoxGeometry.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -1944,6 +1949,7 @@
 				D1BE7613380B23C597C463B1 /* RepresentationView.swift */,
 				E0AF1F41099C45462F7D7658 /* AnnotationToolbar.swift */,
 				032AA7721B1C054A6CD89D4C /* AnnotatableTextView.swift */,
+				382D17DD3ECD79ED5E9AAE08 /* BoundingBoxOverlay.swift */,
 			);
 			path = Library;
 			sourceTree = "<group>";
@@ -2815,6 +2821,8 @@
 				045C6648800D0B7D95D13B32 /* AnnotationHighlight.swift in Sources */,
 				9421EE6C6C84BC6FCAA4F8A9 /* AnnotationToolbar.swift in Sources */,
 				5D621E99ED66F859FD195491 /* AnnotatableTextView.swift in Sources */,
+				9F8F3883E8324E76A746FAF8 /* BoundingBoxGeometry.swift in Sources */,
+				58D2706E3737EB46CA0979B9 /* BoundingBoxOverlay.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
