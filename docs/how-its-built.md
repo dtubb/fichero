@@ -16,8 +16,9 @@ unreviewed code.
 
 ## The two core roles
 
-Work is organized around a **manager / worker** split, defined as session-start
-skills in `agent-work/agent-workflow/skills/`:
+Work is organized around a **manager / worker** split. In the current repo, the
+canonical reusable skills live under `agents/skills/`, with older workflow
+notes and templates still preserved under `agent-work/agent-workflow/`:
 
 - **Manager** (`session-start-manager`): the control lane. It reads project
   state and the roadmap, triages GitHub issues, decides what to do next, and
@@ -72,7 +73,8 @@ A few hard rules keep the machine usable while agents run:
 ## Three execution modes
 
 The workflow picks the lightest tool that fits the task
-(`agent-work/agent-workflow/parallel-execution.md`):
+(`agent-work/agent-workflow/parallel-execution.md` remains the detailed
+reference note for that pattern):
 
 | Mode | What it is | Use when |
 |---|---|---|
@@ -118,6 +120,7 @@ those lessons down at the end of a working session.
 
 ---
 
-*This page describes the development workflow, not a feature of the app. For the
-full operational detail, see `agent-work/agent-workflow/parallel-execution.md` and the
-skills in `agent-work/agent-workflow/skills/`.*
+*This page describes the development workflow, not a feature of the app. For
+the detailed operating rules, see `AGENTS.md`, the current skills under
+`agents/skills/`, and the longer background notes in
+`agent-work/agent-workflow/`.*
