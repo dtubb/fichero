@@ -426,3 +426,57 @@ class TestAnnotationAnchorFields:
         data = resp.json()
         assert data["anchor_kind"] is None
         assert data["paragraph_index"] is None
+
+
+# ---------------------------------------------------------------------------
+# Ephemeral crop — POST /annotations/crop (#2256)
+# ---------------------------------------------------------------------------
+
+
+class TestEphemeralCrop:
+    """POST /annotations/crop returns cropped content WITHOUT persisting."""
+
+    def test_text_crop_by_char_offsets(self, client, doc):
+        # doc.page_content == "Hello world. This is the document body."
+        resp = client.post(
+            "/api/annotations/crop",
+            json={"document_id": doc.id, "char_start": 0, "char_end": 5},
+        )
+        assert resp.status_code == 200
+        assert resp.text == "Hello"
+
+    def test_text_crop_falls_back_to_request_text(self, client, doc):
+        resp = client.post(
+            "/api/annotations/crop",
+            json={"document_id": doc.id, "kind": "note", "text": "free note"},
+        )
+        assert resp.status_code == 200
+        assert resp.text == "free note"
+
+    def test_unknown_document_returns_404(self, client):
+        resp = client.post(
+            "/api/annotations/crop",
+            json={"document_id": "does-not-exist", "char_start": 0, "char_end": 3},
+        )
+        assert resp.status_code == 404
+
+    def test_missing_document_id_is_422(self, client):
+        resp = client.post("/api/annotations/crop", json={"char_start": 0, "char_end": 3})
+        assert resp.status_code == 422
+
+    def test_no_crop_available_returns_404(self, client, doc):
+        # bookmark with neither offsets nor text → nothing to crop.
+        resp = client.post(
+            "/api/annotations/crop",
+            json={"document_id": doc.id, "kind": "bookmark"},
+        )
+        assert resp.status_code == 404
+
+    def test_crop_persists_nothing(self, client, doc):
+        before = client.get("/api/annotations", params={"document_id": doc.id}).json()["count"]
+        client.post(
+            "/api/annotations/crop",
+            json={"document_id": doc.id, "char_start": 0, "char_end": 5},
+        )
+        after = client.get("/api/annotations", params={"document_id": doc.id}).json()["count"]
+        assert before == after == 0
