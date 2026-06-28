@@ -7,7 +7,8 @@ Run only when Daniel's local fixture is available:
 ```bash
 FICHERO_RUN_FULL_BOOK_E2E=1 \
 PYTHONPATH=fichero-engine/src \
-pytest fichero-engine/tests/integration/test_full_book_catalogue_e2e.py::test_tubb2020shift_catalogue_populates_kg -q
+~/.venv/bin/python -m pytest \
+  fichero-engine/tests/integration/test_full_book_catalogue_e2e.py::test_tubb2020shift_catalogue_populates_kg -q
 ```
 
 Override the fixture path with `FICHERO_FULL_BOOK_E2E_PDF=/path/to/book.pdf`.
