@@ -2,6 +2,9 @@
 import Darwin
 import FicheroAPIClient
 import Foundation
+#if canImport(AppKit)
+import AppKit
+#endif
 
 /// Single source of truth for the Fichero engine base URL.
 ///
@@ -185,6 +188,48 @@ enum EngineConfig {
     static var engineIsLocal: Bool {
         resolvedHostConfiguration.engineIsLocal
     }
+
+    // MARK: - Mac launch connection mode (#2381)
+
+    /// How a macOS launch should establish its engine connection.
+    ///
+    /// A normal launch uses the embedded local engine — backend URL/debug
+    /// fields stay out of regular Settings. Holding Option at launch instead
+    /// exposes the explicit remote-client connection flow (scan/paste a host
+    /// pairing link) for connecting this Mac to another Fichero host.
+    enum MacLaunchConnectionMode: Equatable {
+        /// Start the embedded local engine (the default for a normal launch).
+        case embeddedLocal
+        /// Present the remote-client connection chooser (Option held at launch).
+        case remoteConnectionChooser
+    }
+
+    /// Pure launch-mode decision, dependency-injected so it can be unit-tested
+    /// without AppKit or a real launch.
+    ///
+    /// - `optionKeyHeld`: was Option down as the app launched.
+    /// - `isInteractiveLaunch`: false for Xcode Previews / Playgrounds / UI-test
+    ///   / XCTest hosts, which drive the app non-interactively and must never
+    ///   pop the chooser. The chooser only appears for a deliberate Option-held
+    ///   interactive launch.
+    static func macLaunchConnectionMode(
+        optionKeyHeld: Bool,
+        isInteractiveLaunch: Bool
+    ) -> MacLaunchConnectionMode {
+        guard isInteractiveLaunch, optionKeyHeld else {
+            return .embeddedLocal
+        }
+        return .remoteConnectionChooser
+    }
+
+    #if os(macOS)
+    /// True when Option is currently held — a snapshot of AppKit's modifier
+    /// flags read once at launch. Isolated here so `macLaunchConnectionMode`
+    /// above stays a pure, AppKit-free, unit-testable decision.
+    static func optionKeyHeldAtLaunch() -> Bool {
+        NSEvent.modifierFlags.contains(.option)
+    }
+    #endif
 
     static func hostConfiguration(from raw: String?) -> HostConfiguration {
         hostConfiguration(

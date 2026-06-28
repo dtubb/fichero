@@ -145,4 +145,55 @@ struct MacRemoteClientPairingSection: View {
         }
     }
 }
+
+/// Remote-client connection chooser, presented at launch when the user holds
+/// Option (#2381).
+///
+/// A normal Mac launch uses the embedded local engine, so the backend URL /
+/// pairing fields no longer need to live in regular Settings. Holding Option
+/// surfaces this explicit flow to connect *this* Mac to another Fichero host.
+/// It reuses `MacRemoteClientPairingSection` rather than duplicating the
+/// pairing UI; dismissing ("Use Local Engine") keeps the already-running
+/// embedded engine. Co-located with the section it presents (the app target
+/// uses explicit file references, so a standalone file would need a project
+/// edit for no behavioural gain).
+struct RemoteConnectionChooserSheet: View {
+    @ObservedObject private var appState: AppState
+    @ObservedObject private var backendService: EmbeddedBackendService
+    @ObservedObject private var libraryManager: LibraryManager
+    @Environment(\.dismiss) private var dismiss
+
+    init(
+        appState: AppState,
+        backendService: EmbeddedBackendService,
+        libraryManager: LibraryManager
+    ) {
+        self._appState = ObservedObject(wrappedValue: appState)
+        self._backendService = ObservedObject(wrappedValue: backendService)
+        self._libraryManager = ObservedObject(wrappedValue: libraryManager)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Form {
+                MacRemoteClientPairingSection(
+                    appState: appState,
+                    backendService: backendService,
+                    libraryManager: libraryManager
+                )
+            }
+            .formStyle(.grouped)
+
+            Divider()
+
+            HStack {
+                Spacer()
+                Button("Use Local Engine") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+            }
+            .padding()
+        }
+        .frame(minWidth: 460, minHeight: 380)
+    }
+}
 #endif
