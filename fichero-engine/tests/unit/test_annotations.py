@@ -331,3 +331,152 @@ class TestCropText:
         )
         ann = Annotation(document_id="d3", kind=AnnotationKind.bookmark)
         assert crop_text(doc, ann) is None
+
+
+# ---------------------------------------------------------------------------
+# Additive anchor fields + ink metadata (#2256)
+# ---------------------------------------------------------------------------
+
+
+class TestAnnotationAnchorFields:
+    """anchor_kind / paragraph_index / ink metadata are additive (#2256).
+
+    Pre-existing libraries created before these fields existed must keep
+    working: the DB column reconcile (ALTER TABLE ADD COLUMN) is what makes
+    the no-migration rule hold, so a persistence round-trip is the regression
+    that proves a new field doesn't break save()/get() on the annotation table.
+    """
+
+    def test_create_with_anchor_kind_and_paragraph_index(self, client, doc):
+        resp = client.post(
+            "/api/annotations",
+            json={
+                "document_id": doc.id,
+                "kind": "highlight",
+                "anchor_kind": "paragraph",
+                "paragraph_index": 3,
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["anchor_kind"] == "paragraph"
+        assert data["paragraph_index"] == 3
+
+    def test_anchor_fields_persist_round_trip(self, client, db, doc):
+        resp = client.post(
+            "/api/annotations",
+            json={
+                "document_id": doc.id,
+                "kind": "highlight",
+                "anchor_kind": "bbox",
+                "paragraph_index": 0,
+            },
+        )
+        ann_id = resp.json()["id"]
+        # Read back through the DB layer (not just the response echo) to prove
+        # the columns were actually persisted, not silently dropped.
+        stored = db.get(Annotation, ann_id)
+        assert stored is not None
+        assert stored.anchor_kind == "bbox"
+        assert stored.paragraph_index == 0
+
+    def test_create_with_ink_metadata(self, client, doc):
+        # The ink fields live in the free `metadata` dict (extra="allow"), so
+        # they need no schema column — but they must round-trip intact.
+        resp = client.post(
+            "/api/annotations",
+            json={
+                "document_id": doc.id,
+                "kind": "note",
+                "anchor_kind": "ink",
+                "text": "transcribed ink",
+                "metadata": {
+                    "ink_data": "base64-pencilkit-stroke-data",
+                    "ocr_provider": "apple_vision",
+                },
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["anchor_kind"] == "ink"
+        assert data["metadata"]["ink_data"] == "base64-pencilkit-stroke-data"
+        assert data["metadata"]["ocr_provider"] == "apple_vision"
+
+    def test_patch_sets_anchor_fields(self, client, db, doc):
+        ann = Annotation(document_id=doc.id, kind=AnnotationKind.highlight)
+        db.save(ann)
+        resp = client.patch(
+            f"/api/annotations/{ann.id}",
+            json={"anchor_kind": "paragraph", "paragraph_index": 7},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["anchor_kind"] == "paragraph"
+        assert data["paragraph_index"] == 7
+        assert db.get(Annotation, ann.id).paragraph_index == 7
+
+    def test_defaults_none_when_omitted(self, client, doc):
+        # Backward compatibility: a client that never sends the new fields gets
+        # nulls, exactly as before they existed.
+        resp = client.post(
+            "/api/annotations",
+            json={"document_id": doc.id, "kind": "note", "text": "plain"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["anchor_kind"] is None
+        assert data["paragraph_index"] is None
+
+
+# ---------------------------------------------------------------------------
+# Ephemeral crop — POST /annotations/crop (#2256)
+# ---------------------------------------------------------------------------
+
+
+class TestEphemeralCrop:
+    """POST /annotations/crop returns cropped content WITHOUT persisting."""
+
+    def test_text_crop_by_char_offsets(self, client, doc):
+        # doc.page_content == "Hello world. This is the document body."
+        resp = client.post(
+            "/api/annotations/crop",
+            json={"document_id": doc.id, "char_start": 0, "char_end": 5},
+        )
+        assert resp.status_code == 200
+        assert resp.text == "Hello"
+
+    def test_text_crop_falls_back_to_request_text(self, client, doc):
+        resp = client.post(
+            "/api/annotations/crop",
+            json={"document_id": doc.id, "kind": "note", "text": "free note"},
+        )
+        assert resp.status_code == 200
+        assert resp.text == "free note"
+
+    def test_unknown_document_returns_404(self, client):
+        resp = client.post(
+            "/api/annotations/crop",
+            json={"document_id": "does-not-exist", "char_start": 0, "char_end": 3},
+        )
+        assert resp.status_code == 404
+
+    def test_missing_document_id_is_422(self, client):
+        resp = client.post("/api/annotations/crop", json={"char_start": 0, "char_end": 3})
+        assert resp.status_code == 422
+
+    def test_no_crop_available_returns_404(self, client, doc):
+        # bookmark with neither offsets nor text → nothing to crop.
+        resp = client.post(
+            "/api/annotations/crop",
+            json={"document_id": doc.id, "kind": "bookmark"},
+        )
+        assert resp.status_code == 404
+
+    def test_crop_persists_nothing(self, client, doc):
+        before = client.get("/api/annotations", params={"document_id": doc.id}).json()["count"]
+        client.post(
+            "/api/annotations/crop",
+            json={"document_id": doc.id, "char_start": 0, "char_end": 5},
+        )
+        after = client.get("/api/annotations", params={"document_id": doc.id}).json()["count"]
+        assert before == after == 0
