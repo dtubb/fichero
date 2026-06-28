@@ -21,13 +21,15 @@ Download the `.dmg` file, open it, and drag Fichero to your Applications folder.
 
 ## First launch
 
-Fichero is signed and notarized. On first launch, macOS may show a Gatekeeper alert because Fichero was downloaded from outside the App Store. If that happens:
+Current release builds are distributed as signed macOS app bundles. On first
+launch, macOS may show a Gatekeeper alert because Fichero was downloaded from
+outside the App Store. If that happens:
 
 1. Right-click (or Control-click) the Fichero icon in Applications.
 2. Choose **Open** from the menu.
 3. Click **Open** in the confirmation dialog.
 
-You only need to do this once. After that, Fichero opens normally.
+You only need to do this once. After that, Fichero should open normally.
 
 When Fichero starts, fichero-engine launches automatically in the background. You may see "Connecting to backend…" briefly in the title bar while it starts. This is normal, and it takes a few seconds the first time.
 
