@@ -1384,6 +1384,70 @@ class TestDocumentPrototypes:
         assert effective["supports_children"] is True
         assert effective["workspace_kind"] == "room"
 
+    def test_room_assignment_resolves_inherited_folder_attributes(self, client, db):
+        doc = _make_doc(db, "Room Target")
+
+        response = client.put(
+            f"/api/documents/{doc.id}/prototype",
+            json={"prototype_key": "room"},
+        )
+
+        assert response.status_code == 200
+        refreshed = db.get(Document, doc.id)
+        assert refreshed.prototype_key == "room"
+        assert resolve_prototype_attributes(db, refreshed.prototype_key) == {
+            "container_kind": "folder",
+            "supports_children": True,
+            "spatial_layout": True,
+            "workspace_kind": "room",
+        }
+
+    def test_research_workspace_assignment_resolves_inherited_folder_attributes(self, client, db):
+        doc = _make_doc(db, "Workspace Target")
+
+        response = client.put(
+            f"/api/documents/{doc.id}/prototype",
+            json={"prototype_key": "research_workspace"},
+        )
+
+        assert response.status_code == 200
+        refreshed = db.get(Document, doc.id)
+        assert refreshed.prototype_key == "research_workspace"
+        effective = resolve_prototype_attributes(db, refreshed.prototype_key)
+        assert effective["container_kind"] == "folder"
+        assert effective["supports_children"] is True
+        assert effective["chat_scope"] == "container"
+        assert effective["carries_tasks"] is True
+        assert effective["workspace_kind"] == "research"
+
+    def test_assigns_user_defined_child_of_builtin_parent_and_leaf_override_wins(self, client, db):
+        db.save(
+            ClassificationValue(
+                dimension=ClassificationDimension.document_prototype,
+                key="custom_room",
+                label="Custom Room",
+                parent_key="room",
+                attributes={"workspace_kind": "custom-room", "accent": "gold"},
+            )
+        )
+        doc = _make_doc(db, "Custom Builtin Parent")
+
+        response = client.put(
+            f"/api/documents/{doc.id}/prototype",
+            json={"prototype_key": "custom_room"},
+        )
+
+        assert response.status_code == 200
+        refreshed = db.get(Document, doc.id)
+        assert refreshed.prototype_key == "custom_room"
+        assert resolve_prototype_attributes(db, refreshed.prototype_key) == {
+            "container_kind": "folder",
+            "supports_children": True,
+            "spatial_layout": True,
+            "workspace_kind": "custom-room",
+            "accent": "gold",
+        }
+
     def test_assigns_prototype_to_descendant_page_range(self, client, db):
         folder = _make_doc(db, "Folder")
         page1 = Document(name="p1", doc_type=DocType.page, parent_id=folder.id, sequence=1)
