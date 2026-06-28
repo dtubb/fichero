@@ -5,6 +5,12 @@ name: fichero-build
 
 # /fichero-build
 
+> **⚠️ STALE — verify before use.** The steps below predate the `fichero-api` → `fichero-engine`
+> rename and the consolidated release tooling. The canonical build/release path is now
+> `scripts/release-all.sh` + `fichero-engine/scripts/build_backend_bundle.sh`, documented in
+> `docs/release/release-lane.md`. Treat the commands here as historical until reconciled
+> (tracked in `PLAN-GOVERNANCE.md` §5).
+
 Build Fichero with the embedded Python backend. Defaults to debug; pass `release` for a release build.
 
 ## Arguments

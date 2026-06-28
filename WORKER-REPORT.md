@@ -41,6 +41,19 @@ I deliberately did **not** edit `README.md`, `USER.md`, `CONTRIBUTING.md`, or `f
 docs (their dangling `site/docs/` links) — those are the docs-content lane's; flagged for the
 manager to sweep at merge.
 
+**Skills audit — safe/factual fixes only** (judgment calls left flagged):
+
+- `choose-next` — resynced from its canonical `fs_session` source (was 10 lines behind).
+- `dispatch-worker` — stale base branch `0.0.2` → `main` (0.0.2 merged to main via #2652). The
+  cherry-pick → PR-merge model reconciliation is left **flagged** (judgment).
+- `fichero-build`, `fichero-release-prep`, `fichero-release` — added a **STALE banner** pointing at
+  the canonical release lane (`docs/release/release-lane.md` / `scripts/release-all.sh`) rather than
+  half-fixing unverifiable Briefcase paths. Full rewrite-or-delete left **flagged**.
+- **Found two orphaned dead `_shared` files** (`architecture-summary.md`, `team-constitutions.md`) —
+  referenced by no live skill, contradict canonical docs (`fichero-swiftui/`, `fichero-api/`,
+  `codex/restructure-api-swiftui`, `xcodebuild test`). **DELETE candidates — flagged**, not touched
+  (deletes stay your call).
+
 ## Issues harvested → filed
 
 | # | Title | Milestone |

@@ -5,6 +5,10 @@ name: fichero-release
 
 # /fichero-release
 
+> **⚠️ STALE — verify before use.** Overlaps the canonical release lane
+> (`scripts/release-all.sh` / `create-github-release.sh`, documented in `docs/release/release-lane.md`).
+> Reconcile to one source before relying on the steps below (tracked in `PLAN-GOVERNANCE.md` §5).
+
 Publish the prepared release. Only run after `/fichero-release-prep` and Daniel's approval.
 
 ## Pre-check

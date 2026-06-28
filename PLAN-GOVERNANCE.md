@@ -195,18 +195,22 @@ repo-specific ones (build/release/gardener) have no external counterpart.
 | `session-start-worker` | ✅ yes (core lane) | ✅ mostly — "pick milestone issue, claim, commit referencing #, push branch, manager merges" matches. Generic/project-agnostic. | identical to `fs_session` | **KEEP** (re-sync from external on update; it's a vendored copy) |
 | `session-start-manager` | ✅ yes (core lane) | ✅ aligned (coordinate/dispatch/no-product-code) | identical to `fs_session` | **KEEP** (vendored copy) |
 | `session-end` | ✅ yes | ✅ aligned (updates STATE/MEMORY) | identical to `fs_session` | **KEEP** (vendored copy) |
-| `dispatch-worker` | ✅ yes | ⚠️ **STALE base branch** — creates worktrees off `0.0.2` (`git worktree add … 0.0.2`), but `0.0.2` was merged to **main** via #2652 on 2026-06-26. Also models **cherry-pick** integration, while the new model is **merge-via-PR**. Cheap-model/codex/"workers never run pytest" rules still valid. | identical to `fs_session` | **UPDATE** — change base branch `0.0.2`→`main`; reconcile cherry-pick vs PR-merge with Daniel's "merges via PR". Fix in the **external** source then re-vendor. |
-| `choose-next` | ✅ yes | ⚠️ in-repo copy is **10 lines behind** external (36L vs 46L) | differs from `fs_session` (newer) | **UPDATE / BRING-OVER** newer external version |
-| `fichero-build` | ⚠️ maybe (superseded) | ❌ **STALE** — says `cd fichero-api` + `.briefcase-venv` (dir renamed to `fichero-engine`; build now via `fichero-engine/scripts/build_backend_bundle.sh` + `scripts/release-all.sh`) | none (repo-specific) | **UPDATE or DELETE** — fix `fichero-api`→`fichero-engine` paths, or delete and defer to `docs/release/release-lane.md`. FLAG. |
-| `fichero-release-prep` | ⚠️ maybe (superseded) | ❌ **STALE** — same `fichero-api`/`.briefcase-venv` path; references `scripts/build-release-dmg.sh` while canonical lane is `scripts/release-all.sh` + `docs/release/release-lane.md` | none (repo-specific) | **UPDATE or MERGE** into the release-lane runbook. FLAG. |
-| `fichero-release` | ⚠️ maybe | ⚠️ flow (GitHub release/appcast/site deploy) conceptually valid but overlaps `docs/release/release-lane.md` + `create-github-release.sh` | none (repo-specific) | **UPDATE/MERGE** — reconcile with the documented release lane so there's one source. FLAG. |
-| `gardener-agent` | ✅ yes (manager/cron) | ✅ accurate — `scripts/gardener.py` exists; flags/options match | none (repo-specific) | **KEEP** |
-| `_shared/` (swift-/python-principles, architecture-summary, team-constitutions) | ✅ referenced | ⚠️ verify freshness (architecture-summary can drift from `docs/architecture/`) | n/a | **KEEP**, spot-check for drift |
+| `dispatch-worker` | ✅ yes | ⚠️ **STALE base branch** — created worktrees off `0.0.2`, but `0.0.2` merged to **main** via #2652 on 2026-06-26. Also models **cherry-pick** integration vs the new **merge-via-PR** model. | identical to `fs_session` | **✅ EXECUTED** base branch `0.0.2`→`main` (safe/factual). **STILL FLAGGED:** cherry-pick→PR-merge reconciliation (judgment — leave for Daniel). |
+| `choose-next` | ✅ yes | ⚠️ in-repo copy was **10 lines behind** external (36L→46L) | differs from `fs_session` (newer) | **✅ EXECUTED** — resynced from canonical `fs_session` source. |
+| `fichero-build` | ⚠️ superseded | ❌ **STALE** — `cd fichero-api` + `.briefcase-venv` (dir renamed `fichero-engine`; build now via `fichero-engine/scripts/build_backend_bundle.sh` + `scripts/release-all.sh`) | none (repo-specific) | **✅ EXECUTED** STALE banner → `docs/release/release-lane.md`. **STILL FLAGGED:** full rewrite-vs-delete (unverifiable Briefcase flow — judgment). |
+| `fichero-release-prep` | ⚠️ superseded | ❌ **STALE** — same `fichero-api`/`.briefcase-venv`; uses `scripts/build-release-dmg.sh` vs canonical `scripts/release-all.sh` | none (repo-specific) | **✅ EXECUTED** STALE banner. **STILL FLAGGED:** merge into release-lane runbook. |
+| `fichero-release` | ⚠️ superseded | ⚠️ overlaps `docs/release/release-lane.md` + `create-github-release.sh` | none (repo-specific) | **✅ EXECUTED** STALE banner. **STILL FLAGGED:** reconcile to one source. |
+| `gardener-agent` | ✅ yes (manager/cron) | ✅ accurate — `scripts/gardener.py` exists; flags/options match | none (repo-specific) | **KEEP** (no change) |
+| `_shared/swift-principles.md`, `python-principles.md` | ✅ likely | spot-check vs `docs/architecture/` | n/a | **KEEP**, spot-check |
+| `_shared/architecture-summary.md` | ❌ **ORPHANED** (no live skill references it) | ❌ **DEAD+STALE** — `fichero-swiftui/`, `fichero-api/`, `codex/restructure-api-swiftui` branch "43+ commits ahead of main", "NO AppKit", "LiteLLM" routing — all contradict current canonical docs | n/a | **DELETE candidate — FLAG** (orphaned dead file; not rewritten/deleted — deletes stay flagged). |
+| `_shared/team-constitutions.md` | ❌ **ORPHANED** (no live skill references it) | ❌ **DEAD+STALE** — `~/code/fichero/fichero-swiftui/`, `fichero-api/`, `PYTHONPATH=fichero-api/src`, `xcodebuild test` (violates the no-xcodebuild-test hard rule), `sosumi MCP`, openclaw workspaces | n/a | **DELETE candidate — FLAG** (orphaned dead file; superseded by `session-start-*` skills). |
 
-**Skills that need rewrites to match the tmux-worktree workflow:** `dispatch-worker` (base branch +
-PR-merge), `choose-next` (re-sync), and the three release/build skills (`fichero-build`,
-`fichero-release-prep`, `fichero-release` — `fichero-api`→`fichero-engine` + reconcile with the
-documented release lane).
+**Safe fixes EXECUTED this session** (factual/mechanical, live skills): `choose-next` resynced from
+canonical `fs_session`; `dispatch-worker` base branch `0.0.2`→`main`; STALE banners added to the
+three release/build skills pointing at `docs/release/release-lane.md`. **Still flagged (judgment
+calls):** `dispatch-worker` cherry-pick→PR-merge model; full rewrite-or-delete of the release/build
+skills; **delete the two orphaned dead `_shared` files** (`architecture-summary.md`,
+`team-constitutions.md`).
 
 **Sourcing recommendation:** the 5 `fs_session` skills should be treated as **vendored from
 `~/code/fichero-skills`** — update the external source and re-copy, rather than editing in two
@@ -332,9 +336,11 @@ gain; two identical MIT files is fine and conventional for a packaged sub-compon
 5. **Skills sourcing model:** keep vendoring `fs_session` skills into `agents/skills/`
    (recommended, self-contained), or reference the external plugin? And do you want
    `docs/agent-workflow/skills/` deleted (it duplicates `agents/skills/`)? (§5)
-6. **Release skills:** update `fichero-build`/`fichero-release*` paths
-   (`fichero-api`→`fichero-engine`), or delete them and defer entirely to
-   `docs/release/release-lane.md`? (§5)
+6. **Release skills + dead `_shared`:** STALE banners are in place. Decide: fully rewrite
+   `fichero-build`/`fichero-release*` to the current `scripts/release-all.sh` lane, or **delete**
+   them and defer entirely to `docs/release/release-lane.md`? And **delete the two orphaned dead
+   `_shared` files** (`architecture-summary.md`, `team-constitutions.md` — referenced by no skill,
+   contradict canonical docs)? (§5)
 7. **`agent-work/*.py` scripts:** `kg_audit_runner.py` → `scripts/` or `fichero-engine/scripts/`?
    `classify_issues.py` → keep (move to scripts/) or delete? (§3b)
 8. **AGENTS.md war-stories:** the operational manual embeds dated incident notes (e.g. the
