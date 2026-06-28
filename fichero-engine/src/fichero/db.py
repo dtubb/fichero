@@ -162,6 +162,8 @@ _MARKER_PATTERNS = (
 _SAVED_SEARCH_NODE_KIND = "saved_search"
 _SAVED_SEARCH_PROTOTYPE_KEY = "saved_search"
 _SAVED_SEARCH_QUERY_ITEM_ID = "saved-search-query"
+_RESEARCH_WORKSPACE_NODE_KIND = "workspace"
+_RESEARCH_WORKSPACE_PROTOTYPE_KEY = "research_workspace"
 
 
 def _is_content_marker_only(text: str) -> bool:
@@ -440,6 +442,7 @@ class Database(DatabaseEmbeddingMixin):
         migrate_reference_provenance_table(self.conn)
         self._backfill_claim_links_to_library_links()
         self._backfill_saved_search_documents()
+        self._backfill_research_workspace_documents()
 
     def _connect(self) -> duckdb.DuckDBPyConnection:
         """Open a DuckDB connection for this library path."""
@@ -688,6 +691,8 @@ class Database(DatabaseEmbeddingMixin):
 
         if type(obj).__name__ == "SavedSearch":
             self._save_saved_search_document(obj)
+        if type(obj).__name__ == "ResearchProject":
+            self._save_research_workspace_document(obj)
 
         # Auto-embed if requested and has content
         # ponytail: bulk callers (importers / reindex loops) that save many
@@ -793,6 +798,21 @@ class Database(DatabaseEmbeddingMixin):
             if (hydrated := self._hydrate_row(SavedSearch, columns, row)) is not None
         ]
 
+    def _legacy_all_research_project_rows(self) -> list[BaseModel]:
+        """Read legacy ResearchProject rows without node folding."""
+        from fichero.research_models import ResearchProject
+
+        sql_table = self._sql_table_name(ResearchProject)
+        self._ensure_table(ResearchProject)
+        with self._lock:
+            rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
+            columns = [desc[0] for desc in self.conn.description]
+        return [
+            hydrated
+            for row in rows
+            if (hydrated := self._hydrate_row(ResearchProject, columns, row)) is not None
+        ]
+
     @staticmethod
     def _saved_search_from_document(doc: Any) -> BaseModel:
         """Hydrate a SavedSearch view-model from its folded document node."""
@@ -837,6 +857,60 @@ class Database(DatabaseEmbeddingMixin):
         docs = self.query(Document, node_kind=_SAVED_SEARCH_NODE_KIND)
         return [self._saved_search_from_document(doc) for doc in docs]
 
+    @staticmethod
+    def _research_project_from_document(doc: Any) -> BaseModel:
+        """Hydrate a ResearchProject view-model from its workspace document."""
+        from fichero.research_models import ProjectStatus, ResearchProject
+
+        if doc.prototype_key != _RESEARCH_WORKSPACE_PROTOTYPE_KEY:
+            raise ValueError(f"Document {doc.id} is not a research workspace node")
+
+        attrs = doc.attributes if isinstance(doc.attributes, dict) else {}
+        description = attrs.get("description", "")
+        if not isinstance(description, str):
+            raise ValueError(
+                f"Research workspace {doc.id} has invalid description payload"
+            )
+        created_by = attrs.get("created_by", "human")
+        if not isinstance(created_by, str):
+            raise ValueError(
+                f"Research workspace {doc.id} has invalid created_by payload"
+            )
+        status_value = attrs.get("status", ProjectStatus.active.value)
+        try:
+            status = ProjectStatus(status_value)
+        except Exception as exc:
+            raise ValueError(
+                f"Research workspace {doc.id} has invalid status payload: {status_value!r}"
+            ) from exc
+        metadata = attrs.get("metadata", {})
+        if not isinstance(metadata, dict):
+            raise ValueError(f"Research workspace {doc.id} has invalid metadata payload")
+        destination = attrs.get("library_destination_folder_id")
+        if destination is not None and not isinstance(destination, str):
+            raise ValueError(
+                f"Research workspace {doc.id} has invalid destination payload"
+            )
+
+        return ResearchProject(
+            id=doc.id,
+            name=doc.name,
+            description=description,
+            status=status,
+            created_by=created_by,
+            library_destination_folder_id=destination,
+            metadata=metadata,
+            created_at=doc.created_at,
+            updated_at=doc.updated_at,
+        )
+
+    def _all_folded_research_projects(self) -> list[BaseModel]:
+        """Return all research workspaces from document nodes."""
+        from fichero.models import Document
+
+        docs = self.query(Document, prototype_key=_RESEARCH_WORKSPACE_PROTOTYPE_KEY)
+        return [self._research_project_from_document(doc) for doc in docs]
+
     def get(self, model: Type[T], id: str) -> T | None:
         """Get a single object by ID."""
         if model.__name__ == "SavedSearch":
@@ -846,6 +920,13 @@ class Database(DatabaseEmbeddingMixin):
             if doc is None or doc.node_kind != _SAVED_SEARCH_NODE_KIND:
                 return None
             return cast(T, self._saved_search_from_document(doc))
+        if model.__name__ == "ResearchProject":
+            from fichero.models import Document
+
+            doc = self.get(Document, id)
+            if doc is None or doc.prototype_key != _RESEARCH_WORKSPACE_PROTOTYPE_KEY:
+                return None
+            return cast(T, self._research_project_from_document(doc))
 
         sql_table = self._sql_table_name(model)
         self._ensure_table(model)
@@ -865,6 +946,8 @@ class Database(DatabaseEmbeddingMixin):
         """Get all objects of a type."""
         if model.__name__ == "SavedSearch":
             return cast(list[T], self._all_folded_saved_searches())
+        if model.__name__ == "ResearchProject":
+            return cast(list[T], self._all_folded_research_projects())
 
         sql_table = self._sql_table_name(model)
         self._ensure_table(model)
@@ -886,6 +969,22 @@ class Database(DatabaseEmbeddingMixin):
         """Query with simple equality filters."""
         if model.__name__ == "SavedSearch":
             rows = self._all_folded_saved_searches()
+            if not filters:
+                return cast(list[T], rows)
+            out: list[BaseModel] = []
+            for row in rows:
+                matches = True
+                for key, value in filters.items():
+                    if not hasattr(row, key):
+                        raise ValueError(f"Invalid column name: {key}")
+                    if getattr(row, key) != value:
+                        matches = False
+                        break
+                if matches:
+                    out.append(row)
+            return cast(list[T], out)
+        if model.__name__ == "ResearchProject":
+            rows = self._all_folded_research_projects()
             if not filters:
                 return cast(list[T], rows)
             out: list[BaseModel] = []
@@ -1225,6 +1324,8 @@ class Database(DatabaseEmbeddingMixin):
         self._execute(f"DELETE FROM {sql_table} WHERE id = $id", {"id": obj.id})
         if type(obj).__name__ == "SavedSearch":
             self._delete_saved_search_document(obj.id)
+        if type(obj).__name__ == "ResearchProject":
+            self._delete_research_workspace_document(obj.id)
 
     def _save_saved_search_document(self, saved: BaseModel) -> None:
         """Mirror a SavedSearch row into the document tree as a smart folder."""
@@ -1310,6 +1411,75 @@ class Database(DatabaseEmbeddingMixin):
 
         for saved in self._legacy_all_saved_search_rows():
             self._save_saved_search_document(saved)
+
+    def _save_research_workspace_document(self, project: BaseModel) -> None:
+        """Mirror a ResearchProject row into the document tree as a workspace."""
+        from fichero.models import DocType, Document
+
+        existing = self.get(Document, project.id)
+        metadata = (
+            dict(existing.metadata)
+            if existing is not None and isinstance(existing.metadata, dict)
+            else {}
+        )
+        metadata.update({
+            "node_class": "research_workspace",
+            "research_project_id": project.id,
+        })
+        attributes = (
+            dict(existing.attributes)
+            if existing is not None and isinstance(existing.attributes, dict)
+            else {}
+        )
+        attributes.update({
+            "description": project.description,
+            "status": project.status.value,
+            "created_by": project.created_by,
+            "library_destination_folder_id": project.library_destination_folder_id,
+            "metadata": project.metadata,
+        })
+
+        doc = existing or Document(id=project.id, name=project.name)
+        doc.name = project.name
+        doc.node_kind = _RESEARCH_WORKSPACE_NODE_KIND
+        doc.doc_type = DocType.folder
+        doc.prototype_key = _RESEARCH_WORKSPACE_PROTOTYPE_KEY
+        doc.is_workspace = True
+        doc.metadata = metadata
+        doc.attributes = attributes
+        doc.created_at = project.created_at
+        doc.updated_at = project.updated_at
+        self.save(doc)
+
+    def _delete_research_workspace_document(self, project_id: str) -> None:
+        """Remove the mirrored document row for a research workspace, if present."""
+        from fichero.models import Document
+
+        doc = self.get(Document, project_id)
+        if doc is None:
+            return
+        self._execute("DELETE FROM documents WHERE id = $id", {"id": project_id})
+
+    def _backfill_research_workspace_documents(self) -> None:
+        """Backfill legacy research projects into workspace documents."""
+        if not hasattr(self.conn, "execute"):
+            return
+
+        from fichero.research_models import ResearchProject
+
+        table_name = self._table_name(ResearchProject)
+        table_exists = self.execute_fetchone(
+            """
+            SELECT COUNT(*) FROM information_schema.tables
+            WHERE table_name = $table_name
+            """,
+            {"table_name": table_name},
+        )
+        if not table_exists or int(table_exists[0] or 0) == 0:
+            return
+
+        for project in self._legacy_all_research_project_rows():
+            self._save_research_workspace_document(project)
 
     def _backfill_claim_links_to_library_links(self) -> None:
         """Mirror legacy claim-link rows into generic library-link rows."""
