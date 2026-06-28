@@ -732,7 +732,10 @@ async def research_document_fetch(
                 db = db_manager.get_database(library_path)
                 doc = Document(
                     name=title[:255] if title else url,
-                    doc_type=DocType.web_capture,
+                    # #2507: the old value was a non-existent DocType member —
+                    # this save always raised AttributeError (logged, but the
+                    # source was never created). A web page is a file-type doc.
+                    doc_type=DocType.file,
                     path=url,
                     page_content=content[:50000],
                     metadata={
