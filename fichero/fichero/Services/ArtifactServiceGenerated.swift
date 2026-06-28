@@ -1748,17 +1748,24 @@ final class EntityServiceGenerated: ObservableObject {
     /// Uses a direct URLRequest because ClassificationListResponse.items is
     /// [OpenAPIValueContainer] — untyped — so we decode directly to [ClassificationValue].
     func listDocumentPrototypes() async throws -> [Components.Schemas.ClassificationValue] {
-        guard let lib = client.currentLibraryPath else { return [] }
+        guard let lib = client.currentLibraryPath else {
+            throw ServiceError.validationError("No library selected")
+        }
         guard let url = URL(string: "\(client.baseURL)/api/classifications?dimension=document_prototype") else {
-            return []
+            throw ServiceError.validationError("Invalid classifications URL")
         }
         var req = URLRequest(url: url)
         req.addEngineAuth(libraryPath: lib)
-        let (data, _) = try await RemoteCertificatePinning.configuredSession().data(for: req)
+        // Non-silent: a failed load must surface a backend/API error, not render
+        // as "No types defined" empty state (#1671).
+        let (data, response) = try await RemoteCertificatePinning.configuredSession().data(for: req)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw ServiceError.unexpectedResponse(http.statusCode)
+        }
         struct Envelope: Decodable {
             let items: [Components.Schemas.ClassificationValue]
         }
-        return (try? JSONDecoder().decode(Envelope.self, from: data))?.items ?? []
+        return try JSONDecoder().decode(Envelope.self, from: data).items
     }
 
     /// Fetch all classification values for the node_class dimension —
@@ -1805,31 +1812,45 @@ final class EntityServiceGenerated: ObservableObject {
     func listDocumentInterpretations(
         documentId: String
     ) async throws -> [Components.Schemas.Interpretation] {
-        guard let lib = client.currentLibraryPath else { return [] }
+        guard let lib = client.currentLibraryPath else {
+            throw ServiceError.validationError("No library selected")
+        }
         let docEncoded = documentId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? documentId
         guard let url = URL(string: "\(client.baseURL)/api/hermeneutics/interpretations?document_id=\(docEncoded)") else {
-            return []
+            throw ServiceError.validationError("Invalid interpretations URL")
         }
         var req = URLRequest(url: url)
         req.addEngineAuth(libraryPath: lib)
-        let (data, _) = try await RemoteCertificatePinning.configuredSession().data(for: req)
+        // Non-silent: surface backend/decode failures instead of empty hermeneutics (#1671).
+        let (data, response) = try await RemoteCertificatePinning.configuredSession().data(for: req)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw ServiceError.unexpectedResponse(http.statusCode)
+        }
         struct Envelope: Decodable {
             let items: [Components.Schemas.Interpretation]
         }
-        return (try? JSONDecoder().decode(Envelope.self, from: data))?.items ?? []
+        return try JSONDecoder().decode(Envelope.self, from: data).items
     }
 
     /// Fetch available interpretive frameworks via GET /api/hermeneutics/frameworks
     func listFrameworks() async throws -> [Components.Schemas.InterpretiveFramework] {
-        guard let lib = client.currentLibraryPath else { return [] }
-        guard let url = URL(string: "\(client.baseURL)/api/hermeneutics/frameworks") else { return [] }
+        guard let lib = client.currentLibraryPath else {
+            throw ServiceError.validationError("No library selected")
+        }
+        guard let url = URL(string: "\(client.baseURL)/api/hermeneutics/frameworks") else {
+            throw ServiceError.validationError("Invalid frameworks URL")
+        }
         var req = URLRequest(url: url)
         req.addEngineAuth(libraryPath: lib)
-        let (data, _) = try await RemoteCertificatePinning.configuredSession().data(for: req)
+        // Non-silent: surface backend/decode failures instead of empty frameworks (#1671).
+        let (data, response) = try await RemoteCertificatePinning.configuredSession().data(for: req)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw ServiceError.unexpectedResponse(http.statusCode)
+        }
         struct Envelope: Decodable {
             let items: [Components.Schemas.InterpretiveFramework]
         }
-        return (try? JSONDecoder().decode(Envelope.self, from: data))?.items ?? []
+        return try JSONDecoder().decode(Envelope.self, from: data).items
     }
 
     /// PATCH /api/hermeneutics/interpretations/{id} — update text and/or confidence.
