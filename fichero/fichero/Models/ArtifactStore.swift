@@ -75,6 +75,34 @@ final class ArtifactStore: ObservableDomainStore {
         }
     }
 
+    /// Delete the given artifacts, then reconcile the scope against the server
+    /// (#2519). The store — not the view — owns the endpoint (observable-data-
+    /// layer rule). Best-effort batch: a failure on one id is logged and the
+    /// rest still attempt, then a single `reload()` reflects the server truth so
+    /// the list updates in place. Each artifact is deleted under its OWN
+    /// `documentId` (a long doc's artifacts hang off page children, not the
+    /// scope doc). Returns the number that failed to delete.
+    @discardableResult
+    func delete(_ artifacts: [Artifact]) async -> Int {
+        guard !artifacts.isEmpty else { return 0 }
+        var failed = 0
+        for artifact in artifacts {
+            do {
+                try await artifactService.deleteArtifact(
+                    id: artifact.id,
+                    documentId: artifact.documentId
+                )
+            } catch {
+                failed += 1
+                log.error(
+                    "Failed to delete artifact \(artifact.id, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                )
+            }
+        }
+        await reload()
+        return failed
+    }
+
     // MARK: - ObservableDomainStore
 
     nonisolated var changeDomain: String { "artifact" }
