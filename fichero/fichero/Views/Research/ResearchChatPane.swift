@@ -13,8 +13,7 @@ struct ResearchChatPane: View {
         ChatView(
             conversation: nil,
             selectedDocuments: $chatSelectedDocuments,
-            onConversationUpdated: {},
-            displayMode: .list
+            onConversationUpdated: {}
         )
     }
 }

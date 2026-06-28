@@ -156,8 +156,7 @@ extension ContentView {
             ChatView(
                 conversation: conversation,
                 selectedDocuments: $chatSelectedDocuments,
-                onConversationUpdated: { refreshConversations() },
-                displayMode: viewDisplayMode
+                onConversationUpdated: { refreshConversations() }
             )
 
         case .comparison(let comparison):
