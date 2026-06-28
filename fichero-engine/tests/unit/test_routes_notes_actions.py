@@ -43,10 +43,10 @@ def _ctx() -> ActionContext:
 
 @pytest.fixture
 def emit_spy(monkeypatch):
-    """Spy on emit_change at the SOURCE module (where registry._emit imports it)."""
+    """Spy on the note route module's emit_change symbol."""
     calls: list[tuple] = []
     monkeypatch.setattr(
-        "fichero.api.change_stream.emit_change",
+        "fichero.api.routes.notes.emit_change",
         lambda *a, **k: calls.append((a, k)),
     )
     return calls
