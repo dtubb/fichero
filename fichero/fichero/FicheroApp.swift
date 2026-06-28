@@ -1,3 +1,9 @@
+// The macOS app entry declares every top-level Scene (main window, duplicate
+// window, five detail scenes, activity monitor, settings) plus the full command
+// menu in one `body`, so it runs past the generic length heuristics. Splitting
+// the Scene graph across files buys nothing but indirection. (#2381 added the
+// Option-launch remote-chooser wiring.)
+// swiftlint:disable file_length
 #if canImport(AppKit)
 import AppKit
 import OSLog
@@ -21,6 +27,7 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
 }
 
 @main
+// swiftlint:disable:next type_body_length
 struct FicheroApp: App {
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "FicheroApp")
     // App delegate for lifecycle events
@@ -46,13 +53,34 @@ struct FicheroApp: App {
     // observer overrides this for the main window tree.
     @State private var appExecutionObserver = WorkflowExecutionObserver()
 
+    /// #2381: true when the app launched with Option held, so the remote-client
+    /// connection chooser should be presented over the main window. Decided once
+    /// at launch in `init()`; never set for non-interactive (preview/UI-test)
+    /// hosts.
+    @State private var showRemoteConnectionChooser: Bool
+
     init() {
+        // #2381: decide the launch connection mode BEFORE any early return so
+        // this @State is initialized on every path. A normal launch uses the
+        // embedded local engine; holding Option surfaces the remote-host chooser.
+        let env = ProcessInfo.processInfo.environment
+        let interactiveLaunch = !(env["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+            || env["XCODE_RUNNING_FOR_PLAYGROUNDS"] == "1"
+            || isRunningXCTests()
+            || isUITesting())
+        let optionHeld = interactiveLaunch && EngineConfig.optionKeyHeldAtLaunch()
+        self._showRemoteConnectionChooser = State(
+            initialValue: EngineConfig.macLaunchConnectionMode(
+                optionKeyHeld: optionHeld,
+                isInteractiveLaunch: interactiveLaunch
+            ) == .remoteConnectionChooser
+        )
+
         // Xcode Previews / Playgrounds host the app to render a single view —
         // skip everything that blocks (modal "Move to Applications?" prompt,
         // saved-library restore that opens DuckDB files). The preview canvas
         // doesn't need either; renders are pure SwiftUI tree walks against
         // mock data.
-        let env = ProcessInfo.processInfo.environment
         if env["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
             || env["XCODE_RUNNING_FOR_PLAYGROUNDS"] == "1"
             || isRunningXCTests() {
@@ -137,6 +165,16 @@ struct FicheroApp: App {
             libraryWindowRoot(seed: nil)
                 .onOpenURL { url in
                     handleOpenURL(url)
+                }
+                // #2381: Option-at-launch surfaces the remote-host connection
+                // chooser over the main window. A normal launch never sets this,
+                // so the embedded local engine path is unchanged.
+                .sheet(isPresented: $showRemoteConnectionChooser) {
+                    RemoteConnectionChooserSheet(
+                        appState: appState,
+                        backendService: backendService,
+                        libraryManager: libraryManager
+                    )
                 }
                 .task {
                     appDelegate.backendService = backendService
