@@ -12,10 +12,12 @@
 
 Fichero is a two-part system:
 
-- `fichero/fichero/`: the native macOS SwiftUI app
+- `fichero/fichero/`: the native Apple SwiftUI app, with macOS as the primary surface today
 - `fichero-engine/src/fichero/`: the Python FastAPI engine
 
-The Swift app is not the source of truth for data or AI behavior. It is a UI layer that talks to the engine over HTTP on `localhost:8765`.
+The Swift app is not the source of truth for data or AI behavior. It is a UI
+layer that talks to the engine over pinned HTTPS on `127.0.0.1:8765` for the
+local macOS path.
 
 ## Frontend Responsibilities
 
@@ -44,18 +46,25 @@ The backend owns:
 - workflow execution, tasking, and activity logs
 - provider and model configuration
 
-`fichero.api.main` is the application entry point. `db.py` is the main storage abstraction over DuckDB and LanceDB. Business features are exposed through route modules under `fichero/api/routes/`.
+`fichero.api.main` is the application entry point. `db.py` is the main storage
+abstraction over DuckDB and LanceDB. Business features are exposed through
+route modules under `fichero/api/routes/`.
 
 ## Route Registration and Feature Tiers
 
-The engine does not always register the same route set. `register_tiered_routes` in `api/main.py` chooses routers based on `FICHERO_FEATURE_TIER`.
+The engine does not always register the same route set. `register_tiered_routes`
+in `api/main.py` chooses routers based on `FICHERO_FEATURE_TIER`.
 
 Two practical tiers matter:
 
-- `release`: stable core routes
-- `dev`: adds staged KG, research, graph, and other experimental or not-yet-promoted surfaces
+- `release`: the default route set used by the app and normal builds
+- `dev`: `release` plus the currently dev-tier extras
 
-Core routes include activity, annotations, documents, entities, folders, ingest, providers, search, tasks, workflow execution, and workflows. Dev-tier routes add the `/api/kg/*` family plus related graph and research surfaces.
+As of the current `api/main.py`, most knowledge-graph, research, action,
+chains, model-comparison, and automation-related surfaces are already in the
+core route list. The remaining dev-tier surface is small; contributors should
+check `get_route_specs_for_tier` in `fichero.api.main` rather than assuming KG
+or research routes are dev-only.
 
 ## One Engine, Many Surfaces
 
@@ -65,6 +74,7 @@ The same backend is also consumed by:
 
 - the typed `python -m fichero` CLI
 - generated Swift service layers
-- web-oriented or research-oriented surfaces in development
+- `fichero-mcp`
+- additional Apple-client surfaces that are still in progress
 
 That is why backend behavior should be explained in terms of routes and models, not in terms of one specific screen.
