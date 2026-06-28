@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from fichero.llm import LLMConfig
+from fichero.paths import engine_state_dir
 
 from fichero.workflows.types import PortDef, DataType
 
@@ -44,10 +45,10 @@ from fichero.workflows.tools.llm_base import (
 logger = logging.getLogger(__name__)
 
 
-# Stable storage for local models (not ~/.cache which gets auto-cleaned)
-MODELS_BASE = (
-    Path.home() / "Library" / "Application Support" / "com.fichero.fichero" / "models"
-)
+# Stable storage for local models (not ~/.cache which gets auto-cleaned).
+# The ONE shared models folder shared with embeddings/spaCy/etc. (#2269) — never
+# a per-library, scattered, or stale-bundle-id path. Canonical: local_models.py.
+MODELS_BASE = engine_state_dir() / "models"
 
 # Process-global Whisper cache, keyed by the model identity and runtime target.
 #
@@ -134,8 +135,9 @@ def transcribe_with_whisper_sync(
 ) -> str:
     """Transcribe audio using local Whisper model.
 
-    Models are stored in ~/Library/Application Support/com.fichero.fichero/models/whisper/
-    to avoid macOS auto-cleanup of ~/.cache/.
+    Models are stored in the shared models folder (engine_state_dir()/models/whisper/,
+    i.e. ~/Library/Application Support/Fichero/models/whisper/) to avoid macOS
+    auto-cleanup of ~/.cache/ and to share one folder with embeddings/spaCy (#2269).
 
     Args:
         file_path: Path to audio file
