@@ -1,0 +1,18 @@
+{
+  "name": "Convert to SVG",
+  "description": "Recreate each image/page as SVG using vision — a vector reconstruction of the document's layout and text. Feeds the SVG (WebKit) representation in the document viewer. The model alias is editable on the Convert node.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Convert",
+  "tags": ["preset", "convert", "svg", "representation"],
+  "config": {"preset_version": 1},
+  "nodes": [
+    {"id": "files-source", "tool": "files", "label": "Files", "position_x": 80, "position_y": 200, "inputs": {}, "config": {}},
+    {"id": "convert", "tool": "convert", "label": "Convert to SVG", "position_x": 320, "position_y": 200, "inputs": {}, "config": {"target_format": "svg", "preserve_layout": true}}
+  ],
+  "edges": [
+    {"id": "edge-files-convert", "source": "files-source", "target": "convert", "source_port": "files", "target_port": "files"},
+    {"id": "edge-files-convert-documents", "source": "files-source", "target": "convert", "source_port": "documents", "target_port": "documents"}
+  ]
+}

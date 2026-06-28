@@ -537,6 +537,114 @@ async def get_document(
     return _document_or_404(db, doc_id)
 
 
+class DocGeoPoint(BaseModel):
+    """One geocoded point contributing to a document's map/globe view (#2266)."""
+
+    lat: float
+    lon: float
+    place_name: str | None = None
+    precision_m: float | None = None
+    source: str  # "metadata" | "claim" | "place_value"
+
+
+class DocGeoResponse(BaseModel):
+    document_id: str
+    points: list[DocGeoPoint]
+    count: int
+
+
+def _points_from_metadata(metadata: dict | None, *, place_default: str | None = None) -> list[DocGeoPoint]:
+    """Pull geo points out of a document's metadata (geo_points list or flat lat/lon)."""
+    points: list[DocGeoPoint] = []
+    if not isinstance(metadata, dict):
+        return points
+    raw = metadata.get("geo_points")
+    if isinstance(raw, list):
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            lat, lon = item.get("lat"), item.get("lon")
+            if lat is None or lon is None:
+                continue
+            points.append(
+                DocGeoPoint(
+                    lat=float(lat),
+                    lon=float(lon),
+                    place_name=item.get("place_name") or place_default,
+                    precision_m=item.get("precision_m"),
+                    source="metadata",
+                )
+            )
+    # Legacy flat lat/lon (latitude/longitude or lat/lon) — one point per doc.
+    lat = metadata.get("latitude", metadata.get("lat"))
+    lon = metadata.get("longitude", metadata.get("lon"))
+    if lat is not None and lon is not None:
+        points.append(
+            DocGeoPoint(lat=float(lat), lon=float(lon), place_name=place_default, source="metadata")
+        )
+    return points
+
+
+@router.get(
+    "/{doc_id}/geo",
+    response_model=DocGeoResponse,
+    summary="List geocoded points for a document",
+)
+async def list_document_geo(
+    doc_id: str, db: Database = Depends(get_library_database)
+) -> DocGeoResponse:
+    """Aggregate a document's geo points for the world-map / globe representations.
+
+    Sources, in order: the document's own ``metadata['geo_points']`` (written by
+    the ``extract_geo`` tool #2266), its page children's metadata, and the
+    ``claim_geo`` / ``place_values`` of knowledge claims sourced from this
+    document. Duplicate coordinates collapse to one point.
+    """
+    doc = _document_or_404(db, doc_id)
+
+    points: list[DocGeoPoint] = []
+    points.extend(_points_from_metadata(doc.metadata, place_default=doc.name))
+    points.extend(_points_from_metadata(doc.source_metadata, place_default=doc.name))
+
+    for child in db.query(Document, parent_id=doc_id):
+        points.extend(_points_from_metadata(child.metadata, place_default=child.name))
+
+    for claim in db.query(KnowledgeClaim, source_document_id=doc_id):
+        if claim.claim_geo is not None:
+            points.append(
+                DocGeoPoint(
+                    lat=claim.claim_geo.lat,
+                    lon=claim.claim_geo.lon,
+                    place_name=claim.claim_geo.place_name or claim.claim_location,
+                    precision_m=claim.claim_geo.precision_m,
+                    source="claim",
+                )
+            )
+        for place in claim.place_values:
+            if place.lat is not None and place.lon is not None:
+                points.append(
+                    DocGeoPoint(
+                        lat=place.lat,
+                        lon=place.lon,
+                        place_name=place.label,
+                        precision_m=place.precision_m,
+                        source="place_value",
+                    )
+                )
+
+    # Collapse points that land on the same coordinate (6dp ≈ 0.1m).
+    seen: set[tuple[float, float]] = set()
+    unique: list[DocGeoPoint] = []
+    for p in points:
+        key = (round(p.lat, 6), round(p.lon, 6))
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(p)
+
+    return DocGeoResponse(document_id=doc_id, points=unique, count=len(unique))
+
+
 @router.get(
     "/{doc_id}/workflow-runs",
     response_model=WorkflowRunProvenanceListResponse,

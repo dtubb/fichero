@@ -624,3 +624,50 @@ def test_context_manager_closes(monkeypatch):
     with _client(handler) as c:
         c.health()
     assert c._client.is_closed
+
+
+# -- Mind Palace + KG wrappers (#1982 coverage) -----------------------------
+class TestMindPalaceWrappers:
+    """Thin HTTP passthroughs — verify method, path, and JSON body shape."""
+
+    def test_mp_get_room_builds_get(self):
+        handler, seen = _capture()
+        _client(handler).mp_get_room("room-1")
+        assert seen[0].method == "GET"
+        assert seen[0].url.path == "/api/mind-palace/rooms/room-1"
+
+    def test_mp_create_stack_posts_body(self):
+        handler, seen = _capture()
+        _client(handler).mp_create_stack(
+            "room-1", name="Group", node_ids=["n1", "n2"], position_x=3.0
+        )
+        assert seen[0].method == "POST"
+        assert seen[0].url.path == "/api/mind-palace/stacks"
+        body = json.loads(seen[0].content)
+        assert body["room_id"] == "room-1"
+        assert body["name"] == "Group"
+        assert body["node_ids"] == ["n1", "n2"]
+        assert body["position_x"] == 3.0
+
+    def test_mp_create_stack_defaults_node_ids_to_empty_list(self):
+        handler, seen = _capture()
+        _client(handler).mp_create_stack("room-1")
+        assert json.loads(seen[0].content)["node_ids"] == []
+
+    def test_mp_add_to_stack_builds_post_path(self):
+        handler, seen = _capture()
+        _client(handler).mp_add_to_stack("stack-9", "node-4")
+        assert seen[0].method == "POST"
+        assert seen[0].url.path == "/api/mind-palace/stacks/stack-9/nodes/node-4"
+
+    def test_mp_remove_from_stack_builds_delete_path(self):
+        handler, seen = _capture()
+        _client(handler).mp_remove_from_stack("stack-9", "node-4")
+        assert seen[0].method == "DELETE"
+        assert seen[0].url.path == "/api/mind-palace/stacks/stack-9/nodes/node-4"
+
+    def test_mp_get_viewport_uses_user_id(self):
+        handler, seen = _capture()
+        _client(handler).mp_get_viewport("room-1", user_id="alice")
+        assert seen[0].method == "GET"
+        assert seen[0].url.path == "/api/mind-palace/rooms/room-1/viewport/alice"

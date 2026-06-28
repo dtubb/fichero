@@ -1,0 +1,20 @@
+{
+  "name": "Extract Geo",
+  "description": "Transcribe each page (reusing any existing text layer), then extract every place name and geocode it to lat/lon. Feeds the 2D world-map and 3D globe representations. Offline geocoding by default; enable online geocoding on the Extract Geo node to resolve places the built-in gazetteer misses.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Convert",
+  "tags": ["preset", "geo", "map", "extract", "representation"],
+  "config": {"preset_version": 1},
+  "nodes": [
+    {"id": "files-source", "tool": "files", "label": "Files", "position_x": 80, "position_y": 200, "inputs": {}, "config": {}},
+    {"id": "transcribe", "tool": "transcribe", "label": "Transcribe each file", "position_x": 320, "position_y": 200, "inputs": {}, "config": {"vision_mode": "auto", "language": "auto", "update_page_content": true}},
+    {"id": "extract_geo", "tool": "extract_geo", "label": "Extract Geo", "position_x": 560, "position_y": 200, "inputs": {}, "config": {"online_geocoding": false}}
+  ],
+  "edges": [
+    {"id": "edge-files-transcribe", "source": "files-source", "target": "transcribe", "source_port": "files", "target_port": "files"},
+    {"id": "edge-files-transcribe-documents", "source": "files-source", "target": "transcribe", "source_port": "documents", "target_port": "documents"},
+    {"id": "edge-transcribe-geo", "source": "transcribe", "target": "extract_geo", "source_port": "text", "target_port": "text"}
+  ]
+}

@@ -58,6 +58,10 @@ echo "[1/3] Checking prerequisites"
 if [ "$DRY_RUN" = true ]; then
   echo "[DRY RUN] would check: security find-identity -v -p codesigning | grep 'Developer ID Application'"
   echo "[DRY RUN] would check: xcrun notarytool history --keychain-profile $KEYCHAIN_PROFILE"
+  # Set representative auth args so the dry-run command preview below does not
+  # trip `set -u` ("NOTARY_AUTH_ARGS[@]: unbound variable") — this array is only
+  # populated in the real branch otherwise.
+  NOTARY_AUTH_ARGS=(--keychain-profile "$KEYCHAIN_PROFILE")
 else
   if ! security find-identity -v -p codesigning | grep -q "Developer ID Application"; then
     echo "error: no Developer ID Application certificate found" >&2

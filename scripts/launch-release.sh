@@ -64,7 +64,7 @@ fi
 
 echo "Launching ($CONFIGURATION) $APP_PATH via 'open -n'…" >&2
 echo "  Logs go to the unified log, not this terminal. Tail them with:" >&2
-echo "    log stream --predicate 'process == \"Fichero\"' --level debug" >&2
+echo "    scripts/tail-fichero-logs.sh" >&2
 
 # -n: open a new instance even if one is already running.
 # -W: wait for the app to exit before returning (opt-in via --wait).

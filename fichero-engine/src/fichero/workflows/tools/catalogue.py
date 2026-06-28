@@ -39,7 +39,6 @@ from fichero.llm import LLMConfig, chat_with_fallback
 from fichero.db import db_manager
 from fichero.models import Document, DocType, Artifact
 from fichero.workflows.tools._workflow_change_emit import emit_workflow_artifact_changes
-from langgraph.types import interrupt
 
 logger = logging.getLogger(__name__)
 
@@ -536,17 +535,22 @@ async def catalogue(
         groups = _group_documents_by_case(container, library_path)
         min_items = int(inputs.get("ambiguous_min_items", 25) or 25)
         if _grouping_is_ambiguous(groups, min_items=min_items):
-            interrupt(
-                {
-                    "type": "catalogue_grouping_confirmation",
+            # Typed human-in-the-loop contract (#2529) — one Pydantic payload
+            # shared with any future "Ask / Human Review" node, instead of an
+            # ad-hoc dict the frontend has to parse blind.
+            from fichero.workflows.human_review import ask_human
+
+            ask_human(
+                question=(
+                    "Catalogue grouping appears ambiguous. Confirm, split, "
+                    "or merge groups, then resume."
+                ),
+                kind="catalogue_grouping_confirmation",
+                context={
                     "container_id": container.id,
                     "container_name": container.name,
                     "proposed_groupings": _proposed_groupings(groups),
-                    "message": (
-                        "Catalogue grouping appears ambiguous. Confirm, split, "
-                        "or merge groups, then resume."
-                    ),
-                }
+                },
             )
 
     # Bubbleable LLM-error messages from any of the catalogue's nested

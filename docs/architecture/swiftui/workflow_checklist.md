@@ -13,7 +13,7 @@
 > - **AppKit**: "100% SwiftUI" is aspirational. SwiftUI-first with ~8 sanctioned
 >   `NSViewRepresentable` bridges (PDFKit, magnifier, text editors, …). The
 >   `APPKIT_FINAL_AUDIT.md` referenced below has been retired — see
->   `site/docs/contributor/swiftui-development-standards.md`.
+>   `docs/contributor/swiftui-development-standards.md`.
 > - **New `.swift` files must be registered** with `ruby scripts/add-swift-file.rb <path>`
 >   (the main target uses traditional PBX refs); the build gate is `bash scripts/verify_all.sh`.
 > - Prefer the **Xcode MCP** build/test tools over the raw `xcodebuild` invocations shown here.
@@ -381,8 +381,8 @@ swiftlint lint --path Fichero/Fichero/Views/MyView.swift
 ### Doc Locations
 - `docs/architecture/swiftui/overview.md` - High-level architecture
 - `docs/architecture/swiftui/key_files.md` - File organization
-- `site/docs/contributor/swiftui-principles.md` - Code patterns
-- `site/docs/contributor/swiftui-development-standards.md` - Standards and guidelines
+- `docs/contributor/swiftui-principles.md` - Code patterns
+- `docs/contributor/swiftui-development-standards.md` - Standards and guidelines
 - `docs/architecture/swiftui/workflow_checklist.md` - This file
 
 ---

@@ -198,7 +198,7 @@ DispatchQueue.main.async {  // ❌ Use @MainActor instead
 - Cache expensive computations (don't rebuild hierarchies on every view update)
 - Keyboard shortcuts: Ulysses-style (⌃⌘1-5 for sidebar modes, ⌘1-4 for view modes)
 
-**Required Reading:** `site/docs/contributor/swiftui-principles.md` - Mandatory patterns and examples
+**Required Reading:** `docs/contributor/swiftui-principles.md` - Mandatory patterns and examples
 
 ### Python
 
@@ -443,10 +443,10 @@ class APIClient: ObservableObject {
 
 ### Essential Documentation
 - **`docs/CLAUDE.md`** (this file) - Canonical agent guidance
-- **`site/docs/contributor/swiftui-principles.md`** - MANDATORY SwiftUI patterns (18KB)
+- **`docs/contributor/swiftui-principles.md`** - MANDATORY SwiftUI patterns (18KB)
 - **`docs/architecture/swiftui/api_migration_guide.md`** - OpenAPI client migration guide
-- **`site/docs/contributor/swiftui-development-standards.md`** - File size limits, Swift 6 guidelines
-- **`site/docs/contributor/backend-development-standards.md`** - Backend development standards
+- **`docs/contributor/swiftui-development-standards.md`** - File size limits, Swift 6 guidelines
+- **`docs/contributor/backend-development-standards.md`** - Backend development standards
 - **GitHub Issues + Milestones + Project board** - task backlog & source of truth (`gh issue list`)
 - **`README.md`** - User-facing setup and run instructions
 

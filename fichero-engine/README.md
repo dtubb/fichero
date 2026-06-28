@@ -5,9 +5,11 @@ the MCP server are thin clients over its HTTP surface. It ingests documents,
 extracts text and meaning, runs AI workflows, and owns the knowledge graph,
 backed by DuckDB (structured metadata) and LanceDB (vector embeddings).
 
-See the [top-level README](../README.md) for the whole-system picture and
-[`site/docs/developer/architecture-overview.md`](../site/docs/developer/architecture-overview.md)
-for the deep dive.
+See the [top-level README](../README.md) for the whole-system picture, the root
+[AGENTS.md](../AGENTS.md) for build/lint/test rules and commit attribution,
+[`docs/contributor/architecture-overview.md`](../docs/contributor/architecture-overview.md)
+for the deep dive, and [docs/user/](../docs/user/) for the user manual.
+This file keeps only what is specific to the engine: its layout and how it works.
 
 ## What lives here
 
@@ -53,24 +55,17 @@ For remote / off-network access, the engine still binds loopback only and is
 fronted by `tailscale serve` (never funnel) — see
 `docs/architecture/` and `docs/remote-backend-tailscale.md`.
 
-## Test
+## Test and lint
 
-```bash
-PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ \
-  --ignore=fichero-engine/tests/unit/_archived
-```
-
-Lint:
-
-```bash
-ruff check fichero-engine/src/
-```
+The exact `pytest` and `ruff` commands (and who runs the full suite) live in the root
+[AGENTS.md](../AGENTS.md). The short form: focused `pytest fichero-engine/tests/unit/`
+and `ruff check fichero-engine/src/`, both with `PYTHONPATH=fichero-engine/src`.
 
 ## Contributing
 
-Backend-specific working notes live in [AGENTS.md](AGENTS.md). For the repo-wide
+Backend-specific essentials live in [AGENTS.md](AGENTS.md). For the repo-wide
 workflow, see [CONTRIBUTING.md](../CONTRIBUTING.md) and
-[site/docs/developer/setup-and-contributing.md](../site/docs/developer/setup-and-contributing.md).
+[docs/contributor/setup-and-contributing.md](../docs/contributor/setup-and-contributing.md).
 
 ## How it works — workflows + knowledge graph
 
@@ -80,9 +75,11 @@ workflow, see [CONTRIBUTING.md](../CONTRIBUTING.md) and
   this as a visual node editor, but the graph executes server-side, step by step
   and reproducibly across many documents. Workflow runs stream progress over an
   SSE activity channel.
-- **Providers (LiteLLM).** Models are addressed through LiteLLM, so the same
-  workflow runs against 100+ providers — local (Ollama, LM Studio, MLX) or cloud
-  with your own API key. API keys are stored in the macOS keychain.
+- **Providers (LangChain).** AI calls go through LangChain provider integrations, so
+  the same workflow runs against many providers: local (Apple Foundation Models, MLX,
+  LM Studio, Ollama) or cloud (OpenAI, Anthropic, Google) with your own API key.
+  LiteLLM is used only for model discovery and cost estimates, not for routing. API
+  keys are stored in the macOS keychain.
 - **Knowledge graph.** Extraction produces **entities** (people, places, orgs,
   dates) and **claims** (subject–predicate–object statements) with provenance
   back to the source document. The KG is engine-owned; clients render and curate
@@ -90,7 +87,7 @@ workflow, see [CONTRIBUTING.md](../CONTRIBUTING.md) and
 - **Action registry.** Engine mutations flow through a single typed action layer
   (`registry.invoke`) that emits change events and writes an audit record —
   shared by the API, CLI, and (planned) chat/App-Intent tools. See
-  `site/docs/developer/action-registry.md`.
+  `docs/contributor/action-registry.md`.
 
 ## MCP server
 

@@ -2889,6 +2889,16 @@
     "export": [
       {
         "method": "POST",
+        "path": "/export/eleventy-site",
+        "operation_id": "export_eleventy_site_route_api_export_eleventy_site_post",
+        "summary": "Export Eleventy Site Route",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "EleventySiteExportRequest",
+        "response_model": "EleventySiteExportResponse"
+      },
+      {
+        "method": "POST",
         "path": "/export/excel",
         "operation_id": "export_excel_route_api_export_excel_post",
         "summary": "Export Excel Route",
