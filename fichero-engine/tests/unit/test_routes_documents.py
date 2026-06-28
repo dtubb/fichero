@@ -1178,6 +1178,17 @@ class TestGetDocumentParent:
 
 
 class TestDocumentPrototypes:
+    def test_assigns_builtin_prototype_against_fresh_db_fixture(self, client, db):
+        doc = _make_doc(db, "Fresh Fixture Letter")
+
+        response = client.put(
+            f"/api/documents/{doc.id}/prototype",
+            json={"prototype_key": "letter"},
+        )
+
+        assert response.status_code == 200
+        assert db.get(Document, doc.id).prototype_key == "letter"
+
     def test_assigns_prototype_to_single_document(self, client, db):
         doc = _make_doc(db, "Letter A")
         r = client.put(

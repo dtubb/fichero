@@ -56,9 +56,9 @@ def test_child_inherits_and_overrides_parent_attributes(temp_db):
 def test_three_level_chain_merges_root_to_leaf(temp_db):
     _proto(temp_db, "node", attributes={"a": 1})
     _proto(temp_db, "container", parent_key="node", attributes={"b": 2})
-    _proto(temp_db, "room", parent_key="container", attributes={"a": 99, "c": 3})
+    _proto(temp_db, "test_room", parent_key="container", attributes={"a": 99, "c": 3})
 
-    effective = resolve_prototype_attributes(temp_db, "room")
+    effective = resolve_prototype_attributes(temp_db, "test_room")
     assert effective == {"a": 99, "b": 2, "c": 3}
 
 
