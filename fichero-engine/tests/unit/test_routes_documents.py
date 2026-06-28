@@ -389,6 +389,61 @@ class TestGetChildren:
         assert items[milestone.id]["node_kind"] == "milestone"
         assert items[milestone.id]["prototype_key"] == "milestone"
 
+    def test_retrieves_folded_note_and_milestone_documents_by_id(self, client, db):
+        parent = Document(name="Parent", doc_type=DocType.folder)
+        db.save(parent)
+        note = Note(title="Retrievable note", body="Body", folder_id=parent.id)
+        milestone = Milestone(
+            title="Retrievable milestone",
+            description="Ship P3",
+            parent_id=parent.id,
+            status="active",
+        )
+        db.save(note)
+        db.save(milestone)
+
+        note_response = client.get(f"/api/documents/{note.id}")
+        assert note_response.status_code == 200
+        assert note_response.json()["id"] == note.id
+        assert note_response.json()["parent_id"] == parent.id
+        assert note_response.json()["node_kind"] == "note"
+        assert note_response.json()["prototype_key"] == "note"
+
+        milestone_response = client.get(f"/api/documents/{milestone.id}")
+        assert milestone_response.status_code == 200
+        assert milestone_response.json()["id"] == milestone.id
+        assert milestone_response.json()["parent_id"] == parent.id
+        assert milestone_response.json()["node_kind"] == "milestone"
+        assert milestone_response.json()["prototype_key"] == "milestone"
+
+    def test_children_reflect_refiled_entity_parent_change(self, client, db):
+        first = Document(name="Folder One", doc_type=DocType.folder)
+        second = Document(name="Folder Two", doc_type=DocType.folder)
+        db.save(first)
+        db.save(second)
+        entity = KnowledgeEntity(
+            canonical_name="Atrato",
+            entity_type="location",
+            parent_id=first.id,
+        )
+        db.save(entity)
+
+        before = client.get(f"/api/documents/{first.id}/children")
+        assert before.status_code == 200
+        assert entity.id in {item["id"] for item in before.json()["items"]}
+
+        entity.parent_id = second.id
+        db.save(entity)
+
+        first_children = client.get(f"/api/documents/{first.id}/children")
+        second_children = client.get(f"/api/documents/{second.id}/children")
+        assert first_children.status_code == 200
+        assert second_children.status_code == 200
+        assert entity.id not in {item["id"] for item in first_children.json()["items"]}
+        moved = {item["id"]: item for item in second_children.json()["items"]}
+        assert moved[entity.id]["node_kind"] == "entity"
+        assert moved[entity.id]["parent_id"] == second.id
+
     def test_returns_empty_for_leaf(self, client, db):
         doc = _make_doc(db)
         r = client.get(f"/api/documents/{doc.id}/children")
