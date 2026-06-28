@@ -264,7 +264,7 @@ See `docs/architecture/swiftui/api_migration_guide.md` and `docs/architecture/sw
 These are operational and owned elsewhere — not restated here:
 - **Branch discipline + conventional-commit format + pre-commit gate** → `AGENTS.md` ("Rules I Don't Break"). In short: commit milestone work directly to the milestone branch (no per-task branches); never push to `main` without approval; regenerate the OpenAPI client before committing any backend API change.
 - **Task tracking** → GitHub Issues + Milestones + Project board are the source of truth; local planning files (`PLAN.md`, `TASKS.md`) are not. `STATE.md` is continuity context only. (See `CONSTITUTION.md` → Execution Governance.)
-- **Lanes, delegation, the QA review gate** → the session-start / manager skills and `docs/agent-workflow/parallel-execution.md`.
+- **Lanes, delegation, the QA review gate** → the session-start / manager skills and `agent-work/agent-workflow/parallel-execution.md`.
 - **Current focus / next entry point** → `STATE.md`; completed-work log → `HISTORY.md`.
 
 ## MCP Tools
