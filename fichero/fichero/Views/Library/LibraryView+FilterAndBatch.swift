@@ -484,6 +484,13 @@ extension LibraryView {
             Label("Add to Workspace…", systemImage: "square.grid.2x2")
         }
 
+        // Bookmark this document — a saved pointer node (#2755).
+        Button {
+            bookmarkPickerDocument = document
+        } label: {
+            Label("Bookmark…", systemImage: "bookmark")
+        }
+
         Button {
             Task {
                 await toggleExcludeFromProcessing(

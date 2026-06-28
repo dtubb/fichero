@@ -14,8 +14,6 @@
     "/api/agents/write/audit": "baseline: not yet wired",
     "/api/agents/write/audit/{record_id}": "baseline: not yet wired",
     "/api/annotations/crop": "annotation crop endpoint surfaced by OpenAPI regen; SwiftUI wiring tracked in #2755",
-    "/api/bookmarks": "node-model fold F4 (#2591) — bookmark nodes, backend-only; SwiftUI wiring tracked in #2755",
-    "/api/bookmarks/{bookmark_id}/resolve": "node-model fold F4 (#2591) — bookmark resolve, backend-only; SwiftUI wiring tracked in #2755",
     "/api/auth/login": "#2022 multi-user backend - cli-only, frontend deferred",
     "/api/auth/logout": "#2022 multi-user backend - cli-only, frontend deferred",
     "/api/auth/me": "#2022 multi-user backend - cli-only, frontend deferred",

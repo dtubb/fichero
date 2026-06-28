@@ -114,6 +114,7 @@ struct DocumentDetailWindow: View {
             .environmentObject(library.artifactService)
             .environmentObject(library.kgCurationService)
             .environmentObject(library.savedSearchServiceGenerated)
+            .environmentObject(library.bookmarkServiceGenerated)
             .environmentObject(library.searchService)
             .environmentObject(library.conversationServiceGenerated)
             .environmentObject(library.chatServiceGenerated)
