@@ -11,6 +11,7 @@ This manual describes the Fichero app as it exists in the current SwiftUI client
 - [AI and Privacy](./ai-and-privacy.md)
 - [Tailscale Private Transport](../remote-backend-tailscale.md)
 - [Getting Started](./getting-started.md)
+- [The Interface: A Tour of the Window](./interface-tour.md)
 - [Importing Documents](./importing-documents.md)
 - [Reading, Transcription, and Editing](./reading-and-editing.md)
 - [Search, Entities, and the Knowledge Graph](./search-knowledge-graph.md)
@@ -33,7 +34,7 @@ In library mode, the main window is a four-part workspace:
 1. Sidebar on the left for libraries, folders, saved searches, workflows, and activity.
 2. Content browser in the center for the current folder or search results.
 3. Reading area for the selected document or page.
-4. Inspector on the right with tabs for content, annotations, notes, knowledge-graph material, artifacts, edits, and file info.
+4. Inspector on the right with tabs for content, outline, annotations, notes, entities, knowledge graph, citations, edits, and file info. See [The Interface: A Tour of the Window](./interface-tour.md) for what each one does.
 
 The exact panes you see depend on what is selected, but that overall structure stays the same.
 

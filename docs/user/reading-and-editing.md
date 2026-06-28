@@ -26,7 +26,7 @@ For PDFs, the app uses a PDF reading stack with page-aware navigation and viewer
 The `Content` tab in the inspector is the quickest place to read what Fichero extracted from a document. In current builds:
 
 - the content tab shows document content rather than generic file metadata
-- extracted text and generated artifacts are routed through the content/artifact inspector surfaces
+- extracted text and generated outputs are shown through the Content inspector surfaces
 - the app keeps the page-focused context in sync so the inspector can follow the page you are actually viewing
 
 For users, the main rule is simple: if the scan and its text both exist, the reading area shows the image or PDF while the inspector helps you inspect the extracted content.
@@ -39,15 +39,25 @@ Use `Content` to read extracted document text and page content.
 
 ### Outline
 
-Use `Outline` when a source outline is available and you want structured navigation rather than plain reading.
+Use `Outline` when a source outline is available and you want structured navigation rather than plain reading. It drills down chapters, sections, and pages, and what is on each.
 
-### Artifacts
+### Entities
 
-Use `Artifacts` for generated outputs associated with the document, such as transcription-related content and other workflow products.
+Use `Entities` to see the people, places, organizations, and concepts that Fichero extracted from the document.
+
+### Knowledge Graph
+
+Use `Knowledge Graph` for the structured claims (who did what, where, and when) and interpretations tied to the document.
+
+### Citations
+
+Use `Citations` to see the documents this one cites, the documents that cite it, and the document's extracted bibliography.
 
 ### Info
 
 Use `Info` for file metadata, dates, path-related details, and related document properties.
+
+The full row of inspector tabs is described in [The Interface: A Tour of the Window](interface-tour.md#the-inspector).
 
 ## Annotations
 

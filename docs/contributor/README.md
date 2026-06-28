@@ -22,7 +22,7 @@ The shortest accurate picture is:
 ```text
 SwiftUI app -> localhost HTTP API -> FastAPI engine -> DuckDB + LanceDB
                                                -> LangGraph workflows
-                                               -> LLM providers via LiteLLM
+                                               -> LLM providers via LangChain integrations
 ```
 
 That architecture shapes almost every contributor task:

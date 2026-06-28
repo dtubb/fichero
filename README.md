@@ -1,9 +1,8 @@
 # Fichero
 
-*Fichero*, which is Spanish for a filing cabinet or a card index, is an application to manage documents, to read them, and to process them with AI tools for macOS, iPadOS, and iOS. It's audience are researcher with a collection of images of prinary sources, historical documents, PDFs of books and articles, archival materials, hand written fieldwork notes, audio interviews, video recording,  andnother  sources, eg maps and photographs. It offers a single home for research materials, and then a way to build a semantic understanding using AI tools, to allow researchs to read, transcribe, and ask questions of their materials, while always being able to easily find the relevant source document. Fichero's aim aims to let you build the steps yourself, e.g. visually, repeatably, across a whole corpus, and to work with a colletion. It moves beyond a chat box as a kind of delphic opaque agent, to make visibl how AI tools work. The aim is that the AI becomes an tool for the researcher, rather than an a plagerism machine or oracle of truth. Fichero offwra
-tools to surface facts and provenance, but it does not do the interpretion.
+*Fichero*, which is Spanish for a filing cabinet or a card index, is an application to manage documents, to read them, and to process them with AI tools for macOS, iPadOS, and iOS. Its audience are researchers with a collection of images of primary sources, historical documents, PDFs of books and articles, archival materials, hand written fieldwork notes, audio interviews, video recording, and other sources, eg maps and photographs. It offers a single home for research materials, and then a way to build a semantic understanding using AI tools, to allow researchers to read, transcribe, and ask questions of their materials, while always being able to easily find the relevant source document. Fichero's aim aims to let you build the steps yourself, e.g. visually, repeatably, across a whole corpus, and to work with a collection. It moves beyond a chat box as a kind of delphic opaque agent, to make visible how AI tools work. The aim is that the AI becomes a tool for the researcher, rather than a plagiarism machine or oracle of truth. Fichero offers tools to surface facts and provenance, but it does not do the interpretation.
 
-Fichero is built primarily for historians, anthropologists, archivists and others in the humanities who work with handwritten-documents, arhcival materials, and ethngroaphic amterials. It allos you to deploy transcription with vision AI models, catalogue production using differnet workflwos, and is ultimately a tool for letting anyone use large language models in a programmatic, methodical, step-by-step way over tens or hunreds of thousand of documents.
+Fichero is built primarily for historians, anthropologists, archivists and others in the humanities who work with handwritten-documents, archival materials, and ethnographic materials. It allows you to deploy transcription with vision AI models, catalogue production using different workflows, and is ultimately a tool for letting anyone use large language models in a programmatic, methodical, step-by-step way over tens or hundreds of thousand of documents.
 
 Fichero is a work in progress. At its core, it's an app that lets you use
 cutting-edge machine-learning techniques and prompts in a repeatable,
@@ -27,9 +26,9 @@ run models locally, you can.
 The aim of Fichero is to move beyond the chat, and beyond the agentic model. It aims to let you give you more control and insight into how AI does its work: steps you want to be
 able to reproduce across multiple documents. This is an app that aims to make the
 power of AI accessible, but also searchable and readable. AIs are incredibly
-powerful; the aim here is to make them more navigable and transparent. Transparent to you as a user, but also to you as you expali nyour methods to other peoplke.
+powerful; the aim here is to make them more navigable and transparent. Transparent to you as a user, but also to you as you explain your methods to other people.
 
-To much AI work is invisible. Hidden in opaque wbeiste, with a distant database, and it hard to know what's going on under the covers. Fichero aism to make hwo ti works more visible, and therefore more accessible.
+Too much AI work is invisible. Hidden in opaque website, with a distant database, and it hard to know what's going on under the covers. Fichero aims to make how it works more visible, and therefore more accessible.
 
 Fichero is a work in progress. It is 100% coded by Claude, Codex, and other models.
 
@@ -76,7 +75,6 @@ All surfaces sit on top of fichero-engine. They render and accept input; they do
 | `fichero` CLI | `fichero-engine/src/fichero/cli/` | Live (typed, end-to-end verified) |
 | MCP server | `fichero-engine/src/fichero/mcp_server.py` (`fichero-mcp`) | Live |
 | iOS / iPad app | `fichero/fichero/FicheroApp_iOS.swift` (same project) | In progress |
-| Web client | future | Planned |
 
 ### Example Workflow: Catalogue
 
@@ -267,8 +265,8 @@ See `docs/VALIDATION.md` for details and current known blockers.
 
 ## Documentation
 
-- **End users**: [`site/docs/user/`](site/docs/user/) — getting started, importing, reading & editing, search & knowledge graph, AI & privacy. (Published on the docs site.)
-- **Developers / contributors**: [`site/docs/developer/`](site/docs/developer/) — architecture overview, setup & contributing, OpenAPI & clients, security model, workflows, the action registry. (Published on the docs site.)
+- **End users**: [`docs/user/`](docs/user/) — getting started, importing, reading & editing, search & knowledge graph, AI & privacy. (Published on the docs site.)
+- **Developers / contributors**: [`docs/contributor/`](docs/contributor/), architecture overview, setup & contributing, OpenAPI & clients, security model, workflows, the action registry. (Published on the docs site.)
 - **Architecture deep-dives**: [`docs/architecture/`](docs/architecture/) and the canonical agent guide [`docs/CLAUDE.md`](docs/CLAUDE.md).
 - Component READMEs: [`fichero/`](fichero/README.md) (SwiftUI app) and [`fichero-engine/`](fichero-engine/README.md) (Python engine).
 

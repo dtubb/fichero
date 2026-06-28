@@ -19,7 +19,7 @@ Fichero is a **macOS document management application with AI processing capabili
 **💬 AI Chat Interface**
 - Multi-model conversations with document context
 - Scoped chat: query specific documents or entire library
-- Support for 100+ LLM providers via LiteLLM
+- Many LLM providers through LangChain integrations (local + cloud)
 - Streaming responses with message history
 
 **🔧 Visual Workflow Editor**

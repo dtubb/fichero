@@ -27,7 +27,7 @@ For sensitive research materials, local models are the right choice.
 
 ### Cloud options
 
-Fichero uses [LiteLLM](https://github.com/BerriAI/litellm) to connect to cloud providers. You supply your own API key. Fichero does not proxy requests through any intermediary; your API calls go directly to the provider.
+Fichero connects to cloud providers through LangChain provider integrations. You supply your own API key. Fichero does not proxy requests through any intermediary; your API calls go directly to the provider. ([LiteLLM](https://github.com/BerriAI/litellm) is used only to look up model names and estimate cost, not to route or send your content.)
 
 Available providers include OpenAI, Anthropic (Claude), Google, Mistral, Groq, DeepSeek, OpenRouter, Azure, Amazon Bedrock, and others. See Settings for the full list.
 

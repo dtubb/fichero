@@ -4,7 +4,10 @@ The native Apple front end for Fichero (macOS primary; an iOS/iPad target lives
 in the same project and is in progress). It is a **thin client**: it renders and
 accepts input, and talks to the FastAPI engine over pinned HTTPS loopback. The
 logic — ingest, search, knowledge graph, workflows — lives in the engine, not
-here. See the [top-level README](../README.md) for the whole-system picture.
+here. See the [top-level README](../README.md) for the whole-system picture, the
+root [AGENTS.md](../AGENTS.md) for build/lint/test rules and commit attribution, and
+[docs/contributor/](../docs/contributor/) for the developer docs. This file
+keeps only what is specific to the app: its layout and key concepts.
 
 ## What lives here
 
@@ -74,13 +77,12 @@ scripts/launch-release.sh --debug  # Debug
 swiftlint lint fichero/fichero/
 ```
 
-## Notes
+## Conventions
 
-- **New `.swift` files must be registered** with `ruby scripts/add-swift-file.rb <path>`
-  (the main target uses traditional PBX file references; a file on disk is
-  invisible to the compiler until registered). Never hand-edit `project.pbxproj`.
-- After backend API/schema changes, run `fichero-engine/scripts/sync_openapi_schema.sh`
-  to refresh the OpenAPI schema the Swift package consumes.
-- Sparkle updater release setup: `../docs/release/sparkle-release.md`.
-- Swift conventions: `docs/architecture/swiftui/development_standards.md`;
-  OpenAPI round-trip contract: `docs/architecture/swiftui/api_client.md`.
+The repo-wide rules (registering new `.swift` files with `add-swift-file.rb`, syncing
+the OpenAPI schema after backend changes, the three-leg Swift check) live in the root
+[AGENTS.md](../AGENTS.md). Component-specific references:
+
+- Swift conventions: [docs/architecture/swiftui/development_standards.md](../docs/architecture/swiftui/development_standards.md).
+- OpenAPI round-trip contract: [docs/architecture/swiftui/api_client.md](../docs/architecture/swiftui/api_client.md).
+- Sparkle updater release setup: [docs/release/sparkle-release.md](../docs/release/sparkle-release.md).
