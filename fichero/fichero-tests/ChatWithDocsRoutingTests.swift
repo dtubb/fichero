@@ -18,7 +18,9 @@ final class ChatWithDocsRoutingTests: XCTestCase {
         XCTAssertEqual(route.selectedDocumentIds, ["doc-a", "doc-b"])
         XCTAssertEqual(route.sidebarMode, .chat)
         XCTAssertEqual(route.viewMode, .chat(nil))
-        XCTAssertFalse(route.sidebarShowsChat)
+        // (No `sidebarShowsChat`: chat-with-docs routes to the main chat and
+        // never swaps the sidebar — the struct has no such field. The no-swap
+        // behaviour is guarded by testChatWithDocsActionDoesNotOpenSidebarChatSwap.)
     }
 
     func testChatWithDocsActionDoesNotOpenSidebarChatSwap() throws {
