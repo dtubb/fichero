@@ -5,7 +5,27 @@
 audit-incorporation, consolidation, and placement. Execute safe placement moves; flag
 ambiguous/cross-lane ones; file issues for untracked findings.
 
-## What I did
+## Update (2nd pass — Daniel: execute the recommended moves)
+
+Daniel authorized the cross-lane writes. Executed the promotions I had flagged:
+
+- **Promoted 5 durable principle/standard docs → `site/docs/contributor/`** (single source
+  for agents + people): `swiftui-principles`, `appkit-interop`,
+  `swiftui-development-standards`, `backend-development-standards`,
+  `extensibility-guarantee`. `git mv` (history kept), kebab-cased, all inbound references
+  repointed (`AGENTS.md`, `docs/CLAUDE.md`, `fichero/README.md`, the architecture
+  overview maps + site mirrors, workflow_checklist, qa-reviewers template), sibling links
+  fixed, new **Standards & Principles** nav group added under Developer in `mkdocs.yml`.
+- **`mkdocs build --strict` → PASS** (0.94s, no nav/link warnings).
+- **No additional archives** beyond the original 3 — my review recommended KEEP for
+  `mac_assed_audit` (open #1859), `ios_appkit_audit` (open #2101), `reform_masterplan`
+  (live), and `mac_shell_design_proposal` (still cited as the live design doc in ROADMAP;
+  needs a lane/review fold first). Archiving those now would contradict their open epics.
+- **No new issues** — only #2709 was genuinely untracked (filed in pass 1).
+- **Flagged:** the `mkdocs.yml` nav-merge with lane/docs' `developer→contributor` rename
+  (both lanes touch that block + create `site/docs/contributor/`) — integrator resolves.
+
+## What I did (pass 1)
 
 1. **Read & classified all 22 docs** in `docs/architecture/swiftui/` + `docs/architecture/api/`
    plus the 2 sibling top-level audits (`api_consistency_audit`, `search_audit`).

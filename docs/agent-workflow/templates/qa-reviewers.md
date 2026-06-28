@@ -98,8 +98,8 @@ You are `code-reviewer`, a review-only Claude teammate. You will NOT edit files 
 **Your lens:** Style, conventions, architecture standards.
 
 **Read before reviewing:**
-- `docs/architecture/api/development_standards.md` — Python backend standards
-- `docs/architecture/swiftui/development_standards.md` — Swift standards (if diff includes Swift)
+- `site/docs/contributor/backend-development-standards.md` — Python backend standards
+- `site/docs/contributor/swiftui-development-standards.md` — Swift standards (if diff includes Swift)
 
 **Your checklist for every diff:**
 

@@ -60,7 +60,7 @@ adopt 2026 APIs directly.
 **Still mandatory (unchanged):** `@MainActor` + async/await with `Task.isCancelled` (never
 `DispatchQueue.main`); no `NotificationCenter` for state (use bindings / Observation /
 `@FocusedValue`); OSLog only; files < 400 lines; read from services/HTTP — **never local file
-paths** (engine may be remote). AppKit only behind a contained bridge — see `appkit_interop.md`.
+paths** (engine may be remote). AppKit only behind a contained bridge — see `appkit-interop.md`.
 
 > The §1–§9 examples below still show the `ObservableObject`/`@Published` pattern. Those remain
 > valid for the *existing* code they describe, but **new code uses `@Observable`** per this section.
@@ -316,7 +316,7 @@ NSLayoutConstraint.activate(...)  // ❌ Use SwiftUI layout
 - **Trackpad swipe** — `NSEvent.addLocalMonitorForEvents(matching: .swipe)` (no SwiftUI equivalent on macOS 15)
 - Native file pickers use SwiftUI `.fileImporter` — do NOT bridge those.
 
-**Two sanctioned reasons to bridge** (see `appkit_interop.md` for the full decision):
+**Two sanctioned reasons to bridge** (see `appkit-interop.md` for the full decision):
 1. **Capability gap** — SwiftUI literally can't do it (the bridges listed above).
 2. **Behavioral-fidelity gap** — SwiftUI renders it but can't match a decades-old Mac
    interaction a power user feels the absence of (selection emphasis on focus loss,

@@ -105,6 +105,12 @@ nav:
       - Action Registry: developer/action-registry.md
       - Security Model: developer/security-model.md
       - Setup & Contributing: developer/setup-and-contributing.md
+      - Standards & Principles:
+          - SwiftUI Principles: contributor/swiftui-principles.md
+          - AppKit Interop: contributor/appkit-interop.md
+          - Frontend Standards: contributor/swiftui-development-standards.md
+          - Backend Standards: contributor/backend-development-standards.md
+          - Extensibility Guarantee: contributor/extensibility-guarantee.md
       - Architecture Notes:
           - System Overview: architecture/overview.md
           - Backend API Overview: architecture/api/overview.md

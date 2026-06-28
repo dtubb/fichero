@@ -13,7 +13,7 @@
 > - **AppKit**: "100% SwiftUI" is aspirational. SwiftUI-first with ~8 sanctioned
 >   `NSViewRepresentable` bridges (PDFKit, magnifier, text editors, …). The
 >   `APPKIT_FINAL_AUDIT.md` referenced below has been retired — see
->   `docs/architecture/swiftui/development_standards.md`.
+>   `site/docs/contributor/swiftui-development-standards.md`.
 > - **New `.swift` files must be registered** with `ruby scripts/add-swift-file.rb <path>`
 >   (the main target uses traditional PBX refs); the build gate is `bash scripts/verify_all.sh`.
 > - Prefer the **Xcode MCP** build/test tools over the raw `xcodebuild` invocations shown here.
@@ -49,7 +49,7 @@ git pull origin main
 **Planning**:
 - [ ] Understand the requirement/bug
 - [ ] Check `docs/agent-workflow/TODO.md` for task details
-- [ ] Read relevant context files (`key_files.md`, `SWIFTUI_PRINCIPLES.md`)
+- [ ] Read relevant context files (`key_files.md`, `swiftui-principles.md`)
 - [ ] Identify affected files (use `key_files.md`)
 - [ ] Check if files need splitting (> 400 lines?)
 
@@ -281,7 +281,7 @@ git push origin feature-branch-name
 ### Adding a New Feature
 1. Read `docs/agent-workflow/TODO.md` for task details
 2. Check `key_files.md` for affected files
-3. Review `SWIFTUI_PRINCIPLES.md` for patterns
+3. Review `swiftui-principles.md` for patterns
 4. Implement following workflow above
 5. Run SwiftLint and build
 6. Test manually
@@ -375,14 +375,14 @@ swiftlint lint --path Fichero/Fichero/Views/MyView.swift
 - [ ] Added new major feature → Update `overview.md`
 - [ ] Added new file/module → Update `key_files.md`
 - [ ] Changed architecture → Update `overview.md`
-- [ ] New best practice → Update `SWIFTUI_PRINCIPLES.md`
+- [ ] New best practice → Update `swiftui-principles.md`
 - [ ] Changed workflow → Update this file
 
 ### Doc Locations
 - `docs/architecture/swiftui/overview.md` - High-level architecture
 - `docs/architecture/swiftui/key_files.md` - File organization
-- `docs/architecture/swiftui/SWIFTUI_PRINCIPLES.md` - Code patterns
-- `docs/architecture/swiftui/development_standards.md` - Standards and guidelines
+- `site/docs/contributor/swiftui-principles.md` - Code patterns
+- `site/docs/contributor/swiftui-development-standards.md` - Standards and guidelines
 - `docs/architecture/swiftui/workflow_checklist.md` - This file
 
 ---
@@ -405,7 +405,7 @@ swiftlint lint --path Fichero/Fichero/Views/MyView.swift
 1. Check Sosumi for SwiftUI equivalent
 2. Check Ref for Swift language features
 3. Review similar code in project
-4. Read `SWIFTUI_PRINCIPLES.md`
+4. Read `swiftui-principles.md`
 5. Ask for clarification
 
 ---
@@ -414,7 +414,7 @@ swiftlint lint --path Fichero/Fichero/Views/MyView.swift
 
 **Daily Checklist**:
 1. ✅ Start backend
-2. ✅ Write code following SWIFTUI_PRINCIPLES.md
+2. ✅ Write code following swiftui-principles.md
 3. ✅ Keep files < 400 lines
 4. ✅ Run SwiftLint (zero errors)
 5. ✅ Build succeeds

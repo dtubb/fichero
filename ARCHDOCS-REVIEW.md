@@ -37,9 +37,9 @@ Legend — **Type:** P=principles/standard · D=design proposal · A=audit/findi
 
 | Doc | Type | Accuracy vs code | Impl status | Placement / action |
 |---|---|---|---|---|
-| `SWIFTUI_PRINCIPLES.md` | P | Accurate & current. §1–9 deliberately show legacy `ObservableObject`; the 2026 header section is the live rule (Observation-first, Golden Gate). **One stale line:** §"macOS 26 only / no `if #available`" is contradicted by the cross-platform direction (reform_masterplan §4 + open #2096) — should read "macOS 26 + iOS floor". | n-a (living standard) | **KEEP.** Recommend **promote to public site** (`site/docs/contributor`) — durable, mandatory, agent+human. **FLAG (cross-lane).** Fix the macOS-only line when promoted. |
-| `appkit_interop.md` | P (directive) | Accurate. The two-reason bridge rule + addenda match the ~8 sanctioned bridges in code and CLAUDE.md. | n-a | **KEEP** beside PRINCIPLES; promote together if PRINCIPLES goes public. |
-| `development_standards.md` | P | Accurate; already self-corrects the "100% SwiftUI" line (2026-06-06 note). | n-a | **KEEP**; candidate for public site with PRINCIPLES. |
+| `SWIFTUI_PRINCIPLES.md` | P | Accurate & current. §1–9 deliberately show legacy `ObservableObject`; the 2026 header section is the live rule (Observation-first, Golden Gate). **One stale line:** §"macOS 26 only / no `if #available`" is contradicted by the cross-platform direction (reform_masterplan §4 + open #2096) — should read "macOS 26 + iOS floor". | n-a (living standard) | **PROMOTED →** `site/docs/contributor/swiftui-principles.md`. Single source, agent+human. macOS-only line left as-is (still true today; iOS is open #2096) — flagged for a content fix when #2096 lands. |
+| `appkit_interop.md` | P (directive) | Accurate. The two-reason bridge rule + addenda match the ~8 sanctioned bridges in code and CLAUDE.md. | n-a | **PROMOTED →** `site/docs/contributor/appkit-interop.md` (sibling of principles). |
+| `development_standards.md` | P | Accurate; already self-corrects the "100% SwiftUI" line (2026-06-06 note). | n-a | **PROMOTED →** `site/docs/contributor/swiftui-development-standards.md`. |
 | `overview.md` | R | Accurate frontend map (2026-05-24). | n-a | **KEEP** (already mirrored as `site/docs/architecture/swiftui/overview.md`). |
 | `key_files.md` | R | Navigation map; spot-accurate. | n-a | **KEEP** internal. |
 | `api_client.md` | R | Accurate OpenAPI-generator description. | n-a | **KEEP** internal. |
@@ -58,9 +58,9 @@ Legend — **Type:** P=principles/standard · D=design proposal · A=audit/findi
 |---|---|---|---|---|
 | `overview.md` | R | Accurate backend map. | n-a | **KEEP** (mirrored to site). |
 | `key_files.md` | R | Accurate. | n-a | **KEEP** internal. |
-| `development_standards.md` | P | Accurate backend standards. | n-a | **KEEP**; candidate for public site (pairs with frontend standards). |
+| `development_standards.md` | P | Accurate backend standards. | n-a | **PROMOTED →** `site/docs/contributor/backend-development-standards.md`. |
 | `workflow_checklist.md` | R/process | Accurate. | n-a | **KEEP** internal. |
-| `extensibility_guarantee.md` | P (contract) | Backed by a contract test (#1652). Durable. | done | **KEEP** — durable guarantee; good public-site candidate. |
+| `extensibility_guarantee.md` | P (contract) | Backed by a contract test (#1652). Durable. | done | **PROMOTED →** `site/docs/contributor/extensibility-guarantee.md`. |
 | `mcp_simple_interface.md` | R | Accurate (#1327, 10-tool surface). | n-a | **KEEP** internal. |
 | `KG_ENDPOINTS.md` | R | Endpoint reference "generated 2026-05-12". Risk of drift; says dev-tier-only but `_DEV_ROUTE_SPECS == []` means everything is core now. | partial-stale | **KEEP**, but **note**: the "requires `FICHERO_FEATURE_TIER=dev`" preamble is stale (all routers promoted to core). Minor doc fix. |
 | `capture_sessions_resumable_upload_contract.md` | D (contract) | Contract slice for #2352 (OPEN). | not-done (in-progress) | **KEEP** — active contract doc. |
@@ -98,9 +98,32 @@ open issue:
 
 ---
 
-## Moves executed (this lane, this commit)
+## Moves executed (this lane)
 
-Into the existing `docs/archive/` (precedent: `swiftui-inspector_redesign.md` already
+### Promotions → public site `site/docs/contributor/` (durable principles/standards)
+
+Single-source so agents and people read the same doc. `git mv` (history preserved),
+kebab-cased to match the site convention, with all inbound references repointed and a
+new **Standards & Principles** nav group added under Developer in `mkdocs.yml`:
+
+```
+docs/architecture/swiftui/SWIFTUI_PRINCIPLES.md   → site/docs/contributor/swiftui-principles.md
+docs/architecture/swiftui/appkit_interop.md       → site/docs/contributor/appkit-interop.md
+docs/architecture/swiftui/development_standards.md → site/docs/contributor/swiftui-development-standards.md
+docs/architecture/api/development_standards.md     → site/docs/contributor/backend-development-standards.md
+docs/architecture/api/extensibility_guarantee.md   → site/docs/contributor/extensibility-guarantee.md
+```
+
+References repointed in: `AGENTS.md`, `docs/CLAUDE.md`, `fichero/README.md`,
+`docs/architecture/overview.md` + its site mirror, `docs/architecture/swiftui/overview.md`
++ its site mirror, `docs/architecture/swiftui/workflow_checklist.md`,
+`docs/agent-workflow/templates/qa-reviewers.md`. Sibling links between the moved docs
+fixed to the new kebab names. Historical files (`HISTORY.md`,
+`agent-work/proposals/…`, `docs/release-notes-0.0.2.md`) left untouched (they record
+past state). Prose name-citations inside dated design proposals/audits left as
+conceptual references. **`mkdocs build --strict` passes.**
+
+### Archives → existing `docs/archive/` (precedent: `swiftui-inspector_redesign.md` already
 lives there). All three are fully-historical, have **zero inbound links**, and are in
 this lane's `docs/architecture/` territory:
 
@@ -119,15 +142,15 @@ its dated code line-refs as current.
 
 ## Flagged for Daniel (genuinely ambiguous / cross-lane — did NOT execute)
 
-1. **Promote the durable principles/standards to the public site.**
-   `SWIFTUI_PRINCIPLES.md`, `appkit_interop.md`, `development_standards.md` (both
-   frontend + `api/development_standards.md`), and `extensibility_guarantee.md` are
-   durable, mandatory, and equally useful to people. The brief says promote durable
-   principles to `site/docs/contributor` — **but `lane/docs` owns `site/docs/**` and is
-   mid `developer→contributor` rename.** Me writing there (new files + `mkdocs.yml` nav)
-   would collide. **Recommend: lane/docs places these under `contributor/` as part of
-   that rename** (they can `git mv` from `docs/architecture/swiftui/` or copy + leave a
-   stub). Decide whether the public copy is the canonical one or a mirror.
+1. **Lane/docs nav-merge coordination (the promotions are DONE; this is the merge note).**
+   The 5 durable docs are now in `site/docs/contributor/` and nav-listed under a
+   **Developer → Standards & Principles** sub-group in `mkdocs.yml`. **`lane/docs` is
+   independently renaming `site/docs/developer/` → `contributor/` and will rewrite that
+   same nav block** — so expect a `mkdocs.yml` nav conflict + a `site/docs/contributor/`
+   dir that both lanes create. Resolution at integration: keep my 5 files, fold my
+   sub-group into lane/docs' renamed "Contributor" section, drop the now-redundant
+   "Developer →" wrapper. No file-name collisions (mine are `*-principles/standards`,
+   theirs are `README/architecture-overview/…`). Daniel authorized the cross-lane write.
 
 2. **`mac_shell_design_proposal.md` consolidation.** Superseded-in-part by
    `reform_masterplan_2026-06.md`, but still cited as the live design doc in
@@ -149,9 +172,10 @@ its dated code line-refs as current.
 **Keep the two-tier split, but make the dividing line by _document type_, not by accident:**
 
 - **Public site (`site/docs/contributor`, agent+human):** durable principles, standards,
-  contracts, and stable overviews — `SWIFTUI_PRINCIPLES`, `appkit_interop`, both
-  `development_standards`, `extensibility_guarantee`, the `overview.md` pair. These don't
-  go stale on a sprint cadence and benefit from being the single shared source.
+  contracts — **DONE this pass** for `swiftui-principles`, `appkit-interop`, both
+  `*-development-standards`, `extensibility-guarantee`. These don't go stale on a sprint
+  cadence and benefit from being the single shared source. The `overview.md` pair stays
+  as the lighter published mirror.
 - **Internal `docs/architecture/` (agent working area, unpublished):** live design
   proposals + working audits that churn with the milestones (`reform_masterplan`,
   `mac_shell_design_proposal`, `mac_assed_audit`, `ios_appkit_audit`,
@@ -160,4 +184,5 @@ its dated code line-refs as current.
   Three landed there this pass; `mac_assed_audit` and `mac_shell_design_proposal` follow
   once their epics/ROADMAP links resolve.
 
-The promotion in (1) is the highest-value single change — but it's `lane/docs`' to make.
+The promotion (now executed) is the highest-value single change; flag (1) above is only
+the lane/docs nav-merge coordination at integration time.

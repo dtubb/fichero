@@ -48,7 +48,7 @@ than deleting databases.
 - MLX/on-device agent service boundary: `docs/architecture/mlx_on_device_agent.md`
 - Workflow multi-pass engine primitives: `docs/architecture/workflow_multi_pass_engine.md`
 - SwiftUI/frontend architecture: `docs/architecture/swiftui/overview.md`
-- SwiftUI principles: `docs/architecture/swiftui/SWIFTUI_PRINCIPLES.md`
+- SwiftUI principles: `../contributor/swiftui-principles.md`
 
 ## Local run
 
