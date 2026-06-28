@@ -186,7 +186,7 @@ extension ActivityProgressView {
     private func documentNameForPath(_ filePath: String) -> String {
         guard !filePath.isEmpty else { return "Unknown" }
 
-        let filename = URL(fileURLWithPath: filePath).lastPathComponent
+        let filename = (filePath as NSString).lastPathComponent
 
         for doc in documentStore.currentDocuments where doc.path == filePath {
             return doc.name

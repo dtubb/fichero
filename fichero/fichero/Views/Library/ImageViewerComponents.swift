@@ -134,7 +134,7 @@ struct ZoomableImagePreview: View {
                 VStack(spacing: 0) {
                     if renderedImage != nil || url != nil {
                         ImageWithCursorTracking(
-                            url: url ?? URL(fileURLWithPath: "/"),
+                            url: url,
                             overrideImage: highResImage ?? renderedImage,
                             scale: $scale,
                             cursorPosition: $cursorPosition,
@@ -600,7 +600,7 @@ struct ZoomableImagePreview: View {
                 Group {
                     if renderedImage != nil || url != nil {
                         ImageWithCursorTracking(
-                            url: url ?? URL(fileURLWithPath: "/"),
+                            url: url,
                             overrideImage: renderedImage,
                             scale: $scale,
                             cursorPosition: $cursorPosition,
@@ -743,7 +743,7 @@ struct FullScreenImagePreview: View {
 
             if renderedImage != nil || url != nil {
                 ImageWithCursorTracking(
-                    url: url ?? URL(fileURLWithPath: "/"),
+                    url: url,
                     overrideImage: renderedImage,
                     scale: $scale,
                     cursorPosition: $cursorPosition,

@@ -261,6 +261,16 @@ class StorageServiceGenerated: ObservableObject {
         displayPlatformImageCacheOrder.removeAll { $0 == docId }
     }
 
+    /// Clear every in-memory byte/image cache, used when the app switches engine hosts.
+    func clearAll() {
+        thumbnailCache.removeAll()
+        displayCache.removeAll()
+        displayPlatformImageCache.removeAll()
+        sourceDataCache.removeAll()
+        thumbnailCacheOrder.removeAll()
+        displayPlatformImageCacheOrder.removeAll()
+    }
+
     /// Decode image bytes into a SwiftUI `Image` off the main thread.
     ///
     /// `NSImage(data:)` and the underlying CGImageSource decode path both
