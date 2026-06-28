@@ -837,6 +837,16 @@ class ClassificationValue(BaseModel):
         default=None,
         description="Optional hierarchy: 'binding' parent of 'constitutional'.",
     )
+    attributes: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Prototype definition attributes (node-model P1, #2591). For "
+            "dimension=document_prototype these are inheritable defaults a node "
+            "of this prototype carries; resolved via node_prototypes.py, where a "
+            "child prototype's attributes override its parent_key chain. Other "
+            "dimensions leave this empty."
+        ),
+    )
     color: str | None = Field(
         default=None, description="Hex tint for badge rendering, e.g. '#FF8800'."
     )
