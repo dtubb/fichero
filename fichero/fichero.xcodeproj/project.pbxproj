@@ -35,6 +35,7 @@
 		043 /* Fichero.sdef in Resources */ = {isa = PBXBuildFile; fileRef = 142 /* Fichero.sdef */; };
 		044 /* WorkflowServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 143 /* WorkflowServiceGenerated.swift */; };
 		045 /* SavedSearchServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 144 /* SavedSearchServiceGenerated.swift */; };
+		045C6648800D0B7D95D13B32 /* AnnotationHighlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D4DEA1D7E10749DA258D26F /* AnnotationHighlight.swift */; };
 		046 /* ConversationServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 145 /* ConversationServiceGenerated.swift */; };
 		047 /* ChatServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 146 /* ChatServiceGenerated.swift */; };
 		048 /* WorkflowExecutionObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149 /* WorkflowExecutionObserver.swift */; };
@@ -212,6 +213,7 @@
 		56DCD53ACD6483561CF542B3 /* KGTemporalSpatial.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43EAB861267206E7A929830F /* KGTemporalSpatial.swift */; };
 		57EFBE5436C18075ECE90EFC /* ClaimStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C527476477074D83F628468 /* ClaimStore.swift */; };
 		5D064ECAAD353BDB778B8580 /* AnnotationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61D7DC57117008EBCFE607A9 /* AnnotationService.swift */; };
+		5D621E99ED66F859FD195491 /* AnnotatableTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 032AA7721B1C054A6CD89D4C /* AnnotatableTextView.swift */; };
 		5E8 /* SidebarItemBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9 /* SidebarItemBuilder.swift */; };
 		5F01DCF2F7EC8E307F172402 /* DisplayAttributesStrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1E5C6B2FBD2462E90B5F43D /* DisplayAttributesStrip.swift */; };
 		5FBCA4ACC1D0F229DA5E85AC /* EntityDetailView+Metadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9506E8C3C8030EE3075E9A0 /* EntityDetailView+Metadata.swift */; };
@@ -268,6 +270,7 @@
 		92F3AFC896A444D7D060547E /* CanvasLayoutStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4887C223276D2F5E2C498065 /* CanvasLayoutStore.swift */; };
 		92F7E655373456AAB3EAFB8C /* ActivityMonitorModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36839A1C65A10F63B92E4121 /* ActivityMonitorModel.swift */; };
 		9366577BEB84A06792568C3F /* DocumentInspectorArtifactsTab+EntityKindRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D62D87E6614928970950D52 /* DocumentInspectorArtifactsTab+EntityKindRow.swift */; };
+		9421EE6C6C84BC6FCAA4F8A9 /* AnnotationToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0AF1F41099C45462F7D7658 /* AnnotationToolbar.swift */; };
 		950B161A37D121AFE9E26CB3 /* PDFPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DDD2864E374789E10D5B169 /* PDFPageView.swift */; };
 		96DDD5373DEE2458D1D94450 /* BreadcrumbBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAE9F6E549990F086C442F3B /* BreadcrumbBuilder.swift */; };
 		98F8518B04D4313542B237D7 /* PDFPageWithToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CC15CD58C235F143320E172 /* PDFPageWithToolbar.swift */; };
@@ -570,6 +573,7 @@
 		003E584BBE51001B1E3F6843 /* ForceDirectedGraphView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ForceDirectedGraphView.swift; sourceTree = "<group>"; };
 		00B5245346C7E0A399A7A82A /* ContentViewHelperViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContentViewHelperViews.swift; sourceTree = "<group>"; };
 		015D191B1A9A578C0A4BC6BA /* iOSLibraryPickerMenu.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = iOSLibraryPickerMenu.swift; sourceTree = "<group>"; };
+		032AA7721B1C054A6CD89D4C /* AnnotatableTextView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnnotatableTextView.swift; sourceTree = "<group>"; };
 		034677F6AF68D5DCA5CB3E8C /* SpeakerComparisonView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpeakerComparisonView.swift; sourceTree = "<group>"; };
 		040DF83730009C67C5FF3491 /* LibraryWorkspaceRoot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LibraryWorkspaceRoot.swift; sourceTree = "<group>"; };
 		04DA25B2C1FBB75B0B1CC643 /* DynamicConfigView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DynamicConfigView.swift; sourceTree = "<group>"; };
@@ -807,6 +811,7 @@
 		68C8C5672F78A996924D42D1 /* FicheroShortcuts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FicheroShortcuts.swift; sourceTree = "<group>"; };
 		6931274044832BD7EFE8A4D3 /* SidebarView+LibraryHeaderHelpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SidebarView+LibraryHeaderHelpers.swift"; sourceTree = "<group>"; };
 		6C0044833E201FFB8B8A5B37 /* EntityDetailView+Sections.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "EntityDetailView+Sections.swift"; sourceTree = "<group>"; };
+		6D4DEA1D7E10749DA258D26F /* AnnotationHighlight.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnnotationHighlight.swift; sourceTree = "<group>"; };
 		6FC331F7BFE50CEECD3B4414 /* ArtifactStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ArtifactStore.swift; sourceTree = "<group>"; };
 		70599D1C032FF0B54C7C18A2 /* BackendSettingsRemoteAccessSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BackendSettingsRemoteAccessSection.swift; sourceTree = "<group>"; };
 		70C062A29951726302108FD2 /* BackupStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BackupStore.swift; sourceTree = "<group>"; };
@@ -1072,6 +1077,7 @@
 		DD96D53320D07109835C90BF /* EntityDetailView+Notes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "EntityDetailView+Notes.swift"; sourceTree = "<group>"; };
 		DF5FD0D414191E6FFC18E8BC /* SpatialNodeThumbnail.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpatialNodeThumbnail.swift; sourceTree = "<group>"; };
 		DF77122ADD78F941D7F1968D /* KGTimelineView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KGTimelineView.swift; sourceTree = "<group>"; };
+		E0AF1F41099C45462F7D7658 /* AnnotationToolbar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnnotationToolbar.swift; sourceTree = "<group>"; };
 		E25A2C92607779F4D928B8E3 /* ArtifactRichTextCodec.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ArtifactRichTextCodec.swift; sourceTree = "<group>"; };
 		E2FF71320EAE8FE11653EB06 /* SidebarItemRow+Workflow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SidebarItemRow+Workflow.swift"; sourceTree = "<group>"; };
 		E5C0909F7C7B21871D35EB5C /* SpatialModels+Links.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SpatialModels+Links.swift"; sourceTree = "<group>"; };
@@ -1544,6 +1550,7 @@
 				B71ADE00621970AC5AE6E45A /* Representation.swift */,
 				166A5110A8453E7D73BF1EEA /* RepresentationStore.swift */,
 				74ECCAE0282E67AA4A150871 /* CoalescingSaveRunner.swift */,
+				6D4DEA1D7E10749DA258D26F /* AnnotationHighlight.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -1935,6 +1942,8 @@
 				7A3196D0978B2822F00F0600 /* FocusedDocument.swift */,
 				925F719AEA2DC437A2ED0CBE /* RepresentationPicker.swift */,
 				D1BE7613380B23C597C463B1 /* RepresentationView.swift */,
+				E0AF1F41099C45462F7D7658 /* AnnotationToolbar.swift */,
+				032AA7721B1C054A6CD89D4C /* AnnotatableTextView.swift */,
 			);
 			path = Library;
 			sourceTree = "<group>";
@@ -2803,6 +2812,9 @@
 				02C3632FB97086976DD89BBE /* DocumentInterpretationsTab.swift in Sources */,
 				235BB484E009F2DC1E3B149D /* MarkdownText.swift in Sources */,
 				87738FE508498598CE9DC2F6 /* CoalescingSaveRunner.swift in Sources */,
+				045C6648800D0B7D95D13B32 /* AnnotationHighlight.swift in Sources */,
+				9421EE6C6C84BC6FCAA4F8A9 /* AnnotationToolbar.swift in Sources */,
+				5D621E99ED66F859FD195491 /* AnnotatableTextView.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
