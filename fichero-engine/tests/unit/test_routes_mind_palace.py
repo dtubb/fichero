@@ -13,6 +13,7 @@ from fichero.spatial_models import (
     SpatialRoom,
     SpatialNode,
 )
+from fichero.models import Document
 
 
 BASE = "/api/mind-palace"
@@ -55,6 +56,20 @@ class TestCreateRoom:
         data = r.json()
         assert data["name"] == "Archive Room"
         assert "id" in data
+
+    def test_create_room_creates_backing_room_document(self, client, db):
+        response = client.post(
+            f"{BASE}/rooms",
+            json={"name": "Node Backed Room", "room_type": "research"},
+        )
+        assert response.status_code == 200
+
+        room_id = response.json()["id"]
+        mirrored = db.get(Document, room_id)
+        assert mirrored is not None
+        assert mirrored.node_kind == "room"
+        assert mirrored.prototype_key == "room"
+        assert mirrored.doc_type == "folder"
 
 
 # ---------------------------------------------------------------------------

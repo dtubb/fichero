@@ -1,0 +1,1 @@
+2026-06-28 Codex: F5 slice 1 shipped on this worktree — `SpatialRoom` now round-trips through room-prototype `Document` nodes with inherited folder attrs, compatibility routes unchanged, and full unit+contracts passed locally.
