@@ -28,8 +28,10 @@ struct DisplayAttributesStrip: View { // swiftlint:disable:this type_body_length
     /// Knowledge-graph summaries the user has surfaced ("entities","claims"),
     /// comma-joined. Opt-in like artifacts (#1246).
     @AppStorage("inspector.attributeStrip.kg") private var shownKGRaw: String = ""
-    /// True = include child documents/pages when loading KG summaries.
-    @AppStorage("inspector.scope.includeChildren") private var includeChildren: Bool = true
+    /// Scope for KG summaries. Defaults to the item's OWN records so a
+    /// folder/PDF shows what belongs to it, not its children's mixed in
+    /// (#2697); children are opt-in via the "Include children" toggle.
+    @AppStorage("inspector.scope.includeChildren") private var includeChildren: Bool = false
     /// Document-metadata keys the user has surfaced, comma-joined. File
     /// metadata/info and any imported JSON all live in `document.metadata`,
     /// so this one bucket covers both. Opt-in (#1246).

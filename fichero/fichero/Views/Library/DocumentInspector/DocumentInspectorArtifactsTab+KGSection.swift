@@ -73,7 +73,10 @@ struct KnowledgeGraphInspectorSection: View {
 
     /// Text = dense semicolon prose per entity; List = grouped disclosure rows.
     @AppStorage("inspector.kg.displayMode") private var displayMode: KGDisplayMode = .text
-    @AppStorage("inspector.scope.includeChildren") private var includeChildren: Bool = true
+    /// Default to the item's OWN records — a folder/PDF shows what belongs to
+    /// IT, not its children's mixed in (#2697). Children are opt-in via the
+    /// "Include children" scope toggle and badged ("Includes children") when on.
+    @AppStorage("inspector.scope.includeChildren") private var includeChildren: Bool = false
     @AppStorage("editor.fontSize") private var defaultFontSize: Double = 13
 
     private var bodyTextFont: Font {

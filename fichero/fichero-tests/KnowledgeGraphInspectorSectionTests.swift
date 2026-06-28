@@ -614,6 +614,32 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertEqual(rate, 0.5, accuracy: 0.0001)
     }
 
+    /// #2697: the inspector scope must DEFAULT to the item's own records so a
+    /// folder/PDF doesn't mix its children's entities/attributes in. The flag
+    /// lives in two views under one @AppStorage key — both must declare the same
+    /// `false` default, or the key's registered default is ambiguous.
+    func testInspectorScopeDefaultsToThisItemOnly() throws {
+        let kgSection = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+KGSection.swift"
+        )
+        let attributesStrip = try Self.appSource("Views/Library/DisplayAttributesStrip.swift")
+        let declaration =
+            #"@AppStorage("inspector.scope.includeChildren") private var includeChildren: Bool = false"#
+        XCTAssertTrue(
+            kgSection.contains(declaration),
+            "KG section must default the inspector scope to this-item-only (#2697)"
+        )
+        XCTAssertTrue(
+            attributesStrip.contains(declaration),
+            "Attributes strip must default the inspector scope to this-item-only (#2697)"
+        )
+        // Guard the invariant: no declaration of this key may default to true.
+        let staleDefault =
+            #"@AppStorage("inspector.scope.includeChildren") private var includeChildren: Bool = true"#
+        XCTAssertFalse(kgSection.contains(staleDefault))
+        XCTAssertFalse(attributesStrip.contains(staleDefault))
+    }
+
     private func makeDocument(
         docType: DocType,
         fileType: FileType?,
