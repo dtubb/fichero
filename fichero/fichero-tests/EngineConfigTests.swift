@@ -246,4 +246,50 @@ final class EngineConfigTests: XCTestCase {
         XCTAssertEqual(payload.libraryPath, "/path/to/lib")
         XCTAssertEqual(payload.version, 1)
     }
+
+    // MARK: - Mac launch connection mode (#2381)
+
+    func testNormalInteractiveLaunchUsesEmbeddedLocal() {
+        // No Option held → normal launch starts the embedded local engine.
+        XCTAssertEqual(
+            EngineConfig.macLaunchConnectionMode(
+                optionKeyHeld: false,
+                isInteractiveLaunch: true
+            ),
+            .embeddedLocal
+        )
+    }
+
+    func testOptionHeldInteractiveLaunchShowsRemoteChooser() {
+        // Option held on a real launch → the remote-client connection chooser.
+        XCTAssertEqual(
+            EngineConfig.macLaunchConnectionMode(
+                optionKeyHeld: true,
+                isInteractiveLaunch: true
+            ),
+            .remoteConnectionChooser
+        )
+    }
+
+    func testOptionHeldNonInteractiveLaunchNeverShowsChooser() {
+        // Previews / UI-tests / XCTest hosts drive the app non-interactively and
+        // must never pop the chooser, even if Option happens to be held.
+        XCTAssertEqual(
+            EngineConfig.macLaunchConnectionMode(
+                optionKeyHeld: true,
+                isInteractiveLaunch: false
+            ),
+            .embeddedLocal
+        )
+    }
+
+    func testNonInteractiveLaunchWithoutOptionUsesEmbeddedLocal() {
+        XCTAssertEqual(
+            EngineConfig.macLaunchConnectionMode(
+                optionKeyHeld: false,
+                isInteractiveLaunch: false
+            ),
+            .embeddedLocal
+        )
+    }
 }
