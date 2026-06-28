@@ -1,4 +1,9 @@
-# Sparkle Release Setup (0.0.1)
+> **HISTORICAL SETUP NOTE.** This page describes an older Sparkle setup pass and
+> still contains the retired `fichero-releases` feed URL. Do not use it as the
+> current release procedure; use [release-lane.md](./release-lane.md) for the
+> shipped DMG/Sparkle path.
+
+# Sparkle Release Setup (historical 0.0.1-era note)
 
 This project uses Sparkle for app updates via the **Check for Updates...** menu item.
 
