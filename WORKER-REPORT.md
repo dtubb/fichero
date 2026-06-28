@@ -14,7 +14,7 @@ Branch base: `55036ddf` (main merge). 6 commits added, one per issue.
 | 2 | #2660 | `check_generated_wrapper_drift.py` | Every `Components.Schemas.<Name>` referenced in `Services/*Generated.swift` resolves to a current OpenAPI schema (reproduces swift-openapi `idiomatic` naming) | **0** (clean — wrappers compile today) | ✓ |
 | 3 | #2286 | `check_applescript_coverage.py` | Bidirectional `Fichero.sdef` ↔ Swift: every advertised `<cocoa class="Fichero*">` has a Swift class, and every `NSScriptCommand` subclass is advertised | **0** (14 classes, 10 commands, lock-step) | ✓ |
 | 4 | #2287 | `check_localization.py` | Bans `Text(verbatim: "<prose>")` — the one SwiftUI escape hatch from `LocalizedStringKey` localization | **0** (no verbatim prose today) | ✓ |
-| 5 | #2270 | `check_import_render_completeness.py` | Every engine `DocType`/`FileType` (importable) has a matching Swift enum case (renderable): Python ⊆ Swift | **1** (`FileType.docx`) | ✓ |
+| 5 | #2270 | `check_import_render_completeness.py` | Every engine `DocType`/`FileType` (importable) is handled by the Swift decoder switch (`convertFromGenerated*` in DocumentServiceGenerated.swift) → renders in ≥1 representation | **0** (clean — decoder handles all; docx folds to word) | ✓ |
 
 Each ships a `test_check_*.py` in `fichero-engine/tests/unit/` (26 tests total, all pass). `--list` and `--help` on every script.
 
@@ -28,7 +28,7 @@ Each ships a `test_check_*.py` in `fichero-engine/tests/unit/` (26 tests total, 
 
 **#2287 Localization** — see "Flagged for Daniel" below for the scope decision. Ships the zero-friction slice (ban the verbatim escape hatch); broad enforcement deferred.
 
-**#2270 Import/render** — found a **real drift bug**: the engine emits `FileType.docx` but the Swift `FileType` enum has only `word` (no `docx`). A `.docx` import has no Swift representation and a `Codable` decode of `"docx"` would fail. Seeded as the single `KNOWN_VIOLATIONS` entry so the gate is green; **see "Flagged for Daniel".**
+**#2270 Import/render** — checks the canonical decoder (`convertFromGenerated{DocType,FileType}` in `DocumentServiceGenerated.swift`), the one point where an imported document's engine type is mapped to a local renderable type. Asserts every engine `DocType`/`FileType` is handled by that switch. Baseline clean: docx is intentionally folded onto `word` (`case .docx: return .word // docx is a Word variant`), so it renders — not a gap. (My initial version naïvely compared raw enum case-sets and false-flagged docx; corrected to read the decoder, the real classification point — see follow-up commit.) Fails when a NEW engine type lands without a decoder mapping.
 
 ---
 
@@ -49,7 +49,7 @@ Each ships a `test_check_*.py` in `fichero-engine/tests/unit/` (26 tests total, 
 
 ## Flagged for Daniel
 
-1. **#2270 real bug — `FileType.docx` has no Swift case.** Engine `models.py` `FileType.docx` vs Swift `Models/Document.swift` `FileType` (only `word`). A `.docx` import can't be classified/rendered client-side; `Codable` decode of `"docx"` likely fails. Fix is one line (add `case docx` to Swift, or fold docx→word in the decoder), then drop the seeded `KNOWN_VIOLATIONS` entry. Left seeded (not fixed) because the right resolution — new enum case vs decoder fold — is a product/design call, and it needs a build to verify the decoder.
+1. **#2270 docx — RESOLVED, not a bug.** First pass flagged `FileType.docx` (engine) as having no Swift enum case. On inspection the decoder `convertFromGeneratedFileType` already folds it: `case .docx: return .word // docx is a Word variant`. So docx renders (as word). Rewrote the guardrail to check the decoder switch instead of the raw enum case-set; baseline is now genuinely clean (0 seeded), no design decision needed. No remaining action.
 
 2. **#2287 Localization — broad enforcement deferred (intentionally not built).** The app has **no localization infra** (0 `String(localized:)`, no string catalog; #1396 not landed). In SwiftUI, `Text`/`Button`/`Label`/interpolated `Text` already localize via `LocalizedStringKey` — they are *not* bypasses. A ratchet over the ~1650 literals would force `String(localized:)` into infrastructure that doesn't exist, blocking all UI work for no benefit. So I shipped only the genuine, zero-friction slice (ban `Text(verbatim:)` prose). Enforcing `String(localized:)` for **non-View** user-facing strings (alerts/errors built in stores/services) should land **with** #1396's catalog.
 

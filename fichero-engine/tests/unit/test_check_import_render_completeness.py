@@ -16,46 +16,50 @@ _SPEC.loader.exec_module(_mod)  # type: ignore[attr-defined]
 
 violations = _mod.violations
 _py = _mod._python_enum_cases
-_sw = _mod._swift_enum_cases
+_handled = _mod._swift_handled_cases
 
 _PY = """
 class FileType(str, Enum):
     image = "image"
     pdf = "pdf"
+    docx = "docx"
     weird = "weird"
 """
-_SWIFT = """
-enum FileType: String, Codable, CaseIterable {
-    case image
-    case pdf
-    case extra
 
-    var icon: String { "" }
+# Decoder folds docx -> word (covered) but does NOT handle `weird`.
+_DECODER = """
+class DocumentServiceGenerated {
+    private func convertFromGeneratedFileType(_ fileType: Components.Schemas.FileType?) -> FileType? {
+        guard let fileType = fileType else { return nil }
+        switch fileType {
+        case .image: return .image
+        case .pdf: return .pdf
+        case .docx: return .word  // folded onto word, still renders
+        }
+    }
 }
 """
 
 
 def test_parses_python_cases():
-    assert _py(_PY, "FileType") == {"image", "pdf", "weird"}
+    assert _py(_PY, "FileType") == {"image", "pdf", "docx", "weird"}
 
 
-def test_parses_swift_cases():
-    assert _sw(_SWIFT, "FileType") == {"image", "pdf", "extra"}
+def test_parses_handled_decoder_cases():
+    assert _handled(_DECODER, "convertFromGeneratedFileType") == {"image", "pdf", "docx"}
 
 
-def test_flags_python_only_case(tmp_path):
+def test_folded_type_is_not_a_violation(tmp_path):
     py = tmp_path / "models.py"
     py.write_text(_PY)
-    sw = tmp_path / "Document.swift"
-    sw.write_text(_SWIFT)
-    bad = violations(py_models=py, swift_models=sw)
-    assert "FileType.weird" in bad, "importable type with no Swift case must be flagged"
-    # Swift-only `extra` is NOT a violation (client may render more than imported).
-    assert "FileType.extra" not in bad
+    dec = tmp_path / "DocumentServiceGenerated.swift"
+    dec.write_text(_DECODER)
+    bad = violations(py_models=py, decoder=dec)
+    # docx folds onto word -> covered; weird is genuinely unhandled.
+    assert "FileType.docx" not in bad
+    assert "FileType.weird" in bad
 
 
-def test_real_tree_only_seeded_drift():
-    # The shipped tree must have no UNSEEDED import/render gaps.
-    bad = set(violations())
-    known = set(_mod.KNOWN_VIOLATIONS)
-    assert bad <= known, f"unseeded import/render gaps: {bad - known}"
+def test_real_tree_clean():
+    # The shipped decoder handles every importable type (docx folds to word).
+    assert not violations(), "every importable type must be handled by the decoder"
