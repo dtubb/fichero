@@ -31,10 +31,12 @@ as a free Alpha download.
     break. Don't put irreplaceable work in it yet. Keep originals elsewhere,
     and treat each release as an experiment.
 
-!!! note "Fichero is vibe-coded"
-    Every line is written conversationally with
-    [Claude](https://www.anthropic.com/claude). Daniel directs; the AI types.
-    See [How It's Built](how-its-built.md) and the
+!!! note "Fichero is written by AI coding agents"
+    Daniel is an anthropologist, not a software engineer. He directs AI coding
+    agents that do the writing: a manager agent orchestrates worker agents, each
+    in its own workspace, with build and test gating before anything merges.
+    Daniel reviews the result and judges every release by using the app. See
+    [How It's Built](how-its-built.md) and the
     [FAQ](faq.md#how-is-fichero-built) for what that looks like in practice.
 
 ## What is Fichero?
