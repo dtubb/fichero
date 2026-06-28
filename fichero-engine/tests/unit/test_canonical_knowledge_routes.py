@@ -60,7 +60,12 @@ class TestEntitiesRoutes:
         """POST /entities creates new entity."""
         from fichero.db import Database
 
-        db_path = tmp_path / "test.fichero"
+        # NOTE: must NOT be ``tmp_path / "test.fichero"`` — the parent conftest's
+        # ``test_package`` fixture (pulled in for every unit test via the autouse
+        # ``_unit_test_auth_header`` → ``client`` chain) creates that exact path
+        # as a package DIRECTORY, so a flat-file Database() on it would hit
+        # "duckdb IOException: Is a directory".
+        db_path = tmp_path / "kg.fichero"
         db = Database(str(db_path))
 
         request = EntityUpsertRequest(
@@ -82,7 +87,7 @@ class TestEntitiesRoutes:
         """POST /entities with ID updates existing entity."""
         from fichero.db import Database
 
-        db_path = tmp_path / "test.fichero"
+        db_path = tmp_path / "kg.fichero"
         db = Database(str(db_path))
 
         # Create initial entity
@@ -110,7 +115,7 @@ class TestEntitiesRoutes:
         """GET /entities/{id} returns entity."""
         from fichero.db import Database
 
-        db_path = tmp_path / "test.fichero"
+        db_path = tmp_path / "kg.fichero"
         db = Database(str(db_path))
 
         # Create entity
@@ -131,7 +136,7 @@ class TestEntitiesRoutes:
         """GET /entities/{id} returns 404 for unknown ID."""
         from fichero.db import Database
 
-        db_path = tmp_path / "test.fichero"
+        db_path = tmp_path / "kg.fichero"
         db = Database(str(db_path))
 
         with pytest.raises(HTTPException) as exc:
@@ -143,7 +148,7 @@ class TestEntitiesRoutes:
         """POST /entities/{id}/aliases adds aliases."""
         from fichero.db import Database
 
-        db_path = tmp_path / "test.fichero"
+        db_path = tmp_path / "kg.fichero"
         db = Database(str(db_path))
 
         # Create entity
@@ -168,7 +173,7 @@ class TestEntitiesRoutes:
         """GET /entities?q= filters by query."""
         from fichero.db import Database
 
-        db_path = tmp_path / "test.fichero"
+        db_path = tmp_path / "kg.fichero"
         db = Database(str(db_path))
 
         # Create entities
@@ -201,7 +206,7 @@ class TestClaimsRoutes:
         """POST /claims creates claim with valid data."""
         from fichero.db import Database
 
-        db_path = tmp_path / "test.fichero"
+        db_path = tmp_path / "kg.fichero"
         db = Database(str(db_path))
 
         # Create source document
@@ -242,7 +247,7 @@ class TestClaimsRoutes:
         """POST /claims returns 404 for missing source."""
         from fichero.db import Database
 
-        db_path = tmp_path / "test.fichero"
+        db_path = tmp_path / "kg.fichero"
         db = Database(str(db_path))
 
         request = ClaimCreateRequest(
@@ -259,7 +264,7 @@ class TestClaimsRoutes:
         """POST /claims returns 404 for missing entity."""
         from fichero.db import Database
 
-        db_path = tmp_path / "test.fichero"
+        db_path = tmp_path / "kg.fichero"
         db = Database(str(db_path))
 
         # Create source document
@@ -285,7 +290,7 @@ class TestClaimsRoutes:
         """PATCH /claims/{id} updates claim."""
         from fichero.db import Database
 
-        db_path = tmp_path / "test.fichero"
+        db_path = tmp_path / "kg.fichero"
         db = Database(str(db_path))
 
         # Create source and claim
@@ -320,7 +325,7 @@ class TestClaimsRoutes:
         """GET /claims filters by curation_state, claim_type, etc."""
         from fichero.db import Database
 
-        db_path = tmp_path / "test.fichero"
+        db_path = tmp_path / "kg.fichero"
         db = Database(str(db_path))
 
         # Create source
@@ -370,7 +375,7 @@ class TestClaimLinksRoutes:
         """POST /claims/{id}/links creates link between claims."""
         from fichero.db import Database
 
-        db_path = tmp_path / "test.fichero"
+        db_path = tmp_path / "kg.fichero"
         db = Database(str(db_path))
 
         # Create source and claims
@@ -416,7 +421,7 @@ class TestClaimLinksRoutes:
         """POST /claims/{id}/links returns 404 for missing claim."""
         from fichero.db import Database
 
-        db_path = tmp_path / "test.fichero"
+        db_path = tmp_path / "kg.fichero"
         db = Database(str(db_path))
 
         request = ClaimLinkCreateRequest(
@@ -433,7 +438,7 @@ class TestClaimLinksRoutes:
         """GET /claims/{id}/links returns all related links."""
         from fichero.db import Database
 
-        db_path = tmp_path / "test.fichero"
+        db_path = tmp_path / "kg.fichero"
         db = Database(str(db_path))
 
         # Create source and claims
@@ -492,7 +497,7 @@ class TestClaimLinksRoutes:
         """PATCH /claim-links/{id} updates link."""
         from fichero.db import Database
 
-        db_path = tmp_path / "test.fichero"
+        db_path = tmp_path / "kg.fichero"
         db = Database(str(db_path))
 
         # Create source and claims
@@ -542,7 +547,7 @@ class TestClaimLinksRoutes:
         """DELETE /claim-links/{id} removes link."""
         from fichero.db import Database
 
-        db_path = tmp_path / "test.fichero"
+        db_path = tmp_path / "kg.fichero"
         db = Database(str(db_path))
 
         # Create source and claims
@@ -590,7 +595,7 @@ class TestReferentialIntegrity:
         """Claims can only reference existing entities."""
         from fichero.db import Database
 
-        db_path = tmp_path / "test.fichero"
+        db_path = tmp_path / "kg.fichero"
         db = Database(str(db_path))
 
         doc = Document(
@@ -617,7 +622,7 @@ class TestReferentialIntegrity:
         """Claim links can only reference existing claims."""
         from fichero.db import Database
 
-        db_path = tmp_path / "test.fichero"
+        db_path = tmp_path / "kg.fichero"
         db = Database(str(db_path))
 
         # Should fail with invalid claim IDs
@@ -641,7 +646,7 @@ class TestCanonicalAPIContract:
         """Entity API fields match KnowledgeEntity model."""
         from fichero.db import Database
 
-        db_path = tmp_path / "test.fichero"
+        db_path = tmp_path / "kg.fichero"
         db = Database(str(db_path))
 
         # Create entity via API
@@ -668,7 +673,7 @@ class TestCanonicalAPIContract:
         """Claim API fields match KnowledgeClaim model."""
         from fichero.db import Database
 
-        db_path = tmp_path / "test.fichero"
+        db_path = tmp_path / "kg.fichero"
         db = Database(str(db_path))
 
         doc = Document(

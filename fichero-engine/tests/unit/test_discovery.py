@@ -54,6 +54,7 @@ def test_build_service_info_uses_fichero_type_port_and_txt() -> None:
         service_name="Fichero Test",
         version="0.1.test",
         spki_hash="abc123",
+        public_url="https://fichero.example.ts.net",
     )
 
     info = discovery.build_service_info(config, service_info_cls=FakeServiceInfo)
@@ -66,6 +67,7 @@ def test_build_service_info_uses_fichero_type_port_and_txt() -> None:
         "version": "0.1.test",
         "api": "1",
         "spki": "abc123",
+        "public_url": "https://fichero.example.ts.net",
     }
 
 
@@ -77,6 +79,7 @@ def test_empty_spki_txt_means_no_tls_certificate_configured() -> None:
         service_name="Fichero Test",
         version="0.1.test",
         spki_hash="",
+        public_url="",
     )
 
     info = discovery.build_service_info(config, service_info_cls=FakeServiceInfo)

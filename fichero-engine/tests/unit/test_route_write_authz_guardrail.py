@@ -22,6 +22,7 @@ READ_ONLY_MUTATING_VERB_ALLOWLIST: dict[str, str] = {
     "kg_predictions.py:generate_heuristic_predictions:POST": "POST body contains prediction parameters; handler only reads claims and vector index.",
     "kg_render.py:render_paragraph:POST": "POST body contains claim IDs/style; handler only reads claims and renders text.",
     "kg_sparql.py:sparql_query:POST": "POST body contains SPARQL; validator rejects mutating verbs and handler only queries RDF graph.",
+    "kg_sparql.py:sparql_query_legacy:POST": "Deprecated read-only alias that delegates to sparql_query; same RDF-query-only behavior.",
     "mind_palace.py:capture_viewport:POST": "POST body contains viewport details; placeholder handler only reads the room.",
     "mindpalace_render.py:render_scene:POST": "POST body contains render request; handler only reads spatial scene rows.",
     "search.py:enhanced_search:POST": "POST /api/search is read-only search/query compute.",

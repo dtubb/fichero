@@ -414,13 +414,33 @@ class TestExecuteWorkflow:
             "inputs": {"selected_doc_ids": ["doc-1"]},
         }
 
-        # Prevent background thread from actually running during route test.
-        fake_thread = MagicMock()
-        fake_thread.start = MagicMock()
+        # Keep the route hermetic WITHOUT breaking the event loop. The earlier
+        # version patched ``core.threading.Thread`` to a MagicMock — but
+        # ``core`` does ``import threading``, so that replaced the *global*
+        # ``threading.Thread``. The route ``await``s ``save_workflow_run`` (which
+        # uses ``asyncio.to_thread`` → a ThreadPoolExecutor worker spawned via
+        # ``threading.Thread``) BEFORE it starts its own worker thread, so the
+        # broad mock starved the executor and the request deadlocked (#2650).
+        #
+        # Fix: spy on ``threading.Thread`` while still constructing REAL threads
+        # (so ``to_thread`` keeps working), and stub the background coroutine so
+        # the spawned worker exits immediately instead of running the workflow.
+        import threading as _threading
+
+        created_threads: list = []
+        real_thread_cls = _threading.Thread
+
+        def _spy_thread(*args, **kwargs):
+            thread = real_thread_cls(*args, **kwargs)
+            created_threads.append(thread)
+            return thread
 
         with patch(
             "fichero.api.routes.workflow_execution.core.threading.Thread",
-            return_value=fake_thread,
+            side_effect=_spy_thread,
+        ), patch(
+            "fichero.api.routes.workflow_execution.core._run_workflow_in_background",
+            new=AsyncMock(return_value=None),
         ):
             r = client.post("/api/workflow-execution/execute", json=payload)
 
@@ -443,7 +463,10 @@ class TestExecuteWorkflow:
         assert run.workflow_name == "Gate Workflow"
         assert run.status == "accepted"
         assert run.workflow_snapshot["inputs"]["selected_doc_ids"] == ["doc-1"]
-        fake_thread.start.assert_called_once()
+        # The route must have spawned a dedicated workflow worker thread (#1000).
+        assert any(
+            t.name.startswith("workflow-") for t in created_threads
+        ), "execute route did not start a workflow worker thread"
 
     def test_missing_workflow_returns_404(self, client):
         payload = {
@@ -656,9 +679,9 @@ class TestSystemicFailureMessage:
 
     def test_402_message_includes_provider_detail(self):
         from fichero.api.routes.workflow_execution.runner import (
-            SystemicErrorDetected,
             _systemic_failure_message,
         )
+        from fichero.workflows.builder import SystemicErrorDetected
 
         raw = "Step 'Transcribe' failed: Provider returned 402: out of credits"
         e = SystemicErrorDetected(
@@ -674,9 +697,9 @@ class TestSystemicFailureMessage:
 
     def test_unknown_error_passes_through_raw_message(self):
         from fichero.api.routes.workflow_execution.runner import (
-            SystemicErrorDetected,
             _systemic_failure_message,
         )
+        from fichero.workflows.builder import SystemicErrorDetected
 
         raw = "Step 'X' failed: something obscure"
         e = SystemicErrorDetected(message=raw)
