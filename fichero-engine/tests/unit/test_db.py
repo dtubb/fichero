@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 
 from fichero import db as db_module
 from fichero.models import (
-    Document, Artifact, Workflow, Run, Trace, Note, Event,
+    Document, Artifact, Workflow, Run, Trace, Note as LegacyNote, Event,
     DocType, FileType, Status, RunStatus, SavedSearch
 )
 from fichero.db import Database
@@ -43,6 +43,9 @@ from fichero.knowledge_models import (
     KnowledgeClaimLink,
     KnowledgeEntity,
     LibraryItemLink,
+    Milestone,
+    Note,
+    NoteKind,
 )
 from fichero.node_prototypes import (
     PrototypeResolutionError,
@@ -741,7 +744,7 @@ class TestNoteCRUD:
         doc = Document(name="test.jpg", path="/test.jpg")
         temp_db.save(doc)
 
-        note = Note(
+        note = LegacyNote(
             target_type="Document",
             target_id=doc.id,
             content="This handwriting is hard to read",
@@ -749,7 +752,7 @@ class TestNoteCRUD:
         )
         temp_db.save(note)
 
-        retrieved = temp_db.get(Note, note.id)
+        retrieved = temp_db.get(LegacyNote, note.id)
         assert retrieved.content == "This handwriting is hard to read"
         assert retrieved.note_type == "comment"
 
@@ -758,7 +761,7 @@ class TestNoteCRUD:
         doc = Document(name="test.jpg", path="/test.jpg")
         temp_db.save(doc)
 
-        note = Note(
+        note = LegacyNote(
             target_type="Document",
             target_id=doc.id,
             content="Check this signature",
@@ -767,7 +770,7 @@ class TestNoteCRUD:
         )
         temp_db.save(note)
 
-        retrieved = temp_db.get(Note, note.id)
+        retrieved = temp_db.get(LegacyNote, note.id)
         assert retrieved.bbox == (600, 850, 300, 100)
 
 
@@ -1276,6 +1279,109 @@ class TestSavedSearchCRUD:
 
         with pytest.raises(ValueError, match="missing its query payload"):
             temp_db.get(SavedSearch, doc.id)
+
+
+class TestNoteAndMilestoneFold:
+    def test_note_round_trip_mirrors_to_document_node(self, temp_db):
+        folder = Document(name="Notes", doc_type=DocType.folder)
+        temp_db.save(folder)
+        note = Note(
+            title="Bridge note",
+            body="Atomic thought",
+            kind=NoteKind.hub,
+            tags=["zettel"],
+            folder_id=folder.id,
+        )
+
+        temp_db.save(note)
+
+        retrieved = temp_db.get(Note, note.id)
+        assert retrieved is not None
+        assert retrieved.title == "Bridge note"
+        assert retrieved.folder_id == folder.id
+
+        mirrored = temp_db.get(Document, note.id)
+        assert mirrored is not None
+        assert mirrored.parent_id == folder.id
+        assert mirrored.node_kind == "note"
+        assert mirrored.prototype_key == "note"
+        assert mirrored.attributes["body"] == "Atomic thought"
+        assert mirrored.attributes["kind"] == "hub"
+        assert mirrored.attributes["tags"] == ["zettel"]
+
+    def test_page_scoped_note_is_contained_under_page_node(self, temp_db):
+        page = Document(name="Page 1", doc_type=DocType.page)
+        temp_db.save(page)
+        note = Note(title="Margin note", body="Page scoped", page_id=page.id)
+
+        temp_db.save(note)
+
+        mirrored = temp_db.get(Document, note.id)
+        assert mirrored is not None
+        assert mirrored.parent_id == page.id
+        children = temp_db.query(Document, parent_id=page.id)
+        assert [child.id for child in children if child.id == note.id] == [note.id]
+
+    def test_note_parent_validation_prefers_raise(self, temp_db):
+        bad_parent = Document(name="Not a folder", doc_type=DocType.file)
+        temp_db.save(bad_parent)
+
+        with pytest.raises(ValueError, match="invalid doc_type"):
+            temp_db.save(Note(title="Bad note", body="broken", folder_id=bad_parent.id))
+
+        with pytest.raises(ValueError, match="cannot target both"):
+            temp_db.save(
+                Note(
+                    title="Conflicted note",
+                    body="broken",
+                    folder_id="folder-a",
+                    page_id="page-b",
+                )
+            )
+
+    def test_milestone_round_trip_and_move_updates_containment(self, temp_db):
+        backlog = Document(name="Backlog", doc_type=DocType.folder)
+        archive = Document(name="Archive", doc_type=DocType.folder)
+        temp_db.save(backlog)
+        temp_db.save(archive)
+        milestone = Milestone(
+            title="Milestone A",
+            description="Ship the bridge",
+            parent_id=backlog.id,
+            status="active",
+            metadata={"lane": "engine"},
+        )
+
+        temp_db.save(milestone)
+        milestone.parent_id = archive.id
+        milestone.status = "done"
+        temp_db.save(milestone)
+
+        retrieved = temp_db.get(Milestone, milestone.id)
+        assert retrieved is not None
+        assert retrieved.parent_id == archive.id
+        assert retrieved.status == "done"
+
+        mirrored = temp_db.get(Document, milestone.id)
+        assert mirrored is not None
+        assert mirrored.parent_id == archive.id
+        assert mirrored.node_kind == "milestone"
+        assert mirrored.prototype_key == "milestone"
+        assert mirrored.attributes["description"] == "Ship the bridge"
+        assert mirrored.attributes["status"] == "done"
+
+        effective = temp_db._effective_prototype_attributes(mirrored)
+        assert effective["description"] == "Ship the bridge"
+
+    def test_milestone_missing_or_non_folder_parent_raises(self, temp_db):
+        with pytest.raises(ValueError, match="parent not found"):
+            temp_db.save(Milestone(title="Broken", parent_id="missing-parent"))
+
+        bad_parent = Document(name="Plain file", doc_type=DocType.file)
+        temp_db.save(bad_parent)
+
+        with pytest.raises(ValueError, match="invalid doc_type"):
+            temp_db.save(Milestone(title="Broken Again", parent_id=bad_parent.id))
 
 
 class TestResearchWorkspaceFold:
