@@ -31,6 +31,7 @@ from fichero.paths import engine_state_dir
 from fichero.workflows.types import PortDef, DataType
 
 # Import from llm_base - the parent layer
+from fichero.workflows.tools._doc_lookup import register_path_mapping
 from fichero.workflows.tools.llm_base import (
     BASE_INPUT_PORTS,
     BASE_CONFIG_SCHEMA,
@@ -451,7 +452,7 @@ async def process_audio(
     if documents:
         for doc in documents:
             if isinstance(doc, dict) and doc.get("path"):
-                path_to_doc[doc["path"]] = doc.get("id")
+                register_path_mapping(path_to_doc, doc["path"], doc.get("id"))
     logger.debug(
         f"process_audio: {len(files)} files, mode={audio_mode}, "
         f"model_size={whisper_model_size}, language={language}"

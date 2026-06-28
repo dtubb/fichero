@@ -35,6 +35,7 @@ if TYPE_CHECKING:
 from fichero.workflows.types import PortDef, DataType
 
 # Import from llm_base - the parent layer
+from fichero.workflows.tools._doc_lookup import register_path_mapping
 from fichero.workflows.tools.llm_base import (
     BASE_INPUT_PORTS,
     BASE_CONFIG_SCHEMA,
@@ -448,7 +449,7 @@ async def process_video(
     if documents:
         for doc in documents:
             if isinstance(doc, dict) and doc.get("path"):
-                path_to_doc[doc["path"]] = doc.get("id")
+                register_path_mapping(path_to_doc, doc["path"], doc.get("id"))
     logger.debug(
         f"process_video: {len(files)} files, extract_audio={extract_audio}, "
         f"frame_rate={frame_sample_rate}, max_frames={max_frames}"

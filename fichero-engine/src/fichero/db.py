@@ -1810,7 +1810,13 @@ class Database(DatabaseEmbeddingMixin):
             from fichero.knowledge_models import KnowledgeEntity
 
             entities = self.all(KnowledgeEntity)
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            # Degrade to the raw terms, but don't hide WHY alias expansion is
+            # off — a silent empty here masks a real KG/DB fault (#2507).
+            logger.warning(
+                "Query-term entity expansion failed; searching without aliases: %s",
+                exc,
+            )
             return terms, set()
 
         expanded = list(terms)
@@ -1845,7 +1851,13 @@ class Database(DatabaseEmbeddingMixin):
             from fichero.knowledge_models import KnowledgeClaim
 
             claims = self.all(KnowledgeClaim)
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            # Rank without the entity boost, but surface the fault rather than
+            # silently returning no boosted docs (#2507).
+            logger.warning(
+                "Entity-bonus doc lookup failed; ranking without entity boost: %s",
+                exc,
+            )
             return set()
 
         boosted: set[str] = set()

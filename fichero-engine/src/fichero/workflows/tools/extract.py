@@ -15,6 +15,7 @@ from typing import Any
 
 from fichero.workflows.types import State, PortDef, DataType
 from fichero.workflows.registry import register_tool
+from fichero.workflows.tools._doc_lookup import register_path_mapping
 from fichero.workflows.tools.llm_base import (
     BASE_OUTPUT_PORTS,
     merge_config_schema,
@@ -241,7 +242,7 @@ async def extract(
     if documents:
         for doc in documents:
             if isinstance(doc, dict) and doc.get("path"):
-                path_to_doc[doc["path"]] = doc.get("id")
+                register_path_mapping(path_to_doc, doc["path"], doc.get("id"))
 
     # Build prompt
     prompt = _build_extraction_prompt(fields, context, input_metadata)

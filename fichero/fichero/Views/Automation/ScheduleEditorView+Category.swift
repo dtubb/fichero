@@ -220,7 +220,22 @@ extension ScheduleEditorView {
         ]
     }
 
+    // Thin delegates to the pure, unit-testable `ScheduleFormatting` (#1993).
     func formatInterval(_ seconds: Int) -> String {
+        ScheduleFormatting.formatInterval(seconds)
+    }
+
+    func describeCron(_ cron: String) -> String {
+        ScheduleFormatting.describeCron(cron)
+    }
+}
+
+/// Pure schedule-formatting helpers, extracted from `ScheduleEditorView` so they
+/// can be unit-tested without constructing the view (#1993). Behaviour is
+/// unchanged — the view's `formatInterval` / `describeCron` now delegate here.
+enum ScheduleFormatting {
+    /// Human-readable interval, e.g. "45 seconds", "1 minute", "3 hours", "2 days".
+    static func formatInterval(_ seconds: Int) -> String {
         if seconds < 60 {
             return "\(seconds) seconds"
         } else if seconds < 3600 {
@@ -235,7 +250,10 @@ extension ScheduleEditorView {
         }
     }
 
-    func describeCron(_ cron: String) -> String {
+    /// Plain-language description of a 5-field cron expression for common
+    /// patterns; "Invalid cron expression" for the wrong field count and
+    /// "Custom schedule" for anything not specially recognised.
+    static func describeCron(_ cron: String) -> String {
         let parts = cron.split(separator: " ")
         guard parts.count == 5 else { return "Invalid cron expression" }
 

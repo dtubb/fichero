@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 def iter_document_lookup_paths(file_path: str | None) -> tuple[str, ...]:
@@ -24,12 +27,55 @@ def find_document_by_path(
     document_model: type[Any],
     file_path: str | None,
 ) -> Any:
-    """Look up a document by raw file path, tolerating absolute /files/... inputs."""
+    """Look up a document by raw file path, tolerating absolute /files/... inputs.
+
+    When a path matches more than one document the choice is ambiguous — picking
+    one silently is exactly the #2430 class of bug (an artifact routed to the
+    wrong document). We can't know which duplicate the caller meant, so we don't
+    hide it: log a loud warning naming the candidates (#2507) and still return
+    the first match to preserve behaviour. Escalate to skip/raise later if the
+    ambiguity proves to be a real corruption source.
+    """
     for candidate in iter_document_lookup_paths(file_path):
         docs = db.query(document_model, path=candidate)
         if docs:
+            if len(docs) > 1:
+                logger.warning(
+                    "find_document_by_path: %d documents share path %r — "
+                    "resolving to the first (%s); the rest are ambiguous: %s",
+                    len(docs),
+                    candidate,
+                    getattr(docs[0], "id", "?"),
+                    [getattr(d, "id", "?") for d in docs[1:]],
+                )
             return docs[0]
     return None
+
+
+def register_path_mapping(
+    path_to_doc: dict[str, Any],
+    key: str,
+    doc_id: Any,
+) -> None:
+    """Record ``key -> doc_id`` in a path map, loud on a conflicting overwrite.
+
+    The per-tool ``path_to_doc`` maps drive artifact routing. Two documents
+    sharing a path would silently overwrite (last-wins) and could route a later
+    save to the wrong document — the #2430 class of bug. We can't tell which the
+    caller meant, so we keep last-wins behaviour but log a warning naming both
+    ids when an existing key is overwritten with a *different* id (#2507).
+    """
+    existing = path_to_doc.get(key)
+    if existing is not None and existing != doc_id:
+        logger.warning(
+            "path_to_doc: path %r already mapped to %s — overwriting with %s "
+            "(ambiguous duplicate paths; downstream artifact routing may pick "
+            "the wrong document)",
+            key,
+            existing,
+            doc_id,
+        )
+    path_to_doc[key] = doc_id
 
 
 def resolve_path_to_doc(path_to_doc: dict[str, Any], file_path: str | None) -> Any:
