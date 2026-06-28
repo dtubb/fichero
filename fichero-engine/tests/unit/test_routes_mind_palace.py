@@ -83,6 +83,48 @@ class TestListRooms:
         assert r.status_code == 200
         assert r.json() == {"items": [], "count": 0}
 
+    def test_returns_document_backed_rooms_with_filters(self, client, db):
+        db.save(
+            Document(
+                id="room-doc-a",
+                name="Room A",
+                node_kind="room",
+                prototype_key="room",
+                doc_type="folder",
+                attributes={
+                    "description": "First room",
+                    "room_type": "research",
+                    "owner_id": "user",
+                    "metadata": {},
+                },
+            )
+        )
+        db.save(
+            Document(
+                id="room-doc-b",
+                name="Room B",
+                node_kind="room",
+                prototype_key="room",
+                doc_type="folder",
+                attributes={
+                    "description": "Second room",
+                    "room_type": "presentation",
+                    "owner_id": "human",
+                    "metadata": {"theme": "gold"},
+                },
+            )
+        )
+
+        listing = client.get(f"{BASE}/rooms")
+        assert listing.status_code == 200
+        assert listing.json()["count"] == 2
+        assert {item["id"] for item in listing.json()["items"]} == {"room-doc-a", "room-doc-b"}
+
+        filtered = client.get(f"{BASE}/rooms?room_type=presentation&owner_id=human")
+        assert filtered.status_code == 200
+        assert filtered.json()["count"] == 1
+        assert filtered.json()["items"][0]["id"] == "room-doc-b"
+
     @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_returns_rooms(self, client, db):
         db.save(_make_room("r-1", "Room A"))
@@ -99,6 +141,30 @@ class TestListRooms:
 
 
 class TestGetRoom:
+    def test_get_document_backed_room(self, client, db):
+        db.save(
+            Document(
+                id="room-doc-get",
+                name="Node-Owned Room",
+                node_kind="room",
+                prototype_key="room",
+                doc_type="folder",
+                attributes={
+                    "description": "Folded room",
+                    "room_type": "presentation",
+                    "owner_id": "human",
+                    "metadata": {"theme": "amber"},
+                },
+            )
+        )
+
+        r = client.get(f"{BASE}/rooms/room-doc-get")
+        assert r.status_code == 200
+        assert r.json()["id"] == "room-doc-get"
+        assert r.json()["name"] == "Node-Owned Room"
+        assert r.json()["room_type"] == "presentation"
+        assert r.json()["metadata"] == {"theme": "amber"}
+
     @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_get_existing_room(self, client, db):
         db.save(_make_room("r-get", "My Room"))
@@ -118,6 +184,48 @@ class TestGetRoom:
 
 
 class TestUpdateRoom:
+    def test_update_document_backed_room_preserves_parent_edge(self, client, db):
+        db.save(
+            Document(
+                id="room-doc-upd",
+                parent_id="workspace-root",
+                name="Old Room",
+                node_kind="room",
+                prototype_key="room",
+                doc_type="folder",
+                attributes={
+                    "description": "Before update",
+                    "room_type": "research",
+                    "owner_id": "user",
+                    "metadata": {"theme": "blue"},
+                },
+            )
+        )
+
+        r = client.patch(
+            f"{BASE}/rooms/room-doc-upd",
+            json={
+                "name": "Renamed Room",
+                "description": "After update",
+                "room_type": "presentation",
+                "metadata": {"theme": "gold"},
+            },
+        )
+        assert r.status_code == 200
+        assert r.json()["name"] == "Renamed Room"
+        assert r.json()["description"] == "After update"
+        assert r.json()["room_type"] == "presentation"
+        assert r.json()["metadata"] == {"theme": "gold"}
+
+        mirrored = db.get(Document, "room-doc-upd")
+        assert mirrored is not None
+        assert mirrored.parent_id == "workspace-root"
+        assert mirrored.prototype_key == "room"
+        assert mirrored.name == "Renamed Room"
+        assert mirrored.attributes["description"] == "After update"
+        assert mirrored.attributes["room_type"] == "presentation"
+        assert mirrored.attributes["metadata"] == {"theme": "gold"}
+
     @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_update_room_name(self, client, db):
         db.save(_make_room("r-upd", "Old Name"))

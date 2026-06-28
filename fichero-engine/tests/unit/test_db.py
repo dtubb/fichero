@@ -1505,6 +1505,40 @@ class TestSpatialRoomFold:
         children = temp_db.query(Document, parent_id=mirrored.id)
         assert [item.id for item in children] == ["room-child"]
 
+    def test_spatial_room_fold_preserves_parent_edge_across_round_trip(self, temp_db):
+        room_doc = Document(
+            id="room-parented",
+            parent_id="workspace-root",
+            name="Parented Room",
+            node_kind="room",
+            prototype_key="room",
+            doc_type=DocType.folder,
+            attributes={
+                "description": "Nested room",
+                "room_type": "research",
+                "owner_id": "human",
+                "metadata": {"theme": "amber"},
+            },
+        )
+        temp_db.save(room_doc)
+
+        room = temp_db.get(SpatialRoom, room_doc.id)
+        assert room is not None
+        assert room.name == "Parented Room"
+        assert room.description == "Nested room"
+        assert room.metadata == {"theme": "amber"}
+
+        room.description = "Updated nested room"
+        room.metadata = {"theme": "teal"}
+        temp_db.save(room)
+
+        mirrored = temp_db.get(Document, room.id)
+        assert mirrored is not None
+        assert mirrored.parent_id == "workspace-root"
+        assert mirrored.prototype_key == "room"
+        assert mirrored.attributes["description"] == "Updated nested room"
+        assert mirrored.attributes["metadata"] == {"theme": "teal"}
+
     def test_spatial_room_raises_when_document_is_not_room_prototype(self, temp_db):
         doc = Document(
             id="bad-room",
@@ -1516,6 +1550,44 @@ class TestSpatialRoomFold:
         temp_db.save(doc)
 
         with pytest.raises(ValueError, match="room node"):
+            temp_db.get(SpatialRoom, doc.id)
+
+    def test_spatial_room_invalid_room_type_payload_raises(self, temp_db):
+        doc = Document(
+            id="bad-room-type",
+            name="Bad Room Type",
+            node_kind="room",
+            prototype_key="room",
+            doc_type=DocType.folder,
+            attributes={
+                "description": "",
+                "room_type": "war-room",
+                "owner_id": "user",
+                "metadata": {},
+            },
+        )
+        temp_db.save(doc)
+
+        with pytest.raises(ValueError, match="invalid room_type payload"):
+            temp_db.get(SpatialRoom, doc.id)
+
+    def test_spatial_room_invalid_metadata_payload_raises(self, temp_db):
+        doc = Document(
+            id="bad-room-metadata",
+            name="Bad Room Metadata",
+            node_kind="room",
+            prototype_key="room",
+            doc_type=DocType.folder,
+            attributes={
+                "description": "",
+                "room_type": "research",
+                "owner_id": "user",
+                "metadata": "not-a-dict",
+            },
+        )
+        temp_db.save(doc)
+
+        with pytest.raises(ValueError, match="invalid metadata payload"):
             temp_db.get(SpatialRoom, doc.id)
 
     def test_spatial_room_raises_when_room_prototype_definition_missing(self, temp_db):
@@ -1853,6 +1925,40 @@ class TestLibraryLinkBackfill:
                 assert mirrored.prototype_key == "research_workspace"
                 assert mirrored.is_workspace is True
                 assert mirrored.attributes["description"] == ""
+            finally:
+                reopened.close()
+        finally:
+            shutil.rmtree(tmpdir)
+
+    def test_reopen_backfills_spatial_room_document(self):
+        """Existing SpatialRoom rows are backfilled into room document nodes on open."""
+        tmpdir = tempfile.mkdtemp()
+        db_path = Path(tmpdir) / "test.duckdb"
+        db = Database(db_path)
+        try:
+            room = SpatialRoom(
+                name="Reopen Room",
+                description="Node me",
+                room_type=RoomType.presentation,
+                owner_id="human",
+                metadata={"theme": "gold"},
+            )
+            db.save(room)
+            db._execute("DELETE FROM documents WHERE id = $id", {"id": room.id})
+            assert db.get(Document, room.id) is None
+            db.close()
+
+            reopened = Database(db_path)
+            try:
+                mirrored = reopened.get(Document, room.id)
+                assert mirrored is not None
+                assert mirrored.node_kind == "room"
+                assert mirrored.prototype_key == "room"
+                assert mirrored.doc_type == "folder"
+                assert mirrored.attributes["description"] == "Node me"
+                assert mirrored.attributes["room_type"] == "presentation"
+                assert mirrored.attributes["owner_id"] == "human"
+                assert mirrored.attributes["metadata"] == {"theme": "gold"}
             finally:
                 reopened.close()
         finally:
