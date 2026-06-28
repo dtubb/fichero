@@ -1043,4 +1043,44 @@ extension ContentView {
             )
         }
     }
+
+    /// Handles `.onReceive` of `.ficheroSelectDocumentRequested`.
+    /// AppleScript command path for `select document id "..."`.
+    func handleAppleScriptSelectDocument(_ note: Notification) {
+        guard let documentId = note.userInfo?["id"] as? String,
+              !documentId.isEmpty else { return }
+        sidebarMode = .library
+        showSidebar = true
+        showInspectorSidebar = true
+        focusedPane = .inspector
+        browserSelection = [documentId]
+        sidebarSelectionState.selectedItemId = "doc:\(documentId)"
+    }
+
+    /// Handles `.onReceive` of `.ficheroShowPanelRequested`.
+    /// AppleScript command path for `show panel "library|inspector|kg|activity"`.
+    func handleAppleScriptShowPanel(_ note: Notification) {
+        guard let rawPanel = note.userInfo?["panel"] as? String else { return }
+        switch rawPanel.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "library":
+            sidebarMode = .library
+            showSidebar = true
+            focusedPane = .content
+        case "inspector":
+            showInspectorSidebar = true
+            focusedPane = .inspector
+        case "kg", "knowledge graph", "knowledge-graph":
+            sidebarMode = .knowledgeGraph
+            showSidebar = true
+            sidebarSelectionState.selectedItemId = "entities-browser"
+            focusedPane = .content
+        case "activity":
+            sidebarMode = .activity
+            showSidebar = true
+            sidebarSelectionState.selectedItemId = "activity-browser"
+            focusedPane = .content
+        default:
+            return
+        }
+    }
 }

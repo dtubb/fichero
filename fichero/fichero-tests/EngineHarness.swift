@@ -291,15 +291,27 @@ enum EngineHarness {
         var dir = Bundle(for: _HarnessAnchor.self).bundleURL
         for _ in 0..<12 {
             if looksLikeRepo(dir) { return dir }
-            // The repo is `fichero-0.0.2/` and the Xcode project lives in
-            // `fichero-0.0.2/fichero/`, so also probe the parent each step.
-            let inner = dir.appendingPathComponent("fichero-0.0.2")
-            if looksLikeRepo(inner) { return inner }
             dir = dir.deletingLastPathComponent()
         }
-        // Last resort for local dev machines.
-        let fallback = fileManager.homeDirectoryForCurrentUser.appendingPathComponent("code/fichero-0.0.2")
-        return looksLikeRepo(fallback) ? fallback : nil
+
+        for fallback in localRepoFallbacks(fileManager: fileManager) where looksLikeRepo(fallback) {
+            return fallback
+        }
+        return nil
+    }
+
+    private static func localRepoFallbacks(fileManager: FileManager) -> [URL] {
+        let code = fileManager.homeDirectoryForCurrentUser.appendingPathComponent("code")
+        var fallbacks = [code.appendingPathComponent("fichero")]
+        let worktrees = code.appendingPathComponent("fichero-worktrees")
+        if let children = try? fileManager.contentsOfDirectory(
+            at: worktrees,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) {
+            fallbacks.append(contentsOf: children)
+        }
+        return fallbacks
     }
 
     private static func looksLikeRepo(_ url: URL) -> Bool {
