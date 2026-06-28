@@ -499,6 +499,12 @@ struct ContentView: View {
             .onReceive(NotificationCenter.default.publisher(for: .ficheroOpenClaimSource)) { note in
                 handleOpenClaimSource(note)
             }
+            .onReceive(NotificationCenter.default.publisher(for: .ficheroSelectDocumentRequested)) { note in
+                handleAppleScriptSelectDocument(note)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .ficheroShowPanelRequested)) { note in
+                handleAppleScriptShowPanel(note)
+            }
             .onChange(of: kgFocusState.sourceDocumentId) { _, _ in
                 handleKGFocusChanged()
             }

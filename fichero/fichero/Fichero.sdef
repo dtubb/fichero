@@ -81,6 +81,26 @@
 
         <!-- Commands -->
 
+        <command name="open library" code="FICHolib" description="Open or focus a Fichero library.">
+            <cocoa class="FicheroOpenLibraryCommand"/>
+            <direct-parameter description="The .fichero library path." type="text"/>
+            <result type="boolean" description="Whether the navigation request was accepted."/>
+        </command>
+
+        <command name="select document" code="FICHseld" description="Select a document in the current library.">
+            <cocoa class="FicheroSelectDocumentCommand"/>
+            <parameter name="id" code="ID  " type="text" description="The document ID to select.">
+                <cocoa key="id"/>
+            </parameter>
+            <result type="boolean" description="Whether the navigation request was accepted."/>
+        </command>
+
+        <command name="show panel" code="FICHspan" description="Show a main Fichero panel.">
+            <cocoa class="FicheroShowPanelCommand"/>
+            <direct-parameter description="Panel name: library, inspector, kg, or activity." type="text"/>
+            <result type="boolean" description="Whether the navigation request was accepted."/>
+        </command>
+
         <command name="run workflow" code="FICHrwfl" description="Execute a workflow.">
             <cocoa class="FicheroRunWorkflowCommand"/>
             <direct-parameter description="The workflow ID to run." type="text"/>

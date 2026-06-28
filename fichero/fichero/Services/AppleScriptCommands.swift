@@ -6,9 +6,12 @@ import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "AppleScript")
 
-#if os(macOS)
+extension Notification.Name {
+    static let ficheroSelectDocumentRequested = Notification.Name("ficheroSelectDocumentRequested")
+    static let ficheroShowPanelRequested = Notification.Name("ficheroShowPanelRequested")
+}
 
-// MARK: - Script Object Classes
+#if os(macOS)
 
 /// Scriptable document representation
 @objc(FicheroScriptDocument)
@@ -79,6 +82,65 @@ class FicheroScriptExecutionThread: NSObject {
 }
 
 // MARK: - Script Commands
+
+@objc(FicheroOpenLibraryCommand)
+class FicheroOpenLibraryCommand: NSScriptCommand {
+    override func performDefaultImplementation() -> Any? {
+        guard let path = directParameter as? String, !path.isEmpty else {
+            scriptErrorNumber = NSRequiredArgumentsMissingScriptError
+            scriptErrorString = "Library path is required"
+            return false
+        }
+
+        logger.info("AppleScript: open library '\(path)'")
+        Task { @MainActor in
+            let url = URL(fileURLWithPath: path)
+            let library = LibraryManager.shared.openLibrary(at: url)
+            LibraryManager.shared.currentLibraryId = library.id
+            NSApplication.shared.activate(ignoringOtherApps: true)
+        }
+        return true
+    }
+}
+
+@objc(FicheroSelectDocumentCommand)
+class FicheroSelectDocumentCommand: NSScriptCommand {
+    override func performDefaultImplementation() -> Any? {
+        let documentId = (evaluatedArguments?["id"] as? String) ?? (directParameter as? String)
+        guard let documentId, !documentId.isEmpty else {
+            scriptErrorNumber = NSRequiredArgumentsMissingScriptError
+            scriptErrorString = "Document id is required"
+            return false
+        }
+
+        logger.info("AppleScript: select document id '\(documentId)'")
+        NotificationCenter.default.post(
+            name: .ficheroSelectDocumentRequested,
+            object: nil,
+            userInfo: ["id": documentId]
+        )
+        return true
+    }
+}
+
+@objc(FicheroShowPanelCommand)
+class FicheroShowPanelCommand: NSScriptCommand {
+    override func performDefaultImplementation() -> Any? {
+        guard let panel = directParameter as? String, !panel.isEmpty else {
+            scriptErrorNumber = NSRequiredArgumentsMissingScriptError
+            scriptErrorString = "Panel name is required"
+            return false
+        }
+
+        logger.info("AppleScript: show panel '\(panel)'")
+        NotificationCenter.default.post(
+            name: .ficheroShowPanelRequested,
+            object: nil,
+            userInfo: ["panel": panel]
+        )
+        return true
+    }
+}
 
 /// Run a workflow via AppleScript
 @objc(FicheroRunWorkflowCommand)
