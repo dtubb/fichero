@@ -61,10 +61,10 @@ def _grant(app_db, user: AccountUser, library_path: str, role: str) -> None:
         ("YES", True),
         ("off", False),
         ("0", False),
-        # Empty/unset is NOT an off-signal: multiuser is enabled by default
-        # (fichero/multiuser.py). An empty string falls through to the
-        # default-on path, so the expectation is True, not False.
-        ("", True),
+        # Empty/unset falls through to the default: multiuser is OPT-IN, so a
+        # single-user local launch with no explicit flag and no remote signal
+        # stays OFF (fichero/multiuser.py, #2721).
+        ("", False),
     ],
 )
 def test_multiuser_enabled_parses_truthy_and_falsey_values(monkeypatch, raw, expected):
