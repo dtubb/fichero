@@ -10,6 +10,8 @@ Commits authored as Claude (`noreply@anthropic.com`), `Co-Authored-By: Daniel Tu
 - All 94 failures triaged: **fixed in place** where they were test bugs / stale baselines, **filed as issues + xfail'd** where the guardrails caught real product/code drift. Also cleared 4 pre-existing teardown errors.
 - `verify_all` + `verify_to_issues` tooling validated end-to-end and is **healthy**.
 - 8 commits, 4 GitHub issues filed (#2711, #2712, #2713 + comments on #2650/#2651).
+- **+ Test Coverage grind:** 5 new test files / **65 tests** on untested security,
+  concurrency, and route-helper paths (#1978/#1979) — see "Test Coverage milestone" below.
 
 ## Suite result
 
@@ -107,9 +109,35 @@ worker thread is spawned via a spy; the embedding-drift tests are now order-inde
 bare-`TestClient` route tests unblocked by fix #3 now serve as live regression coverage for the
 conftest auth injection, so no redundant meta-test was added (YAGNI).
 
+## Test Coverage milestone (#1978/#1979) — new tests added
+
+After greening the suite, ground was gained on the Test Coverage milestone by
+targeting **untested but important** code paths (found via
+`get_untested_symbols`; backend reached_pct was ~98.6%). Focus per Daniel's bar:
+edge / validation / security / concurrency, never happy-path-only. 65 new tests,
+all green together:
+
+| File | Module under test | What it covers |
+|------|-------------------|----------------|
+| `test_audit_chain_primitives.py` (18) | `actions/audit_chain.py` | secret base64 codec round-trip + invalid/empty/non-ascii → None; canonical hash bytes determinism, dict-order independence, **`undone` exclusion** (undo ≠ tamper), field sensitivity; HMAC determinism + key/field/prev_hash sensitivity |
+| `test_auth_helpers.py` (13) | `api/auth.py` | `_is_loopback_request` — forwarding headers defeat loopback trust, TestClient hosts only under pytest; last-seen throttle boundary + clock-skew; session-refresh-window env parsing; expiry-refresh window; actor resolution username→id→system, header identity ignored (forgery-proof) |
+| `test_change_stream_hub.py` (16) | `api/change_stream.py` | constructor validation; monotonic per-library event ids; reconnect replay (after-last-seen, empty buffer); resync on invalid/too-old ids; ring eviction; per-library cap + counter reset; unsubscribe; **slow-subscriber overflow → gap event** |
+| `test_folders_helpers.py` (12) | `api/routes/folders.py` | geo detection (zero coords valid, partial pairs, geojson keys); document metadata/source fallback; curated-item URL fallback chain; **cycle-safe descendant BFS** |
+| `test_citation_rendering_metadata.py` (6) | `api/routes/citation_rendering.py` | source-metadata resolver: doc preferred, invalid dict falls through silent-except to claim, missing-doc claim fallback, first-claim-wins, None when absent |
+
+These exercise security primitives (audit-chain tamper-evidence, auth/loopback),
+a concurrency-sensitive fan-out (change-stream replay/overflow), and previously
+entirely-unreached route modules (folders, citation_rendering).
+
 ## Commits (newest first)
 
 ```
+3a17aa41 test: cover citation_rendering._metadata_for_document fallback (#1979 Test Coverage)
+5f9cef9d test: cover folders.py geo/url/descendant helpers directly (#1979 Test Coverage)
+5d8dc601 test: cover _ChangeHub SSE fan-out edges directly (#1979 Test Coverage)
+7fc0d236 test: cover auth.py session/loopback/actor helpers directly (#1979 Test Coverage)
+f1f1d2e6 test: cover audit-chain hashing/secret primitives directly (#1978 Test Coverage)
+dfbc6ba9 docs: WORKER-REPORT.md — test/QA lane summary (94 reds → 0; verify_all healthy)
 a5e0d23e fix(tests): give fake DuckDB conns a close() so temp_db teardown is clean
 ed3bdf5c fix(tests): repair stale straggler tests + notarize.sh dry-run set -u bug
 adfa4557 test: xfail guardrails catching real drift, referencing filed issues
