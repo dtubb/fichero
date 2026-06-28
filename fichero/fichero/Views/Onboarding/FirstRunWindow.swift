@@ -17,7 +17,6 @@ struct FirstRunWindow: View {
     @State private var openRouterKey = ""
     @State private var isSaving = false
     @State private var errorMessage: String?
-    @Environment(\.openURL) private var openURL
 
     var body: some View {
         HStack(spacing: 0) {
@@ -148,7 +147,7 @@ struct FirstRunWindow: View {
                         icon: documentsPermission ? "checkmark.shield" : "lock.shield",
                         title: "Authorize source locations",
                         body: documentsPermission
-                            ? "Documents access is ready. Enable Photos or Accessibility later if a workflow needs it."
+                            ? "Folder access is ready. That's the only permission Fichero needs to get started."
                             : "Grant folder access only for the locations Fichero should scan and organize.",
                         primaryTitle: documentsPermission ? "Continue" : "Choose Folder",
                         primaryIcon: documentsPermission ? "arrow.right" : "folder.badge.gearshape",
@@ -161,20 +160,12 @@ struct FirstRunWindow: View {
                         }
                     ),
                     footer: {
-                        HStack(spacing: 10) {
-                            Button {
-                                openSettingsPane("x-apple.systempreferences:com.apple.preference.security?Privacy_Photos")
-                            } label: {
-                                Label("Photos", systemImage: "photo.on.rectangle")
-                            }
-                            Button {
-                                openSettingsPane("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
-                            } label: {
-                                Label("Accessibility", systemImage: "figure.wave")
-                            }
-                            if documentsPermission {
-                                detailPill("Documents ready", icon: "checkmark.circle.fill")
-                            }
+                        // #2717 — Folder access is the only permission Fichero needs.
+                        // The app declares no Accessibility entitlement (removed) and
+                        // no Photos usage string; Photos is requested at import time
+                        // only, never up front.
+                        if documentsPermission {
+                            detailPill("Documents ready", icon: "checkmark.circle.fill")
                         }
                     }
                 )
@@ -313,11 +304,6 @@ struct FirstRunWindow: View {
         // iOS: document picker / sandbox access would go here.
         documentsPermission = true
         #endif
-    }
-
-    private func openSettingsPane(_ rawURL: String) {
-        guard let url = URL(string: rawURL) else { return }
-        openURL(url)
     }
 
     private func saveAndFinish() async {
