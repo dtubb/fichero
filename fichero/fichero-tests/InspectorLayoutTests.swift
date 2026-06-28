@@ -472,6 +472,7 @@ struct KGSurfaceTabTests {
         #expect(KGSurfaceTab.transcript.rawValue == "transcript")
         #expect(KGSurfaceTab.digest.rawValue == "digest")
         #expect(KGSurfaceTab.graph.rawValue == "graph")
+        #expect(KGSurfaceTab.claims.rawValue == "claims")
         #expect(KGSurfaceTab.timeline.rawValue == "timeline")
         #expect(KGSurfaceTab.map.rawValue == "map")
     }

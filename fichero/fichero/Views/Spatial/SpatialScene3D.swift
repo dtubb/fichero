@@ -6,8 +6,6 @@ import SwiftUI
 import RealityKit
 #endif
 
-// swiftlint:disable type_body_length
-
 /// RealityKit 3D rendering of a Spatial room — the `.threeD` render mode,
 /// and the forward path toward streaming the spatial library to Vision Pro.
 ///
@@ -251,8 +249,10 @@ struct SpatialScene3D: View {
         #endif
         }
     }
+}
 
-    #if canImport(RealityKit)
+#if canImport(RealityKit)
+private extension SpatialScene3D {
     /// Background drag = orbit, or pan when Option is held. Both seed from the
     /// camera's current state at the gesture's first event and then compute an
     /// absolute offset from that baseline, so there is never a snap when the
@@ -690,9 +690,8 @@ struct SpatialScene3D: View {
         entity.orientation = simd_quatf(from: SIMD3<Float>(0, 1, 0), to: delta / length)
         return entity
     }
-    #endif
 }
-// swiftlint:enable type_body_length
+#endif
 
 // MARK: - Canvas items (#2294)
 
