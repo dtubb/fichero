@@ -74,6 +74,22 @@ def test_builtin_room_and_workspace_inherit_folder_attributes(temp_db):
     assert workspace["workspace_kind"] == "research"
 
 
+def test_user_defined_child_of_builtin_room_inherits_folder_chain_and_overrides_leaf(temp_db):
+    _proto(
+        temp_db,
+        "custom_room",
+        parent_key="room",
+        attributes={"workspace_kind": "custom-room", "accent": "gold"},
+    )
+
+    effective = resolve_prototype_attributes(temp_db, "custom_room")
+    assert effective["container_kind"] == "folder"
+    assert effective["supports_children"] is True
+    assert effective["spatial_layout"] is True
+    assert effective["workspace_kind"] == "custom-room"
+    assert effective["accent"] == "gold"
+
+
 def test_four_level_chain_uses_leaf_override_precedence(temp_db):
     _proto(temp_db, "root", attributes={"icon": "square", "theme": "plain", "locked": False})
     _proto(temp_db, "mid_a", parent_key="root", attributes={"theme": "paper"})
