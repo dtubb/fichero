@@ -388,6 +388,12 @@ run_platform_checks() {
       -scheme "${XCODE_SCHEME}" \
       -destination 'platform=macOS' \
       -resultBundlePath "$(mktemp -d)/verify.xcresult"
+
+    run_xcode_test "xcodebuild macOS UI smoke tests" \
+      -project "${XCODE_PROJECT}" \
+      -scheme "FicheroUITests" \
+      -destination 'platform=macOS' \
+      -resultBundlePath "$(mktemp -d)/verify-ui.xcresult"
   fi
 
   if [[ "$run_ios" -eq 1 ]]; then
