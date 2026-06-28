@@ -20,3 +20,11 @@ Done by f_fichero_claude_swiftui (2026-06-28). Commit 72a7210f, authored Claude.
 - swiftlint: clean on changed lines (3 pre-existing warnings in ChatServiceGenerated unrelated to edit).
 - Build gate (isolated DD, CODE_SIGNING_ALLOWED=NO): all Swift sources COMPILED + LINKED (22 Ld steps, 0 swiftc errors). Build's only failure = "Embed Fichero Engine" run-script phase (needs pre-built engine app absent in this worktree) — environmental, not a code defect.
 - NOT pushed.
+
+## #2571 — Stage 2 parity: card + map views (additive)
+Done by f_fichero_claude_swiftui (2026-06-28). Commit 9360ed41, authored Claude.
+
+- Added the retrieval line to `MessageCard` (icon/grid: full "Searched library · N documents · M claims") and `MessageMapCard` (space-tight map: compact magnifyingglass indicator beside the existing source-count badge). Now all three chat displays (bubble/card/map) show the search-as-a-tool step.
+- View-only, reuses already-tested `RetrievalInfo` — no new test needed.
+- swiftlint clean. Isolated build (DD cached): 0 swiftc errors, MessageCard recompiled + relinked; only failure = "Embed Fichero Engine" script phase (engine app absent in worktree) — environmental, not a code defect.
+- NOT pushed.
