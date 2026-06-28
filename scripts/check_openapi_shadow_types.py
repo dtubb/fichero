@@ -57,7 +57,6 @@ _TYPE_RE = re.compile(
 # Current backlog of Swift types that shadow a Components.Schemas.* name.
 # Keys are `relpath::TypeName`. Generated baseline (§6b).
 KNOWN_VIOLATIONS: dict[str, str] = {
-    "App/AppState.swift::HealthResponse": "§6b baseline — struct shadows Components.Schemas.HealthResponse",
     "Models/Artifact.swift::Artifact": "§6b baseline — struct shadows Components.Schemas.Artifact",
     "Models/ComparisonTypes.swift::ComparisonHistoryResponse": "§6b baseline — struct shadows Components.Schemas.ComparisonHistoryResponse",
     "Models/Document.swift::DocType": "§6b baseline — enum shadows Components.Schemas.DocType",
@@ -81,6 +80,10 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Models/ResearchModels.swift::ResearchTask": "§6b baseline — struct shadows Components.Schemas.ResearchTask",
     "Models/SidebarChatTypes.swift::ChatMessage": "§6b baseline — struct shadows Components.Schemas.ChatMessage",
     "Models/SidebarChatTypes.swift::DocumentSource": "§6b baseline — struct shadows Components.Schemas.DocumentSource",
+    "Models/SpatialModels.swift::SpatialConnection": "#2712 — local Spatial view-mode model; consume generated Components.Schemas.SpatialConnection when Spatial folds into the library (canvas/spatial)",
+    "Models/SpatialModels.swift::SpatialNode": "#2712 — local Spatial view-mode model; consume generated Components.Schemas.SpatialNode when Spatial folds into the library",
+    "Models/SpatialModels.swift::SpatialStack": "#2712 — local Spatial view-mode model; consume generated Components.Schemas.SpatialStack when Spatial folds into the library",
+    "Models/SpatialModels.swift::SpatialViewport": "#2712 — local Spatial view-mode model; consume generated Components.Schemas.SpatialViewport when Spatial folds into the library",
     "Models/WorkflowChain.swift::ChainExecutionStatusResponse": "§6b baseline — struct shadows Components.Schemas.ChainExecutionStatusResponse",
     "Models/WorkflowChain.swift::ChainListResponse": "§6b baseline — struct shadows Components.Schemas.ChainListResponse",
     "Models/WorkflowChain.swift::CreateChainRequest": "§6b baseline — struct shadows Components.Schemas.CreateChainRequest",
@@ -112,7 +115,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Services/MCPService.swift::MCPServerResponse": "§6b baseline — struct shadows Components.Schemas.MCPServerResponse",
     "Services/MCPService.swift::MCPToolInfo": "§6b baseline — struct shadows Components.Schemas.MCPToolInfo",
     "Services/MCPService.swift::UpdateMCPServerRequest": "§6b baseline — struct shadows Components.Schemas.UpdateMCPServerRequest",
-    "Services/MindPalaceLibraryProjector.swift::Document": "§6b baseline — struct shadows Components.Schemas.Document",
     "Services/ModelComparisonTypes.swift::CompareRequest": "§6b baseline — struct shadows Components.Schemas.CompareRequest",
     "Services/ModelComparisonTypes.swift::ModelSpec": "§6b baseline — struct shadows Components.Schemas.ModelSpec",
     "Services/ModelComparisonTypes.swift::NodeCompareRequest": "§6b baseline — struct shadows Components.Schemas.NodeCompareRequest",
@@ -127,6 +129,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Services/ProviderServiceTypes.swift::StatusResponse": "§6b baseline — struct shadows Components.Schemas.StatusResponse",
     "Services/ProviderServiceTypes.swift::UserModelResponse": "§6b baseline — struct shadows Components.Schemas.UserModelResponse",
     "Services/SearchServiceGenerated.swift::EmbeddingStatsResponse": "§6b baseline — struct shadows Components.Schemas.EmbeddingStatsResponse",
+    "Services/SpatialLibraryProjector.swift::Document": "#2712 — local projector display model; consume generated Components.Schemas.Document when Spatial folds into the library",
     "Services/WorkflowRunResponse.swift::WorkflowRunResponse": "§6b baseline — struct shadows Components.Schemas.WorkflowRunResponse",
     "Services/WorkflowStreamTypes.swift::ExecuteAcceptedResponse": "§6b baseline — struct shadows Components.Schemas.ExecuteAcceptedResponse",
     "Views/Library/DocumentInspector/SourceOutlineView.swift::DocumentOutlineResponse": "§6b baseline — struct shadows Components.Schemas.DocumentOutlineResponse",
