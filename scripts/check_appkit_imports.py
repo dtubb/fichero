@@ -35,7 +35,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SWIFT_DIR = ROOT / "fichero" / "fichero"
-RULE_DOC = "docs/architecture/swiftui/reform_masterplan_2026-06.md"
+RULE_DOC = "docs/architecture/swiftui/appkit_import_audit_2101.md"
 
 # Current cross-platform migration backlog: files that import AppKit/UIKit.
 # Keys are paths relative to SWIFT_DIR (posix). Value documents why it is a
