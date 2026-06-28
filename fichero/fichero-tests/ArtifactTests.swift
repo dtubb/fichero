@@ -252,22 +252,25 @@ final class ArtifactTests: XCTestCase {
     }
 
     /// #2536: a flush during an in-flight save must still persist the latest
-    /// draft — coalesce rather than early-return on `isSaving`.
-    func testFlushAutoSaveCoalescesInsteadOfDroppingTrailingEdit() throws {
+    /// draft — coalesce rather than early-return on `isSaving`. The coalescing
+    /// mechanics now live in `CoalescingSaveRunner` (behaviourally tested in
+    /// `CoalescingSaveRunnerTests`); this guard pins that the panel delegates to
+    /// it and never reintroduces the old early-return drop.
+    func testPerformSaveDelegatesToCoalescingRunner() throws {
         let source = try Self.appSource("Views/Library/ArtifactPanel.swift")
         // The old bug: `guard let onSave, !isSaving else { return }` dropped the
-        // trailing edit. The fix marks the draft dirty and re-saves in a loop.
+        // trailing edit. The fix routes through the coalescing runner.
         XCTAssertFalse(
             source.contains("guard let onSave, !isSaving else { return }"),
             "performSave must not early-return on isSaving — that dropped the trailing edit (#2536)"
         )
         XCTAssertTrue(
-            source.contains("pendingResave"),
-            "performSave must coalesce a trailing edit via pendingResave (#2536)"
+            source.contains("CoalescingSaveRunner"),
+            "performSave must use CoalescingSaveRunner so a trailing edit is coalesced, not dropped (#2536)"
         )
         XCTAssertTrue(
-            source.contains("} while pendingResave"),
-            "performSave must loop to persist the newest draft after the in-flight save (#2536)"
+            source.contains("saver.run"),
+            "performSave must delegate persistence to the coalescing runner (#2536)"
         )
     }
 }

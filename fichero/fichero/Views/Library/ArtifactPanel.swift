@@ -108,16 +108,12 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
     @State private var confirmingDelete: Bool = false
     /// The editor's working copy, in SwiftUI-native `AttributedString` (#2453).
     @State private var draftText = AttributedString("")
-    @State private var isSaving: Bool = false
     @State private var saveError: String?
     @State private var autoSaveTask: Task<Void, Never>?
-    /// The in-flight save, if any. A flush awaits this so blur/close truly
-    /// completes with the latest text on disk instead of returning early (#2536).
-    @State private var activeSave: Task<Void, Never>?
-    /// Set when an edit or flush arrives while a save is in flight. The running
-    /// save loops to persist the newest `draftText` before finishing, so the
-    /// trailing edit is never dropped by the `isSaving` guard (#2536).
-    @State private var pendingResave: Bool = false
+    /// Serial + coalescing save runner. A flush during an in-flight save is
+    /// coalesced (not dropped), so blur/close truly persists the latest text
+    /// (#2536). Extracted from inline @State so the race is unit-testable.
+    @State private var saver = CoalescingSaveRunner()
     /// The raw stored content we last seeded the editor from — guards the
     /// `.task(id:)` reseed against our own save echoing back (#2478).
     @State private var lastLoadedRaw: String = ""
@@ -238,7 +234,7 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
             // (Daniel feedback 2026-04-27 after preferring V1's always-on
             // behavior). Just type. Auto-saves on the debounce.
             if onSave != nil {
-                if isSaving {
+                if saver.isSaving {
                     ProgressView().controlSize(.small)
                 } else if saveError == nil {
                     Image(systemName: "checkmark.circle.fill")
@@ -371,48 +367,29 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
         await performSave()
     }
 
-    /// Persist the latest draft. Serial + coalescing: if a save is already in
-    /// flight, mark the draft dirty and await that save — which loops to persist
-    /// the newest `draftText` before returning. Without this, a flush on
-    /// blur/close *during* an in-flight save hit the old `!isSaving` early-return
-    /// and silently dropped the trailing keystrokes (#2536).
+    /// Persist the latest draft through the serial + coalescing `saver`. A flush
+    /// on blur/close *during* an in-flight save is coalesced — the running loop
+    /// re-encodes and persists the newest `draftText` before returning — instead
+    /// of hitting the old `!isSaving` early-return and silently dropping the
+    /// trailing keystrokes (#2536). The coalescing mechanics live in
+    /// `CoalescingSaveRunner` so the race is unit-testable.
     private func performSave() async {
         guard let onSave else { return }
-        // A save is already running — record that the current draft still needs
-        // persisting and await it so the flush completes with the latest text on
-        // disk. The running loop below re-saves because `pendingResave` is set.
-        if let activeSave {
-            pendingResave = true
-            await activeSave.value
-            return
+        await saver.run {
+            let encoded = ArtifactRichTextCodec.encodeAttributed(draftText)
+            // Nothing changed since the last seed/save — skip the PUT so the
+            // coalescing loop terminates once the draft is clean.
+            guard encoded != lastSavedEncoded else { return }
+            // Advance BOTH watermarks before the round-trip: `lastSavedEncoded`
+            // so a later onChange doesn't re-fire, and `lastLoadedRaw` so the
+            // engine echoing the saved content back through `rawArtifactContent`
+            // short-circuits the `.task(id:)` reseed instead of resetting the
+            // cursor (#2478). Self-echo suppression in DocumentStore handles the
+            // page-content path; this covers artifacts too.
+            lastSavedEncoded = encoded
+            lastLoadedRaw = encoded
+            await onSave(encoded)
         }
-        let task = Task { @MainActor in
-            isSaving = true
-            defer {
-                isSaving = false
-                activeSave = nil
-            }
-            repeat {
-                pendingResave = false
-                let encoded = ArtifactRichTextCodec.encodeAttributed(draftText)
-                // Nothing changed since the last seed/save — skip the PUT.
-                guard encoded != lastSavedEncoded else { break }
-                // Advance BOTH watermarks before the round-trip: `lastSavedEncoded`
-                // so a later onChange doesn't re-fire, and `lastLoadedRaw` so the
-                // engine echoing the saved content back through
-                // `rawArtifactContent` short-circuits the `.task(id:)` reseed
-                // instead of resetting the cursor (#2478). Self-echo suppression
-                // in DocumentStore handles the page-content path; this covers
-                // artifacts too.
-                lastSavedEncoded = encoded
-                lastLoadedRaw = encoded
-                await onSave(encoded)
-                // A flush or edit that landed while `onSave` was awaiting set
-                // `pendingResave`; loop once more to persist that newest draft.
-            } while pendingResave
-        }
-        activeSave = task
-        await task.value
     }
 
     /// Raw content used when seeding the editor — for `.artifact` we use the
