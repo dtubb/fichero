@@ -10,6 +10,16 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Workflo
 #if os(macOS)
 
 enum WorkflowExporter {
+    enum ImportError: LocalizedError {
+        case invalidTopLevelObject
+
+        var errorDescription: String? {
+            switch self {
+            case .invalidTopLevelObject:
+                return "Workflow import file must contain a JSON object."
+            }
+        }
+    }
 
     /// Export a workflow to a JSON file via save panel (calls backend API)
     @MainActor
@@ -38,7 +48,7 @@ enum WorkflowExporter {
     /// Import a workflow from a JSON file via open panel (calls backend API)
     /// Returns the imported workflow ID on success, nil on cancel/failure
     @MainActor
-    static func importFromFile(using service: WorkflowServiceGenerated) async -> String? {
+    static func importFromFile(using service: WorkflowServiceGenerated) async throws -> String? {
         // Show open panel
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.json]
@@ -56,8 +66,7 @@ enum WorkflowExporter {
 
             // Parse JSON
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                logger.error("Invalid JSON format in workflow file")
-                return nil
+                throw ImportError.invalidTopLevelObject
             }
 
             // Convert to AnyCodable for the API
@@ -79,7 +88,7 @@ enum WorkflowExporter {
             return response.id
         } catch {
             logger.error("Failed to import workflow: \(error.localizedDescription)")
-            return nil
+            throw error
         }
     }
 }
@@ -94,7 +103,7 @@ enum WorkflowExporter {
     }
 
     @MainActor
-    static func importFromFile(using service: WorkflowServiceGenerated) async -> String? {
+    static func importFromFile(using service: WorkflowServiceGenerated) async throws -> String? {
         // iOS: import would be handled via UIDocumentPickerViewController.
         return nil
     }
