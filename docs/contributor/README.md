@@ -5,6 +5,7 @@ This section explains how the current Fichero codebase works for contributors. I
 ## Table of Contents
 
 - [Architecture Overview](./architecture-overview.md)
+- [Node Model](./node-model.md)
 - [OpenAPI and Generated Clients](./openapi-and-clients.md)
 - [Data Layer, Search, and Knowledge Graph Storage](./data-search-and-kg.md)
 - [Workflows, Activity, and Curation](./workflows-activity-and-curation.md)
