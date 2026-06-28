@@ -58,6 +58,7 @@ struct DocumentAnnotation: Codable, Identifiable, Hashable {
     let documentId: String?
     let pageId: String?
     let folderId: String?
+    var pageIndex: Int?
     var pageLabel: String?
     var charStart: Int?
     var charEnd: Int?
@@ -79,6 +80,7 @@ struct DocumentAnnotation: Codable, Identifiable, Hashable {
         case documentId = "document_id"
         case pageId = "page_id"
         case folderId = "folder_id"
+        case pageIndex = "page_index"
         case pageLabel = "page_label"
         case charStart = "char_start"
         case charEnd = "char_end"
@@ -102,6 +104,7 @@ struct DocumentAnnotation: Codable, Identifiable, Hashable {
         documentId = try container.decodeIfPresent(String.self, forKey: .documentId)
         pageId = try container.decodeIfPresent(String.self, forKey: .pageId)
         folderId = try container.decodeIfPresent(String.self, forKey: .folderId)
+        pageIndex = try container.decodeIfPresent(Int.self, forKey: .pageIndex)
         pageLabel = try container.decodeIfPresent(String.self, forKey: .pageLabel)
         charStart = try container.decodeIfPresent(Int.self, forKey: .charStart)
         charEnd = try container.decodeIfPresent(Int.self, forKey: .charEnd)
@@ -135,6 +138,7 @@ struct DocumentAnnotation: Codable, Identifiable, Hashable {
         documentId: String? = nil,
         pageId: String? = nil,
         folderId: String? = nil,
+        pageIndex: Int? = nil,
         pageLabel: String? = nil,
         charStart: Int? = nil,
         charEnd: Int? = nil,
@@ -155,6 +159,7 @@ struct DocumentAnnotation: Codable, Identifiable, Hashable {
         self.documentId = documentId
         self.pageId = pageId
         self.folderId = folderId
+        self.pageIndex = pageIndex
         self.pageLabel = pageLabel
         self.charStart = charStart
         self.charEnd = charEnd
@@ -247,6 +252,7 @@ final class AnnotationService: ObservableObject {
             documentId: documentId,
             pageId: generated.pageId,
             folderId: generated.folderId,
+            pageIndex: generated.pageIndex,
             pageLabel: generated.pageLabel,
             charStart: generated.charStart,
             charEnd: generated.charEnd,
@@ -379,6 +385,7 @@ final class AnnotationService: ObservableObject {
         bbox: [Double]? = nil,
         charStart: Int? = nil,
         charEnd: Int? = nil,
+        pageIndex: Int? = nil,
         kind: AnnotationKind = .note,
         color: String? = nil,
         tags: [String] = [],
@@ -408,6 +415,7 @@ final class AnnotationService: ObservableObject {
                 pageId: pageId,
                 folderId: folderId,
                 kind: Components.Schemas.AnnotationKind(rawValue: (kind == .unknown ? AnnotationKind.note : kind).rawValue) ?? .note,
+                pageIndex: pageIndex,
                 pageLabel: pageLabel,
                 charStart: charStart,
                 charEnd: charEnd,
