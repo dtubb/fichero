@@ -75,6 +75,68 @@ The public saved-search API still lives under `api/routes/search.py` as
 `/api/search/saved` CRUD and reorder routes. The fold did not replace that API
 surface; it changed the storage representation under it.
 
+## Research workspaces as workspace nodes
+
+Research workspaces are also folded into `Document` rows in the database layer.
+
+The relevant implementation is in `fichero-engine/src/fichero/db.py`:
+
+- `Database.save(...)` special-cases `ResearchProject` and mirrors it through
+  `_save_research_workspace_document`.
+- The mirrored node is written with `node_kind="workspace"`,
+  `doc_type=DocType.folder`, and `prototype_key="research_workspace"`.
+- The fold also sets `is_workspace=True`, so the node presents as a workspace
+  folder rather than as a plain library folder.
+- Workspace-specific payload lives in `attributes`, including `description`,
+  `status`, `created_by`, `library_destination_folder_id`, and the project's
+  `metadata`.
+- `metadata` is also marked with `node_class="research_workspace"` plus the
+  original `research_project_id`.
+- Reads are symmetric: `Database.get(ResearchProject, ...)`,
+  `Database.all(ResearchProject)`, and `Database.query(ResearchProject, ...)`
+  hydrate from document nodes whose `prototype_key` is
+  `"research_workspace"`.
+- On reopen, `_backfill_research_workspace_documents` mirrors legacy
+  `ResearchProject` rows into workspace documents if the old table still exists.
+
+The unit tests in `test_db.py` and `test_routes_research_agents.py` verify the
+current contract: saving a `ResearchProject` produces a same-id workspace node,
+reading can hydrate a project back from that node, and reopen backfills the
+mirror when needed.
+
+## Research plans, tasks, and steps
+
+Research plans, tasks, and steps are not folded into `Document` rows in the
+current merged code.
+
+What the shipped code actually does today:
+
+- `api/routes/research_crud.py` creates and updates `ResearchPlan`,
+  `ResearchTask`, and `ResearchStep` by calling `db.save(...)` on those models
+  directly.
+- `Database.save(...)` has mirror hooks only for `SavedSearch` and
+  `ResearchProject`; there is no corresponding fold helper for
+  `ResearchPlan`, `ResearchTask`, or `ResearchStep`.
+- `Database.get(...)`, `Database.all(...)`, and `Database.query(...)` have
+  folded-document read paths only for `SavedSearch` and `ResearchProject`.
+- The current research hierarchy is therefore model-native:
+  `ResearchTask.plan_id` points to its plan, and `ResearchStep.task_id` points
+  to its task.
+
+Planned, not yet built:
+
+- A `research_plan` prototype fold in the document tree.
+- Child task and step nodes represented through `parent_id`.
+- Prototype-key-backed plan/task/step document hydration analogous to the
+  shipped saved-search and research-workspace folds.
+
+Important boundary:
+
+- `BackgroundTask` in `fichero-engine/src/fichero/workflows/task_types.py` and
+  `fichero-engine/src/fichero/workflows/tasks.py` is workflow/task-run
+  infrastructure. It is not part of the research node-model fold and should not
+  be described as a plan/task/step node.
+
 ## Bookmarks as alias-backed nodes
 
 Bookmark nodes ship as backend routes in
@@ -106,10 +168,12 @@ What is shipped now:
 - prototype attribute resolution
 - alias nodes
 - saved-search document folding
+- research-workspace document folding
 - bookmark routes built on alias nodes
 
 What should still be described as planned unless more code lands:
 
 - broader prototype-driven behavior beyond attribute inheritance
+- research plan/task/step document folding
 - SwiftUI bookmark UI wiring
 - the remaining staged subsystem folds described in the architecture note
