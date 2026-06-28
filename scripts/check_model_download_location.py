@@ -82,16 +82,10 @@ _PATH_EXPR_RE = re.compile(
     r"""/|Path\(|str\(|["']|expanduser|tempfile|os\.path|\.home\(\)|\.cache"""
 )
 
-# Current divergence backlog (content-hash keyed).
-KNOWN_VIOLATIONS: dict[str, str] = {
-    "workflows/tools/audio_base.py#4470a3ae3d": (
-        "§6b baseline — MODELS_BASE hardcodes the LEGACY bundle dir "
-        "'~/Library/Application Support/com.fichero.fichero/models' instead of "
-        "engine_state_dir()/'models' (= .../Fichero/models). Whisper therefore "
-        "downloads to a DIFFERENT folder than embeddings/spaCy. Should be "
-        "`MODELS_BASE = engine_state_dir() / \"models\"`. File a fix issue."
-    ),
-}
+# Current divergence backlog (content-hash keyed). Empty: every model-download
+# path now derives from engine_state_dir()/"models" — audio_base.py Whisper was
+# the last divergence (legacy bundle dir), fixed in #2269.
+KNOWN_VIOLATIONS: dict[str, str] = {}
 
 
 def _key(rel: str, snippet: str) -> str:
