@@ -21,7 +21,9 @@ from fichero.knowledge_models import (
     ClassificationValue,
     KnowledgeClaim,
     KnowledgeEntity,
+    Milestone,
     MutationLog,
+    Note,
 )
 from fichero.models import Document, DocType
 from fichero.node_prototypes import resolve_prototype_attributes
@@ -369,6 +371,23 @@ class TestGetChildren:
         assert entity.id in items
         assert items[entity.id]["node_kind"] == "entity"
         assert items[entity.id]["name"] == "Eldorado"
+
+    def test_returns_folded_notes_and_milestones_as_children(self, client, db):
+        parent = Document(name="Parent", doc_type=DocType.folder)
+        db.save(parent)
+        note = Note(title="Folder note", body="Node-backed", folder_id=parent.id)
+        milestone = Milestone(title="Phase 1", parent_id=parent.id, status="active")
+        db.save(note)
+        db.save(milestone)
+
+        response = client.get(f"/api/documents/{parent.id}/children")
+
+        assert response.status_code == 200
+        items = {item["id"]: item for item in response.json()["items"]}
+        assert items[note.id]["node_kind"] == "note"
+        assert items[note.id]["prototype_key"] == "note"
+        assert items[milestone.id]["node_kind"] == "milestone"
+        assert items[milestone.id]["prototype_key"] == "milestone"
 
     def test_returns_empty_for_leaf(self, client, db):
         doc = _make_doc(db)
