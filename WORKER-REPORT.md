@@ -49,4 +49,32 @@
   Manager/integrator should build-verify before merge (swiftlint-only gate this batch).
 - Backend test coverage in this milestone is already strong; no net-new Python gaps found.
 
-_(This report is updated as the worker auto-advances to the next milestone.)_
+## Auto-advance → AI Backend Hardening (#2507 silent-fallback sweep)
+
+After #70 drained, auto-advanced past Swift/GUI-only milestones (#82 Test Coverage,
+#77 Observable Data Layer, #74 Remote, #64 Dev-Experience are SwiftUI/iOS/epic-heavy —
+not gateable under swiftlint-only) to **#2507** ("replace silent fallbacks with
+raised/logged errors") — the backend twin of the bug class I just fixed in Swift.
+
+**Finding: #2507's high-risk backend work is largely already done.** Verified:
+- The #2430 exemplar write paths are fixed: `llm_base.py:562-585` explicitly refuses the
+  file_path→parent fallback when an id was given and fails loud (returns None + warning);
+  `vision_base.py:2205-2260` splits per-page / fails loud instead of writing the whole-PDF
+  transcript onto the parent.
+- `_entity_writer.py:1424` already carries a `#2507`-tagged loud-log (was silent).
+- Sampled residual catches (e.g. `db.py:479` closing a poisoned connection during reconnect)
+  are **legitimate** defensive code — "fixing" them to raise would regress.
+
+The remaining sweep is broad + judgment-heavy; the issue itself says to **pair it with the
+silent-failure-hunter review pass** (full-suite-gated), which a changed-tests-only worktree
+can't safely do without risking regressions on legitimate defensive catches. **No safe
+net-new backend change made; #2507 stays open for a review-driven lane.**
+
+**Frontend half of #2507 advanced this session:** the #1671/#1672 commits above are exactly
+its frontend acceptance ("no empty catch hiding a save/merge failure; surface the error, not
+a silent empty state").
+
+## Session commits (not pushed)
+- `c0b29467` fix(workflow): entity-type registry non-silent + status-aware (#1672)
+- `a369adb3` fix(inspector): hermeneutics/classification loads non-silent (#1671 service layer)
+- this report.
