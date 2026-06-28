@@ -78,6 +78,13 @@ struct PDFPageView: NSViewRepresentable {
     /// toolbar's ◀ N/M ▶ cluster can drive and reflect the current page. (#1531)
     var pageController: PDFPageController?
     var onCursorMoved: ((CGPoint) -> Void)?
+    /// Saved bounding-box regions for the current page, normalized `[x,y,w,h]`
+    /// (top-left origin). Rendered as native PDFKit square annotations (#2458).
+    var regionBoxes: [[Double]] = []
+    /// When true, a drag draws a new region instead of turning the page.
+    var isDrawingRegion = false
+    /// Fires with a normalized `[x,y,w,h]` when a region drag completes.
+    var onCreateRegion: (([Double]) -> Void)?
 
     // MARK: - Loupe State
 
@@ -116,29 +123,7 @@ struct PDFPageView: NSViewRepresentable {
         context.coordinator.pageController = pageController
         zoomController?.pdfView = view
         pageController?.pdfView = view
-        NotificationCenter.default.addObserver(
-            context.coordinator,
-            selector: #selector(Coordinator.pageDidChange(_:)),
-            name: .PDFViewPageChanged,
-            object: view
-        )
-        NotificationCenter.default.addObserver(
-            context.coordinator,
-            selector: #selector(Coordinator.scaleDidChange(_:)),
-            name: .PDFViewScaleChanged,
-            object: view
-        )
-        // Listen for claim-card source navigations forwarded by
-        // ContentView. We don't filter by `object:` because the
-        // userInfo carries the documentId that should match the
-        // currently-loaded PDF; the coordinator double-checks that
-        // before scrolling. (#978/#979/#982 Phase 2)
-        NotificationCenter.default.addObserver(
-            context.coordinator,
-            selector: #selector(Coordinator.handleNavigateToPage(_:)),
-            name: .ficheroNavigateToPage,
-            object: nil
-        )
+        registerObservers(context.coordinator, on: view)
         // Horizontal pan at fit-scale = page turn (#595).
         let pan = NSPanGestureRecognizer(
             target: context.coordinator,
@@ -164,6 +149,32 @@ struct PDFPageView: NSViewRepresentable {
         return view
     }
 
+    /// PDFKit page/scale + claim-source navigation observers. Extracted from
+    /// makeNSView to keep that builder within the function-length budget.
+    private func registerObservers(_ coordinator: Coordinator, on view: PDFView) {
+        NotificationCenter.default.addObserver(
+            coordinator,
+            selector: #selector(Coordinator.pageDidChange(_:)),
+            name: .PDFViewPageChanged,
+            object: view
+        )
+        NotificationCenter.default.addObserver(
+            coordinator,
+            selector: #selector(Coordinator.scaleDidChange(_:)),
+            name: .PDFViewScaleChanged,
+            object: view
+        )
+        // Claim-card source navigations forwarded by ContentView. Not filtered
+        // by `object:` — the userInfo carries the documentId the coordinator
+        // double-checks before scrolling (#978/#979/#982).
+        NotificationCenter.default.addObserver(
+            coordinator,
+            selector: #selector(Coordinator.handleNavigateToPage(_:)),
+            name: .ficheroNavigateToPage,
+            object: nil
+        )
+    }
+
     func updateNSView(_ view: PDFView, context: Context) {
         context.coordinator.owner = self
         context.coordinator.zoomController = zoomController
@@ -175,6 +186,7 @@ struct PDFPageView: NSViewRepresentable {
             documentId: documentId,
             storageService: storageService
         )
+        context.coordinator.applyRegions(to: view)
     }
 
     static func dismantleNSView(_ view: PDFView, coordinator: Coordinator) {
@@ -196,6 +208,8 @@ struct PDFPageView: NSViewRepresentable {
         private var loadTask: Task<Void, Never>?
         // Accumulated horizontal translation for the current pan gesture.
         private var panAccumulated: CGFloat = 0
+        /// Start point (in view coords) of an in-progress region-draw drag (#2458).
+        private var regionDragStartView: CGPoint?
 
         // MARK: - Loupe Bindings
 
@@ -272,7 +286,29 @@ struct PDFPageView: NSViewRepresentable {
                     pageController.pageIndex = owner.pageIndex
                 }
             }
+            applyRegions(to: view)
         }
+
+        /// Render saved bounding-box regions as native PDFKit square annotations
+        /// on the current page (#2458). PDFKit positions page-coordinate
+        /// annotations correctly at any zoom, so no live view math is needed.
+        func applyRegions(to view: PDFView) {
+            guard let page = view.currentPage else { return }
+            for existing in page.annotations where existing.userName == Self.regionAnnotationName {
+                page.removeAnnotation(existing)
+            }
+            let pageSize = page.bounds(for: .mediaBox).size
+            for box in owner.regionBoxes {
+                guard let rect = PDFRegionGeometry.pageRect(normalized: box, pageSize: pageSize) else { continue }
+                let annotation = PDFAnnotation(bounds: rect, forType: .square, withProperties: nil)
+                annotation.color = NSColor.controlAccentColor
+                annotation.interiorColor = NSColor.controlAccentColor.withAlphaComponent(0.12)
+                annotation.userName = Self.regionAnnotationName
+                page.addAnnotation(annotation)
+            }
+        }
+
+        static let regionAnnotationName = "fichero.region"
 
         @objc
         func updateTrackingAreas(_ notification: Notification) {
@@ -419,6 +455,14 @@ struct PDFPageView: NSViewRepresentable {
         @objc
         func handlePan(_ recognizer: NSPanGestureRecognizer) {
             guard let view = pdfView else { return }
+
+            // Region-draw mode: a drag defines a bounding box on the current
+            // page instead of turning the page (#2458).
+            if owner.isDrawingRegion {
+                performRegionDraw(recognizer, in: view)
+                return
+            }
+
             let fitScale = view.scaleFactorForSizeToFit
             // Only intercept when not meaningfully zoomed in (within 10%).
             guard view.scaleFactor <= fitScale * 1.1 else { return }
@@ -439,6 +483,27 @@ struct PDFPageView: NSViewRepresentable {
                 }
             default:
                 panAccumulated = 0
+            }
+        }
+
+        /// Capture a region-draw drag and emit a normalized box on release (#2458).
+        private func performRegionDraw(_ recognizer: NSPanGestureRecognizer, in view: PDFView) {
+            switch recognizer.state {
+            case .began:
+                regionDragStartView = recognizer.location(in: view)
+            case .ended:
+                defer { regionDragStartView = nil }
+                guard let startView = regionDragStartView, let page = view.currentPage else { return }
+                let startPage = view.convert(startView, to: page)
+                let endPage = view.convert(recognizer.location(in: view), to: page)
+                let pageSize = page.bounds(for: .mediaBox).size
+                if let box = PDFRegionGeometry.normalizedBox(
+                    fromPagePoint: startPage, toPagePoint: endPage, pageSize: pageSize
+                ) {
+                    owner.onCreateRegion?(box)
+                }
+            default:
+                break
             }
         }
 
@@ -507,6 +572,12 @@ struct PDFPageView: UIViewRepresentable {
     var zoomController: PDFZoomController?
     var pageController: PDFPageController?
     var onCursorMoved: ((CGPoint) -> Void)?
+    // API parity with macOS so the shared PDFPageWithToolbar call site compiles.
+    // Region annotation rendering/creation is the macOS reader surface for
+    // #2458; the iOS remote client renders text + page-scoped notes only.
+    var regionBoxes: [[Double]] = []
+    var isDrawingRegion = false
+    var onCreateRegion: (([Double]) -> Void)?
 
     @AppStorage("pdfPreview.loupeEnabled") private var loupeEnabled = false
     @AppStorage("pdfPreview.loupeMagnification") private var loupeMagnification: Double = 3.0
