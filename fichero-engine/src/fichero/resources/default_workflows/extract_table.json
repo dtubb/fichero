@@ -1,0 +1,18 @@
+{
+  "name": "Extract Table",
+  "description": "Detect and extract tabular data from each image/page using vision, emitting structured rows. Feeds the spreadsheet (Table) representation in the document viewer. The output style and header handling are editable on the Table node.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Convert",
+  "tags": ["preset", "table", "extract", "representation"],
+  "config": {"preset_version": 1},
+  "nodes": [
+    {"id": "files-source", "tool": "files", "label": "Files", "position_x": 80, "position_y": 200, "inputs": {}, "config": {}},
+    {"id": "table", "tool": "table_extract", "label": "Extract Table", "position_x": 320, "position_y": 200, "inputs": {}, "config": {"output_style": "json_rows", "include_headers": true}}
+  ],
+  "edges": [
+    {"id": "edge-files-table", "source": "files-source", "target": "table", "source_port": "files", "target_port": "files"},
+    {"id": "edge-files-table-documents", "source": "files-source", "target": "table", "source_port": "documents", "target_port": "documents"}
+  ]
+}

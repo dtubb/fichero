@@ -36,8 +36,8 @@ class ScrollWheelCaptureView: NSView {
 }
 
 #elseif canImport(UIKit)
-import UIKit
 import SwiftUI
+import UIKit
 
 // MARK: - Pinch Zoom (UIKit bridge)
 
@@ -87,4 +87,3 @@ class PinchZoomCaptureView: UIView {
 }
 
 #endif
-

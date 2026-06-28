@@ -30,6 +30,8 @@ struct DocumentCanvas: View {
         case imageRendered(image: PlatformImage?, documentId: String)
         /// A PDF document at a given page index.
         case pdf(documentId: String, pageIndex: Int)
+        /// A text/Markdown representation (#2264) — e.g. a `convert` artifact.
+        case markdown(text: String)
     }
 
     var body: some View {
@@ -53,6 +55,34 @@ struct DocumentCanvas: View {
                 pageIndex: pageIndex,
                 onPageIndexChange: onPageIndexChange
             )
+        case .markdown(let text):
+            MarkdownCanvas(text: text)
+        }
+    }
+}
+
+/// Renders a Markdown representation as scrollable, selectable text (#2264).
+///
+/// Native rendering only — `AttributedString(markdown:)` for inline + block
+/// syntax, falling back to the raw text if it doesn't parse. Heavier Markdown
+/// (tables, images) can graduate to a web view later if a corpus needs it.
+private struct MarkdownCanvas: View {
+    let text: String
+
+    private var attributed: AttributedString {
+        (try? AttributedString(
+            markdown: text,
+            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        )) ?? AttributedString(text)
+    }
+
+    var body: some View {
+        ScrollView {
+            Text(attributed)
+                .font(.body)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding()
         }
     }
 }

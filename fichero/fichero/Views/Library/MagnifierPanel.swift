@@ -482,4 +482,3 @@ struct MagnifierPanelContent: View {
 }
 
 #endif
-
