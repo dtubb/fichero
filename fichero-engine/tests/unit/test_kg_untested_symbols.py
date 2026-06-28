@@ -302,8 +302,11 @@ def test_predict_for_subject_orders_truncated_predictions(tmp_path, monkeypatch)
     (tmp_path / "pkg" / "pykeen" / "training_triples").touch()
 
     model = object()
+    # predict_for_subject resolves load_model from its own module
+    # (fichero.knowledge.pykeen_predictor); fichero.kg.pykeen_predictor is just
+    # an `import *` shim, so patching the shim name has no effect on the call.
     monkeypatch.setattr(
-        "fichero.kg.pykeen_predictor.load_model",
+        "fichero.knowledge.pykeen_predictor.load_model",
         lambda _db: model,
     )
 

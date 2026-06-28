@@ -38,7 +38,7 @@ RULE_DOC = "docs/CLAUDE.md"
 # Baseline violations filed as #1915 backlog.
 # Keys are `relative/path.py#content-hash` — stable across line-number changes.
 KNOWN_VIOLATIONS: dict[str, str] = {
-    "kg/probabilistic_scorer.py#c2da862492": "TODO without issue ref (#1915 baseline)",
+    "knowledge/probabilistic_scorer.py#c2da862492": "TODO without issue ref (#1915 baseline)",
 }
 
 # Patterns

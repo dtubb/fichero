@@ -96,6 +96,11 @@ class TestDatabaseConcurrencySafety:
             def __init__(self):
                 self.calls = 0
 
+            def close(self):
+                # temp_db fixture teardown calls db.close() -> self.conn.close();
+                # this fake conn replaces temp_db.conn, so it needs close() too.
+                pass
+
             def execute(self, sql, params=None):
                 self.calls += 1
                 if self.calls < 3:
@@ -126,6 +131,11 @@ class TestDatabaseConcurrencySafety:
         class ConflictThenSuccess:
             def __init__(self):
                 self.calls = 0
+
+            def close(self):
+                # temp_db fixture teardown calls db.close() -> self.conn.close();
+                # this fake conn replaces temp_db.conn, so it needs close() too.
+                pass
 
             def execute(self, sql, params=None):
                 self.calls += 1
@@ -170,6 +180,11 @@ class TestDatabaseConcurrencySafety:
             def __init__(self):
                 self.calls = 0
 
+            def close(self):
+                # temp_db fixture teardown calls db.close() -> self.conn.close();
+                # this fake conn replaces temp_db.conn, so it needs close() too.
+                pass
+
             def execute(self, sql, params=None):
                 self.calls += 1
                 raise duckdb.TransactionException(
@@ -193,6 +208,11 @@ class TestDatabaseConcurrencySafety:
         class BrokenConn:
             def __init__(self):
                 self.calls = 0
+
+            def close(self):
+                # temp_db fixture teardown calls db.close() -> self.conn.close();
+                # this fake conn replaces temp_db.conn, so it needs close() too.
+                pass
 
             def execute(self, sql, params=None):
                 self.calls += 1

@@ -22,6 +22,7 @@ import pytest
 from fichero.db_embeddings import (
     EMBEDDING_MODEL_ID_FIELD,
     EmbeddingSpaceMismatchError,
+    _LEGACY_TABLE_WARNED,
 )
 
 
@@ -38,7 +39,6 @@ def _make_stub_db():
             pass  # skip real __init__
 
     db = _StubDB()
-    db._warned_legacy_embedding_tables = frozenset()
     return db
 
 
@@ -141,9 +141,12 @@ def test_drift_guard_legacy_table_warns_not_raises() -> None:
     table = _make_table(schema_has_field=False, all_model_ids=[])
     _wire_db(db, table)
 
+    # The legacy-warning dedup set is a module global (#2480); reset so the warn
+    # path is observable regardless of test order.
+    _LEGACY_TABLE_WARNED.discard("kg_claim_embeddings")
     db.assert_vector_table_model_compatible("kg_claim_embeddings")
     # should warn but not raise
-    assert "kg_claim_embeddings" in db._warned_legacy_embedding_tables
+    assert "kg_claim_embeddings" in _LEGACY_TABLE_WARNED
 
 
 # ---------------------------------------------------------------------------
@@ -156,5 +159,6 @@ def test_drift_guard_all_null_model_ids_warns_not_raises() -> None:
     table = _make_table(schema_has_field=True, all_model_ids=[None, None, None])
     _wire_db(db, table)
 
+    _LEGACY_TABLE_WARNED.discard("kg_claim_embeddings")
     db.assert_vector_table_model_compatible("kg_claim_embeddings")
-    assert "kg_claim_embeddings" in db._warned_legacy_embedding_tables
+    assert "kg_claim_embeddings" in _LEGACY_TABLE_WARNED
