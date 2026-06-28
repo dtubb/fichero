@@ -20,13 +20,14 @@ generated-client / SwiftUI work; #1848/#1407 are EPICs; #1709 is Swift tests
 needing Xcode). The XCUITest half of #1810 also needs the Xcode harness — I
 covered the backend half.
 
-## What was added (3 files, 22 tests)
+## What was added (4 files, 30 tests)
 
 | Issue | File | Under test | Coverage |
 |-------|------|-----------|----------|
 | #1810 / #1804 | `test_merge_dedup_claim_state.py` (5) | `merge_dedup_only._claim_target_state`, `_empty_summary` | conservative suppression contract: every action rejects, but only `disable` preserves confidence — `demote`/`prune` cap at 0.2 (and never raise an already-low score); empty-summary keys + all-zero |
 | #1810 | `test_settings_validators.py` (10) | `settings._validate_provider_updates`, `_validate_profile` | unknown provider → 422 (names field); None/""/omitted provider fields skipped; non-provider `*_model` fields ignored; one bad provider among many rejected; profile needs name/provider/model + known provider |
 | #117 | `test_library_header.py` (7) | `library_header.require_library_path`, `optional_library_path` | absent → None / 400; present → URL-decoded path (spaces/slashes); blank → "" / 400; non-empty-but-unusual value returned (emptiness gates, not validity) |
+| #1803 / #1810 | `test_slug_verb_edges.py` (8) | `kg._common.slug_verb` | dedup predicate-key edges: empty → "assertedAbout"; clean unchanged; case → lower; punctuation → dash with empty/repeated-dash collapse; leading-digit → "v-" prefix; all-punctuation → bare "v-" |
 
 All target previously-untested logic (verified `testrefs=0` before writing),
 focused on edges/contracts — not happy-path. The dedup confidence-cap and the
@@ -36,11 +37,12 @@ header 400/decode contract are exactly the silent-data / silent-failure risks
 ## Gate results (run from this worktree)
 
 - `ruff check fichero-engine/src/` → **All checks passed** (tests only; no src changed)
-- `pytest` on the 3 new files together → **22 passed, 0 failed** (no cross-pollution)
+- `pytest` on the new files → **30 passed, 0 failed** (no cross-pollution)
 
 ## Commits (newest first)
 
 ```
+test: cover slug_verb edge branches — dedup predicate key (#1803 / #1810)
 test: cover X-Fichero-Library-Path header dependencies (#117 contract audit)
 test: cover settings ai-defaults + model-profile validators (#1810)
 test: cover merge_dedup claim-suppression target state (#1810 / #1804)
