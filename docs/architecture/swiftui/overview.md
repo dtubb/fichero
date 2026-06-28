@@ -49,6 +49,18 @@ SwiftUI Views → @Observable State → API Client (HTTP) → FastAPI Backend (p
                                                     DuckDB (metadata) + LanceDB (vectors)
 ```
 
+### Feature Wiring Pattern
+
+New backend capability is wired into SwiftUI one testable surface at a time:
+
+1. Backend route/model is typed in OpenAPI and the generated client is synced when the API shape changes.
+2. Swift service wrapper calls OpenAPI-typed fields, never `additionalProperties` for declared schema fields.
+3. UI state lives in the owning store or `ContentView` extension already responsible for that surface.
+4. Feature gates are checked through the existing `FeatureManager`; do not add a second flag registry.
+5. Verification is the smallest relevant loop: Swift logic tests for state/predicates/builders, `swiftlint` for worker changes, and manager-owned Xcode build/test for integration.
+
+Preview, screenshot, and human-test evidence belong on the feature or release-gate issue when the change affects rendered UI.
+
 ### Resizable Multi-Pane Layout
 
 The window is a resizable multi-pane reading layout (pane widths persist via `@SceneStorage`).
