@@ -51,6 +51,34 @@ RED, all legit patterns GREEN).
 - `python3 scripts/check_silent_write_swallow.py` → exit 0 (0 violations, empty baseline).
 - Did **not** push.
 
+---
+
+# Batch 2 — Docs Review (milestone #108)
+
+#90 had no further lane-actionable work (only the large Swift/build feature #2615). The soonest-due
+milestones need Xcode (out of lane). **Docs Review #108** is genuinely lane-gateable (markdown +
+`mkdocs build --strict` + voice rules).
+
+## Issue worked: #2686 — README using-the-app framing
+
+The docs-voice reframe was already in place (leads with what Fichero is + "Installing and using
+Fichero" for Mac/iPad/iPhone; "Building from source" demoted to line 121; 0 em dashes; 0
+not-X-but-Y). Confirmed that bar, then fixed the remaining intro copy defects: `aim aims` dup,
+`thousand of`→`thousands of`, `hand written`/`handwritten-documents`→`handwritten documents`,
+`video recording`→`video recordings`, `Its audience are`→`is`, and the run-on
+"Hidden in opaque website … it hard to know".
+
+Gate: 0 em dashes, 0 not-X-but-Y; `mkdocs build --strict` exit 0.
+
+Commit: `docs(#2686): confirm + polish README using-the-app framing`.
+
+## Docs Review remaining (#2687–#2691)
+Each is a substantial *grounded* review (governance docs, User Guide, Developer docs, API Reference,
+landing/FAQ) — verify every claim against the built app/code (docs-must-be-grounded), then rewrite
+copy. Best done as a dedicated docs pass rather than rushed; not taken this session to keep quality.
+
+---
+
 ## Not done / flagged
 - No #2430-style corruption bugs remain to fix; the regression is already test-covered. A blanket
   except-Exception ban was deliberately NOT done (220 silent handlers engine-wide, most legitimate —
