@@ -58,6 +58,73 @@ def test_alias_resolves_to_live_target(temp_db):
     assert resolved.name == "Target"
 
 
+def test_alias_to_alias_requires_multiple_hops(temp_db):
+    target = Document(name="Leaf", doc_type=DocType.file)
+    temp_db.save(target)
+    first = make_alias(target, parent_id="container-a")
+    temp_db.save(first)
+    second = make_alias(first, parent_id="container-b", name="Alias Of Alias")
+    temp_db.save(second)
+
+    resolved = resolve_alias(temp_db, temp_db.get(Document, second.id))
+    assert resolved.id == first.id
+    assert resolved.alias_target_id == target.id
+    assert resolved.parent_id == "container-a"
+
+    leaf = resolve_alias(temp_db, resolved)
+    assert leaf.id == target.id
+
+
+def test_deep_alias_chain_can_be_walked_hop_by_hop(temp_db):
+    target = Document(name="Leaf", doc_type=DocType.file)
+    temp_db.save(target)
+    hop1 = make_alias(target, parent_id="c1")
+    hop2 = make_alias(hop1, parent_id="c2")
+    hop3 = make_alias(hop2, parent_id="c3")
+    temp_db.save(hop1)
+    temp_db.save(hop2)
+    temp_db.save(hop3)
+
+    current = temp_db.get(Document, hop3.id)
+    for expected in (hop2.id, hop1.id, target.id):
+        current = resolve_alias(temp_db, current)
+        assert current.id == expected
+
+
+def test_alias_resolves_after_target_is_reparented(temp_db):
+    root = Document(name="Root", doc_type=DocType.folder)
+    new_parent = Document(name="New Parent", doc_type=DocType.folder)
+    target = Document(name="Target", doc_type=DocType.file, parent_id=root.id)
+    temp_db.save(root)
+    temp_db.save(new_parent)
+    temp_db.save(target)
+    alias = make_alias(target, parent_id="alias-container")
+    temp_db.save(alias)
+
+    target.parent_id = new_parent.id
+    temp_db.save(target)
+
+    resolved = resolve_alias(temp_db, temp_db.get(Document, alias.id))
+    assert resolved.id == target.id
+    assert resolved.parent_id == new_parent.id
+
+
+def test_alias_to_alias_second_hop_raises_when_leaf_target_is_deleted(temp_db):
+    target = Document(name="Leaf", doc_type=DocType.file)
+    temp_db.save(target)
+    first = make_alias(target, parent_id=None)
+    second = make_alias(first, parent_id=None)
+    temp_db.save(first)
+    temp_db.save(second)
+    temp_db.delete(target)
+
+    intermediate = resolve_alias(temp_db, temp_db.get(Document, second.id))
+    assert intermediate.id == first.id
+
+    with pytest.raises(DanglingAliasError):
+        resolve_alias(temp_db, intermediate)
+
+
 def test_resolving_dangling_alias_raises(temp_db):
     """Deleting the target must surface loudly, not silently substitute."""
     target = Document(name="Doomed", doc_type=DocType.file)
