@@ -319,6 +319,22 @@ async def execute_workflow(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _resume_argument(request: "ResumeWorkflowRequest | None") -> Any:
+    """Pick the LangGraph resume argument for a paused run (#2529).
+
+    - A human-in-the-loop answer → ``Command(resume=answer)`` so the value is
+      delivered back to the ``interrupt()`` call (a plain dict would not reach
+      it).
+    - Otherwise continue from the checkpoint with the optional new inputs (or
+      ``None`` to just resume).
+    """
+    if request is not None and request.answer is not None:
+        from langgraph.types import Command
+
+        return Command(resume=request.answer)
+    return request.inputs if request is not None else None
+
+
 @router.post("/threads/{thread_id}/resume")
 async def resume_workflow(
     thread_id: str,
@@ -388,11 +404,14 @@ async def resume_workflow(
             completed_at=None,
         )
 
-        # Resume from checkpoint (pass None to continue, or new inputs)
-        inputs = request.inputs if request else None
+        # Resume from checkpoint. A run paused on a LangGraph interrupt()
+        # (human-in-the-loop, #2529) must be resumed with Command(resume=answer)
+        # so the answer reaches the interrupt() call; a normal pause continues
+        # with None / new inputs.
+        resume_arg = _resume_argument(request)
         resume_started_at = datetime.now(timezone.utc)
         try:
-            final_state = await app.ainvoke(inputs, config=config)
+            final_state = await app.ainvoke(resume_arg, config=config)
         except Exception as resume_exc:
             duration_ms = (
                 datetime.now(timezone.utc) - resume_started_at

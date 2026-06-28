@@ -2352,6 +2352,18 @@
         "response_model": "fichero__models__DocumentListResponse"
       },
       {
+        "method": "GET",
+        "path": "/documents/{doc_id}/geo",
+        "operation_id": "list_document_geo_api_documents__doc_id__geo_get",
+        "summary": "List geocoded points for a document",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "DocGeoResponse"
+      },
+      {
         "method": "PUT",
         "path": "/documents/{doc_id}/move",
         "operation_id": "move_document_api_documents__doc_id__move_put",

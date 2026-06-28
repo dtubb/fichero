@@ -10,14 +10,14 @@ from typing import Any
 import pytest
 
 
-DEFAULT_BOOK = Path(
-    "/Users/danieltubb/Library/Mobile Documents/iCloud~com~sonnysoftware~bot/"
-    "Documents/Slip-Box/tubb2020shift.pdf"
-)
+def _book_path() -> Path | None:
+    """Path to the opt-in full-book fixture, from FICHERO_FULL_BOOK_E2E_PDF.
 
-
-def _book_path() -> Path:
-    return Path(os.environ.get("FICHERO_FULL_BOOK_E2E_PDF", DEFAULT_BOOK))
+    No hardcoded default — the fixture is a personal, machine-specific file, so
+    the path must come from the environment (the test skips when it is unset).
+    """
+    env = os.environ.get("FICHERO_FULL_BOOK_E2E_PDF")
+    return Path(env) if env else None
 
 
 def _full_book_enabled() -> bool:
@@ -64,11 +64,22 @@ def test_full_book_e2e_is_opt_in(monkeypatch):
     assert _full_book_enabled()
 
 
+def test_book_path_has_no_hardcoded_default(monkeypatch):
+    # Regression (#2702): the fixture path must come from the environment, never a
+    # hardcoded personal path — unset env yields None so the E2E skips cleanly.
+    monkeypatch.delenv("FICHERO_FULL_BOOK_E2E_PDF", raising=False)
+    assert _book_path() is None
+    monkeypatch.setenv("FICHERO_FULL_BOOK_E2E_PDF", "/tmp/some/book.pdf")
+    assert _book_path() == Path("/tmp/some/book.pdf")
+
+
 def test_tubb2020shift_catalogue_populates_kg(client):
     if not _full_book_enabled():
         pytest.skip("Set FICHERO_RUN_FULL_BOOK_E2E=1 to run the full-book E2E")
 
     book = _book_path()
+    if book is None:
+        pytest.skip("Set FICHERO_FULL_BOOK_E2E_PDF to the full-book fixture path")
     if not book.exists():
         pytest.skip(f"Full-book fixture not found: {book}")
 

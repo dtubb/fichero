@@ -43,6 +43,11 @@ class ResumeWorkflowRequest(BaseModel):
     """Request to resume a paused workflow."""
 
     inputs: dict[str, Any] | None = None  # Optional new inputs
+    # The human's answer to a workflow that paused on a LangGraph interrupt()
+    # (human-in-the-loop, #2529). When set, the run is resumed via
+    # Command(resume=answer) so the value is delivered back to the interrupt()
+    # call — a plain inputs dict would NOT reach it.
+    answer: Any | None = None
 
 
 class CancelWorkflowRequest(BaseModel):
