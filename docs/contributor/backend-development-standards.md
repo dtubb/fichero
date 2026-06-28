@@ -75,6 +75,47 @@ pytest tests/integration/
 pytest --cov=src/fichero tests/
 ```
 
+## Mutations
+
+Every engine mutation must satisfy two invariants:
+
+1. **Audit**: the mutation must go through `registry.invoke(...)` so
+   `ActionRegistry.invoke` writes an `ActionAudit` row.
+2. **Change-stream**: the mutation must also emit an observable-layer change so
+   views and other observers update.
+
+Doing only one is a bug:
+
+- audit without change-stream leaves a correct undo/audit trail but stale UI
+  observers
+- change-stream without audit updates observers but silently drops the durable
+  mutation record
+
+### Canonical pattern
+
+The current shipped pattern is:
+
+- the route builds an `ActionContext` and calls `registry.invoke(...)`
+- the registered action returns a `ChangeSpec` with both audit payload
+  (`before`, `after`, `target_ids`) and observer payload (`emit_type`,
+  `document_ids` / `entity_ids` / other changed ids)
+- `ActionRegistry.invoke` performs `validate -> execute -> audit -> emit`
+
+Grounded example in merged code:
+
+- `fichero-engine/src/fichero/api/routes/agent_memory.py`
+  `create_agent_note(...)` calls `_invoke_agent_memory_action(...)`, which calls
+  `registry.invoke(...)`
+- the registered `agent_memory.create` action returns a `ChangeSpec` with
+  `target_ids=[note.id]`, `after=...`, `emit_type="agent_memory.created"`, and
+  scoped `document_ids`
+- `fichero-engine/src/fichero/actions/registry.py`
+  `ActionRegistry.invoke(...)` writes the `ActionAudit` row and then calls
+  `_emit(...)`, which dispatches `emit_change(...)`
+
+In other words: the durable audit row and the observer update are a pair. A
+mutation is not complete unless both happen on the same path.
+
 ## LLM Calls — Structured Output Standard
 
 Every extraction-style LLM call (where the response shape is known
