@@ -43,3 +43,17 @@ def test_scan_flags_new_directory_over_direct_file_limit(monkeypatch, tmp_path) 
             "19 Swift files directly in one directory (limit: 18)"
         ]
     }
+
+
+def test_list_output_includes_library_reorg_targets(monkeypatch, tmp_path, capsys) -> None:
+    swift_root = tmp_path / "fichero" / "fichero"
+    library = swift_root / "Views" / "Library"
+    library.mkdir(parents=True)
+    (library / "LibraryView.swift").write_text("struct LibraryView {}\n", encoding="utf-8")
+
+    monkeypatch.setattr(check_folder_organization, "SWIFT_ROOT", swift_root)
+
+    check_folder_organization.print_list(check_folder_organization.scan())
+
+    output = capsys.readouterr().out
+    assert "suggested subfolders: Artifacts/, PDFReading/, QuickLook/" in output

@@ -34,6 +34,10 @@ MIXED_CONCERN_DIRS: dict[str, str] = {
     "Views/Sidebar": "mixes sidebar state, rows, drag/drop, modes, and commands",
 }
 
+SUGGESTED_SUBFOLDERS: dict[str, str] = {
+    "Views/Library": "Artifacts/, PDFReading/, QuickLook/, KnowledgeGraph/, Pickers/, Tools/, Thumbnails/",
+}
+
 # Current folder-organization backlog. Drop entries as directories are split.
 KNOWN_VIOLATIONS: dict[str, str] = {
     "Models": "#1944 — 53 Swift files directly in Models",
@@ -75,6 +79,8 @@ def print_list(found: dict[str, list[str]]) -> None:
         print(f"  [{tag}] {rel}")
         for reason in reasons:
             print(f"          - {reason}")
+        if rel in SUGGESTED_SUBFOLDERS:
+            print(f"          - suggested subfolders: {SUGGESTED_SUBFOLDERS[rel]}")
         print(f"          - move new files into a specific subfolder under {rel}")
 
 
