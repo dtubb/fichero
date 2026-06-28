@@ -67,7 +67,7 @@ struct FicheroApp: App {
         // under FICHERO_UITEST_HOME — still loads lazily via LibraryManager so
         // the window has something to show.
         if isUITesting() {
-            logger.info("FicheroApp.init: UI-testing launch — skipping installer + saved-library restore")
+            openUITestLibraryOverrideIfNeeded()
             return
         }
 
