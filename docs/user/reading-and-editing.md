@@ -84,7 +84,7 @@ You can:
 - add a new note inline
 - edit note text in place
 - delete notes
-- review relative update times for existing notes
+- review saved notes with their current metadata
 
 Use notes for document-level commentary. Use annotations when the note should stay tied to a page region, text span, or claim.
 

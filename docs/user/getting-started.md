@@ -9,14 +9,15 @@
 
 ## Create or Open a Library
 
-When no library is open, Fichero shows a welcome screen with two actions:
-
-- `New Library`
-- `Open Library`
+Current builds start with a ready-to-use local library. On first launch, the
+onboarding flow surfaces that library and lets you continue straight into the
+app without creating or opening anything first.
 
 Libraries are `.fichero` packages. Opening a library uses a package picker. Creating a new one uses a save panel and automatically adds the `.fichero` suffix if you do not type it yourself.
 
-Fichero can also keep working with temporary unsaved libraries, but the normal user path is to create or open a named `.fichero` package.
+You can still create another library or open an existing `.fichero` package
+from the File menu whenever you want. Fichero can also keep working with
+temporary unsaved libraries.
 
 ## Understand the Main Window
 
@@ -32,7 +33,7 @@ The left sidebar is where you change context. Depending on the active mode, it c
 - workflows
 - activity runs
 
-The mode switcher at the bottom changes what the sidebar and center panel are showing.
+The sidebar mode bar changes what the sidebar and center panel are showing.
 
 ### Content Browser
 
@@ -59,12 +60,13 @@ The reading area is where you actually inspect the selected item. Depending on t
 The inspector is the right-hand panel. Its available tabs depend on the selected document, but typically include:
 
 - Content
+- Outline
 - Annotations
 - Notes
-- Knowledge Graph
-- Outline
+- Interpretation
 - Entities
-- Artifacts
+- Knowledge Graph
+- Citations
 - Info
 
 Images, PDFs, and page documents also expose an `Edits` tab.
@@ -80,6 +82,11 @@ A few behaviors matter early:
 
 ## What Happens Before The App Is Ready
 
-The Fichero app depends on the local fichero-engine server. If fichero-engine is still starting, Fichero shows `Connecting to backend...`. If it cannot connect, the window switches to a connection error state with `Retry` and `Quit`.
+The macOS app normally talks to an embedded `fichero-engine` server. If the
+engine is still starting, Fichero shows `Connecting to backend...`. If it
+cannot connect, the window switches to a connection error state with `Retry`
+and `Quit`.
 
-That is normal, not a separate offline mode: the Fichero app is a native interface over the local fichero-engine server.
+That is normal, not a separate offline mode: the app is a native interface over
+`fichero-engine`, whether that engine is running locally or, in advanced setups,
+through a configured remote connection.

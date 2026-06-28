@@ -1,7 +1,8 @@
 # What Fichero Is
 
-Fichero is a document library for researchers. It runs primarily as a macOS app
-with a local backend engine. It is built for working with primary sources
+Fichero is a document library for researchers. This user guide focuses on the
+macOS app, which runs primarily against a local backend engine. It is built for
+working with primary sources
 (scanned archives, PDFs, field notes, historical documents, interview
 transcripts), the raw material of research.
 
@@ -86,4 +87,4 @@ It is useful if you:
 - want to extract structured information and build a research record
 - care about keeping your data local and under your control
 
-Fichero is a desktop application for macOS. It requires Apple Silicon (M1 or later) and macOS 26 Tahoe or later.
+The current macOS app requires Apple Silicon (M1 or later) and macOS 26 Tahoe or later.
