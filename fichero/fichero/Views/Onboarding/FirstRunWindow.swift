@@ -1,4 +1,3 @@
-// swiftlint:disable file_length
 #if canImport(AppKit)
 import AppKit
 #endif
@@ -14,9 +13,6 @@ struct FirstRunWindow: View {
     @State private var step: FirstRunStep = .welcome
     @State private var selectedLibraryName: String?
     @State private var documentsPermission = false
-    @State private var openRouterKey = ""
-    @State private var isSaving = false
-    @State private var errorMessage: String?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -62,12 +58,6 @@ struct FirstRunWindow: View {
             }
 
             Spacer()
-            if let errorMessage {
-                Text(errorMessage)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
         .padding(20)
         .frame(width: 220)
@@ -172,25 +162,27 @@ struct FirstRunWindow: View {
             }
         case .cloud:
             stepPage(
-                title: "Use the cheapest model that works",
-                subtitle: "Add a cloud fallback only if local providers are not enough.",
-                systemImage: "cloud"
+                title: "AI is optional",
+                subtitle: "Fichero is local-first. Add a provider only when you want AI.",
+                systemImage: "brain"
             ) {
                 firstRunCard(
                     FirstRunCardConfig(
-                        icon: "cloud",
-                        title: "Use the cheapest model that works",
-                        body: "OpenRouter is optional. Add it now if you need cloud models for tasks your local providers cannot handle.",
-                        primaryTitle: openRouterKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                            ? "Finish Without Cloud"
-                            : "Save and Finish",
-                        primaryIcon: "checkmark",
-                        primaryAction: { Task { await saveAndFinish() } }
+                        icon: "cpu",
+                        title: "Choose an AI provider",
+                        body: "Run models locally with Ollama or LM Studio, or connect a cloud "
+                            + "provider like OpenAI, Anthropic, Google, or OpenRouter — and pick "
+                            + "your default models. Everything is optional and changeable in Settings.",
+                        primaryTitle: "Choose a Provider",
+                        primaryIcon: "plus",
+                        primaryAction: { chooseProviderAndFinish() }
                     ),
                     footer: {
-                        SecureField("OpenRouter API key", text: $openRouterKey)
-                            .textFieldStyle(.roundedBorder)
-                        Text("Leave blank to configure cloud models later in Settings.")
+                        // #2718 — local-first, provider-agnostic. Defer to the existing
+                        // Add Provider flow (full catalog + default-model selection),
+                        // which pre-selects a local provider on first launch. No single
+                        // provider is centered.
+                        Text("Prefer to decide later? Skip — you can add providers anytime in Settings.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -231,13 +223,12 @@ struct FirstRunWindow: View {
                     .disabled(step == .welcome)
                 Button(step == .cloud ? "Finish" : "Continue") {
                     if step == .cloud {
-                        Task { await saveAndFinish() }
+                        finish()
                     } else {
                         step = step.next
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(isSaving)
                 .keyboardShortcut(.defaultAction)
             }
         }
@@ -269,7 +260,6 @@ struct FirstRunWindow: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(isSaving)
         }
         .padding(22)
         .frame(maxWidth: .infinity, minHeight: 280, alignment: .leading)
@@ -306,23 +296,13 @@ struct FirstRunWindow: View {
         #endif
     }
 
-    private func saveAndFinish() async {
-        isSaving = true
-        defer { isSaving = false }
-        let trimmedKey = openRouterKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedKey.isEmpty {
-            do {
-                _ = try await appState.providerService.createProvider(
-                    providerType: "openrouter",
-                    name: "OpenRouter",
-                    apiKey: trimmedKey
-                )
-                await appState.loadProviders()
-            } catch {
-                errorMessage = error.localizedDescription
-                return
-            }
-        }
+    /// #2718 — Finish onboarding, then hand off to the existing local-first Add
+    /// Provider flow (full provider catalog + default-model selection) rather than
+    /// hardcoding any single provider. Setting `isFirstLaunchProviderSetup` makes
+    /// that sheet pre-select a local provider.
+    private func chooseProviderAndFinish() {
+        appState.isFirstLaunchProviderSetup = true
+        appState.showAddProvider = true
         finish()
     }
 
@@ -378,7 +358,7 @@ private enum FirstRunStep: Int, CaseIterable, Identifiable {
         case .welcome: return "Welcome"
         case .library: return "Library"
         case .permissions: return "Permissions"
-        case .cloud: return "Cloud LLM"
+        case .cloud: return "AI"
         }
     }
 
@@ -387,7 +367,7 @@ private enum FirstRunStep: Int, CaseIterable, Identifiable {
         case .welcome: return "sparkles"
         case .library: return "folder"
         case .permissions: return "lock.shield"
-        case .cloud: return "cloud"
+        case .cloud: return "brain"
         }
     }
 
