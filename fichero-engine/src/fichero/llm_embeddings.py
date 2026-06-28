@@ -8,8 +8,30 @@ Included by llm.py via re-exports in __all__.
 from __future__ import annotations
 
 import logging
+from functools import lru_cache
+from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+@lru_cache(maxsize=32)
+def _build_embeddings_client(model: str, api_key: str | None) -> Any:
+    """Construct (and cache) one OpenAIEmbeddings client per (model, key).
+
+    ponytail: at 100k images the embed path was rebuilding a fresh
+    OpenAIEmbeddings client — and its httpx connection pool — on every call
+    (#2545 N1). Cache keyed by (model, api_key) so a key rotation lands on a
+    new entry; ``clear_embeddings_client_cache()`` drops stale clients when a
+    credential changes. maxsize bounds the rare multi-model/multi-key case.
+    """
+    from langchain_openai import OpenAIEmbeddings
+
+    return OpenAIEmbeddings(model=model, api_key=api_key)
+
+
+def clear_embeddings_client_cache() -> None:
+    """Drop cached embedding clients (call on credential change)."""
+    _build_embeddings_client.cache_clear()
 
 
 def _embedding_provider(model: str) -> str:
@@ -58,8 +80,6 @@ def _get_langchain_embeddings(
     Returns:
         LangChain embeddings instance
     """
-    from langchain_openai import OpenAIEmbeddings
-
     # Resolve API key
     if not api_key:
         # Extract provider from model name
@@ -70,12 +90,9 @@ def _get_langchain_embeddings(
         from fichero.llm import get_api_key  # lazy import avoids circular dependency
         api_key = get_api_key(provider)
 
-    # Currently we primarily use OpenAI embeddings
-    # Could be extended for other providers
-    return OpenAIEmbeddings(
-        model=model,
-        api_key=api_key,
-    )
+    # Currently we primarily use OpenAI embeddings; the cached builder reuses
+    # one client per (model, key) instead of rebuilding per call (#2545 N1).
+    return _build_embeddings_client(model, api_key)
 
 
 def embed(

@@ -9,6 +9,7 @@ from fichero.api.library_header import optional_library_path
 from fichero.api.main import get_library_database_for_write
 from fichero.db import Database
 from fichero.export_service import (
+    export_eleventy_site,
     export_excel_xlsx,
     export_markdown_folder,
     export_word_docx,
@@ -91,6 +92,66 @@ class ExcelExportResponse(BaseModel):
     entity_count: int
     claim_count: int
     bytes_written: int
+
+
+class EleventySiteExportRequest(BaseModel):
+    """Request body for 11ty/Netlify static-site export."""
+
+    model_config = ConfigDict(extra="allow")
+
+    output_path: str = Field(..., description="Destination folder for the site project")
+    target_id: str | None = Field(
+        default=None,
+        description="Optional folder id to publish; omitted exports the library",
+    )
+    recursive: bool = Field(default=True, description="Include descendants of folders")
+    overwrite: bool = Field(
+        default=False, description="Allow writing into a non-empty folder"
+    )
+    site_title: str | None = Field(
+        default=None, description="Site title (defaults to the root folder name)"
+    )
+
+
+class EleventySiteExportResponse(BaseModel):
+    output_path: str
+    document_count: int
+    collection_count: int
+    files: list[ExportedFileResponse]
+    assets: list[ExportedFileResponse]
+
+
+@router.post("/eleventy-site", response_model=EleventySiteExportResponse)
+async def export_eleventy_site_route(
+    request: EleventySiteExportRequest,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+) -> EleventySiteExportResponse:
+    """Publish a library, folder, or subfolder as an 11ty/Netlify static site."""
+    try:
+        result = export_eleventy_site(
+            db=db,
+            output_path=Path(request.output_path),
+            target_id=request.target_id,
+            recursive=request.recursive,
+            overwrite=request.overwrite,
+            package_path=x_fichero_library_path,
+            site_title=request.site_title,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except FileExistsError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except OSError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return EleventySiteExportResponse(
+        output_path=result.output_path,
+        document_count=result.document_count,
+        collection_count=result.collection_count,
+        files=[ExportedFileResponse(**file.__dict__) for file in result.files],
+        assets=[ExportedFileResponse(**asset.__dict__) for asset in result.assets],
+    )
 
 
 @router.post("/markdown-folder", response_model=MarkdownFolderExportResponse)

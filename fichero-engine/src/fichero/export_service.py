@@ -76,6 +76,232 @@ class ExcelExportResult:
     bytes_written: int
 
 
+@dataclass
+class EleventySiteExportResult:
+    """Result metadata for an 11ty/Netlify static-site export."""
+
+    output_path: str
+    document_count: int
+    collection_count: int
+    files: list[ExportedFile] = field(default_factory=list)
+    assets: list[ExportedFile] = field(default_factory=list)
+
+
+def export_eleventy_site(
+    db: Database,
+    output_path: str | Path,
+    target_id: str | None = None,
+    recursive: bool = True,
+    overwrite: bool = False,
+    package_path: str | Path | None = None,
+    site_title: str | None = None,
+) -> EleventySiteExportResult:
+    """Export a folder (or subfolder) as a buildable 11ty/Netlify static site.
+
+    The third export target alongside Markdown and Excel (#2535), reusing the
+    same document-collection + asset-copy plumbing. Folder structure maps to
+    11ty collections: each top-level folder under the export root becomes a
+    collection, nested folders become subcollections, and each document is an
+    item page (Markdown + YAML front matter with metadata, image copied in).
+
+    Produces a self-contained project that builds with ``npx @11ty/eleventy``
+    and deploys to Netlify (``netlify.toml`` publishes ``_site``). Assets are
+    copied into the site so it is portable/publishable — a static bundle, not
+    the running app (which renders via storage endpoints, not local paths).
+    """
+    output_dir = Path(output_path).expanduser()
+    if output_dir.exists() and any(output_dir.iterdir()) and not overwrite:
+        raise FileExistsError(
+            f"Export folder already exists and is not empty: {output_dir}"
+        )
+    output_dir.mkdir(parents=True, exist_ok=True)
+    src_dir = output_dir / "src"
+    src_dir.mkdir(exist_ok=True)
+
+    root, documents = _collect_documents(db, target_id=target_id, recursive=recursive)
+    package = Path(package_path).expanduser() if package_path else None
+    # by_id powers the ancestor walk that reconstructs each doc's collection
+    # path. ponytail: db.all() is O(library); fine for a deliberate batch
+    # export, swap to a parent-chain query if it ever needs to stream.
+    by_id = {d.id: d for d in db.all(Document)}
+    root_id = root.id if root else None
+
+    title = site_title or (root.name if root else "Fichero Export")
+    result = EleventySiteExportResult(
+        output_path=str(output_dir),
+        document_count=len(documents),
+        collection_count=0,
+    )
+
+    collections: set[str] = set()
+    used_per_dir: dict[str, set[str]] = {}
+    for doc in documents:
+        rel_parts = _collection_path_for(doc, by_id, root_id)
+        if rel_parts:
+            collections.add(rel_parts[0])
+        doc_dir = src_dir.joinpath(*rel_parts) if rel_parts else src_dir
+        doc_dir.mkdir(parents=True, exist_ok=True)
+
+        assets_dir = doc_dir / "assets"
+        asset_refs: list[_AssetRef] = []
+        if _is_image_document(doc):
+            assets_dir.mkdir(exist_ok=True)
+            asset_refs = _copy_document_assets(doc, assets_dir, package)
+
+        used = used_per_dir.setdefault(str(doc_dir), set())
+        filename = _unique_filename(_slugify(doc.name), used, ".md")
+        page_path = doc_dir / filename
+        page_path.write_text(
+            _render_eleventy_item(db, doc, asset_refs, rel_parts),
+            encoding="utf-8",
+        )
+        result.files.append(
+            ExportedFile(path=str(page_path), kind="page", document_id=doc.id)
+        )
+        result.assets.extend(
+            ExportedFile(path=str(a.path), kind="asset", document_id=doc.id)
+            for a in asset_refs
+        )
+
+    result.collection_count = len(collections)
+
+    # Site scaffolding — a minimal but real, buildable 11ty + Netlify project.
+    (src_dir / "index.md").write_text(
+        _render_eleventy_index(title, sorted(collections), documents),
+        encoding="utf-8",
+    )
+    for name, content in _eleventy_scaffold(title).items():
+        (output_dir / name).write_text(content, encoding="utf-8")
+        result.files.append(ExportedFile(path=str(output_dir / name), kind="scaffold"))
+
+    return result
+
+
+def _collection_path_for(
+    doc: Document,
+    by_id: dict[str, Document],
+    root_id: str | None,
+) -> list[str]:
+    """Slugged folder names from the export root down to ``doc``'s parent."""
+    parts: list[str] = []
+    cur = by_id.get(doc.parent_id) if doc.parent_id else None
+    seen: set[str] = set()
+    while cur is not None and cur.id != root_id and cur.id not in seen:
+        seen.add(cur.id)
+        if cur.doc_type == DocType.folder:
+            parts.append(_slugify(cur.name))
+        cur = by_id.get(cur.parent_id) if cur.parent_id else None
+    return list(reversed(parts))
+
+
+def _render_eleventy_item(
+    db: Database,
+    doc: Document,
+    assets: Iterable[_AssetRef],
+    collection_path: list[str],
+) -> str:
+    lines = [
+        "---",
+        f"title: {_escape_frontmatter(doc.name)}",
+        f"id: {doc.id}",
+        f"doc_type: {doc.doc_type.value}",
+        f"file_type: {doc.file_type.value if doc.file_type else ''}",
+    ]
+    if collection_path:
+        # 11ty groups pages by tag → the top-level folder is the collection.
+        lines.append(f"tags:\n  - {_escape_frontmatter(collection_path[0])}")
+        lines.append(f"collection_path: {_escape_frontmatter('/'.join(collection_path))}")
+    lines.extend(["---", "", f"# {doc.name}", ""])
+
+    for asset in assets:
+        lines.extend([f"![{doc.name}]({asset.markdown_path})", ""])
+
+    content = (doc.page_content or "").strip()
+    if content:
+        lines.extend([content, ""])
+    artifacts = _text_artifacts(db, doc.id)
+    if artifacts:
+        lines.extend(["## Artifacts", ""])
+        for artifact in artifacts:
+            lines.extend(
+                [f"### {artifact.artifact_type}", "", artifact.content.strip(), ""]
+            )
+    if not content and not artifacts and not list(assets):
+        lines.extend(["_No text content available._", ""])
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _render_eleventy_index(
+    title: str,
+    collections: list[str],
+    documents: list[Document],
+) -> str:
+    lines = [
+        "---",
+        f"title: {_escape_frontmatter(title)}",
+        "---",
+        "",
+        f"# {title}",
+        "",
+        f"Exported: {datetime.now().isoformat(timespec='seconds')}",
+        "",
+        f"{len(documents)} item(s) across {len(collections)} collection(s).",
+        "",
+    ]
+    if collections:
+        lines.extend(["## Collections", ""])
+        lines.extend(f"- {name}" for name in collections)
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _eleventy_scaffold(title: str) -> dict[str, str]:
+    """The static-site project files that make the export buildable + deployable."""
+    package_json = json.dumps(
+        {
+            "name": _slugify(title).lower() or "fichero-site",
+            "version": "1.0.0",
+            "private": True,
+            "scripts": {"build": "eleventy", "serve": "eleventy --serve"},
+            "devDependencies": {"@11ty/eleventy": "^3.0.0"},
+        },
+        indent=2,
+    )
+    eleventy_config = (
+        "module.exports = function (eleventyConfig) {\n"
+        '  eleventyConfig.addPassthroughCopy("src/**/assets");\n'
+        "  return {\n"
+        '    dir: { input: "src", output: "_site" },\n'
+        '    markdownTemplateEngine: "njk",\n'
+        "  };\n"
+        "};\n"
+    )
+    netlify_toml = (
+        "[build]\n"
+        '  command = "npx @11ty/eleventy"\n'
+        '  publish = "_site"\n'
+    )
+    readme = (
+        f"# {title}\n\n"
+        "Static site exported from Fichero (11ty + Netlify).\n\n"
+        "## Build\n\n"
+        "```sh\n"
+        "npm install\n"
+        "npm run build   # outputs _site/\n"
+        "npm run serve   # local preview\n"
+        "```\n\n"
+        "Deploy `_site/` to Netlify (or run `netlify deploy`). "
+        "Collections map to folders, item pages carry metadata front matter, "
+        "and images are bundled under each folder's `assets/`.\n"
+    )
+    return {
+        "package.json": package_json,
+        ".eleventy.js": eleventy_config,
+        "netlify.toml": netlify_toml,
+        "README.md": readme,
+    }
+
+
 def export_markdown_folder(
     db: Database,
     output_path: str | Path,

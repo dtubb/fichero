@@ -53,3 +53,39 @@ def test_remote_embeddings_run_when_paid_fallbacks_enabled(monkeypatch) -> None:
             result = llm_embeddings.embed(["hola"], model="text-embedding-3-small")
 
     assert result == [[0.1, 0.2]]
+
+
+class TestEmbeddingsClientCache:
+    """#2545 N1: the embed path reuses one client per (model, key) instead of
+    rebuilding per call, and credential changes drop stale clients."""
+
+    def setup_method(self):
+        llm_embeddings.clear_embeddings_client_cache()
+
+    def teardown_method(self):
+        llm_embeddings.clear_embeddings_client_cache()
+
+    def test_same_model_and_key_returns_cached_instance(self):
+        c1 = llm_embeddings._get_langchain_embeddings("text-embedding-3-small", "k1")
+        c2 = llm_embeddings._get_langchain_embeddings("text-embedding-3-small", "k1")
+        assert c1 is c2  # cached, not rebuilt
+
+    def test_different_key_returns_new_instance(self):
+        c1 = llm_embeddings._get_langchain_embeddings("text-embedding-3-small", "k1")
+        c2 = llm_embeddings._get_langchain_embeddings("text-embedding-3-small", "k2")
+        assert c1 is not c2
+
+    def test_clear_cache_forces_rebuild(self):
+        c1 = llm_embeddings._get_langchain_embeddings("text-embedding-3-small", "k1")
+        llm_embeddings.clear_embeddings_client_cache()
+        c2 = llm_embeddings._get_langchain_embeddings("text-embedding-3-small", "k1")
+        assert c1 is not c2
+
+    def test_clear_api_key_cache_invalidates_embedding_clients(self):
+        """A credential rotation (clear_api_key_cache) must also drop clients."""
+        from fichero.llm import clear_api_key_cache
+
+        c1 = llm_embeddings._get_langchain_embeddings("text-embedding-3-small", "k1")
+        clear_api_key_cache()
+        c2 = llm_embeddings._get_langchain_embeddings("text-embedding-3-small", "k1")
+        assert c1 is not c2
