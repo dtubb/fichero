@@ -11,6 +11,7 @@ struct WorkflowToolbar: View {
 
     // Actions
     let onRun: () -> Void
+    let onImport: () -> Void
     let onExport: () -> Void
     var onPreviewDiagram: (() -> Void)?
     var onRunOnDocuments: (() -> Void)?
@@ -41,6 +42,11 @@ struct WorkflowToolbar: View {
             HStack(spacing: 8) {
                 // Export
                 if featureManager.isWorkflowImportExportEnabled {
+                    Button(action: onImport) {
+                        Image(systemName: "square.and.arrow.down")
+                    }
+                    .help("Import Workflow")
+
                     Button(action: onExport) {
                         Image(systemName: "square.and.arrow.up")
                     }

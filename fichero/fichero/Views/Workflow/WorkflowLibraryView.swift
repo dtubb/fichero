@@ -544,9 +544,13 @@ struct WorkflowListView: View {
     private func importWorkflow() {
         isImporting = true
         Task {
-            if let importedId = await WorkflowExporter.importFromFile(using: workflowServiceGenerated) {
-                await loadWorkflows()
-                selectedWorkflowId = importedId
+            do {
+                if let importedId = try await WorkflowExporter.importFromFile(using: workflowServiceGenerated) {
+                    await loadWorkflows()
+                    selectedWorkflowId = importedId
+                }
+            } catch {
+                logger.error("Failed to import workflow: \(error.localizedDescription)")
             }
             isImporting = false
         }

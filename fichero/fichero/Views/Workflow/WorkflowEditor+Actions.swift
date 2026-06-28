@@ -262,4 +262,17 @@ extension WorkflowEditor {
             )
         }
     }
+
+    func importWorkflow() {
+        actionsLogger.info("Import workflow from editor")
+        Task { @MainActor in
+            do {
+                _ = try await WorkflowExporter.importFromFile(using: workflowServiceGenerated)
+                await workflowStore.loadWorkflows()
+            } catch {
+                actionsLogger.error("Failed to import workflow: \(error.localizedDescription)")
+                saveError = error.localizedDescription
+            }
+        }
+    }
 }

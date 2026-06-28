@@ -79,6 +79,7 @@ struct WorkflowEditor: View {
                 canRun: !editingWorkflow.nodes.isEmpty,
                 inputSource: $editingWorkflow.inputSource,
                 onRun: runWorkflow,
+                onImport: importWorkflow,
                 onExport: exportWorkflow,
                 onPreviewDiagram: {
                     // Auto-save before showing diagram preview
