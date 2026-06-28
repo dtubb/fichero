@@ -8,7 +8,9 @@ plans contain tasks, tasks contain steps. Routes live at /api/research/...
 import pytest
 from fastapi import HTTPException
 
+from fichero.knowledge_models import ClassificationDimension, ClassificationValue
 from fichero.models import DocType, Document
+from fichero.node_prototypes import PrototypeResolutionError
 from fichero.research_models import (
     ResearchPlan,
     ResearchProject,
@@ -312,6 +314,26 @@ class TestProjectFolderDestinationHandlers:
         assert project.library_destination_folder_id == "folder-a"
         assert project.metadata == {"topic": "letters"}
 
+    async def test_get_project_uses_inherited_workspace_prototype_defaults(self, db):
+        from fichero.api.routes.research_crud import get_project
+
+        db.save(
+            Document(
+                id="ws-proj-inherited",
+                name="Workspace Inherited",
+                doc_type=DocType.folder,
+                node_kind="workspace",
+                prototype_key="research_workspace",
+                is_workspace=True,
+                attributes={"description": "alpha inherited", "metadata": {"topic": "letters"}},
+            )
+        )
+
+        project = await get_project("ws-proj-inherited", db=db)
+        assert project.status.value == "active"
+        assert project.created_by == "human"
+        assert project.metadata == {"topic": "letters"}
+
     def test_workspace_items_route_works_for_research_project_node(self, client, db):
         workspace = Document(
             id="ws-proj-2",
@@ -356,6 +378,33 @@ class TestProjectFolderDestinationHandlers:
             await get_project("legacy-only", db=db)
 
         assert exc.value.status_code == 404
+
+    async def test_missing_workspace_prototype_definition_raises(self, db):
+        from fichero.api.routes.research_crud import get_project
+
+        db.save(
+            Document(
+                id="ws-bad-proto",
+                name="Broken Workspace",
+                doc_type=DocType.folder,
+                node_kind="workspace",
+                prototype_key="research_workspace",
+                is_workspace=True,
+                attributes={"description": "broken"},
+            )
+        )
+        workspace_proto = next(
+            value
+            for value in db.query(
+                ClassificationValue,
+                dimension=ClassificationDimension.document_prototype,
+            )
+            if value.key == "research_workspace"
+        )
+        db.delete(workspace_proto)
+
+        with pytest.raises(PrototypeResolutionError):
+            await get_project("ws-bad-proto", db=db)
 
 
 class TestListProjectTasksHandler:

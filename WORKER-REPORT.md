@@ -1,0 +1,1 @@
+2026-06-28 Codex: P5 shipped on this worktree — seeded folder/research_workspace/room document prototypes, wired research workspaces through inherited prototype attributes, and added focused inheritance/raise-path tests.

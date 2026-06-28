@@ -35,11 +35,17 @@ from fichero.research_models import (
 )
 from fichero.knowledge_models import (
     ClaimRelationType,
+    ClassificationDimension,
+    ClassificationValue,
     EntityType,
     KnowledgeClaim,
     KnowledgeClaimLink,
     KnowledgeEntity,
     LibraryItemLink,
+)
+from fichero.node_prototypes import (
+    PrototypeResolutionError,
+    resolve_prototype_attributes,
 )
 
 
@@ -1239,6 +1245,41 @@ class TestSavedSearchCRUD:
 
 
 class TestResearchWorkspaceFold:
+    def test_workspace_prototype_inherits_folder_attributes(self, temp_db):
+        folder_proto = next(
+            value
+            for value in temp_db.query(
+                ClassificationValue,
+                dimension=ClassificationDimension.document_prototype,
+            )
+            if value.key == "folder"
+        )
+        workspace_proto = next(
+            value
+            for value in temp_db.query(
+                ClassificationValue,
+                dimension=ClassificationDimension.document_prototype,
+            )
+            if value.key == "research_workspace"
+        )
+        room_proto = next(
+            value
+            for value in temp_db.query(
+                ClassificationValue,
+                dimension=ClassificationDimension.document_prototype,
+            )
+            if value.key == "room"
+        )
+
+        assert workspace_proto.parent_key == folder_proto.key
+        assert room_proto.parent_key == folder_proto.key
+
+        effective = resolve_prototype_attributes(temp_db, "research_workspace")
+        assert effective["container_kind"] == "folder"
+        assert effective["supports_children"] is True
+        assert effective["workspace_kind"] == "research"
+        assert effective["carries_tasks"] is True
+
     def test_save_and_get_research_project(self, temp_db):
         project = ResearchProject(
             name="Archive Hunt",
@@ -1290,6 +1331,53 @@ class TestResearchWorkspaceFold:
         assert project.status.value == "paused"
         assert project.library_destination_folder_id == "dest-1"
         assert project.metadata == {"topic": "archives"}
+
+    def test_research_project_uses_prototype_defaults_when_node_omits_them(self, temp_db):
+        doc = Document(
+            id="ws-doc-defaults",
+            name="Workspace Defaults",
+            node_kind="workspace",
+            prototype_key="research_workspace",
+            doc_type=DocType.folder,
+            is_workspace=True,
+            attributes={
+                "description": "Needs inherited defaults",
+                "metadata": {"topic": "archives"},
+            },
+        )
+        temp_db.save(doc)
+
+        project = temp_db.get(ResearchProject, doc.id)
+        assert project is not None
+        assert project.description == "Needs inherited defaults"
+        assert project.status.value == "active"
+        assert project.created_by == "human"
+        assert project.metadata == {"topic": "archives"}
+
+    def test_research_project_raises_when_workspace_prototype_definition_missing(self, temp_db):
+        doc = Document(
+            id="ws-doc-missing-proto",
+            name="Broken Workspace",
+            node_kind="workspace",
+            prototype_key="research_workspace",
+            doc_type=DocType.folder,
+            is_workspace=True,
+            attributes={"description": "broken"},
+        )
+        temp_db.save(doc)
+
+        workspace_proto = next(
+            value
+            for value in temp_db.query(
+                ClassificationValue,
+                dimension=ClassificationDimension.document_prototype,
+            )
+            if value.key == "research_workspace"
+        )
+        temp_db.delete(workspace_proto)
+
+        with pytest.raises(PrototypeResolutionError):
+            temp_db.get(ResearchProject, doc.id)
 
 
 class TestResearchContentFold:

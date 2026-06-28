@@ -1011,9 +1011,12 @@ def assign_document_prototype_impl(
 
     known_values = {
         v.key
-        for v in db.query(
-            ClassificationValue, dimension=ClassificationDimension.document_prototype
-        )
+        for v in db.query(ClassificationValue)
+        if v.dimension
+        in {
+            ClassificationDimension.document_prototype,
+            ClassificationDimension.node_class,
+        }
     }
     if known_values and request.prototype_key not in known_values:
         raise HTTPException(
