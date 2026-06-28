@@ -143,12 +143,28 @@ For a fuller walkthrough, see
 
 ## Chat
 
-Chat mode lets you ask questions about your documents in plain language and get
-answers grounded in the sources, with links back to the passages the answer drew
-from. It is a way to interrogate your material, and it always shows you where an
-answer came from so you can check it.
+Chat mode lets you ask questions about your documents in plain language. When the
+assistant pulls context from your library, the reply can show that retrieval step
+directly in the message so you can tell the answer was grounded in library search.
 
 *[Screenshot: a chat conversation with source links beside the answer.]*
+
+### When chat cites sources
+
+When a reply uses library retrieval, Fichero can show a line such as
+`Searched library · 5 documents · 3 claims · 2 entities` beneath the assistant's
+answer. That summary tells you, at a glance, whether the response drew on document
+matches only or also on knowledge-graph material connected to those documents.
+
+If source citations are available, the same message can also list the source
+documents used for the answer and show a relevance percentage for each one. In the
+more visual chat layouts, Fichero keeps the same cues in compact form: card-style
+messages show the retrieval summary plus a source count, while map-style messages
+show compact search and source badges.
+
+This metadata is currently attached to the reply that just came back from the
+server. If you reload an older conversation, the saved transcript keeps the message
+text, but the retrieval summary and source list are not yet restored.
 
 ## Search
 
