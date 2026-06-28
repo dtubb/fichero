@@ -45,6 +45,12 @@ struct PDFPageWithToolbar: View {
     @State private var isPinned = false
     @State private var pinnedDocumentId: String?
 
+    // Bounding-box annotation state (#2458). `isDrawingRegion` arms a region
+    // drag on the page; `pendingTool` carries the kind into the saved box.
+    @Environment(AnnotationStore.self) private var annotationStore: AnnotationStore
+    @State private var isDrawingRegion = false
+    @State private var pendingTool: ReaderAnnotationTool = .highlight
+
     /// Document ID to actually render — pinned value when locked, live prop otherwise.
     private var effectiveDocumentId: String {
         isPinned ? (pinnedDocumentId ?? documentId) : documentId
@@ -96,14 +102,56 @@ struct PDFPageWithToolbar: View {
         }
     }
 
-    /// Annotation tools are present in the unified reader toolbar but their
-    /// region-anchored creation + on-canvas rendering is owned by **#2458**.
-    /// Until that lands this is a clearly-marked stub so the section is visible
-    /// and tappable without creating orphan annotations.
+    /// Reader-toolbar annotation tools (#2458). Highlight/Note arm a region
+    /// drag on the PDF page; Bookmark is a whole-page marker.
     private func requestAnnotation(_ tool: ReaderAnnotationTool) {
-        Self.log.info(
-            "Reader annotation '\(tool.rawValue, privacy: .public)' on PDF — pending region capture + rendering (#2458)"
-        )
+        switch tool {
+        case .highlight, .note:
+            pendingTool = tool
+            isDrawingRegion = true
+        case .bookmark:
+            isDrawingRegion = false
+            persistRegion(nil, tool: .bookmark)
+        }
+    }
+
+    /// Saved region boxes (normalized `[x,y,w,h]`) for the page on screen.
+    private var pageRegionBoxes: [[Double]] {
+        annotationStore.annotations
+            .filter {
+                $0.documentId == effectiveDocumentId
+                    && $0.pageIndex == effectivePageIndex
+                    && $0.hasRegion
+            }
+            .compactMap(\.bbox)
+    }
+
+    private func persistRegion(_ box: [Double]?, tool: ReaderAnnotationTool) {
+        let kind: AnnotationKind = {
+            switch tool {
+            case .highlight: return .highlight
+            case .note: return .note
+            case .bookmark: return .bookmark
+            }
+        }()
+        let documentId = effectiveDocumentId
+        let pageIndex = effectivePageIndex
+        isDrawingRegion = false
+        Task {
+            _ = await annotationStore.addNote(
+                scope: .document(documentId),
+                text: "",
+                bbox: box,
+                pageIndex: pageIndex,
+                kind: kind
+            )
+            await annotationStore.loadAnnotations(for: .document(documentId), force: true)
+        }
+    }
+
+    private func loadAnnotations() {
+        let documentId = effectiveDocumentId
+        Task { await annotationStore.loadAnnotations(for: .document(documentId), force: true) }
     }
 
     // Body kept tiny; the page content and the reader toolbar are each broken
@@ -131,13 +179,26 @@ struct PDFPageWithToolbar: View {
                 },
                 zoomController: zoom,
                 pageController: pageNav,
-                onCursorMoved: { pos in loupePosition = pos }
+                onCursorMoved: { pos in loupePosition = pos },
+                regionBoxes: pageRegionBoxes,
+                isDrawingRegion: isDrawingRegion,
+                onCreateRegion: { box in persistRegion(box, tool: pendingTool) }
             )
-            .onAppear { localPageIndex = pageIndex }
+            .onAppear {
+                localPageIndex = pageIndex
+                loadAnnotations()
+            }
             .onChange(of: pageIndex) { _, newIndex in
                 // Primary unpinned pane: keep in step with parent selection.
                 // Secondary or pinned pane: ignore parent changes.
                 if !isSecondarySplitPane && !isPinned { localPageIndex = newIndex }
+            }
+            .onChange(of: effectiveDocumentId) { _, _ in
+                isDrawingRegion = false
+                loadAnnotations()
+            }
+            .onChange(of: annotationStore.changeToken) { _, _ in
+                loadAnnotations()
             }
 
             if loupeEnabled {
