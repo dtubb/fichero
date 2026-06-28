@@ -78,6 +78,8 @@ struct ContentView: View {
     // Runtime state - full objects for use in views
     @State var viewMode: AppViewMode = .library(nil)
     @State var detailDocument: Document?
+    /// Drives the distraction-free full-window reading overlay (#2520).
+    @State private var isImmersiveReading = false
     @State private var focusedDocument = FocusedDocument.shared
     /// The page document currently in view, updated only by scroll/page-flip
     /// events. Drives the inspector without re-rooting the WebKit pane (#1463).
@@ -369,6 +371,39 @@ struct ContentView: View {
                 ClaimFocusState.shared.selectClaim(claimId: claimId)
             }
         }
+        // Distraction-free full-window reading (#2520). Top-level overlay so it
+        // covers sidebar, inspector, and toolbar; ⌥⌘F enters, Esc exits.
+        .overlay { immersiveReadingOverlay }
+        .background {
+            Button("Enter Full-Screen Reading", action: enterImmersiveReading)
+                .keyboardShortcut("f", modifiers: [.command, .option])
+                .opacity(0)
+                .disabled(immersiveReadingDocument == nil)
+        }
+    }
+
+    private var immersiveReadingDocument: Document? {
+        pageFocusDocument ?? detailDocument
+    }
+
+    @ViewBuilder
+    private var immersiveReadingOverlay: some View {
+        if isImmersiveReading, let doc = immersiveReadingDocument {
+            ImmersiveReaderView(
+                document: doc,
+                isPresented: $isImmersiveReading,
+                siblings: documentStore.currentDocuments.filter {
+                    $0.fileType == .image || $0.docType == .page
+                },
+                onNavigate: { detailDocument = $0 }
+            )
+            .transition(.opacity)
+        }
+    }
+
+    private func enterImmersiveReading() {
+        guard immersiveReadingDocument != nil else { return }
+        isImmersiveReading = true
     }
 
     @ViewBuilder
