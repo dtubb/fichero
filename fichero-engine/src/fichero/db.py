@@ -170,6 +170,91 @@ _RESEARCH_TASK_NODE_KIND = "task"
 _RESEARCH_TASK_PROTOTYPE_KEY = "research_task"
 _RESEARCH_STEP_NODE_KIND = "step"
 _RESEARCH_STEP_PROTOTYPE_KEY = "research_step"
+_FOLDER_PROTOTYPE_KEY = "folder"
+_ROOM_PROTOTYPE_KEY = "room"
+
+_BUILTIN_DOCUMENT_PROTOTYPE_SEEDS: tuple[dict[str, Any], ...] = (
+    {
+        "key": "book",
+        "label": "Book",
+        "color": "#0A84FF",
+        "attributes": {},
+    },
+    {
+        "key": _FOLDER_PROTOTYPE_KEY,
+        "label": "Folder",
+        "color": "#8E8E93",
+        "attributes": {
+            "container_kind": "folder",
+            "supports_children": True,
+        },
+    },
+    {
+        "key": "letter",
+        "label": "Letter",
+        "color": "#30D158",
+        "attributes": {},
+    },
+    {
+        "key": "interview",
+        "label": "Interview",
+        "color": "#FF9500",
+        "attributes": {},
+    },
+    {
+        "key": "primary_source",
+        "label": "Primary Source",
+        "color": "#5856D6",
+        "attributes": {},
+    },
+    {
+        "key": _RESEARCH_WORKSPACE_PROTOTYPE_KEY,
+        "label": "Research Workspace",
+        "color": "#0A84FF",
+        "parent_key": _FOLDER_PROTOTYPE_KEY,
+        "attributes": {
+            "status": "active",
+            "created_by": "human",
+            "chat_scope": "container",
+            "carries_tasks": True,
+            "workspace_kind": "research",
+        },
+    },
+    {
+        "key": _ROOM_PROTOTYPE_KEY,
+        "label": "Room",
+        "color": "#BF5AF2",
+        "parent_key": _FOLDER_PROTOTYPE_KEY,
+        "attributes": {
+            "spatial_layout": True,
+            "workspace_kind": "room",
+        },
+    },
+    {
+        "key": "secondary_source",
+        "label": "Secondary Source",
+        "color": "#AF52DE",
+        "attributes": {},
+    },
+    {
+        "key": "map",
+        "label": "Map",
+        "color": "#64D2FF",
+        "attributes": {},
+    },
+    {
+        "key": "translation",
+        "label": "Translation",
+        "color": "#FFD60A",
+        "attributes": {},
+    },
+)
+
+_BUILTIN_NODE_CLASS_SEEDS: tuple[dict[str, str], ...] = (
+    {"key": "chapter", "label": "Chapter", "color": "#0A84FF"},
+    {"key": "container", "label": "Container", "color": "#5856D6"},
+    {"key": "note", "label": "Note", "color": "#FF9500"},
+)
 
 
 def _is_content_marker_only(text: str) -> bool:
@@ -446,6 +531,8 @@ class Database(DatabaseEmbeddingMixin):
         migrate_spatial_node_layout_fields(self.conn)
         migrate_references_table(self.conn)
         migrate_reference_provenance_table(self.conn)
+        self._seed_builtin_document_prototypes()
+        self._seed_builtin_node_classes()
         self._backfill_claim_links_to_library_links()
         self._backfill_saved_search_documents()
         self._backfill_research_workspace_documents()
@@ -883,15 +970,114 @@ class Database(DatabaseEmbeddingMixin):
         docs = self.query(Document, node_kind=_SAVED_SEARCH_NODE_KIND)
         return [self._saved_search_from_document(doc) for doc in docs]
 
+    def _seed_builtin_document_prototypes(self) -> None:
+        """Ensure the fold's built-in folder/container prototypes exist."""
+        if not hasattr(self.conn, "execute"):
+            return
+
+        from fichero.knowledge_models import (
+            ClassificationDimension,
+            ClassificationValue,
+        )
+
+        existing = {
+            value.key: value
+            for value in self.query(
+                ClassificationValue,
+                dimension=ClassificationDimension.document_prototype,
+            )
+        }
+        for seed in _BUILTIN_DOCUMENT_PROTOTYPE_SEEDS:
+            value = existing.get(seed["key"])
+            if value is None:
+                self.save(
+                    ClassificationValue(
+                        dimension=ClassificationDimension.document_prototype,
+                        key=seed["key"],
+                        label=seed["label"],
+                        parent_key=seed.get("parent_key"),
+                        attributes=dict(seed.get("attributes", {})),
+                        color=seed.get("color"),
+                        is_builtin=True,
+                    )
+                )
+                continue
+
+            changed = False
+            if value.parent_key != seed.get("parent_key"):
+                value.parent_key = seed.get("parent_key")
+                changed = True
+            merged_attributes = dict(value.attributes or {})
+            for attr_key, attr_value in seed.get("attributes", {}).items():
+                if attr_key not in merged_attributes:
+                    merged_attributes[attr_key] = attr_value
+                    changed = True
+            if value.attributes != merged_attributes:
+                value.attributes = merged_attributes
+                changed = True
+            if value.label != seed["label"]:
+                value.label = seed["label"]
+                changed = True
+            if value.color is None and seed.get("color") is not None:
+                value.color = seed["color"]
+                changed = True
+            if not value.is_builtin:
+                value.is_builtin = True
+                changed = True
+            if changed:
+                value.updated_at = datetime.now()
+                self.save(value)
+
+    def _seed_builtin_node_classes(self) -> None:
+        """Ensure the built-in node_class values exist in fresh DB fixtures."""
+        if not hasattr(self.conn, "execute"):
+            return
+
+        from fichero.knowledge_models import (
+            ClassificationDimension,
+            ClassificationValue,
+        )
+
+        existing = {
+            value.key: value
+            for value in self.query(
+                ClassificationValue,
+                dimension=ClassificationDimension.node_class,
+            )
+        }
+        for seed in _BUILTIN_NODE_CLASS_SEEDS:
+            if seed["key"] in existing:
+                continue
+            self.save(
+                ClassificationValue(
+                    dimension=ClassificationDimension.node_class,
+                    key=seed["key"],
+                    label=seed["label"],
+                    color=seed["color"],
+                    is_builtin=True,
+                )
+            )
+
+    def _effective_prototype_attributes(self, doc: Any) -> dict[str, Any]:
+        """Resolve inherited prototype attributes and overlay the node payload."""
+        from fichero.node_prototypes import resolve_prototype_attributes
+
+        attrs = dict(doc.attributes) if isinstance(doc.attributes, dict) else {}
+        if not doc.prototype_key:
+            return attrs
+        effective = resolve_prototype_attributes(self, doc.prototype_key)
+        effective.update(attrs)
+        return effective
+
     @staticmethod
-    def _research_project_from_document(doc: Any) -> BaseModel:
+    def _research_project_from_document(db: "Database", doc: Any) -> BaseModel:
         """Hydrate a ResearchProject view-model from its workspace document."""
         from fichero.research_models import ProjectStatus, ResearchProject
 
         if doc.prototype_key != _RESEARCH_WORKSPACE_PROTOTYPE_KEY:
             raise ValueError(f"Document {doc.id} is not a research workspace node")
 
-        attrs = doc.attributes if isinstance(doc.attributes, dict) else {}
+        attrs = db._effective_prototype_attributes(doc)
         description = attrs.get("description", "")
         if not isinstance(description, str):
             raise ValueError(
@@ -935,7 +1121,7 @@ class Database(DatabaseEmbeddingMixin):
         from fichero.models import Document
 
         docs = self.query(Document, prototype_key=_RESEARCH_WORKSPACE_PROTOTYPE_KEY)
-        return [self._research_project_from_document(doc) for doc in docs]
+        return [self._research_project_from_document(self, doc) for doc in docs]
 
     @staticmethod
     def _research_plan_from_document(doc: Any) -> BaseModel:
@@ -1119,7 +1305,7 @@ class Database(DatabaseEmbeddingMixin):
             doc = self.get(Document, id)
             if doc is None or doc.prototype_key != _RESEARCH_WORKSPACE_PROTOTYPE_KEY:
                 return None
-            return cast(T, self._research_project_from_document(doc))
+            return cast(T, self._research_project_from_document(self, doc))
         if model.__name__ == "ResearchPlan":
             from fichero.models import Document
 
