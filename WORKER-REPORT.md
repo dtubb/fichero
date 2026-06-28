@@ -26,3 +26,17 @@ Commit ea330da2, authored Claude.
 - Transcript modes: the icon/table/map oddity was in ChatMessagesList (NOT ComparisonDetailView, which has no view-mode switch). ChatMessagesList now always renders native bubbles. Removed unused MessageCard + MessageMapCard structs + the dead displayMode param through ChatView → ChatMessagesList + 3 call sites (preview, ResearchChatPane, ContentView+Navigation).
 - ChatMapGrid.swift now unreferenced (map mode only) — left in place (no safe pbxproj remove tool; never hand-edit pbxproj); flagged for a follow-up file-removal sweep on issue #1891.
 - swiftlint clean. Isolated build: 0 swiftc errors, all changed files compiled + linked; only failure = environmental engine-embed phase. NOT pushed.
+
+## UI Reform — Inspector & Annotation (#94) — 2026-06-28, f_fichero_claude_swiftui
+
+### #2536 — ArtifactPanel autosave drops trailing edit (data-loss race) — TESTS ADDED (fix pre-existing)
+Commit 09613dc3, authored Claude.
+- The CODE fix already landed on main (b031a234); it was guarded only by a source-level string match. The coalescing logic was untestable (private @State in ArtifactPanel).
+- Extracted serial+coalescing mechanics → new `Models/CoalescingSaveRunner.swift` (@Observable @MainActor, registered via add-swift-file.rb). ArtifactPanel.performSave delegates to it; behaviour-preserving (watermarks, redundant-PUT skip, isSaving spinner). Removed isSaving/activeSave/pendingResave @State.
+- HIGH test bar met: `CoalescingSaveRunnerTests` — edit-during-in-flight-save (fails on old drop, passes on fix), multiple-rapid-edits edge, loop-termination, isSaving state. Updated ArtifactPanel source guard to pin delegation.
+- prefer-raise: runner never silently drops; onSave is non-throwing so no error to swallow. Surfacing save FAILURES (throwing onSave + saveError) is a separate pre-existing gap (saveError is declared but never set) — out of scope, flagged.
+- Verification: app build green (isolated xcodebuild, no signing). My code + test files compile with ZERO diagnostics across all runs. Suite not RUN (no-test-on-this-machine rule); used build-for-testing to compile-verify.
+
+### Pre-existing test-suite breakage (separate commit b4b56a59)
+- FicheroTests target did NOT compile on main. Fixed 3 mechanical breaks: WorkflowStreamParsingTests (4× dropped Data() wrapper on JSON literals), WorkflowStreamConnectionTests (@MainActor on mapStatus test), WorkflowImportExportSurfaceTests (PartialRangeFrom → half-open Range).
+- REMAINING pre-existing break beyond scope: ChatWithDocsRoutingTests:21 — ChatWithDocsRoute has no member `sidebarShowsChat` (API mismatch, tied to in-flux chat-sidebar work). Recommend a dedicated test-suite-repair task. NOT pushed.
