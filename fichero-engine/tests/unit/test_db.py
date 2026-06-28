@@ -1388,10 +1388,15 @@ class TestEmbeddingsModelLoading:
 
         fake_fastembed = types.SimpleNamespace(TextEmbedding=FakeTextEmbedding)
         monkeypatch.setitem(sys.modules, "fastembed", fake_fastembed)
+        # _ensure_embedder registers the model via _register_fastembed_model_for_space
+        # (the embedding-space refactor, #2542); stub THAT — the previously-patched
+        # _register_pinned_fastembed_model is no longer on the call path, so the real
+        # `from fastembed.common.model_description import ...` ran against the fake
+        # fastembed namespace and raised (masked as "fastembed not installed").
         monkeypatch.setattr(
             db_embeddings_module,
-            "_register_pinned_fastembed_model",
-            lambda: None,
+            "_register_fastembed_model_for_space",
+            lambda _space: None,
         )
         monkeypatch.delenv("FICHERO_EMBED_MODEL", raising=False)
         db_embeddings_module._EMBEDDER_CACHE.clear()
