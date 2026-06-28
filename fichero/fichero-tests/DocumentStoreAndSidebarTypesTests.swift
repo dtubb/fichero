@@ -292,6 +292,19 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertFalse(remoteAccessSource.contains("QRCodeScannerSheet"))
     }
 
+    func testBackendSettingsAppliesValidEngineHostAndShowsInvalidURL() throws {
+        let settingsSource = try Self.appSource("Views/Settings/BackendSettingsView.swift")
+        let libraryManagerSource = try Self.appSource("Models/LibraryManager.swift")
+        let storageSource = try Self.appSource("Services/StorageServiceGenerated.swift")
+
+        XCTAssertTrue(settingsSource.contains("Text(\"Invalid URL\")"))
+        XCTAssertTrue(settingsSource.contains(".disabled(hostIsInvalid)"))
+        XCTAssertTrue(settingsSource.contains("appState.reconfigureGeneratedClientsForCurrentHost()"))
+        XCTAssertTrue(settingsSource.contains("libraryManager.reconfigureGeneratedClientsForCurrentHost()"))
+        XCTAssertTrue(libraryManagerSource.contains("storageService.clearAll()"))
+        XCTAssertTrue(storageSource.contains("func clearAll()"))
+    }
+
     func testNotesLiveInDocumentInspectorAndStandaloneBrowserRetired() throws {
         // Notes moved into the per-document inspector (Notes tab → DocumentNotesTab,
         // #1500). The standalone library-wide browser sheet and its Data-menu entry

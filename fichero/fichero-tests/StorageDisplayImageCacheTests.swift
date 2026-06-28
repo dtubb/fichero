@@ -78,6 +78,21 @@ struct StorageDisplayImageCacheTests {
         #expect(service.displayPlatformImageCacheCount == 1)
     }
 
+    @Test("clearAll empties storage caches on engine host switch")
+    func clearAllEmptiesStorageCaches() {
+        let service = makeService()
+        let img = dummyImage()
+        service.cacheThumbnail(Image(systemName: "photo"), for: "doc-thumb")
+        service.cacheDisplayPlatformImage(img, for: "doc-display")
+
+        service.clearAll()
+
+        #expect(service.thumbnailCacheCount == 0)
+        #expect(service.displayPlatformImageCacheCount == 0)
+        #expect(service.cachedThumbnail(for: "doc-thumb") == nil)
+        #expect(service.cachedDisplayPlatformImage(for: "doc-display") == nil)
+    }
+
     // MARK: - #2459 edit-save / cache-invalidation wiring
 
     @Test("onEditApplied callback clears display cache for the edited document (#2459)")
