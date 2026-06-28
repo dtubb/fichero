@@ -2278,6 +2278,18 @@ def register_generated_openapi_commands(
             return client.request("GET", path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("list-geocoded-points-for-a")
+    def documents_list_geocoded_points_for_a_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+    ) -> None:
+        """List geocoded points for a document (GET /api/documents/{doc_id}/geo)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/documents/{doc_id}/geo"
+            params = None
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("move")
     def documents_move_put(
         ctx: typer.Context,
