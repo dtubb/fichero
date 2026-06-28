@@ -12,7 +12,9 @@ from fichero.models import DocType, Document
 from fichero.research_models import (
     ResearchPlan,
     ResearchProject,
+    ResearchStep,
     ResearchTask,
+    StepTool,
 )
 
 
@@ -34,6 +36,10 @@ def _make_plan(plan_id: str = "plan-1", project_id: str = "proj-1") -> ResearchP
 
 def _make_task(task_id: str = "task-1", plan_id: str = "plan-1") -> ResearchTask:
     return ResearchTask(id=task_id, plan_id=plan_id, name="Search literature")
+
+
+def _make_step(step_id: str = "step-1", task_id: str = "task-1") -> ResearchStep:
+    return ResearchStep(id=step_id, task_id=task_id, tool=StepTool.web_search, label="Search")
 
 
 # ---------------------------------------------------------------------------
@@ -371,3 +377,172 @@ class TestListProjectTasksHandler:
         assert result.count == 3
         plan_ids = {t.plan_id for t in result.items}
         assert plan_ids == {"plan-a", "plan-b"}
+
+
+class TestResearchContentHandlers:
+    async def test_list_plans_tasks_steps_read_folded_document_nodes(self, db):
+        from fichero.api.routes.research_crud import list_plans, list_tasks, list_steps
+
+        db.save(
+            Document(
+                id="ws-folded",
+                name="Workspace",
+                doc_type=DocType.folder,
+                node_kind="workspace",
+                prototype_key="research_workspace",
+                is_workspace=True,
+                attributes={
+                    "description": "",
+                    "status": "active",
+                    "created_by": "human",
+                    "library_destination_folder_id": None,
+                    "metadata": {},
+                },
+            )
+        )
+        db.save(
+            Document(
+                id="plan-folded",
+                parent_id="ws-folded",
+                name="Plan Folded",
+                doc_type=DocType.folder,
+                node_kind="plan",
+                prototype_key="research_plan",
+                attributes={
+                    "description": "plan",
+                    "status": "active",
+                    "order_index": 1,
+                    "metadata": {"topic": "letters"},
+                },
+            )
+        )
+        db.save(
+            Document(
+                id="task-folded",
+                parent_id="plan-folded",
+                name="Task Folded",
+                doc_type=DocType.folder,
+                node_kind="task",
+                prototype_key="research_task",
+                attributes={
+                    "description": "task",
+                    "status": "pending",
+                    "priority": 2,
+                    "assigned_to": "agent",
+                    "metadata": {},
+                    "completed_at": None,
+                },
+            )
+        )
+        db.save(
+            Document(
+                id="step-folded",
+                parent_id="task-folded",
+                name="Step Folded",
+                doc_type=DocType.file,
+                node_kind="step",
+                prototype_key="research_step",
+                attributes={
+                    "tool": "web_search",
+                    "description": "step",
+                    "config": {"query": "letters"},
+                    "status": "pending",
+                    "result": {},
+                    "error": None,
+                    "order_index": 0,
+                    "completed_at": None,
+                },
+            )
+        )
+
+        plans = await list_plans("ws-folded", db=db)
+        assert plans.count == 1
+        assert plans.items[0].id == "plan-folded"
+
+        tasks = await list_tasks("plan-folded", db=db)
+        assert tasks.count == 1
+        assert tasks.items[0].id == "task-folded"
+
+        steps = await list_steps("task-folded", db=db)
+        assert steps.count == 1
+        assert steps.items[0].id == "step-folded"
+
+    def test_plan_task_step_appear_in_document_children_hierarchy(self, client, db):
+        workspace = Document(
+            id="ws-tree",
+            name="Workspace Tree",
+            doc_type=DocType.folder,
+            node_kind="workspace",
+            prototype_key="research_workspace",
+            is_workspace=True,
+        )
+        plan = Document(
+            id="plan-tree",
+            parent_id="ws-tree",
+            name="Plan Tree",
+            doc_type=DocType.folder,
+            node_kind="plan",
+            prototype_key="research_plan",
+            attributes={"description": "", "status": "draft", "order_index": 0, "metadata": {}},
+        )
+        task = Document(
+            id="task-tree",
+            parent_id="plan-tree",
+            name="Task Tree",
+            doc_type=DocType.folder,
+            node_kind="task",
+            prototype_key="research_task",
+            attributes={
+                "description": "",
+                "status": "pending",
+                "priority": 0,
+                "assigned_to": None,
+                "metadata": {},
+                "completed_at": None,
+            },
+        )
+        step = Document(
+            id="step-tree",
+            parent_id="task-tree",
+            name="Step Tree",
+            doc_type=DocType.file,
+            node_kind="step",
+            prototype_key="research_step",
+            attributes={
+                "tool": "web_search",
+                "description": "",
+                "config": {},
+                "status": "pending",
+                "result": {},
+                "error": None,
+                "order_index": 0,
+                "completed_at": None,
+            },
+        )
+        db.save(workspace)
+        db.save(plan)
+        db.save(task)
+        db.save(step)
+
+        plan_children = client.get("/api/documents/ws-tree/children")
+        assert plan_children.status_code == 200
+        assert [item["id"] for item in plan_children.json()["items"]] == ["plan-tree"]
+
+        task_children = client.get("/api/documents/plan-tree/children")
+        assert task_children.status_code == 200
+        assert [item["id"] for item in task_children.json()["items"]] == ["task-tree"]
+
+        step_children = client.get("/api/documents/task-tree/children")
+        assert step_children.status_code == 200
+        assert [item["id"] for item in step_children.json()["items"]] == ["step-tree"]
+
+    async def test_missing_folded_plan_raises_not_found(self, db):
+        from fichero.api.routes.research_crud import get_plan
+
+        db.save(_make_plan("legacy-plan", "proj-1"))
+        db._execute("DELETE FROM documents WHERE id = $id", {"id": "legacy-plan"})
+
+        with pytest.raises(HTTPException) as exc:
+            await get_plan("legacy-plan", db=db)
+
+        assert exc.value.status_code == 404
