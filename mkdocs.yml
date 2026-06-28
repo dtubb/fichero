@@ -1,20 +1,22 @@
 # Fichero documentation + marketing site (MkDocs + Material).
 #
-# ONE site, ONE folder. The curated public site lives as REAL files under
-# `site/docs/` — the folder IS the source of truth, so browsing `site/docs/` on
-# GitHub shows exactly what publishes. There is no exclude_docs allowlist and no
-# mirroring of the repo's internal `docs/` tree (that stays the agent working
-# area and is never published).
+# ONE folder: `docs/`. It is BOTH what mkdocs publishes AND what contributors and
+# agents read — browsing `docs/` on GitHub shows the real source. The curated
+# public pages (user manual, developer/contributor docs, api-reference,
+# how-its-built, faq, index) and the deeper architecture/runbook material live
+# side by side; only the pages listed in `nav` are surfaced as site navigation,
+# the rest remain buildable reference. Agent working scratch lives in
+# `agent-work/` and is never part of this folder or the build.
 #
 # --- How to use ------------------------------------------------------------
 #   pip install -r requirements-docs.txt
 #   mkdocs serve          # live preview at http://127.0.0.1:8000
-#   mkdocs build --strict # production build into ./site/_build (gitignored)
+#   mkdocs build --strict # production build into ./_site_build (gitignored)
 #
 # --- Publishing / domain swap ----------------------------------------------
 #   1. Set `site_url` below to the real domain (currently a placeholder).
 #   2. For GitHub Pages on a custom domain, add a CNAME file (create
-#      site/docs/CNAME containing the bare domain so it's copied into the build,
+#      docs/CNAME containing the bare domain so it's copied into the build,
 #      or set the Pages custom domain in repo settings).
 #   3. `mkdocs gh-deploy` builds and pushes to the gh-pages branch.
 
@@ -26,10 +28,10 @@ site_url: https://fichero.example/
 
 repo_url: https://github.com/dtubb/fichero
 repo_name: dtubb/fichero
-edit_uri: edit/main/site/docs/
+edit_uri: edit/main/docs/
 
-docs_dir: site/docs
-site_dir: site/_build
+docs_dir: docs
+site_dir: _site_build
 
 theme:
   name: material
