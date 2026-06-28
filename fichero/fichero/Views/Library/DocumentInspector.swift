@@ -210,6 +210,8 @@ struct DocumentInspector: View {
             DocumentInspectorAnnotationsTab(document: doc)
         case .notes:
             DocumentNotesTab(document: doc)
+        case .interpretations:
+            DocumentInterpretationsTab(document: doc)
         case .entities:
             entitiesTab(for: doc)
         case .knowledgeGraph:
@@ -226,8 +228,8 @@ struct DocumentInspector: View {
     private func availableTabs(for doc: Document?) -> [InspectorTab] {
         guard let doc else { return InspectorTab.allCases }
         var tabs: [InspectorTab] = [
-            .content, .annotations, .notes, .knowledgeGraph, .outline, .entities,
-            .citations
+            .content, .annotations, .notes, .interpretations, .knowledgeGraph,
+            .outline, .entities, .citations
         ]
         if doc.fileType == .image || doc.fileType == .pdf || doc.docType == .page {
             tabs.append(.edits)

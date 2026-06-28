@@ -285,12 +285,12 @@ struct KnowledgeGraphInspectorSection: View {
             Divider()
                 .padding(.vertical, 4)
             KGCurationHistorySection(entityService: entityService)
-            Divider()
-                .padding(.vertical, 4)
-            DocumentInterpretationsSection(
-                documentId: documentId,
-                entityService: entityService
-            )
+            // Interpretations (the user's own reading) deliberately do NOT live
+            // here — the KG tab shows ontology + hermeneutic facts (what the AI
+            // and the sources say), never the user's interpretation presented as
+            // fact (AI-integrity north star). They now render in the Notes tab
+            // ("Notes-adjacent", per Daniel) via DocumentInterpretationsSection.
+            // #2470.
         }
         .task(id: documentId) { await loadStatements() }
         // Resync when any claim mutates anywhere — ClaimStore bumps its

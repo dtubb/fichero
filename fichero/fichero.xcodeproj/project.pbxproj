@@ -22,6 +22,7 @@
 		023 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 122 /* ChatService.swift */; };
 		025 /* SavedSearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 124 /* SavedSearchService.swift */; };
 		028 /* ModelService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 127 /* ModelService.swift */; };
+		02C3632FB97086976DD89BBE /* DocumentInterpretationsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDCFD7D8095D23EBDA3F42D9 /* DocumentInterpretationsTab.swift */; };
 		02DC70ACB03D52EDE04B84C3 /* SpatialLibraryProjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC62467E297F09DF404643C1 /* SpatialLibraryProjector.swift */; };
 		035 /* WorkflowTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 134 /* WorkflowTypes.swift */; };
 		036 /* WorkflowStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 135 /* WorkflowStore.swift */; };
@@ -1040,6 +1041,7 @@
 		BC62467E297F09DF404643C1 /* SpatialLibraryProjector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpatialLibraryProjector.swift; sourceTree = "<group>"; };
 		BCB24ED93772AA96CF319D4B /* ChatDocumentDropPayload.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ChatDocumentDropPayload.swift; sourceTree = "<group>"; };
 		BD8FD4EEA01D859C3DB5EADB /* InspectorPresenter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InspectorPresenter.swift; sourceTree = "<group>"; };
+		BDCFD7D8095D23EBDA3F42D9 /* DocumentInterpretationsTab.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocumentInterpretationsTab.swift; sourceTree = "<group>"; };
 		BE29C018865C9A1538200D8E /* ResearchProjectListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ResearchProjectListView.swift; sourceTree = "<group>"; };
 		BF91C082286A2B7BB74E438D /* LibraryManager+Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryManager+Persistence.swift"; sourceTree = "<group>"; };
 		C0104EC0811F842CAC3CC887 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GeneralSettingsView.swift; path = fichero/Views/Settings/GeneralSettingsView.swift; sourceTree = SOURCE_ROOT; };
@@ -1997,6 +1999,7 @@
 				9037096857E2AE5F3339A8DC /* DocumentInspectorInfoTab+Workflow.swift */,
 				715408B079BD7610A53FA99C /* DocumentInspectorInfoTab+Prototype.swift */,
 				37003B253D97CBE012D3A811 /* DocumentInspectorInfoTab+Sharing.swift */,
+				BDCFD7D8095D23EBDA3F42D9 /* DocumentInterpretationsTab.swift */,
 			);
 			path = DocumentInspector;
 			sourceTree = "<group>";
@@ -2791,6 +2794,7 @@
 				FBDF0E2093BFFEFD360F3CB0 /* RepresentationStore.swift in Sources */,
 				3781E7E2FCBF08F37B93599C /* RepresentationPicker.swift in Sources */,
 				32994A78CFC2F20F3A656E27 /* RepresentationView.swift in Sources */,
+				02C3632FB97086976DD89BBE /* DocumentInterpretationsTab.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {

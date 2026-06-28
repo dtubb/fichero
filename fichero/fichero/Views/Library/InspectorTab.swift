@@ -17,6 +17,7 @@ enum InspectorTab: String, CaseIterable, Identifiable {
     case outline = "Outline"
     case annotations = "Annotations"
     case notes = "Notes"
+    case interpretations = "Interpretation"
     case entities = "Entities"
     case knowledgeGraph = "Knowledge Graph"
     case citations = "Citations"
@@ -31,6 +32,7 @@ enum InspectorTab: String, CaseIterable, Identifiable {
         case .outline: return "list.bullet.indent"
         case .annotations: return "highlighter"
         case .notes: return "pencil.and.scribble"
+        case .interpretations: return "quote.bubble"
         case .entities: return "person.text.rectangle"
         case .knowledgeGraph: return "point.3.connected.trianglepath.dotted"
         case .citations: return "text.quote"
@@ -50,10 +52,12 @@ enum InspectorTab: String, CaseIterable, Identifiable {
             return "Annotations — view and edit highlights and notes on this document"
         case .notes:
             return "Notes — free-text research notes linked to this document"
+        case .interpretations:
+            return "Interpretation — your own reading of this document, kept separate from the AI's facts and the source's quotations"
         case .entities:
             return "Entities — extracted people, places, organizations, and concepts"
         case .knowledgeGraph:
-            return "Knowledge graph — structured SVO claims and interpretations for this document"
+            return "Knowledge graph — structured SVO claims and provenance for this document"
         case .citations:
             return "Citations — documents this one cites and documents that cite it; includes the document's extracted bibliography"
         case .edits:
