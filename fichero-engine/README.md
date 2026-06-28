@@ -7,8 +7,8 @@ backed by DuckDB (structured metadata) and LanceDB (vector embeddings).
 
 See the [top-level README](../README.md) for the whole-system picture, the root
 [AGENTS.md](../AGENTS.md) for build/lint/test rules and commit attribution,
-[`site/docs/contributor/architecture-overview.md`](../site/docs/contributor/architecture-overview.md)
-for the deep dive, and [site/docs/user/](../site/docs/user/) for the user manual.
+[`docs/contributor/architecture-overview.md`](../docs/contributor/architecture-overview.md)
+for the deep dive, and [docs/user/](../docs/user/) for the user manual.
 This file keeps only what is specific to the engine: its layout and how it works.
 
 ## What lives here
@@ -65,7 +65,7 @@ and `ruff check fichero-engine/src/`, both with `PYTHONPATH=fichero-engine/src`.
 
 Backend-specific essentials live in [AGENTS.md](AGENTS.md). For the repo-wide
 workflow, see [CONTRIBUTING.md](../CONTRIBUTING.md) and
-[site/docs/contributor/setup-and-contributing.md](../site/docs/contributor/setup-and-contributing.md).
+[docs/contributor/setup-and-contributing.md](../docs/contributor/setup-and-contributing.md).
 
 ## How it works — workflows + knowledge graph
 
@@ -87,7 +87,7 @@ workflow, see [CONTRIBUTING.md](../CONTRIBUTING.md) and
 - **Action registry.** Engine mutations flow through a single typed action layer
   (`registry.invoke`) that emits change events and writes an audit record —
   shared by the API, CLI, and (planned) chat/App-Intent tools. See
-  `site/docs/contributor/action-registry.md`.
+  `docs/contributor/action-registry.md`.
 
 ## MCP server
 

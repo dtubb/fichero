@@ -10,17 +10,17 @@ This documentation is organized for two audiences.
 
 Researchers, historians, archivists, and anyone using the Fichero app.
 
-- [What Fichero Is](../site/docs/user/what-fichero-is.md) — philosophy, the three research layers (READ/THINK/WRITE), and the AI approach. Start here.
-- [Install](../site/docs/user/install.md) — system requirements and first launch.
-- [Getting Started](../site/docs/user/getting-started.md) — create a library, understand the main window.
-- [Importing Documents](../site/docs/user/importing-documents.md) — link vs copy, drag and drop, supported file types.
-- [Reading, Transcription, and Editing](../site/docs/user/reading-and-editing.md) — reading surfaces, extracted content, annotations, notes.
-- [Search, Entities, and the Knowledge Graph](../site/docs/user/search-knowledge-graph.md) — semantic search, scoped queries, entity and claim inspection.
-- [Curation, Notes, Annotations, and Workflows](../site/docs/user/curation-notes-workflows.md) — entity and claim curation, running workflows, activity.
-- [AI, Models, and Privacy](../site/docs/user/ai-and-privacy.md) — local vs cloud models, what the AI does, data stays on your Mac, iPad access.
+- [What Fichero Is](user/what-fichero-is.md) — philosophy, the three research layers (READ/THINK/WRITE), and the AI approach. Start here.
+- [Install](user/install.md) — system requirements and first launch.
+- [Getting Started](user/getting-started.md) — create a library, understand the main window.
+- [Importing Documents](user/importing-documents.md) — link vs copy, drag and drop, supported file types.
+- [Reading, Transcription, and Editing](user/reading-and-editing.md) — reading surfaces, extracted content, annotations, notes.
+- [Search, Entities, and the Knowledge Graph](user/search-knowledge-graph.md) — semantic search, scoped queries, entity and claim inspection.
+- [Curation, Notes, Annotations, and Workflows](user/curation-notes-workflows.md) — entity and claim curation, running workflows, activity.
+- [AI, Models, and Privacy](user/ai-and-privacy.md) — local vs cloud models, what the AI does, data stays on your Mac, iPad access.
 - [Tailscale Private Transport](./remote-backend-tailscale.md) — advanced tailnet-only remote engine setup; no public web surface.
 
-Full user manual: [site/docs/user/README.md](../site/docs/user/README.md)
+Full user manual: [docs/user/README.md](user/README.md)
 
 ---
 
@@ -28,16 +28,16 @@ Full user manual: [site/docs/user/README.md](../site/docs/user/README.md)
 
 Contributors and anyone building on or integrating with Fichero.
 
-- [Architecture Overview](../site/docs/contributor/architecture-overview.md) — the two-part system: SwiftUI frontend + Python engine.
-- [OpenAPI and Generated Clients](../site/docs/contributor/openapi-and-clients.md) — the contract path from Python to Swift.
-- [Data Layer, Search, and Knowledge Graph Storage](../site/docs/contributor/data-search-and-kg.md) — DuckDB, LanceDB, entity writing.
-- [Workflows, Activity, and Curation](../site/docs/contributor/workflows-activity-and-curation.md) — workflow execution, annotations API, curation.
-- [Action Registry](../site/docs/contributor/action-registry.md) — the single audited write path for all mutations.
-- [Security Model](../site/docs/contributor/security-model.md) — local binding, shared-secret token, multi-user ACL, Tailscale transport.
+- [Architecture Overview](contributor/architecture-overview.md) — the two-part system: SwiftUI frontend + Python engine.
+- [OpenAPI and Generated Clients](contributor/openapi-and-clients.md) — the contract path from Python to Swift.
+- [Data Layer, Search, and Knowledge Graph Storage](contributor/data-search-and-kg.md) — DuckDB, LanceDB, entity writing.
+- [Workflows, Activity, and Curation](contributor/workflows-activity-and-curation.md) — workflow execution, annotations API, curation.
+- [Action Registry](contributor/action-registry.md) — the single audited write path for all mutations.
+- [Security Model](contributor/security-model.md) — local binding, shared-secret token, multi-user ACL, Tailscale transport.
 - [Tailscale Private Transport](./remote-backend-tailscale.md) — loopback-only engine plus `tailscale serve`, never Funnel or public bind.
-- [Setup and Contributing](../site/docs/contributor/setup-and-contributing.md) — build commands, OpenAPI sync, contributing mechanics.
+- [Setup and Contributing](contributor/setup-and-contributing.md) — build commands, OpenAPI sync, contributing mechanics.
 
-Full contributor index: [site/docs/contributor/README.md](../site/docs/contributor/README.md)
+Full contributor index: [docs/contributor/README.md](contributor/README.md)
 
 ---
 

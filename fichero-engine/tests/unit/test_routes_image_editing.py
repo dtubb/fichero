@@ -10,6 +10,7 @@ import httpx
 import pytest
 from PIL import Image
 
+from fichero.api.auth import initialize_token
 from fichero.api.main import app
 from fichero.models import DocType, Document, FileType
 
@@ -226,7 +227,13 @@ class TestImageEditChainRoutes:
         monkeypatch.setattr(routes, "_apply_operation", slow_apply_operation)
 
         transport = httpx.ASGITransport(app=app)
-        headers = {"X-Fichero-Library-Path": str(test_package)}
+        # The unit conftest re-attaches the auth middleware; a raw httpx
+        # AsyncClient (unlike TestClient) isn't covered by the conftest token
+        # injection, so carry the bootstrap bearer token explicitly.
+        headers = {
+            "X-Fichero-Library-Path": str(test_package),
+            "Authorization": f"Bearer {initialize_token()}",
+        }
         async with httpx.AsyncClient(
             transport=transport, base_url="http://testserver", headers=headers
         ) as async_client:

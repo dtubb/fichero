@@ -19,6 +19,30 @@ from fichero.bind_host import resolve_bind_host
 
 logger = logging.getLogger(__name__)
 
+# The Swift app pins https://127.0.0.1:8765 fail-closed (#2376/#2370), so a
+# plain-HTTP engine on that port is silently unreachable — the Activity SSE
+# stream and every loopback call die with no error (#2538).
+APP_LOOPBACK_PORT = 8765
+
+
+def _warn_if_app_unreachable(scheme: str, port: int) -> None:
+    """Loudly flag the HTTP-vs-pinned-HTTPS mismatch instead of a dead stream.
+
+    Plain HTTP is a legitimate CLI-only dev choice, so we warn rather than
+    raise — but we make the mismatch impossible to miss (Daniel's rule:
+    log loudly, never fail silently).
+    """
+    if scheme == "http" and port == APP_LOOPBACK_PORT:
+        logger.warning(
+            "Engine is serving PLAIN HTTP on :%d but the Swift app pins "
+            "https://127.0.0.1:%d fail-closed (#2538) — the Activity stream "
+            "and all loopback calls from the app will silently fail. "
+            "Launch via scripts/start_backend.sh (prepares loopback TLS), or "
+            "set FICHERO_TLS_CERTFILE/FICHERO_TLS_KEYFILE, to serve HTTPS.",
+            port,
+            port,
+        )
+
 
 def main(argv: list[str] | None = None) -> None:
     """Start the backend or prepare remote-access TLS material."""
@@ -85,6 +109,7 @@ def main(argv: list[str] | None = None) -> None:
     scheme = "https" if "ssl_certfile" in config else "http"
     logger.info("Starting Fichero backend on %s://%s:%d", scheme, bind_host, config["port"])
     logger.info("Hot-reload: %s", config["reload"])
+    _warn_if_app_unreachable(scheme, int(config["port"]))
 
     uvicorn.run(**config)
 

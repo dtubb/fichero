@@ -51,14 +51,13 @@ if [[ -z "$version" ]]; then
 fi
 
 today="$(date +%Y%m%d)"
-compact="${version//[-.]/}"
 
 echo "Fichero version-date check:"
 echo "  current version: $version"
 echo "  source: $source"
 
-if [[ "$compact" =~ ^20[0-9]{6}([a-zA-Z0-9]+)?$ ]]; then
-  release_date="${compact:0:8}"
+if [[ "$version" =~ ^(20[0-9]{2})\.([0-9]{2})\.([0-9]{2})(\.[0-9]+)?(-[A-Za-z0-9]+)?$ ]]; then
+  release_date="${BASH_REMATCH[1]}${BASH_REMATCH[2]}${BASH_REMATCH[3]}"
   if [[ "$release_date" > "$today" ]]; then
     echo "  verdict: FAIL - dated version is in the future ($release_date > $today)."
     exit 1
@@ -76,6 +75,6 @@ if [[ "$version" =~ ^[[:space:]]*$ ]]; then
   exit 1
 fi
 
-echo "  verdict: WARN - version is present but not date-shaped."
-echo "  stricter check needs the exact approved Fichero date format (for example YYYYMMDD vs YYYY.MM.DD plus suffix policy)."
-exit 0
+echo "  verdict: FAIL - version is present but not date-shaped."
+echo "  expected: YYYY.MM.DD, optional .N same-day build, optional -suffix."
+exit 1

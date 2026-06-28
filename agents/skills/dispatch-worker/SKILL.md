@@ -13,7 +13,7 @@ from in-repo worktrees; false-green incremental builds; stale-tree pytest).
 - **Worktrees live ONLY under `~/code/fichero-worktrees/<name>`** — a single isolated
   parent dir, NEVER bare siblings `~/code/fichero-<name>`. NEVER the Agent tool's
   `isolation: worktree` (lands in `.claude/worktrees/` inside the repo, which
-  `uvicorn --reload` watches). Create: `git worktree add ~/code/fichero-worktrees/<name> -b <branch> 0.0.2`.
+  `uvicorn --reload` watches). Create: `git worktree add ~/code/fichero-worktrees/<name> -b <branch> main`.
 - **DELETION SAFETY (2026-06-09 — I rm-deleted the separate `fichero-search` project):**
   remove worktrees with `git worktree remove --force <path>` ONLY (touches only registered
   worktrees). **NEVER `rm -rf` a `~/code/` path, and NEVER glob-delete `~/code/fichero-*`** —
@@ -33,8 +33,8 @@ from in-repo worktrees; false-green incremental builds; stale-tree pytest).
   tests, commit, and report."* See [[workers-write-tests-manager-runs-them]].
 - **Commit attribution + docs placement** (AGENTS.md): the dispatch brief MUST tell
   the worker to commit as ITSELF (author = the agent, committer = human, credit Daniel
-  via `Co-Authored-By`) and to place any docs by audience (public → `site/docs/`,
-  internal dev → `docs/`, agent scratch → `agent-work/`, crud → `git rm`).
+  via `Co-Authored-By`) and to place any docs in `docs/` (all documentation, public
+  pages go in `mkdocs.yml` nav), agent scratch in `agent-work/`, crud → `git rm`.
 - jcodemunch index is stale → tell the worker to verify-by-reading-disk.
 - **PARTITION BY FILE-SET before fanning out (2026-06-09 lesson).** Parallel is only
   free when lanes touch DISJOINT files. Two backend lanes that both rewrote
@@ -49,7 +49,7 @@ from in-repo worktrees; false-green incremental builds; stale-tree pytest).
 
 ## 1. Create the external worktree
 ```bash
-git worktree add ~/code/fichero-worktrees/<name> -b <branch> 0.0.2
+git worktree add ~/code/fichero-worktrees/<name> -b <branch> main
 ```
 
 ## 2. Launch via tmux + send-keys (NOT `codex exec` — it hangs headless)

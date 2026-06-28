@@ -6,7 +6,7 @@ accepts input, and talks to the FastAPI engine over pinned HTTPS loopback. The
 logic — ingest, search, knowledge graph, workflows — lives in the engine, not
 here. See the [top-level README](../README.md) for the whole-system picture, the
 root [AGENTS.md](../AGENTS.md) for build/lint/test rules and commit attribution, and
-[site/docs/contributor/](../site/docs/contributor/) for the developer docs. This file
+[docs/contributor/](../docs/contributor/) for the developer docs. This file
 keeps only what is specific to the app: its layout and key concepts.
 
 ## What lives here

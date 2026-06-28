@@ -11,8 +11,8 @@ humanities researcher's needs.
 Daniel works with primary sources: scanned archives, field notes, interview
 transcripts, historical documents. Fichero is the tool he wanted for that work.
 He directs what gets built and how it should feel, and he builds it
-conversationally with AI coding agents (see [How It's Built](site/docs/how-its-built.md)
-and the [FAQ](site/docs/faq.md)). He does not write the code by hand, and he
+conversationally with AI coding agents (see [How It's Built](docs/how-its-built.md)
+and the [FAQ](docs/faq.md)). He does not write the code by hand, and he
 judges every release by using the app on his own Mac. Direction comes in plain
 language: what the app should do, where it feels wrong, what to work on next.
 
@@ -30,7 +30,7 @@ language: what the app should do, where it feels wrong, what to work on next.
 
 Fichero is open source and built in the open. Issues and pull requests are
 welcome on [GitHub](https://github.com/dtubb/fichero). For how the project is
-developed, see [How It's Built](site/docs/how-its-built.md). For setup and
-conventions, see the [developer docs](site/docs/contributor/).
+developed, see [How It's Built](docs/how-its-built.md). For setup and
+conventions, see the [developer docs](docs/contributor/).
 
 [Tubb Lab](https://tubblab.com) · [Daniel Tubb](https://dtubb.github.io)

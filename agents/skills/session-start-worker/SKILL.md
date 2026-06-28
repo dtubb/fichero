@@ -82,9 +82,9 @@ Only use `Read` immediately before `Edit`/`Write` on a file you already located.
 
    Co-Authored-By: Daniel Tubb <dtubb@me.com>"
    ```
-   Codex workers use `user.name="Codex"`. Place any docs you write by audience
-   (AGENTS.md → Docs Placement): public → `site/docs/`, internal dev reference →
-   `docs/`, agent scratch → `agent-work/`, crud → `git rm`.
+   Codex workers use `user.name="Codex"`. Place any docs you write in `docs/`
+   (AGENTS.md → Docs Placement; public pages go in `mkdocs.yml` nav), agent scratch
+   in `agent-work/`, crud → `git rm`.
 8. Push branch.
 9. Run `/complete-task N` to close the task.
 

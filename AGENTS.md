@@ -136,21 +136,23 @@ and Daniel is credited as the human who directed and reviewed it.
 
 ## Docs Placement
 
-Four homes, one rule each. When you write or move a doc, pick the home by audience:
+ONE docs folder, `docs/` (the MkDocs `docs_dir`). It is BOTH the published site AND
+the reference contributors read on GitHub. Only the pages listed in `mkdocs.yml`
+`nav` are surfaced as site navigation; the deeper architecture and runbook material
+lives alongside them and stays buildable reference. So:
 
-- **`site/docs/`** — the PUBLIC MkDocs site (`docs_dir`). Curated user manual,
-  contributor docs, API reference, and the How It's Built page. This is what ships
-  to the public site. Put public-worthy content here.
-- **`docs/`** — INTERNAL dev reference that is not published: durable architecture
-  and development guides, runbooks, module references. Never published by MkDocs.
-- **`agent-work/`** — AGENT scratch: session notes, handoffs, QA logs, reviews,
-  validation reports, audits, triage, design explorations, proposals. Not published.
+- **`docs/`** — all durable documentation: the curated user manual (`docs/user/`),
+  contributor docs (`docs/contributor/`), API reference, How It's Built, and the
+  architecture/runbook reference (`docs/architecture/`, `docs/release/`, etc.). Put
+  public-worthy pages in `nav`; leave internal reference out of `nav` but in `docs/`.
+- **`agent-work/`** — AGENT scratch, never part of `docs/` or the build: session
+  notes, handoffs, QA logs, reviews, validation reports, audits, triage, design
+  explorations, proposals.
 - **delete** — pure crud or superseded material: `git rm` it.
 
 When unsure between `docs/` and `agent-work/`: point-in-time, dated, "what I found"
-material is agent-work; durable "how the system works" reference is `docs/`. Do not
-promote raw internal design docs into `site/docs/`; the public site carries curated
-versions only.
+material is agent-work; durable "how the system works" reference is `docs/`. Keep raw
+internal design docs out of `nav` rather than out of `docs/`.
 
 ---
 

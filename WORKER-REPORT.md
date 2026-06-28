@@ -4,6 +4,43 @@ Worker: Claude, in worktree `~/code/fichero-worktrees/ms-docs`. All work committ
 (authored as Claude, Co-Authored-By Daniel), nothing pushed. The manager merges.
 `mkdocs build --strict` passes after every change.
 
+## Reconcile onto canonical docs/ structure (latest)
+
+`origin/main` changed the docs structure under this lane: the published MkDocs site
+moved from `site/docs/` into `docs/` (`docs_dir: docs`), old internal `docs/` scratch
+moved into `agent-work/`, and `developer/` stayed as the section name. I merged
+`origin/main` and reconciled:
+
+- **Agent scratch (rename/rename):** kept `origin/main`'s placement under `agent-work/`
+  (`agent-work/docs-archive/`, `agent-work/docs-design/`, `agent-work/MORNING-TEST.md`,
+  `agent-work/orphan-triage-report.md`, `agent-work/reviews/`, `agent-work/superpowers/`)
+  and removed my redundant `agent-work/from-docs/` holding folder plus the old `docs/`
+  copies.
+- **Published site now lives in `docs/`:** my content edits (FAQ, API banner, home
+  page, ai-and-privacy, reading-and-editing, user index, architecture/contributor
+  LiteLLM framing) rename-merged cleanly onto the `docs/` copies. My new
+  `interface-tour.md` is now at `docs/user/interface-tour.md`.
+- **developer → contributor:** re-applied the rename in the canonical tree
+  (`docs/developer/` → `docs/contributor/`), keeping `origin/main`'s file content, and
+  removed the `site/docs/` remnants. `mkdocs.yml` nav already pointed at `contributor/`.
+- **README.md intro conflict:** kept `origin/main`'s newer wording (Daniel's latest
+  edit) and applied my spelling fixes on top (primary, researchers, collection,
+  plagiarism, interpretation, a tool, offers, visible, and other, Its).
+- **docs/README.md modify/delete:** kept my modified version under `docs/` as the
+  GitHub folder landing, fixed its links to the co-located `docs/` layout, and added
+  `exclude_docs: /README.md` to `mkdocs.yml` so it does not conflict with `index.md`
+  (which would fail `--strict`).
+- **Rule sweep:** updated the AGENTS.md Docs Placement section, the three skills
+  (dispatch-worker / session-start-manager / session-start-worker), CONTRIBUTING.md,
+  the component AGENTS/READMEs, and the release skills to the new single-folder
+  reality (all docs in `docs/`, public pages in `nav`, scratch in `agent-work/`).
+  Swept every `site/docs/` path reference to `docs/` (README.md, USER.md, component
+  docs, release skills); left the historical narrative in STATE.md / PLAN-GOVERNANCE.md
+  (review lane's files) untouched.
+
+`mkdocs build --strict` exits 0 after the reconcile. The notes below describe the
+original lane work (against `site/docs/`, before the structure flip).
+
 ## Commits (newest first)
 
 | sha | summary |

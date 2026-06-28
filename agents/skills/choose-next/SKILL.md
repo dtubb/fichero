@@ -1,36 +1,46 @@
 ---
-description: Manager selector for the next Fichero work batch — deterministic ROADMAP.md + GitHub issue picker.
 name: choose-next
+description: Manager picks the next work batch to delegate — reads docs/ROADMAP.md + GitHub milestones/issues, finds the highest-incomplete tier with ready work, and returns 1 big issue OR 3–10 small same-milestone issues sized for a worker's context.
 ---
 
 # /choose-next
 
-Pick the next worker-sized batch without claiming anything.
+Deterministic front of the manager loop: decide WHAT to delegate next, in the
+right order. Do not implement — just select and hand off.
 
 ## Steps
 
-1. Run the selector from the repository root:
+1. **Read the roadmap (source of truth for order):**
    ```bash
-   scripts/choose_next.py
+   sed -n '1,140p' docs/ROADMAP.md
    ```
+   The tiers are: 0 Gates/Verify → 1 Infrastructure → 2 Right-approaches (observable) →
+   3 Features → 3b Domain → 4 Mactastic → 5 Testing → 6 Profiling → 7 UI-consistency.
+   **Pick the lowest-numbered tier that still has incomplete, ready work.**
 
-2. Use the output as the handoff target for `/session-start-worker` or the
-   worker dispatcher:
-   - one `one-big` issue for a keystone/cross-cutting worker, or
-   - one `small-batch` of 3-10 issues from the same milestone.
-
-3. Claim each selected issue only when a worker starts it:
+2. **Find ready issues in that tier's milestone(s):**
    ```bash
-   gh issue edit <N> --add-assignee @me --add-label "status:in-progress"
+   gh issue list --milestone "<milestone>" --state open --limit 40 \
+     --json number,title,labels --jq '.[] | "\(.number)\t\(.title)"'
    ```
+   Skip anything with `status:in-progress` or an assignee (already claimed).
+   Prefer issues whose guardrail/KNOWN_VIOLATIONS count is non-zero (real work).
+
+3. **Size the batch** (worker-context economy):
+   - **1 big issue** (a keystone / cross-cutting EPIC slice), OR
+   - **3–10 small issues in the SAME milestone** (so the worker reuses context).
+   Never mix milestones in one worker.
+
+4. **Tag the batch** with the model + lane it needs:
+   - cheap default: **Sonnet** (frontend Swift) / **codex 5.4-mini** (backend/tooling)
+   - escalate to **Opus / codex 5.5** only for keystones (new stores, action layer,
+     high-blast-radius).
+
+5. **Output** (for the manager to hand to `/dispatch-worker`):
+   - tier + milestone, the issue numbers, big-vs-batch, model, a one-line objective.
 
 ## Notes
-
-- The selector reads `docs/ROADMAP.md` for tier order and milestone mapping.
-- It reads GitHub milestones/issues with `gh`.
-- It skips assigned issues and issues labelled `status:in-progress`.
-- It is read-only; it never edits GitHub state.
-- For automation, use:
-  ```bash
-  scripts/choose_next.py --json
-  ```
+- If the highest-incomplete tier is Tier 0 (gates), prefer building the missing
+  guardrail/verify piece — gates first protect everything else.
+- A verify run that auto-filed issues (see the gardener / verify_report.py) has
+  already put fresh errors in the right milestone; this skill just picks them up.

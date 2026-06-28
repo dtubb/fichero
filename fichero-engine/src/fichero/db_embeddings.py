@@ -720,10 +720,13 @@ class DatabaseEmbeddingMixin:
                 self._embedder = _get_shared_embedder(
                     space.fastembed_model_name, str(cache_dir)
                 )
-            except ImportError:
+            except ImportError as exc:
+                # Chain the real cause (#2507): a non-fastembed ImportError
+                # (e.g. a bad submodule import) used to be masked as the
+                # generic "fastembed not installed", hiding the actual failure.
                 raise ImportError(
                     "fastembed not installed. Install with: pip install fastembed"
-                )
+                ) from exc
 
     def _embed_text(self, text: str, *, role: EmbeddingRole = "query") -> list[float]:
         """Generate embedding vector for text.

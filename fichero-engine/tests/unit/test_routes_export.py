@@ -316,3 +316,70 @@ class TestExcelExport:
         )
 
         assert r.status_code == 409
+
+
+class TestEleventySiteExport:
+    def test_publishes_collections_subcollections_and_scaffold(
+        self, client, db, tmp_path
+    ):
+        # root/ → Coleccion A/ (collection) → Subseccion/ (subcollection) → doc
+        root = Document(id="site-root", name="Archivo", doc_type=DocType.folder)
+        coll = Document(
+            id="coll-a", name="Coleccion A", parent_id=root.id,
+            doc_type=DocType.folder,
+        )
+        sub = Document(
+            id="sub-1", name="Subseccion", parent_id=coll.id,
+            doc_type=DocType.folder,
+        )
+        doc = Document(
+            id="doc-1", name="Carta Uno", parent_id=sub.id,
+            doc_type=DocType.file, file_type=FileType.text,
+            page_content="El contenido de la carta.",
+        )
+        for d in (root, coll, sub, doc):
+            db.save(d)
+
+        output_path = tmp_path / "site"
+        r = client.post(
+            "/api/export/eleventy-site",
+            json={"target_id": root.id, "output_path": str(output_path)},
+        )
+
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["document_count"] == 1
+        assert data["collection_count"] == 1  # "Coleccion A"
+
+        # Buildable + deployable scaffolding exists.
+        assert (output_path / "package.json").exists()
+        assert (output_path / ".eleventy.js").exists()
+        assert (output_path / "netlify.toml").exists()
+        assert (output_path / "src" / "index.md").exists()
+
+        # Folder hierarchy → collection/subcollection directories.
+        page = output_path / "src" / "Coleccion-A" / "Subseccion" / "Carta-Uno.md"
+        assert page.exists()
+        body = page.read_text()
+        assert "# Carta Uno" in body
+        assert "El contenido de la carta." in body
+        # Top-level folder is the 11ty collection tag.
+        assert "Coleccion-A" in body
+
+    def test_rejects_non_empty_output_without_overwrite(self, client, tmp_path):
+        output_path = tmp_path / "site"
+        output_path.mkdir()
+        (output_path / "existing.txt").write_text("x")
+
+        r = client.post(
+            "/api/export/eleventy-site",
+            json={"output_path": str(output_path)},
+        )
+        assert r.status_code == 409
+
+    def test_missing_target_returns_404(self, client, tmp_path):
+        r = client.post(
+            "/api/export/eleventy-site",
+            json={"target_id": "nope", "output_path": str(tmp_path / "site")},
+        )
+        assert r.status_code == 404

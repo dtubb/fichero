@@ -29,4 +29,4 @@ attribution, docs placement, worker orchestration), and the folder-specific
 guidance in [fichero/AGENTS.md](fichero/AGENTS.md) and
 [fichero-engine/AGENTS.md](fichero-engine/AGENTS.md). For the fuller repo
 conventions, see
-[site/docs/contributor/setup-and-contributing.md](site/docs/contributor/setup-and-contributing.md).
+[docs/contributor/setup-and-contributing.md](docs/contributor/setup-and-contributing.md).
