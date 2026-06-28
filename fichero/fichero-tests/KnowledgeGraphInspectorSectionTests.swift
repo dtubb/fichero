@@ -614,6 +614,48 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertEqual(rate, 0.5, accuracy: 0.0001)
     }
 
+    /// #2697: the inspector scope must DEFAULT to the item's own records so a
+    /// folder/PDF doesn't mix its children's entities/attributes in. The flag
+    /// lives in two views under one @AppStorage key — both must declare the same
+    /// `false` default, or the key's registered default is ambiguous.
+    func testInspectorScopeDefaultsToThisItemOnly() throws {
+        let kgSection = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+KGSection.swift"
+        )
+        let attributesStrip = try Self.appSource("Views/Library/DisplayAttributesStrip.swift")
+        let declaration =
+            #"@AppStorage("inspector.scope.includeChildren") private var includeChildren: Bool = false"#
+        XCTAssertTrue(
+            kgSection.contains(declaration),
+            "KG section must default the inspector scope to this-item-only (#2697)"
+        )
+        XCTAssertTrue(
+            attributesStrip.contains(declaration),
+            "Attributes strip must default the inspector scope to this-item-only (#2697)"
+        )
+        // Guard the invariant: no declaration of this key may default to true.
+        let staleDefault =
+            #"@AppStorage("inspector.scope.includeChildren") private var includeChildren: Bool = true"#
+        XCTAssertFalse(kgSection.contains(staleDefault))
+        XCTAssertFalse(attributesStrip.contains(staleDefault))
+    }
+
+    /// #2696: the Content-pane top attributes should surface interesting
+    /// artefacts as they're added — the entities summary defaults ON and the
+    /// row is gated on a non-zero count so it appears only when the page has
+    /// entities.
+    func testAttributesStripSurfacesEntitiesByDefault() throws {
+        let strip = try Self.appSource("Views/Library/DisplayAttributesStrip.swift")
+        XCTAssertTrue(
+            strip.contains(#"@AppStorage("inspector.attributeStrip.kg") private var shownKGRaw: String = "entities""#),
+            "KG summaries must default to surfacing entities (#2696)"
+        )
+        XCTAssertTrue(
+            strip.contains("$0 != .entities || (entityCount ?? 0) > 0"),
+            "the entities row must be gated on a non-zero count so it appears as added (#2696)"
+        )
+    }
+
     private func makeDocument(
         docType: DocType,
         fileType: FileType?,

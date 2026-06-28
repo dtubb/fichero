@@ -25,11 +25,18 @@ struct DisplayAttributesStrip: View { // swiftlint:disable:this type_body_length
     /// Artifact types the user has chosen to surface, comma-joined. Default
     /// empty → no artifacts shown; they are opt-in.
     @AppStorage("inspector.attributeStrip.artifacts") private var shownArtifactsRaw: String = ""
-    /// Knowledge-graph summaries the user has surfaced ("entities","claims"),
-    /// comma-joined. Opt-in like artifacts (#1246).
-    @AppStorage("inspector.attributeStrip.kg") private var shownKGRaw: String = ""
-    /// True = include child documents/pages when loading KG summaries.
-    @AppStorage("inspector.scope.includeChildren") private var includeChildren: Bool = true
+    /// Knowledge-graph summaries surfaced at the top of the Content pane,
+    /// comma-joined. Defaults to "entities" so the inspector reflects what's
+    /// actually been extracted on the page — the entities row appears as the
+    /// page gains entities (gated on a non-zero count in `rows`) — instead of
+    /// staying blank by default (#2696). Claims remain opt-in. Still
+    /// user-editable via the filter menu (#1246). Per-kind people/places rows
+    /// are the larger design pass.
+    @AppStorage("inspector.attributeStrip.kg") private var shownKGRaw: String = "entities"
+    /// Scope for KG summaries. Defaults to the item's OWN records so a
+    /// folder/PDF shows what belongs to it, not its children's mixed in
+    /// (#2697); children are opt-in via the "Include children" toggle.
+    @AppStorage("inspector.scope.includeChildren") private var includeChildren: Bool = false
     /// Document-metadata keys the user has surfaced, comma-joined. File
     /// metadata/info and any imported JSON all live in `document.metadata`,
     /// so this one bucket covers both. Opt-in (#1246).
@@ -147,6 +154,10 @@ struct DisplayAttributesStrip: View { // swiftlint:disable:this type_body_length
             .map { StripRow.attribute($0) }
         result += KGItem.allCases
             .filter { shownKGItems.contains($0.rawValue) }
+            // Entities surface "as they're added" — only when the page actually
+            // has some — so a fresh/empty page isn't cluttered with "Entities —"
+            // (#2696). Claims (opt-in) keep their explicit count/dash.
+            .filter { $0 != .entities || (entityCount ?? 0) > 0 }
             .map { StripRow.knowledge($0) }
         result += availableArtifactTypes
             .filter { shownArtifactTypes.contains($0) }
