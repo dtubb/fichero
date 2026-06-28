@@ -73,29 +73,6 @@ struct WorkflowEditor: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Workflow toolbar at top
-            WorkflowToolbar(
-                isRunning: $isRunning,
-                canRun: !editingWorkflow.nodes.isEmpty,
-                inputSource: $editingWorkflow.inputSource,
-                onRun: runWorkflow,
-                onImport: importWorkflow,
-                onExport: exportWorkflow,
-                onPreviewDiagram: {
-                    // Auto-save before showing diagram preview
-                    Task { @MainActor in
-                        await saveWorkflow()
-                        showDiagramPreview = true
-                    }
-                },
-                onRunOnDocuments: {
-                    showDocumentPicker = true
-                },
-                onCompareModels: {
-                    showModelComparison = true
-                }
-            )
-
             // Canvas — run output surfaces in the Activity view (#2439)
             Group {
                 switch displayMode {
@@ -144,6 +121,28 @@ struct WorkflowEditor: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            WorkflowToolbar(
+                isRunning: $isRunning,
+                canRun: !editingWorkflow.nodes.isEmpty,
+                inputSource: $editingWorkflow.inputSource,
+                onRun: runWorkflow,
+                onImport: importWorkflow,
+                onExport: exportWorkflow,
+                onPreviewDiagram: {
+                    // Auto-save before showing diagram preview
+                    Task { @MainActor in
+                        await saveWorkflow()
+                        showDiagramPreview = true
+                    }
+                },
+                onRunOnDocuments: {
+                    showDocumentPicker = true
+                },
+                onCompareModels: {
+                    showModelComparison = true
+                }
+            )
         }
         // Saving is silent — no "Saved" flash/toast (#2438). Save failures still
         // surface via the alert below.
