@@ -19,21 +19,21 @@ fichero` against the running engine.
 Start the backend from the repo root:
 
 ```bash
-PYTHONPATH=fichero-engine/src .venv/bin/python -m fichero engine start --port 8765
+PYTHONPATH=fichero-engine/src ~/.venv/bin/python -m fichero engine start --port 8765
 ```
 
 Then run CLI commands in another shell. Prefer JSON output for bug reports and
 agent comparisons:
 
 ```bash
-PYTHONPATH=fichero-engine/src .venv/bin/python -m fichero --json health
+PYTHONPATH=fichero-engine/src ~/.venv/bin/python -m fichero --json health
 ```
 
 For library-scoped endpoints, pass the same library the app is using:
 
 ```bash
-PYTHONPATH=fichero-engine/src .venv/bin/python -m fichero \
-  --library-path /path/to/Library.fichero \
+PYTHONPATH=fichero-engine/src ~/.venv/bin/python -m fichero \
+  --library /path/to/Library.fichero \
   --json search "sample query"
 ```
 
@@ -59,7 +59,7 @@ These checks keep the CLI and app from drifting away from the backend contract:
 ```bash
 python3 scripts/check_endpoint_usage.py
 python3 scripts/check_endpoint_coverage_matrix.py
-PYTHONPATH=fichero-engine/src .venv/bin/python fichero-engine/scripts/validate_model_sync.py
+PYTHONPATH=fichero-engine/src ~/.venv/bin/python fichero-engine/scripts/validate_model_sync.py
 ```
 
 `scripts/verify_all.sh --fast` runs the endpoint and OpenAPI guardrails as part

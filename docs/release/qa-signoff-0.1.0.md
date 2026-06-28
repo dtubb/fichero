@@ -1,3 +1,7 @@
+> **HISTORICAL CHECKLIST — release-candidate artifact.** This page is a
+> point-in-time QA sign-off list for the `0.1.0` gate, not a general current
+> runbook. Keep it for provenance; adapt a fresh checklist for the next release.
+
 # 0.1.0 QA Sign-Off Checklist
 
 Use this checklist for the 0.1.0 release gate. Attach failures to GitHub issues
