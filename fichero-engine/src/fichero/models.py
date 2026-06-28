@@ -1232,6 +1232,7 @@ class Conversation(BaseModel):
     provider: str | None = None  # LLM provider used
     model: str | None = None  # LLM model used
     document_ids: list[str] = Field(default_factory=list)  # Documents used in RAG
+    scope_document_id: str | None = None  # Node-backed chat scope reference
     metadata: dict[str, Any] = Field(default_factory=dict)  # Additional metadata
 
     # Organization

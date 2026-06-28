@@ -7,7 +7,8 @@ delete, reorder) and the providers list. Chat routes live at /api/chat/...
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from fichero.models import Conversation, Document
+from fichero.models import Conversation, DocType, Document
+from fichero.node_aliases import make_alias
 
 
 # ---------------------------------------------------------------------------
@@ -15,8 +16,18 @@ from fichero.models import Conversation, Document
 # ---------------------------------------------------------------------------
 
 
-def _make_conv(conv_id: str = "conv-1", title: str = "My Chat") -> Conversation:
-    return Conversation(id=conv_id, title=title, messages=[])
+def _make_conv(
+    conv_id: str = "conv-1",
+    title: str = "My Chat",
+    *,
+    scope_document_id: str | None = None,
+) -> Conversation:
+    return Conversation(
+        id=conv_id,
+        title=title,
+        messages=[],
+        scope_document_id=scope_document_id,
+    )
 
 
 class _FakeLLM:
@@ -116,6 +127,101 @@ class TestChatWithSources:
         assert "transparent, local instrument" in fake_llm.messages[0].content
         assert "Never pretend to be human" in fake_llm.messages[0].content
         assert db.get(Conversation, data["conversation_id"]) is not None
+
+    def test_chat_scope_node_round_trips_and_includes_contained_docs(
+        self, client, db, monkeypatch
+    ):
+        folder = Document(id="chat-folder", name="Scope Folder", doc_type=DocType.folder)
+        child = Document(
+            id="chat-child",
+            name="Contained Doc",
+            parent_id=folder.id,
+            page_content="Contained archive evidence.",
+        )
+        db.save(folder)
+        db.save(child)
+
+        fake_llm = _FakeLLM()
+        monkeypatch.setattr(
+            "fichero.api.routes.chat._get_langchain_llm",
+            lambda *_args, **_kwargs: fake_llm,
+        )
+
+        response = client.post(
+            "/api/chat",
+            json={
+                "message": "What evidence is in scope?",
+                "scope_document_id": folder.id,
+                "include_sources": True,
+            },
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        conv = db.get(Conversation, payload["conversation_id"])
+        assert conv is not None
+        assert conv.scope_document_id == folder.id
+        assert conv.document_ids == [folder.id]
+        assert payload["sources"] == [
+            {
+                "document_id": child.id,
+                "document_name": "Contained Doc",
+                "excerpt": "Contained archive evidence.",
+                "relevance_score": 1.0,
+            }
+        ]
+
+    def test_chat_conversation_scope_alias_resolves_to_target_node(
+        self, client, db, monkeypatch
+    ):
+        folder = Document(id="chat-folder-alias-target", name="Target", doc_type=DocType.folder)
+        child = Document(
+            id="chat-folder-alias-child",
+            name="Alias Child",
+            parent_id=folder.id,
+            page_content="Alias-routed evidence.",
+        )
+        alias = make_alias(folder, parent_id=None, name="Alias Scope")
+        conv = _make_conv("conv-alias-scope", scope_document_id=alias.id)
+        db.save(folder)
+        db.save(child)
+        db.save(alias)
+        db.save(conv)
+
+        fake_llm = _FakeLLM()
+        monkeypatch.setattr(
+            "fichero.api.routes.chat._get_langchain_llm",
+            lambda *_args, **_kwargs: fake_llm,
+        )
+
+        response = client.post(
+            "/api/chat",
+            json={"message": "Use alias scope", "conversation_id": conv.id},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["sources"][0]["document_id"] == child.id
+        assert db.get(Conversation, conv.id).scope_document_id == alias.id
+
+    def test_chat_conversation_scope_missing_node_prefers_raise(
+        self, client, db, monkeypatch
+    ):
+        conv = _make_conv("conv-missing-scope", scope_document_id="missing-node")
+        db.save(conv)
+
+        fake_llm = _FakeLLM()
+        monkeypatch.setattr(
+            "fichero.api.routes.chat._get_langchain_llm",
+            lambda *_args, **_kwargs: fake_llm,
+        )
+
+        response = client.post(
+            "/api/chat",
+            json={"message": "Use missing scope", "conversation_id": conv.id},
+        )
+
+        assert response.status_code == 404
+        assert "Chat scope node not found: missing-node" in response.json()["detail"]
 
     def test_chat_passes_graph_knobs_to_retriever(self, client, monkeypatch):
         captured: dict = {}
