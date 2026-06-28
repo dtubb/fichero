@@ -30,7 +30,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "KnowledgeGraph/OntologyBrowser/EntitySourceGroupsView.swift#c6a609c38d": "#1912 baseline",
     "KnowledgeGraph/OntologyBrowser/HeuristicReviewSheet.swift#aa939bcbf4": "#1912 baseline",
     "KnowledgeGraph/OntologyBrowser/SpeakerComparisonView.swift#ffffcf8a29": "#1912 baseline",
-    "Library/ArtifactsBrowserView.swift#c7e293c42d": "#1912 baseline",
     "Library/ImageEditor/ImageEditChainPanel.swift#83a0175036": "#1912 baseline",
     "Library/LibraryView+DisplayModes.swift#8e613f7b50": "#1912 baseline",
     "Library/PDFReadingView.swift#12a18b04b8": "#1912 baseline",
