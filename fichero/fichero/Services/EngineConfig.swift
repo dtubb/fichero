@@ -431,7 +431,7 @@ enum RemoteURLValidationError: LocalizedError, Equatable {
         case .localhostNotAllowed:
             return "Remote clients must use a non-localhost host."
         case .hostPolicyNotAllowed:
-            return "Same-network hosting needs a literal IP address or .local hostname."
+            return "Same-network hosting needs a literal IP address, .local hostname, or Tailscale .ts.net hostname."
         case .pathNotAllowed:
             return "Remote URLs must be the backend root, without a path."
         case .queryNotAllowed:
@@ -507,6 +507,9 @@ private func hostedRemoteURLIsAllowed(_ url: URL) -> Bool {
         return false
     }
     if host.hasSuffix(".local") {
+        return true
+    }
+    if host.hasSuffix(".ts.net") {
         return true
     }
     return isIPAddressLiteral(host)

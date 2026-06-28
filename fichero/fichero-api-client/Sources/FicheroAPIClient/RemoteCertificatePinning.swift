@@ -43,8 +43,11 @@ public enum RemoteCertificatePinning {
 
     public static func shouldEnforcePinning(for baseURL: URL) -> Bool {
         guard let host = baseURL.host?.lowercased() else { return false }
+        if persistedSPKIPin(hostString: baseURL.absoluteString) != nil {
+            return true
+        }
         if isLoopbackHostLiteral(host) {
-            return persistedSPKIPin(hostString: baseURL.absoluteString) != nil
+            return false
         }
         return shouldEnforcePinning(forHost: host)
     }
@@ -460,11 +463,18 @@ public enum RemoteCertificatePinning {
         if isLoopbackHostLiteral(host) {
             return persistedSPKIPin(hostString: "https://\(host):8765") != nil
         }
+        if isTailscaleServeHost(host) {
+            return false
+        }
         return true
     }
 
     fileprivate static func isLoopbackChallengeHost(_ host: String) -> Bool {
         isLoopbackHostLiteral(host)
+    }
+
+    private static func isTailscaleServeHost(_ host: String) -> Bool {
+        host.lowercased().hasSuffix(".ts.net")
     }
 
     private static func clientSPKIPinUserDefaultsKey(hostString: String? = nil) -> String {
