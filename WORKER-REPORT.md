@@ -34,3 +34,15 @@ Verification: each issue app-build green (isolated xcodebuild, scratch DD, CODE_
 - Slice 2: PDF (PDFKit highlight/note — PDFPageView already makes PDFAnnotation highlights, extend) + image bounding-box overlay editor (bbox normalized rect + page id) + render saved boxes. Reuse AnnotationToolbar.
 - Slice 3: docx reader text-range highlight/note (reuse AnnotatableTextView).
 - Plumbing (AnnotationToolbar, AnnotationHighlight, addNote charStart/charEnd/bbox) already in place for both.
+
+### #2458 SLICE 2 — image bounding-box annotations — DONE (PDF = Slice 2b remaining)
+Commit 7f067402, authored Claude.
+- Implemented the reader-toolbar annotation stub on the IMAGE reader (ZoomableImagePreview.requestAnnotation, previously a #2458-owned stub). Highlight/Note arm a region-draw overlay → normalized bbox persisted via AnnotationStore/AnnotationService (typed; no new store, no URLSession). Bookmark = whole-image marker. Saved boxes render back over the image.
+- NEW: BoundingBoxGeometry (pure, unit-tested: normalized↔view-rect via visible window + drag→box clamp/corner-order), BoundingBoxOverlay (reusable SwiftUI draw/render layer). Tests: BoundingBoxGeometryTests (8 cases).
+- Reuses existing ReaderToolbar onAnnotate hook (#2423) — no parallel toolbar.
+- Verification: app build green (isolated xcodebuild, scratch DD, no signing); my source + test compile ZERO diagnostics. Test target only blocked by PRE-EXISTING SpatialScene3DTests fileprivate break (still unfixed on main; dedicated repair task recommended). Suite not RUN (no-test-on-this-machine). NOT pushed.
+- NOTE: bbox pixel alignment under zoom/letterbox needs device visual-verification (math is tested; live viewport mapping unverifiable headless).
+
+### STOPPED HERE (Slice 2b + Slice 3 remaining):
+- Slice 2b — PDF page regions: render saved regions as native PDFAnnotations in PDFPageView (PDFKit handles page coords; reuse existing claim-source PDFAnnotation pattern ~PDFPageView L490/789) + creation via PDFKit selection. Needs PDFPageView page↔view geometry + device visual check.
+- Slice 3 — docx reader text-range highlight/note (reuse AnnotatableTextView).
