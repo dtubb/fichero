@@ -14,7 +14,7 @@ The commands below are the current repo-standard ones from `AGENTS.md`.
 ### Backend
 
 ```bash
-PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
+bash fichero-engine/scripts/start_backend.sh
 PYTHONPATH=fichero-engine/src .venv/bin/ruff check fichero-engine/src/
 PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived
 ```
@@ -36,6 +36,7 @@ swiftlint lint fichero/fichero/
 The frontend depends on the local engine being available. For normal app development:
 
 1. start the backend on port `8765`
+   via `bash fichero-engine/scripts/start_backend.sh`
 2. open `fichero/fichero.xcodeproj`
 3. build and run the macOS app against that engine
 
@@ -84,7 +85,9 @@ ruby scripts/add-swift-file.rb fichero/fichero/Views/MyFolder/MyView.swift
 
 ### No per-task branches
 
-Commit work directly to the milestone branch. Do not create a branch per issue or per task. For a large or risky slice an isolated agent worktree under `.claude/worktrees/` is fine, but it is keyed to the work, not to a version.
+Commit work directly to the milestone branch. Do not create a branch per issue
+or per task. Isolated worktrees live under `~/code/fichero-worktrees/<name>`,
+not ad hoc sibling directories.
 
 ### Conventional commits with issue references
 

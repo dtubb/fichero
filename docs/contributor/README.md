@@ -20,9 +20,9 @@ Fichero is not a single-process desktop app. The macOS app is a native SwiftUI a
 The shortest accurate picture is:
 
 ```text
-SwiftUI app -> localhost HTTP API -> FastAPI engine -> DuckDB + LanceDB
-                                               -> LangGraph workflows
-                                               -> LLM providers via LangChain integrations
+SwiftUI app -> pinned HTTPS loopback -> FastAPI engine -> DuckDB + LanceDB
+                                                     -> LangGraph workflows
+                                                     -> LLM providers via LangChain integrations
 ```
 
 That architecture shapes almost every contributor task:
@@ -39,7 +39,7 @@ For all backend mutations, the starting point is the action registry. Every writ
 
 ## Core Reference Material In This Repo
 
-- Root guidance: [../CLAUDE.md](../CLAUDE.md)
+- Detailed architecture + dev guide: [../CLAUDE.md](../CLAUDE.md)
 - Operational rules: [../../AGENTS.md](../../AGENTS.md)
 - Backend overview: [../architecture/api/overview.md](../architecture/api/overview.md)
 - SwiftUI overview: [../architecture/swiftui/overview.md](../architecture/swiftui/overview.md)
