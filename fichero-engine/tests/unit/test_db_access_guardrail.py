@@ -58,6 +58,9 @@ ALLOWLIST: frozenset[str] = frozenset(
         # Workflow-subsystem persistence stores (each is the DB layer for its
         # own concern: checkpointing, scheduling, caching, activity, tasks,
         # actions). Consolidating these behind db.py is future work (#1876).
+        # execution/batch.py is the same shape: BatchManager owns the batches/
+        # batch_items/batch_progress_snapshots tables (#2711).
+        "execution/batch.py",
         "workflows/action_store.py",
         "workflows/cache.py",
         "workflows/checkpointer.py",
