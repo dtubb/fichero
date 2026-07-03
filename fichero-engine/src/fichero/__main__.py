@@ -1355,6 +1355,7 @@ def import_box_links_command(
 
 @app.command(name="import-tinderbox-links")
 def import_tinderbox_links_command(
+    ctx: typer.Context,
     library_path: Path = typer.Option(
         Path("~/Library/Application Support/Fichero/Tinderbox-Links.fichero"),
         "--library-path",
@@ -1373,14 +1374,20 @@ def import_tinderbox_links_command(
 ) -> None:
     """Import/link Tinderbox notes from a .tbx file into the library model."""
 
-    from fichero.tinderbox_link_import import import_tinderbox_links
+    from fichero.importers.tinderbox_link_import import import_tinderbox_links_via_http
 
     try:
-        summary = import_tinderbox_links(
-            library_path=library_path,
-            tbx_path=tbx_path,
-            reset=reset,
-        )
+        with FicheroClient(
+            base_url=ctx.obj["base_url"],
+            library_path=str(library_path),
+            token=ctx.obj["token"],
+        ) as client:
+            summary = import_tinderbox_links_via_http(
+                client,
+                library_path=library_path,
+                tbx_path=tbx_path,
+                reset=reset,
+            )
     except Exception as exc:
         typer.secho(f"Tinderbox link import failed: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
