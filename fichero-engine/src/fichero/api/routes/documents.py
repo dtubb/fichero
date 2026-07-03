@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, U
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from fichero.api.library_header import require_library_path
-from fichero.api.auth import request_actor
+from fichero.api.auth import action_context, request_actor
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
@@ -43,9 +43,28 @@ from fichero.path_security import (
 from fichero.perf import perf_span
 from fichero.storage import auto_snapshot_before_risky_operation
 from fichero.storage import settings as storage_settings
+from fichero.actions.registry import registry
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _emit_document_change_ctx(
+    ctx: "ActionContext",
+    *,
+    event_type: str,
+    document_ids: list[str],
+) -> None:
+    if not ctx.library_path or not document_ids:
+        return
+    emit_change(
+        ctx.library_path,
+        type=event_type,
+        document_ids=document_ids,
+        actor=ctx.actor,
+        origin_window=ctx.origin_window,
+        origin_user=ctx.actor,
+    )
 
 
 async def _run_document_write(func: Any, *args: Any, **kwargs: Any) -> Any:
@@ -915,24 +934,18 @@ async def get_document_parent(
 async def create_document(
     doc: DocumentCreate,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> Document:
     """Create a new document."""
-    new_doc = await _run_document_write(create_document_impl, db, doc)
-    logger.info(f"Created document: {new_doc.id} ({new_doc.name})")
-
-    emit_change(
-        x_fichero_library_path,
-        type="document.created",
-        document_ids=[new_doc.id],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
+    result = await _run_document_write(
+        registry.invoke,
+        db,
+        "document.create",
+        doc.model_dump(mode="json"),
+        ctx,
     )
+    new_doc = Document.model_validate(result.result)
+    logger.info(f"Created document: {new_doc.id} ({new_doc.name})")
     return new_doc
 
 
@@ -1253,33 +1266,23 @@ def restore_document_subtree_impl(db: Database, doc_id: str) -> list[str]:
 async def delete_document(
     doc_id: str,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ):
     """Soft-delete a document and all descendants."""
-    to_delete_ids, _before = await _run_document_write(
-        delete_document_impl, db, doc_id, actor=actor
+    result = await _run_document_write(
+        registry.invoke,
+        db,
+        "document.delete",
+        {"doc_id": doc_id},
+        ctx,
     )
+    to_delete_ids = result.result["deleted_document_ids"]
 
     logger.info(
         "Soft-deleted document subtree: root=%s total=%s actor=%s",
         doc_id,
         len(to_delete_ids),
-        actor,
-    )
-
-    # Observable data layer (#1863): broadcast the deleted subtree so every
-    # window's DocumentStore drops the rows. Best-effort — never breaks delete.
-    emit_change(
-        x_fichero_library_path,
-        type="document.deleted",
-        document_ids=to_delete_ids,
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
+        ctx.actor,
     )
 
 
@@ -1674,27 +1677,21 @@ async def move_document(
     doc_id: str,
     parent_id: Optional[str] = Query(None),
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> Document:
     """Move a document to a new parent location.
 
     Accepts parent_id as either a query parameter or in the request body for flexibility.
     """
-    doc, _before = await _run_document_write(move_document_impl, db, doc_id, parent_id)
-    logger.info(f"Moved document: {doc_id} to parent: {parent_id}")
-
-    emit_change(
-        x_fichero_library_path,
-        type="document.updated",
-        document_ids=[doc_id],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
+    result = await _run_document_write(
+        registry.invoke,
+        db,
+        "document.move",
+        {"doc_id": doc_id, "parent_id": parent_id},
+        ctx,
     )
+    doc = Document.model_validate(result.result)
+    logger.info(f"Moved document: {doc_id} to parent: {parent_id}")
 
     return doc
 
@@ -2319,11 +2316,15 @@ def _action_create_document(
     db: Database, params: DocumentCreate, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
     new_doc = create_document_impl(db, params)
+    _emit_document_change_ctx(
+        ctx,
+        event_type="document.created",
+        document_ids=[new_doc.id],
+    )
     spec = ChangeSpec(
         domains=["document"],
         target_ids=[new_doc.id],
         after={"document_id": new_doc.id},
-        emit_type="document.created",
         document_ids=[new_doc.id],
     )
     return new_doc.model_dump(mode="json"), spec
@@ -2362,12 +2363,16 @@ def _action_move_document(
     db: Database, params: DocumentMoveParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
     doc, before = move_document_impl(db, params.doc_id, params.parent_id)
+    _emit_document_change_ctx(
+        ctx,
+        event_type="document.updated",
+        document_ids=[doc.id],
+    )
     spec = ChangeSpec(
         domains=["document"],
         target_ids=[doc.id],
         before=before,
         after=doc.model_dump(mode="json"),
-        emit_type="document.updated",
         document_ids=[doc.id],
     )
     return doc.model_dump(mode="json"), spec
@@ -2456,12 +2461,16 @@ def _action_delete_document(
     to_delete_ids, document_snapshots = delete_document_impl(
         db, params.doc_id, actor=ctx.actor
     )
+    _emit_document_change_ctx(
+        ctx,
+        event_type="document.deleted",
+        document_ids=to_delete_ids,
+    )
     spec = ChangeSpec(
         domains=["document"],
         target_ids=to_delete_ids,
         before={"documents": document_snapshots},
         after={"document_ids": to_delete_ids},
-        emit_type="document.deleted",
         document_ids=to_delete_ids,
     )
     return {
