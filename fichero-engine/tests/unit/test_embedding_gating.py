@@ -36,7 +36,8 @@ def test_remote_embedding_allowed_when_fallbacks_disabled() -> None:
         patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=False),
     ):
         # Must not raise
-        _enforce_embedding_call_allowed("openai/text-embedding-3-small")
+        result = _enforce_embedding_call_allowed("openai/text-embedding-3-small")
+    assert result is None
 
 
 def test_remote_embedding_blocked_when_local_only() -> None:
@@ -58,7 +59,8 @@ def test_local_provider_always_allowed() -> None:
         patch("fichero.llm.is_local_only", return_value=True),  # even local-only ON
     ):
         # Must not raise
-        _enforce_embedding_call_allowed("builtin/local-model")
+        result = _enforce_embedding_call_allowed("builtin/local-model")
+    assert result is None
 
 
 def test_remote_embedding_allowed_when_both_flags_enabled() -> None:
@@ -68,4 +70,5 @@ def test_remote_embedding_allowed_when_both_flags_enabled() -> None:
         patch("fichero.llm.is_local_only", return_value=False),
         patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=True),
     ):
-        _enforce_embedding_call_allowed("openai/text-embedding-3-large")
+        result = _enforce_embedding_call_allowed("openai/text-embedding-3-large")
+    assert result is None

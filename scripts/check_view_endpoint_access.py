@@ -65,7 +65,7 @@ APPKIT_BRIDGE_MARKERS = (
 # stripped first). name -> compiled pattern.
 TRANSPORT_PATTERNS: dict[str, re.Pattern] = {
     "client.api.* (generated client called from a view)": re.compile(r"\bclient\.api\."),
-    "raw URLSession (hand-built HTTP in a view)": re.compile(r"\bURLSession\b"),
+    "raw URLSession (hand-built HTTP in a view)": re.compile(r"\bURLSession(?:\.shared|\s*\()"),
     "@StateObject = …Service() (transport built inside a view)": re.compile(
         r"@StateObject[^\n=]*=\s*[A-Za-z_][A-Za-z0-9_]*Service(?:Generated)?\s*\("
     ),

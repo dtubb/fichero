@@ -222,6 +222,7 @@ def test_no_raw_conn_attr_execute_outside_seam() -> None:
             "justifying ponytail note.",
         ]
         pytest.fail("\n".join(lines))
+    assert flagged == {}
 
 
 def test_conn_execute_allowlist_has_no_dead_entries() -> None:

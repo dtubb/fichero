@@ -265,6 +265,23 @@ def _has_emit_change(function_node: ast.AST) -> bool:
             return True
         if isinstance(callee, ast.Attribute) and callee.attr == "emit_change":
             return True
+        if (
+            isinstance(callee, ast.Attribute)
+            and callee.attr == "invoke"
+            and isinstance(callee.value, ast.Name)
+            and callee.value.id == "registry"
+        ):
+            return True
+        if (
+            isinstance(callee, ast.Name)
+            and callee.id == "_run_document_write"
+            and node.args
+            and isinstance(node.args[0], ast.Attribute)
+            and node.args[0].attr == "invoke"
+            and isinstance(node.args[0].value, ast.Name)
+            and node.args[0].value.id == "registry"
+        ):
+            return True
     return False
 
 

@@ -101,5 +101,6 @@ def test_null_field_value_uses_string_expression() -> None:
     db = _make_db()
     table = _make_table("id")
     data = [{"id": "e1", "mystery_col": None}]
-    db._coerce_vectors_to_existing_schema("t", table, data)
+    result = db._coerce_vectors_to_existing_schema("t", table, data)
+    assert result == data
     table.add_columns.assert_called_once_with({"mystery_col": "cast(null as string)"})
