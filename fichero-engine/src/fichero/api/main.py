@@ -1175,6 +1175,8 @@ async def health_check(
                 backend_version="0.1.0",
                 active_libraries=db_manager.active_count,
                 remote_backend=build_remote_backend_status().as_dict(),
+                engine_pid=os.getpid(),
+                launch_nonce=os.environ.get("FICHERO_LAUNCH_NONCE") or None,
             ),
             nonce or x_fichero_client_nonce,
         )
