@@ -14,7 +14,7 @@ from fichero.spatial_models import (
     SpatialRoom,
     SpatialNode,
 )
-from fichero.models import Document
+from fichero.models import ActionAudit, Document
 
 
 BASE = "/api/mind-palace"
@@ -493,6 +493,111 @@ class TestDeleteRoom:
     def test_delete_missing_room_returns_404(self, client):
         r = client.delete(f"{BASE}/rooms/no-such")
         assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Room write invariants — audit + change stream
+# ---------------------------------------------------------------------------
+
+
+def _room_audits(db, room_id: str) -> list[ActionAudit]:
+    return [
+        audit for audit in db.all(ActionAudit)
+        if room_id in (audit.target_ids or [])
+    ]
+
+
+def _assert_room_mutation_audited(db, room_id: str) -> ActionAudit:
+    audits = _room_audits(db, room_id)
+    assert audits, f"expected ActionAudit for room mutation target {room_id}"
+    audit = audits[-1]
+    assert audit.actor, "expected ActionAudit.actor to be populated"
+    assert audit.action_name, "expected ActionAudit.action_name to be populated"
+    assert room_id in (audit.target_ids or [])
+    return audit
+
+
+class TestRoomWriteMutationInvariants:
+    @pytest.mark.xfail(
+        reason="mind-palace room create still bypasses registry.invoke / emit_change (#1848 / #1863)",
+        strict=True,
+    )
+    def test_create_room_writes_audit_and_emits_change(self, client, db, monkeypatch):
+        emit_calls: list[tuple[tuple, dict]] = []
+        monkeypatch.setattr(
+            "fichero.api.change_stream.emit_change",
+            lambda *a, **k: emit_calls.append((a, k)),
+        )
+
+        response = client.post(
+            f"{BASE}/rooms",
+            json={
+                "name": "Audited Room",
+                "room_type": "research",
+                "description": "must write audit and emit",
+            },
+        )
+
+        assert response.status_code == 200
+        room_id = response.json()["id"]
+        audit = _assert_room_mutation_audited(db, room_id)
+        assert audit.params is not None
+        assert emit_calls, "expected emit_change call for room create"
+        assert emit_calls[-1][1]["actor"] == audit.actor
+        assert room_id in (emit_calls[-1][1].get("document_ids") or [])
+
+    @pytest.mark.xfail(
+        reason="mind-palace room update still bypasses registry.invoke / emit_change (#1848 / #1863)",
+        strict=True,
+    )
+    def test_update_room_writes_audit_and_emits_change(self, client, db, monkeypatch):
+        emit_calls: list[tuple[tuple, dict]] = []
+        monkeypatch.setattr(
+            "fichero.api.change_stream.emit_change",
+            lambda *a, **k: emit_calls.append((a, k)),
+        )
+
+        room = SpatialRoom(
+            id="room-audit-update",
+            name="Before",
+            description="Before update",
+            room_type=RoomType.research,
+        )
+        db.save(room)
+
+        response = client.patch(
+            f"{BASE}/rooms/{room.id}",
+            json={"name": "After", "description": "After update"},
+        )
+
+        assert response.status_code == 200
+        audit = _assert_room_mutation_audited(db, room.id)
+        assert audit.params is not None
+        assert emit_calls, "expected emit_change call for room update"
+        assert emit_calls[-1][1]["actor"] == audit.actor
+        assert room.id in (emit_calls[-1][1].get("document_ids") or [])
+
+    @pytest.mark.xfail(
+        reason="mind-palace room delete still bypasses registry.invoke / emit_change (#1848 / #1863)",
+        strict=True,
+    )
+    def test_delete_room_writes_audit_and_emits_change(self, client, db, monkeypatch):
+        emit_calls: list[tuple[tuple, dict]] = []
+        monkeypatch.setattr(
+            "fichero.api.change_stream.emit_change",
+            lambda *a, **k: emit_calls.append((a, k)),
+        )
+
+        room = SpatialRoom(id="room-audit-delete", name="Delete Me")
+        db.save(room)
+
+        response = client.delete(f"{BASE}/rooms/{room.id}")
+
+        assert response.status_code == 200
+        audit = _assert_room_mutation_audited(db, room.id)
+        assert emit_calls, "expected emit_change call for room delete"
+        assert emit_calls[-1][1]["actor"] == audit.actor
+        assert room.id in (emit_calls[-1][1].get("document_ids") or [])
 
 
 # ---------------------------------------------------------------------------
