@@ -30,28 +30,33 @@ def get_library_authz_snapshot(
 ) -> LibraryAuthzSnapshot:
     """Return the current library's ACL state for the logged-in user."""
     app_db = get_app_db()
+    # Roles are stored under the NORMALIZED library path, and can_read/can_write
+    # normalize internally — so the role lookups here must normalize too, or an
+    # owner sending an un-normalized path (trailing slash, symlink) is wrongly
+    # shown can_manage_roles=False / roles=[] while target_can_write stays True.
+    library_path = authz.normalize_library_path(x_fichero_library_path) or x_fichero_library_path
     resolved_user = authz.resolve_user(getattr(getattr(request, "state", None), "user", None))
     current_user_role = None
     if resolved_user is not None:
-        role = app_db.get_library_role(resolved_user.id, x_fichero_library_path)
+        role = app_db.get_library_role(resolved_user.id, library_path)
         current_user_role = role.role if role else None
 
     can_manage_roles = authz.multiuser_enabled() and current_user_role == authz.ROLE_OWNER
 
-    roles = app_db.list_library_roles(x_fichero_library_path) if can_manage_roles else []
+    roles = app_db.list_library_roles(library_path) if can_manage_roles else []
     target_can_read = authz.can_read(
         getattr(getattr(request, "state", None), "user", None),
-        x_fichero_library_path,
+        library_path,
         target_id,
     )
     target_can_write = authz.can_write(
         getattr(getattr(request, "state", None), "user", None),
-        x_fichero_library_path,
+        library_path,
         target_id,
     )
 
     return LibraryAuthzSnapshot(
-        library_path=x_fichero_library_path,
+        library_path=library_path,
         multiuser_enabled=authz.multiuser_enabled(),
         can_manage_roles=can_manage_roles,
         current_user_id=resolved_user.id if resolved_user is not None else None,
