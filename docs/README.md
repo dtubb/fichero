@@ -28,6 +28,9 @@ Full user manual: [docs/user/README.md](user/README.md)
 
 Contributors and anyone building on or integrating with Fichero.
 
+- [Developer Overview](developer/README.md) — the short developer entry point.
+- [How Fichero Works](developer/how-fichero-works.md) — app ↔ engine runtime
+  model, storage, workflows, KG extraction, and curation.
 - [Architecture Overview](contributor/architecture-overview.md) — the two-part system: SwiftUI frontend + Python engine.
 - [OpenAPI and Generated Clients](contributor/openapi-and-clients.md) — the contract path from Python to Swift.
 - [Data Layer, Search, and Knowledge Graph Storage](contributor/data-search-and-kg.md) — DuckDB, LanceDB, entity writing.

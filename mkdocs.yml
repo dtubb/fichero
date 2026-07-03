@@ -105,6 +105,9 @@ nav:
       - Search & Knowledge Graph: user/search-knowledge-graph.md
       - Curation, Notes & Workflows: user/curation-notes-workflows.md
       - AI & Privacy: user/ai-and-privacy.md
+  - Developer:
+      - Overview: developer/README.md
+      - How Fichero Works: developer/how-fichero-works.md
   - Contributor:
       - Overview: contributor/README.md
       - Architecture Overview: contributor/architecture-overview.md
