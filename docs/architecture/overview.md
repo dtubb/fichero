@@ -41,6 +41,7 @@ than deleting databases.
 
 ## Canonical architecture docs
 
+- Audited mutation path / action registry: `docs/architecture/action_layer.md`
 - API/backend architecture: `docs/architecture/api/overview.md`
 - AI infrastructure and model policy: `docs/architecture/ai_infrastructure.md`
 - Image editing backend strategy: `docs/architecture/image_editing_backend_strategy.md`

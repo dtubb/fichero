@@ -84,6 +84,30 @@ the target paths don't overlap another live lane. When a collision slips through
 worker that *wrote* the code reconciles it; the manager does not blind-`--theirs` a
 test whose semantics it can't verify.
 
+### Workers run a self-continuing LOOP, and signal the manager
+
+A worker is dispatched a **whole milestone**, not one issue. It **drains the
+milestone in a loop**: pick next ready issue → smallest correct slice + a test →
+commit-only (`Closes #n`, authored as itself) → **`bash scripts/notify_manager.sh
+"done #n (<sha>); next #m"`** → repeat. It never stops-and-waits between issues;
+the manager gates asynchronously. Blocked on a design wall →
+`notify_manager.sh --blocked "why"` and move on.
+
+`notify_manager.sh` appends to `~/.fichero-manager-inbox`; the manager arms a
+**Monitor** on that file so a completion wakes it immediately (no timer polling).
+
+**Every worker uses jcodemunch + ponytail.** Navigate code via the jcodemunch MCP
+(`search_symbols`/`get_file_outline`/`get_symbol_source`/`find_references`/
+`get_blast_radius`), reading only the file about to be edited — never grep-dumps.
+Write ponytail code: shortest working diff, stdlib/native/existing-dep before new
+code, no speculative abstractions, delete over add, one runnable test per
+non-trivial change, `ponytail:` comments for deliberate simplifications.
+
+**Reusable prompts:** `agents/prompts/worker-loop.md` (the standing worker
+contract, with `{{LANE}}`/`{{MILESTONE}}` placeholders) and
+`agents/prompts/manager-loop.md` (the manager cadence). Dispatch by pasting the
+filled worker-loop template.
+
 ---
 
 ## Working in Xcode

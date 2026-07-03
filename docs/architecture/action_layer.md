@@ -1,116 +1,108 @@
-# Action Layer — One Audited Action (EPIC #1848)
+# Action Layer — Current Architecture
 
-**Status:** PROPOSED — awaiting Daniel's approval before implementation.
-**Date:** 2026-06-10. **Twin of:** the Observable Data Layer (reads/change-stream); this is the writes/audit side.
+**Status:** BUILT core, with ongoing route-by-route adoption. This page
+describes what is on `main` today and marks remaining rollout work as planned.
 
-## The idea
+## What exists now
 
-Every app capability that changes state becomes ONE named, typed **action** in a backend
-registry, exposed once over the OpenAPI contract. The same action is then reached five ways:
-**UI buttons · chat tools (#1847) · App Intents (#1837) · tests · audit log**. One definition,
-one assertion, one record of who/when/how — and undo falls out of the audit.
+Fichero has a shipped backend action registry in
+`fichero-engine/src/fichero/actions/registry.py`. The registry is the canonical
+audited mutation path for routes that have been folded onto it.
 
-## Why (it answers four threads at once)
+The core pieces are built:
 
-- **Merge-bug class** → today there are ~95 mutating call sites, ~28 hand-rolled (raw
-  URLRequest / `additionalProperties`), each its own untested path. One action + one test = caught.
-- **UI verification** → a button that just calls a named action is testable: the test (and the
-  chat agent) call the same action and assert the persisted effect. Finishes #1230/#1810 but
-  asserts via the action contract, not pixel-poking.
-- **Agentic chat (#1847)** → the registry IS the tool set.
-- **Who-changed-what + undo** → the action layer is the single choke point to log actor +
-  before/after, and the before/after IS the undo payload. Decoupled from permissions (#1844).
+- `ActionContext`: carries `actor`, `origin_window`, `run_id`, and
+  `library_path`.
+- `ActionResult`: returns `ok`, `result`, `audit_id`, and `changed_domains`.
+- `ChangeSpec`: actions return audit payload (`before`, `after`, `target_ids`)
+  and change-stream payload (`emit_type`, typed id lists, optional `emit_fn`).
+- `registry.invoke(...)`: validates params, enforces write auth, executes the
+  action, writes `ActionAudit`, then emits the observable-layer change event.
 
-## Inventory (2026-06-10 audit) — what exists today
+This is not just a design sketch. The registry code is live and used by shipped
+mutation routes such as:
 
-~95 distinct mutating actions across 18 domains (entity, claim, annotation, note, document,
-batch, workflow, provider, conversation, saved-search, bibliography/citation, classification/
-ontology, image-editing, import, interpretation, action, …). ~67 use the typed OpenAPI client;
-**~28 are hand-rolled.** The 19 priority hand-rolled targets live in `ArtifactServiceGenerated`
-(claim-links, claim transitions, classification/claim-kind/epistemic-status CRUD, entity aliases,
-bibliography metadata/import/export). Image-editing (8 ops) hand-rolls for binary PNG previews.
+- documents in `api/routes/documents.py`
+- claims in `api/routes/claims.py`
+- notes in `api/routes/notes.py`
+- entities in `api/routes/entities.py`
+- bookmarks in `api/routes/bookmarks.py`
+- saved searches in `api/routes/search.py`
+- room writes in `api/routes/mind_palace.py`
 
-**5 capabilities lack a single endpoint** (need an action defined): duplicate/merge/relink
-annotation, UI search-index refresh, single-shot "run workflow" (today = batch+execute two-step).
+## Actual invoke contract
 
-Most non-annotation mutations have **no test asserting their effect**. (Annotations are the
-exception — `AnnotationServiceTests.swift`.)
+`registry.invoke(...)` does **not** compute separate before/after snapshots on
+its own. The built contract is:
 
-## Design
+1. look up the registered action by name
+2. validate the raw params against the action's Pydantic model
+3. enforce write access through `authz.py`
+4. run `execute(db, params, ctx) -> (result, ChangeSpec)`
+5. write an `ActionAudit` row from the returned `ChangeSpec`
+6. emit the observable-layer event from the same `ChangeSpec`
+7. return `ActionResult`
 
-### 1. Backend action registry — the ONE write path (do it right, systematically)
-The app is unreleased, so we standardize the **entire** mutation surface now rather than leaving
-two styles. **Every** mutation becomes a registered action; the **28 hand-rolled ops get
-rewritten** onto typed + audited actions (raw `URLRequest`/`additionalProperties` silently loses
-writes under Pydantic `extra="allow"` — constitution rule #4, and how merge broke — so none
-survive). The ONE thing we wrap-not-rewrite is each route's proven **business logic** (merge's
-reconciliation algorithm, the extraction pipeline): re-deriving correct algorithms risks
-regressions for no gain. So: rewrite all the **plumbing** to one uniform audited path; keep the
-**algorithms** intact behind it. **Test-first per domain** — capture current behavior in a test,
-refactor onto the action layer, keep it green, then add audit/undo assertions.
+That detail matters because the action implementation can include ids it
+created in `ChangeSpec.after`, which a blind registry snapshot could not.
 
-Introduce an `ActionRegistry` that routes delegate to:
+## Atomicity on current main
 
-```
-@action("entity.merge", params=MergeEntitiesParams, undoable=True)
-def merge_entities(db, params, ctx) -> ActionResult: ...
-```
+The registry now has an `atomic` flag on each action registration. For normal
+actions (`atomic=True`, the default), `registry.invoke(...)` wraps the execute +
+audit write in `db.transaction()`. That means an audit-write failure rolls back
+the mutation for actions using the default atomic path.
 
-- Each action: a stable **name** (`<domain>.<verb>`), a typed Pydantic **params** model, an
-  `execute(db, params, ctx)`, and (if undoable) an `invert(before, after) -> Action|None`.
-- Existing route handlers call `registry.invoke(name, params, ctx)` instead of mutating directly.
-  The route signature stays — minimal churn, OpenAPI unchanged for now.
-- `registry.invoke` is the choke point: it snapshots **before**, runs execute, snapshots **after**,
-  writes the **audit record**, and `emit_change(...)` (reusing the observable layer). One place.
-- A thin `POST /api/actions/invoke {name, params, actor, origin_window}` exposes the whole registry
-  generically (this is what chat tools + App Intents + UI-action tests drive).
+Emission is intentionally **best-effort after audit**:
 
-### 2. Audit record (reuse provenance #1832)
-`action_audit`: `id, action_name, actor, target_ids[], params, before, after, run_id, ts, undone`.
-Actor = device/session id now; a real user id once multi-user (#1844) lands. `before/after` are the
-domain-object snapshots needed to invert. Generalizes the existing entity `undoEntityAudit`.
+- `ActionAudit` write failure is fatal
+- `emit_change(...)` failure is logged and does not roll back the committed
+  mutation
 
-### 3. Undo
-- Backend: `POST /api/actions/audit/{id}/undo` applies the action's `invert(before, after)` (itself
-  an audited action → redo works, and undo-of-undo). Generalize entity audit-undo to all undoable
-  actions.
-- Frontend: register each invoked action with macOS **`UndoManager`** per window so **⌘Z / ⌘⇧Z**
-  work with real names ("Undo Merge Entities"). The view calls the action → gets the audit id →
-  registers an undo that POSTs the undo endpoint. The observable change-stream propagates the
-  undone state to other windows automatically.
+This matches the shipped split between durable mutation history and live UI
+observer updates.
 
-### 4. Per-action UI-action test
-For each registered action, a test invokes it (via `/api/actions/invoke` or the typed route) and
-asserts (a) the persisted effect and (b) an audit row was written. This is the durable
-replacement for "does this button actually work".
+## What "single audited write path" means in practice
 
-### 5. Chat tools (#1847) + App Intents (#1837)
-Generate both from the registry — same verbs, same params schemas. No second definition.
+For a migrated mutation, the route should:
 
-## Build order (sub-issues)
+- build or resolve an `ActionContext`
+- call `registry.invoke(...)`
+- let the registered action return a `ChangeSpec`
 
-1. **Registry + audit core** (backend keystone): `ActionRegistry`, `@action`, `ActionContext`,
-   `action_audit` table (via `db.py` `_ensure_table`, 0.0.x no-migration), `invoke` choke point
-   (snapshot→execute→snapshot→audit→emit), generic `POST /api/actions/invoke`. + tests.
-2. **Route ALL mutations through the registry, test-first, domain-by-domain**: start with
-   **entity.merge** (exhibit A), then sweep every domain — **rewriting all 28 hand-rolled ops**
-   (the 19 `ArtifactServiceGenerated` + 8 image-editing) onto typed + audited actions, and threading
-   the ~67 already-typed ones through `invoke`. Each action gets a test that captures current
-   behavior first, stays green through the refactor, then asserts the persisted effect + audit row.
-   Several waves; one domain per worker; full coverage, not just the priority subset.
-3. **Undo**: generalize audit-undo + `POST /api/actions/audit/{id}/undo` (backend) → **⌘Z
-   UndoManager** wiring (frontend).
-4. **Chat tools**: expose registry as agent tools (#1847).
-5. **App Intents**: expose registry as App Intents / Shortcuts / Spotlight (#1837).
-6. **Define the 5 missing actions** (annotation duplicate/merge/relink, search reindex, workflow
-   single-run).
+The action should:
 
-## Constraints
-- Engine may be remote → actions go over OpenAPI/HTTP, never local paths.
-- **Rewrite the plumbing, wrap the algorithms.** All 28 hand-rolled ops get rewritten onto typed +
-  audited actions; routes' proven business logic is wrapped, not re-derived (no gratuitous algorithm
-  rewrites). This is consistent with the iterate-not-replace rule: we retire *genuine wrong-pattern
-  duplication* by collapsing onto the canonical audited path — we don't build a parallel system.
-- **Test-first, no false greens:** capture behavior before refactor; the full unit suite is the gate
-  after any change to a shared file (change_stream/db/registry).
-- Milestone-at-a-time: the registry+audit core (step 1) unblocks the rest.
+- perform the business mutation
+- return the durable undo/audit payload in `before` / `after`
+- return the observer payload in `emit_type` and typed changed-id lists
+
+This is the invariant documented in
+`docs/contributor/backend-development-standards.md`: a complete mutation must
+do both audit and change-stream on the same path.
+
+## Current rollout boundary
+
+The registry core is built, but not every historical mutation in the engine has
+been normalized yet. Treat these categories separately:
+
+- **Built and canonical:** the folded routes already using `registry.invoke(...)`
+- **Still being migrated:** older direct-write routes that have not yet been
+  folded onto the action layer
+
+So the accurate statement on current `main` is:
+
+- the action layer is real and production code
+- it is the standard path for migrated mutations
+- full route-surface adoption is still ongoing, not finished
+
+## Why other docs refer to it
+
+This action layer is the write-side counterpart to the observable data layer:
+
+- `ActionAudit` gives durable mutation history and undo metadata
+- `emit_change(...)` gives live observer refresh
+- chat tools and other automation surfaces can reuse the same mutation path by
+  calling `registry.invoke(...)` instead of inventing a second writer
+
+That is why architecture docs for chat tools, node-model folds, and multi-user
+authorization all point back to the action registry.
