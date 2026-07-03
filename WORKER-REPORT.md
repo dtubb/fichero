@@ -1,0 +1,1 @@
+2026-07-03: Routed `DELETE /api/entities/{id}` through `registry.invoke` as audited `entity.delete`, flipped the existing strict xfail, and extended the mutation audit lock to cover entity delete; targeted proof: `test_node_model_action_audit.py` + `test_mutation_audit_lock.py` -> 40 passed.
