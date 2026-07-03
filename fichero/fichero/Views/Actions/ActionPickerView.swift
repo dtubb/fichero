@@ -132,7 +132,7 @@ struct DraggableActionCard: View {
         HStack(spacing: 10) {
             Image(systemName: action.icon)
                 .font(.title3)
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color.accentColor)
                 .frame(width: 28)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -319,7 +319,7 @@ struct CompactActionRow: View {
         HStack(spacing: 6) {
             Image(systemName: action.icon)
                 .font(.caption)
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color.accentColor)
                 .frame(width: 16)
 
             Text(action.name)

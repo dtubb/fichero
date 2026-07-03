@@ -149,7 +149,7 @@ struct ScheduleDetailView: View {
             if schedule.useBatch {
                 HStack {
                     Image(systemName: "square.stack.3d.up")
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.accentColor)
                     Text("Batch Mode")
                         .font(.subheadline)
                     Text("(max \(schedule.maxConcurrent) concurrent)")
@@ -157,7 +157,7 @@ struct ScheduleDetailView: View {
                         .foregroundStyle(.secondary)
                 }
                 .padding(8)
-                .background(.blue.opacity(0.1))
+                .background(Color.accentColor.opacity(0.1))
                 .cornerRadius(8)
             }
         }
