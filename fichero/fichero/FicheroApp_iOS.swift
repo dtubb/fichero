@@ -121,10 +121,20 @@ private struct FicheroSharedPlatformRoot: View {
             if appState.isCheckingBackend {
                 ProgressView("Connecting to Fichero…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if needsConnectionSetup {
+            } else if needsInitialConnectionSetup {
                 RemoteConnectionSetupView {
                     await reconnectToConfiguredHost()
                 }
+            } else if !appState.isBackendRunning {
+                // #2864: a configured backend that's unreachable — or reachable
+                // but rejecting the app's credentials (authBroken) — shows the
+                // diagnostic connection error, never a blank screen or the
+                // first-run pairing prompt. Mirrors the macOS BackendRootGate;
+                // backendService flows in via @EnvironmentObject from the root.
+                BackendConnectionView(appState: appState) {
+                    await reconnectToConfiguredHost()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let library = activeLibrary {
                 LibraryWorkspaceRoot(
                     library: library,
@@ -155,9 +165,12 @@ private struct FicheroSharedPlatformRoot: View {
         }
     }
 
-    private var needsConnectionSetup: Bool {
-        !appState.isBackendRunning
-            || (EngineConfig.requiresExternalBackendConnection && !RemoteAccessConfig.hasPairedLibraryPath)
+    /// True only when NO host is configured/paired yet, so the user must run
+    /// first-time setup (scan a pairing QR). A configured-but-unreachable
+    /// backend is handled separately by the diagnostic error branch (#2864), so
+    /// a dropped connection no longer bounces back to the setup prompt.
+    private var needsInitialConnectionSetup: Bool {
+        EngineConfig.requiresExternalBackendConnection && !RemoteAccessConfig.hasPairedLibraryPath
     }
 
     private func reconnectToConfiguredHost() async {
