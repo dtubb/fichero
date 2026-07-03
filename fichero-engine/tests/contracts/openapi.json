@@ -32058,6 +32058,82 @@
           }
         }
       }
+    },
+    "/api/authz/members": {
+      "get": {
+        "tags": [
+          "authz",
+          "authz"
+        ],
+        "summary": "List Library Members",
+        "description": "Who can access this library, roles joined with account profiles.\n\nOwner-gated when multi-user is on (mirrors the snapshot's ``can_manage_roles``).\nThe ``roles`` table keys on the *normalized* library path, so normalize the\ntransport header before the lookup or the join silently returns empty.",
+        "operationId": "list_library_members_api_authz_members_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryMembersResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "authz",
+          "authz"
+        ],
+        "summary": "Set Library Member Role",
+        "description": "Assign/change a library role \u2014 typed surface over the ``acl.set`` action.\n\nRoutes through ``registry.invoke`` so the mutation is owner-gated, audited,\nand emitted on the change stream exactly like ``POST /api/actions/invoke``.\nReturns the refreshed member list so the UI updates in one round-trip.",
+        "operationId": "set_library_member_role_api_authz_members_put",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetLibraryRoleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryMembersResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -61016,6 +61092,87 @@
         ],
         "title": "NodeDef",
         "type": "object"
+      },
+      "LibraryMember": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "is_owner_account": {
+            "type": "boolean",
+            "title": "Is Owner Account"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "username",
+          "display_name",
+          "is_owner_account",
+          "role"
+        ],
+        "title": "LibraryMember",
+        "description": "One user's access to a library, joined with their account profile.\n\nThe Users & Sharing UI (#2869 A2/A4) needs human-readable names, not the\nbare ``user_id`` the ``library_roles`` table stores. This is that join."
+      },
+      "LibraryMembersResponse": {
+        "properties": {
+          "library_path": {
+            "type": "string",
+            "title": "Library Path"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryMember"
+            },
+            "type": "array",
+            "title": "Members"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "library_path",
+          "count"
+        ],
+        "title": "LibraryMembersResponse",
+        "description": "Response from ``GET /api/authz/members`` \u2014 who can access this library."
+      },
+      "SetLibraryRoleRequest": {
+        "properties": {
+          "user": {
+            "type": "string",
+            "title": "User",
+            "description": "Target user id or username"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "description": "owner/editor/viewer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user",
+          "role"
+        ],
+        "title": "SetLibraryRoleRequest",
+        "description": "Typed body for ``PUT /api/authz/members`` \u2014 assign/change a library role.\n\nA typed OpenAPI surface over the ``acl.set`` registry action so the Swift\nclient gets a generated method instead of hand-rolling ``/actions/invoke``."
       }
     }
   }

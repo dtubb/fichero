@@ -1022,6 +1022,26 @@
         ],
         "request_model": null,
         "response_model": "LibraryAuthzSnapshot"
+      },
+      {
+        "method": "GET",
+        "path": "/authz/members",
+        "operation_id": "list_library_members_api_authz_members_get",
+        "summary": "List Library Members",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "LibraryMembersResponse"
+      },
+      {
+        "method": "PUT",
+        "path": "/authz/members",
+        "operation_id": "set_library_member_role_api_authz_members_put",
+        "summary": "Set Library Member Role",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SetLibraryRoleRequest",
+        "response_model": "LibraryMembersResponse"
       }
     ],
     "batches": [
