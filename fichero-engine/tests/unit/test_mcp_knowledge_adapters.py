@@ -185,16 +185,16 @@ class TestMCPCanonicalMapping:
 class TestMCPAdapterErrorHandling:
     """Test MCP adapter error handling."""
 
-    def test_empty_entity_name_allowed_by_model(self):
-        """Test entity model allows empty name (validation happens elsewhere)."""
+    def test_empty_entity_name_rejected_by_model(self):
+        """Test entity model rejects empty names."""
+        from pydantic import ValidationError
         from fichero.api.routes.mcp_tools import KnowledgeEntityUpsertRequest
 
-        # Empty canonical_name is allowed by Pydantic model
-        request = KnowledgeEntityUpsertRequest(
-            canonical_name="",  # Empty name
-            entity_type="person",
-        )
-        assert request.canonical_name == ""
+        with pytest.raises(ValidationError):
+            KnowledgeEntityUpsertRequest(
+                canonical_name="",
+                entity_type="person",
+            )
 
     def test_empty_claim_text_rejected_by_pydantic(self):
         """Test claim with empty text is rejected by Pydantic validation."""
@@ -218,6 +218,27 @@ class TestMCPAdapterErrorHandling:
                 text="Test claim",
                 source_document_id="doc-1",
                 confidence=1.5,  # Out of range
+            )
+
+    def test_entity_extra_field_rejected(self):
+        from pydantic import ValidationError
+        from fichero.api.routes.mcp_tools import KnowledgeEntityUpsertRequest
+
+        with pytest.raises(ValidationError):
+            KnowledgeEntityUpsertRequest(
+                canonical_name="Test",
+                unexpected=True,
+            )
+
+    def test_claim_extra_field_rejected(self):
+        from pydantic import ValidationError
+        from fichero.api.routes.mcp_tools import KnowledgeClaimCreateRequest
+
+        with pytest.raises(ValidationError):
+            KnowledgeClaimCreateRequest(
+                text="Test claim",
+                source_document_id="doc-1",
+                unexpected=True,
             )
 
 
