@@ -186,6 +186,19 @@ class ActionLibraryService: ObservableObject {
         }
     }
 
+    /// List this library's members (roles joined with account profiles) for the
+    /// sidebar sharing badge/popover (#2869 A4). Owner-gated on the engine when
+    /// multi-user is on; callers surface a thrown error as "no access".
+    func listLibraryMembers() async throws -> Components.Schemas.LibraryMembersResponse {
+        let response = try await client.api.listLibraryMembersApiAuthzMembersGet(.init())
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .undocumented:
+            throw ActionLibraryError.serverError
+        }
+    }
+
     /// Load popular actions. Sets `popularActions` and also returns the list so
     /// the `ActionsService` subclass can vend it directly to its call sites.
     @discardableResult

@@ -106,6 +106,7 @@ struct LibrarySectionHeader: View {
                 .font(.system(size: 13))
             Text(libraryName)
             locationBadge
+            LibrarySharingBadge(library: library)
             Spacer()
             if itemCount > 0 {
                 Text("\(itemCount)")
