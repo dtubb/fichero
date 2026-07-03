@@ -1,0 +1,1 @@
+2026-07-02, f_fichero_codex_docs: added centralized-LLM edge tests covering `chat_workflow` tool/structured/unstructured dispatch, prefer-raise provider/config errors, and caller guards that `react_agent`/`supervisor_agent` use `chat_workflow`; targeted pytest green (`31 passed`).

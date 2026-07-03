@@ -65,6 +65,28 @@ async def test_react_agent_composes_integrity_system_prompt():
 
 
 @pytest.mark.asyncio
+async def test_react_agent_uses_central_chat_workflow_entry_point():
+    inputs = {
+        "task": "Say hello",
+        "tools": [],
+    }
+    state: State = {}
+    llm_config = LLMConfig(provider="openai", model="gpt-4o-mini")
+
+    with patch(
+        "fichero.workflows.tools.agent.chat_workflow",
+        new=AsyncMock(return_value="Hello from central path"),
+    ) as mock_chat, patch(
+        "fichero.llm.get_langchain_model",
+        side_effect=AssertionError("react_agent should use chat_workflow"),
+    ):
+        result = await react_agent(inputs, state, llm_config)
+
+    assert result["result"] == "Hello from central path"
+    assert mock_chat.await_count == 1
+
+
+@pytest.mark.asyncio
 async def test_react_agent_with_tools():
     """Test agent execution with tools."""
     # Setup
