@@ -51,6 +51,39 @@ Workers never push to shared branches for the manager; the manager owns the merg
 This keeps one Xcode and one full-suite run as the gate while many workers grind in
 parallel, isolated worktrees.
 
+### Manager loop — use the scripts, don't improvise (2026-07-03)
+
+The board organizer owns issue/milestone structure; the manager drives work
+through three scripts. **Do not hand-pick issues, hand-edit ROADMAP order, or
+`gh issue create` by hand** — that is how duplicate/mis-placed milestones crept in.
+
+1. **Pick next work** — `python3 scripts/choose_next.py [--json]`. It walks the
+   `## Tier` PRIORITY SPINE in `docs/ROADMAP.md` (foundations-first, milestone
+   order = ascending due-date) and returns the highest-priority *ready, unclaimed*
+   batch (it already skips `status:in-progress`/`blocked`, `needs:human`, assigned).
+2. **Size each issue** — `python3 scripts/dispatch_advisor.py <issue#>` → `mini |
+   regular | frontier` worker class.
+3. **Dispatch by lane label** — `backend` → codex · `client:swiftui` → claude ·
+   `docs` → codex-docs. External worktree only, **commit-only, one build at a time**
+   (serialize-builds rule). `needs-design` issues are NOT for free-model workers.
+4. **File any new issue** — `scripts/file_issue.sh --title ... --type ... --lane ...
+   [--milestone ... | let it route]`. It validates the milestone is OPEN, rejects
+   closed ones with their successor, enforces the 15 canonical labels, auto-routes
+   by keywords. `--dry-run` to preview, `--self-test` to check the router.
+5. **On a red test** — `python3 scripts/tests_to_issues.py <junit.xml>` files one
+   tracked issue per failing test (labeled to its lane) so nothing is lost on a crash.
+6. **Gate** from the **repo root** (some contract tests read source via root-relative
+   paths): `bash scripts/verify_all.sh --standard|--full` — or the PYTHONPATH-forced
+   backend gate on the integrate worktree. Then merge via PR, close issues, re-run
+   `choose_next.py`. Do NOT hand-edit ROADMAP order / milestone `due_on` — ask the
+   board organizer to re-sort.
+
+**Lane discipline:** two workers must never own the same file — overlap = an
+unmergeable collision (see the disjoint-ownership rule). Before dispatching, check
+the target paths don't overlap another live lane. When a collision slips through, the
+worker that *wrote* the code reconciles it; the manager does not blind-`--theirs` a
+test whose semantics it can't verify.
+
 ---
 
 ## Working in Xcode
