@@ -49,8 +49,10 @@ extension URLRequest {
     /// skip — see `AuthTokenMiddleware.unauthenticatedPaths`.
     mutating func addEngineAuth(libraryPath: String? = nil) {
         let path = url?.path ?? ""
+        // Resolve the token for THIS request's host (#2866), not the global
+        // default — raw requests can target any of the backends the app holds.
         if !AuthTokenMiddleware.isUnauthenticatedPath(path),
-           let token = AuthTokenMiddleware.waitForTokenBlocking() {
+           let token = AuthTokenMiddleware.waitForTokenBlocking(hostString: url?.absoluteString) {
             setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         if let libraryPath {
