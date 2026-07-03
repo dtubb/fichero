@@ -100,6 +100,8 @@ EXEMPT: set[str] = {
     "fichero-engine/src/fichero/api/routes/workflows.py::get_tool_prompt",
     # Compute-only: generates AI interpretation suggestions; persists nothing.
     "fichero-engine/src/fichero/api/routes/hermeneutics.py::suggest_interpretations",
+    # Ephemeral crop returns a transient region preview and never saves an annotation.
+    "fichero-engine/src/fichero/api/routes/annotations.py::crop_ephemeral",
 }
 
 
