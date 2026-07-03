@@ -136,9 +136,9 @@ class PdfBackfillResponse(BaseModel):
 class DocumentCreate(BaseModel):
     """Request model for creating a document."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
-    name: str
+    name: str = Field(min_length=1)
     parent_id: Optional[str] = None
     node_kind: Optional[str] = None
     doc_type: DocType = DocType.file
@@ -158,7 +158,7 @@ class DocumentCreate(BaseModel):
 class DocumentUpdate(BaseModel):
     """Request model for updating a document."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
     name: Optional[str] = None
     parent_id: Optional[str] = None
@@ -1664,18 +1664,11 @@ async def import_file(
                 logger.warning(f"Failed to clean up temp file {temp_path}: {e}")
 
 
-class MoveRequest(BaseModel):
-    """Request model for moving a document."""
-
-    model_config = ConfigDict(extra="allow")
-
-    parent_id: Optional[str] = None
-
-
 @router.put("/{doc_id}/move")
 async def move_document(
     doc_id: str,
     parent_id: Optional[str] = Query(None),
+    request: Request = None,
     db: Database = Depends(get_library_database_for_write),
     ctx: "ActionContext" = Depends(action_context),
 ) -> Document:
@@ -1683,6 +1676,13 @@ async def move_document(
 
     Accepts parent_id as either a query parameter or in the request body for flexibility.
     """
+    if request is not None:
+        unexpected_query_keys = sorted(set(request.query_params.keys()) - {"parent_id"})
+        if unexpected_query_keys:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Unexpected query parameter(s): {', '.join(unexpected_query_keys)}",
+            )
     result = await _run_document_write(
         registry.invoke,
         db,

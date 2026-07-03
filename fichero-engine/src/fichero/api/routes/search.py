@@ -1051,7 +1051,9 @@ async def embed_document(doc_id: str, db: Database = Depends(get_library_databas
 class SavedSearchCreate(BaseModel):
     """Request to save a search."""
 
-    query: str
+    model_config = ConfigDict(extra="forbid")
+
+    query: str = Field(min_length=1)
     is_smart_search: bool = True
     filters: Optional[dict] = None
     search_type: str = "hybrid"

@@ -12,7 +12,7 @@ import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from fichero.api.library_header import require_library_path
 from fichero.api.auth import action_context, request_actor
@@ -33,6 +33,8 @@ router = APIRouter(prefix="/notes")
 
 
 class NoteCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     title: str | None = None
     body: str = ""
     kind: NoteKind = NoteKind.zettel

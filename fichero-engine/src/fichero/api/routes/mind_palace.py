@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from fichero.api.auth import action_context, request_actor
 from fichero.api.change_stream import emit_change
@@ -49,7 +49,9 @@ router = APIRouter()
 
 
 class RoomCreateRequest(BaseModel):
-    name: str
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1)
     description: str = ""
     room_type: RoomType = RoomType.research
     owner_id: str = "user"
@@ -57,6 +59,8 @@ class RoomCreateRequest(BaseModel):
 
 
 class RoomUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: str | None = None
     description: str | None = None
     room_type: RoomType | None = None

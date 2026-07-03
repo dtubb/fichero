@@ -37,10 +37,6 @@ def test_bookmark_create_rejects_missing_parent_id_cleanly(client, db):
     assert response.json()["detail"] == "Bookmark parent not found"
 
 
-@pytest.mark.xfail(
-    reason="BookmarkCreate silently ignores unexpected fields instead of rejecting them (#2430 class)",
-    strict=True,
-)
 def test_bookmark_create_rejects_unexpected_fields(client, db):
     target = Document(id="bookmark-target-extra", name="Target", doc_type=DocType.file)
     db.save(target)
@@ -73,19 +69,11 @@ def test_saved_search_create_rejects_wrong_query_type(client):
     assert response.status_code == 422
 
 
-@pytest.mark.xfail(
-    reason="SavedSearchCreate currently accepts empty query strings instead of rejecting them",
-    strict=True,
-)
 def test_saved_search_create_rejects_empty_query(client):
     response = client.post("/api/search/saved", json={"query": ""})
     assert 400 <= response.status_code < 500
 
 
-@pytest.mark.xfail(
-    reason="SavedSearchCreate silently ignores unexpected fields instead of rejecting them (#2430 class)",
-    strict=True,
-)
 def test_saved_search_create_rejects_unexpected_fields(client):
     response = client.post(
         "/api/search/saved",
@@ -150,10 +138,6 @@ def test_note_create_rejects_missing_page_id_cleanly(client):
     assert response.json()["detail"] == "Page not found: ghost-page"
 
 
-@pytest.mark.xfail(
-    reason="NoteCreateRequest silently ignores unexpected fields instead of rejecting them (#2430 class)",
-    strict=True,
-)
 def test_note_create_rejects_unexpected_fields(client):
     response = client.post(
         "/api/notes",
@@ -207,10 +191,6 @@ def test_milestone_create_rejects_non_folder_parent(client, db):
     assert response.json()["detail"] == "Milestone parent must be a folder"
 
 
-@pytest.mark.xfail(
-    reason="Milestone action params currently allow extra fields and silently drop them",
-    strict=True,
-)
 def test_milestone_create_rejects_unexpected_fields(client, db):
     parent = Document(id="milestone-folder-parent", name="Folder Parent", doc_type=DocType.folder)
     db.save(parent)
@@ -235,10 +215,6 @@ def test_claim_create_rejects_missing_required_text(client):
     assert response.status_code == 422
 
 
-@pytest.mark.xfail(
-    reason="ClaimCreateRequest currently accepts empty text and persists a blank claim",
-    strict=True,
-)
 def test_claim_create_rejects_empty_text(client):
     response = client.post("/api/claims", json={"text": ""})
     assert 400 <= response.status_code < 500
@@ -253,10 +229,6 @@ def test_claim_create_rejects_missing_source_document_cleanly(client):
     assert response.json()["detail"] == "Source document not found: ghost-document"
 
 
-@pytest.mark.xfail(
-    reason="ClaimCreateRequest silently ignores unexpected fields instead of rejecting them (#2430 class)",
-    strict=True,
-)
 def test_claim_create_rejects_unexpected_fields(client):
     response = client.post(
         "/api/claims",
@@ -278,10 +250,6 @@ def test_claim_patch_rejects_missing_related_entity_cleanly(client, db):
     assert response.json()["detail"] == "Unknown entity for subject_entity_id: ghost-entity"
 
 
-@pytest.mark.xfail(
-    reason="ClaimPatchRequest silently ignores unexpected fields instead of rejecting them (#2430 class)",
-    strict=True,
-)
 def test_claim_patch_rejects_unexpected_fields(client, db):
     claim = KnowledgeClaim(text="Original claim")
     db.save(claim)
@@ -313,10 +281,6 @@ def test_entity_create_rejects_missing_explicit_target_id_cleanly(client):
     assert response.json()["detail"] == "entity 'ghost-entity' not found"
 
 
-@pytest.mark.xfail(
-    reason="EntityUpsertRequest silently ignores unexpected fields instead of rejecting them (#2430 class)",
-    strict=True,
-)
 def test_entity_create_rejects_unexpected_fields(client):
     response = client.post(
         "/api/entities",
@@ -331,10 +295,6 @@ def test_entity_patch_missing_id_returns_404(client):
     assert response.json()["detail"] == "Entity not found: ghost-entity"
 
 
-@pytest.mark.xfail(
-    reason="EntityPatchRequest silently ignores unexpected fields instead of rejecting them (#2430 class)",
-    strict=True,
-)
 def test_entity_patch_rejects_unexpected_fields(client, db):
     entity = KnowledgeEntity(
         canonical_name="Alice",
@@ -355,10 +315,6 @@ def test_document_create_rejects_missing_required_name(client):
     assert response.status_code == 422
 
 
-@pytest.mark.xfail(
-    reason="DocumentCreate currently accepts empty names instead of rejecting them",
-    strict=True,
-)
 def test_document_create_rejects_empty_name(client):
     response = client.post("/api/documents", json={"name": ""})
     assert 400 <= response.status_code < 500
@@ -373,10 +329,6 @@ def test_document_create_rejects_missing_parent_cleanly(client):
     assert response.json()["detail"] == "Parent not found: ghost-parent"
 
 
-@pytest.mark.xfail(
-    reason="DocumentCreate uses extra='allow' and accepts unexpected fields instead of rejecting them (#2430 class)",
-    strict=True,
-)
 def test_document_create_rejects_unexpected_fields(client):
     response = client.post(
         "/api/documents",
@@ -401,10 +353,6 @@ def test_document_move_rejects_missing_parent_cleanly(client, db):
     assert response.json()["detail"] == "Parent not found: ghost-parent"
 
 
-@pytest.mark.xfail(
-    reason="Document move route ignores unexpected query params instead of rejecting them (#2430 class)",
-    strict=True,
-)
 def test_document_move_rejects_unexpected_query_fields(client, db):
     doc = Document(id="document-move-extra", name="Target", doc_type=DocType.file)
     db.save(doc)
@@ -421,19 +369,11 @@ def test_room_create_rejects_missing_required_name(client):
     assert response.status_code == 422
 
 
-@pytest.mark.xfail(
-    reason="RoomCreateRequest currently accepts empty names and creates blank rooms",
-    strict=True,
-)
 def test_room_create_rejects_empty_name(client):
     response = client.post("/api/mind-palace/rooms", json={"name": ""})
     assert 400 <= response.status_code < 500
 
 
-@pytest.mark.xfail(
-    reason="RoomCreateRequest silently ignores unexpected fields instead of rejecting them (#2430 class)",
-    strict=True,
-)
 def test_room_create_rejects_unexpected_fields(client):
     response = client.post(
         "/api/mind-palace/rooms",
@@ -451,10 +391,6 @@ def test_room_update_missing_id_returns_404(client):
     assert response.json()["detail"] == "Room not found: ghost-room"
 
 
-@pytest.mark.xfail(
-    reason="RoomUpdateRequest silently ignores unexpected fields instead of rejecting them (#2430 class)",
-    strict=True,
-)
 def test_room_update_rejects_unexpected_fields(client, db):
     room = Document(
         id="room-update-extra",

@@ -9,7 +9,7 @@ resolution, so dangling targets raise loudly instead of silently degrading.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 from fichero.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero.api.auth import action_context
@@ -30,9 +30,22 @@ BOOKMARK_PROTOTYPE_KEY = "bookmark"
 
 
 class BookmarkCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     target_id: str
     parent_id: str | None = None
     name: str | None = None
+
+
+class MilestoneCreateParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1)
+    parent_id: str
+    status: str = "planned"
+    description: str = ""
+    metadata: dict[str, object] = Field(default_factory=dict)
+    created_by: str = "human"
 
 
 def _bookmark_or_404(db: Database, bookmark_id: str) -> Document:
@@ -62,7 +75,14 @@ def create_bookmark_impl(db: Database, request: BookmarkCreate) -> Document:
     return bookmark
 
 
-def create_milestone_impl(db: Database, milestone: Milestone) -> Milestone:
+def create_milestone_impl(
+    db: Database, params: MilestoneCreateParams | Milestone
+) -> Milestone:
+    milestone = (
+        params
+        if isinstance(params, Milestone)
+        else Milestone(**params.model_dump(mode="json"))
+    )
     parent = db.get(Document, milestone.parent_id)
     if parent is None:
         raise HTTPException(status_code=404, detail="Milestone parent not found")
@@ -155,11 +175,11 @@ def _action_create_bookmark(
 
 @action(
     "milestone.create",
-    Milestone,
+    MilestoneCreateParams,
     domains=["milestone", "document"],
 )
 def _action_create_milestone(
-    db: Database, params: Milestone, ctx: ActionContext
+    db: Database, params: MilestoneCreateParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
     milestone = create_milestone_impl(db, params)
     after = milestone.model_dump(mode="json")
