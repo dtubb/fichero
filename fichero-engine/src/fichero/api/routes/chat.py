@@ -394,32 +394,25 @@ async def chat(
     except Exception as e:
         logger.warning(f"Search failed, proceeding without context: {e}")
 
-    # Generate response with LangChain LLM
-    # Pass through request values - _get_langchain_llm handles None by looking up configured providers
-    try:
-        llm = _get_langchain_llm(db, provider=request.provider, model=request.model)
-        # Build model_used string for response
-        provider = request.provider or "auto"
-        model = request.model or "auto"
-        model_used = f"{provider}/{model}"
+    # Generate response with LangChain LLM.
+    # Pass through request values - _get_langchain_llm handles None by looking up configured providers.
+    llm = _get_langchain_llm(db, provider=request.provider, model=request.model)
+    provider = request.provider or "auto"
+    model = request.model or "auto"
+    model_used = f"{provider}/{model}"
 
-        if context_docs:
-            user_prompt = _build_rag_user_prompt(request.message, context_docs)
-        else:
-            user_prompt = f"Question: {request.message}"
+    if context_docs:
+        user_prompt = _build_rag_user_prompt(request.message, context_docs)
+    else:
+        user_prompt = f"Question: {request.message}"
 
-        messages = [
-            SystemMessage(content=_build_chat_system_prompt(bool(context_docs))),
-            HumanMessage(content=user_prompt),
-        ]
+    messages = [
+        SystemMessage(content=_build_chat_system_prompt(bool(context_docs))),
+        HumanMessage(content=user_prompt),
+    ]
 
-        response = llm.invoke(messages)
-        response_text = response.content
-
-    except Exception as e:
-        logger.error(f"LLM generation failed: {e}")
-        response_text = f"I apologize, but I encountered an error while processing your request. Please try again. (Error: {str(e)[:100]})"
-        model_used = "error"
+    response = llm.invoke(messages)
+    response_text = response.content
 
     # Add assistant message
     conv.messages.append({"role": "assistant", "content": response_text})
