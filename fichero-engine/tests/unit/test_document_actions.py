@@ -46,12 +46,18 @@ def _ctx() -> ActionContext:
 
 @pytest.fixture
 def spy_emit(monkeypatch):
-    """Capture emit_change calls at the SOURCE module the registry imports."""
+    """Capture emit_change calls from both document emit paths.
+
+    The audited create/move/delete actions emit through the documents route
+    module so the route-patched change-stream tests and the action tests observe
+    the same call. Other document actions still use the registry's generic
+    change-stream emit path. Both append into the same sink here.
+    """
     calls: list[tuple] = []
-    monkeypatch.setattr(
-        "fichero.api.change_stream.emit_change",
-        lambda *a, **k: calls.append((a, k)),
-    )
+    def spy(*a, **k):
+        calls.append((a, k))
+    monkeypatch.setattr("fichero.api.routes.documents.emit_change", spy)
+    monkeypatch.setattr("fichero.api.change_stream.emit_change", spy)
     return calls
 
 
