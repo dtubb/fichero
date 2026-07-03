@@ -24,7 +24,11 @@ struct FicheroAppIOS: App {
     @StateObject private var captureQueue = MobileCaptureQueueStore()
 
     var body: some Scene {
-        WindowGroup {
+        // `id: "main"` so `openWindow(id: "main")` (new-window / new-tab
+        // affordances, WindowOpener) targets a registered scene on iPad instead
+        // of being a silent no-op (#2815). Harmless on iPhone, which has no
+        // multi-window support.
+        WindowGroup(id: "main") {
             FicheroSharedPlatformRoot(
                 windowState: windowState,
                 executionObserver: executionObserver
@@ -74,6 +78,17 @@ struct FicheroAppIOS: App {
                         using: MobileCaptureBackendUploadClient(libraryManager: libraryManager)
                     )
                 }
+        }
+
+        // Detached document-detail scene, mirroring the macOS registration so
+        // the inspector's "Open in Window" affordance (DetachInspectorButton →
+        // openWindow(id: "document-detail")) resolves on iPad instead of being a
+        // silent no-op (#2815). iPhone gates the button off (single-window).
+        WindowGroup("Document", id: "document-detail") {
+            DocumentDetailWindow()
+                .environmentObject(libraryManager)
+                .environmentObject(claimFocusState)
+                .environment(kgFocusState)
         }
     }
 }
