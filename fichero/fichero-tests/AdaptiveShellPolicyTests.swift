@@ -114,6 +114,40 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         )
     }
 
+    func testCompactShellMinWidthIsZeroSoContentFitsPhoneWidth() {
+        // #2801: on a compact (iPhone) layout the content column must be free to
+        // shrink; a 520pt content minimum would clamp it off-screen on a
+        // 390–430pt phone. The shell minimum drops to 0 regardless of the
+        // detail minimum, and independent of window width.
+        XCTAssertEqual(
+            ContentView.shellWindowMinWidth(
+                windowWidth: 400,
+                horizontalSizeClass: .compact,
+                sidebarVisible: true,
+                inspectorVisible: true,
+                detailMinWidth: ContentView.contentMinWidth
+            ),
+            0
+        )
+    }
+
+    func testRegularShellMinWidthUnchangedByTheCompactGuard() {
+        // The compact guard must not touch the regular (Mac / iPad) path.
+        let detailWidth = 600.0
+        let roomyWidth =
+            ContentView.sidebarMinWidth + detailWidth + ContentView.inspectorMinWidth + 40
+        XCTAssertNotEqual(
+            ContentView.shellWindowMinWidth(
+                windowWidth: roomyWidth,
+                horizontalSizeClass: .regular,
+                sidebarVisible: true,
+                inspectorVisible: true,
+                detailMinWidth: detailWidth
+            ),
+            0
+        )
+    }
+
     func testRoomyWindowKeepsFullShellMinWidthForMacAndiPadLayouts() {
         let detailWidth = 600.0
         let roomyWidth =

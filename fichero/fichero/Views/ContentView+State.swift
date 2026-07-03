@@ -518,6 +518,17 @@ extension ContentView {
         inspectorVisible: Bool,
         detailMinWidth: Double
     ) -> Double {
+        // On a compact (iPhone-width) layout the single content column must be
+        // free to shrink to the screen. `paneAwareDetailMinWidth` can return a
+        // 520pt content minimum (entity-library / KG / chat, where the reading
+        // workspace is off), which on a 390–430pt phone clamps content
+        // off-screen (#2801). A runtime check, not `#if os(iOS)`: macOS never
+        // reports a compact horizontal size class, so its shell minimum below is
+        // unchanged, and this stays unit-testable on the macOS test target.
+        if horizontalSizeClass == .compact {
+            return 0
+        }
+
         let policy = shellCollapsePolicy(
             windowWidth: windowWidth,
             horizontalSizeClass: horizontalSizeClass,
