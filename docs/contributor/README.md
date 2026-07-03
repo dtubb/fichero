@@ -11,6 +11,7 @@ This section explains how the current Fichero codebase works for contributors. I
 - [Workflows, Activity, and Curation](./workflows-activity-and-curation.md)
 - [Action Registry](./action-registry.md)
 - [Security Model](./security-model.md)
+- [CLI as Backend Test Harness](./cli-test-harness.md)
 - [Tailscale Private Transport](../remote-backend-tailscale.md)
 - [Setup and Contributing](./setup-and-contributing.md)
 

@@ -29,12 +29,62 @@ agent comparisons:
 PYTHONPATH=fichero-engine/src ~/.venv/bin/python -m fichero --json health
 ```
 
+## Authentication
+
+The CLI now has a real multi-user auth flow:
+
+```bash
+PYTHONPATH=fichero-engine/src .venv/bin/python -m fichero auth login
+PYTHONPATH=fichero-engine/src .venv/bin/python -m fichero auth whoami
+PYTHONPATH=fichero-engine/src .venv/bin/python -m fichero auth logout
+```
+
+Credential resolution is:
+
+1. `FICHERO_SESSION_TOKEN`
+2. `~/Library/Application Support/Fichero/cli-session.json`
+3. `FICHERO_API_KEY`
+4. `~/Library/Application Support/Fichero/.api-key`
+
+`auth login` writes `cli-session.json` with mode `0600`. That session token is
+preferred over the bootstrap/shared-secret fallback so normal CLI use does not
+quietly keep running as the bootstrap owner after a real user logs in.
+
+Common auth failures:
+
+- `401` means the token is missing or expired. Run `fichero auth login`.
+- `403` means the current user is authenticated but does not have access to the
+  selected library. Re-check `--library` / `FICHERO_LIBRARY_PATH` and the ACL.
+
 For library-scoped endpoints, pass the same library the app is using:
 
 ```bash
 PYTHONPATH=fichero-engine/src ~/.venv/bin/python -m fichero \
   --library /path/to/Library.fichero \
   --json search "sample query"
+```
+
+## Importers Need The Engine
+
+`import-manifest` and `import-iiif` are thin HTTP clients. They do not write the
+library directly; they call the running engine's `/api/library`, `/api/documents`,
+`/api/entities`, and related routes.
+
+That means:
+
+- start the engine first
+- pass `--api` only when you are targeting a non-default engine URL
+- let the importer reuse the same CLI auth/session token resolution unless you
+  explicitly pass `--token-file`
+
+Example:
+
+```bash
+bash fichero-engine/scripts/start_backend.sh
+PYTHONPATH=fichero-engine/src .venv/bin/python -m fichero auth login
+PYTHONPATH=fichero-engine/src .venv/bin/python -m fichero import-manifest \
+  --manifest /path/to/manifest.jsonl \
+  --library /path/to/Library.fichero
 ```
 
 ## Debug loop
