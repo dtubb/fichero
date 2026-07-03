@@ -1425,6 +1425,39 @@ class LibraryAuthzSnapshot(BaseModel):
     roles: list[LibraryRole] = Field(default_factory=list)
 
 
+class LibraryMember(BaseModel):
+    """One user's access to a library, joined with their account profile.
+
+    The Users & Sharing UI (#2869 A2/A4) needs human-readable names, not the
+    bare ``user_id`` the ``library_roles`` table stores. This is that join.
+    """
+
+    user_id: str
+    username: str
+    display_name: str
+    is_owner_account: bool
+    role: str
+
+
+class LibraryMembersResponse(BaseModel):
+    """Response from ``GET /api/authz/members`` — who can access this library."""
+
+    library_path: str
+    members: list[LibraryMember] = Field(default_factory=list)
+    count: int
+
+
+class SetLibraryRoleRequest(BaseModel):
+    """Typed body for ``PUT /api/authz/members`` — assign/change a library role.
+
+    A typed OpenAPI surface over the ``acl.set`` registry action so the Swift
+    client gets a generated method instead of hand-rolling ``/actions/invoke``.
+    """
+
+    user: str = Field(description="Target user id or username")
+    role: str = Field(description="owner/editor/viewer")
+
+
 class ReinstallDefaultWorkflowsResponse(BaseModel):
     """Response from ``POST /api/workflows/reinstall-defaults``."""
 

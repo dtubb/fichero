@@ -498,6 +498,71 @@ def test_owner_can_grant_role_and_it_takes_effect(
     assert result.ok is True
 
 
+def test_owner_can_revoke_role_and_access_is_lost(
+    db, app_db, users, acl_action, monkeypatch
+):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    library_path = _library_path(db)
+    normalized = authz.normalize_library_path(library_path)
+    _grant(app_db, users.owner, library_path, "owner")
+    _grant(app_db, users.editor, library_path, "editor")
+
+    # Precondition: editor can invoke the mutating action.
+    assert registry.invoke(
+        db, acl_action, {}, ActionContext(actor="editor", library_path=library_path)
+    ).ok is True
+
+    registry.invoke(
+        db,
+        "acl.set",
+        {"user": "editor", "remove": True},
+        ActionContext(actor="owner", library_path=library_path),
+    )
+
+    # Role row is gone and the now role-less editor is denied (fail-closed).
+    assert app_db.get_library_role(users.editor.id, normalized) is None
+    with pytest.raises(authz.AuthorizationError):
+        registry.invoke(
+            db, acl_action, {}, ActionContext(actor="editor", library_path=library_path)
+        )
+
+
+def test_owner_cannot_revoke_their_own_role(db, app_db, users, monkeypatch):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    library_path = _library_path(db)
+    normalized = authz.normalize_library_path(library_path)
+    _grant(app_db, users.owner, library_path, "owner")
+
+    with pytest.raises(authz.AuthorizationError):
+        registry.invoke(
+            db,
+            "acl.set",
+            {"user": "owner", "remove": True},
+            ActionContext(actor="owner", library_path=library_path),
+        )
+    # The sole owner keeps their role — no self-lockout.
+    assert app_db.get_library_role(users.owner.id, normalized) is not None
+
+
+def test_non_owner_cannot_revoke(db, app_db, users, monkeypatch):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    library_path = _library_path(db)
+    normalized = authz.normalize_library_path(library_path)
+    _grant(app_db, users.owner, library_path, "owner")
+    _grant(app_db, users.editor, library_path, "editor")
+    _grant(app_db, users.viewer, library_path, "viewer")
+
+    with pytest.raises(authz.AuthorizationError):
+        registry.invoke(
+            db,
+            "acl.set",
+            {"user": "editor", "remove": True},
+            ActionContext(actor="viewer", library_path=library_path),
+        )
+    # Editor's role is untouched.
+    assert app_db.get_library_role(users.editor.id, normalized) is not None
+
+
 @pytest.mark.anyio
 async def test_multiuser_off_leaves_registry_and_read_dependency_unchanged(
     db, users, acl_action, monkeypatch

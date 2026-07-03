@@ -124,6 +124,23 @@ def set_role(*, actor: Any, library: str | Path | None, user: str, role: str):
     )
 
 
+def remove_role(*, actor: Any, library: str | Path | None, user: str) -> None:
+    """Owner-only revoke: delete a user's whole-library role (fail-closed).
+
+    An owner cannot revoke their OWN role — that would let the sole owner lock
+    themselves (and everyone) out of a library only they administer. A second
+    owner can still remove the first, so a library always keeps at least one.
+    """
+    resolved_actor = require_owner(actor, library)
+    library_path = normalize_library_path(library)
+    target_user = resolve_user(user)
+    if target_user is None or library_path is None:
+        raise ValueError("unknown user or library")
+    if target_user.id == resolved_actor.id:
+        raise AuthorizationError("cannot revoke your own library role")
+    get_app_db().delete_library_role(target_user.id, library_path)
+
+
 def set_override(
     *,
     actor: Any,

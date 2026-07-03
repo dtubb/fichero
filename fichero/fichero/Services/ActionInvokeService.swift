@@ -128,6 +128,17 @@ extension ActionLibraryService {
             originWindow: originWindow
         )
     }
+
+    /// Revoke a user's library role (remove their access) through the same
+    /// audited ACL action. Fail-closed: a role-less user is denied.
+    @discardableResult
+    func revokeLibraryRole(userId: String, originWindow: String? = nil) async throws -> ActionInvokeResult {
+        try await invokeAction(
+            name: "acl.set",
+            params: AclSetParams(user: userId, remove: true),
+            originWindow: originWindow
+        )
+    }
 }
 
 // MARK: - Wire models
@@ -176,12 +187,22 @@ struct AclSetParams: Encodable {
     let role: String?
     let targetId: String?
     let effect: String?
+    /// Revoke: remove the user's whole-library role. Owner-gated server-side;
+    /// an owner cannot revoke their own role (fail-closed).
+    let remove: Bool?
 
-    init(user: String, role: String? = nil, targetId: String? = nil, effect: String? = nil) {
+    init(
+        user: String,
+        role: String? = nil,
+        targetId: String? = nil,
+        effect: String? = nil,
+        remove: Bool? = nil
+    ) {
         self.user = user
         self.role = role
         self.targetId = targetId
         self.effect = effect
+        self.remove = remove
     }
 
     enum CodingKeys: String, CodingKey {
@@ -189,6 +210,7 @@ struct AclSetParams: Encodable {
         case role
         case targetId = "target_id"
         case effect
+        case remove
     }
 
     func encode(to encoder: Encoder) throws {
@@ -197,6 +219,7 @@ struct AclSetParams: Encodable {
         try container.encodeIfPresent(role, forKey: .role)
         try container.encodeIfPresent(targetId, forKey: .targetId)
         try container.encodeIfPresent(effect, forKey: .effect)
+        try container.encodeIfPresent(remove, forKey: .remove)
     }
 }
 
