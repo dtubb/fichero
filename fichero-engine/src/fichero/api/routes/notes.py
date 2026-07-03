@@ -271,22 +271,18 @@ async def patch_note(
     note_id: str,
     request: NotePatchRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> Note:
-    note, _before = patch_note_impl(db, note_id, request)
-    emit_change(
-        x_fichero_library_path,
-        type="note.updated",
-        document_ids=_note_scope_document_ids(note),
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
+    result = registry.invoke(
+        db,
+        "note.update",
+        {
+            "note_id": note_id,
+            "update": request.model_dump(mode="json", exclude_unset=True),
+        },
+        ctx,
     )
-    return note
+    return Note.model_validate(result.result)
 
 
 def delete_note_impl(db: Database, note_id: str) -> tuple[list[str], dict]:
@@ -321,21 +317,9 @@ def restore_note_impl(db: Database, snapshot: dict) -> Note:
 async def delete_note(
     note_id: str,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> None:
-    document_ids, _before = delete_note_impl(db, note_id)
-    emit_change(
-        x_fichero_library_path,
-        type="note.deleted",
-        document_ids=document_ids,
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
-    )
+    registry.invoke(db, "note.delete", {"note_id": note_id}, ctx)
 
 
 # =============================================================================
