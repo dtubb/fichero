@@ -368,10 +368,6 @@ class TestAuditedMutationConcurrency:
         assert claim_response.status_code == 200
         assert claim_response.json()["text"] in set(texts)
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="Existing-id entity upserts only audit the initial create on main; concurrent update semantics are not yet action-audited per mutation.",
-    )
     @pytest.mark.asyncio
     async def test_entity_upsert_concurrent_updates_audit_emit_and_state(
         self, client, db, emit_calls
@@ -402,11 +398,15 @@ class TestAuditedMutationConcurrency:
 
         _assert_no_server_errors(responses)
         assert all(response.status_code == 200 for response in responses)
-        assert len(_audits_for_action(db, "entity.create")) == ENTITY_N + 1
+        assert len(_audits_for_action(db, "entity.create")) == 1
+        assert len(_audits_for_action(db, "entity.update")) == ENTITY_N
+        assert _audit_targets(db, "entity.update") == {entity_id}
         assert _audit_targets(db, "entity.create") == {entity_id}
 
-        emitted_ids = _emitted_entity_ids(emit_calls, "entity.created")
-        assert emitted_ids.count(entity_id) == ENTITY_N + 1
+        created_ids = _emitted_entity_ids(emit_calls, "entity.created")
+        updated_ids = _emitted_entity_ids(emit_calls, "entity.updated")
+        assert created_ids.count(entity_id) == 1
+        assert updated_ids.count(entity_id) == ENTITY_N
 
         entity_response = await _get(client, f"/api/entities/{entity_id}")
         assert entity_response.status_code == 200

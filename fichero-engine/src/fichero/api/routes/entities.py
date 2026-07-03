@@ -120,6 +120,10 @@ class EntityCreateActionParams(BaseModel):
     source_document_ids: list[str] = Field(default_factory=list)
 
 
+class EntityUpdateActionParams(EntityCreateActionParams):
+    entity_id: str
+
+
 class EntityAliasRequest(BaseModel):
     """Request to add aliases to an entity."""
 
@@ -400,6 +404,34 @@ def create_entity_impl(db: Database, request: "EntityUpsertRequest") -> Knowledg
     return entity
 
 
+def update_entity_impl(
+    db: Database, entity_id: str, request: "EntityUpsertRequest"
+) -> KnowledgeEntity:
+    entity = db.get(KnowledgeEntity, entity_id)
+    if entity is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"entity {entity_id!r} not found",
+        )
+
+    now = datetime.now()
+    entity.canonical_name = request.canonical_name.strip()
+    entity.entity_type = request.entity_type
+    entity.aliases = sorted(set(a.strip() for a in request.aliases if a.strip()))
+    entity.description = request.description
+    entity.language = request.language
+    entity.metadata = request.metadata
+    entity.source_document_ids = sorted(
+        set(
+            list(entity.source_document_ids or [])
+            + [doc_id for doc_id in request.source_document_ids if doc_id]
+        )
+    )
+    entity.updated_at = now
+    db.save(entity)
+    return entity
+
+
 @action(
     "entity.create",
     EntityCreateActionParams,
@@ -416,6 +448,39 @@ def _action_create_entity(
     _emit_entity_change_ctx(
         ctx,
         event_type="entity.created",
+        entity_ids=[entity.id],
+    )
+    spec = ChangeSpec(
+        domains=["entity"],
+        target_ids=[entity.id],
+        after={"entity_id": entity.id},
+        entity_ids=[entity.id],
+    )
+    return entity.model_dump(mode="json"), spec
+
+
+@action(
+    "entity.update",
+    EntityUpdateActionParams,
+    domains=["entity"],
+    undoable=False,
+)
+def _action_update_entity(
+    db: Database, params: EntityUpdateActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    entity = update_entity_impl(
+        db,
+        params.entity_id,
+        EntityUpsertRequest.model_validate(
+            {
+                "id": params.entity_id,
+                **params.model_dump(mode="json", exclude={"entity_id"}),
+            }
+        ),
+    )
+    _emit_entity_change_ctx(
+        ctx,
+        event_type="entity.updated",
         entity_ids=[entity.id],
     )
     spec = ChangeSpec(
@@ -445,13 +510,6 @@ async def upsert_entity(
         library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
     )
-    emit_library_path = (
-        x_fichero_library_path if isinstance(x_fichero_library_path, str) else None
-    )
-    emit_actor = actor if isinstance(actor, str) else ctx.actor
-    emit_origin_window = (
-        x_fichero_origin_window if isinstance(x_fichero_origin_window, str) else None
-    )
     if request.id:
         if _is_garbage_entity_name(request.canonical_name):
             raise HTTPException(
@@ -461,43 +519,16 @@ async def upsert_entity(
                     "and cannot be stored as an entity name"
                 ),
             )
-        entity = db.get(KnowledgeEntity, request.id)
-        if entity is None:
-            # A specific entity id was requested for update but does not exist.
-            # Do NOT silently create a NEW entity under a different
-            # (auto-generated) id: that substitutes a different target than the
-            # caller asked for and hides the real "it's gone / wrong id"
-            # condition (#2507, same class as the #2430 parent-reroute). This
-            # matches the PATCH route, which already 404s on a missing id.
-            raise HTTPException(
-                status_code=404,
-                detail=f"entity {request.id!r} not found",
-            )
-        now = datetime.now()
-        entity.canonical_name = request.canonical_name.strip()
-        entity.entity_type = request.entity_type
-        entity.aliases = sorted(set(a.strip() for a in request.aliases if a.strip()))
-        entity.description = request.description
-        entity.language = request.language
-        entity.metadata = request.metadata
-        entity.source_document_ids = sorted(
-            set(
-                list(entity.source_document_ids or [])
-                + [doc_id for doc_id in request.source_document_ids if doc_id]
-            )
+        result = registry.invoke(
+            db,
+            "entity.update",
+            {
+                "entity_id": request.id,
+                **request.model_dump(mode="json", exclude={"id"}),
+            },
+            ctx,
         )
-        entity.updated_at = now
-        db.save(entity)
-
-        emit_change(
-            emit_library_path,
-            type="entity.updated",
-            entity_ids=[entity.id],
-            actor=emit_actor,
-            origin_window=emit_origin_window,
-            origin_user=emit_actor,
-        )
-        return entity
+        return KnowledgeEntity.model_validate(result.result)
 
     result = registry.invoke(
         db,
