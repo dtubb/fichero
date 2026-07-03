@@ -1134,6 +1134,7 @@ def import_archivo_judicial_medellin_command(
 
 @app.command(name="import-ghc-catalogued-materials")
 def import_ghc_catalogued_materials_command(
+    ctx: typer.Context,
     library_path: Path = typer.Option(
         Path("~/Library/Application Support/Fichero/GHC-Catalogued-Materials.fichero"),
         "--library-path",
@@ -1153,16 +1154,22 @@ def import_ghc_catalogued_materials_command(
     no_embed: bool = typer.Option(False, "--no-embed", help="Skip embedding creation."),
 ) -> None:
     """Import already-catalogued GHC materials, including ACENET imports."""
-    from fichero.source_archive_import import import_ghc_catalogued_materials
+    from fichero.importers.source_archive_import import import_ghc_catalogued_materials_via_http
 
     try:
-        summary = import_ghc_catalogued_materials(
-            library_path=library_path,
-            acenet_root=acenet_root,
-            catalogued_root=catalogued_root,
-            reset=reset,
-            auto_embed=not no_embed,
-        )
+        with FicheroClient(
+            base_url=ctx.obj["base_url"],
+            library_path=str(library_path),
+            token=ctx.obj["token"],
+        ) as client:
+            summary = import_ghc_catalogued_materials_via_http(
+                client,
+                library_path=library_path,
+                acenet_root=acenet_root,
+                catalogued_root=catalogued_root,
+                reset=reset,
+                auto_embed=not no_embed,
+            )
     except Exception as exc:
         typer.secho(f"GHC catalogued import failed: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc

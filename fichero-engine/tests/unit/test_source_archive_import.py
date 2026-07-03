@@ -10,6 +10,7 @@ from fichero.importers.source_archive_import import (
     import_archivo_judicial_medellin,
     import_archivo_judicial_medellin_via_http,
     import_ghc_catalogued_materials,
+    import_ghc_catalogued_materials_via_http,
     import_istmina_mineria,
     import_istmina_mineria_via_http,
     import_newton_marshall_diary,
@@ -316,12 +317,35 @@ def test_import_ghc_catalogued_materials_ingests_roots(tmp_path):
     assert summary.skipped == 0
 
 
+def test_import_ghc_catalogued_materials_via_http_ingests_roots(tmp_path):
+    library = tmp_path / "GHC.fichero"
+    acenet_root = tmp_path / "ACENET imports"
+    catalogued_root = tmp_path / "GHC catalogued"
+    acenet_root.mkdir(parents=True)
+    catalogued_root.mkdir(parents=True)
+    (acenet_root / "acen-001.jpg").write_text("x", encoding="utf-8")
+    (catalogued_root / "ghc-001.pdf").write_text("x", encoding="utf-8")
+
+    client = FakeClient()
+    summary = import_ghc_catalogued_materials_via_http(
+        client,
+        library_path=library,
+        acenet_root=acenet_root,
+        catalogued_root=catalogued_root,
+    )
+
+    assert summary.provider == "ghc_catalogued_materials"
+    assert summary.files_imported == 2
+    assert summary.skipped == 0
+    assert client.created_library == str(library.resolve())
+
+
 def test_cli_import_ghc_catalogued_materials_invokes_importer(monkeypatch, tmp_path):
     called: dict = {}
 
-    def fake_import(**kwargs):
-        called.update(kwargs)
-        from fichero.source_archive_import import SourceArchiveImportSummary
+    def fake_import(client, **kwargs):
+        called.update({"client": client, **kwargs})
+        from fichero.importers.source_archive_import import SourceArchiveImportSummary
 
         return SourceArchiveImportSummary(
             provider="ghc_catalogued_materials",
@@ -330,16 +354,18 @@ def test_cli_import_ghc_catalogued_materials_invokes_importer(monkeypatch, tmp_p
             files_imported=2,
             skipped=0,
             warnings=[],
-        )
+    )
 
     monkeypatch.setattr(
-        "fichero.source_archive_import.import_ghc_catalogued_materials",
+        "fichero.importers.source_archive_import.import_ghc_catalogued_materials_via_http",
         fake_import,
     )
     runner = CliRunner()
     result = runner.invoke(
         cli.app,
         [
+            "--base-url",
+            "http://remote-engine.test",
             "import-ghc-catalogued-materials",
             "--library-path",
             str(tmp_path / "GHC.fichero"),
@@ -351,6 +377,7 @@ def test_cli_import_ghc_catalogued_materials_invokes_importer(monkeypatch, tmp_p
     )
     assert result.exit_code == 0
     assert Path(called["library_path"]) == tmp_path / "GHC.fichero"
+    assert called["client"].base_url == "http://remote-engine.test"
 
 
 def test_import_chota_colombian_pacific_maps_ingests_source_tree(tmp_path):
