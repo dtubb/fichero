@@ -25,11 +25,18 @@ public struct AuthTokenMiddleware: ClientMiddleware {
     private static let bootstrapTokenFileName = ".api-key"
     private static let remoteTokenFilePrefix = ".remote-api-key-"
     private static let remoteTokenKeychainService = "app.fichero.fichero.remote-device-token"
+    /// Keychain service for the multi-user *session* token minted by
+    /// `POST /api/auth/login`. Distinct from the bootstrap/device tokens: this
+    /// carries the logged-in user's identity + per-library role, which the
+    /// bootstrap `.api-key` (owner-for-admin, but `request.state.user == nil`)
+    /// does not, so a library only loads under multi-user once a session exists.
+    private static let sessionTokenKeychainService = "app.fichero.fichero.session-token"
 
     /// Endpoints the engine accepts unauthenticated. Keep in sync with
     /// `_UNAUTHENTICATED_PATHS` in the Python side.
     private static let unauthenticatedPaths: [String] = [
         "/api/health",
+        "/api/auth/login",
         "/api/pair",
         "/openapi.json",
         "/docs",
@@ -293,6 +300,72 @@ public struct AuthTokenMiddleware: ClientMiddleware {
         ]
     }
 
+    // MARK: - Session token (multi-user login, #2021/#2022)
+
+    /// Per-host Keychain account for the login session token. Host-scoped like
+    /// the remote device token so a session for one engine can never be
+    /// attached to a request bound for a different host.
+    public static func sessionTokenKeychainAccount(hostString: String? = nil) -> String {
+        "session-token|\(normalizedRemoteHostString(hostString: hostString))"
+    }
+
+    private static func sessionTokenKeychainQuery(hostString: String? = nil) -> [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: sessionTokenKeychainService,
+            kSecAttrAccount as String: sessionTokenKeychainAccount(hostString: hostString)
+        ]
+    }
+
+    /// Store the session token returned by `POST /api/auth/login`. Secrets live
+    /// in the Keychain, never UserDefaults. Never logged by callers.
+    public static func persistSessionToken(_ token: String, hostString: String? = nil) throws {
+        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let data = trimmed.data(using: .utf8) else { return }
+
+        let query = sessionTokenKeychainQuery(hostString: hostString)
+        let attributes: [String: Any] = [kSecValueData as String: data]
+        let status = SecItemCopyMatching(query as CFDictionary, nil)
+
+        switch status {
+        case errSecSuccess:
+            let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+            guard updateStatus == errSecSuccess else {
+                throw AuthTokenStorageError.keychainWriteFailed(updateStatus)
+            }
+        case errSecItemNotFound:
+            var addQuery = query
+            addQuery[kSecValueData as String] = data
+            let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+            guard addStatus == errSecSuccess else {
+                throw AuthTokenStorageError.keychainWriteFailed(addStatus)
+            }
+        default:
+            throw AuthTokenStorageError.keychainReadFailed(status)
+        }
+    }
+
+    public static func readSessionToken(hostString: String? = nil) -> String? {
+        var query = sessionTokenKeychainQuery(hostString: hostString)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess,
+              let data = result as? Data,
+              let rawToken = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+
+        let token = rawToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        return token.isEmpty ? nil : token
+    }
+
+    public static func clearSessionToken(hostString: String? = nil) {
+        SecItemDelete(sessionTokenKeychainQuery(hostString: hostString) as CFDictionary)
+    }
+
     public static func waitForToken(timeout: TimeInterval = 3) async -> String? {
         if let token = readTokenFromDisk() { return token }
         let deadline = Date().addingTimeInterval(timeout)
@@ -325,8 +398,17 @@ public struct AuthTokenMiddleware: ClientMiddleware {
         let isUnauthenticated = Self.isUnauthenticatedPath(path)
 
         // Read the token fresh on every request — see class doc for why.
-        if !isUnauthenticated, let token = await Self.waitForToken() {
-            request.headerFields[.authorization] = "Bearer \(token)"
+        // A login *session* token (multi-user) takes priority over the
+        // bootstrap/device token: once a user is signed in, their session
+        // carries the identity + per-library role the library load needs. When
+        // no session exists yet (pre-login, first-owner bootstrap) we fall back
+        // to the bootstrap/device token so /api/users and create-owner still work.
+        if !isUnauthenticated {
+            if let session = Self.readSessionToken() {
+                request.headerFields[.authorization] = "Bearer \(session)"
+            } else if let token = await Self.waitForToken() {
+                request.headerFields[.authorization] = "Bearer \(token)"
+            }
         }
 
         return try await next(request, body, baseURL)

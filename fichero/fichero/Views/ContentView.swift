@@ -242,6 +242,11 @@ struct ContentView: View {
                     .padding(.top, 10)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if !appState.sessionStore.allowsLibraryAccess {
+                // Multi-user is on and there's no valid session yet — present the
+                // login / first-run owner-setup screen instead of the library
+                // (which would otherwise 401/403 against its own backend). (#2021)
+                AuthGateView(session: appState.sessionStore)
             } else {
                 mainContentView
                     .onAppear {
