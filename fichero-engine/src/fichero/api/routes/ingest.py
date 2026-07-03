@@ -31,7 +31,12 @@ class IngestFileRequest(BaseModel):
 
     path: str
     parent_id: Optional[str] = None
-    copy_mode: bool = False  # Link (default) or copy into library
+    # `mode` is the full three-way choice (link/copy/move). `copy_mode` is the
+    # legacy boolean that could only express link-vs-copy — MOVE was unreachable
+    # through it and silently degraded to LINK (#2869 B1). When `mode` is set it
+    # wins; `copy_mode` stays for older callers.
+    mode: Optional[str] = None
+    copy_mode: bool = False  # Legacy: Link (default) or copy into library
     extract_text: bool = True
     auto_embed: bool = True
 
@@ -41,6 +46,7 @@ class IngestFolderRequest(BaseModel):
 
     path: str
     parent_id: Optional[str] = None
+    mode: Optional[str] = None
     copy_mode: bool = False
     recursive: bool = True
     # Default to True so a freshly-ingested folder is searchable as soon
@@ -74,6 +80,28 @@ class IngestTaskStatus(BaseModel):
     document_ids: list[str] = []
 
 
+def _resolve_ingest_mode(mode: Optional[str], copy_mode: bool):
+    """Resolve request mode → IngestMode, failing loudly on a bad value.
+
+    `mode` (link/copy/move) wins when present; otherwise fall back to the legacy
+    `copy_mode` boolean. An unrecognized `mode` raises 400 rather than silently
+    degrading to LINK — the exact class of bug this field fixes (#2869 B1,
+    prefer-raise-over-silent-fallback).
+    """
+    from fichero.ingest import IngestMode
+
+    if mode is not None:
+        try:
+            return IngestMode(mode.strip().lower())
+        except ValueError:
+            valid = ", ".join(m.value for m in IngestMode)
+            raise HTTPException(
+                status_code=400,
+                detail=f"invalid ingest mode: {mode!r} (expected one of: {valid})",
+            )
+    return IngestMode.COPY if copy_mode else IngestMode.LINK
+
+
 # Shared mutation logic (the proven algorithm wrapped by both the route and the
 # audited action — iterate-not-replace, EPIC #1848 / #2014). Validation raises
 # HTTPException(400) before any ingest work; ingest failures wrap to 500 — the
@@ -90,7 +118,7 @@ def import_file_impl(
     Extracted verbatim from the ``POST /file`` route so the route handler and
     the ``import.file`` action drive the SAME code.
     """
-    from fichero.ingest import ingest_file as do_ingest, IngestMode
+    from fichero.ingest import ingest_file as do_ingest
 
     path = Path(request.path)
     if not path.exists():
@@ -98,7 +126,7 @@ def import_file_impl(
     if not path.is_file():
         raise HTTPException(status_code=400, detail=f"Not a file: {request.path}")
 
-    mode = IngestMode.COPY if request.copy_mode else IngestMode.LINK
+    mode = _resolve_ingest_mode(request.mode, request.copy_mode)
     try:
         doc = do_ingest(
             path,
@@ -130,7 +158,7 @@ def import_folder_impl(
     task_id); the ``import.folder`` action runs it synchronously so it can audit
     the created doc ids. Both share this one validated ingest.
     """
-    from fichero.ingest import ingest_folder as do_ingest, IngestMode
+    from fichero.ingest import ingest_folder as do_ingest
 
     path = Path(request.path)
     if not path.exists():
@@ -138,7 +166,7 @@ def import_folder_impl(
     if not path.is_dir():
         raise HTTPException(status_code=400, detail=f"Not a directory: {request.path}")
 
-    mode = IngestMode.COPY if request.copy_mode else IngestMode.LINK
+    mode = _resolve_ingest_mode(request.mode, request.copy_mode)
     return do_ingest(
         path,
         mode=mode,

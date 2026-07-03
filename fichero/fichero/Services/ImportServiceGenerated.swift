@@ -161,6 +161,10 @@ class ImportServiceGenerated: ObservableObject {
                 body: .json(.init(
                     path: url.path,
                     parentId: parentId,
+                    // Send the full mode so MOVE reaches the engine. copyMode is
+                    // the legacy bool that couldn't express MOVE (#2869 B1); the
+                    // engine now honours `mode` and ignores copyMode when set.
+                    mode: mode.rawValue,
                     copyMode: mode == .copy,
                     extractText: extractText,
                     autoEmbed: autoEmbed
@@ -206,6 +210,8 @@ class ImportServiceGenerated: ObservableObject {
             body: .json(.init(
                 path: url.path,
                 parentId: parentId,
+                // Full mode so MOVE reaches the engine, not silent LINK (#2869 B1).
+                mode: mode.rawValue,
                 copyMode: mode == .copy,
                 recursive: recursive,
                 extractText: extractText,
