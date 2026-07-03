@@ -56,11 +56,9 @@ extension URLRequest {
             setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         if let libraryPath {
-            // Percent-encode so non-ASCII paths (diacritics, accented home dirs)
-            // survive the latin-1 HTTP header transport (#2648). The engine
-            // `unquote`s on read (api/library_header.py); pure-ASCII paths encode
-            // to themselves, so this is a no-op for them. `.urlPathAllowed`
-            // mirrors `urllib.parse.quote(path, safe="/")`.
+            // Percent-encode non-ASCII paths (#2648) so header transport stays
+            // lossless. The engine unquotes on read, and pure-ASCII paths are
+            // unchanged, so this is a no-op unless encoding is actually needed.
             let encoded = libraryPath.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? libraryPath
             setValue(encoded, forHTTPHeaderField: "X-Fichero-Library-Path")
         }

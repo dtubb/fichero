@@ -53,6 +53,7 @@ struct ImmersiveReaderView: View {
                         .background(.ultraThinMaterial, in: Circle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Exit full screen reader")
                 .keyboardShortcut(.cancelAction)
                 .help("Exit full screen (Esc)")
             }
@@ -70,6 +71,7 @@ struct ImmersiveReaderView: View {
                     Image(systemName: "chevron.left")
                 }
                 .disabled(siblingIndex == nil || siblingIndex == 0)
+                .accessibilityLabel("Previous page")
 
                 Text(document.name)
                     .font(.callout)
@@ -82,6 +84,7 @@ struct ImmersiveReaderView: View {
                     Image(systemName: "chevron.right")
                 }
                 .disabled(siblingIndex == nil || siblingIndex == siblings.count - 1)
+                .accessibilityLabel("Next page")
             }
             .buttonStyle(.plain)
             .foregroundStyle(.white)

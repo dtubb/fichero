@@ -49,7 +49,6 @@ INFRASTRUCTURE_FILES = {
 # FicheroClient / generated OpenAPI operations.
 KNOWN_VIOLATIONS: dict[str, str] = {
     "ActionInvokeService.swift": "#1848 — action layer cli-only, store/UI deferred",
-    "AppleScriptSupport.swift": "#1943 — AppleScript bridge still uses raw URLSession/URLRequest",
     "ImageEditingServiceGenerated.swift": "#1943 — image editing service still hand-builds image endpoints",
     "WorkflowServiceGenerated.swift": "#1943 — workflow service still has raw preview transport helper",
 }
@@ -58,14 +57,16 @@ KNOWN_VIOLATIONS: dict[str, str] = {
 # cannot preserve the current binary/flexible-decoding behavior. These are not
 # backlog entries; each needs a one-line reason to stay sanctioned.
 SANCTIONED_RAW_TRANSPORT: dict[str, str] = {
+    "ActivityStreamService.swift": (
+        "#1943 — /api/activity/stream is an infinite text/event-stream SSE feed; "
+        "the generated client cannot surface it incrementally, so this pinned "
+        "URLSession byte stream derives base URL and library context from the "
+        "same generated-client transport as the typed activity endpoints"
+    ),
     "ArtifactServiceGenerated.swift": (
         "#1943 — same file also hosts EntityServiceGenerated; remaining raw helpers "
         "decode flexible citation/classification/hermeneutics payloads that generated "
         "types expose as untyped containers"
-    ),
-    "StorageServiceGenerated.swift": (
-        "#1943 — thumbnail/display/source-file endpoints return binary image/source "
-        "bytes and a download URL; generated schema exposes JSON containers"
     ),
     "WorkflowStreamService.swift": (
         "#1943/#2538 — the generated streamWorkflowEvents… operation buffers its "

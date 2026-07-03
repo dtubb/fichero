@@ -48,7 +48,6 @@ KNOWN_VACUOUS = {
     "fichero-engine/tests/unit/test_bookmarks.py::TestStopAccessing::test_no_error_for_regular_file",
     "fichero-engine/tests/unit/test_change_stream.py::TestEmitChange::test_emit_change_never_raises",
     "fichero-engine/tests/unit/test_db_access_guardrail.py::test_no_new_raw_db_access_outside_persistence_layer",
-    "fichero-engine/tests/unit/test_db_writer.py::test_stop_is_idempotent",
     "fichero-engine/tests/unit/test_fuzzy_clean_rgba.py::test_fuzzy_clean_la_and_palette_modes",
     "fichero-engine/tests/unit/test_hermeneutics_security.py::TestLLMInjectionFutureRisk::test_suggestions_need_sanitization_when_llm_added",
     "fichero-engine/tests/unit/test_integration_security.py::TestEnvironmentSecurity::test_api_key_required_in_production",

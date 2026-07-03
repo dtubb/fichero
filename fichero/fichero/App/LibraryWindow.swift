@@ -29,13 +29,8 @@ struct LibraryWindow: View {
     @State private var hostWindow: NSWindow?
     @SceneStorage("libraryWindow.libraryId") private var persistedLibraryId: String?
 
-    // #2273 per-window state keys (sidebar selection + active lens). ContentView
-    // owns the canonical read/write; LibraryWindow mirrors them so it can
-    //   (a) SEED a freshly duplicated window from a WindowSeed *before* the
-    //       content mounts (ContentView.restorePersistedState reads them on
-    //       appear), and
-    //   (b) READ the live selection/lens when building a WindowSeed for the
-    //       Duplicate Window command (#2262).
+    // #2273 per-window state keys for duplicate-window restore and capture.
+    // ContentView owns the live state; LibraryWindow just mirrors it.
     @SceneStorage("selectedSidebarItem") private var sceneSelectedItemId: String?
     @SceneStorage("viewModeType") private var sceneViewModeType: String = "library"
     @SceneStorage("viewModeItemId") private var sceneViewModeItemId: String?
@@ -166,10 +161,8 @@ struct LibraryWindow: View {
             )
         }
         // First-run onboarding (#1947 — sole first-run path, replaces ContentView sheet).
-        // Triggers as soon as the backend is reachable; stays until the user
-        // clicks Finish (which sets featureManager.firstRunCompleted = true).
-        // The sheet persists while the user progresses through Library / Permissions /
-        // Cloud steps even after a library is assigned (windowState.library != nil).
+        // It opens once the backend is reachable and stays up until Finish, even if a
+        // library is assigned while the user moves through the onboarding steps.
         .sheet(isPresented: Binding(
             get: { appState.isBackendRunning && !featureManager.firstRunCompleted },
             set: { if !$0 { featureManager.firstRunCompleted = true } }

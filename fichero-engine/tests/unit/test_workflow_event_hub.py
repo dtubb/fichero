@@ -190,6 +190,7 @@ class TestUnsubscribe:
         stray: "queue.Queue" = queue.Queue()
         # Must not raise even though `stray` was never subscribed.
         hub.unsubscribe(stray)
+        assert stray.empty()
 
 
 if __name__ == "__main__":  # pragma: no cover

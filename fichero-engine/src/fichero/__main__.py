@@ -8,8 +8,10 @@ entry point ``fichero = "fichero.__main__:main"`` is declared in pyproject.toml.
 from __future__ import annotations
 
 import base64
+import getpass
 import json
 import mimetypes
+import os
 import sys
 import time
 from pathlib import Path
@@ -18,6 +20,7 @@ from typing import Any, Callable, Optional
 import typer
 
 from fichero.cli import FicheroClient, FicheroError
+from fichero.cli import client as client_module
 from fichero.cli.openapi_surface_generated import register_generated_openapi_commands
 from fichero.cli.formatters import render
 app = typer.Typer(
@@ -45,6 +48,7 @@ settings_app = typer.Typer(help="Read and write AI-defaults settings.", no_args_
 providers_app = typer.Typer(help="Manage LLM provider configurations.", no_args_is_help=True)
 devices_app = typer.Typer(help="Manage paired devices.", no_args_is_help=True)
 compare_app = typer.Typer(help="Compare models and workflows.", no_args_is_help=True)
+auth_app = typer.Typer(help="Authenticate as a multi-user account.", no_args_is_help=True)
 app.add_typer(docs_app, name="docs")
 app.add_typer(workflow_app, name="workflow")
 app.add_typer(kg_app, name="kg")
@@ -59,6 +63,7 @@ app.add_typer(settings_app, name="settings")
 app.add_typer(providers_app, name="providers")
 app.add_typer(devices_app, name="devices")
 app.add_typer(compare_app, name="compare")
+app.add_typer(auth_app, name="auth")
 workflow_app.add_typer(threads_app, name="threads")
 
 # Execution statuses the workflow status endpoint may return when the run has
@@ -135,9 +140,66 @@ def _invoke(ctx: typer.Context, operation: Callable[[FicheroClient], Any]) -> No
         with _client(ctx) as client:
             data = operation(client)
     except FicheroError as exc:
-        typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1) from exc
+        _report_fichero_error(ctx, exc)
     typer.echo(render(data, as_json=ctx.obj["json"]))
+
+
+def _read_cli_session() -> dict[str, Any]:
+    try:
+        payload = json.loads(client_module._CLI_SESSION_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _report_fichero_error(ctx: typer.Context, exc: FicheroError) -> None:
+    if exc.status_code == 401:
+        typer.secho("Authentication required. Run `fichero auth login`.", fg=typer.colors.RED, err=True)
+    elif exc.status_code == 403:
+        session = _read_cli_session()
+        user = session.get("username")
+        if not isinstance(user, str) or not user.strip():
+            user_payload = session.get("user")
+            if isinstance(user_payload, dict):
+                maybe_username = user_payload.get("username")
+                if isinstance(maybe_username, str) and maybe_username.strip():
+                    user = maybe_username.strip()
+        library = ctx.obj.get("library") or os.environ.get("FICHERO_LIBRARY_PATH") or "(no library selected)"
+        typer.secho(
+            f"Access denied for {user or 'the current user'} on {library}.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+    typer.secho(str(exc), fg=typer.colors.RED, err=True)
+    raise typer.Exit(code=1) from exc
+
+
+def _auth_error(ctx: typer.Context, exc: FicheroError) -> None:
+    if exc.status_code == 404 and "multi-user auth is disabled" in str(exc):
+        typer.secho(
+            "Multi-user auth is disabled on this engine.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+    else:
+        _report_fichero_error(ctx, exc)
+    raise typer.Exit(code=1) from exc
+
+
+def _write_cli_session(token: str, user: Any = None) -> None:
+    client_module._CLI_SESSION_PATH.parent.mkdir(parents=True, exist_ok=True)
+    client_module._CLI_SESSION_PATH.write_text(
+        json.dumps({"session_token": token, "user": user}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    os.chmod(client_module._CLI_SESSION_PATH, 0o600)
+
+
+def _delete_cli_session() -> None:
+    try:
+        client_module._CLI_SESSION_PATH.unlink()
+    except FileNotFoundError:
+        pass
 
 
 def _resolve_required_doc_id(
@@ -277,6 +339,7 @@ register_generated_openapi_commands(
     app,
     _invoke,
     existing_apps={
+        "auth": auth_app,
         "artifacts": artifacts_app,
         "kg": kg_app,
         "library": library_app,
@@ -285,6 +348,56 @@ register_generated_openapi_commands(
         "settings": settings_app,
     },
 )
+
+
+@auth_app.command("login")
+def auth_login_command(
+    ctx: typer.Context,
+    username: Optional[str] = typer.Argument(None),
+    device_label: Optional[str] = typer.Option(None, "--device-label"),
+) -> None:
+    login_username = (username or typer.prompt("Username")).strip()
+    password = getpass.getpass("Password: ")
+    try:
+        with _client(ctx) as client:
+            payload = client.request(
+                "POST",
+                "/api/auth/login",
+                json={
+                    "username": login_username,
+                    "password": password,
+                    "device_label": device_label,
+                },
+            )
+    except FicheroError as exc:
+        _auth_error(ctx, exc)
+    token = payload.get("session_token") if isinstance(payload, dict) else None
+    if not isinstance(token, str) or not token.strip():
+        typer.secho("POST /api/auth/login returned no session_token", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    _write_cli_session(token.strip(), payload.get("user") if isinstance(payload, dict) else None)
+    typer.echo(render(payload.get("user", payload), as_json=ctx.obj["json"]))
+
+
+@auth_app.command("logout")
+def auth_logout_command(ctx: typer.Context) -> None:
+    try:
+        with _client(ctx) as client:
+            payload = client.request("POST", "/api/auth/logout")
+    except FicheroError as exc:
+        _auth_error(ctx, exc)
+    _delete_cli_session()
+    typer.echo(render(payload, as_json=ctx.obj["json"]))
+
+
+@auth_app.command("whoami")
+def auth_whoami_command(ctx: typer.Context) -> None:
+    try:
+        with _client(ctx) as client:
+            payload = client.request("GET", "/api/auth/me")
+    except FicheroError as exc:
+        _auth_error(ctx, exc)
+    typer.echo(render(payload, as_json=ctx.obj["json"]))
 
 
 @compare_app.command("models")
@@ -514,6 +627,7 @@ def import_file(
 
 @app.command(name="import-slipbox")
 def import_slipbox_command(
+    ctx: typer.Context,
     library_path: Path = typer.Option(
         Path("~/Library/Application Support/Fichero/Slipbox.fichero"),
         "--library-path",
@@ -549,18 +663,23 @@ def import_slipbox_command(
     ),
 ) -> None:
     """Import Daniel's slipbox into a fresh/searchable Fichero catalogue."""
-
-    from fichero.slipbox_import import import_slipbox
+    from fichero.importers.slipbox_import import import_slipbox_via_http
 
     try:
-        summary = import_slipbox(
-            library_path=library_path,
-            filesystem_root=filesystem_root,
-            tinderbox_path=tinderbox_path,
-            limit=limit,
-            reset=reset,
-            auto_embed=not no_embed,
-        )
+        with FicheroClient(
+            base_url=ctx.obj["base_url"],
+            library_path=str(library_path),
+            token=ctx.obj["token"],
+        ) as client:
+            summary = import_slipbox_via_http(
+                client,
+                library_path=library_path,
+                filesystem_root=filesystem_root,
+                tinderbox_path=tinderbox_path,
+                limit=limit,
+                reset=reset,
+                auto_embed=not no_embed,
+            )
     except Exception as exc:
         typer.secho(f"Slipbox import failed: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
@@ -585,6 +704,7 @@ def import_slipbox_command(
 
 @app.command(name="import-sergio-corpus")
 def import_sergio_corpus_command(
+    ctx: typer.Context,
     library_path: Path = typer.Option(
         Path("~/Library/Application Support/Fichero/Sergio-Mosquera.fichero"),
         "--library-path",
@@ -593,42 +713,39 @@ def import_sergio_corpus_command(
     source_root: Optional[Path] = typer.Option(
         None,
         "--source-root",
-        help="Notebook source directory (or set FICHERO_SERGIO_SOURCE_ROOT).",
+        help="Sergio corpus root (or set FICHERO_SERGIO_SOURCE_ROOT).",
     ),
     spreadsheet_path: Optional[Path] = typer.Option(
         None,
         "--spreadsheet-path",
-        help="Catalogue spreadsheet (.xlsx) (or set FICHERO_SERGIO_SPREADSHEET).",
+        help="Catalogue spreadsheet (or set FICHERO_SERGIO_SPREADSHEET).",
     ),
     limit: Optional[int] = typer.Option(
         None,
         "--limit",
-        help="Maximum number of source files to import.",
+        help="Maximum source files to import.",
     ),
-    reset: bool = typer.Option(
-        False,
-        "--reset",
-        help="Delete the target package before importing.",
-    ),
-    no_embed: bool = typer.Option(
-        False,
-        "--no-embed",
-        help="Skip embedding creation.",
-    ),
+    reset: bool = typer.Option(False, "--reset", help="Delete target package before import."),
+    no_embed: bool = typer.Option(False, "--no-embed", help="Skip embedding creation."),
 ) -> None:
-    """Import Sergio notebooks + catalogue spreadsheet into a Fichero corpus."""
-
-    from fichero.sergio_import import import_sergio_corpus
+    """Import Sergio Mosquera corpus + catalogue spreadsheet into a Fichero library."""
+    from fichero.importers.sergio_import import import_sergio_corpus_via_http
 
     try:
-        summary = import_sergio_corpus(
-            library_path=library_path,
-            source_root=source_root,
-            spreadsheet_path=spreadsheet_path,
-            limit=limit,
-            reset=reset,
-            auto_embed=not no_embed,
-        )
+        with FicheroClient(
+            base_url=ctx.obj["base_url"],
+            library_path=str(library_path),
+            token=ctx.obj["token"],
+        ) as client:
+            summary = import_sergio_corpus_via_http(
+                client,
+                library_path=library_path,
+                source_root=source_root,
+                spreadsheet_path=spreadsheet_path,
+                limit=limit,
+                reset=reset,
+                auto_embed=not no_embed,
+            )
     except Exception as exc:
         typer.secho(f"Sergio corpus import failed: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
@@ -656,6 +773,7 @@ def import_sergio_corpus_command(
 
 @app.command(name="import-newton-marshall-diary")
 def import_newton_marshall_diary_command(
+    ctx: typer.Context,
     library_path: Path = typer.Option(
         Path("~/Library/Application Support/Fichero/Newton-C-Marshall.fichero"),
         "--library-path",
@@ -670,15 +788,21 @@ def import_newton_marshall_diary_command(
     no_embed: bool = typer.Option(False, "--no-embed", help="Skip embedding creation."),
 ) -> None:
     """Import Newton C. Marshall diary archive into a Fichero corpus."""
-    from fichero.source_archive_import import import_newton_marshall_diary
+    from fichero.importers.source_archive_import import import_newton_marshall_diary_via_http
 
     try:
-        summary = import_newton_marshall_diary(
-            library_path=library_path,
-            source_path=source_path,
-            reset=reset,
-            auto_embed=not no_embed,
-        )
+        with FicheroClient(
+            base_url=ctx.obj["base_url"],
+            library_path=str(library_path),
+            token=ctx.obj["token"],
+        ) as client:
+            summary = import_newton_marshall_diary_via_http(
+                client,
+                library_path=library_path,
+                source_path=source_path,
+                reset=reset,
+                auto_embed=not no_embed,
+            )
     except Exception as exc:
         typer.secho(f"Newton Marshall import failed: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
@@ -701,6 +825,7 @@ def import_newton_marshall_diary_command(
 
 @app.command(name="import-istmina-mineria")
 def import_istmina_mineria_command(
+    ctx: typer.Context,
     library_path: Path = typer.Option(
         Path("~/Library/Application Support/Fichero/Istmina-Mineria.fichero"),
         "--library-path",
@@ -725,17 +850,23 @@ def import_istmina_mineria_command(
     no_embed: bool = typer.Option(False, "--no-embed", help="Skip embedding creation."),
 ) -> None:
     """Import Istmina minería workflow outputs into a Fichero corpus."""
-    from fichero.source_archive_import import import_istmina_mineria
+    from fichero.importers.source_archive_import import import_istmina_mineria_via_http
 
     try:
-        summary = import_istmina_mineria(
-            library_path=library_path,
-            transcript_root=transcript_root,
-            spreadsheet_root=spreadsheet_root,
-            review_root=review_root,
-            reset=reset,
-            auto_embed=not no_embed,
-        )
+        with FicheroClient(
+            base_url=ctx.obj["base_url"],
+            library_path=str(library_path),
+            token=ctx.obj["token"],
+        ) as client:
+            summary = import_istmina_mineria_via_http(
+                client,
+                library_path=library_path,
+                transcript_root=transcript_root,
+                spreadsheet_root=spreadsheet_root,
+                review_root=review_root,
+                reset=reset,
+                auto_embed=not no_embed,
+            )
     except Exception as exc:
         typer.secho(f"Istmina mineria import failed: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
@@ -758,6 +889,7 @@ def import_istmina_mineria_command(
 
 @app.command(name="import-manifest")
 def import_manifest_command(
+    ctx: typer.Context,
     manifest: Path = typer.Option(
         ...,
         "--manifest",
@@ -815,18 +947,26 @@ def import_manifest_command(
         DEFAULT_API_BASE,
         DEFAULT_TOKEN_FILE,
         import_manifest_via_http,
+        resolve_http_token,
     )
 
     try:
-        summary = import_manifest_via_http(
-            manifest_path=manifest,
-            library_path=library,
-            api_base=api or DEFAULT_API_BASE,
-            token_file=token_file or DEFAULT_TOKEN_FILE,
-            create_library=not no_create_library,
-            copy_images=copy_images,
-            ingest_mode=ingest,
-        )
+        token = resolve_http_token(token_file or DEFAULT_TOKEN_FILE) if token_file else ctx.obj["token"]
+        with FicheroClient(
+            base_url=api or ctx.obj["base_url"] or DEFAULT_API_BASE.removesuffix("/api"),
+            library_path=str(library),
+            token=token,
+        ) as client:
+            summary = import_manifest_via_http(
+                manifest_path=manifest,
+                library_path=library,
+                api_base=api or DEFAULT_API_BASE,
+                token_file=token_file or DEFAULT_TOKEN_FILE,
+                create_library=not no_create_library,
+                copy_images=copy_images,
+                ingest_mode=ingest,
+                client=client,
+            )
     except Exception as exc:
         typer.secho(f"Manifest import failed: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
@@ -855,6 +995,7 @@ def import_manifest_command(
 
 @app.command(name="import-iiif")
 def import_iiif_command(
+    ctx: typer.Context,
     iiif: Path = typer.Option(
         ...,
         "--iiif",
@@ -896,18 +1037,26 @@ def import_iiif_command(
         DEFAULT_API_BASE,
         DEFAULT_TOKEN_FILE,
         import_iiif_via_http,
+        resolve_http_token,
     )
 
     try:
-        summary = import_iiif_via_http(
-            iiif_path=iiif,
-            library_path=library,
-            api_base=api or DEFAULT_API_BASE,
-            token_file=token_file or DEFAULT_TOKEN_FILE,
-            create_library=not no_create_library,
-            copy_images=copy_images,
-            ingest_mode=ingest,
-        )
+        token = resolve_http_token(token_file or DEFAULT_TOKEN_FILE) if token_file else ctx.obj["token"]
+        with FicheroClient(
+            base_url=api or ctx.obj["base_url"] or DEFAULT_API_BASE.removesuffix("/api"),
+            library_path=str(library),
+            token=token,
+        ) as client:
+            summary = import_iiif_via_http(
+                iiif_path=iiif,
+                library_path=library,
+                api_base=api or DEFAULT_API_BASE,
+                token_file=token_file or DEFAULT_TOKEN_FILE,
+                create_library=not no_create_library,
+                copy_images=copy_images,
+                ingest_mode=ingest,
+                client=client,
+            )
     except Exception as exc:
         typer.secho(f"IIIF import failed: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
@@ -934,6 +1083,7 @@ def import_iiif_command(
 
 @app.command(name="import-archivo-judicial-medellin")
 def import_archivo_judicial_medellin_command(
+    ctx: typer.Context,
     library_path: Path = typer.Option(
         Path("~/Library/Application Support/Fichero/Archivo-Judicial-Medellin.fichero"),
         "--library-path",
@@ -948,15 +1098,21 @@ def import_archivo_judicial_medellin_command(
     no_embed: bool = typer.Option(False, "--no-embed", help="Skip embedding creation."),
 ) -> None:
     """Import Archivo Judicial de Medellin catalogue materials."""
-    from fichero.source_archive_import import import_archivo_judicial_medellin
+    from fichero.importers.source_archive_import import import_archivo_judicial_medellin_via_http
 
     try:
-        summary = import_archivo_judicial_medellin(
-            library_path=library_path,
-            catalogue_root=catalogue_root,
-            reset=reset,
-            auto_embed=not no_embed,
-        )
+        with FicheroClient(
+            base_url=ctx.obj["base_url"],
+            library_path=str(library_path),
+            token=ctx.obj["token"],
+        ) as client:
+            summary = import_archivo_judicial_medellin_via_http(
+                client,
+                library_path=library_path,
+                catalogue_root=catalogue_root,
+                reset=reset,
+                auto_embed=not no_embed,
+            )
     except Exception as exc:
         typer.secho(f"Archivo Judicial import failed: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc

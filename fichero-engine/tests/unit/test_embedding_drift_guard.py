@@ -116,6 +116,7 @@ def test_drift_guard_passes_uniform_table() -> None:
     _wire_db(db, table, active_model=ACTIVE)
 
     db.assert_vector_table_model_compatible("kg_claim_embeddings")  # must not raise
+    assert table.count_rows.call_count == 1
 
 
 # ---------------------------------------------------------------------------
@@ -129,6 +130,7 @@ def test_drift_guard_empty_table_no_raise() -> None:
     _wire_db(db, table)
 
     db.assert_vector_table_model_compatible("kg_claim_embeddings")  # must not raise
+    assert table.count_rows.call_count == 1
 
 
 # ---------------------------------------------------------------------------

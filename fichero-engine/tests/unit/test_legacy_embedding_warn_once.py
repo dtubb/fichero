@@ -113,4 +113,6 @@ def test_search_still_allowed_with_unstamped_table():
     mixin._lance_tables = lambda: {"kg_entity_embeddings"}  # type: ignore[attr-defined]
 
     # Should not raise — legacy tables are allowed with a warning
-    mixin.assert_vector_table_model_compatible("kg_entity_embeddings")
+    result = mixin.assert_vector_table_model_compatible("kg_entity_embeddings")
+    assert result is None
+    mock_lance.open_table.assert_called_once_with("kg_entity_embeddings")

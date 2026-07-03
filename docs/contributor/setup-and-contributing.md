@@ -6,6 +6,7 @@
 - [Backend First](#backend-first)
 - [OpenAPI Sync Discipline](#openapi-sync-discipline)
 - [Verification Expectations](#verification-expectations)
+- [CLI Harness And Importers](#cli-harness-and-importers)
 
 ## Local Development Commands
 
@@ -117,6 +118,19 @@ The cheap guardrail that keeps this contract from drifting is
 `scripts/check_verify_all_modes.py`. It asserts that `verify_all.sh` still
 exposes the documented fast/standard/full tiers, the opt-in platform flags, and
 the linked smoke-checklist docs.
+
+## CLI Harness And Importers
+
+Use the typed CLI as the first backend repro surface: [CLI as Backend Test
+Harness](./cli-test-harness.md).
+
+Two practical rules matter now:
+
+- `fichero auth login` stores a session token in
+  `~/Library/Application Support/Fichero/cli-session.json`, and that session
+  token is preferred over the bootstrap/shared-secret fallback.
+- `fichero import-manifest` and `fichero import-iiif` need a running engine;
+  they are HTTP clients over the backend routes, not direct library writers.
 
 ## Contributing Mechanics
 

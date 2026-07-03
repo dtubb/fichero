@@ -248,6 +248,8 @@ def test_cli_import_iiif_invokes_importer(monkeypatch, tmp_path):
     result = runner.invoke(
         cli.app,
         [
+            "--base-url",
+            "http://remote-engine.test",
             "import-iiif",
             "--iiif",
             str(tmp_path),
@@ -261,4 +263,5 @@ def test_cli_import_iiif_invokes_importer(monkeypatch, tmp_path):
     assert result.exit_code == 0
     assert called["iiif_path"] == tmp_path
     assert called["library_path"] == tmp_path / "Tiny.fichero"
+    assert called["client"].base_url == "http://remote-engine.test"
     assert called["ingest_mode"] == "copy"

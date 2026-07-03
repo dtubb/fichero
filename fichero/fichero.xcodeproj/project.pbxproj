@@ -63,6 +63,7 @@
 		154 /* ScheduleCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 152 /* ScheduleCreationSheet.swift */; };
 		155 /* TriggerCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 153 /* TriggerCreationSheet.swift */; };
 		15785F4FC901A743D5DE7D09 /* DocumentInspectorInfoTab+Prototype.swift in Sources */ = {isa = PBXBuildFile; fileRef = 715408B079BD7610A53FA99C /* DocumentInspectorInfoTab+Prototype.swift */; };
+		17ED8EB9711094AF388E4677 /* LibrarySharingBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DAEF12C9BBE42A6FCA5004A /* LibrarySharingBadge.swift */; };
 		186AB9CF6F951F8878BC81AF /* EntityKindChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 986AE09BC3B5DC9ECD5820A5 /* EntityKindChartView.swift */; };
 		1AA8D13CBE8E1D392BDDD4CF /* DocumentCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80E4C1042F69F06267FA6CCD /* DocumentCanvas.swift */; };
 		1ACCE61BCF118B415F1E457E /* OntologyBrowser+Toolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 849CA4F172401769E6140F13 /* OntologyBrowser+Toolbar.swift */; };
@@ -745,6 +746,7 @@
 		2B320C62BB61F14256AECCF5 /* SpatialModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpatialModels.swift; sourceTree = "<group>"; };
 		2B9987CAE57F0DD5387F6DD2 /* OntologyBrowser+Sheets.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "OntologyBrowser+Sheets.swift"; sourceTree = "<group>"; };
 		2CC15CD58C235F143320E172 /* PDFPageWithToolbar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PDFPageWithToolbar.swift; sourceTree = "<group>"; };
+		2DAEF12C9BBE42A6FCA5004A /* LibrarySharingBadge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LibrarySharingBadge.swift; sourceTree = "<group>"; };
 		2F46B999D0208EA4C734535C /* ClaimReviewQueueSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ClaimReviewQueueSheet.swift; sourceTree = "<group>"; };
 		300A8405FFC476E5124372AE /* APIClient+Types.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "APIClient+Types.swift"; sourceTree = "<group>"; };
 		312845068CA928DA393E0468 /* DocumentInspectorArtifactsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorArtifactsTab.swift; path = fichero/Views/Library/DocumentInspector/DocumentInspectorArtifactsTab.swift; sourceTree = SOURCE_ROOT; };
@@ -1411,6 +1413,7 @@
 				0BE6CF3DE02E1F999AE8F1A9 /* SidebarItemRow+Presentation.swift */,
 				47244E304896B65E6F12976C /* SidebarItemRow+Preview.swift */,
 				E2FF71320EAE8FE11653EB06 /* SidebarItemRow+Workflow.swift */,
+				2DAEF12C9BBE42A6FCA5004A /* LibrarySharingBadge.swift */,
 			);
 			path = Sidebar;
 			sourceTree = "<group>";
@@ -2868,6 +2871,7 @@
 				7F7BE70A69F9550AE8D82690 /* AuthGateView.swift in Sources */,
 				8F7C131CEB5C672DD1E4813A /* BackendRootGate.swift in Sources */,
 				28510D794CAA15808E28CB6C /* BackendHost.swift in Sources */,
+				17ED8EB9711094AF388E4677 /* LibrarySharingBadge.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {

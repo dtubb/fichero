@@ -132,8 +132,8 @@ class TestPresetUntestedFlag:
         assert len(self._preset_files()) > 1
 
     def test_every_preset_parses(self):
-        for p in self._preset_files():
-            json.loads(p.read_text())  # raises on malformed JSON
+        parsed = [json.loads(p.read_text()) for p in self._preset_files()]
+        assert len(parsed) == len(self._preset_files())
 
     def test_only_htr_preset_is_tested(self):
         tested = {

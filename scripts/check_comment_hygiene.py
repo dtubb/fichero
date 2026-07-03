@@ -27,9 +27,7 @@ RULE_DOC = "docs/ROADMAP.md"
 KNOWN_VIOLATIONS: dict[str, str] = {
 "fichero/fichero/Services/ChatServiceGenerated.swift#9190295867": "#1916 baseline",
     "fichero/fichero/Services/ProviderServiceGenerated.swift#42e66be4ac": "#1916 baseline",
-    "fichero/fichero/Services/WorkflowExecutionObserver+Events.swift#700bbac44e": "#1916 baseline",
     "fichero/fichero/Services/WorkflowStreamService+Parsing.swift#a55c320098": "#1916 baseline",
-    "fichero/fichero/Views/Activity/ActivityProgressView+DataLoading.swift#120f59f170": "#1916 baseline",
     "fichero/fichero/Views/Library/ImageViewer/ImageWithCursorTracking.swift#b359bd483c": "#1916 baseline",
     "fichero/fichero/Views/Library/ImageViewerComponents.swift#c7669329ed": "#1916 baseline",
     "fichero/fichero/Views/Library/LibraryView+KeyboardShortcuts.swift#d5e49f726d": "#1916 baseline",

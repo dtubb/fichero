@@ -26,7 +26,8 @@ from fichero.model_profiles import ModelProfile
 
 
 def test_known_provider_passes() -> None:
-    _validate_provider_updates(AIDefaultsUpdate(text_provider="openai"))  # no raise
+    result = _validate_provider_updates(AIDefaultsUpdate(text_provider="openai"))
+    assert result is None
 
 
 def test_unknown_provider_is_422() -> None:
@@ -37,14 +38,15 @@ def test_unknown_provider_is_422() -> None:
 
 
 def test_blank_provider_fields_are_skipped() -> None:
-    _validate_provider_updates(AIDefaultsUpdate(text_provider=None))
-    _validate_provider_updates(AIDefaultsUpdate(vision_provider=""))
-    _validate_provider_updates(AIDefaultsUpdate())  # nothing set at all
+    assert _validate_provider_updates(AIDefaultsUpdate(text_provider=None)) is None
+    assert _validate_provider_updates(AIDefaultsUpdate(vision_provider="")) is None
+    assert _validate_provider_updates(AIDefaultsUpdate()) is None
 
 
 def test_non_provider_fields_are_ignored() -> None:
     # *_model fields are not provider references — a bogus value must not 422.
-    _validate_provider_updates(AIDefaultsUpdate(text_model="whatever-model"))
+    result = _validate_provider_updates(AIDefaultsUpdate(text_model="whatever-model"))
+    assert result is None
 
 
 def test_one_bad_provider_among_several_is_rejected() -> None:
@@ -62,7 +64,8 @@ def test_one_bad_provider_among_several_is_rejected() -> None:
 
 
 def test_valid_profile_passes() -> None:
-    _validate_profile(ModelProfile(name="Default", provider="openai", model="gpt-4"))
+    result = _validate_profile(ModelProfile(name="Default", provider="openai", model="gpt-4"))
+    assert result is None
 
 
 @pytest.mark.parametrize(

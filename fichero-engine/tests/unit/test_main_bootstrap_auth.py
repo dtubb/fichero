@@ -10,8 +10,10 @@ def _bootstrap_request():
 
 
 def test_bootstrap_auth_bypasses_library_read_authorization():
-    assert_library_read_authorized(_bootstrap_request(), "/tmp/example.fichero")
+    result = assert_library_read_authorized(_bootstrap_request(), "/tmp/example.fichero")
+    assert result is None
 
 
 def test_bootstrap_auth_bypasses_library_write_authorization():
-    assert_library_write_authorized(_bootstrap_request(), "/tmp/example.fichero")
+    result = assert_library_write_authorized(_bootstrap_request(), "/tmp/example.fichero")
+    assert result is None

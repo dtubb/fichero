@@ -100,6 +100,8 @@ EXEMPT: set[str] = {
     "fichero-engine/src/fichero/api/routes/workflows.py::get_tool_prompt",
     # Compute-only: generates AI interpretation suggestions; persists nothing.
     "fichero-engine/src/fichero/api/routes/hermeneutics.py::suggest_interpretations",
+    # Ephemeral crop returns a transient region preview and never saves an annotation.
+    "fichero-engine/src/fichero/api/routes/annotations.py::crop_ephemeral",
 }
 
 
@@ -264,6 +266,23 @@ def _has_emit_change(function_node: ast.AST) -> bool:
         if isinstance(callee, ast.Name) and callee.id == "emit_change":
             return True
         if isinstance(callee, ast.Attribute) and callee.attr == "emit_change":
+            return True
+        if (
+            isinstance(callee, ast.Attribute)
+            and callee.attr == "invoke"
+            and isinstance(callee.value, ast.Name)
+            and callee.value.id == "registry"
+        ):
+            return True
+        if (
+            isinstance(callee, ast.Name)
+            and callee.id == "_run_document_write"
+            and node.args
+            and isinstance(node.args[0], ast.Attribute)
+            and node.args[0].attr == "invoke"
+            and isinstance(node.args[0].value, ast.Name)
+            and node.args[0].value.id == "registry"
+        ):
             return True
     return False
 

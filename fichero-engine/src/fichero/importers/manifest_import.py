@@ -33,13 +33,17 @@ from __future__ import annotations
 import json
 import logging
 import os
-import urllib.error
-import urllib.parse
-import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
+from fichero.importers.http_client import (
+    DEFAULT_API_BASE,
+    DEFAULT_TOKEN_FILE,
+    HttpManifestClient,
+    ManifestApiClient,
+    resolve_http_token,
+)
 logger = logging.getLogger(__name__)
 
 CANONICAL_VERSION = "fichero-corpus-import-v1"
@@ -54,11 +58,6 @@ CANONICAL_VERSION = "fichero-corpus-import-v1"
 #           (e.g. under /Volumes/): we fall back to copy-and-keep and warn.
 INGEST_MODES = ("link", "copy", "move")
 DEFAULT_INGEST_MODE = "link"
-DEFAULT_API_BASE = "http://127.0.0.1:8765/api"
-DEFAULT_TOKEN_FILE = Path(
-    "~/Library/Application Support/Fichero/.api-key"
-).expanduser()
-
 # Preferred display rendition for a document's primary ``path`` reference.
 IMAGE_ROLE_PREFERENCE = (
     "enhanced",
@@ -84,6 +83,18 @@ _VALID_ENTITY_TYPES = {
 # image bytes, so nothing downstream depends on it being doc_type "group" for
 # these corpus imports — only `_NODE_TYPE_TO_DOC_TYPE` ever produced that value.
 _NODE_TYPE_TO_DOC_TYPE = {"folder": "folder", "group": "folder", "page": "page"}
+
+
+class CliManifestClient:
+    """ManifestApiClient adapter over the shared CLI transport."""
+
+    def __init__(self, client: Any) -> None:
+        self._client = client
+
+    def request(
+        self, method: str, path: str, body: dict[str, Any] | None = None
+    ) -> Any:
+        return self._client.request(method, f"/api{path}", json=body)
 
 
 def resolve_ingest_mode(ingest_mode: str | None, copy_images: bool) -> str:
@@ -130,62 +141,6 @@ def _is_safe_to_delete_source(source: Path) -> bool:
         # Not under $HOME — too risky to delete automatically.
         return False
     return True
-
-
-class ManifestApiClient(Protocol):
-    """Minimal request surface the importer needs from any HTTP transport."""
-
-    def request(
-        self, method: str, path: str, body: dict[str, Any] | None = None
-    ) -> Any:
-        """Perform an API call. ``path`` is relative to the ``/api`` base."""
-        ...
-
-
-class HttpManifestClient:
-    """urllib-based :class:`ManifestApiClient` for a running engine."""
-
-    def __init__(
-        self, api_base: str, token: str, library_path: str, timeout: int = 120
-    ) -> None:
-        self.api_base = api_base.rstrip("/")
-        self.token = token
-        self.library_path = library_path
-        self.timeout = timeout
-
-    def request(
-        self, method: str, path: str, body: dict[str, Any] | None = None
-    ) -> Any:
-        url = f"{self.api_base}{path}"
-        headers = {
-            "Authorization": f"Bearer {self.token}",
-            "X-Fichero-Library-Path": urllib.parse.quote(
-                self.library_path, safe="/"
-            ),
-        }
-        data = None
-        if body is not None:
-            data = json.dumps(body, ensure_ascii=False).encode("utf-8")
-            headers["Content-Type"] = "application/json"
-        req = urllib.request.Request(url, data=data, headers=headers, method=method)
-        try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                raw = resp.read()
-                if not raw:
-                    return None
-                content_type = resp.headers.get("Content-Type", "")
-                # Storage preview endpoints return binary image bytes, not JSON.
-                # Warming the cache only needs the request to succeed (the
-                # thumbnail/display is rendered + written server-side); don't try
-                # to JSON-decode the JPEG body.
-                if "application/json" not in content_type:
-                    return None
-                return json.loads(raw.decode("utf-8"))
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(
-                f"{method} {url} failed: HTTP {exc.code}: {detail}"
-            ) from exc
 
 
 @dataclass
@@ -953,6 +908,7 @@ def import_manifest_via_http(
     create_library: bool = True,
     copy_images: bool = False,
     ingest_mode: str | None = None,
+    client: Any | None = None,
 ) -> ImportSummary:
     """Convenience entry point: import a manifest into a live engine over HTTP.
 
@@ -964,13 +920,18 @@ def import_manifest_via_http(
     brought into the library; a local preview is always cached. ``copy_images``
     is the legacy alias for ``copy``.
     """
-    token = token_file.read_text(encoding="utf-8").strip()
     library_str = str(library_path.expanduser())
-    client = HttpManifestClient(api_base, token, library_str)
-    if create_library:
-        client.request("POST", "/library", {"path": library_str})
+    if client is None:
+        token = resolve_http_token(token_file)
+        transport: ManifestApiClient = HttpManifestClient(api_base, token, library_str)
+        if create_library:
+            transport.request("POST", "/library", {"path": library_str})
+    else:
+        transport = CliManifestClient(client)
+        if create_library:
+            client.request("POST", "/api/library", json={"path": library_str})
     return import_manifest(
-        client,
+        transport,
         manifest_path.expanduser(),
         library_str,
         copy_images=copy_images,
@@ -978,53 +939,3 @@ def import_manifest_via_http(
     )
 
 __all__ = [name for name in dir() if not name.startswith("__")]
-
-__all__ = [
-    'Any',
-    'CANONICAL_VERSION',
-    'DEFAULT_API_BASE',
-    'DEFAULT_INGEST_MODE',
-    'DEFAULT_TOKEN_FILE',
-    'HttpManifestClient',
-    'IMAGE_ROLE_PREFERENCE',
-    'INGEST_MODES',
-    'ImportSummary',
-    'ManifestApiClient',
-    'Path',
-    'Protocol',
-    '_NODE_TYPE_TO_DOC_TYPE',
-    '_VALID_ENTITY_TYPES',
-    '_canonical_metadata',
-    '_entity_artifact_content',
-    '_entity_artifact_item',
-    '_entity_artifact_type',
-    '_existing_doc_by_external',
-    '_existing_doc_id_by_external',
-    '_import_receipt_content',
-    '_import_receipt_data',
-    '_ingest_page_image',
-    '_is_safe_to_delete_source',
-    '_list_artifact_keys',
-    '_list_claim_external_ids',
-    '_list_documents',
-    '_list_entities',
-    '_rewrite_images_to_local',
-    '_warm_preview_cache',
-    'annotations',
-    'claim_payload',
-    'dataclass',
-    'document_payload',
-    'entity_payload',
-    'field',
-    'import_manifest',
-    'import_manifest_via_http',
-    'json',
-    'logger',
-    'logging',
-    'os',
-    'preferred_image',
-    'read_manifest',
-    'resolve_ingest_mode',
-    'urllib',
-    'validate_nodes',
-]

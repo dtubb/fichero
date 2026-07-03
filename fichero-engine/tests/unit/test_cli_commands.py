@@ -13,6 +13,7 @@ from typer.testing import CliRunner
 
 from fichero import __main__ as cli
 from fichero.cli import FicheroError
+from fichero.cli import client as client_module
 from fichero.cli.formatters import render
 from fichero.api.routes.activity import ActivityResponse
 from fichero.api.routes.artifacts import ArtifactResponse
@@ -724,11 +725,68 @@ def test_global_options_passed_to_client():
     }
 
 
+def test_401_error_suggests_auth_login(monkeypatch):
+    class ErrorClient:
+        def __init__(self, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
+        def close(self):
+            pass
+
+        def health(self):
+            raise FicheroError("GET /api/health -> 401: unauthorized", status_code=401)
+
+    monkeypatch.setattr(cli, "FicheroClient", ErrorClient)
+    result = runner.invoke(cli.app, ["health"])
+    assert result.exit_code == 1
+    assert "Authentication required. Run `fichero auth login`." in result.output
+
+
+def test_403_error_includes_user_and_library(monkeypatch, tmp_path):
+    class ErrorClient:
+        def __init__(self, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
+        def close(self):
+            pass
+
+        def health(self):
+            raise FicheroError("GET /api/health -> 403: forbidden", status_code=403)
+
+    monkeypatch.setattr(cli, "FicheroClient", ErrorClient)
+    monkeypatch.setattr(client_module, "_CLI_SESSION_PATH", tmp_path / "cli-session.json")
+    client_module._CLI_SESSION_PATH.write_text(
+        json.dumps({"session_token": "token", "user": {"username": "alice"}}),
+        encoding="utf-8",
+    )
+    result = runner.invoke(cli.app, ["--library", "/tmp/Lib.fichero", "health"])
+    assert result.exit_code == 1
+    assert "Access denied for alice on /tmp/Lib.fichero." in result.output
+
+
 def test_generated_actions_group_is_exposed():
     result = runner.invoke(cli.app, ["actions", "--help"])
     assert result.exit_code == 0
     assert "list-by-category" in result.output
     assert "record-use" in result.output
+
+
+def test_sergio_import_command_is_exposed():
+    result = runner.invoke(cli.app, ["import-sergio-corpus", "--help"])
+    assert result.exit_code == 0
+    assert "--spreadsheet-path" in result.output
 
 
 def test_generated_command_forwards_path_params_via_raw_request():
@@ -1088,6 +1146,7 @@ def test_import_manifest_prints_artifact_counts(monkeypatch, tmp_path):
     def fake_import_manifest_via_http(**kwargs):
         assert kwargs["manifest_path"] == manifest
         assert kwargs["library_path"] == library
+        assert kwargs["client"].kwargs["base_url"] == "http://remote-engine.test"
         return ImportSummary(
             manifest=str(manifest),
             library_path=str(library),
@@ -1110,7 +1169,15 @@ def test_import_manifest_prints_artifact_counts(monkeypatch, tmp_path):
 
     result = runner.invoke(
         cli.app,
-        ["import-manifest", "--manifest", str(manifest), "--library", str(library)],
+        [
+            "--base-url",
+            "http://remote-engine.test",
+            "import-manifest",
+            "--manifest",
+            str(manifest),
+            "--library",
+            str(library),
+        ],
     )
 
     assert result.exit_code == 0

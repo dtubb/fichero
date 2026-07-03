@@ -49,7 +49,8 @@ def test_openapi_export_uses_temp_base_path(tmp_path: Path) -> None:
     env["FICHERO_BASE_PATH"] = str(tmp_path)
     env["PYTHONPATH"] = str(src_path)
 
-    subprocess.run([sys.executable, "-c", code], env=env, check=True)
+    result = subprocess.run([sys.executable, "-c", code], env=env, check=True)
+    assert result.returncode == 0
 
 
 def test_openapi_export_is_deterministic_and_split():

@@ -536,13 +536,58 @@ def test_empty_response_body_returns_none():
 
 # -- token / config discovery ---------------------------------------------
 def test_token_read_from_env(monkeypatch):
+    monkeypatch.setenv("FICHERO_SESSION_TOKEN", "session-token")
+    monkeypatch.setenv("FICHERO_API_KEY", "bootstrap-token")
+    assert client_module._read_token() == "session-token"
+
+
+def test_token_read_from_bootstrap_env(monkeypatch):
+    monkeypatch.delenv("FICHERO_SESSION_TOKEN", raising=False)
     monkeypatch.setenv("FICHERO_API_KEY", "env-token")
     assert client_module._read_token() == "env-token"
 
 
 def test_token_missing_file_returns_none(monkeypatch, tmp_path):
+    monkeypatch.delenv("FICHERO_SESSION_TOKEN", raising=False)
     monkeypatch.delenv("FICHERO_API_KEY", raising=False)
     monkeypatch.setattr(client_module, "_TOKEN_PATH", tmp_path / "absent")
+    monkeypatch.setattr(client_module, "_CLI_SESSION_PATH", tmp_path / "cli-session.json")
+    assert client_module._read_token() is None
+
+
+def test_token_read_from_cli_session_file(monkeypatch, tmp_path):
+    monkeypatch.delenv("FICHERO_SESSION_TOKEN", raising=False)
+    monkeypatch.delenv("FICHERO_API_KEY", raising=False)
+    session_path = tmp_path / "cli-session.json"
+    session_path.write_text('{"session_token": "file-token"}', encoding="utf-8")
+    session_path.chmod(0o600)
+    monkeypatch.setattr(client_module, "_CLI_SESSION_PATH", session_path)
+    monkeypatch.setattr(client_module, "_TOKEN_PATH", tmp_path / ".api-key")
+    assert client_module._read_token() == "file-token"
+
+
+def test_token_ignores_bad_cli_session_file_and_falls_back_to_bootstrap(
+    monkeypatch, tmp_path
+):
+    monkeypatch.delenv("FICHERO_SESSION_TOKEN", raising=False)
+    session_path = tmp_path / "cli-session.json"
+    session_path.write_text("{not json", encoding="utf-8")
+    session_path.chmod(0o600)
+    bootstrap_path = tmp_path / ".api-key"
+    bootstrap_path.write_text("bootstrap-token", encoding="utf-8")
+    monkeypatch.setattr(client_module, "_CLI_SESSION_PATH", session_path)
+    monkeypatch.setattr(client_module, "_TOKEN_PATH", bootstrap_path)
+    assert client_module._read_token() == "bootstrap-token"
+
+
+def test_token_ignores_cli_session_file_without_0600(monkeypatch, tmp_path):
+    monkeypatch.delenv("FICHERO_SESSION_TOKEN", raising=False)
+    monkeypatch.delenv("FICHERO_API_KEY", raising=False)
+    session_path = tmp_path / "cli-session.json"
+    session_path.write_text('{"session_token": "file-token"}', encoding="utf-8")
+    session_path.chmod(0o644)
+    monkeypatch.setattr(client_module, "_CLI_SESSION_PATH", session_path)
+    monkeypatch.setattr(client_module, "_TOKEN_PATH", tmp_path / ".api-key")
     assert client_module._read_token() is None
 
 
@@ -551,8 +596,10 @@ def test_request_picks_up_token_after_startup_gap(monkeypatch, tmp_path):
     the engine writes the shared secret, rather than leaking a startup 403."""
 
     token_path = tmp_path / ".api-key"
+    monkeypatch.delenv("FICHERO_SESSION_TOKEN", raising=False)
     monkeypatch.delenv("FICHERO_API_KEY", raising=False)
     monkeypatch.setattr(client_module, "_TOKEN_PATH", token_path)
+    monkeypatch.setattr(client_module, "_CLI_SESSION_PATH", tmp_path / "cli-session.json")
 
     seen: list[httpx.Request] = []
 
