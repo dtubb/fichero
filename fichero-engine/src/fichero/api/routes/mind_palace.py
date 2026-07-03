@@ -4,9 +4,12 @@ import math
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from fichero.api.auth import action_context, request_actor
+from fichero.api.change_stream import emit_change
+from fichero.api.library_header import require_library_path
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.spatial_models import (
@@ -29,7 +32,7 @@ from fichero.spatial_models import (
     SpatialRoom,
 )
 from fichero.models import Document, MindPalaceListResponse
-from fichero.actions.registry import action, ActionContext, ChangeSpec
+from fichero.actions.registry import action, ActionContext, ChangeSpec, registry
 from fichero.spatial_arrange import (
     DEFAULT_SPACING,
     ArrangeStrategy,
@@ -58,6 +61,15 @@ class RoomUpdateRequest(BaseModel):
     description: str | None = None
     room_type: RoomType | None = None
     metadata: dict[str, Any] | None = None
+
+
+class RoomUpdateActionParams(BaseModel):
+    room_id: str
+    update: RoomUpdateRequest
+
+
+class RoomDeleteParams(BaseModel):
+    room_id: str
 
 
 class NodeCreateRequest(BaseModel):
@@ -169,6 +181,27 @@ class ViewportSaveRequest(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+def _resolve_action_ctx(
+    ctx: ActionContext | object,
+    *,
+    actor: str | object = "system",
+    library_path: str | object | None = None,
+    origin_window: str | object | None = None,
+) -> ActionContext:
+    if isinstance(ctx, ActionContext):
+        return ctx
+    resolved_actor = actor if isinstance(actor, str) else "system"
+    resolved_library_path = library_path if isinstance(library_path, str) else None
+    resolved_origin_window = (
+        origin_window if isinstance(origin_window, str) else None
+    )
+    return ActionContext(
+        actor=resolved_actor,
+        library_path=resolved_library_path,
+        origin_window=resolved_origin_window,
+    )
+
+
 def _legacy_room_exists(db: Database, room_id: str) -> bool:
     """True when the legacy spatial-room table still has ``room_id``."""
     return any(room.id == room_id for room in db._legacy_all_spatial_room_rows())
@@ -215,16 +248,7 @@ def _list_rooms_from_nodes(
     return rows
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Room Management
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-@router.post("/rooms", response_model=SpatialRoom)
-async def create_room(
-    request: RoomCreateRequest,
-    db: Database = Depends(get_library_database_for_write),
-) -> SpatialRoom:
+def create_room_impl(db: Database, request: RoomCreateRequest) -> SpatialRoom:
     now = datetime.now()
     room = SpatialRoom(
         name=request.name.strip(),
@@ -237,6 +261,57 @@ async def create_room(
     )
     db.save(room)
     return _room_from_node_or_404(db, room.id)
+
+
+def update_room_impl(
+    db: Database, room_id: str, request: RoomUpdateRequest
+) -> tuple[dict[str, Any], SpatialRoom]:
+    room = _room_from_node_or_404(db, room_id)
+    before = room.model_dump(mode="json")
+    updates = request.model_dump(exclude_unset=True, exclude_none=True)
+    for key, value in updates.items():
+        setattr(room, key, value)
+    room.updated_at = datetime.now()
+    db.save(room)
+    return before, _room_from_node_or_404(db, room_id)
+
+
+def delete_room_impl(db: Database, room_id: str) -> dict[str, Any]:
+    room = _room_from_node_or_404(db, room_id)
+    before = room.model_dump(mode="json")
+    db.delete(room)
+    return before
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Room Management
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@router.post("/rooms", response_model=SpatialRoom)
+async def create_room(
+    request: RoomCreateRequest,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | object = Depends(require_library_path),
+    x_fichero_origin_window: str | object | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str | object = Depends(request_actor),
+    ctx: ActionContext | object = Depends(action_context),
+) -> SpatialRoom:
+    ctx = _resolve_action_ctx(
+        ctx,
+        actor=actor,
+        library_path=x_fichero_library_path,
+        origin_window=x_fichero_origin_window,
+    )
+    result = registry.invoke(
+        db,
+        "room.create",
+        request.model_dump(mode="json"),
+        ctx,
+    )
+    return SpatialRoom.model_validate(result.result)
 
 
 @router.get("/rooms", response_model=MindPalaceListResponse)
@@ -262,25 +337,99 @@ async def update_room(
     room_id: str,
     request: RoomUpdateRequest,
     db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | object = Depends(require_library_path),
+    x_fichero_origin_window: str | object | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str | object = Depends(request_actor),
+    ctx: ActionContext | object = Depends(action_context),
 ) -> SpatialRoom:
-    room = _room_from_node_or_404(db, room_id)
-
-    updates = request.model_dump(exclude_unset=True, exclude_none=True)
-    for key, value in updates.items():
-        setattr(room, key, value)
-    room.updated_at = datetime.now()
-    db.save(room)
-    return _room_from_node_or_404(db, room_id)
+    ctx = _resolve_action_ctx(
+        ctx,
+        actor=actor,
+        library_path=x_fichero_library_path,
+        origin_window=x_fichero_origin_window,
+    )
+    result = registry.invoke(
+        db,
+        "room.update",
+        {
+            "room_id": room_id,
+            "update": request.model_dump(mode="json", exclude_unset=True),
+        },
+        ctx,
+    )
+    return SpatialRoom.model_validate(result.result)
 
 
 @router.delete("/rooms/{room_id}")
 async def delete_room(
     room_id: str,
     db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | object = Depends(require_library_path),
+    x_fichero_origin_window: str | object | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str | object = Depends(request_actor),
+    ctx: ActionContext | object = Depends(action_context),
 ) -> MindPalaceDeletedResponse:
-    room = _room_from_node_or_404(db, room_id)
-    db.delete(room)
-    return MindPalaceDeletedResponse(status="deleted")
+    ctx = _resolve_action_ctx(
+        ctx,
+        actor=actor,
+        library_path=x_fichero_library_path,
+        origin_window=x_fichero_origin_window,
+    )
+    result = registry.invoke(db, "room.delete", {"room_id": room_id}, ctx)
+    return MindPalaceDeletedResponse.model_validate(result.result)
+
+
+@action("room.create", RoomCreateRequest, domains=["mind_palace", "document"])
+def _action_create_room(
+    db: Database, params: RoomCreateRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    room = create_room_impl(db, params)
+    payload = room.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["mind_palace", "document"],
+        target_ids=[room.id],
+        after={"room": payload},
+        emit_type="document.created",
+        document_ids=[room.id],
+    )
+    return payload, spec
+
+
+@action("room.update", RoomUpdateActionParams, domains=["mind_palace", "document"])
+def _action_update_room(
+    db: Database, params: RoomUpdateActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    before, room = update_room_impl(db, params.room_id, params.update)
+    payload = room.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["mind_palace", "document"],
+        target_ids=[room.id],
+        before={"room": before},
+        after={"room": payload},
+        emit_type="document.updated",
+        document_ids=[room.id],
+    )
+    return payload, spec
+
+
+@action("room.delete", RoomDeleteParams, domains=["mind_palace", "document"])
+def _action_delete_room(
+    db: Database, params: RoomDeleteParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    before = delete_room_impl(db, params.room_id)
+    spec = ChangeSpec(
+        domains=["mind_palace", "document"],
+        target_ids=[params.room_id],
+        before={"room": before},
+        after=None,
+        emit_type="document.deleted",
+        document_ids=[params.room_id],
+    )
+    return MindPalaceDeletedResponse(status="deleted").model_dump(mode="json"), spec
 
 
 @router.get("/rooms/{room_id}/scene", response_model=RoomSceneSummary)
