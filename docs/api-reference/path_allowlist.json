@@ -514,6 +514,7 @@
     "/api/workflows/{workflow_id}/estimate-cost": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/workflows/{workflow_id}/export": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/view/document/{doc_id}": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
-    "/view/kg/global": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet."
+    "/view/kg/global": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
+    "/api/authz/share": "CLI/auth endpoint; route-family documented, per-path callout pending."
   }
 }
