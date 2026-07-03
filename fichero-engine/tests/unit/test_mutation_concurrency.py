@@ -157,31 +157,15 @@ class TestAuditedMutationConcurrency:
         assert all(db.get(Document, doc_id).parent_id == parent.id for doc_id in doc_ids)
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(
-        reason=(
-            "Concurrent claim.create requests can race in Database._ensure_table and "
-            "raise DuckDB CatalogException while adding the knowledgeclaims.id column; "
-            "real concurrency bug, tracked by this stress test."
-        ),
-        strict=True,
-    )
     async def test_claim_create_concurrent_writes_audit_emit_and_rows(
         self, client, db, emit_calls
     ):
-        try:
-            responses = await asyncio.gather(
-                *[
-                    _post_json(client, "/api/claims", {"text": f"Claim {i}"})
-                    for i in range(CLAIM_N)
-                ]
-            )
-        except Exception as exc:  # pragma: no cover - xfail path is the point
-            if "Column with name id already exists!" not in str(exc):
-                raise
-            pytest.xfail(
-                "Reproduced claim.create concurrency race in Database._ensure_table "
-                "(DuckDB CatalogException adding knowledgeclaims.id)."
-            )
+        responses = await asyncio.gather(
+            *[
+                _post_json(client, "/api/claims", {"text": f"Claim {i}"})
+                for i in range(CLAIM_N)
+            ]
+        )
 
         assert all(response.status_code == 200 for response in responses)
         claim_ids = [response.json()["id"] for response in responses]
@@ -191,41 +175,21 @@ class TestAuditedMutationConcurrency:
         emitted_ids = _emitted_claim_ids(emit_calls, "claim.updated")
         assert len(emitted_ids) == CLAIM_N
         assert set(emitted_ids) == set(claim_ids)
-        pytest.xfail(
-            "Known flaky claim.create concurrency race did not reproduce this run; "
-            "keeping strict xfail until Database._ensure_table is serialized."
-        )
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(
-        reason=(
-            "Concurrent entity.create requests can race in Database._ensure_table and "
-            "raise DuckDB CatalogException while adding the knowledgeentitys.id column; "
-            "real concurrency bug, tracked by this stress test."
-        ),
-        strict=True,
-    )
     async def test_entity_create_concurrent_writes_audit_emit_and_rows(
         self, client, db, emit_calls
     ):
-        try:
-            responses = await asyncio.gather(
-                *[
-                    _post_json(
-                        client,
-                        "/api/entities",
-                        {"canonical_name": f"Entity {i}", "entity_type": "person"},
-                    )
-                    for i in range(ENTITY_N)
-                ]
-            )
-        except Exception as exc:  # pragma: no cover - xfail path is the point
-            if "Column with name id already exists!" not in str(exc):
-                raise
-            pytest.xfail(
-                "Reproduced entity.create concurrency race in Database._ensure_table "
-                "(DuckDB CatalogException adding knowledgeentitys.id)."
-            )
+        responses = await asyncio.gather(
+            *[
+                _post_json(
+                    client,
+                    "/api/entities",
+                    {"canonical_name": f"Entity {i}", "entity_type": "person"},
+                )
+                for i in range(ENTITY_N)
+            ]
+        )
 
         assert all(response.status_code == 200 for response in responses)
         entity_ids = [response.json()["id"] for response in responses]
@@ -235,10 +199,6 @@ class TestAuditedMutationConcurrency:
         emitted_ids = _emitted_entity_ids(emit_calls, "entity.created")
         assert len(emitted_ids) == ENTITY_N
         assert set(emitted_ids) == set(entity_ids)
-        pytest.xfail(
-            "Known flaky entity.create concurrency race did not reproduce this run; "
-            "keeping strict xfail until Database._ensure_table is serialized."
-        )
 
     @pytest.mark.asyncio
     async def test_room_create_concurrent_writes_audit_emit_and_dual_write(
