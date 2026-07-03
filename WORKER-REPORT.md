@@ -1,1 +1,0 @@
-2026-07-03: Added `test_mutation_atomicity.py`; storage failures are atomic, while audit-write and action-level emit failures leave partial note/document/entity create + document.move state, now locked as strict xfails for filing.
