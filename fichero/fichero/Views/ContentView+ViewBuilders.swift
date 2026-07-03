@@ -550,6 +550,12 @@ extension ContentView {
             contentWithOptionalModeRail
                 .overlay { paneFocusIndicator(for: .content) }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // Title the list root so it isn't a blank bar and the pushed
+                // reader's Back button names the section it returns to (#2810).
+                .navigationTitle(toolbarTitle)
+                #if !os(macOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
                 // Drive the push from real @State (#2666). Selection changes
                 // recompute the leaf; popping (Back / back-swipe) sets the item
                 // to nil, which clears the selection so the list returns clean.
@@ -557,6 +563,11 @@ extension ContentView {
                     previewView
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .navigationTitle(doc.name)
+                        #if !os(macOS)
+                        // A pushed reader is a detail screen: keep the title bar
+                        // compact (inline) rather than the default large title.
+                        .navigationBarTitleDisplayMode(.inline)
+                        #endif
                         // ponytail: full edge-swipe paging between pipeline stages
                         // is deferred. Back (NavigationStack) returns to the list,
                         // and EditorView already hosts SwipeSiblingNavigator for
