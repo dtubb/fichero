@@ -18,6 +18,7 @@ from fichero import accounts, authz
 from fichero.actions.registry import ActionContext
 from fichero.api.routes.authz import (
     list_library_members,
+    revoke_library_member_role,
     set_library_member_role,
 )
 from fichero.models import AccountUser, SetLibraryRoleRequest
@@ -124,3 +125,37 @@ def test_set_role_denies_non_owner_actor(db, app_db, users, monkeypatch):
     with pytest.raises(HTTPException) as exc:
         set_library_member_role(body, _request(users.viewer), db, ctx, library_path)
     assert exc.value.status_code == 403
+
+
+def test_revoke_removes_member_via_typed_endpoint(db, app_db, users, monkeypatch):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    library_path = str(db.path.parent)
+    normalized = authz.normalize_library_path(library_path)
+    _grant(app_db, users.owner, library_path, authz.ROLE_OWNER)
+    _grant(app_db, users.viewer, library_path, authz.ROLE_VIEWER)
+
+    ctx = ActionContext(actor=users.owner.id, library_path=normalized)
+    resp = revoke_library_member_role(
+        _request(users.owner), users.viewer.id, db, ctx, library_path
+    )
+
+    # Viewer is gone from the member list and their role row is deleted.
+    assert users.viewer.id not in {m.user_id for m in resp.members}
+    assert app_db.get_library_role(users.viewer.id, normalized) is None
+
+
+def test_revoke_denies_non_owner_actor(db, app_db, users, monkeypatch):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    library_path = str(db.path.parent)
+    normalized = authz.normalize_library_path(library_path)
+    _grant(app_db, users.owner, library_path, authz.ROLE_OWNER)
+    _grant(app_db, users.viewer, library_path, authz.ROLE_VIEWER)
+
+    # viewer cannot revoke the owner (require_owner rejects) — owner keeps role.
+    ctx = ActionContext(actor=users.viewer.id, library_path=normalized)
+    with pytest.raises(HTTPException) as exc:
+        revoke_library_member_role(
+            _request(users.viewer), users.owner.id, db, ctx, library_path
+        )
+    assert exc.value.status_code == 403
+    assert app_db.get_library_role(users.owner.id, normalized) is not None

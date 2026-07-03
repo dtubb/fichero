@@ -984,6 +984,20 @@ def register_generated_openapi_commands(
             return client.request("GET", path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("revoke-library-member-role")
+    def authz_revoke_library_member_role_delete(
+        ctx: typer.Context,
+        user: str = typer.Option(..., "--user", help="Query parameter: user."),
+    ) -> None:
+        """Revoke Library Member Role (DELETE /api/authz/members)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/authz/members"
+            params = {
+                "user": user,
+            }
+            return client.request("DELETE", path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("list-library-members")
     def authz_list_library_members_get(
         ctx: typer.Context,

@@ -32200,6 +32200,58 @@
             }
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "authz",
+          "authz"
+        ],
+        "summary": "Revoke Library Member Role",
+        "description": "Revoke a member's whole-library role \u2014 typed surface over ``acl.set``\nremove. Same owner-gated, audited, change-stream path as the generic\n``POST /api/actions/invoke``; an owner cannot revoke their own role.\nReturns the refreshed member list.",
+        "operationId": "revoke_library_member_role_api_authz_members_delete",
+        "parameters": [
+          {
+            "name": "user",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryMembersResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     }
   },

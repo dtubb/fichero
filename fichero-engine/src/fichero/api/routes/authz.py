@@ -129,3 +129,28 @@ def set_library_member_role(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     return list_library_members(request, x_fichero_library_path)
+
+
+@router.delete("/members", response_model=LibraryMembersResponse)
+def revoke_library_member_role(
+    request: Request,
+    user: str,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+    x_fichero_library_path: str = Depends(require_library_path),
+) -> LibraryMembersResponse:
+    """Revoke a member's whole-library role — typed surface over ``acl.set``
+    remove. Same owner-gated, audited, change-stream path as the generic
+    ``POST /api/actions/invoke``; an owner cannot revoke their own role.
+    Returns the refreshed member list.
+    """
+    try:
+        registry.invoke(db, "acl.set", {"user": user, "remove": True}, ctx)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+    except authz.AuthorizationError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    return list_library_members(request, x_fichero_library_path)
