@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import shutil
 import sys
+import base64
 from pathlib import Path
 
 from fichero.db import db_manager
@@ -45,6 +46,9 @@ ENTITY_ORG_ID = "test-ent-org"
 CLAIM_IDS = ["test-claim-1", "test-claim-2", "test-claim-3"]
 WORKFLOW_ID = "test-workflow-catalogue"
 ARTIFACT_ID = "test-artifact-transcription"
+_ONE_PIXEL_PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j5tQAAAAASUVORK5CYII="
+)
 
 def _measure(db) -> dict:
     """Ground-truth counts read back from the library after seeding.
@@ -77,6 +81,8 @@ def _make_package(path: Path) -> None:
 
 def seed(path: Path) -> dict:
     _make_package(path)
+    photo_path = path / "files" / "test-doc-photo.png"
+    photo_path.write_bytes(_ONE_PIXEL_PNG)
     db = db_manager.get_database(path)
 
     # --- document hierarchy: collection > files > page ---------------------
@@ -100,6 +106,7 @@ def seed(path: Path) -> dict:
             doc_type=DocType.file,
             file_type=FileType.image,
             status=Status.completed,
+            path=str(photo_path.relative_to(path)),
         )
     )
     db.save(
