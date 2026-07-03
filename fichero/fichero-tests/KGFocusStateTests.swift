@@ -50,4 +50,34 @@ final class KGFocusStateTests: XCTestCase {
         XCTAssertNil(state.sourceDocumentId)
         XCTAssertNil(state.sourcePageLabel)
     }
+
+    // MARK: - Compact push bridge (#3011)
+
+    /// Pushing an entity leaf focuses it (leaf resolution).
+    func testSyncPushedEntityFocusesTheLeaf() {
+        let state = KGFocusState()
+        state.syncPushedEntity("e-42")
+        XCTAssertEqual(state.focusedEntityId, "e-42")
+    }
+
+    /// Popping the entity detail (a `nil` leaf) clears KG focus so the list
+    /// returns unfocused — the core #3011 pop-clears-focus guarantee.
+    func testSyncPushedEntityNilClearsFocus() {
+        let state = KGFocusState()
+        state.focusEntity(entityId: "e-1", sourceDocumentId: "d-1", sourcePageLabel: "p1")
+
+        state.syncPushedEntity(nil)
+        XCTAssertNil(state.focusedEntityId)
+        XCTAssertNil(state.focusedClaimId)
+        XCTAssertNil(state.sourceDocumentId)
+        XCTAssertNil(state.sourcePageLabel)
+    }
+
+    /// Pushing a different entity retargets focus (list → detail → back → detail).
+    func testSyncPushedEntityRetargetsToNewLeaf() {
+        let state = KGFocusState()
+        state.syncPushedEntity("e-1")
+        state.syncPushedEntity("e-2")
+        XCTAssertEqual(state.focusedEntityId, "e-2")
+    }
 }

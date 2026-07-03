@@ -60,4 +60,16 @@ final class KGFocusState {
         sourceDocumentId = nil
         sourcePageLabel = nil
     }
+
+    /// Compact push/pop bridge (#3011). Pushing an entity detail focuses it;
+    /// popping back to the list (a `nil` leaf) clears KG focus so the list
+    /// returns unfocused. Mirrors the compact entity NavigationStack's
+    /// `navigationDestination(item:)` lifecycle.
+    func syncPushedEntity(_ entityId: String?) {
+        if let entityId {
+            focusEntity(entityId: entityId)
+        } else {
+            clear()
+        }
+    }
 }

@@ -36,6 +36,8 @@ struct OntologyBrowser: View {
     @Environment(ClaimStore.self) var claimStore
     /// Finder-style Open in New Tab / New Window for ontology rows (#1685).
     @Environment(\.openWindow) var openWindow
+    /// Compact width (iPhone) collapses the list|detail split into a push flow (#3011).
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State var loadState = OntologyBrowserLoadState()
     @SceneStorage("ontology.selectedEntityId") var selectedEntityId: String?
     @State var navHistory = NavigationHistoryManager()
@@ -226,20 +228,7 @@ struct OntologyBrowser: View {
     }
 
     var body: some View {
-        // Toolbar moved INSIDE the entity list pane (#964) so it scopes
-        // to the list only — was previously spanning across both panes
-        // including the detail / preview area on the right.
-        HStack(spacing: 0) {
-            VStack(spacing: 0) {
-                toolbar
-                Divider()
-                entityListSidebar
-            }
-            .frame(width: entityListWidth)
-            ResizableDivider(width: $entityListWidth, minWidth: 220, maxWidth: 420, edge: .leading)
-            detailPaneForMode
-                .frame(maxWidth: .infinity)
-        }
+        browserLayout
         .frame(minWidth: 300, minHeight: 200)
         .modifier(OntologySheetsModifier(browser: self))
         // Publish the active KG view mode so the View menu / main-toolbar View
@@ -260,6 +249,58 @@ struct OntologyBrowser: View {
         .onChange(of: kgFocusState.focusedEntityId) { _, entityId in
             guard let entityId, selectedEntityId != entityId else { return }
             selectedEntityId = entityId
+        }
+    }
+
+    /// Regular width keeps the two-column list|detail split; compact width
+    /// (iPhone) collapses to a list→detail push flow (#3011).
+    @ViewBuilder
+    private var browserLayout: some View {
+        if ContentView.shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) {
+            compactBrowser
+        } else {
+            // Toolbar lives INSIDE the entity list pane (#964) so it scopes to
+            // the list only, not the detail/preview pane on the right.
+            HStack(spacing: 0) {
+                entityListColumn
+                    .frame(width: entityListWidth)
+                ResizableDivider(width: $entityListWidth, minWidth: 220, maxWidth: 420, edge: .leading)
+                detailPaneForMode
+                    .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    /// The entity list pane (its own toolbar + list), shared by both layouts.
+    private var entityListColumn: some View {
+        VStack(spacing: 0) {
+            toolbar
+            Divider()
+            entityListSidebar
+        }
+    }
+
+    /// Compact (iPhone) entity flow (#3011): the entity list is the
+    /// `NavigationStack` root; selecting an entity pushes its detail and focuses
+    /// it in `KGFocusState`; Back (nil leaf) pops and clears KG focus.
+    private var compactBrowser: some View {
+        NavigationStack {
+            entityListColumn
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .navigationTitle("Entities")
+                #if !os(macOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+                .navigationDestination(item: $selectedEntityId) { _ in
+                    detailPaneForMode
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        #if !os(macOS)
+                        .navigationBarTitleDisplayMode(.inline)
+                        #endif
+                }
+                .onChange(of: selectedEntityId) { _, newValue in
+                    kgFocusState.syncPushedEntity(newValue)
+                }
         }
     }
 
