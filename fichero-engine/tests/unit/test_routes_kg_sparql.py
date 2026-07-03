@@ -105,6 +105,47 @@ class TestSparqlReadOnly:
         assert "Alice" in labels
         assert "Bob" in labels
 
+    def test_canonical_query_route_returns_expected_bindings(self, client, db):
+        alice = _make_person("e-a-bindings", "Alice")
+        bob = _make_person("e-b-bindings", "Bob")
+        claim = _make_svo_claim(
+            "claim-binds",
+            "Alice",
+            "visited",
+            "Bob",
+            [alice.id, bob.id],
+        )
+        db.save(alice)
+        db.save(bob)
+        db.save(claim)
+
+        r = client.post(
+            SPARQL_QUERY_URL,
+            json={
+                "query": (
+                    "PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> "
+                    "PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> "
+                    "SELECT ?subjectLabel WHERE { "
+                    "?claim rdf:subject ?subject . "
+                    "?subject rdfs:label ?subjectLabel . "
+                    "} ORDER BY ?subjectLabel"
+                )
+            },
+        )
+
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["row_count"] >= 1
+        labels = [row["bindings"]["subjectLabel"] for row in payload["rows"]]
+        assert "Alice" in labels
+        assert "Bob" in labels
+
+    def test_empty_query_returns_clean_400(self, client):
+        r = client.post(SPARQL_QUERY_URL, json={"query": ""})
+
+        assert r.status_code == 400
+        assert "SPARQL error" in r.json()["detail"]
+
     def test_limit_caps_rows(self, client, db):
         for idx in range(5):
             db.save(_make_person(f"e-{idx}", f"Person {idx}"))
@@ -150,9 +191,16 @@ class TestSparqlReadOnly:
 
         assert r.status_code == 200
         data = r.json()
+        assert len(data["examples"]) >= 2
         example_ids = [example["id"] for example in data["examples"]]
         assert "people-labels" in example_ids
         assert "claims-with-source" in example_ids
+        people_labels = next(
+            example for example in data["examples"] if example["id"] == "people-labels"
+        )
+        assert "title" in people_labels
+        assert "query" in people_labels
+        assert "SELECT" in people_labels["query"]
 
     def test_rdf_export_returns_serialized_graph(self, client, db):
         db.save(_make_person("e-a", "Alice"))
@@ -163,3 +211,11 @@ class TestSparqlReadOnly:
         assert "text/turtle" in r.headers["content-type"]
         assert r.headers["content-disposition"].endswith('knowledge-graph.ttl"')
         assert "Alice" in r.text
+
+    def test_rdf_export_empty_graph_returns_valid_empty_serialization(self, client):
+        r = client.get(f"{RDF_EXPORT_URL}?format=nt")
+
+        assert r.status_code == 200
+        assert "application/n-triples" in r.headers["content-type"]
+        assert r.headers["content-disposition"].endswith('knowledge-graph.nt"')
+        assert r.text.strip() == ""
