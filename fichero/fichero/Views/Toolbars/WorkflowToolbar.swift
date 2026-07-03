@@ -54,12 +54,14 @@ struct WorkflowToolbar: View {
                 }
                 .buttonStyle(.plain)
                 .help("Import Workflow")
+                .accessibilityLabel("Import Workflow")
 
                 Button(action: onExport) {
                     Image(systemName: "square.and.arrow.up")
                 }
                 .buttonStyle(.plain)
                 .help("Export Workflow")
+                .accessibilityLabel("Export Workflow")
             }
 
             if featureManager.isWorkflowLangGraphPreviewEnabled, let onPreview = onPreviewDiagram {
@@ -68,6 +70,7 @@ struct WorkflowToolbar: View {
                 }
                 .buttonStyle(.plain)
                 .help("Preview LangGraph Diagram")
+                .accessibilityLabel("Preview LangGraph Diagram")
             }
 
             if featureManager.isWorkflowFilesToolbarButtonEnabled, let onRunDocs = onRunOnDocuments {
@@ -76,6 +79,7 @@ struct WorkflowToolbar: View {
                 }
                 .buttonStyle(.plain)
                 .help("Run on Documents")
+                .accessibilityLabel("Run on Documents")
             }
 
             if let onCompareModels {
@@ -84,6 +88,7 @@ struct WorkflowToolbar: View {
                 }
                 .buttonStyle(.plain)
                 .help("Compare Models")
+                .accessibilityLabel("Compare Models")
             }
 
             Divider()
@@ -101,6 +106,7 @@ struct WorkflowToolbar: View {
             .tint(.green)
             .disabled(isRunning || !canRun)
             .help(isRunning ? "Running" : "Run Workflow")
+            .accessibilityLabel(isRunning ? "Running" : "Run Workflow")
         }
     }
 

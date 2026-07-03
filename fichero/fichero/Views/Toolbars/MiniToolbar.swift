@@ -165,6 +165,7 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
             .buttonStyle(.plain)
             .foregroundStyle(actions.hasVertical ? Color.accentColor : Color.secondary)
             .help(verticalHelp)
+            .accessibilityLabel(verticalHelp)
 
             Button { actions.onToggleHorizontal() } label: {
                 Image(systemName: "rectangle.split.1x2")
@@ -178,6 +179,7 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
             .buttonStyle(.plain)
             .foregroundStyle(actions.hasHorizontal ? Color.accentColor : Color.secondary)
             .help(horizontalHelp)
+            .accessibilityLabel(horizontalHelp)
         }
     }
 
