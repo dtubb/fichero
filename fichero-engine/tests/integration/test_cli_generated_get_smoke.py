@@ -51,13 +51,9 @@ _SKIP_PATHS = {
     "/api/entities/{entity_id}/drill-down",
     "/api/iiif/iiif/image/{document_id}",
     "/api/iiif/iiif/manifest/{document_id}",
-    "/api/images/{document_id}/preview",
     "/api/kg/claim-search",
     "/api/kg/claim-search/{claim_id}/similar",
     "/api/kg/entity-curation/semantic",
-    "/api/storage/display/{doc_id}",
-    "/api/storage/source/{doc_id}",
-    "/api/storage/thumbnail/{doc_id}",
     "/api/tasks/tasks",
     "/api/workflow-execution/workflows/{workflow_id}/visualization",
     "/api/workflow-execution/workflows/{workflow_id}/visualization.png",
@@ -66,6 +62,12 @@ _SKIP_PATHS = {
 }
 _MAX_SKIPPED_GET_COMMANDS = 115
 _MIN_EXECUTABLE_GET_COMMANDS = 160
+_BINARY_IMAGE_PATHS = {
+    "/api/images/{document_id}/preview",
+    "/api/storage/display/{doc_id}",
+    "/api/storage/source/{doc_id}",
+    "/api/storage/thumbnail/{doc_id}",
+}
 
 
 def _cli_smoke_ready() -> bool:
@@ -107,6 +109,9 @@ def _args_for(operation, command_name: str, summary: dict, base_url: str, librar
         return None
 
     values = path_values(summary)
+    if operation.path in _BINARY_IMAGE_PATHS:
+        values["doc_id"] = summary["keys"]["doc_photo"]
+        values["document_id"] = summary["keys"]["doc_photo"]
     args = [
         "--base-url",
         base_url,
