@@ -569,11 +569,6 @@ def _action_delete_entity(
         params.entity_id,
         cascade_claims=params.cascade_claims,
     )
-    _emit_entity_change_ctx(
-        ctx,
-        event_type="entity.deleted",
-        entity_ids=[params.entity_id],
-    )
     spec = ChangeSpec(
         domains=["entity"],
         target_ids=[params.entity_id],
