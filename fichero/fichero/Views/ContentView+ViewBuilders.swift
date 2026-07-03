@@ -414,11 +414,20 @@ extension ContentView {
     @ViewBuilder
     var detailShellColumn: some View {
         VStack(spacing: 0) {
-            detailTabStrip
-            detailLocationPathBar
-            Divider()
+            // Xcode-style detail chrome (tab strip + location/status path bars)
+            // is a regular-width affordance. At compact width (iPhone) it wastes
+            // the tiny screen and doesn't fit, so it's hidden — the reader gets
+            // the full height (#2811). macOS reports a regular/nil size class, so
+            // the chrome always renders there.
+            if horizontalSizeClass != .compact {
+                detailTabStrip
+                detailLocationPathBar
+                Divider()
+            }
             centerContent
-            detailStatusPathBar
+            if horizontalSizeClass != .compact {
+                detailStatusPathBar
+            }
         }
         .background(Color(platformColor: .textBackgroundColor))
     }

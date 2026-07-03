@@ -95,7 +95,10 @@ struct EntitySplitSheet: View {
             }
             .padding()
         }
+        // Mac-only fixed size; iPhone/iPad sheets size to the screen (#2802).
+        #if os(macOS)
         .frame(width: 460, height: 440)
+        #endif
     }
 
     private func split() {

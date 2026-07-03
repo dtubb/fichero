@@ -746,7 +746,12 @@ extension ContentView {
 
     @ToolbarContentBuilder
     private var contentPaneToolbarContent: some ToolbarContent {
-        if supportsReadingWorkspace {
+        // The preview/reading pane toggles only make sense in the multi-pane
+        // reading workspace. In the compact (iPhone) flow the reader is a single
+        // navigation stack, not split panes, so the toggles do nothing and are
+        // hidden (#2813).
+        if supportsReadingWorkspace
+            && !Self.shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) {
             ToolbarItemGroup(placement: .automatic) {
                 if showViewModePicker && availableViewDisplayModes.count > 1 {
                     viewDisplayModeMenu
