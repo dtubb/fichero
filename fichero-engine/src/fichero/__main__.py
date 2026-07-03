@@ -143,6 +143,28 @@ def _invoke(ctx: typer.Context, operation: Callable[[FicheroClient], Any]) -> No
     typer.echo(render(data, as_json=ctx.obj["json"]))
 
 
+def _invoke_stream(ctx: typer.Context, operation: Callable[[FicheroClient], list[str]]) -> None:
+    """Run one streaming client operation and print each emitted line."""
+    try:
+        with _client(ctx) as client:
+            lines = operation(client)
+    except FicheroError as exc:
+        _report_fichero_error(ctx, exc)
+    for line in lines:
+        typer.echo(_render_stream_line(line, as_json=ctx.obj["json"]))
+
+
+def _render_stream_line(line: str, *, as_json: bool) -> str:
+    if not line.startswith("data:"):
+        return line
+    payload = line[5:].strip()
+    try:
+        decoded = json.loads(payload)
+    except json.JSONDecodeError:
+        return payload
+    return render(decoded, as_json=as_json)
+
+
 def _read_cli_session() -> dict[str, Any]:
     try:
         payload = json.loads(client_module._CLI_SESSION_PATH.read_text(encoding="utf-8"))
@@ -2050,6 +2072,44 @@ def workflow_run(
         # Strip LangGraph implementation details from human output (#1081).
         # `--json` keeps the raw payload for diagnostics.
         typer.echo(render(_scrub_langgraph_internals(result)))
+
+
+@app.command("activity-stream")
+def activity_stream(
+    ctx: typer.Context,
+    types: Optional[str] = typer.Option(None, "--types", help="Comma-separated activity types."),
+    levels: Optional[str] = typer.Option(None, "--levels", help="Comma-separated activity levels."),
+    workflow_id: Optional[str] = typer.Option(None, "--workflow-id", help="Filter by workflow ID."),
+    batch_id: Optional[str] = typer.Option(None, "--batch-id", help="Filter by batch ID."),
+    thread_id: Optional[str] = typer.Option(None, "--thread-id", help="Filter by thread ID."),
+) -> None:
+    """Follow the live activity SSE stream."""
+    _invoke_stream(
+        ctx,
+        lambda c: c.request_stream(
+            "GET",
+            "/api/activity/stream",
+            params={
+                "types": types,
+                "levels": levels,
+                "workflow_id": workflow_id,
+                "batch_id": batch_id,
+                "thread_id": thread_id,
+            },
+        ),
+    )
+
+
+@workflow_app.command("stream")
+def workflow_stream(
+    ctx: typer.Context,
+    thread_id: str = typer.Argument(..., help="Workflow execution thread ID."),
+) -> None:
+    """Follow the live workflow-execution SSE stream for a thread."""
+    _invoke_stream(
+        ctx,
+        lambda c: c.request_stream("GET", f"/api/workflow-execution/stream/{thread_id}"),
+    )
 
 
 # Keys the executor exposes that aren't user-facing — see backend

@@ -291,6 +291,36 @@ class FicheroClient:
                 "bytes": len(response.content),
             }
 
+    def request_stream(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+    ) -> list[str]:
+        """Issue a request and return SSE/text lines without buffering JSON."""
+        self._refresh_auth_context()
+        try:
+            with self._client.stream(
+                method,
+                path,
+                params=_clean(params),
+                headers=self._headers(),
+            ) as response:
+                if response.status_code >= 400:
+                    raise FicheroError(
+                        f"{method} {path} -> {response.status_code}: {response.text}",
+                        status_code=response.status_code,
+                    )
+                return [line for line in response.iter_lines() if line]
+        except httpx.ConnectError as exc:
+            raise FicheroError(
+                f"Cannot connect to the Fichero backend at {self.base_url}. "
+                "Is the engine running?"
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise FicheroError(f"{method} {path} failed: {exc}") from exc
+
     # -- health ------------------------------------------------------------
     def health(self) -> Any:
         return self.request("GET", "/api/health")

@@ -75,6 +75,13 @@ class FakeClient:
             "has_files": files is not None,
         }
 
+    def request_stream(self, method, path, *, params=None):
+        self.calls.append(("request_stream", method, path, {"params": params}))
+        return [
+            'data: {"type":"tick","thread_id":"t-1"}',
+            ": keepalive",
+        ]
+
     def list_documents(self, **kw):
         self.calls.append(("list_documents", kw))
         from fichero.models import DocumentListResponse
@@ -827,6 +834,36 @@ def test_generated_json_body_command_parses_inline_payload():
             },
         )
     ]
+
+
+def test_activity_stream_command_supports_json():
+    result = runner.invoke(cli.app, ["--json", "activity-stream", "--thread-id", "t-1"])
+    assert result.exit_code == 0
+    assert _last_client().calls == [
+        (
+            "request_stream",
+            "GET",
+            "/api/activity/stream",
+            {"params": {
+                "types": None,
+                "levels": None,
+                "workflow_id": None,
+                "batch_id": None,
+                "thread_id": "t-1",
+            }},
+        )
+    ]
+    assert '"thread_id": "t-1"' in result.output
+    assert '"type": "tick"' in result.output
+
+
+def test_workflow_stream_command_reaches_sse_endpoint():
+    result = runner.invoke(cli.app, ["workflow", "stream", "t-1"])
+    assert result.exit_code == 0
+    assert _last_client().calls == [
+        ("request_stream", "GET", "/api/workflow-execution/stream/t-1", {"params": None})
+    ]
+    assert "type: tick" in result.output
 
 
 def test_docs_list_forwards_filters():
