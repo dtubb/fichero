@@ -5,12 +5,9 @@ from __future__ import annotations
 import importlib.util
 import os
 import socket
-import subprocess
 import sys
-import time
 from pathlib import Path
 
-import httpx
 import pytest
 from typer.testing import CliRunner
 
@@ -19,9 +16,9 @@ os.environ.setdefault("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
 os.environ.setdefault("FICHERO_DISABLE_AUTH", "1")
 
 from fichero import __main__ as cli  # noqa: E402
+from tests.integration._cli_live import cli_live_engine as _cli_live_engine, path_values  # noqa: E402,F401
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-VENV_UVICORN = Path(sys.executable).parent / "uvicorn"
 _GENERATOR_PATH = REPO_ROOT / "fichero-engine" / "scripts" / "generate_openapi_cli.py"
 _GENERATOR_SPEC = importlib.util.spec_from_file_location("generate_openapi_cli", _GENERATOR_PATH)
 if _GENERATOR_SPEC is None or _GENERATOR_SPEC.loader is None:  # pragma: no cover - import wiring
@@ -89,25 +86,6 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind(("127.0.0.1", 0))
-        return sock.getsockname()[1]
-
-
-def _wait_healthy(base_url: str, timeout: float = 30.0) -> bool:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        try:
-            response = httpx.get(f"{base_url}/api/health", timeout=2.0)
-            if response.status_code == 200 and response.json().get("status") == "healthy":
-                return True
-        except httpx.HTTPError:
-            pass
-        time.sleep(0.3)
-    return False
-
-
 def _generated_get_operations():
     seen_per_resource: dict[str, set[str]] = {}
     operations = []
@@ -122,26 +100,13 @@ def _generated_get_operations():
     return operations
 
 
-def _path_values(summary: dict) -> dict[str, str]:
-    return {
-        "artifact_id": summary["keys"]["artifact"],
-        "claim_id": summary["ids"]["claims"][0],
-        "doc_id": summary["keys"]["doc_letter"],
-        "document_id": summary["keys"]["doc_letter"],
-        "entity_id": summary["keys"]["entity_person"],
-        "folder_id": summary["keys"]["collection"],
-        "page_doc_id": summary["keys"]["page"],
-        "workflow_id": summary["keys"]["workflow"],
-    }
-
-
 def _args_for(operation, command_name: str, summary: dict, base_url: str, library_path: Path) -> list[str] | None:
     if any(operation.path.startswith(prefix) for prefix in _SKIP_PREFIXES):
         return None
     if operation.path in _SKIP_PATHS:
         return None
 
-    path_values = _path_values(summary)
+    values = path_values(summary)
     args = [
         "--base-url",
         base_url,
@@ -152,7 +117,7 @@ def _args_for(operation, command_name: str, summary: dict, base_url: str, librar
     ]
 
     for path_param in operation.path_params:
-        value = path_values.get(path_param)
+        value = values.get(path_param)
         if value is None:
             return None
         args.append(value)
@@ -168,68 +133,16 @@ def _args_for(operation, command_name: str, summary: dict, base_url: str, librar
     return args
 
 
-@pytest.fixture(scope="module")
-def cli_smoke_env(tmp_path_factory):
-    if not VENV_UVICORN.exists():
-        pytest.skip(f"venv uvicorn not found at {VENV_UVICORN}")
-
-    from tests.integration._seedlib import seed
-
-    workdir = tmp_path_factory.mktemp("cli-generated-smoke")
-    library = workdir / "library.fichero"
-    summary = seed(library)
-
-    port = _free_port()
-    base_url = f"http://127.0.0.1:{port}"
-    env = {
-        **os.environ,
-        "PYTHONPATH": str(REPO_ROOT / "fichero-engine" / "src"),
-        "FICHERO_DISABLE_AUTH": "1",
-        "FICHERO_FEATURE_TIER": "dev",
-        "FICHERO_SKIP_DEFAULT_WORKFLOWS": "1",
-        "FICHERO_BASE_PATH": str(workdir / "base"),
-        "FICHERO_PARENT_PID": str(os.getpid()),
-    }
-    engine_log = workdir / "engine.log"
-    log_handle = open(engine_log, "w")
-    process = subprocess.Popen(
-        [str(VENV_UVICORN), "fichero.api.main:app", "--host", "127.0.0.1", "--port", str(port)],
-        env=env,
-        stdout=subprocess.DEVNULL,
-        stderr=log_handle,
-    )
-    try:
-        if not _wait_healthy(base_url):
-            tail = engine_log.read_text(errors="replace")[-4000:]
-            pytest.fail(
-                "spawned engine never became healthy in 30s.\n"
-                f"--- engine stderr (tail) ---\n{tail}"
-            )
-        yield {
-            "base_url": base_url,
-            "engine_log": engine_log,
-            "library": library,
-            "summary": summary,
-        }
-    finally:
-        process.terminate()
-        try:
-            process.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            process.kill()
-        log_handle.close()
-
-
-def test_generated_get_commands_succeed_against_seeded_library(cli_smoke_env):
+def test_generated_get_commands_succeed_against_seeded_library(cli_live_engine):
     executable: list[tuple[str, list[str]]] = []
     skipped: list[str] = []
     for operation, command_name in _generated_get_operations():
         args = _args_for(
             operation,
             command_name,
-            cli_smoke_env["summary"],
-            cli_smoke_env["base_url"],
-            cli_smoke_env["library"],
+            cli_live_engine["summary"],
+            cli_live_engine["base_url"],
+            cli_live_engine["library"],
         )
         if args is None:
             skipped.append(operation.path)
@@ -247,7 +160,7 @@ def test_generated_get_commands_succeed_against_seeded_library(cli_smoke_env):
             failures.append((path, result.exit_code, result.output[-500:]))
 
     if failures:
-        tail = cli_smoke_env["engine_log"].read_text(errors="replace")[-4000:]
+        tail = cli_live_engine["engine_log"].read_text(errors="replace")[-4000:]
         lines = [f"  {path} -> exit {code}: {output}" for path, code, output in failures[:25]]
         pytest.fail(
             "Generated CLI GET smoke failures:\n"

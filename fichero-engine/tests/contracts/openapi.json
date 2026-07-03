@@ -1216,6 +1216,189 @@
         }
       }
     },
+    "/api/authz/members": {
+      "get": {
+        "tags": [
+          "authz",
+          "authz"
+        ],
+        "summary": "List Library Members",
+        "description": "Who can access this library, roles joined with account profiles.\n\nOwner-gated when multi-user is on (mirrors the snapshot's ``can_manage_roles``).\nThe ``roles`` table keys on the *normalized* library path, so normalize the\ntransport header before the lookup or the join silently returns empty.",
+        "operationId": "list_library_members_api_authz_members_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryMembersResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "authz",
+          "authz"
+        ],
+        "summary": "Set Library Member Role",
+        "description": "Assign/change a library role \u2014 typed surface over the ``acl.set`` action.\n\nRoutes through ``registry.invoke`` so the mutation is owner-gated, audited,\nand emitted on the change stream exactly like ``POST /api/actions/invoke``.\nReturns the refreshed member list so the UI updates in one round-trip.",
+        "operationId": "set_library_member_role_api_authz_members_put",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetLibraryRoleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryMembersResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "authz",
+          "authz"
+        ],
+        "summary": "Revoke Library Member Role",
+        "description": "Revoke a member's whole-library role \u2014 typed surface over ``acl.set``\nremove. Same owner-gated, audited, change-stream path as the generic\n``POST /api/actions/invoke``; an owner cannot revoke their own role.\nReturns the refreshed member list.",
+        "operationId": "revoke_library_member_role_api_authz_members_delete",
+        "parameters": [
+          {
+            "name": "user",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryMembersResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/authz/share": {
+      "post": {
+        "tags": [
+          "authz",
+          "authz"
+        ],
+        "summary": "Share Library Object",
+        "description": "Share a library / entity / document (#1867) \u2014 the authz-gated model.\n\nGrants the recipient a per-library role through the audited ``acl.set``\naction (owner-gated, emits authz.changed) and returns an engine link to the\nobject. Entity/document shares grant library access so the recipient can\nreach the object (the ACL is per-library); those types require an object_id.",
+        "operationId": "share_library_object_api_authz_share_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShareRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/login": {
       "post": {
         "tags": [
@@ -31884,430 +32067,6 @@
           }
         }
       }
-    },
-    "/api/iiif/iiif/{identifier}/info.json": {
-      "get": {
-        "tags": [
-          "iiif",
-          "iiif"
-        ],
-        "summary": "IIIF Image Information",
-        "description": "Returns IIIF Image API information (info.json).",
-        "operationId": "get_image_info_api_iiif_iiif__identifier__info_json_get",
-        "parameters": [
-          {
-            "name": "identifier",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Identifier"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ImageInfoResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/iiif/iiif/{identifier}/{region}/{size}/{rotation}/{quality}.{format}": {
-      "get": {
-        "tags": [
-          "iiif",
-          "iiif"
-        ],
-        "summary": "IIIF Image Request",
-        "description": "Serve image region via IIIF Image API. Reference: https://iiif.io/api/image/2.1/",
-        "operationId": "serve_iiif_image_api_iiif_iiif__identifier___region___size___rotation___quality___format__get",
-        "parameters": [
-          {
-            "name": "identifier",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Identifier"
-            }
-          },
-          {
-            "name": "region",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Region"
-            }
-          },
-          {
-            "name": "size",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Size"
-            }
-          },
-          {
-            "name": "rotation",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Rotation"
-            }
-          },
-          {
-            "name": "quality",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Quality"
-            }
-          },
-          {
-            "name": "format",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Format"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/iiif/iiif/manifest/{document_id}": {
-      "get": {
-        "tags": [
-          "iiif",
-          "iiif"
-        ],
-        "summary": "IIIF Manifest",
-        "description": "Returns IIIF Presentation API manifest for document.",
-        "operationId": "get_iiif_manifest_api_iiif_iiif_manifest__document_id__get",
-        "parameters": [
-          {
-            "name": "document_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Document Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/IIIFManifest"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/iiif/iiif/image/{document_id}": {
-      "get": {
-        "tags": [
-          "iiif",
-          "iiif"
-        ],
-        "summary": "Direct Image Access",
-        "description": "Direct access to document image (non-IIIF, for convenience).",
-        "operationId": "get_document_image_api_iiif_iiif_image__document_id__get",
-        "parameters": [
-          {
-            "name": "document_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Document Id"
-            }
-          },
-          {
-            "name": "width",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 4096,
-              "minimum": 50,
-              "nullable": true,
-              "title": "Width"
-            }
-          },
-          {
-            "name": "height",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 4096,
-              "minimum": 50,
-              "nullable": true,
-              "title": "Height"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/authz/members": {
-      "get": {
-        "tags": [
-          "authz",
-          "authz"
-        ],
-        "summary": "List Library Members",
-        "description": "Who can access this library, roles joined with account profiles.\n\nOwner-gated when multi-user is on (mirrors the snapshot's ``can_manage_roles``).\nThe ``roles`` table keys on the *normalized* library path, so normalize the\ntransport header before the lookup or the join silently returns empty.",
-        "operationId": "list_library_members_api_authz_members_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LibraryMembersResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "tags": [
-          "authz",
-          "authz"
-        ],
-        "summary": "Set Library Member Role",
-        "description": "Assign/change a library role \u2014 typed surface over the ``acl.set`` action.\n\nRoutes through ``registry.invoke`` so the mutation is owner-gated, audited,\nand emitted on the change stream exactly like ``POST /api/actions/invoke``.\nReturns the refreshed member list so the UI updates in one round-trip.",
-        "operationId": "set_library_member_role_api_authz_members_put",
-        "parameters": [
-          {
-            "name": "X-Fichero-Origin-Window",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "X-Fichero-Origin-Window"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SetLibraryRoleRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LibraryMembersResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "authz",
-          "authz"
-        ],
-        "summary": "Revoke Library Member Role",
-        "description": "Revoke a member's whole-library role \u2014 typed surface over ``acl.set``\nremove. Same owner-gated, audited, change-stream path as the generic\n``POST /api/actions/invoke``; an owner cannot revoke their own role.\nReturns the refreshed member list.",
-        "operationId": "revoke_library_member_role_api_authz_members_delete",
-        "parameters": [
-          {
-            "name": "user",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "User"
-            }
-          },
-          {
-            "name": "X-Fichero-Origin-Window",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "X-Fichero-Origin-Window"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LibraryMembersResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/authz/share": {
-      "post": {
-        "tags": [
-          "authz",
-          "authz"
-        ],
-        "summary": "Share Library Object",
-        "description": "Share a library / entity / document (#1867) \u2014 the authz-gated model.\n\nGrants the recipient a per-library role through the audited ``acl.set``\naction (owner-gated, emits authz.changed) and returns an engine link to the\nobject. Entity/document shares grant library access so the recipient can\nreach the object (the ACL is per-library); those types require an object_id.",
-        "operationId": "share_library_object_api_authz_share_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Origin-Window",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "X-Fichero-Origin-Window"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ShareRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ShareResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
     }
   },
   "components": {
@@ -43678,48 +43437,6 @@
         "type": "object",
         "title": "HeuristicRequest"
       },
-      "IIIFManifest": {
-        "properties": {
-          "context": {
-            "type": "string",
-            "title": "Context",
-            "default": "http://iiif.io/api/presentation/2/context.json"
-          },
-          "@id": {
-            "type": "string",
-            "title": "@Id"
-          },
-          "type": {
-            "type": "string",
-            "title": "Type",
-            "default": "sc:Manifest"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label"
-          },
-          "description": {
-            "type": "string",
-            "nullable": true,
-            "title": "Description"
-          },
-          "sequences": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Sequences"
-          }
-        },
-        "type": "object",
-        "required": [
-          "@id",
-          "label"
-        ],
-        "title": "IIIFManifest",
-        "description": "IIIF Presentation API Manifest."
-      },
       "ImageEditChainResponse": {
         "properties": {
           "document_id": {
@@ -43760,54 +43477,6 @@
         },
         "type": "object",
         "title": "ImageEditChainUpsert"
-      },
-      "ImageInfoResponse": {
-        "properties": {
-          "context": {
-            "type": "string",
-            "title": "Context",
-            "default": "http://iiif.io/api/image/2/context.json"
-          },
-          "@id": {
-            "type": "string",
-            "title": "@Id"
-          },
-          "protocol": {
-            "type": "string",
-            "title": "Protocol",
-            "default": "http://iiif.io/api/image"
-          },
-          "width": {
-            "type": "integer",
-            "title": "Width"
-          },
-          "height": {
-            "type": "integer",
-            "title": "Height"
-          },
-          "tiles": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Tiles"
-          },
-          "profile": {
-            "items": {},
-            "type": "array",
-            "title": "Profile"
-          }
-        },
-        "type": "object",
-        "required": [
-          "@id",
-          "width",
-          "height"
-        ],
-        "title": "ImageInfoResponse",
-        "description": "IIIF Image Information Response (info.json)."
       },
       "ImportActionRequest": {
         "properties": {
@@ -46475,6 +46144,66 @@
           "libraries"
         ],
         "title": "LibraryListResponse"
+      },
+      "LibraryMember": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "is_owner_account": {
+            "type": "boolean",
+            "title": "Is Owner Account"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "username",
+          "display_name",
+          "is_owner_account",
+          "role"
+        ],
+        "title": "LibraryMember",
+        "description": "One user's access to a library, joined with their account profile.\n\nThe Users & Sharing UI (#2869 A2/A4) needs human-readable names, not the\nbare ``user_id`` the ``library_roles`` table stores. This is that join."
+      },
+      "LibraryMembersResponse": {
+        "properties": {
+          "library_path": {
+            "type": "string",
+            "title": "Library Path"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryMember"
+            },
+            "type": "array",
+            "title": "Members"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "library_path",
+          "count"
+        ],
+        "title": "LibraryMembersResponse",
+        "description": "Response from ``GET /api/authz/members`` \u2014 who can access this library."
       },
       "LibraryRegistryResponse": {
         "properties": {
@@ -55900,6 +55629,99 @@
         ],
         "title": "SetAttributesResponse"
       },
+      "SetLibraryRoleRequest": {
+        "properties": {
+          "user": {
+            "type": "string",
+            "title": "User",
+            "description": "Target user id or username"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "description": "owner/editor/viewer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user",
+          "role"
+        ],
+        "title": "SetLibraryRoleRequest",
+        "description": "Typed body for ``PUT /api/authz/members`` \u2014 assign/change a library role.\n\nA typed OpenAPI surface over the ``acl.set`` registry action so the Swift\nclient gets a generated method instead of hand-rolling ``/actions/invoke``."
+      },
+      "ShareRequest": {
+        "properties": {
+          "user": {
+            "type": "string",
+            "title": "User",
+            "description": "Recipient user id or username"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "description": "Role to grant: owner/editor/viewer",
+            "default": "viewer"
+          },
+          "object_type": {
+            "type": "string",
+            "title": "Object Type",
+            "description": "library | entity | document",
+            "default": "library"
+          },
+          "object_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Object Id",
+            "description": "Entity/document id (required for those types)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user"
+        ],
+        "title": "ShareRequest",
+        "description": "Typed body for ``POST /api/authz/share`` \u2014 the Share button (#1867).\n\nAuthz-gated model: sharing an object grants the recipient a per-library\nrole via the existing ACL (not a tokenless public link). Sharing an\nentity/document grants library access so the recipient can reach it \u2014 the\nACL is per-library and a role-less user can't be granted a subtree-only\noverride."
+      },
+      "ShareResponse": {
+        "properties": {
+          "user": {
+            "type": "string",
+            "title": "User"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "object_type": {
+            "type": "string",
+            "title": "Object Type"
+          },
+          "object_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Object Id"
+          },
+          "library_path": {
+            "type": "string",
+            "title": "Library Path"
+          },
+          "share_url": {
+            "type": "string",
+            "title": "Share Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user",
+          "role",
+          "object_type",
+          "library_path",
+          "share_url"
+        ],
+        "title": "ShareResponse",
+        "description": "Result of a share: the granted access + a link the recipient can open."
+      },
       "SimilarEntity": {
         "properties": {
           "entity_id": {
@@ -61329,159 +61151,6 @@
         ],
         "title": "NodeDef",
         "type": "object"
-      },
-      "LibraryMember": {
-        "properties": {
-          "user_id": {
-            "type": "string",
-            "title": "User Id"
-          },
-          "username": {
-            "type": "string",
-            "title": "Username"
-          },
-          "display_name": {
-            "type": "string",
-            "title": "Display Name"
-          },
-          "is_owner_account": {
-            "type": "boolean",
-            "title": "Is Owner Account"
-          },
-          "role": {
-            "type": "string",
-            "title": "Role"
-          }
-        },
-        "type": "object",
-        "required": [
-          "user_id",
-          "username",
-          "display_name",
-          "is_owner_account",
-          "role"
-        ],
-        "title": "LibraryMember",
-        "description": "One user's access to a library, joined with their account profile.\n\nThe Users & Sharing UI (#2869 A2/A4) needs human-readable names, not the\nbare ``user_id`` the ``library_roles`` table stores. This is that join."
-      },
-      "LibraryMembersResponse": {
-        "properties": {
-          "library_path": {
-            "type": "string",
-            "title": "Library Path"
-          },
-          "members": {
-            "items": {
-              "$ref": "#/components/schemas/LibraryMember"
-            },
-            "type": "array",
-            "title": "Members"
-          },
-          "count": {
-            "type": "integer",
-            "title": "Count"
-          }
-        },
-        "type": "object",
-        "required": [
-          "library_path",
-          "count"
-        ],
-        "title": "LibraryMembersResponse",
-        "description": "Response from ``GET /api/authz/members`` \u2014 who can access this library."
-      },
-      "SetLibraryRoleRequest": {
-        "properties": {
-          "user": {
-            "type": "string",
-            "title": "User",
-            "description": "Target user id or username"
-          },
-          "role": {
-            "type": "string",
-            "title": "Role",
-            "description": "owner/editor/viewer"
-          }
-        },
-        "type": "object",
-        "required": [
-          "user",
-          "role"
-        ],
-        "title": "SetLibraryRoleRequest",
-        "description": "Typed body for ``PUT /api/authz/members`` \u2014 assign/change a library role.\n\nA typed OpenAPI surface over the ``acl.set`` registry action so the Swift\nclient gets a generated method instead of hand-rolling ``/actions/invoke``."
-      },
-      "ShareRequest": {
-        "properties": {
-          "user": {
-            "type": "string",
-            "title": "User",
-            "description": "Recipient user id or username"
-          },
-          "role": {
-            "type": "string",
-            "title": "Role",
-            "description": "Role to grant: owner/editor/viewer",
-            "default": "viewer"
-          },
-          "object_type": {
-            "type": "string",
-            "title": "Object Type",
-            "description": "library | entity | document",
-            "default": "library"
-          },
-          "object_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Object Id",
-            "description": "Entity/document id (required for those types)"
-          }
-        },
-        "type": "object",
-        "required": [
-          "user"
-        ],
-        "title": "ShareRequest",
-        "description": "Typed body for ``POST /api/authz/share`` \u2014 the Share button (#1867).\n\nAuthz-gated model: sharing an object grants the recipient a per-library\nrole via the existing ACL (not a tokenless public link). Sharing an\nentity/document grants library access so the recipient can reach it \u2014 the\nACL is per-library and a role-less user can't be granted a subtree-only\noverride."
-      },
-      "ShareResponse": {
-        "properties": {
-          "user": {
-            "type": "string",
-            "title": "User"
-          },
-          "role": {
-            "type": "string",
-            "title": "Role"
-          },
-          "object_type": {
-            "type": "string",
-            "title": "Object Type"
-          },
-          "object_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Object Id"
-          },
-          "library_path": {
-            "type": "string",
-            "title": "Library Path"
-          },
-          "share_url": {
-            "type": "string",
-            "title": "Share Url"
-          }
-        },
-        "type": "object",
-        "required": [
-          "user",
-          "role",
-          "object_type",
-          "library_path",
-          "share_url"
-        ],
-        "title": "ShareResponse",
-        "description": "Result of a share: the granted access + a link the recipient can open."
       }
     }
   }
