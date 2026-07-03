@@ -1,3 +1,6 @@
+#if canImport(AppKit)
+import AppKit
+#endif
 import FicheroAPIClient
 import Foundation
 import OSLog
@@ -71,6 +74,14 @@ final class EmbeddedBackendService: ObservableObject {
     /// The most recent readiness outcome, for #2864's diagnosis UI.
     private(set) var lastReadiness: ReadinessResult?
 
+    /// Set true when WE initiate a stop (stop()), so the process
+    /// terminationHandler doesn't misread an intentional shutdown as a crash
+    /// and flip status to .failed (#2863).
+    private var intentionalStop = false
+
+    /// How the port pre-flight resolved (#2863).
+    private enum PortResolution { case spawnOurs, adoptExisting }
+
     // MARK: - Lifecycle
 
     /// Start the embedded backend
@@ -88,11 +99,27 @@ final class EmbeddedBackendService: ObservableObject {
         // first-launch caches, and contended startup.
         // iOS cannot spawn a local engine — a configured remote host is required.
         #if os(macOS)
-        try launchEmbeddedBackend()
-        try await waitForBackend(timeout: 90)
-        _ = await AuthTokenMiddleware.waitForToken(timeout: 10)
-        status = .running
-        logger.info("Embedded backend started successfully")
+        // Pre-flight the port (#2863). Sweep our own orphans, then if the port
+        // is STILL held by a process we can't claim, ask the user (Stop it /
+        // Use it / Quit) rather than silently adopting an engine that may
+        // reject our token and leave a blank window.
+        switch await resolvePortConflict() {
+        case .adoptExisting:
+            isExternalBackend = true
+            expectedLaunchNonce = nil
+            // Adoption is gated on the authenticated probe: if the existing
+            // engine rejects our token, waitForBackend throws and we surface
+            // failure instead of a blank window.
+            try await waitForBackend(timeout: 30)
+            status = .running
+            logger.info("Adopted user-approved existing engine on port 8765")
+        case .spawnOurs:
+            try launchEmbeddedBackend()
+            try await waitForBackend(timeout: 90)
+            _ = await AuthTokenMiddleware.waitForToken(timeout: 10)
+            status = .running
+            logger.info("Embedded backend started successfully")
+        }
         #else
         status = .failed
         errorMessage = "No remote engine host configured. Set a custom host in Settings."
@@ -193,6 +220,9 @@ final class EmbeddedBackendService: ObservableObject {
 
         logger.info("Stopping embedded backend (PID: \(pid))...")
 
+        // Mark intentional so the terminationHandler doesn't flip .failed.
+        intentionalStop = true
+
         // Clear state immediately
         backendPID = nil
         status = .stopped
@@ -260,21 +290,9 @@ final class EmbeddedBackendService: ObservableObject {
             throw BackendError.backendAppNotFound
         }
 
-        // Defensive cleanup ONLY in RELEASE: if a previous Fichero was
-        // SIGKILL'd (or crashed without applicationWillTerminate firing),
-        // the engine subprocess is an orphan still bound to port 8765.
-        // Sweep it before spawning ours, otherwise our spawn will fail
-        // with "Address already in use".
-        //
-        // Skip in DEBUG: the developer often runs the engine externally
-        // (uvicorn, briefcase dev, etc.). The `start()` external-probe
-        // above should have caught that, but if for any reason we ended
-        // up here in DEBUG, we still must not SIGTERM the developer's
-        // engine — that would silently kill their workflow runs.
-        #if !DEBUG
-        Self.terminateOrphanEngines()
-        Self.waitForPortToClear(8765, timeout: 3.0)
-        #endif
+        // Port pre-flight (orphan sweep + user decision on a foreign holder)
+        // already ran in resolvePortConflict() before we got here — including
+        // in DEBUG (#2863). By this point the port is ours to bind.
 
         let accessMaterial: RemoteAccessTLSMaterial
         let publicBaseURL: URL?
@@ -382,6 +400,23 @@ final class EmbeddedBackendService: ObservableObject {
         // from the first request, with no window where the two disagree.
         if let tokenURL = AuthTokenMiddleware.bootstrapTokenFileURL() {
             Self.writeBootstrapTokenFile(bootstrapToken, at: tokenURL)
+        }
+
+        // If the engine dies on its own (crash, import error, port lost), flip
+        // to .failed with the tail of engine.log instead of leaving the UI
+        // stuck on a spinner or a blank window (#2863). Skipped when WE asked
+        // it to stop. terminationHandler runs off the main actor, so hop back.
+        intentionalStop = false
+        process.terminationHandler = { [weak self] proc in
+            let code = proc.terminationStatus
+            Task { @MainActor [weak self] in
+                guard let self, !self.intentionalStop else { return }
+                let tail = Self.tailEngineLog(lines: 20)
+                self.status = .failed
+                self.errorMessage = "The engine exited unexpectedly (code \(code))."
+                    + (tail.isEmpty ? "" : "\n\n\(tail)")
+                logger.error("Engine terminated unexpectedly (code \(code))")
+            }
         }
 
         // Launch the process
@@ -720,16 +755,92 @@ final class EmbeddedBackendService: ObservableObject {
     }
 
     private static func portInUse(_ port: UInt16) -> Bool {
+        pidOnPort(port) != nil
+    }
+
+    /// PID of the process LISTENing on `port`, or nil if the port is free.
+    private static func pidOnPort(_ port: UInt16) -> pid_t? {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
         task.arguments = ["-i", ":\(port)", "-sTCP:LISTEN", "-t"]
         let pipe = Pipe()
         task.standardOutput = pipe
         task.standardError = FileHandle.nullDevice
-        guard (try? task.run()) != nil else { return false }
+        guard (try? task.run()) != nil else { return nil }
         task.waitUntilExit()
         let data = (try? pipe.fileHandleForReading.readToEnd()) ?? Data()
-        return !data.isEmpty
+        let first = String(data: data, encoding: .utf8)?
+            .split(separator: "\n").first
+            .map(String.init)?
+            .trimmingCharacters(in: .whitespaces)
+        return first.flatMap { pid_t($0) }
+    }
+
+    /// Port pre-flight (#2863). Sweep our own orphans; if the port is then
+    /// STILL held by a process we can't claim, ask the user rather than
+    /// silently adopting or silently killing. Never returns without the port
+    /// being ours (`.spawnOurs`) or the user having chosen to adopt
+    /// (`.adoptExisting`); "Quit" terminates the app.
+    private func resolvePortConflict() async -> PortResolution {
+        Self.terminateOrphanEngines()
+        Self.waitForPortToClear(8765, timeout: 3.0)
+        guard let pid = Self.pidOnPort(8765) else { return .spawnOurs }
+
+        switch Self.presentPortConflictDecision(pid: pid) {
+        case .stopIt:
+            kill(pid, SIGTERM)
+            Self.waitForPortToClear(8765, timeout: 5.0)
+            if Self.portInUse(8765) {
+                kill(pid, SIGKILL)
+                Self.waitForPortToClear(8765, timeout: 2.0)
+            }
+            return .spawnOurs
+        case .useIt:
+            return .adoptExisting
+        case .quit:
+            NSApplication.shared.terminate(nil)
+            return .adoptExisting  // unreachable; terminate() ends the process
+        }
+    }
+
+    private enum PortConflictChoice { case stopIt, useIt, quit }
+
+    /// Modal decision when port 8765 is held by a process we didn't spawn.
+    /// Explicit user intent replaces silent adoption (#2863).
+    private static func presentPortConflictDecision(pid: pid_t) -> PortConflictChoice {
+        let alert = NSAlert()
+        alert.messageText = "Port 8765 is already in use"
+        alert.informativeText = """
+            Another process (PID \(pid)) is already listening on port 8765, \
+            where the Fichero engine runs.
+
+            • Stop it — quit that process and start Fichero's own engine.
+            • Use it — connect to the existing engine (only works if it \
+            accepts this app's credentials).
+            • Quit — leave the other process alone and quit Fichero.
+            """
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Stop it")   // .alertFirstButtonReturn
+        alert.addButton(withTitle: "Use it")    // .alertSecondButtonReturn
+        alert.addButton(withTitle: "Quit")      // .alertThirdButtonReturn
+        switch alert.runModal() {
+        case .alertFirstButtonReturn: return .stopIt
+        case .alertSecondButtonReturn: return .useIt
+        default: return .quit
+        }
+    }
+
+    /// Last `lines` lines of the engine log, for surfacing a real cause when
+    /// the engine dies (#2863). Empty string if the log can't be read.
+    static func tailEngineLog(lines: Int) -> String {
+        let logURL = FileManager.default
+            .urls(for: .libraryDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Logs/Fichero/engine.log")
+        guard let contents = try? String(contentsOf: logURL, encoding: .utf8) else {
+            return ""
+        }
+        let tail = contents.split(separator: "\n", omittingEmptySubsequences: false).suffix(lines)
+        return tail.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
     }
     #endif
 }
