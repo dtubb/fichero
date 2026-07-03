@@ -214,21 +214,33 @@ public struct AuthTokenMiddleware: ClientMiddleware {
     /// `applicationSupportDirectory` to a container path different from where
     /// the engine wrote the file. See `EngineHarness.live()`.
     public static func readTokenFromDisk() -> String? {
-        // Env override — used by the test harness to bridge the sandbox gap.
-        if let envToken = ProcessInfo.processInfo.environment["FICHERO_AUTH_TOKEN"] {
+        readTokenFromDisk(hostString: nil)
+    }
+
+    /// Host-aware token read (#2866). The app can hold multiple backends at once
+    /// (local embedded engine + N remote hosts), so the token is resolved per
+    /// REQUEST HOST, not off the single global default: a loopback host reads
+    /// the bootstrap `.api-key`; a remote host reads that host's device token
+    /// from the Keychain. Pass `nil` for the global default (the legacy path).
+    public static func readTokenFromDisk(hostString: String?) -> String? {
+        let kind = tokenStorageKind(hostString: hostString)
+        // Env override — test-harness bridge for the LOCAL engine only. A remote
+        // host must never borrow the local test token.
+        if kind == .bootstrap,
+           let envToken = ProcessInfo.processInfo.environment["FICHERO_AUTH_TOKEN"] {
             let trimmed = envToken.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty { return trimmed }
         }
-        switch tokenStorageKind() {
+        switch kind {
         case .bootstrap:
-            guard let path = tokenFileURL() else { return nil }
+            guard let path = bootstrapTokenFileURL() else { return nil }
             guard let data = try? Data(contentsOf: path) else { return nil }
             guard let rawToken = String(data: data, encoding: .utf8) else { return nil }
             let token = rawToken
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             return token.isEmpty ? nil : token
         case .remote:
-            return readRemoteTokenFromKeychain()
+            return readRemoteTokenFromKeychain(hostString: hostString)
         }
     }
 
@@ -367,21 +379,33 @@ public struct AuthTokenMiddleware: ClientMiddleware {
     }
 
     public static func waitForToken(timeout: TimeInterval = 3) async -> String? {
-        if let token = readTokenFromDisk() { return token }
+        await waitForToken(hostString: nil, timeout: timeout)
+    }
+
+    /// Host-aware token wait (#2866) — resolves the token for a specific backend
+    /// host, so a request bound for one engine never waits on / uses another's.
+    public static func waitForToken(hostString: String?, timeout: TimeInterval = 3) async -> String? {
+        if let token = readTokenFromDisk(hostString: hostString) { return token }
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             try? await Task.sleep(for: .milliseconds(50))
-            if let token = readTokenFromDisk() { return token }
+            if let token = readTokenFromDisk(hostString: hostString) { return token }
         }
         return nil
     }
 
     public static func waitForTokenBlocking(timeout: TimeInterval = 3) -> String? {
-        if let token = readTokenFromDisk() { return token }
+        waitForTokenBlocking(hostString: nil, timeout: timeout)
+    }
+
+    /// Host-aware blocking token wait (#2866) — for the raw-URLSession auth path
+    /// (`URLRequest.addEngineAuth`) which resolves the token for the request's host.
+    public static func waitForTokenBlocking(hostString: String?, timeout: TimeInterval = 3) -> String? {
+        if let token = readTokenFromDisk(hostString: hostString) { return token }
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             Thread.sleep(forTimeInterval: 0.05)
-            if let token = readTokenFromDisk() { return token }
+            if let token = readTokenFromDisk(hostString: hostString) { return token }
         }
         return nil
     }
@@ -398,15 +422,19 @@ public struct AuthTokenMiddleware: ClientMiddleware {
         let isUnauthenticated = Self.isUnauthenticatedPath(path)
 
         // Read the token fresh on every request — see class doc for why.
+        // Token is resolved off THIS request's baseURL, not the global host
+        // (#2866): the app can hold multiple backends (local + N remote) at
+        // once, and each carries its own bootstrap/device/session credential.
         // A login *session* token (multi-user) takes priority over the
         // bootstrap/device token: once a user is signed in, their session
         // carries the identity + per-library role the library load needs. When
         // no session exists yet (pre-login, first-owner bootstrap) we fall back
         // to the bootstrap/device token so /api/users and create-owner still work.
         if !isUnauthenticated {
-            if let session = Self.readSessionToken() {
+            let host = baseURL.absoluteString
+            if let session = Self.readSessionToken(hostString: host) {
                 request.headerFields[.authorization] = "Bearer \(session)"
-            } else if let token = await Self.waitForToken() {
+            } else if let token = await Self.waitForToken(hostString: host) {
                 request.headerFields[.authorization] = "Bearer \(token)"
             }
         }
