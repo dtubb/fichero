@@ -1,5 +1,8 @@
 {
   "_doc": "Intentional duplicate code paths. Keys are concern ids; values are explicit allowed handlers/writers.",
+  "_reasons": {
+    "kg_write:KnowledgeEntity": "Entity creation is intentionally split between the canonical upsert route and the audited create helper so HTTP create can flow through the action registry without rewriting the legacy update-via-POST path."
+  },
   "concerns": {
     "kg_write:KnowledgeClaim": [
       "api/routes/annotations.py::promote_to_claim_impl",
@@ -16,6 +19,7 @@
       "workflows/tools/merge_dedup_only.py::merge_dedup_only"
     ],
     "kg_write:KnowledgeEntity": [
+      "api/routes/entities.py::create_entity_impl",
       "api/routes/entities.py::upsert_entity",
       "api/routes/mcp_tools.py::mcp_knowledge_entity_upsert",
       "workflows/tools/_entity_writer.py::upsert_entity",

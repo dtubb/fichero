@@ -51,12 +51,14 @@ def _ctx() -> ActionContext:
 
 @pytest.fixture
 def spy_emit(monkeypatch):
-    """Capture emit_change calls at the SOURCE module the registry imports."""
+    """Capture emit_change calls from both claim emit paths."""
     calls: list[tuple] = []
-    monkeypatch.setattr(
-        "fichero.api.change_stream.emit_change",
-        lambda *a, **k: calls.append((a, k)),
-    )
+
+    def spy(*a, **k):
+        calls.append((a, k))
+
+    monkeypatch.setattr("fichero.api.routes.claims.emit_change", spy)
+    monkeypatch.setattr("fichero.api.change_stream.emit_change", spy)
     return calls
 
 
