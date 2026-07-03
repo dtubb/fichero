@@ -113,6 +113,48 @@ class TestSupervisorAgent:
         assert result["result"] == "Final synthesized result."
         assert mock_chat.await_count == 3
 
+    @pytest.mark.asyncio
+    async def test_supervisor_uses_central_chat_workflow_entry_point(
+        self, llm_config, mock_state
+    ):
+        with patch(
+            "fichero.workflows.tools.multi_agent.chat_workflow",
+            new=AsyncMock(
+                side_effect=[
+                    "I will delegate to researcher.",
+                    "Final synthesized result.",
+                ]
+            ),
+        ) as mock_chat, patch(
+            "fichero.llm.get_langchain_model",
+            side_effect=AssertionError("supervisor_agent should use chat_workflow"),
+        ):
+            with patch(
+                "fichero.workflows.tools.multi_agent._run_agent_loop",
+                new=AsyncMock(
+                    return_value=(
+                        "Worker result",
+                        [{"role": "ai", "content": "Worker result"}],
+                        [],
+                        0,
+                    )
+                ),
+            ):
+                result = await supervisor_agent(
+                    inputs={
+                        "task": "Research AI trends",
+                        "workers": [
+                            {"name": "researcher", "description": "Research agent", "tools": []},
+                        ],
+                        "max_iterations": 1,
+                    },
+                    state=mock_state,
+                    llm_config=llm_config,
+                )
+
+        assert result["result"] == "Final synthesized result."
+        assert mock_chat.await_count == 2
+
 
 class TestSwarmAgent:
     """Tests for swarm_agent tool."""
