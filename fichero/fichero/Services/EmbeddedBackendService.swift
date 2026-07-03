@@ -1,6 +1,7 @@
 import FicheroAPIClient
 import Foundation
 import OSLog
+import Security
 
 // swiftlint:disable file_length type_body_length
 
@@ -32,6 +33,12 @@ final class EmbeddedBackendService: ObservableObject {
     private var backendPID: pid_t?
     private var isExternalBackend = false  // Track if using external vs embedded backend
     var isUsingExternalBackend: Bool { isExternalBackend }
+    /// The FICHERO_LAUNCH_NONCE we passed to the engine we spawned (#2862).
+    /// Readiness verifies /api/health echoes this exact value, proving the
+    /// responder is the child we launched — not a stale process on the port.
+    /// nil when we adopted an external engine (we didn't spawn it, so there's
+    /// no nonce to match).
+    private(set) var expectedLaunchNonce: String?
     private var backendURL: URL {
         // Own-engine traffic stays on loopback, never the advertised public URL (#2604).
         EngineConfig.host
@@ -43,6 +50,26 @@ final class EmbeddedBackendService: ObservableObject {
         case running
         case failed
     }
+
+    /// Outcome of an authenticated readiness probe (#2862). "Running" is no
+    /// longer just health-200: the engine must ALSO be the instance we spawned
+    /// (nonce echo) AND accept the token we hold (authenticated /api/registry).
+    /// The richer cases feed the full-window diagnosis in #2864 so a blank
+    /// window with silent 401s can never happen again.
+    enum ReadinessResult: Equatable {
+        case ready
+        /// Health didn't answer 200 (down, TLS mismatch, still cold-starting).
+        case notResponding
+        /// Health answered 200 but echoed a different launch nonce — the port
+        /// is held by a process we did NOT spawn. `pid` is the responder's PID.
+        case identityMismatch(pid: Int?)
+        /// Health + identity OK, but the authenticated probe was rejected
+        /// (401/403) — the engine does not accept the token the app holds.
+        case authRejected
+    }
+
+    /// The most recent readiness outcome, for #2864's diagnosis UI.
+    private(set) var lastReadiness: ReadinessResult?
 
     // MARK: - Lifecycle
 
@@ -74,6 +101,9 @@ final class EmbeddedBackendService: ObservableObject {
     }
 
     private func useExistingBackendIfAvailable() async -> Bool {
+        // Clear any nonce from a prior spawn — an adopted external engine is
+        // not our child, so readiness must not try to match a stale nonce.
+        expectedLaunchNonce = nil
         // SwiftUI Previews / Xcode canvas: never spawn the embedded engine.
         // Previews launch the full app to render a view — orphan-cleanup
         // would SIGTERM the developer's external engine, and the briefcase
@@ -291,11 +321,23 @@ final class EmbeddedBackendService: ObservableObject {
             "--ssl-certfile", accessMaterial.certificatePath,
             "--ssl-keyfile", accessMaterial.keyPath
         ]
+        // Mint the bootstrap token and a launch nonce HERE, in the app, and
+        // pass both to the spawn (#2862). The app is authoritative: it writes
+        // the token file itself (below) instead of racing to read whatever the
+        // engine mints, and it can issue an authenticated readiness probe the
+        // instant the engine binds. The nonce lets readiness prove the engine
+        // answering /api/health is the child we launched.
+        let bootstrapToken = Self.generateSecret()
+        let launchNonce = Self.generateSecret()
+        expectedLaunchNonce = launchNonce
+
         var environment = ProcessInfo.processInfo.environment
         // Engine watches this PID and self-terminates if we die without a
         // chance to call .stop() (e.g., SIGKILL). Belt-and-braces with the
         // applicationWillTerminate path.
         environment["FICHERO_PARENT_PID"] = String(ProcessInfo.processInfo.processIdentifier)
+        environment["FICHERO_BOOTSTRAP_TOKEN"] = bootstrapToken
+        environment["FICHERO_LAUNCH_NONCE"] = launchNonce
         environment["FICHERO_TLS_CERTFILE"] = accessMaterial.certificatePath
         environment["FICHERO_TLS_KEYFILE"] = accessMaterial.keyPath
         environment["FICHERO_TLS_SPKI_HASH"] = accessMaterial.spkiPin
@@ -333,8 +375,13 @@ final class EmbeddedBackendService: ObservableObject {
         process.standardOutput = logHandle
         process.standardError = logHandle
 
+        // Write the token file the app minted (#2862/#2863). We NEVER pre-delete
+        // it: an empty/absent .api-key would make every request 401 until the
+        // engine got around to writing one — the blank-window-with-401s bug.
+        // Writing our own token (mode 0600) means the app and the engine agree
+        // from the first request, with no window where the two disagree.
         if let tokenURL = AuthTokenMiddleware.bootstrapTokenFileURL() {
-            try? FileManager.default.removeItem(at: tokenURL)
+            Self.writeBootstrapTokenFile(bootstrapToken, at: tokenURL)
         }
 
         // Launch the process
@@ -417,32 +464,40 @@ final class EmbeddedBackendService: ObservableObject {
     }
     #endif
 
+    /// Health-only JSON we care about at readiness time (#2862). Decoded from
+    /// the raw /api/health body so we don't depend on the generated client's
+    /// schema being regenerated for these two fields.
+    private struct HealthProbe: Decodable {
+        let launchNonce: String?
+        let enginePid: Int?
+        enum CodingKeys: String, CodingKey {
+            case launchNonce = "launch_nonce"
+            case enginePid = "engine_pid"
+        }
+    }
+
+    /// Poll until the engine is genuinely READY (#2862): not just answering
+    /// health-200, but the instance we spawned (nonce echo) AND accepting the
+    /// app's token (authenticated /api/registry 200). Throws `.timeout` if it
+    /// never reaches `.ready`. The last probe result is stored in
+    /// `lastReadiness` for #2864's diagnosis.
     private func waitForBackend(timeout: TimeInterval) async throws {
         let startTime = Date()
-        let healthURL = backendURL.appendingPathComponent("api/health")
-        let session = RemoteCertificatePinning.configuredSession()
-
-        // Poll aggressively at first (100ms) so we catch the backend
-        // as soon as it's ready — local FastAPI typically answers
-        // within 200-400ms. The previous 1s sleep padded perceived
-        // startup time by ~1s on the common path (#619). Back off to
-        // 500ms after the first second to avoid log spam if the
-        // backend is genuinely slow/stuck.
+        // Poll aggressively at first (100ms) so we catch the backend as soon as
+        // it's ready — local FastAPI typically answers within 200-400ms. Back
+        // off to 500ms after the first second to avoid log spam if the backend
+        // is genuinely slow/stuck.
         var pollInterval: Duration = .milliseconds(100)
         while Date().timeIntervalSince(startTime) < timeout {
             if Task.isCancelled {
                 throw CancellationError()
             }
 
-            do {
-                let (_, response) = try await session.data(from: healthURL)
-                if let httpResponse = response as? HTTPURLResponse,
-                   httpResponse.statusCode == 200 {
-                    logger.info("Backend health check passed")
-                    return
-                }
-            } catch {
-                // Backend not ready yet, continue waiting
+            let result = await probeReadiness()
+            lastReadiness = result
+            if result == .ready {
+                logger.info("Backend readiness passed (health 200 + identity + authenticated probe)")
+                return
             }
 
             try await Task.sleep(for: pollInterval)
@@ -452,6 +507,53 @@ final class EmbeddedBackendService: ObservableObject {
         }
 
         throw BackendError.timeout
+    }
+
+    /// One authenticated readiness probe. Order matters: cheapest/most-telling
+    /// first. Health (unauth) proves the socket is up and identifies the
+    /// responder; the authenticated /api/registry call proves the token works.
+    func probeReadiness() async -> ReadinessResult {
+        let session = RemoteCertificatePinning.configuredSession()
+
+        // 1. Health (unauthenticated) — is anything up, and is it ours?
+        let healthURL = backendURL.appendingPathComponent("api/health")
+        let probe: HealthProbe
+        do {
+            let (data, response) = try await session.data(from: healthURL)
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+                return .notResponding
+            }
+            probe = (try? JSONDecoder().decode(HealthProbe.self, from: data))
+                ?? HealthProbe(launchNonce: nil, enginePid: nil)
+        } catch {
+            return .notResponding
+        }
+
+        // 2. Instance identity — only when WE spawned it (have an expected
+        // nonce). An adopted external engine has no nonce to match, so we skip
+        // straight to the auth probe.
+        if let expected = expectedLaunchNonce, probe.launchNonce != expected {
+            return .identityMismatch(pid: probe.enginePid)
+        }
+
+        // 3. Authenticated probe — /api/registry needs the token but no library
+        // header, so it cleanly exercises auth. 200 = ready; 401/403 = the
+        // engine rejects our token (the blank-window-with-401s cause).
+        let registryURL = backendURL.appendingPathComponent("api/registry")
+        var request = URLRequest(url: registryURL)
+        request.httpMethod = "GET"
+        request.addEngineAuth()
+        do {
+            let (_, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse else { return .notResponding }
+            switch http.statusCode {
+            case 200: return .ready
+            case 401, 403: return .authRejected
+            default: return .notResponding
+            }
+        } catch {
+            return .notResponding
+        }
     }
 
     private func backendSupportsWorkflowRoutes() async -> Bool {
@@ -472,6 +574,37 @@ final class EmbeddedBackendService: ObservableObject {
             return httpResponse.statusCode != 404
         } catch {
             return false
+        }
+    }
+
+    // MARK: - Token & identity helpers (#2862)
+
+    /// 32 cryptographically-random bytes, base64url without padding — same
+    /// shape as the engine's `secrets.token_urlsafe(32)`. Used for both the
+    /// bootstrap token and the launch nonce.
+    static func generateSecret() -> String {
+        var bytes = [UInt8](repeating: 0, count: 32)
+        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        return Data(bytes).base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+
+    /// Write the bootstrap token to `url` with 0600 perms (owner-only), matching
+    /// the engine's write. The app is authoritative for the token it minted.
+    static func writeBootstrapTokenFile(_ token: String, at url: URL) {
+        do {
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try token.data(using: .utf8)?.write(to: url, options: .atomic)
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o600], ofItemAtPath: url.path
+            )
+        } catch {
+            logger.error("Failed to write bootstrap token file: \(error.localizedDescription, privacy: .public)")
         }
     }
 

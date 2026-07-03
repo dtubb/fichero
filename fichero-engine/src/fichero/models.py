@@ -1384,6 +1384,12 @@ class HealthResponse(BaseModel):
     active_libraries: int | None = None
     remote_backend: dict[str, Any] | None = None
     server_proof: str | None = None
+    # Instance identity (#2862): the host app passes FICHERO_LAUNCH_NONCE at
+    # spawn and verifies it is echoed here, proving this responder is the engine
+    # it just launched — not a stale process squatting the port. engine_pid lets
+    # the app diagnose "port occupied by PID N" precisely.
+    engine_pid: int | None = None
+    launch_nonce: str | None = None
 
 
 class EmbeddingStatsResponse(BaseModel):

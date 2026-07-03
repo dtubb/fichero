@@ -89,6 +89,16 @@ def _is_account_or_device_token(token: str) -> bool:
     )
 
 
+def _write_token_file(path: Path, token: str) -> None:
+    """Write ``token`` to ``path`` with 0600 perms, overwriting any existing."""
+    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        os.write(fd, token.encode("utf-8"))
+    finally:
+        os.close(fd)
+    os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
+
+
 def initialize_token(*, force_rotate: bool = False) -> str:
     """Return the auth token, generating + persisting a fresh one only if needed.
 
@@ -98,6 +108,14 @@ def initialize_token(*, force_rotate: bool = False) -> str:
     they don't kick each other into 401s (#1110). The file is written with
     mode 0600 so non-owner processes can't read it.
 
+    **App-supplied token (#2862):** if ``FICHERO_BOOTSTRAP_TOKEN`` is set, the
+    host app minted the bootstrap token and passed it to this spawn. Persist it
+    (0600) and return it. This is authoritative for the spawn — it removes the
+    old race where the engine minted the token and the app had to poll for the
+    ``.api-key`` file, and it lets the app issue an *authenticated* readiness
+    probe the instant we bind (no chicken-and-egg 401 window). The app never
+    passes a device/session credential here, so no downgrade check is needed.
+
     Pass ``force_rotate=True`` (or set ``FICHERO_FORCE_ROTATE_AUTH=1``) to
     generate a new token regardless of whether one already exists — useful
     for "stale token from a crashed run shouldn't be replayable" hardening
@@ -105,6 +123,12 @@ def initialize_token(*, force_rotate: bool = False) -> str:
     """
     path = _token_file_path()
     path.parent.mkdir(parents=True, exist_ok=True)
+
+    env_token = os.environ.get("FICHERO_BOOTSTRAP_TOKEN", "").strip()
+    if env_token:
+        _write_token_file(path, env_token)
+        logger.info("Auth token adopted from FICHERO_BOOTSTRAP_TOKEN at %s (mode 0600)", path)
+        return env_token
 
     rotate = force_rotate or os.environ.get(
         "FICHERO_FORCE_ROTATE_AUTH", ""
@@ -128,12 +152,7 @@ def initialize_token(*, force_rotate: bool = False) -> str:
     token = secrets.token_urlsafe(32)
     # Atomic-ish write: open with restrictive mode, write, then chmod again
     # to handle umask quirks. Existing file is overwritten.
-    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    try:
-        os.write(fd, token.encode("utf-8"))
-    finally:
-        os.close(fd)
-    os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
+    _write_token_file(path, token)
 
     logger.info(
         "Auth token %s at %s (mode 0600)", "rotated" if rotate else "initialized", path
