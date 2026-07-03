@@ -15,11 +15,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from fichero.manifest_import import (
-    CANONICAL_VERSION,
+from fichero.importers.http_client import (
     DEFAULT_API_BASE,
     DEFAULT_TOKEN_FILE,
     HttpManifestClient,
+    resolve_http_token,
+)
+from fichero.manifest_import import (
+    CANONICAL_VERSION,
     ImportSummary,
     ManifestApiClient,
     import_manifest,
@@ -162,7 +165,7 @@ def import_iiif_via_http(
 ) -> IIIFImportSummary:
     """Convenience entry point for ``python -m fichero import-iiif``."""
 
-    token = token_file.read_text(encoding="utf-8").strip()
+    token = resolve_http_token(token_file)
     library_str = str(library_path.expanduser())
     client = HttpManifestClient(api_base, token, library_str)
     if create_library:
