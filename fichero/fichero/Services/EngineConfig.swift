@@ -176,7 +176,11 @@ enum EngineConfig {
     static var multiuserEnabled: Bool {
         let defaults = UserDefaults.standard
         guard defaults.object(forKey: multiuserEnabledKey) != nil else {
-            return true
+            // Default OFF: multi-user is a shared/multi-person feature and the frontend
+            // has no login flow yet (#2022 auth is cli-only). Defaulting ON spawns the
+            // backend with FICHERO_MULTIUSER=1, whose fail-closed ACL choke-point then
+            // 401/403s the app's own requests so no library loads.
+            return false
         }
         return defaults.bool(forKey: multiuserEnabledKey)
     }
