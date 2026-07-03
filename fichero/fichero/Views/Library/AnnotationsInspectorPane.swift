@@ -12,6 +12,7 @@ struct AnnotationsInspectorPane: View {
     @Environment(AnnotationStore.self) private var annotationStore
     @EnvironmentObject private var windowState: WindowState
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
 
     @Bindable var focused: FocusedAnnotation
 
@@ -74,6 +75,9 @@ struct AnnotationsInspectorPane: View {
     }
 
     private func openDetailWindow() {
+        // No-op on single-window platforms (iPhone) so the button isn't a silent
+        // dead affordance (#2805).
+        guard supportsMultipleWindows else { return }
         focused.resolve(in: annotations)
         openWindow(id: "annotation-detail")
     }

@@ -47,6 +47,7 @@ struct WorkflowEditor: View {
     // window via this action, and Swift `private` blocks cross-file extension
     // access. Matches ContentView/LibraryView convention (#2328).
     @Environment(\.openWindow) var openWindow
+    @Environment(\.supportsMultipleWindows) var supportsMultipleWindows
 
     /// Node execution states for the editor's list/table/icon node views.
     ///

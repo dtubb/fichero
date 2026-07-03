@@ -145,6 +145,7 @@ struct ActivityBrowserView: View {
     @Environment(ActivityStore.self) private var activityStore
     @EnvironmentObject private var libraryManager: LibraryManager
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
 
     @State private var runs: [ActivityRun] = []
     @State private var isLoading = false
@@ -161,14 +162,18 @@ struct ActivityBrowserView: View {
                     ProgressView().scaleEffect(0.6)
                 }
                 // Pop the live monitor into its own window (#2546 / B2). The
-                // window's root is the hierarchical outline table.
-                Button {
-                    openWindow(id: "activity-monitor")
-                } label: {
-                    Image(systemName: "arrow.up.forward.app")
+                // window's root is the hierarchical outline table. Hidden on
+                // single-window platforms (iPhone) where it would be a dead
+                // affordance (#2805).
+                if supportsMultipleWindows {
+                    Button {
+                        openWindow(id: "activity-monitor")
+                    } label: {
+                        Image(systemName: "arrow.up.forward.app")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Open Activity Monitor in its own window")
                 }
-                .buttonStyle(.borderless)
-                .help("Open Activity Monitor in its own window")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
