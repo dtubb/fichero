@@ -27,7 +27,7 @@ from typing import Any, Iterable
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_ROADMAP = ROOT / "docs" / "ROADMAP.md"
 PRIORITY_SPINE_MARKER = "# ▶▶ PRIORITY SPINE"
-BLOCKING_LABELS = {"status:in-progress"}
+BLOCKING_LABELS = {"status:in-progress", "needs-design"}
 SECONDARY_SKIP_LABELS = {"status:blocked", "needs-human-test", "needs:human"}
 BIG_MARKERS = (
     "epic",
