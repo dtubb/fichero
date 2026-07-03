@@ -33,6 +33,41 @@ When enabled:
 - The authz layer is fail-closed: an unknown or missing permission is treated as a denial, not a pass-through.
 - Permissions are stored per library and per folder. A user with library-level read cannot write to a folder unless they also hold folder-level write.
 
+### Library sharing and members API
+
+The current shipped sharing surface is built around the library-level authz
+routes in `fichero-engine/src/fichero/api/routes/authz.py`.
+
+Current endpoints on `main`:
+
+- `GET /api/authz/library` returns a `LibraryAuthzSnapshot` for the active
+  library: whether multi-user mode is on, the current user's role, whether the
+  current user can manage roles, and read/write answers for an optional target
+  id.
+- `GET /api/authz/members` returns `LibraryMembersResponse`, which joins
+  library role rows with account profiles so the UI receives
+  `user_id` + `username` + `display_name` + `is_owner_account` + `role`.
+- `PUT /api/authz/members` accepts `SetLibraryRoleRequest` (`user`, `role`) and
+  routes the role assignment through the audited `acl.set` action, then returns
+  the refreshed member list.
+
+Important built behavior:
+
+- the members list is owner-gated when `FICHERO_MULTIUSER=1`
+- role lookups normalize the library path before joining against
+  `library_roles`, so role membership is keyed by the normalized library path
+- the mutation path is audited because `PUT /api/authz/members` uses
+  `registry.invoke(...)`, not a direct app-db write from the route
+
+On the SwiftUI side, this shipped surface is already consumed by:
+
+- `Views/Settings/UsersSettingsView.swift`
+- `Views/Sidebar/LibrarySharingBadge.swift`
+- `Services/ActionLibraryService.swift`
+
+Those client paths use the generated OpenAPI surface plus hand-written service
+wrappers; they do not special-case a second sharing protocol.
+
 When disabled (the default), a single-user local trust model applies. The shared-secret token provides the only gate.
 
 ## Auth Actor
