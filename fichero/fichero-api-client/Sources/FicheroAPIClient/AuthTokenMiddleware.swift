@@ -3,7 +3,7 @@ import HTTPTypes
 import OpenAPIRuntime
 import Security
 
-// swiftlint:disable type_body_length
+// swiftlint:disable type_body_length file_length
 /// Middleware that adds `Authorization: Bearer <token>` to every request,
 /// reading the token from `~/Library/Application Support/Fichero/.api-key`.
 ///
@@ -117,7 +117,11 @@ public struct AuthTokenMiddleware: ClientMiddleware {
         #endif
     }
 
-    static func prefersLocalhostEngineToken(hostString: String? = nil) -> Bool {
+    /// True when `hostString` (or the global default) is a loopback engine, so
+    /// requests to it authenticate with the bootstrap `.api-key` rather than a
+    /// remote device/session token. Public so callers building a per-library
+    /// backend host can derive its token kind (#2866).
+    public static func prefersLocalhostEngineToken(hostString: String? = nil) -> Bool {
         guard let stored = hostString ?? UserDefaults.standard.string(forKey: engineHostUserDefaultsKey) else {
             return true
         }
