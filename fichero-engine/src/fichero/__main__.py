@@ -422,6 +422,10 @@ register_generated_openapi_commands(
     app,
     _invoke,
     existing_apps={
+        "claims": claim_app,
+        "documents": docs_app,
+        "entities": entity_app,
+        "hermeneutics": interpretation_app,
         "auth": auth_app,
         "artifacts": artifacts_app,
         "kg": kg_app,
@@ -429,6 +433,8 @@ register_generated_openapi_commands(
         "notes": notes_app,
         "providers": providers_app,
         "settings": settings_app,
+        "workflow-execution": threads_app,
+        "workflows": workflow_app,
     },
 )
 

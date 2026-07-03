@@ -830,6 +830,17 @@ def test_generated_actions_group_is_exposed():
     assert "record-use" in result.output
 
 
+def test_generated_document_commands_attach_to_docs_app():
+    result = runner.invoke(cli.app, ["docs", "--help"])
+    assert result.exit_code == 0
+    assert "list-collections" in result.output
+
+
+def test_plural_document_group_is_not_exposed_when_docs_app_exists():
+    result = runner.invoke(cli.app, ["documents", "--help"])
+    assert result.exit_code != 0
+
+
 def test_root_help_exposes_shell_completion_install():
     result = runner.invoke(cli.app, ["--help"])
     assert result.exit_code == 0
