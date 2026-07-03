@@ -353,26 +353,35 @@ def select_batch(tiers: list[RoadmapTier], all_issues: list[Issue]) -> dict[str,
         if not ready:
             continue
 
-        big = sorted((issue for issue in ready if issue.is_big), key=tier_sort_key)
-        if big:
-            selected = [big[0]]
-            mode = "one-big"
-        else:
-            grouped: dict[str, list[Issue]] = defaultdict(list)
-            for issue in ready:
-                grouped[issue.milestone].append(issue)
-            milestone_order = [*tier.milestones, *[issue.milestone for issue in ready]]
-            selected = []
-            for milestone in _dedupe_keep_order(milestone_order):
-                group = sorted(grouped.get(milestone, []), key=tier_sort_key)
-                if len(group) >= 3:
-                    selected = group[:10]
-                    break
-            if selected:
+        # Milestone order within a tier is authoritative: tier.milestones is written in
+        # ascending due-date order, so the earliest-due milestone with ready work wins.
+        # We must NOT jump to a big/keystone issue in a LATER milestone while an earlier
+        # milestone still has ready work (#2913). Big-vs-batch is decided WITHIN the
+        # first ready milestone only.
+        grouped: dict[str, list[Issue]] = defaultdict(list)
+        for issue in ready:
+            grouped[issue.milestone].append(issue)
+        milestone_order = _dedupe_keep_order([*tier.milestones, *[issue.milestone for issue in ready]])
+
+        selected: list[Issue] = []
+        mode = ""
+        for milestone in milestone_order:
+            group = sorted(grouped.get(milestone, []), key=tier_sort_key)
+            if not group:
+                continue
+            bigs = [issue for issue in group if issue.is_big]
+            if bigs:
+                selected = [bigs[0]]
+                mode = "one-big"
+            elif len(group) >= 3:
+                selected = group[:10]
                 mode = "small-batch"
             else:
-                selected = sorted(ready, key=tier_sort_key)[:1]
-                mode = "one-ready-fallback"
+                selected = group
+                mode = "small-batch" if len(group) > 1 else "one-ready-fallback"
+            break
+        if not selected:
+            continue
 
         return {
             "tier": {"key": tier.key, "title": tier.title},
@@ -472,6 +481,33 @@ def run_self_test() -> int:
     assert big_selection["tier"]["key"] == "1", big_selection
     assert big_selection["mode"] == "one-big", big_selection
     assert [issue["number"] for issue in big_selection["issues"]] == [74], big_selection
+
+    # Regression #2913: within a tier, the earliest-due milestone with ready work wins.
+    # A big/keystone issue in a LATER milestone must NOT jump ahead of an earlier
+    # milestone's ready batch (was: choose_next returned Developer Experience's keystone
+    # #2888 instead of Dev & Build Harness's ready batch).
+    spine_tier = [RoadmapTier("1", "Foundation", ("Dev & Build Harness", "Developer Experience"), ())]
+    spine_issues = [
+        Issue(2860, "dev builds should not prompt move to Applications", ("client:swiftui",), (), "Dev & Build Harness"),
+        Issue(2870, "nightly build + changelog", ("backend",), (), "Dev & Build Harness"),
+        Issue(2871, "verify_all incremental", ("backend",), (), "Dev & Build Harness"),
+        Issue(2888, "CLI keystone: route through the audited action registry", ("backend",), (), "Developer Experience"),
+    ]
+    assert spine_issues[3].is_big, "fixture invalid: #2888 must be big (keystone marker)"
+    spine_sel = select_batch(spine_tier, spine_issues)
+    assert spine_sel["milestone"] == "Dev & Build Harness", spine_sel
+    assert spine_sel["mode"] == "small-batch", spine_sel
+    spine_nums = {issue["number"] for issue in spine_sel["issues"]}
+    assert spine_nums == {2860, 2870, 2871}, spine_sel
+    assert 2888 not in spine_nums, spine_sel
+
+    # Regression #2913: the real spine must list Dev & Build Harness (#109, due 07-05)
+    # before Developer Experience (#64, due 07-09) in Tier 1.
+    if DEFAULT_ROADMAP.exists():
+        t1 = next((t for t in parse_roadmap(DEFAULT_ROADMAP) if t.key == "1"), None)
+        assert t1 is not None, "no Tier 1 in real ROADMAP"
+        assert "Dev & Build Harness" in t1.milestones and "Developer Experience" in t1.milestones, t1
+        assert t1.milestones.index("Dev & Build Harness") < t1.milestones.index("Developer Experience"), t1
 
     current_roadmap = """
 ### ▶▶ REFINED ORDER (2026-06-11 PM design session) — authoritative over the 4 phases below
