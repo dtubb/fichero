@@ -1,0 +1,1 @@
+2026-07-03 concurrency hardening: added audited mutation stress tests for note/document/room create and document move (pass under concurrency) plus strict-xfail findings for real claim.create and entity.create races in Database._ensure_table (`4 passed, 2 xfailed` in test_mutation_concurrency.py).
