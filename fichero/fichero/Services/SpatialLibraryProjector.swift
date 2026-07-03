@@ -3,11 +3,11 @@ import Foundation
 
 // Where the projection lives:
 //
-//   ┌─ Backend (today) ─────────┐    ┌─ Projector (this file) ─┐    ┌─ Renderer ─┐
-//   │ /api/documents            │ →  │  build nodes + links     │ →  │ SpatialScene3D
-//   │ /api/entities             │    │  pure data → data        │    │ SpatialLink edges
+//   ┌─ Backend (today) ─────────┐    ┌─ Projector (this file) ─┐    ┌─ Renderer ──┐
+//   │ /api/documents            │ →  │  build nodes + links     │ →  │ Spatial2DCanvas
+//   │ /api/entities             │    │  pure data → data        │    │ (live 2D view)
 //   │ /api/claims               │    │  seeded phyllotaxis      │    │
-//   └───────────────────────────┘    └──────────────────────────┘    └────────────┘
+//   └───────────────────────────┘    └──────────────────────────┘    └─────────────┘
 //
 // Phase 1 composes everything client-side because the backend doesn't yet have
 // a single "library scene" endpoint. Per `feedback_kg_logic_in_backend`,

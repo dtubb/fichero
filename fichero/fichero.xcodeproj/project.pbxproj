@@ -166,7 +166,6 @@
 		20D8EE492F4BED4B006950A3 /* ActionRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE482F4BED4B006950A3 /* ActionRowView.swift */; };
 		20D8EE4B2F4BED57006950A3 /* ActionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE4A2F4BED57006950A3 /* ActionDetailView.swift */; };
 		20ED240D4093078C1DD920D5 /* Spatial2DCanvasItems.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C09E634BBFD5CA7C83DBCC4 /* Spatial2DCanvasItems.swift */; };
-		21B8070BD02B0087A8B83D04 /* SpatialTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55DF06231EA1679E067896E3 /* SpatialTheme.swift */; };
 		230EB3E3E820CFEC092A3C49 /* ResearchTasksPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5287875D44BA51CD93CA12F8 /* ResearchTasksPane.swift */; };
 		235BB484E009F2DC1E3B149D /* MarkdownText.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA362DBBB6387D0FEB6A7626 /* MarkdownText.swift */; };
 		23CB922EB4868B4EF1C20215 /* PDFReadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74515FA0260E31DB7F74A1D3 /* PDFReadingView.swift */; };
@@ -244,7 +243,6 @@
 		722AE751D8B74C9F0707ABEC /* ArtifactPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 333AB0EA136CA6252E5C93EE /* ArtifactPanel.swift */; };
 		7233BDB6DCB842F75D52EA15 /* ReferenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBCBCC9A6B923D6A560F7277 /* ReferenceStore.swift */; };
 		72ED6850A4BC42C9A695741F /* ArtifactsInspectorPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36F6CF6F489DE8CEE80661D3 /* ArtifactsInspectorPane.swift */; };
-		736FAF5895C96ECCAFDAC35D /* SpatialScene3D.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E980A75F8C3912DD4B196DA /* SpatialScene3D.swift */; };
 		75FF7AE84AC04F85A9A728AA /* AuditStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD8F8D42618D304271F81962 /* AuditStore.swift */; };
 		76C7BC71C747DBF9E6BD678D /* SpatialView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EBBA30F68AE440FAF4DC1E4 /* SpatialView.swift */; };
 		76EEEC44E89E3A5F714F989C /* SidebarItemRow+Presentation+Body.swift in Sources */ = {isa = PBXBuildFile; fileRef = 872F7ADB0C1953F67D681C24 /* SidebarItemRow+Presentation+Body.swift */; };
@@ -801,7 +799,6 @@
 		5287875D44BA51CD93CA12F8 /* ResearchTasksPane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ResearchTasksPane.swift; sourceTree = "<group>"; };
 		53458DC3387BC4C694EE3452 /* ContradictionTriageSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContradictionTriageSheet.swift; sourceTree = "<group>"; };
 		54F6D53AD0FD306FE58CF26D /* DocumentInspectorArtifactsTab+EntitiesTab.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "DocumentInspectorArtifactsTab+EntitiesTab.swift"; sourceTree = "<group>"; };
-		55DF06231EA1679E067896E3 /* SpatialTheme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpatialTheme.swift; sourceTree = "<group>"; };
 		564CF6ABBC8F558282E73502 /* AuthGateView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AuthGateView.swift; sourceTree = "<group>"; };
 		588D0F19667B99B2AA69A1A3 /* SidebarItemRow+Drop.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SidebarItemRow+Drop.swift"; sourceTree = "<group>"; };
 		5921F26A97AF84B80B4DCD29 /* CanvasItemStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CanvasItemStore.swift; sourceTree = "<group>"; };
@@ -812,7 +809,6 @@
 		5C8EFF7D9BC634BAE18E0F47 /* ImageEditorView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImageEditorView.swift; sourceTree = "<group>"; };
 		5D0B24DE95228CEA6B853324 /* SplittablePane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SplittablePane.swift; sourceTree = "<group>"; };
 		5D870DB81D42B1614D58CE3F /* BoundingBoxGeometry.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoundingBoxGeometry.swift; sourceTree = "<group>"; };
-		5E980A75F8C3912DD4B196DA /* SpatialScene3D.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpatialScene3D.swift; sourceTree = "<group>"; };
 		5ECF56D87D8211DDC932955B /* AnnotationsInspectorPane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnnotationsInspectorPane.swift; sourceTree = "<group>"; };
 		60A05B7F3C09F6A27BE55971 /* FicheroActionIntents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FicheroActionIntents.swift; sourceTree = "<group>"; };
 		6175F28D959ABB4DB0C2F4CD /* ActionInvokeService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ActionInvokeService.swift; sourceTree = "<group>"; };
@@ -1558,7 +1554,6 @@
 				1B98F1F8C255A9F7C3386A59 /* ResearchModels.swift */,
 				19C6A533EA3E96E1F5AE19ED /* AppNavigationHistory.swift */,
 				D82A9BAC0F995F9199F94B69 /* KGFocusState.swift */,
-				55DF06231EA1679E067896E3 /* SpatialTheme.swift */,
 				E5C0909F7C7B21871D35EB5C /* SpatialModels+Links.swift */,
 				0B118FE1DE4F78C0EE238539 /* EntityStore.swift */,
 				1C527476477074D83F628468 /* ClaimStore.swift */,
@@ -1697,7 +1692,6 @@
 			isa = PBXGroup;
 			children = (
 				0EBBA30F68AE440FAF4DC1E4 /* SpatialView.swift */,
-				5E980A75F8C3912DD4B196DA /* SpatialScene3D.swift */,
 				3DC44420C3D37275174DF38F /* Spatial2DCanvasGestures.swift */,
 				3C09E634BBFD5CA7C83DBCC4 /* Spatial2DCanvasItems.swift */,
 				DF5FD0D414191E6FFC18E8BC /* SpatialNodeThumbnail.swift */,
@@ -2696,7 +2690,6 @@
 				127F8AA713B90A0B24269C98 /* DocumentInspectorAnnotationsTab.swift in Sources */,
 				6577690F3500AFDA003B1E54 /* SpatialModels.swift in Sources */,
 				76C7BC71C747DBF9E6BD678D /* SpatialView.swift in Sources */,
-				736FAF5895C96ECCAFDAC35D /* SpatialScene3D.swift in Sources */,
 				67FA5A93E29E64305C9D74CE /* ResearchModels.swift in Sources */,
 				4AFAA394C8AB364CB2425517 /* ResearchService.swift in Sources */,
 				2D4468D68538BE7767729108 /* ResearchProjectListView.swift in Sources */,
@@ -2708,7 +2701,6 @@
 				4C823323E8BC468934CFD1C4 /* AppNavigationHistory.swift in Sources */,
 				AF868ABDCF249BD2499197F3 /* ContentView+NavigationHistory.swift in Sources */,
 				D584DA0264AC18C07D78233A /* KGFocusState.swift in Sources */,
-				21B8070BD02B0087A8B83D04 /* SpatialTheme.swift in Sources */,
 				02DC70ACB03D52EDE04B84C3 /* SpatialLibraryProjector.swift in Sources */,
 				FCBC65A5D3BC1141E6FD9695 /* WorkflowRunProviderCache.swift in Sources */,
 				6858AFB3D476FE28DEDE81BA /* ClaimReviewQueueSheet.swift in Sources */,
@@ -3072,7 +3064,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.03-beta;
+				MARKETING_VERSION = "2026.07.03-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
 				PRODUCT_NAME = Fichero;
 				REGISTER_APP_GROUPS = YES;
@@ -3142,7 +3134,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.03-beta;
+				MARKETING_VERSION = "2026.07.03-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
 				PRODUCT_NAME = Fichero;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -3177,7 +3169,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.03-beta;
+				MARKETING_VERSION = "2026.07.03-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -3200,7 +3192,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.03-beta;
+				MARKETING_VERSION = "2026.07.03-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -3216,7 +3208,7 @@
 				CURRENT_PROJECT_VERSION = 2026070301;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.03-beta;
+				MARKETING_VERSION = "2026.07.03-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -3232,7 +3224,7 @@
 				CURRENT_PROJECT_VERSION = 2026070301;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.03-beta;
+				MARKETING_VERSION = "2026.07.03-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;

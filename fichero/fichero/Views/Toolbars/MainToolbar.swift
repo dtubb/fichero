@@ -94,6 +94,11 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
     case list = "List"
     case table = "Table"
     case map = "Map"
+    // RETIRED 3D "Space" / Mind Palace alias. The RealityKit renderer was
+    // removed (3D rooms superseded by the live 2D spatial library view). The
+    // case is retained ONLY so persisted/@SceneStorage "RealityKit" rawValues
+    // still decode and migrate to .map via normalizedViewDisplayMode(). Hidden
+    // from every picker/menu; never offered by availableViewDisplayModes.
     case realitykit = "RealityKit"
     // DEPRECATED legacy alias (#2667). "Spatial (2D)" merged into Canvas (.map):
     // both now render Spatial2DCanvas off the shared canvasLayoutStore. The case
@@ -103,8 +108,11 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
     case spatial = "Spatial"
     case workspace = "Workspace"
 
-    /// User-selectable cases (excludes the deprecated `.spatial` alias, #2667).
-    static var selectableCases: [ViewDisplayMode] { allCases.filter { $0 != .spatial } }
+    /// User-selectable cases (excludes the retired `.spatial` + `.realitykit`
+    /// decode-only aliases, #2667).
+    static var selectableCases: [ViewDisplayMode] {
+        allCases.filter { $0 != .spatial && $0 != .realitykit }
+    }
 
     var id: String { rawValue }
 

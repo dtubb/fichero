@@ -270,13 +270,13 @@ extension ContentView {
             if let doc = libraryViewDocument,
                doc.docType == .folder || doc.isWorkspace ||
                (doc.docType == .file && doc.fileType.map { [.pdf, .word, .epub, .presentation].contains($0) } ?? false) {
-                // Canvas (.map → Spatial2DCanvas) and Space (.realitykit →
-                // SpatialScene3D) are two renders of the same positioned-node
-                // data, offered for every folder/pdf/node (#2667). The former
-                // standalone "Spatial (2D)" mode + its feature-flag gate are
-                // retired — .map IS the 2D canvas now, so there is no separate
-                // .spatial entry here to overflow the iPad split path (#2665).
-                var modes: [ViewDisplayMode] = [.icon, .list, .table, .map, .realitykit]
+                // Canvas (.map → Spatial2DCanvas) is the live spatial library
+                // view, offered for every folder/pdf/node (#2667). The retired
+                // standalone "Spatial (2D)" mode and the 3D "Space" (.realitykit
+                // → RealityKit) Mind Palace render are gone — .map IS the 2D
+                // canvas now, so there is no separate .spatial/.realitykit entry
+                // here to overflow the iPad split path (#2665).
+                var modes: [ViewDisplayMode] = [.icon, .list, .table, .map]
                 if featureManager.isWorkspaceModeEnabled {
                     modes.append(.workspace)
                 }
@@ -586,11 +586,12 @@ extension ContentView {
 
     /// Normalize a requested display mode against current feature gates.
     func normalizedViewDisplayMode(_ mode: ViewDisplayMode) -> ViewDisplayMode {
-        // Migrate the retired "Spatial (2D)" mode onto Canvas (#2667). A
-        // persisted/@SceneStorage `.spatial` value (and per-folder saved modes)
-        // must land on Canvas, not a removed-feeling state, since both now render
-        // the same Spatial2DCanvas off the shared canvasLayoutStore.
-        let mode = mode == .spatial ? .map : mode
+        // Migrate the retired "Spatial (2D)" mode AND the retired 3D "Space"
+        // (.realitykit / Mind Palace) onto Canvas (#2667). A persisted/
+        // @SceneStorage `.spatial` or `.realitykit` value (and per-folder saved
+        // modes) must land on Canvas, not a removed-feeling state, since the 2D
+        // canvas is the live spatial view; the 3D RealityKit renderer is gone.
+        let mode = (mode == .spatial || mode == .realitykit) ? .map : mode
         guard availableViewDisplayModes.contains(mode) else {
             if availableViewDisplayModes.contains(.list) {
                 return .list

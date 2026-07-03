@@ -11,15 +11,15 @@
 /// `#if os(macOS)` so that the same form handles Catalyst and any future
 /// Apple platform without extra branches.
 ///
-/// `PlatformColor` was originally declared at the bottom of `SpatialTheme.swift`.
-/// It now lives here; `SpatialTheme.swift` references this canonical location.
+/// `PlatformColor` was originally declared alongside the (now-removed) RealityKit
+/// spatial theme; it lives here as the canonical cross-platform colour alias.
 
 #if canImport(AppKit)
 import AppKit
 import SwiftUI
 
-/// `NSColor` on macOS (and Catalyst). Used by the RealityKit renderer and any
-/// code path that must round-trip through AppKit colour APIs.
+/// `NSColor` on macOS (and Catalyst). Round-trips SwiftUI colours through the
+/// AppKit colour APIs any UIKit/AppKit bridge needs.
 typealias PlatformColor = NSColor
 
 /// `NSImage` on macOS (and Catalyst). Use `Image(nsImage:)` to lift into SwiftUI.

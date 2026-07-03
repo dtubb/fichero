@@ -33,15 +33,10 @@ class DocumentServiceGenerated: ObservableObject {
 
         logger.info("Creating collection: \(name)")
 
-        // Build optional fields using additionalProperties
-        var optionalData: [String: any Sendable] = [:]
-        if let parentId = parentId { optionalData["parent_id"] = parentId }
-
-        let container = try OpenAPIObjectContainer(unvalidatedValue: optionalData)
         let request = Components.Schemas.DocumentCreate(
             name: name,
-            docType: .folder,
-            additionalProperties: container
+            parentId: parentId,
+            docType: .folder
         )
 
         let response = try await client.api.createDocumentApiDocumentsPost(.init(
@@ -79,16 +74,20 @@ class DocumentServiceGenerated: ObservableObject {
 
         logger.info("Creating document: \(name)")
 
-        // Build metadata and optional fields
-        var optionalData: [String: any Sendable] = [:]
-        if let parentId = parentId { optionalData["parent_id"] = parentId }
-        if let metadata = metadata { optionalData["metadata"] = metadata }
-
-        let container = try OpenAPIObjectContainer(unvalidatedValue: optionalData)
+        // metadata is now an explicit typed property (schema no longer accepts
+        // free-form additionalProperties — OpenAPI two-stack sync, #3002).
+        let metadataPayload = try metadata.map {
+            Components.Schemas.DocumentCreate.MetadataPayload(
+                additionalProperties: try OpenAPIObjectContainer(
+                    unvalidatedValue: $0.mapValues { $0 as (any Sendable)? }
+                )
+            )
+        }
         let request = Components.Schemas.DocumentCreate(
             name: name,
+            parentId: parentId,
             docType: convertToGeneratedDocType(docType),
-            additionalProperties: container
+            metadata: metadataPayload
         )
 
         let response = try await client.api.createDocumentApiDocumentsPost(.init(
