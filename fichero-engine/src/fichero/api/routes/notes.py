@@ -123,6 +123,16 @@ def _emit_note_change_ctx(
     )
 
 
+def _emit_note_change_spec(ctx: "ActionContext", spec: "ChangeSpec") -> None:
+    if spec.emit_type is None:
+        return
+    _emit_note_change_ctx(
+        ctx,
+        event_type=spec.emit_type,
+        document_ids=list(spec.document_ids),
+    )
+
+
 def create_note_impl(db: Database, request: NoteCreateRequest) -> Note:
     """Validate scope, fold the page/folder into linked_document_ids, persist.
 
@@ -568,17 +578,14 @@ def _action_create_note(
 ) -> tuple[dict, ChangeSpec]:
     note = create_note_impl(db, params)
     after = note.model_dump(mode="json")
-    _emit_note_change_ctx(
-        ctx,
-        event_type="note.created",
-        document_ids=_note_scope_document_ids(note),
-    )
     spec = ChangeSpec(
         domains=["note"],
         target_ids=[note.id],
         before=None,
         after=after,
+        emit_type="note.created",
         document_ids=_note_scope_document_ids(note),
+        emit_fn=_emit_note_change_spec,
     )
     return after, spec
 
@@ -595,17 +602,14 @@ def _action_update_note(
 ) -> tuple[dict, ChangeSpec]:
     note, before = patch_note_impl(db, params.note_id, params.update)
     after = note.model_dump(mode="json")
-    _emit_note_change_ctx(
-        ctx,
-        event_type="note.updated",
-        document_ids=_note_scope_document_ids(note),
-    )
     spec = ChangeSpec(
         domains=["note"],
         target_ids=[note.id],
         before=before,
         after=after,
+        emit_type="note.updated",
         document_ids=_note_scope_document_ids(note),
+        emit_fn=_emit_note_change_spec,
     )
     return after, spec
 
@@ -621,17 +625,14 @@ def _action_delete_note(
     db: Database, params: NoteIdParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
     document_ids, before = delete_note_impl(db, params.note_id)
-    _emit_note_change_ctx(
-        ctx,
-        event_type="note.deleted",
-        document_ids=document_ids,
-    )
     spec = ChangeSpec(
         domains=["note"],
         target_ids=[params.note_id],
         before=before,
         after=None,
+        emit_type="note.deleted",
         document_ids=document_ids,
+        emit_fn=_emit_note_change_spec,
     )
     return before, spec
 

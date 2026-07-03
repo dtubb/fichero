@@ -79,6 +79,17 @@ class TestDatabaseBasics:
         `settings = StorageSettings()` re-reads the (now-empty) env.
         """
         class FakeConn:
+            description = []
+
+            def execute(self, _sql, _params=None):
+                return self
+
+            def fetchall(self):
+                return []
+
+            def fetchone(self):
+                return None
+
             def close(self):
                 return None
 
@@ -91,6 +102,7 @@ class TestDatabaseBasics:
         monkeypatch.setattr(_db_migrations, "migrate_provider_refs_table", lambda _conn: None)
         monkeypatch.setattr(_db_migrations, "migrate_known_libraries_table", lambda _conn: None)
         monkeypatch.setattr(_db_migrations, "migrate_library_entity_types_table", lambda _conn: None)
+        monkeypatch.setattr(_db_migrations, "migrate_spatial_node_layout_fields", lambda _conn: None)
         monkeypatch.setattr(_db_migrations, "migrate_references_table", lambda _conn: None)
         monkeypatch.setattr(_db_migrations, "migrate_reference_provenance_table", lambda _conn: None)
         import fichero.storage as _storage_mod

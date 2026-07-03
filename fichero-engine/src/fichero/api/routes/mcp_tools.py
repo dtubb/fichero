@@ -12,10 +12,11 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero.api.main import get_library_database, get_library_database_for_write
+from fichero.api.routes.auth_accounts import _require_authenticated_or_bootstrap
 from fichero.db import Database
 from fichero.knowledge_models import (
     ClaimType,
@@ -28,7 +29,10 @@ from fichero.knowledge_models import (
 )
 
 logger = logging.getLogger(__name__)
-router = APIRouter(tags=["mcp-tools"])
+router = APIRouter(
+    tags=["mcp-tools"],
+    dependencies=[Depends(_require_authenticated_or_bootstrap)],
+)
 
 
 # =============================================================================
@@ -42,15 +46,18 @@ class KnowledgeEntityUpsertRequest(BaseModel):
     Maps 1:1 to the canonical Knowledge API entity upsert operation.
     """
 
-    id: str | None = Field(None, description="Entity ID for updates")
-    canonical_name: str = Field(..., description="Canonical entity name")
-    entity_type: str = Field(default="other", description="Entity type")
-    aliases: list[str] = Field(default_factory=list, description="Alternative names")
-    description: str | None = Field(None, description="Entity description")
-    language: str | None = Field(None, description="ISO 639-1 language code")
-    metadata: dict[str, Any] = Field(default_factory=dict, description="Custom metadata")
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={"examples": [{"canonical_name": "Tokyo", "entity_type": "place", "language": "en"}]},
+    )
 
-    model_config = ConfigDict(json_schema_extra={"examples": [{"canonical_name": "Tokyo", "entity_type": "place", "language": "en"}]})
+    id: str | None = Field(None, description="Entity ID for updates", max_length=255)
+    canonical_name: str = Field(..., description="Canonical entity name", min_length=1, max_length=512)
+    entity_type: str = Field(default="other", description="Entity type", min_length=1, max_length=64)
+    aliases: list[str] = Field(default_factory=list, description="Alternative names", max_length=200)
+    description: str | None = Field(None, description="Entity description", max_length=4000)
+    language: str | None = Field(None, description="ISO 639-1 language code", min_length=2, max_length=16)
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Custom metadata")
 
 
 class KnowledgeEntityUpsertResponse(BaseModel):
@@ -68,22 +75,25 @@ class KnowledgeClaimCreateRequest(BaseModel):
     Maps 1:1 to the canonical Knowledge API claim creation operation.
     """
 
-    text: str = Field(..., description="Claim text content", min_length=1)
-    source_document_id: str | None = Field(None, description="Primary source document ID")
-    source_ids: list[str] = Field(default_factory=list, description="Multiple source document IDs")
-    source_page_labels: list[str] = Field(default_factory=list)
-    source_languages: list[str] = Field(default_factory=list, description="ISO 639-1 codes per source")
-    source_type: str = Field(default="document", description="Source type: document, claim, multiple, synthesis")
-    entity_ids: list[str] = Field(default_factory=list, description="Linked entity IDs")
-    claim_type: str = Field(default="fact", description="Type: fact, analysis, interpretation, argument, historiography, theory")
-    epistemic_status: str = Field(default="tentative", description="Status: tentative, confirmed, rejected")
-    curation_state: str = Field(default="unreviewed", description="State: unreviewed, shortlisted, curated, rejected")
-    confidence: float = Field(default=0.5, ge=0.0, le=1.0)
-    language: str | None = Field(None, description="ISO 639-1 language code")
-    metadata: dict[str, Any] = Field(default_factory=dict)
-    created_by: str = Field(default="mcp")
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={"examples": [{"text": "Paris is the capital of France", "source_document_id": "doc-123", "claim_type": "fact"}]},
+    )
 
-    model_config = ConfigDict(json_schema_extra={"examples": [{"text": "Paris is the capital of France", "source_document_id": "doc-123", "claim_type": "fact"}]})
+    text: str = Field(..., description="Claim text content", min_length=1, max_length=10000)
+    source_document_id: str | None = Field(None, description="Primary source document ID", max_length=255)
+    source_ids: list[str] = Field(default_factory=list, description="Multiple source document IDs", max_length=200)
+    source_page_labels: list[str] = Field(default_factory=list, max_length=200)
+    source_languages: list[str] = Field(default_factory=list, description="ISO 639-1 codes per source", max_length=200)
+    source_type: str = Field(default="document", description="Source type: document, claim, multiple, synthesis", min_length=1, max_length=64)
+    entity_ids: list[str] = Field(default_factory=list, description="Linked entity IDs", max_length=200)
+    claim_type: str = Field(default="fact", description="Type: fact, analysis, interpretation, argument, historiography, theory", min_length=1, max_length=64)
+    epistemic_status: str = Field(default="tentative", description="Status: tentative, confirmed, rejected", min_length=1, max_length=64)
+    curation_state: str = Field(default="unreviewed", description="State: unreviewed, shortlisted, curated, rejected", min_length=1, max_length=64)
+    confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+    language: str | None = Field(None, description="ISO 639-1 language code", min_length=2, max_length=16)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_by: str = Field(default="mcp", min_length=1, max_length=128)
 
 
 class KnowledgeClaimCreateResponse(BaseModel):
@@ -208,61 +218,50 @@ async def mcp_knowledge_entity_upsert(
     This endpoint provides a thin adapter to the canonical Knowledge API,
     ensuring no business-logic divergence between MCP and HTTP paths.
     """
-    try:
-        # Validate entity type
-        entity_type = _validate_entity_type(request.entity_type)
+    entity_type = _validate_entity_type(request.entity_type)
 
-        # Check if entity exists (update) or create new
-        if request.id:
-            existing = db.get(KnowledgeEntity, request.id)
-            if existing:
-                # Update existing entity
-                existing.canonical_name = request.canonical_name
-                existing.entity_type = entity_type
-                existing.aliases = request.aliases
-                existing.description = request.description
-                if request.language:
-                    existing.language = request.language
-                if request.metadata:
-                    existing.metadata = request.metadata
+    # Check if entity exists (update) or create new
+    if request.id:
+        existing = db.get(KnowledgeEntity, request.id)
+        if existing:
+            existing.canonical_name = request.canonical_name
+            existing.entity_type = entity_type
+            existing.aliases = request.aliases
+            existing.description = request.description
+            if request.language:
+                existing.language = request.language
+            if request.metadata:
+                existing.metadata = request.metadata
 
-                db.save(existing)
-                logger.info(f"MCP: Updated entity {request.id}")
-                return KnowledgeEntityUpsertResponse(
-                    success=True,
-                    entity_id=existing.id,
-                    operation="updated",
-                    entity=existing.model_dump(mode="json"),
-                )
+            db.save(existing)
+            logger.info("MCP: Updated entity %s", request.id)
+            return KnowledgeEntityUpsertResponse(
+                success=True,
+                entity_id=existing.id,
+                operation="updated",
+                entity=existing.model_dump(mode="json"),
+            )
 
-        # Create new entity
+    entity = KnowledgeEntity(
+        id=request.id or str(uuid.uuid4()),
+        canonical_name=request.canonical_name,
+        entity_type=entity_type,
+        aliases=request.aliases,
+        description=request.description,
+        language=request.language,
+        metadata=request.metadata,
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
 
-        entity = KnowledgeEntity(
-            id=request.id or str(uuid.uuid4()),
-            canonical_name=request.canonical_name,
-            entity_type=entity_type,
-            aliases=request.aliases,
-            description=request.description,
-            language=request.language,
-            metadata=request.metadata,
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
-        )
-
-        db.save(entity)
-        logger.info(f"MCP: Created entity {entity.id}")
-        return KnowledgeEntityUpsertResponse(
-            success=True,
-            entity_id=entity.id,
-            operation="created",
-            entity=entity.model_dump(mode="json"),
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception(f"MCP entity upsert failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Entity upsert failed: {str(e)}")
+    db.save(entity)
+    logger.info("MCP: Created entity %s", entity.id)
+    return KnowledgeEntityUpsertResponse(
+        success=True,
+        entity_id=entity.id,
+        operation="created",
+        entity=entity.model_dump(mode="json"),
+    )
 
 
 @router.post(
@@ -281,66 +280,53 @@ async def mcp_knowledge_claim_create(
     This endpoint provides a thin adapter to the canonical Knowledge API,
     ensuring no business-logic divergence between MCP and MCP and HTTP paths.
     """
-    try:
-        # Validate enums
-        claim_type = _validate_claim_type(request.claim_type)
-        curation_state = _validate_curation_state(request.curation_state)
-        epistemic_status = _validate_epistemic_status(request.epistemic_status)
-        source_type = _validate_source_type(request.source_type)
+    claim_type = _validate_claim_type(request.claim_type)
+    curation_state = _validate_curation_state(request.curation_state)
+    epistemic_status = _validate_epistemic_status(request.epistemic_status)
+    source_type = _validate_source_type(request.source_type)
 
-        # Validate required fields
-        if not request.text or not request.text.strip():
-            raise HTTPException(status_code=400, detail="Claim text is required")
+    if not request.text.strip():
+        raise HTTPException(status_code=400, detail="Claim text is required")
 
-        # Validate source documents
-        if request.source_document_id:
-            source_docs = [request.source_document_id] + request.source_ids
-        elif request.source_ids:
-            source_docs = request.source_ids
-        else:
-            raise HTTPException(status_code=400, detail="At least one source document ID is required")
+    if request.source_document_id:
+        source_docs = [request.source_document_id] + request.source_ids
+    elif request.source_ids:
+        source_docs = request.source_ids
+    else:
+        raise HTTPException(status_code=400, detail="At least one source document ID is required")
 
-        # Validate linked entities exist
-        for entity_id in request.entity_ids:
-            entity = db.get(KnowledgeEntity, entity_id)
-            if not entity:
-                raise HTTPException(status_code=400, detail=f"Linked entity not found: {entity_id}")
+    for entity_id in request.entity_ids:
+        entity = db.get(KnowledgeEntity, entity_id)
+        if not entity:
+            raise HTTPException(status_code=400, detail=f"Linked entity not found: {entity_id}")
 
-        # Create claim
+    claim = KnowledgeClaim(
+        id=str(uuid.uuid4()),
+        text=request.text.strip(),
+        source_document_id=request.source_document_id or (request.source_ids[0] if request.source_ids else ""),
+        source_ids=source_docs,
+        source_page_labels=request.source_page_labels,
+        source_languages=request.source_languages,
+        source_type=source_type,
+        entity_ids=request.entity_ids,
+        claim_type=claim_type,
+        epistemic_status=epistemic_status,
+        curation_state=curation_state,
+        confidence=request.confidence,
+        language=request.language,
+        metadata=request.metadata,
+        created_by=request.created_by,
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
 
-        claim = KnowledgeClaim(
-            id=str(uuid.uuid4()),
-            text=request.text.strip(),
-            source_document_id=request.source_document_id or (request.source_ids[0] if request.source_ids else ""),
-            source_ids=source_docs,
-            source_page_labels=request.source_page_labels,
-            source_languages=request.source_languages,
-            source_type=source_type,
-            entity_ids=request.entity_ids,
-            claim_type=claim_type,
-            epistemic_status=epistemic_status,
-            curation_state=curation_state,
-            confidence=request.confidence,
-            language=request.language,
-            metadata=request.metadata,
-            created_by=request.created_by,
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
-        )
-
-        db.save(claim)
-        logger.info(f"MCP: Created claim {claim.id}")
-        return KnowledgeClaimCreateResponse(
-            success=True,
-            claim_id=claim.id,
-            claim=claim.model_dump(mode="json"),
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception(f"MCP claim creation failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Claim creation failed: {str(e)}")
+    db.save(claim)
+    logger.info("MCP: Created claim %s", claim.id)
+    return KnowledgeClaimCreateResponse(
+        success=True,
+        claim_id=claim.id,
+        claim=claim.model_dump(mode="json"),
+    )
 
 
 @router.get(
@@ -419,10 +405,10 @@ async def mcp_knowledge_claim_delete(
     description="List knowledge entities with optional filtering.",
 )
 async def mcp_knowledge_entities_list(
-    q: str | None = None,
-    entity_type: str | None = None,
-    limit: int = 50,
-    offset: int = 0,
+    q: str | None = Query(default=None, max_length=512),
+    entity_type: str | None = Query(default=None, max_length=64),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     db: Database = Depends(get_library_database),
 ) -> MCPEntitiesListResponse:
     """MCP tool endpoint: List knowledge entities."""
@@ -452,11 +438,11 @@ async def mcp_knowledge_entities_list(
     description="List knowledge claims with optional filtering.",
 )
 async def mcp_knowledge_claims_list(
-    q: str | None = None,
-    claim_type: str | None = None,
-    entity_id: str | None = None,
-    limit: int = 50,
-    offset: int = 0,
+    q: str | None = Query(default=None, max_length=512),
+    claim_type: str | None = Query(default=None, max_length=64),
+    entity_id: str | None = Query(default=None, max_length=255),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     db: Database = Depends(get_library_database),
 ) -> MCPClaimsListResponse:
     """MCP tool endpoint: List knowledge claims."""

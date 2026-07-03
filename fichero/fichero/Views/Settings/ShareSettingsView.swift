@@ -11,7 +11,9 @@ struct ShareSettingsView: View {
     @EnvironmentObject var backendService: EmbeddedBackendService
     @EnvironmentObject var libraryManager: LibraryManager
     @AppStorage(EngineConfig.userDefaultsKey) private var engineHost = EngineConfig.defaultHostString
-    @AppStorage(EngineConfig.multiuserEnabledKey) private var multiuserEnabled = true
+    // Default OFF to match EngineConfig.multiuserEnabled (absent key ⇒ off). A
+    // `true` default here would show "Enabled" while the engine ran single-user.
+    @AppStorage(EngineConfig.multiuserEnabledKey) private var multiuserEnabled = false
     @AppStorage(RemoteAccessConfig.hostingEnabledKey) private var hostingEnabled = false
     @AppStorage(RemoteAccessConfig.bonjourEnabledKey) private var bonjourEnabled = false
     @AppStorage(RemoteAccessConfig.publicBaseURLKey) private var publicBaseURL = ""
@@ -194,6 +196,9 @@ struct ShareSettingsView: View {
     @ViewBuilder
     private var securitySection: some View {
         Section("Security") {
+            // The authoritative multi-user toggle lives in Engine settings
+            // (owns fichero.multiuser.enabled, restart-applied). Show it here
+            // read-only so the sharing surface reflects the current mode.
             LabeledContent("Multi-user mode") {
                 Text(multiuserEnabled ? "Enabled" : "Disabled")
                     .foregroundStyle(multiuserEnabled ? .primary : .secondary)

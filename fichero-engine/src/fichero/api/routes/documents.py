@@ -67,6 +67,16 @@ def _emit_document_change_ctx(
     )
 
 
+def _emit_document_change_spec(ctx: "ActionContext", spec: "ChangeSpec") -> None:
+    if spec.emit_type is None:
+        return
+    _emit_document_change_ctx(
+        ctx,
+        event_type=spec.emit_type,
+        document_ids=list(spec.document_ids),
+    )
+
+
 async def _run_document_write(func: Any, *args: Any, **kwargs: Any) -> Any:
     """Run synchronous document DB mutations off the FastAPI event loop."""
     return await asyncio.to_thread(func, *args, **kwargs)
@@ -2316,16 +2326,13 @@ def _action_create_document(
     db: Database, params: DocumentCreate, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
     new_doc = create_document_impl(db, params)
-    _emit_document_change_ctx(
-        ctx,
-        event_type="document.created",
-        document_ids=[new_doc.id],
-    )
     spec = ChangeSpec(
         domains=["document"],
         target_ids=[new_doc.id],
         after={"document_id": new_doc.id},
+        emit_type="document.created",
         document_ids=[new_doc.id],
+        emit_fn=_emit_document_change_spec,
     )
     return new_doc.model_dump(mode="json"), spec
 
@@ -2363,17 +2370,14 @@ def _action_move_document(
     db: Database, params: DocumentMoveParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
     doc, before = move_document_impl(db, params.doc_id, params.parent_id)
-    _emit_document_change_ctx(
-        ctx,
-        event_type="document.updated",
-        document_ids=[doc.id],
-    )
     spec = ChangeSpec(
         domains=["document"],
         target_ids=[doc.id],
         before=before,
         after=doc.model_dump(mode="json"),
+        emit_type="document.updated",
         document_ids=[doc.id],
+        emit_fn=_emit_document_change_spec,
     )
     return doc.model_dump(mode="json"), spec
 
@@ -2461,17 +2465,14 @@ def _action_delete_document(
     to_delete_ids, document_snapshots = delete_document_impl(
         db, params.doc_id, actor=ctx.actor
     )
-    _emit_document_change_ctx(
-        ctx,
-        event_type="document.deleted",
-        document_ids=to_delete_ids,
-    )
     spec = ChangeSpec(
         domains=["document"],
         target_ids=to_delete_ids,
         before={"documents": document_snapshots},
         after={"document_ids": to_delete_ids},
+        emit_type="document.deleted",
         document_ids=to_delete_ids,
+        emit_fn=_emit_document_change_spec,
     )
     return {
         "deleted_document_ids": to_delete_ids,

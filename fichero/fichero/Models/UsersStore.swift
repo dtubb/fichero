@@ -52,4 +52,58 @@ final class UsersStore {
             log.error("Failed to load users: \(error.localizedDescription)")
         }
     }
+
+    /// Create an account (owner-only on the engine). Reloads the list on success.
+    /// Throws `UsersStoreError` with the engine's message on 4xx so the caller
+    /// can surface it (e.g. 409 "username already exists").
+    func createUser(
+        username: String,
+        displayName: String,
+        password: String,
+        isOwner: Bool
+    ) async throws {
+        let response = try await client.api.createUserApiUsersPost(
+            body: .json(.init(
+                username: username,
+                displayName: displayName,
+                password: password,
+                isOwner: isOwner
+            ))
+        )
+        guard case .ok = response else {
+            throw Self.error(from: response)
+        }
+        await reload()
+    }
+
+    /// Enable/disable an account (owner-only). Disabling also revokes the
+    /// account's sessions server-side. Reloads the list on success.
+    func setActive(userId: String, active: Bool) async throws {
+        let response = try await client.api.updateUserApiUsersUserIdPatch(
+            .init(
+                path: .init(userId: userId),
+                body: .json(.init(active: active))
+            )
+        )
+        guard case .ok = response else {
+            throw Self.error(from: response)
+        }
+        await reload()
+    }
+
+    /// Force a reload even while a prior load is settling (mutations bypass the
+    /// `isLoading` guard `load()` uses to dedupe concurrent view appearances).
+    private func reload() async {
+        isLoading = false
+        await load()
+    }
+
+    private static func error(from response: some Sendable) -> UsersStoreError {
+        UsersStoreError(message: "\(response)")
+    }
+}
+
+struct UsersStoreError: LocalizedError {
+    let message: String
+    var errorDescription: String? { message }
 }

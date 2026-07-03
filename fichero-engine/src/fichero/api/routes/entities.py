@@ -90,6 +90,16 @@ def _emit_entity_change_ctx(
     )
 
 
+def _emit_entity_change_spec(ctx: ActionContext, spec: ChangeSpec) -> None:
+    if spec.emit_type is None:
+        return
+    _emit_entity_change_ctx(
+        ctx,
+        event_type=spec.emit_type,
+        entity_ids=list(spec.entity_ids),
+    )
+
+
 # =============================================================================
 # Request/Response Models
 # =============================================================================
@@ -445,16 +455,13 @@ def _action_create_entity(
         db,
         EntityUpsertRequest.model_validate(params.model_dump(mode="json")),
     )
-    _emit_entity_change_ctx(
-        ctx,
-        event_type="entity.created",
-        entity_ids=[entity.id],
-    )
     spec = ChangeSpec(
         domains=["entity"],
         target_ids=[entity.id],
         after={"entity_id": entity.id},
+        emit_type="entity.created",
         entity_ids=[entity.id],
+        emit_fn=_emit_entity_change_spec,
     )
     return entity.model_dump(mode="json"), spec
 
@@ -478,16 +485,13 @@ def _action_update_entity(
             }
         ),
     )
-    _emit_entity_change_ctx(
-        ctx,
-        event_type="entity.updated",
-        entity_ids=[entity.id],
-    )
     spec = ChangeSpec(
         domains=["entity"],
         target_ids=[entity.id],
         after={"entity_id": entity.id},
+        emit_type="entity.updated",
         entity_ids=[entity.id],
+        emit_fn=_emit_entity_change_spec,
     )
     return entity.model_dump(mode="json"), spec
 

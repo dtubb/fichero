@@ -14,6 +14,7 @@ Tests cover:
 
 import pytest
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 from fichero.api.routes.mcp_tools import (
     KnowledgeEntityUpsertRequest,
@@ -143,6 +144,13 @@ class TestKnowledgeEntityRequest:
         )
         assert request.metadata["country"] == "Japan"
 
+    def test_extra_field_rejected(self):
+        with pytest.raises(ValidationError):
+            KnowledgeEntityUpsertRequest(
+                canonical_name="Tokyo",
+                unexpected=True,
+            )
+
 
 class TestKnowledgeClaimRequest:
     """Test KnowledgeClaimCreateRequest model."""
@@ -177,3 +185,11 @@ class TestKnowledgeClaimRequest:
         assert request.epistemic_status == "tentative"
         assert request.curation_state == "unreviewed"
         assert request.confidence == 0.5
+
+    def test_extra_field_rejected(self):
+        with pytest.raises(ValidationError):
+            KnowledgeClaimCreateRequest(
+                text="Test claim",
+                source_document_id="doc-test",
+                unexpected=True,
+            )

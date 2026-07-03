@@ -3395,6 +3395,18 @@
         "summary": "Create Bookmark",
         "description": "Create a bookmark node that references another document.",
         "operationId": "create_bookmark_api_bookmarks_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -11480,6 +11492,7 @@
             "required": false,
             "schema": {
               "type": "string",
+              "maxLength": 512,
               "nullable": true,
               "title": "Q"
             }
@@ -11490,6 +11503,7 @@
             "required": false,
             "schema": {
               "type": "string",
+              "maxLength": 64,
               "nullable": true,
               "title": "Entity Type"
             }
@@ -11500,6 +11514,8 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
               "default": 50,
               "title": "Limit"
             }
@@ -11510,6 +11526,7 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "minimum": 0,
               "default": 0,
               "title": "Offset"
             }
@@ -11555,6 +11572,7 @@
             "required": false,
             "schema": {
               "type": "string",
+              "maxLength": 512,
               "nullable": true,
               "title": "Q"
             }
@@ -11565,6 +11583,7 @@
             "required": false,
             "schema": {
               "type": "string",
+              "maxLength": 64,
               "nullable": true,
               "title": "Claim Type"
             }
@@ -11575,6 +11594,7 @@
             "required": false,
             "schema": {
               "type": "string",
+              "maxLength": 255,
               "nullable": true,
               "title": "Entity Id"
             }
@@ -11585,6 +11605,8 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
               "default": 50,
               "title": "Limit"
             }
@@ -11595,6 +11617,7 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "minimum": 0,
               "default": 0,
               "title": "Offset"
             }
@@ -13265,26 +13288,6 @@
       }
     },
     "/api/search/saved": {
-      "get": {
-        "tags": [
-          "search"
-        ],
-        "summary": "List Saved Searches",
-        "description": "List all saved searches.",
-        "operationId": "list_saved_searches_api_search_saved_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SavedSearchListResponse"
-                }
-              }
-            }
-          }
-        }
-      },
       "post": {
         "tags": [
           "search"
@@ -13292,15 +13295,27 @@
         "summary": "Save Search",
         "description": "Save a search for later.",
         "operationId": "save_search_api_search_saved_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/SavedSearchCreate"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -13319,6 +13334,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "search"
+        ],
+        "summary": "List Saved Searches",
+        "description": "List all saved searches.",
+        "operationId": "list_saved_searches_api_search_saved_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedSearchListResponse"
                 }
               }
             }
@@ -24678,6 +24713,18 @@
         ],
         "summary": "Create Room",
         "operationId": "create_room_api_mind_palace_rooms_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -24819,6 +24866,16 @@
               "type": "string",
               "title": "Room Id"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "requestBody": {
@@ -24868,6 +24925,16 @@
             "schema": {
               "type": "string",
               "title": "Room Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
             }
           }
         ],
@@ -32058,6 +32125,82 @@
           }
         }
       }
+    },
+    "/api/authz/members": {
+      "get": {
+        "tags": [
+          "authz",
+          "authz"
+        ],
+        "summary": "List Library Members",
+        "description": "Who can access this library, roles joined with account profiles.\n\nOwner-gated when multi-user is on (mirrors the snapshot's ``can_manage_roles``).\nThe ``roles`` table keys on the *normalized* library path, so normalize the\ntransport header before the lookup or the join silently returns empty.",
+        "operationId": "list_library_members_api_authz_members_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryMembersResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "authz",
+          "authz"
+        ],
+        "summary": "Set Library Member Role",
+        "description": "Assign/change a library role \u2014 typed surface over the ``acl.set`` action.\n\nRoutes through ``registry.invoke`` so the mutation is owner-gated, audited,\nand emitted on the change stream exactly like ``POST /api/actions/invoke``.\nReturns the refreshed member list so the UI updates in one round-trip.",
+        "operationId": "set_library_member_role_api_authz_members_put",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetLibraryRoleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryMembersResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -34959,6 +35102,7 @@
             "title": "Name"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "target_id"
@@ -36727,6 +36871,7 @@
         "properties": {
           "text": {
             "type": "string",
+            "minLength": 1,
             "title": "Text"
           },
           "source_document_id": {
@@ -36937,6 +37082,7 @@
             "title": "Confidence Source"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "text"
@@ -37385,6 +37531,7 @@
             "title": "Confidence Source"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "title": "ClaimPatchRequest",
         "description": "Request to patch/update a knowledge claim."
@@ -39949,6 +40096,7 @@
         "properties": {
           "name": {
             "type": "string",
+            "minLength": 1,
             "title": "Name"
           },
           "parent_id": {
@@ -40021,7 +40169,7 @@
             "title": "Z Index"
           }
         },
-        "additionalProperties": true,
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "name"
@@ -40595,7 +40743,7 @@
             "title": "Z Index"
           }
         },
-        "additionalProperties": true,
+        "additionalProperties": false,
         "type": "object",
         "title": "DocumentUpdate",
         "description": "Request model for updating a document."
@@ -41475,6 +41623,7 @@
             "title": "Metadata"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "title": "EntityPatchRequest",
         "description": "Partial update \u2014 only fields present in the payload are written.\n\nEvery editable attribute is here as ``Optional`` so PATCH can\ntarget a single field without losing the rest. (#901)"
@@ -41802,6 +41951,7 @@
           },
           "canonical_name": {
             "type": "string",
+            "minLength": 1,
             "title": "Canonical Name"
           },
           "entity_type": {
@@ -41838,6 +41988,7 @@
             "title": "Source Document Ids"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "canonical_name"
@@ -45124,12 +45275,14 @@
         "properties": {
           "text": {
             "type": "string",
+            "maxLength": 10000,
             "minLength": 1,
             "title": "Text",
             "description": "Claim text content"
           },
           "source_document_id": {
             "type": "string",
+            "maxLength": 255,
             "nullable": true,
             "title": "Source Document Id",
             "description": "Primary source document ID"
@@ -45139,6 +45292,7 @@
               "type": "string"
             },
             "type": "array",
+            "maxItems": 200,
             "title": "Source Ids",
             "description": "Multiple source document IDs"
           },
@@ -45147,6 +45301,7 @@
               "type": "string"
             },
             "type": "array",
+            "maxItems": 200,
             "title": "Source Page Labels"
           },
           "source_languages": {
@@ -45154,11 +45309,14 @@
               "type": "string"
             },
             "type": "array",
+            "maxItems": 200,
             "title": "Source Languages",
             "description": "ISO 639-1 codes per source"
           },
           "source_type": {
             "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
             "title": "Source Type",
             "description": "Source type: document, claim, multiple, synthesis",
             "default": "document"
@@ -45168,23 +45326,30 @@
               "type": "string"
             },
             "type": "array",
+            "maxItems": 200,
             "title": "Entity Ids",
             "description": "Linked entity IDs"
           },
           "claim_type": {
             "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
             "title": "Claim Type",
             "description": "Type: fact, analysis, interpretation, argument, historiography, theory",
             "default": "fact"
           },
           "epistemic_status": {
             "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
             "title": "Epistemic Status",
             "description": "Status: tentative, confirmed, rejected",
             "default": "tentative"
           },
           "curation_state": {
             "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
             "title": "Curation State",
             "description": "State: unreviewed, shortlisted, curated, rejected",
             "default": "unreviewed"
@@ -45198,6 +45363,8 @@
           },
           "language": {
             "type": "string",
+            "maxLength": 16,
+            "minLength": 2,
             "nullable": true,
             "title": "Language",
             "description": "ISO 639-1 language code"
@@ -45209,10 +45376,13 @@
           },
           "created_by": {
             "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
             "title": "Created By",
             "default": "mcp"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "text"
@@ -45304,6 +45474,11 @@
           "id": {
             "type": "string",
             "title": "Id"
+          },
+          "parent_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Id"
           },
           "canonical_name": {
             "type": "string",
@@ -45407,17 +45582,22 @@
         "properties": {
           "id": {
             "type": "string",
+            "maxLength": 255,
             "nullable": true,
             "title": "Id",
             "description": "Entity ID for updates"
           },
           "canonical_name": {
             "type": "string",
+            "maxLength": 512,
+            "minLength": 1,
             "title": "Canonical Name",
             "description": "Canonical entity name"
           },
           "entity_type": {
             "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
             "title": "Entity Type",
             "description": "Entity type",
             "default": "other"
@@ -45427,17 +45607,21 @@
               "type": "string"
             },
             "type": "array",
+            "maxItems": 200,
             "title": "Aliases",
             "description": "Alternative names"
           },
           "description": {
             "type": "string",
+            "maxLength": 4000,
             "nullable": true,
             "title": "Description",
             "description": "Entity description"
           },
           "language": {
             "type": "string",
+            "maxLength": 16,
+            "minLength": 2,
             "nullable": true,
             "title": "Language",
             "description": "ISO 639-1 language code"
@@ -45449,6 +45633,7 @@
             "description": "Custom metadata"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "canonical_name"
@@ -53620,6 +53805,7 @@
         "properties": {
           "name": {
             "type": "string",
+            "minLength": 1,
             "title": "Name"
           },
           "description": {
@@ -53642,6 +53828,7 @@
             "title": "Metadata"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "name"
@@ -53726,6 +53913,7 @@
             "title": "Metadata"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "title": "RoomUpdateRequest"
       },
@@ -53756,6 +53944,7 @@
         "properties": {
           "query": {
             "type": "string",
+            "minLength": 1,
             "title": "Query"
           },
           "is_smart_search": {
@@ -53795,6 +53984,7 @@
             "default": 0
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "query"
@@ -54746,6 +54936,11 @@
           "id": {
             "type": "string",
             "title": "Id"
+          },
+          "parent_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Id"
           },
           "canonical_name": {
             "type": "string",
@@ -60485,6 +60680,7 @@
             "title": "Parent Address"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "title": "NoteCreateRequest"
       },
@@ -61026,6 +61222,87 @@
         ],
         "title": "NodeDef",
         "type": "object"
+      },
+      "LibraryMember": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "is_owner_account": {
+            "type": "boolean",
+            "title": "Is Owner Account"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "username",
+          "display_name",
+          "is_owner_account",
+          "role"
+        ],
+        "title": "LibraryMember",
+        "description": "One user's access to a library, joined with their account profile.\n\nThe Users & Sharing UI (#2869 A2/A4) needs human-readable names, not the\nbare ``user_id`` the ``library_roles`` table stores. This is that join."
+      },
+      "LibraryMembersResponse": {
+        "properties": {
+          "library_path": {
+            "type": "string",
+            "title": "Library Path"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryMember"
+            },
+            "type": "array",
+            "title": "Members"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "library_path",
+          "count"
+        ],
+        "title": "LibraryMembersResponse",
+        "description": "Response from ``GET /api/authz/members`` \u2014 who can access this library."
+      },
+      "SetLibraryRoleRequest": {
+        "properties": {
+          "user": {
+            "type": "string",
+            "title": "User",
+            "description": "Target user id or username"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "description": "owner/editor/viewer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user",
+          "role"
+        ],
+        "title": "SetLibraryRoleRequest",
+        "description": "Typed body for ``PUT /api/authz/members`` \u2014 assign/change a library role.\n\nA typed OpenAPI surface over the ``acl.set`` registry action so the Swift\nclient gets a generated method instead of hand-rolling ``/actions/invoke``."
       }
     }
   }

@@ -984,6 +984,31 @@ def register_generated_openapi_commands(
             return client.request("GET", path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("list-library-members")
+    def authz_list_library_members_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Library Members (GET /api/authz/members)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/authz/members"
+            params = None
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("set-library-member-role")
+    def authz_set_library_member_role_put(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Set Library Member Role (PUT /api/authz/members)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/authz/members"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("PUT", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('batches')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for batches endpoints.', no_args_is_help=True)

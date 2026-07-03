@@ -1,6 +1,8 @@
 import FicheroAPIClient
 import SwiftUI
 
+// swiftlint:disable file_length
+
 // MARK: - Users Settings View
 
 /// Settings → Users tab. Shows the signed-in user, all accounts, and the
@@ -37,6 +39,14 @@ private struct UsersContent: View {
     @State private var pendingRole = "editor"
     @State private var pendingRoleDrafts: [String: String] = [:]
     @State private var isApplyingRoleChange = false
+
+    // Add Account form (owner-only)
+    @State private var newDisplayName = ""
+    @State private var newUsername = ""
+    @State private var newPassword = ""
+    @State private var newIsOwner = false
+    @State private var isCreatingUser = false
+    @State private var accountError: String?
 
     var body: some View {
         Group {
@@ -90,9 +100,47 @@ extension UsersContent {
                 }
             }
 
+            if store.currentUser?.isOwner == true {
+                addAccountSection
+            }
+
             sharingSection
         }
         .formStyle(.grouped)
+    }
+
+    @ViewBuilder
+    fileprivate var addAccountSection: some View {
+        Section {
+            TextField("Full name", text: $newDisplayName)
+            TextField("Username", text: $newUsername)
+                .textContentType(.username)
+            SecureField("Password", text: $newPassword)
+                .textContentType(.newPassword)
+            Toggle("Owner (can manage users and all libraries)", isOn: $newIsOwner)
+
+            if let accountError {
+                Text(accountError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            Button {
+                Task { await createAccount() }
+            } label: {
+                if isCreatingUser {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Text("Create Account")
+                }
+            }
+            .disabled(isCreatingUser || !canCreateAccount)
+        } header: {
+            Text("Add Account")
+        } footer: {
+            Text("New accounts sign in with their username and password.")
+                .foregroundStyle(.secondary)
+        }
     }
 
     @ViewBuilder
@@ -204,6 +252,17 @@ extension UsersContent {
             .pickerStyle(.menu)
             .frame(width: 120)
             .disabled(isApplyingRoleChange || !isRoleEditable())
+
+            // Revoke, hidden for your own row — the engine also refuses a
+            // self-revoke so the sole owner can't lock themselves out.
+            if isRoleEditable(), role.userId != store.currentUser?.id {
+                Button("Remove") {
+                    Task { await revokeRole(userId: role.userId) }
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(.red)
+                .disabled(isApplyingRoleChange)
+            }
         }
         .padding(.vertical, 2)
     }
@@ -255,9 +314,58 @@ extension UsersContent {
                         .background(.secondary.opacity(0.15), in: Capsule())
                         .foregroundStyle(.secondary)
                 }
+                // Owners can disable/enable other accounts (never themselves).
+                if store.currentUser?.isOwner == true, !isCurrent {
+                    Button(user.active ? "Disable" : "Enable") {
+                        Task { await setActive(userId: user.id, active: !user.active) }
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.caption)
+                    .disabled(isCreatingUser)
+                }
             }
         }
         .padding(.vertical, 2)
+    }
+
+    fileprivate var canCreateAccount: Bool {
+        !newDisplayName.trimmingCharacters(in: .whitespaces).isEmpty
+            && !newUsername.trimmingCharacters(in: .whitespaces).isEmpty
+            && !newPassword.isEmpty
+    }
+
+    @MainActor
+    fileprivate func createAccount() async {
+        isCreatingUser = true
+        accountError = nil
+        defer { isCreatingUser = false }
+        do {
+            try await store.createUser(
+                username: newUsername.trimmingCharacters(in: .whitespaces),
+                displayName: newDisplayName.trimmingCharacters(in: .whitespaces),
+                password: newPassword,
+                isOwner: newIsOwner
+            )
+            newDisplayName = ""
+            newUsername = ""
+            newPassword = ""
+            newIsOwner = false
+            syncAddMemberDefaults()
+        } catch {
+            accountError = error.localizedDescription
+        }
+    }
+
+    @MainActor
+    fileprivate func setActive(userId: String, active: Bool) async {
+        isCreatingUser = true
+        accountError = nil
+        defer { isCreatingUser = false }
+        do {
+            try await store.setActive(userId: userId, active: active)
+        } catch {
+            accountError = error.localizedDescription
+        }
     }
 
     @MainActor
@@ -311,6 +419,22 @@ extension UsersContent {
         } catch {
             authzError = error.localizedDescription
             pendingRoleDrafts.removeValue(forKey: userId)
+        }
+    }
+
+    @MainActor
+    fileprivate func revokeRole(userId: String) async {
+        guard authzSnapshot?.canManageRoles == true else { return }
+        isApplyingRoleChange = true
+        authzError = nil
+        defer { isApplyingRoleChange = false }
+
+        do {
+            try await library.actionsService.revokeLibraryRole(userId: userId)
+            await refreshAuthz()
+            syncAddMemberDefaults()
+        } catch {
+            authzError = error.localizedDescription
         }
     }
 
