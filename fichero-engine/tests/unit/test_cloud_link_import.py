@@ -7,6 +7,7 @@ from typer.testing import CliRunner
 from fichero import __main__ as cli
 from fichero.importers.cloud_link_import import (
     import_box_links,
+    import_box_links_via_http,
     import_dropbox_links,
     import_dropbox_links_via_http,
 )
@@ -207,10 +208,10 @@ def test_import_box_links_creates_reference_documents(tmp_path):
 def test_cli_import_box_links_invokes_importer(monkeypatch, tmp_path):
     calls: list[dict] = []
 
-    def fake_import_box_links(**kwargs):
-        from fichero.cloud_link_import import CloudLinkImportSummary
+    def fake_import_box_links(client, **kwargs):
+        from fichero.importers.cloud_link_import import CloudLinkImportSummary
 
-        calls.append(kwargs)
+        calls.append({"client": client, **kwargs})
         return CloudLinkImportSummary(
             provider="box",
             library_path=kwargs["library_path"],
@@ -221,13 +222,15 @@ def test_cli_import_box_links_invokes_importer(monkeypatch, tmp_path):
         )
 
     monkeypatch.setattr(
-        "fichero.cloud_link_import.import_box_links",
+        "fichero.importers.cloud_link_import.import_box_links_via_http",
         fake_import_box_links,
     )
 
     result = runner.invoke(
         cli.app,
         [
+            "--base-url",
+            "http://remote-engine.test",
             "import-box-links",
             "--library-path",
             str(tmp_path / "BoxLinks.fichero"),
@@ -239,4 +242,39 @@ def test_cli_import_box_links_invokes_importer(monkeypatch, tmp_path):
 
     assert result.exit_code == 0
     assert calls[0]["reset"] is True
+    assert calls[0]["client"].base_url == "http://remote-engine.test"
     assert "imported_links: 2" in result.output
+
+
+def test_import_box_links_via_http_creates_reference_documents(tmp_path):
+    library = tmp_path / "BoxLinks.fichero"
+    manifest = tmp_path / "box_links.json"
+    manifest.write_text(
+        json.dumps(
+            [
+                {
+                    "name": "Box Letter 001",
+                    "url": "https://app.box.com/file/12345",
+                    "external_id": "box-1",
+                },
+                {
+                    "name": "Skip me",
+                    "url": "https://example.com/not-box",
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    client = FakeClient()
+    summary = import_box_links_via_http(
+        client,
+        library_path=library,
+        manifest_path=manifest,
+        reset=True,
+    )
+
+    assert summary.imported_links == 1
+    assert summary.skipped_rows == 1
+    assert summary.errors == []
+    assert client.created_library == str(library.resolve())
