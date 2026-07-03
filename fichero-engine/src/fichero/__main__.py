@@ -24,7 +24,6 @@ from fichero.cli import client as client_module
 from fichero.cli.openapi_surface_generated import register_generated_openapi_commands
 from fichero.cli.formatters import render
 app = typer.Typer(
-    add_completion=False,
     help="Fichero CLI — a thin HTTP client for the Fichero backend.",
     no_args_is_help=True,
 )
@@ -142,6 +141,28 @@ def _invoke(ctx: typer.Context, operation: Callable[[FicheroClient], Any]) -> No
     except FicheroError as exc:
         _report_fichero_error(ctx, exc)
     typer.echo(render(data, as_json=ctx.obj["json"]))
+
+
+def _invoke_stream(ctx: typer.Context, operation: Callable[[FicheroClient], list[str]]) -> None:
+    """Run one streaming client operation and print each emitted line."""
+    try:
+        with _client(ctx) as client:
+            lines = operation(client)
+    except FicheroError as exc:
+        _report_fichero_error(ctx, exc)
+    for line in lines:
+        typer.echo(_render_stream_line(line, as_json=ctx.obj["json"]))
+
+
+def _render_stream_line(line: str, *, as_json: bool) -> str:
+    if not line.startswith("data:"):
+        return line
+    payload = line[5:].strip()
+    try:
+        decoded = json.loads(payload)
+    except json.JSONDecodeError:
+        return payload
+    return render(decoded, as_json=as_json)
 
 
 def _read_cli_session() -> dict[str, Any]:
@@ -1135,6 +1156,7 @@ def import_archivo_judicial_medellin_command(
 
 @app.command(name="import-ghc-catalogued-materials")
 def import_ghc_catalogued_materials_command(
+    ctx: typer.Context,
     library_path: Path = typer.Option(
         Path("~/Library/Application Support/Fichero/GHC-Catalogued-Materials.fichero"),
         "--library-path",
@@ -1154,16 +1176,22 @@ def import_ghc_catalogued_materials_command(
     no_embed: bool = typer.Option(False, "--no-embed", help="Skip embedding creation."),
 ) -> None:
     """Import already-catalogued GHC materials, including ACENET imports."""
-    from fichero.source_archive_import import import_ghc_catalogued_materials
+    from fichero.importers.source_archive_import import import_ghc_catalogued_materials_via_http
 
     try:
-        summary = import_ghc_catalogued_materials(
-            library_path=library_path,
-            acenet_root=acenet_root,
-            catalogued_root=catalogued_root,
-            reset=reset,
-            auto_embed=not no_embed,
-        )
+        with FicheroClient(
+            base_url=ctx.obj["base_url"],
+            library_path=str(library_path),
+            token=ctx.obj["token"],
+        ) as client:
+            summary = import_ghc_catalogued_materials_via_http(
+                client,
+                library_path=library_path,
+                acenet_root=acenet_root,
+                catalogued_root=catalogued_root,
+                reset=reset,
+                auto_embed=not no_embed,
+            )
     except Exception as exc:
         typer.secho(f"GHC catalogued import failed: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
@@ -1186,6 +1214,7 @@ def import_ghc_catalogued_materials_command(
 
 @app.command(name="import-chota-colombian-pacific-maps")
 def import_chota_colombian_pacific_maps_command(
+    ctx: typer.Context,
     library_path: Path = typer.Option(
         Path("~/Library/Application Support/Fichero/Chota-Pacific-Maps.fichero"),
         "--library-path",
@@ -1203,15 +1232,21 @@ def import_chota_colombian_pacific_maps_command(
     no_embed: bool = typer.Option(False, "--no-embed", help="Skip embedding creation."),
 ) -> None:
     """Import Chota Valley + Colombian Pacific maps corpus."""
-    from fichero.source_archive_import import import_chota_colombian_pacific_maps
+    from fichero.importers.source_archive_import import import_chota_colombian_pacific_maps_via_http
 
     try:
-        summary = import_chota_colombian_pacific_maps(
-            library_path=library_path,
-            source_root=source_root,
-            reset=reset,
-            auto_embed=not no_embed,
-        )
+        with FicheroClient(
+            base_url=ctx.obj["base_url"],
+            library_path=str(library_path),
+            token=ctx.obj["token"],
+        ) as client:
+            summary = import_chota_colombian_pacific_maps_via_http(
+                client,
+                library_path=library_path,
+                source_root=source_root,
+                reset=reset,
+                auto_embed=not no_embed,
+            )
     except Exception as exc:
         typer.secho(f"Chota/Pacific maps import failed: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
@@ -1234,6 +1269,7 @@ def import_chota_colombian_pacific_maps_command(
 
 @app.command(name="import-dropbox-links")
 def import_dropbox_links_command(
+    ctx: typer.Context,
     library_path: Path = typer.Option(
         Path("~/Library/Application Support/Fichero/Dropbox-Links.fichero"),
         "--library-path",
@@ -1252,14 +1288,20 @@ def import_dropbox_links_command(
 ) -> None:
     """Import Dropbox shared links as library references (no file download)."""
 
-    from fichero.cloud_link_import import import_dropbox_links
+    from fichero.importers.cloud_link_import import import_dropbox_links_via_http
 
     try:
-        summary = import_dropbox_links(
-            library_path=library_path,
-            manifest_path=manifest_path,
-            reset=reset,
-        )
+        with FicheroClient(
+            base_url=ctx.obj["base_url"],
+            library_path=str(library_path),
+            token=ctx.obj["token"],
+        ) as client:
+            summary = import_dropbox_links_via_http(
+                client,
+                library_path=library_path,
+                manifest_path=manifest_path,
+                reset=reset,
+            )
     except Exception as exc:
         typer.secho(f"Dropbox link import failed: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
@@ -1281,6 +1323,7 @@ def import_dropbox_links_command(
 
 @app.command(name="import-box-links")
 def import_box_links_command(
+    ctx: typer.Context,
     library_path: Path = typer.Option(
         Path("~/Library/Application Support/Fichero/Box-Links.fichero"),
         "--library-path",
@@ -1299,14 +1342,20 @@ def import_box_links_command(
 ) -> None:
     """Import Box links as library references (no file download)."""
 
-    from fichero.cloud_link_import import import_box_links
+    from fichero.importers.cloud_link_import import import_box_links_via_http
 
     try:
-        summary = import_box_links(
-            library_path=library_path,
-            manifest_path=manifest_path,
-            reset=reset,
-        )
+        with FicheroClient(
+            base_url=ctx.obj["base_url"],
+            library_path=str(library_path),
+            token=ctx.obj["token"],
+        ) as client:
+            summary = import_box_links_via_http(
+                client,
+                library_path=library_path,
+                manifest_path=manifest_path,
+                reset=reset,
+            )
     except Exception as exc:
         typer.secho(f"Box link import failed: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
@@ -1328,6 +1377,7 @@ def import_box_links_command(
 
 @app.command(name="import-tinderbox-links")
 def import_tinderbox_links_command(
+    ctx: typer.Context,
     library_path: Path = typer.Option(
         Path("~/Library/Application Support/Fichero/Tinderbox-Links.fichero"),
         "--library-path",
@@ -1346,14 +1396,20 @@ def import_tinderbox_links_command(
 ) -> None:
     """Import/link Tinderbox notes from a .tbx file into the library model."""
 
-    from fichero.tinderbox_link_import import import_tinderbox_links
+    from fichero.importers.tinderbox_link_import import import_tinderbox_links_via_http
 
     try:
-        summary = import_tinderbox_links(
-            library_path=library_path,
-            tbx_path=tbx_path,
-            reset=reset,
-        )
+        with FicheroClient(
+            base_url=ctx.obj["base_url"],
+            library_path=str(library_path),
+            token=ctx.obj["token"],
+        ) as client:
+            summary = import_tinderbox_links_via_http(
+                client,
+                library_path=library_path,
+                tbx_path=tbx_path,
+                reset=reset,
+            )
     except Exception as exc:
         typer.secho(f"Tinderbox link import failed: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
@@ -2016,6 +2072,44 @@ def workflow_run(
         # Strip LangGraph implementation details from human output (#1081).
         # `--json` keeps the raw payload for diagnostics.
         typer.echo(render(_scrub_langgraph_internals(result)))
+
+
+@app.command("activity-stream")
+def activity_stream(
+    ctx: typer.Context,
+    types: Optional[str] = typer.Option(None, "--types", help="Comma-separated activity types."),
+    levels: Optional[str] = typer.Option(None, "--levels", help="Comma-separated activity levels."),
+    workflow_id: Optional[str] = typer.Option(None, "--workflow-id", help="Filter by workflow ID."),
+    batch_id: Optional[str] = typer.Option(None, "--batch-id", help="Filter by batch ID."),
+    thread_id: Optional[str] = typer.Option(None, "--thread-id", help="Filter by thread ID."),
+) -> None:
+    """Follow the live activity SSE stream."""
+    _invoke_stream(
+        ctx,
+        lambda c: c.request_stream(
+            "GET",
+            "/api/activity/stream",
+            params={
+                "types": types,
+                "levels": levels,
+                "workflow_id": workflow_id,
+                "batch_id": batch_id,
+                "thread_id": thread_id,
+            },
+        ),
+    )
+
+
+@workflow_app.command("stream")
+def workflow_stream(
+    ctx: typer.Context,
+    thread_id: str = typer.Argument(..., help="Workflow execution thread ID."),
+) -> None:
+    """Follow the live workflow-execution SSE stream for a thread."""
+    _invoke_stream(
+        ctx,
+        lambda c: c.request_stream("GET", f"/api/workflow-execution/stream/{thread_id}"),
+    )
 
 
 # Keys the executor exposes that aren't user-facing — see backend

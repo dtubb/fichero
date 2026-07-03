@@ -253,6 +253,35 @@ def import_ghc_catalogued_materials(
     )
 
 
+def import_ghc_catalogued_materials_via_http(
+    client: ImporterHttpClient,
+    *,
+    library_path: Path = DEFAULT_GHC_LIBRARY,
+    acenet_root: Path | None = None,
+    catalogued_root: Path | None = None,
+    reset: bool = False,
+    auto_embed: bool = True,
+) -> SourceArchiveImportSummary:
+    acenet_root = _resolve_required(
+        acenet_root, env_var="FICHERO_GHC_ACENET_ROOT", flag="--acenet-root"
+    )
+    catalogued_root = _resolve_required(
+        catalogued_root, env_var="FICHERO_GHC_CATALOGUED_ROOT", flag="--catalogued-root"
+    )
+    return _import_roots_via_http(
+        client,
+        provider="ghc_catalogued_materials",
+        corpus_name="GHC Catalogued Materials",
+        library_path=library_path,
+        roots={
+            "acenet_imports": acenet_root,
+            "already_catalogued": catalogued_root,
+        },
+        reset=reset,
+        auto_embed=auto_embed,
+    )
+
+
 def import_chota_colombian_pacific_maps(
     *,
     library_path: Path = DEFAULT_CHOTA_PACIFIC_LIBRARY,
@@ -264,6 +293,28 @@ def import_chota_colombian_pacific_maps(
         source_root, env_var="FICHERO_CHOTA_PACIFIC_SOURCE", flag="--source-root"
     )
     return _import_roots(
+        provider="chota_colombian_pacific_maps",
+        corpus_name="Chota Valley + Colombian Pacific Maps",
+        library_path=library_path,
+        roots={"maps_southern_colombia": source_root},
+        reset=reset,
+        auto_embed=auto_embed,
+    )
+
+
+def import_chota_colombian_pacific_maps_via_http(
+    client: ImporterHttpClient,
+    *,
+    library_path: Path = DEFAULT_CHOTA_PACIFIC_LIBRARY,
+    source_root: Path | None = None,
+    reset: bool = False,
+    auto_embed: bool = True,
+) -> SourceArchiveImportSummary:
+    source_root = _resolve_required(
+        source_root, env_var="FICHERO_CHOTA_PACIFIC_SOURCE", flag="--source-root"
+    )
+    return _import_roots_via_http(
+        client,
         provider="chota_colombian_pacific_maps",
         corpus_name="Chota Valley + Colombian Pacific Maps",
         library_path=library_path,

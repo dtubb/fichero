@@ -7,8 +7,6 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Protocol
 
-from fichero.cli.client import _read_token
-
 DEFAULT_API_BASE = "http://127.0.0.1:8765/api"
 DEFAULT_TOKEN_FILE = Path(
     "~/Library/Application Support/Fichero/.api-key"
@@ -80,6 +78,8 @@ class HttpManifestClient:
 
 def resolve_http_token(token_file: Path = DEFAULT_TOKEN_FILE) -> str:
     if token_file == DEFAULT_TOKEN_FILE:
+        from fichero.cli.client import _read_token
+
         token = _read_token()
         if token:
             return token
