@@ -7,30 +7,43 @@
 
 ## 1. Current-state map
 
-### 1.1 The model-access choke point — `llm.py` (BUILT, mostly canonical)
+### 1.1 The model-access choke point — `llm.py` (BUILT)
 
-`fichero-engine/src/fichero/llm.py` is the de-facto single entry layer for all
-text/vision LLM traffic. Every workflow tool, CLI path, and route reaches a
-provider through one of its public coroutines:
+`fichero-engine/src/fichero/llm.py` is the shipped entry layer for LLM calls.
+The current public call surface is the set of coroutines in `llm.py`; provider
+construction sits underneath them.
+
+For workflow tools and agent/tool execution, the important built entry points
+are `chat(...)`, `chat_structured(...)`, `chat_with_tools(...)`, and the helper
+`chat_workflow(...)`. `chat_workflow(...)` dispatches to those shared functions
+instead of each workflow building its own model path.
+
+Every provider-backed path still bottoms out in `get_langchain_model(...)` for
+LangChain model construction, but that factory is now an internal model-builder
+under the higher-level chat functions, not the top-level workflow API.
+
+Current public coroutines:
 
 | Capability | Entry symbol (`llm.py`) | Notes |
 |---|---|---|
-| Chat | `chat` | LangChain-routed; Apple branch dispatches to fm-bridge |
+| Chat | `chat` | Main unstructured entry point; Apple branch dispatches to fm-bridge before LangChain |
 | Chat + Apple→cloud fallback | `chat_with_fallback` | **GAP: no paid-fallback gate — see §3** |
-| Structured output | `chat_structured` | provider-routed |
+| Structured output | `chat_structured` | Main structured entry point; Apple branch or LangChain structured output |
 | Structured + fallback chain | `chat_structured_with_fallback` | correctly gated by `_paid_remote_fallbacks_enabled` |
 | Tool/function calling | `chat_with_tools` | |
+| Workflow/tool dispatch | `chat_workflow` | Shared workflow/tool entry point that delegates to `chat`, `chat_structured`, or `chat_with_tools` |
 | Vision | `vision` → `_apple_vision_dispatch` / `get_langchain_model` | Apple-routed by `config.provider == "apple"` |
 | HF vision (direct) | `vision_inference_api` | **bypasses LangChain** — second vision path |
 | Translation | `translate_text` / `_translate_with_deepl` | |
 | Apple Intelligence | `_apple_intelligence_chat`, `_apple_intelligence_structured` | subprocess fm-bridge |
-| Model construction | `get_langchain_model` | the single place a LangChain ChatModel is built |
+| Model construction | `get_langchain_model` | internal LangChain ChatModel factory used by the shared chat helpers |
 
 Provider selection funnels through:
 - `LLMConfig` (the typed config object; `god-node` — `get_blast_radius` before changing).
 - `resolve_model_alias` — resolves `$small`/`$medium`/`$large` against app settings
   (`default_<tier>_provider` / `default_<tier>_model`) or `FICHERO_<TIER>_*` env.
-- `get_langchain_model` (`llm.py:2550`) — the canonical ChatModel factory, with
+- `get_langchain_model` — the canonical ChatModel factory under the shared chat
+  helpers, with
   OpenAI-compatible base-URL handling (`_OPENAI_COMPATIBLE_BASE_URLS`,
   `_KEYLESS_OPENAI_COMPATIBLE = {ollama, lmstudio, omlx}`) and OpenRouter quirks
   (`_make_openrouter_http_client`, `_openrouter_strip_parallel_tool_use`).
@@ -41,9 +54,14 @@ Provider **metadata** lives separately in `fichero-engine/src/fichero/providers.
 the static capability registry; `_is_local_or_builtin_provider` (llm.py) reads it
 to decide free-vs-paid.
 
-**Verdict:** `llm.py` IS the canonical text/vision choke point. The iterate-don't-replace
-move is to *fold* the gaps below onto it, not to introduce a new "model gateway"
-module.
+`litellm` is present in this module, but on current `main` it is not the model
+routing layer. The routing and model construction path is LangChain plus the
+Apple fm-bridge branch; `litellm` is used for cost/model metadata helpers, not
+as the canonical workflow/provider dispatch path.
+
+**Verdict:** `llm.py` is the canonical text/vision choke point, and the shipped
+workflow/tool convention is "call `chat(...)` / `chat_structured(...)`" rather
+than "call `get_langchain_model(...)` directly".
 
 ### 1.2 Embeddings — a SEPARATE, duplicated path (BUILT, two layers)
 
