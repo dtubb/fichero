@@ -111,6 +111,11 @@ def _configure(
         envvar="FICHERO_API_KEY",
         help="Bearer auth token (default: read from the engine's key file).",
     ),
+    as_user: Optional[str] = typer.Option(
+        None,
+        "--as-user",
+        help="Use the stored CLI session for this username.",
+    ),
     json_output: bool = typer.Option(
         False, "--json", help="Emit raw JSON instead of human-readable text."
     ),
@@ -120,16 +125,22 @@ def _configure(
         "library": library,
         "base_url": base_url,
         "token": token,
+        "as_user": as_user.strip() if isinstance(as_user, str) and as_user.strip() else None,
         "json": json_output,
     }
 
 
 def _client(ctx: typer.Context) -> FicheroClient:
     opts = ctx.obj
+    kwargs = {
+        "base_url": opts["base_url"],
+        "library_path": opts["library"],
+        "token": opts["token"],
+    }
+    if opts.get("as_user"):
+        kwargs["as_user"] = opts["as_user"]
     return FicheroClient(
-        base_url=opts["base_url"],
-        library_path=opts["library"],
-        token=opts["token"],
+        **kwargs,
     )
 
 
@@ -165,19 +176,23 @@ def _render_stream_line(line: str, *, as_json: bool) -> str:
     return render(decoded, as_json=as_json)
 
 
-def _read_cli_session() -> dict[str, Any]:
-    try:
-        payload = json.loads(client_module._CLI_SESSION_PATH.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    return payload if isinstance(payload, dict) else {}
+def _read_cli_session(as_user: str | None = None) -> dict[str, Any]:
+    return client_module._read_cli_session_payload(as_user=as_user)
 
 
 def _report_fichero_error(ctx: typer.Context, exc: FicheroError) -> None:
     if exc.status_code == 401:
-        typer.secho("Authentication required. Run `fichero auth login`.", fg=typer.colors.RED, err=True)
+        as_user = ctx.obj.get("as_user")
+        if as_user and not _read_cli_session(as_user=as_user):
+            typer.secho(
+                f"No stored session for {as_user}. Run `fichero auth login {as_user}`.",
+                fg=typer.colors.RED,
+                err=True,
+            )
+        else:
+            typer.secho("Authentication required. Run `fichero auth login`.", fg=typer.colors.RED, err=True)
     elif exc.status_code == 403:
-        session = _read_cli_session()
+        session = _read_cli_session(as_user=ctx.obj.get("as_user"))
         user = session.get("username")
         if not isinstance(user, str) or not user.strip():
             user_payload = session.get("user")
@@ -208,19 +223,66 @@ def _auth_error(ctx: typer.Context, exc: FicheroError) -> None:
 
 
 def _write_cli_session(token: str, user: Any = None) -> None:
+    existing = {}
+    try:
+        existing = json.loads(client_module._CLI_SESSION_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        pass
+    username = ""
+    if isinstance(user, dict):
+        maybe_username = user.get("username")
+        if isinstance(maybe_username, str):
+            username = maybe_username.strip()
+    session_payload = {"session_token": token, "user": user}
+    if username:
+        sessions = existing.get("sessions") if isinstance(existing, dict) else None
+        if not isinstance(sessions, dict):
+            sessions = {}
+        sessions[username] = session_payload
+        payload = {"current_user": username, "sessions": sessions}
+    else:
+        payload = session_payload
     client_module._CLI_SESSION_PATH.parent.mkdir(parents=True, exist_ok=True)
     client_module._CLI_SESSION_PATH.write_text(
-        json.dumps({"session_token": token, "user": user}, indent=2) + "\n",
+        json.dumps(payload, indent=2) + "\n",
         encoding="utf-8",
     )
     os.chmod(client_module._CLI_SESSION_PATH, 0o600)
 
 
-def _delete_cli_session() -> None:
+def _delete_cli_session(as_user: str | None = None) -> None:
     try:
-        client_module._CLI_SESSION_PATH.unlink()
-    except FileNotFoundError:
+        payload = json.loads(client_module._CLI_SESSION_PATH.read_text(encoding="utf-8"))
+    except (FileNotFoundError, ValueError):
         pass
+        return
+    if not isinstance(payload, dict) or "sessions" not in payload:
+        try:
+            client_module._CLI_SESSION_PATH.unlink()
+        except FileNotFoundError:
+            pass
+        return
+    sessions = payload.get("sessions")
+    if not isinstance(sessions, dict):
+        return
+    selected_user = (as_user or payload.get("current_user") or "").strip()
+    if selected_user:
+        sessions.pop(selected_user, None)
+    if not sessions:
+        try:
+            client_module._CLI_SESSION_PATH.unlink()
+        except FileNotFoundError:
+            pass
+        return
+    current_user = payload.get("current_user")
+    if current_user == selected_user:
+        payload["current_user"] = next(iter(sessions))
+    payload["sessions"] = sessions
+    client_module._CLI_SESSION_PATH.write_text(
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    os.chmod(client_module._CLI_SESSION_PATH, 0o600)
 
 
 def _resolve_required_doc_id(
@@ -407,7 +469,7 @@ def auth_logout_command(ctx: typer.Context) -> None:
             payload = client.request("POST", "/api/auth/logout")
     except FicheroError as exc:
         _auth_error(ctx, exc)
-    _delete_cli_session()
+    _delete_cli_session(as_user=ctx.obj.get("as_user"))
     typer.echo(render(payload, as_json=ctx.obj["json"]))
 
 

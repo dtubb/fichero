@@ -98,19 +98,38 @@ class FicheroError(RuntimeError):
         self.status_code = status_code
 
 
-def _read_token() -> str | None:
-    """Read the per-launch auth token, or None if the engine hasn't written it."""
+def _read_cli_session_payload(as_user: str | None = None) -> dict[str, Any]:
+    """Read the selected CLI session payload from disk, if present."""
+    try:
+        if (_CLI_SESSION_PATH.stat().st_mode & 0o777) != 0o600:
+            return {}
+        payload = json.loads(_CLI_SESSION_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError, AttributeError):
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    if "session_token" in payload:
+        return payload
+    sessions = payload.get("sessions")
+    if not isinstance(sessions, dict) or not sessions:
+        return {}
+    selected_user = (as_user or payload.get("current_user") or "").strip()
+    if selected_user:
+        selected = sessions.get(selected_user)
+        return selected if isinstance(selected, dict) else {}
+    first_session = next(iter(sessions.values()), {})
+    return first_session if isinstance(first_session, dict) else {}
+
+
+def _read_token(as_user: str | None = None) -> str | None:
+    """Read the selected auth token, or None if no usable credential exists."""
     env = os.environ.get("FICHERO_SESSION_TOKEN")
     if env:
         return env.strip()
-    try:
-        if (_CLI_SESSION_PATH.stat().st_mode & 0o777) == 0o600:
-            payload = json.loads(_CLI_SESSION_PATH.read_text(encoding="utf-8"))
-            token = payload.get("session_token")
-            if isinstance(token, str) and token.strip():
-                return token.strip()
-    except (OSError, ValueError, AttributeError):
-        pass
+    payload = _read_cli_session_payload(as_user=as_user)
+    token = payload.get("session_token")
+    if isinstance(token, str) and token.strip():
+        return token.strip()
     env = os.environ.get("FICHERO_API_KEY")
     if env:
         return env.strip()
@@ -162,6 +181,7 @@ class FicheroClient:
         base_url: str | None = None,
         library_path: str | None = None,
         token: str | None = None,
+        as_user: str | None = None,
         timeout: float = 60.0,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
@@ -171,7 +191,8 @@ class FicheroClient:
         # token="" is honoured (explicit "no token"); token=None means discover
         # from disk on demand so the client can survive startup ordering races.
         self._discover_token = token is None
-        self.token = token if token is not None else _read_token()
+        self._as_user = as_user.strip() if isinstance(as_user, str) and as_user.strip() else None
+        self.token = token if token is not None else _read_token(as_user=self._as_user)
         # library_path="" is honoured (explicit "no library"); library_path=None
         # means discover from the environment on demand so a late-bound window
         # can still recover without reconstructing the client.
@@ -204,7 +225,7 @@ class FicheroClient:
         """
         changed = False
         if self._discover_token:
-            refreshed = _read_token()
+            refreshed = _read_token(as_user=self._as_user)
             if refreshed and refreshed != self.token:
                 self.token = refreshed
                 changed = True

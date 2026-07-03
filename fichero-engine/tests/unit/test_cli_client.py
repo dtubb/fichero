@@ -566,6 +566,28 @@ def test_token_read_from_cli_session_file(monkeypatch, tmp_path):
     assert client_module._read_token() == "file-token"
 
 
+def test_token_read_from_selected_cli_user_session(monkeypatch, tmp_path):
+    monkeypatch.delenv("FICHERO_SESSION_TOKEN", raising=False)
+    monkeypatch.delenv("FICHERO_API_KEY", raising=False)
+    session_path = tmp_path / "cli-session.json"
+    session_path.write_text(
+        json.dumps(
+            {
+                "current_user": "alice",
+                "sessions": {
+                    "alice": {"session_token": "alice-token", "user": {"username": "alice"}},
+                    "bob": {"session_token": "bob-token", "user": {"username": "bob"}},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    session_path.chmod(0o600)
+    monkeypatch.setattr(client_module, "_CLI_SESSION_PATH", session_path)
+    monkeypatch.setattr(client_module, "_TOKEN_PATH", tmp_path / ".api-key")
+    assert client_module._read_token(as_user="bob") == "bob-token"
+
+
 def test_token_ignores_bad_cli_session_file_and_falls_back_to_bootstrap(
     monkeypatch, tmp_path
 ):
