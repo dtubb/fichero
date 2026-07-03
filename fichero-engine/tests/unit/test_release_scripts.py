@@ -26,9 +26,10 @@ BUILD_RELEASE = SCRIPTS_DIR / "build-release.sh"
 BUILD_AND_VALIDATE = SCRIPTS_DIR / "build-and-validate.sh"
 NOTARIZE = SCRIPTS_DIR / "notarize.sh"
 CREATE_RELEASE = SCRIPTS_DIR / "create-github-release.sh"
+NIGHTLY_RELEASE = SCRIPTS_DIR / "nightly-release.sh"
 START_BACKEND = REPO_ROOT / "fichero-engine" / "scripts" / "start_backend.sh"
 
-ALL_SCRIPTS = [BUILD_RELEASE, BUILD_AND_VALIDATE, NOTARIZE, CREATE_RELEASE]
+ALL_SCRIPTS = [BUILD_RELEASE, BUILD_AND_VALIDATE, NOTARIZE, CREATE_RELEASE, NIGHTLY_RELEASE]
 
 
 # ---------------------------------------------------------------------------
@@ -92,6 +93,17 @@ def test_create_github_release_steps() -> None:
         assert marker in text, f"create-github-release.sh missing step {marker!r}"
 
 
+def test_nightly_release_tracks_daily_prerelease_flow() -> None:
+    text = _script_text(NIGHTLY_RELEASE)
+    assert 'TAG="daily-$TODAY"' in text
+    assert 'TITLE="Nightly $TAG"' in text
+    assert "gh release view" in text
+    assert "gh release edit" in text
+    assert "gh release create" in text
+    assert "--prerelease" in text
+    assert "--clobber" in text
+
+
 # ---------------------------------------------------------------------------
 # Key features present
 # ---------------------------------------------------------------------------
@@ -122,6 +134,22 @@ def test_create_release_has_dry_run_flag() -> None:
     text = _script_text(CREATE_RELEASE)
     assert "--dry-run" in text
     assert "run_or_dry" in text
+
+
+def test_nightly_release_builds_changelog_from_merged_prs() -> None:
+    text = _script_text(NIGHTLY_RELEASE)
+    assert "gh pr list --state merged" in text
+    assert 'merged:>=$TODAY' in text
+    assert "## Merged today" in text
+    assert "_No PRs merged on $TODAY._" in text
+
+
+def test_nightly_release_has_dry_run_and_skip_build_flags() -> None:
+    text = _script_text(NIGHTLY_RELEASE)
+    assert "--dry-run" in text
+    assert "--skip-build" in text
+    assert "run()" in text
+    assert 'run "$DEV" build-all' in text
 
 
 def test_build_release_guards_openapi_skip() -> None:
