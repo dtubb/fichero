@@ -101,20 +101,104 @@ The current shipped pattern is:
   `document_ids` / `entity_ids` / other changed ids)
 - `ActionRegistry.invoke` performs `validate -> execute -> audit -> emit`
 
-Grounded example in merged code:
+Grounded code paths on `main`:
 
-- `fichero-engine/src/fichero/api/routes/agent_memory.py`
-  `create_agent_note(...)` calls `_invoke_agent_memory_action(...)`, which calls
-  `registry.invoke(...)`
-- the registered `agent_memory.create` action returns a `ChangeSpec` with
-  `target_ids=[note.id]`, `after=...`, `emit_type="agent_memory.created"`, and
-  scoped `document_ids`
+- `fichero-engine/src/fichero/api/routes/claims.py`
+  `create_claim(...)`, `patch_claim(...)`, and `delete_claim(...)` all resolve
+  an `ActionContext` and then call `registry.invoke(...)`
+- the corresponding `claim.create`, `claim.patch`, and `claim.delete` actions in
+  the same file return `ChangeSpec` payloads that carry audit snapshots and the
+  claim/entity ids needed for observer updates
+- `fichero-engine/src/fichero/api/routes/documents.py`
+  `create_document(...)`, `delete_document(...)`, and `move_document(...)` route
+  through `registry.invoke(...)`; their actions return `ChangeSpec` with
+  document ids and undo payloads
+- `fichero-engine/src/fichero/api/routes/notes.py`
+  `create_note(...)` now routes through `registry.invoke(...)`, and
+  `note.create` returns a `ChangeSpec` scoped to the note's linked documents
+- `fichero-engine/src/fichero/api/routes/entities.py`
+  create flows now use `registry.invoke(...)` via `entity.create`; the action
+  returns `ChangeSpec` with the created entity id
 - `fichero-engine/src/fichero/actions/registry.py`
   `ActionRegistry.invoke(...)` writes the `ActionAudit` row and then calls
   `_emit(...)`, which dispatches `emit_change(...)`
 
 In other words: the durable audit row and the observer update are a pair. A
 mutation is not complete unless both happen on the same path.
+
+### What To Copy
+
+When adding a new mutation, copy a shipped audited route, not an older
+direct-write route:
+
+- for a document-style mutation, use the `document.create` /
+  `document.move` route+action pair in
+  `fichero-engine/src/fichero/api/routes/documents.py`
+- for a claim mutation, use the `claim.create` / `claim.patch` /
+  `claim.delete` route+action pairs in
+  `fichero-engine/src/fichero/api/routes/claims.py`
+- for a folded note or entity create, use `note.create` in
+  `fichero-engine/src/fichero/api/routes/notes.py` and `entity.create` in
+  `fichero-engine/src/fichero/api/routes/entities.py`
+
+The #2789 sweep is largely complete, but not every legacy mutation route in
+those modules has been converted yet. Treat the `registry.invoke(...)` paths as
+the standard you extend.
+
+### Hard-Won Gotchas
+
+#### 1. Some route tests call handlers directly
+
+Not every route is only exercised through HTTP. Some canonical-knowledge tests
+call the async route functions directly, which means FastAPI never resolves
+`Depends(...)` for them.
+
+Grounded examples:
+
+- `fichero-engine/tests/unit/test_canonical_knowledge_routes.py` calls
+  `await upsert_entity(request, db)` directly
+- the same file calls `await create_claim(request, db)` and
+  `await patch_claim(claim.id, patch_request, db)` directly
+
+That is why `fichero-engine/src/fichero/api/routes/claims.py` and
+`fichero-engine/src/fichero/api/routes/entities.py` now use
+`_resolve_action_ctx(...)` and tolerate unresolved `Depends(...)` sentinels for
+`ctx`, `actor`, and library-path inputs. If you make a route audited, keep it
+callable both via HTTP and via direct unit-test invocation. Do not assume the
+raw `Depends(...)` placeholder is a usable `ActionContext`.
+
+#### 2. New audited handlers can trip the duplicate-path guard
+
+Adding a second write path for the same concern can fail the duplicate gate even
+if both functions "work".
+
+Grounded guardrails:
+
+- `scripts/check_duplicate_paths.py` scans for duplicate HTTP handlers and
+  duplicate KG write concerns such as `kg_write:KnowledgeEntity`
+- `fichero-engine/tests/unit/test_check_duplicate_paths.py` fails if an
+  unallowlisted duplicate remains
+
+Before landing a second writer or route, either:
+
+- collapse to one canonical path, or
+- add an allowlist entry with an explicit reason when the duplication is truly
+  intentional
+
+Do not leave two parallel write paths for the same mutation concern by accident.
+
+### Still Open
+
+These follow-ups are still live on `main` and should be documented as open work,
+not treated as solved:
+
+- **Mind-palace room writes**: `fichero-engine/tests/unit/test_routes_mind_palace.py`
+  still carries strict `xfail` coverage showing create/update/delete bypass
+  `registry.invoke(...)` and `emit_change(...)` (`#2820`, in progress)
+- **Request-model tightening**: `fichero-engine/tests/unit/test_fold_endpoints_validation.py`
+  still carries strict `xfail` coverage for request models that accept extra
+  fields or other lax input; many of the current request models have not yet
+  been tightened to `extra="forbid"` (`#2822`)
 
 ## LLM Calls — Structured Output Standard
 
