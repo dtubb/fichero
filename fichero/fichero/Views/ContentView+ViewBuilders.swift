@@ -577,6 +577,36 @@ extension ContentView {
         }
     }
 
+    /// Compact (iPhone) list→detail stack for the inner-sidebar modes
+    /// (Research / Workflow / Activity, #3010). Mirrors `compactLibraryReaderStack`:
+    /// the mode's list is the `NavigationStack` root and selecting an item pushes
+    /// its detail; `Back` (or a nil `selection`) pops to the list. Compact-only —
+    /// regular width keeps its existing two-column rail (the caller's `else`).
+    /// `selection` binds the mode's own selection store, so setting it to nil pops.
+    @ViewBuilder
+    func compactInnerModeStack<Item: Hashable, ListContent: View, DetailContent: View>(
+        title: String,
+        selection: Binding<Item?>,
+        @ViewBuilder list: () -> ListContent,
+        @ViewBuilder detail: @escaping (Item) -> DetailContent
+    ) -> some View {
+        NavigationStack {
+            list()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .navigationTitle(title)
+                #if !os(macOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+                .navigationDestination(item: selection) { item in
+                    detail(item)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        #if !os(macOS)
+                        .navigationBarTitleDisplayMode(.inline)
+                        #endif
+                }
+        }
+    }
+
     /// The document-canvas pane of the widescreen reading layout — a PDF page
     /// viewer when a PDF is active, otherwise the image/preview editor. Carries
     /// its own flexible width so it fills whatever the list/reading panes leave.

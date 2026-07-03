@@ -72,6 +72,24 @@ final class CompactShellPolicyTests: XCTestCase {
         #endif
     }
 
+    /// #3010 contract: the inner-sidebar modes (Research/Workflow/Activity) must
+    /// route to `.modeContent` on compact — that route is what drives their
+    /// list→detail NavigationStack push. A regression that sent one to
+    /// `.libraryReader` (the document reader) would break the inner-mode push.
+    func testInnerSidebarModesUseModeContentRouteOnCompact() {
+        #if !os(macOS)
+        for mode in [AppViewMode.workflow(nil), .activity(nil)] {
+            XCTAssertEqual(route(mode, false), .modeContent, "\(mode)")
+        }
+        // Research is `sidebarMode == .research`, surfaced through the library
+        // AppViewMode; its non-entity library route is the reader, but the
+        // research workspace is reached via its own sidebarMode branch — the key
+        // guarantee here is that workflow/activity never fall to .libraryReader.
+        XCTAssertNotEqual(route(.workflow(nil), false), .libraryReader)
+        XCTAssertNotEqual(route(.activity(nil), false), .libraryReader)
+        #endif
+    }
+
     #if !os(macOS)
     private func route(_ mode: AppViewMode, _ isEntity: Bool) -> CompactShellRoute {
         CompactShellPolicy.route(

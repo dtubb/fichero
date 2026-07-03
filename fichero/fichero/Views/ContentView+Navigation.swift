@@ -35,26 +35,24 @@ extension ContentView {
         // visible like every other mode (sidebar-persistence fix).
         if sidebarMode == .research {
             if Self.shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) {
-                VStack(spacing: 0) {
+                // Compact: project list is the root; selecting a project pushes
+                // its workspace, Back returns to the list (#3010).
+                compactInnerModeStack(
+                    title: "Research",
+                    selection: Binding(
+                        get: {
+                            researchService.projects.first {
+                                $0.id == researchService.selectedProjectId
+                            }
+                        },
+                        set: { researchService.selectedProjectId = $0?.id }
+                    )
+                ) {
                     ResearchProjectListView()
                         .environmentObject(researchService)
-                        .frame(maxWidth: .infinity, maxHeight: 260)
-
-                    Divider()
-
-                    if let project = researchService.projects.first(where: { $0.id == researchService.selectedProjectId })
-                        ?? researchService.projects.first {
-                        ResearchWorkspaceView(project: project)
-                            .environmentObject(researchService)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else {
-                        ContentUnavailableView(
-                            "No Research Project",
-                            systemImage: "flask",
-                            description: Text("Create a project in the list to start researching.")
-                        )
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    }
+                } detail: { project in
+                    ResearchWorkspaceView(project: project)
+                        .environmentObject(researchService)
                 }
             } else {
                 HStack(spacing: 0) {
@@ -147,31 +145,26 @@ extension ContentView {
 
         case .workflow(let workflow):
             if Self.shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) {
-                VStack(spacing: 0) {
+                // Compact: workflow list is the root; selecting a workflow pushes
+                // its editor, Back returns to the list (#3010).
+                compactInnerModeStack(
+                    title: "Workflows",
+                    selection: Binding(
+                        get: { workflow },
+                        set: { viewMode = .workflow($0) }
+                    )
+                ) {
                     WorkflowListView(
                         displayMode: .list,
                         onOpenWorkflow: { item in viewMode = .workflow(item) }
                     )
-                    .frame(maxWidth: .infinity, maxHeight: 260)
-
-                    Divider()
-
-                    if let selectedWorkflow = workflow {
-                        WorkflowEditor(
-                            workflow: selectedWorkflow,
-                            editingWorkflow: $editingWorkflow,
-                            displayMode: .icon,
-                            selectedDocumentIds: Array(browserSelection)
-                        )
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else {
-                        ContentUnavailableView(
-                            "Select a Workflow",
-                            systemImage: "flowchart",
-                            description: Text("Choose a workflow from the list to edit")
-                        )
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    }
+                } detail: { selectedWorkflow in
+                    WorkflowEditor(
+                        workflow: selectedWorkflow,
+                        editingWorkflow: $editingWorkflow,
+                        displayMode: .icon,
+                        selectedDocumentIds: Array(browserSelection)
+                    )
                 }
             } else {
                 HStack(spacing: 0) {
@@ -250,26 +243,21 @@ extension ContentView {
 
         case .activity(let selectedRun):
             if Self.shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) {
-                VStack(spacing: 0) {
+                // Compact: run list is the root; selecting a run pushes its detail,
+                // Back returns to the list (#3010).
+                compactInnerModeStack(
+                    title: "Activity",
+                    selection: Binding(
+                        get: { selectedRun },
+                        set: { viewMode = .activity($0) }
+                    )
+                ) {
                     ActivityBrowserView(
                         selectedRunId: selectedRun?.id,
                         onSelectRun: { run in viewMode = .activity(run) }
                     )
-                    .frame(maxWidth: .infinity, maxHeight: 260)
-
-                    Divider()
-
-                    if let run = selectedRun {
-                        ActivityDetailView(selectedRun: run)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else {
-                        ContentUnavailableView(
-                            "Select a Run",
-                            systemImage: "clock",
-                            description: Text("Choose a workflow run from the list")
-                        )
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    }
+                } detail: { run in
+                    ActivityDetailView(selectedRun: run)
                 }
             } else {
                 HStack(spacing: 0) {

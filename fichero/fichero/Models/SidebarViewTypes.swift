@@ -56,7 +56,7 @@ enum ActivityChildType: String, Equatable, CaseIterable {
 
 /// Selected activity run for the detail view
 /// Lightweight reference - full details loaded on demand
-struct SelectedActivityRun: Equatable, Identifiable {
+struct SelectedActivityRun: Equatable, Identifiable, Hashable {
     let id: String
     let name: String
     let workflowId: String?
