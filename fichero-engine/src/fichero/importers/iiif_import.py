@@ -57,6 +57,18 @@ _ENTITY_TYPE_MAP = {
 }
 
 
+class CliIIIFClient:
+    """ManifestApiClient adapter over the shared CLI transport."""
+
+    def __init__(self, client: Any) -> None:
+        self._client = client
+
+    def request(
+        self, method: str, path: str, body: dict[str, Any] | None = None
+    ) -> Any:
+        return self._client.request(method, f"/api{path}", json=body)
+
+
 @dataclass
 class IIIFImportSummary:
     """Outcome of an IIIF import run."""
@@ -162,16 +174,22 @@ def import_iiif_via_http(
     create_library: bool = True,
     copy_images: bool = False,
     ingest_mode: str | None = None,
+    client: Any | None = None,
 ) -> IIIFImportSummary:
     """Convenience entry point for ``python -m fichero import-iiif``."""
 
-    token = resolve_http_token(token_file)
     library_str = str(library_path.expanduser())
-    client = HttpManifestClient(api_base, token, library_str)
-    if create_library:
-        client.request("POST", "/library", {"path": library_str})
+    if client is None:
+        token = resolve_http_token(token_file)
+        transport: ManifestApiClient = HttpManifestClient(api_base, token, library_str)
+        if create_library:
+            transport.request("POST", "/library", {"path": library_str})
+    else:
+        transport = CliIIIFClient(client)
+        if create_library:
+            client.request("POST", "/api/library", json={"path": library_str})
     return import_iiif(
-        client,
+        transport,
         iiif_path.expanduser(),
         library_str,
         copy_images=copy_images,

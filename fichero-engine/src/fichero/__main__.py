@@ -995,6 +995,7 @@ def import_manifest_command(
 
 @app.command(name="import-iiif")
 def import_iiif_command(
+    ctx: typer.Context,
     iiif: Path = typer.Option(
         ...,
         "--iiif",
@@ -1036,18 +1037,26 @@ def import_iiif_command(
         DEFAULT_API_BASE,
         DEFAULT_TOKEN_FILE,
         import_iiif_via_http,
+        resolve_http_token,
     )
 
     try:
-        summary = import_iiif_via_http(
-            iiif_path=iiif,
-            library_path=library,
-            api_base=api or DEFAULT_API_BASE,
-            token_file=token_file or DEFAULT_TOKEN_FILE,
-            create_library=not no_create_library,
-            copy_images=copy_images,
-            ingest_mode=ingest,
-        )
+        token = resolve_http_token(token_file or DEFAULT_TOKEN_FILE) if token_file else ctx.obj["token"]
+        with FicheroClient(
+            base_url=api or ctx.obj["base_url"] or DEFAULT_API_BASE.removesuffix("/api"),
+            library_path=str(library),
+            token=token,
+        ) as client:
+            summary = import_iiif_via_http(
+                iiif_path=iiif,
+                library_path=library,
+                api_base=api or DEFAULT_API_BASE,
+                token_file=token_file or DEFAULT_TOKEN_FILE,
+                create_library=not no_create_library,
+                copy_images=copy_images,
+                ingest_mode=ingest,
+                client=client,
+            )
     except Exception as exc:
         typer.secho(f"IIIF import failed: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
