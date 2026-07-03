@@ -20,6 +20,7 @@ return ``Any`` for now — they'll get typed in follow-up commits.
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import Any
@@ -80,6 +81,7 @@ TRANSLATE_WORKFLOW_NAME = "Translate"
 # Matches fichero/api/auth.py::_token_file_path — the engine owns the writer,
 # this is the reader.
 _TOKEN_PATH = Path.home() / "Library" / "Application Support" / "Fichero" / ".api-key"
+_CLI_SESSION_PATH = _TOKEN_PATH.with_name("cli-session.json")
 
 
 class FicheroError(RuntimeError):
@@ -98,6 +100,17 @@ class FicheroError(RuntimeError):
 
 def _read_token() -> str | None:
     """Read the per-launch auth token, or None if the engine hasn't written it."""
+    env = os.environ.get("FICHERO_SESSION_TOKEN")
+    if env:
+        return env.strip()
+    try:
+        if (_CLI_SESSION_PATH.stat().st_mode & 0o777) == 0o600:
+            payload = json.loads(_CLI_SESSION_PATH.read_text(encoding="utf-8"))
+            token = payload.get("session_token")
+            if isinstance(token, str) and token.strip():
+                return token.strip()
+    except (OSError, ValueError, AttributeError):
+        pass
     env = os.environ.get("FICHERO_API_KEY")
     if env:
         return env.strip()
