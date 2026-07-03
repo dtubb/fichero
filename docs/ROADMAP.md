@@ -86,7 +86,7 @@ The native structure + polish.
 ### Phase 3 — WORKFLOW & AI INFERENCE (efficiency)
 Make inference fast, batched, scalable, private.
 - **EPIC #2056 AI Infrastructure:** #2057 (LangChain `.abatch` — 1000s-of-images lever), #2055 (client reuse), #2062 (bounded concurrency/memory), #2058 (dynamic profiles), #2063 (local-only), #2066 (local MLX via mlx-lm-server), #2060 (Apple Vision OCR), #2061 (image-edit backend OpenCV vs Quartz; see `docs/architecture/image_editing_backend_strategy.md`), #2059 (Apple skills vs AI skills), #2065 (code review).
-- Milestone: Workflows.
+- Milestone: **Workflows & Catalogue Hardening**
 
 ### Phase 4 — RESEARCHER / AI / AGENT (north-star, on phases 1–3)
 - **EPIC #2067 in-app Agent** — Workspace ≡ RAG/Graph chat ≡ Agent; an **agent is a principal**: #2068 (Researcher→Agent), #2069 (manager-with-workers runtime), #2070 (tasks/milestones UI), #2071 (Pi harness on mlx-lm-server), #2072 (agent workspace + scratchpad), #2073 (visibility), #2074 (run-scoped undo). Agent acts across all surfaces (search / 2D library / edit-workflows / review-runs) via audited tools (#1848); **reuses accounts #2022 + attribution #2023 + ACL #2024 + undo #2015 — don't build a parallel agent system.**

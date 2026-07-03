@@ -272,25 +272,34 @@ def issue_from_payload(payload: dict[str, Any]) -> Issue:
     )
 
 
+_ALL_OPEN_ISSUES: list[Issue] | None = None
+
+
+def _all_open_issues(limit: int = 1000) -> list[Issue]:
+    """One gh call for every open issue, cached. The spine walk used to make a
+    separate `gh issue list --milestone` call per milestone AND a `gh issue view`
+    per referenced number (~40s of sequential API drag). One bulk fetch + Python
+    filtering is a few seconds."""
+    global _ALL_OPEN_ISSUES
+    if _ALL_OPEN_ISSUES is None:
+        payload = _run_gh(
+            [
+                "issue", "list", "--state", "open", "--limit", str(limit),
+                "--json", "number,title,labels,assignees,milestone,state,body,url",
+            ]
+        )
+        _ALL_OPEN_ISSUES = [issue_from_payload(item) for item in payload]
+    return _ALL_OPEN_ISSUES
+
+
 def fetch_milestone_issues(milestone: str, limit: int) -> list[Issue]:
-    payload = _run_gh(
-        [
-            "issue",
-            "list",
-            "--milestone",
-            milestone,
-            "--state",
-            "open",
-            "--limit",
-            str(limit),
-            "--json",
-            "number,title,labels,assignees,milestone,state,body,url",
-        ]
-    )
-    return [issue_from_payload(item) for item in payload]
+    return [i for i in _all_open_issues() if i.milestone == milestone][:limit]
 
 
 def fetch_issue(number: int) -> Issue | None:
+    for issue in _all_open_issues():
+        if issue.number == number:
+            return issue
     try:
         payload = _run_gh(
             [
