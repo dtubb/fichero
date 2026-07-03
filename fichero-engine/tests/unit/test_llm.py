@@ -829,6 +829,42 @@ async def test_chat_default_local_only_off_preserves_remote_provider_behavior(mo
     assert result == "remote response"
 
 
+@pytest.mark.asyncio
+async def test_chat_streaming_returns_chunks_from_langchain_stream():
+    from fichero.llm import chat
+
+    config = LLMConfig(provider="openai", model="gpt-5")
+
+    async def fake_stream():
+        for chunk in ("hello", " ", "world"):
+            yield chunk
+
+    fake_model = MagicMock()
+
+    with patch("fichero.llm.get_langchain_model", return_value=fake_model), patch(
+        "fichero.llm._stream_chat_langchain",
+        return_value=fake_stream(),
+    ) as stream_mock:
+        result = await chat("hi", config=config, stream=True)
+        chunks = [chunk async for chunk in result]
+
+    assert chunks == ["hello", " ", "world"]
+    assert stream_mock.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_chat_propagates_provider_errors_without_fallback():
+    from fichero.llm import chat
+
+    config = LLMConfig(provider="openai", model="gpt-5")
+    fake_model = MagicMock()
+    fake_model.ainvoke = AsyncMock(side_effect=RuntimeError("provider down"))
+
+    with patch("fichero.llm.get_langchain_model", return_value=fake_model):
+        with pytest.raises(RuntimeError, match="provider down"):
+            await chat("hi", config=config)
+
+
 def test_get_langchain_model_reuses_cached_model_for_identical_config(monkeypatch):
     llm._LANGCHAIN_MODEL_CACHE.clear()
     llm._LANGCHAIN_MODEL_CACHE_NO_LOOP.clear()
