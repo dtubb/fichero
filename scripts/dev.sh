@@ -32,11 +32,44 @@ set -euo pipefail
 # differ, so they must not share a derivedData). Override the root with
 # DERIVED_ROOT. Headless macOS builds pass CODE_SIGNING_ALLOWED=NO so they
 # succeed without a signing identity or an attached device.
+#
+# Builds are SERIALIZED by a machine-wide lock: concurrent xcodebuilds on the
+# shared desktop thrash the machine (load spikes killed gates on 2026-07-03),
+# which is itself the main cause of "builds fail inconsistently". A second
+# invocation waits for the first to finish. Set NO_BUILD_LOCK=1 to opt out.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT="$ROOT_DIR/fichero/fichero.xcodeproj"
 SCHEME="Fichero"
 DERIVED_ROOT="${DERIVED_ROOT:-${TMPDIR:-/tmp}/fichero-dev-derived}"
+BUILD_LOCK="${TMPDIR:-/tmp}/fichero-dev-build.lock"
+
+# acquire_build_lock: serialize builds machine-wide (mkdir is atomic on POSIX,
+# and works on macOS where util-linux `flock` isn't available). Waits for a
+# live holder; steals a stale lock whose holder PID is dead (crash cleanup).
+# Releases via an EXIT trap. NO_BUILD_LOCK=1 skips it.
+acquire_build_lock() {
+  [ "${NO_BUILD_LOCK:-0}" = "1" ] && return 0
+  local waited=0
+  while ! mkdir "$BUILD_LOCK" 2>/dev/null; do
+    local holder=""; holder="$(cat "$BUILD_LOCK/pid" 2>/dev/null || true)"
+    if [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; then
+      echo "[dev] stealing stale build lock (holder PID $holder is gone)"
+      rm -rf "$BUILD_LOCK"
+      continue
+    fi
+    if [ "$waited" = 0 ]; then
+      echo "[dev] another build holds the lock (PID ${holder:-?}); waiting…"
+    fi
+    sleep 3; waited=$((waited + 3))
+    if [ "$waited" -ge 3600 ]; then
+      echo "error: timed out after 1h waiting for the build lock ($BUILD_LOCK)" >&2
+      exit 3
+    fi
+  done
+  echo $$ > "$BUILD_LOCK/pid"
+  trap 'rm -rf "$BUILD_LOCK"' EXIT
+}
 
 RUN=false
 MODE="${1:-}"
@@ -50,7 +83,13 @@ for arg in "$@"; do
 done
 
 usage() {
-  sed -n '3,45p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  # Print the leading comment header (the first contiguous # block after the
+  # shebang), stripping the leading "# ". Stops at the first code line.
+  awk '
+    /^#!/ { next }                     # shebang
+    started && !/^#/ { exit }          # first code line after the header
+    /^#/ { started=1; sub(/^# ?/, ""); print }
+  ' "${BASH_SOURCE[0]}"
 }
 
 if [ -z "$MODE" ] || [ "$MODE" = "--help" ]; then
@@ -81,6 +120,7 @@ ios_destination() {
 do_build() {
   local config="$1" destination="$2" subdir="$3"; shift 3
   local derived="$DERIVED_ROOT/$subdir"
+  acquire_build_lock
   echo "  scheme=$SCHEME config=$config destination=$destination"
   echo "  derivedData=$derived"
   xcodebuild \
