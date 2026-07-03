@@ -149,15 +149,21 @@ struct FicheroApp: App {
     /// duplicate path reuses it rather than introducing a parallel one.
     @ViewBuilder
     private func libraryWindowRoot(seed: WindowSeed?) -> some View {
-        LibraryWindow(seed: seed)
-            .environmentObject(backendService)
-            .environmentObject(appState)
-            .environmentObject(viewSettings)
-            .environmentObject(libraryManager)
-            .environmentObject(claimFocusState)
-            .environment(kgFocusState)
-            .environmentObject(appState.mcpService)
-            .frame(minWidth: 640, minHeight: 700)
+        // #2864: the root switches on backend usability. Until the engine is
+        // running AND authenticated, the window shows BackendConnectionView
+        // (full-window, with diagnosis) instead of LibraryWindow — never a
+        // blank window with silent 401s behind the chrome.
+        BackendRootGate(appState: appState, backendService: backendService) {
+            LibraryWindow(seed: seed)
+        }
+        .environmentObject(backendService)
+        .environmentObject(appState)
+        .environmentObject(viewSettings)
+        .environmentObject(libraryManager)
+        .environmentObject(claimFocusState)
+        .environment(kgFocusState)
+        .environmentObject(appState.mcpService)
+        .frame(minWidth: 640, minHeight: 700)
     }
 
     var body: some Scene {

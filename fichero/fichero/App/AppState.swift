@@ -9,6 +9,15 @@ class AppState: ObservableObject {
     // MARK: - Backend State
 
     @Published var isBackendRunning: Bool = false
+    /// True when the engine answers health checks but REJECTS the app's token
+    /// (HTTP 401/403). Health-200-but-auth-broken is exactly the state that
+    /// used to render content and then 401 every call into a blank window
+    /// (#2864). The window root shows a full-window error for this state.
+    @Published var authBroken: Bool = false
+    /// Human-readable cause for the current unreachable/authBroken/failed
+    /// state (port occupied by PID / auth rejected / probe failed), shown in
+    /// the full-window error.
+    @Published var backendDiagnosis: String?
     @Published var backendError: String?
     @Published var documentCount: Int = 0  // Note: Now tracks active libraries count in multi-library architecture
     @Published var indexedCount: Int = 0
@@ -91,23 +100,88 @@ class AppState: ObservableObject {
             let response = try await ficheroClient.api.healthCheckApiHealthGet(headers: .init())
             switch response {
             case .ok:
-                // Success — flip back online immediately so the offline banner
-                // clears the moment the engine comes back. Reset the failure
-                // streak.
-                heartbeatFailureCount = 0
-                if !isBackendRunning {
-                    isBackendRunning = true
-                    backendError = nil
-                    logger.info("Backend heartbeat: recovered — back online")
-                    // Reload providers now that the engine is back so list
-                    // views aren't empty until next manual refresh.
-                    await loadProviders()
+                // Health-200 alone is NOT "online" (#2864): a leftover engine
+                // can answer health yet reject our token. Confirm auth before
+                // declaring recovery, and flip authBroken if it rejects us so
+                // the full-window error shows instead of silent 401s.
+                let status = await probeAuthenticatedRegistry()
+                switch status {
+                case 200:
+                    heartbeatFailureCount = 0
+                    authBroken = false
+                    if !isBackendRunning {
+                        isBackendRunning = true
+                        backendError = nil
+                        backendDiagnosis = nil
+                        logger.info("Backend heartbeat: recovered — back online")
+                        // Reload providers now that the engine is back so list
+                        // views aren't empty until next manual refresh.
+                        await loadProviders()
+                    }
+                case 401, 403:
+                    heartbeatFailureCount = 0
+                    authBroken = true
+                    isBackendRunning = false
+                    backendDiagnosis =
+                        "The engine is running but rejected this app's credentials (HTTP \(status ?? 401))."
+                    backendError = backendDiagnosis
+                    logger.warning("Backend heartbeat: auth rejected — flipping authBroken")
+                default:
+                    noteHeartbeatFailure(reason: "authenticated probe failed")
                 }
             default:
                 noteHeartbeatFailure(reason: "API returned error status")
             }
         } catch {
             noteHeartbeatFailure(reason: error.localizedDescription)
+        }
+    }
+
+    /// After a health-200, confirm the engine accepts our token and load
+    /// providers, or flip authBroken/unreachable with a diagnosis (#2864).
+    private func confirmAuthAndLoad() async {
+        let status = await probeAuthenticatedRegistry()
+        switch status {
+        case 200:
+            isBackendRunning = true
+            authBroken = false
+            backendError = nil
+            backendDiagnosis = nil
+            _ = await AuthTokenMiddleware.waitForToken()
+            await loadProviders()
+        case 401, 403:
+            isBackendRunning = false
+            authBroken = true
+            backendDiagnosis =
+                "The engine is running but rejected this app's credentials (HTTP \(status ?? 401)). "
+                + "The token the app holds doesn't match the engine's."
+            backendError = backendDiagnosis
+            logger.error("Auth rejected on readiness probe — authBroken")
+        default:
+            isBackendRunning = false
+            authBroken = false
+            backendDiagnosis =
+                "The engine answered health checks but the authenticated probe failed"
+                + (status.map { " (HTTP \($0))" } ?? " (no response)") + "."
+            backendError = backendDiagnosis
+        }
+    }
+
+    /// GET /api/registry with the app's token — authenticated but needs no
+    /// library header, so it cleanly exercises auth. Returns the HTTP status
+    /// (200 ok, 401/403 auth rejected) or nil on a transport error. Shares the
+    /// engine's readiness contract with EmbeddedBackendService.probeReadiness.
+    private func probeAuthenticatedRegistry() async -> Int? {
+        let url = EngineConfig.apiBaseURL.appendingPathComponent("registry")
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.addEngineAuth()
+        let session = RemoteCertificatePinning.configuredSession()
+        do {
+            let (_, response) = try await session.data(for: request)
+            return (response as? HTTPURLResponse)?.statusCode
+        } catch {
+            return nil
         }
     }
 
@@ -144,18 +218,15 @@ class AppState: ObservableObject {
             switch response {
             case .ok(let okResponse):
                 let health = try okResponse.body.json
-
                 documentCount = health.activeLibraries ?? 0
-                isBackendRunning = true
-                backendError = nil
                 logger.info("Backend connected: v\(health.backendVersion ?? "unknown"), \(health.activeLibraries ?? 0) active libraries")
-
-                // Now load providers
-                _ = await AuthTokenMiddleware.waitForToken()
-                await loadProviders()
+                // Health 200 is necessary but NOT sufficient (#2864): confirm
+                // the engine accepts our token before declaring it usable.
+                await confirmAuthAndLoad()
 
             default:
                 backendError = "API returned error status"
+                backendDiagnosis = backendError
                 isBackendRunning = false
             }
 

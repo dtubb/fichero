@@ -499,18 +499,6 @@ final class EmbeddedBackendService: ObservableObject {
     }
     #endif
 
-    /// Health-only JSON we care about at readiness time (#2862). Decoded from
-    /// the raw /api/health body so we don't depend on the generated client's
-    /// schema being regenerated for these two fields.
-    private struct HealthProbe: Decodable {
-        let launchNonce: String?
-        let enginePid: Int?
-        enum CodingKeys: String, CodingKey {
-            case launchNonce = "launch_nonce"
-            case enginePid = "engine_pid"
-        }
-    }
-
     /// Poll until the engine is genuinely READY (#2862): not just answering
     /// health-200, but the instance we spawned (nonce echo) AND accepting the
     /// app's token (authenticated /api/registry 200). Throws `.timeout` if it
@@ -843,6 +831,20 @@ final class EmbeddedBackendService: ObservableObject {
         return tail.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
     }
     #endif
+}
+
+// MARK: - Readiness probe payload
+
+/// Health-only JSON we care about at readiness time (#2862). Decoded from the
+/// raw /api/health body so we don't depend on the generated client's schema
+/// being regenerated for these two fields.
+private struct HealthProbe: Decodable {
+    let launchNonce: String?
+    let enginePid: Int?
+    enum CodingKeys: String, CodingKey {
+        case launchNonce = "launch_nonce"
+        case enginePid = "engine_pid"
+    }
 }
 
 // MARK: - Errors

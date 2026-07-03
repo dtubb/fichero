@@ -113,7 +113,7 @@ struct BackendConnectionView: View {
     /// hosts set `.failed` immediately, and the embedded poll loop below flips
     /// to `.failed` after the 60 s timeout.
     private var showsFailureState: Bool {
-        backendService.status == .failed
+        backendService.status == .failed || appState.authBroken
     }
 
     private var titleText: String {
@@ -121,7 +121,18 @@ struct BackendConnectionView: View {
     }
 
     private var failureTitle: String {
-        usesExternalBackendConnection ? "Backend Not Reachable" : "Engine Not Running"
+        if appState.authBroken {
+            // Health-200-but-auth-broken: the specific state that used to blank
+            // the window with silent 401s (#2864).
+            return "Can't Authenticate to Engine"
+        }
+        return usesExternalBackendConnection ? "Backend Not Reachable" : "Engine Not Running"
+    }
+
+    /// Prefer the specific diagnosis (port occupied by PID / auth rejected /
+    /// probe failed) over the generic error string (#2864).
+    private var failureDetail: String? {
+        appState.backendDiagnosis ?? appState.backendError
     }
 
     private var secondaryStatusText: String {
@@ -201,7 +212,7 @@ struct BackendConnectionView: View {
                         .font(.headline)
                         .foregroundColor(.red)
 
-                    if let error = appState.backendError {
+                    if let error = failureDetail {
                         Text(error)
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -217,44 +228,64 @@ struct BackendConnectionView: View {
             // process and re-launches it, resetting the poll counter so
             // the 60-second window starts fresh.
             if isFailed {
-                Button {
-                    Task {
-                        pollCount = 0
-                        messageIndex = 0
-                        restartCount += 1
-                        completedConnectionForCurrentAttempt = false
+                HStack(spacing: 12) {
+                    Button {
+                        Task {
+                            pollCount = 0
+                            messageIndex = 0
+                            restartCount += 1
+                            completedConnectionForCurrentAttempt = false
+                            // Clear the auth-broken flag so a fresh spawn (which
+                            // rewrites the token) gets a clean readiness check.
+                            appState.authBroken = false
 
-                        if usesExternalBackendConnection {
-                            backendService.status = .starting
-                            backendService.errorMessage = nil
-                            await appState.checkBackendHealth()
-                            if !appState.isBackendRunning {
-                                backendService.status = .failed
-                                backendService.errorMessage = appState.backendError
-                            } else {
-                                await completeSuccessfulConnection()
-                            }
-                        } else {
-                            // Reset view state before restarting so the re-keyed
-                            // tasks resume from a clean boot state.
-                            backendService.status = .stopped
-                            backendService.stop()
-                            do {
-                                try await backendService.start()
+                            if usesExternalBackendConnection {
+                                backendService.status = .starting
+                                backendService.errorMessage = nil
                                 await appState.checkBackendHealth()
-                                if appState.isBackendRunning {
+                                if !appState.isBackendRunning {
+                                    backendService.status = .failed
+                                    backendService.errorMessage = appState.backendError
+                                } else {
                                     await completeSuccessfulConnection()
                                 }
-                            } catch {
-                                appState.backendError = error.localizedDescription
+                            } else {
+                                // Reset view state before restarting so the re-keyed
+                                // tasks resume from a clean boot state.
+                                backendService.status = .stopped
+                                backendService.stop()
+                                do {
+                                    try await backendService.start()
+                                    await appState.checkBackendHealth()
+                                    if appState.isBackendRunning {
+                                        await completeSuccessfulConnection()
+                                    }
+                                } catch {
+                                    appState.backendError = error.localizedDescription
+                                }
                             }
                         }
+                    } label: {
+                        Label(usesExternalBackendConnection ? "Retry Connection" : "Restart Engine", systemImage: "arrow.clockwise")
                     }
-                } label: {
-                    Label(usesExternalBackendConnection ? "Retry Connection" : "Restart Engine", systemImage: "arrow.clockwise")
+                    .buttonStyle(.borderedProminent)
+                    .disabled(backendService.status == .starting)
+
+                    #if canImport(AppKit)
+                    // Show the engine log so a failure has a next step beyond
+                    // "try again" — the tail already appears inline, this opens
+                    // the full log (#2864).
+                    Button {
+                        let logURL = FileManager.default
+                            .urls(for: .libraryDirectory, in: .userDomainMask)[0]
+                            .appendingPathComponent("Logs/Fichero/engine.log")
+                        NSWorkspace.shared.open(logURL)
+                    } label: {
+                        Label("Show Log", systemImage: "doc.text.magnifyingglass")
+                    }
+                    .buttonStyle(.bordered)
+                    #endif
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(backendService.status == .starting)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
