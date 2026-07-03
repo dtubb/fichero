@@ -10,6 +10,7 @@ from fichero.importers.source_archive_import import (
     import_archivo_judicial_medellin,
     import_ghc_catalogued_materials,
     import_istmina_mineria,
+    import_istmina_mineria_via_http,
     import_newton_marshall_diary,
     import_newton_marshall_diary_via_http,
 )
@@ -53,6 +54,33 @@ def test_import_istmina_mineria_ingests_multiple_roots(tmp_path):
     assert summary.provider == "istmina_mineria"
     assert summary.files_imported == 3
     assert summary.skipped == 0
+
+
+def test_import_istmina_mineria_via_http_ingests_multiple_roots(tmp_path):
+    library = tmp_path / "Istmina.fichero"
+    t_root = tmp_path / "Istmina_Mineria_Transcripcion"
+    s_root = tmp_path / "05 Added to spreadsheet"
+    r_root = tmp_path / "04 Transcribed and catalogued, awaiting human check"
+    for root in (t_root, s_root, r_root):
+        root.mkdir(parents=True)
+    (t_root / "doc-1.jpg").write_text("x", encoding="utf-8")
+    (s_root / "sheet-row-1.txt").write_text("x", encoding="utf-8")
+    (r_root / "review-1.txt").write_text("x", encoding="utf-8")
+    (r_root / "ignore.bin").write_text("x", encoding="utf-8")
+
+    client = FakeClient()
+    summary = import_istmina_mineria_via_http(
+        client,
+        library_path=library,
+        transcript_root=t_root,
+        spreadsheet_root=s_root,
+        review_root=r_root,
+    )
+
+    assert summary.provider == "istmina_mineria"
+    assert summary.files_imported == 3
+    assert summary.skipped == 1
+    assert client.created_library == str(library.resolve())
 
 
 def test_cli_import_newton_marshall_invokes_importer(monkeypatch, tmp_path):
@@ -147,6 +175,48 @@ def test_import_newton_marshall_diary_via_http_imports_tree(tmp_path):
     assert summary.files_imported == 2
     assert summary.skipped == 1
     assert client.created_library == str(library.resolve())
+
+
+def test_cli_import_istmina_mineria_invokes_http_importer(monkeypatch, tmp_path):
+    called: dict = {}
+
+    def fake_import(client, **kwargs):
+        called.update({"client": client, **kwargs})
+        from fichero.importers.source_archive_import import SourceArchiveImportSummary
+
+        return SourceArchiveImportSummary(
+            provider="istmina_mineria",
+            library_path=Path(kwargs["library_path"]),
+            root_documents=4,
+            files_imported=3,
+            skipped=0,
+            warnings=[],
+        )
+
+    monkeypatch.setattr(
+        "fichero.importers.source_archive_import.import_istmina_mineria_via_http",
+        fake_import,
+    )
+    runner = CliRunner()
+    result = runner.invoke(
+        cli.app,
+        [
+            "--base-url",
+            "http://remote-engine.test",
+            "import-istmina-mineria",
+            "--library-path",
+            str(tmp_path / "I.fichero"),
+            "--transcript-root",
+            str(tmp_path / "Transcripts"),
+            "--spreadsheet-root",
+            str(tmp_path / "Spreadsheet"),
+            "--review-root",
+            str(tmp_path / "Review"),
+        ],
+    )
+    assert result.exit_code == 0
+    assert Path(called["library_path"]) == tmp_path / "I.fichero"
+    assert called["client"].base_url == "http://remote-engine.test"
 
 
 def test_import_archivo_judicial_medellin_ingests_catalogue(tmp_path):

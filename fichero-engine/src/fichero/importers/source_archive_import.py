@@ -150,6 +150,40 @@ def import_istmina_mineria(
     )
 
 
+def import_istmina_mineria_via_http(
+    client: ImporterHttpClient,
+    *,
+    library_path: Path = DEFAULT_ISTMINA_LIBRARY,
+    transcript_root: Path | None = None,
+    spreadsheet_root: Path | None = None,
+    review_root: Path | None = None,
+    reset: bool = False,
+    auto_embed: bool = True,
+) -> SourceArchiveImportSummary:
+    transcript_root = _resolve_required(
+        transcript_root, env_var="FICHERO_ISTMINA_TRANSCRIPT", flag="--transcript-root"
+    )
+    spreadsheet_root = _resolve_required(
+        spreadsheet_root, env_var="FICHERO_ISTMINA_SPREADSHEET", flag="--spreadsheet-root"
+    )
+    review_root = _resolve_required(
+        review_root, env_var="FICHERO_ISTMINA_REVIEW", flag="--review-root"
+    )
+    return _import_roots_via_http(
+        client,
+        provider="istmina_mineria",
+        corpus_name="Istmina Mineria 1980",
+        library_path=library_path,
+        roots={
+            "transcriptions": transcript_root,
+            "added_to_spreadsheet": spreadsheet_root,
+            "awaiting_human_check": review_root,
+        },
+        reset=reset,
+        auto_embed=auto_embed,
+    )
+
+
 def import_archivo_judicial_medellin(
     *,
     library_path: Path = DEFAULT_ARCHIVO_JUDICIAL_LIBRARY,

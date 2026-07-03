@@ -825,6 +825,7 @@ def import_newton_marshall_diary_command(
 
 @app.command(name="import-istmina-mineria")
 def import_istmina_mineria_command(
+    ctx: typer.Context,
     library_path: Path = typer.Option(
         Path("~/Library/Application Support/Fichero/Istmina-Mineria.fichero"),
         "--library-path",
@@ -849,17 +850,23 @@ def import_istmina_mineria_command(
     no_embed: bool = typer.Option(False, "--no-embed", help="Skip embedding creation."),
 ) -> None:
     """Import Istmina minería workflow outputs into a Fichero corpus."""
-    from fichero.source_archive_import import import_istmina_mineria
+    from fichero.importers.source_archive_import import import_istmina_mineria_via_http
 
     try:
-        summary = import_istmina_mineria(
-            library_path=library_path,
-            transcript_root=transcript_root,
-            spreadsheet_root=spreadsheet_root,
-            review_root=review_root,
-            reset=reset,
-            auto_embed=not no_embed,
-        )
+        with FicheroClient(
+            base_url=ctx.obj["base_url"],
+            library_path=str(library_path),
+            token=ctx.obj["token"],
+        ) as client:
+            summary = import_istmina_mineria_via_http(
+                client,
+                library_path=library_path,
+                transcript_root=transcript_root,
+                spreadsheet_root=spreadsheet_root,
+                review_root=review_root,
+                reset=reset,
+                auto_embed=not no_embed,
+            )
     except Exception as exc:
         typer.secho(f"Istmina mineria import failed: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
