@@ -337,33 +337,12 @@ struct ContentView: View {
                 maxWidth: .infinity,
                 maxHeight: .infinity
             )
-            .popover(
-                item: detailPopoverDocument,
-                attachmentAnchor: .rect(.bounds),
-                arrowEdge: .trailing
-            ) { document in
-                VStack(spacing: 0) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "doc.text.magnifyingglass")
-                            .foregroundStyle(.secondary)
-                        Text(document.name)
-                            .font(.headline)
-                            .lineLimit(1)
-                        Spacer(minLength: 0)
-                        DetachInspectorButton(isEnabled: true) {
-                            focusedDocument.select(document, libraryId: windowState.libraryId)
-                            openWindow(id: "document-detail")
-                        }
-                    }
-                    .padding(.horizontal, 12)
-                    .frame(height: MiniToolbar<EmptyView, EmptyView>.standardHeight)
-
-                    Divider()
-
-                    DocumentInspector(document: document)
-                }
-                .frame(minWidth: 360, minHeight: 420)
-            }
+            // The legacy compact inspector popover was removed (#2812): it fired
+            // on the same compact selection that already pushes the reader, so
+            // selection presented the reader AND a popover at once. At compact
+            // the adaptive inspector routes to `.navigationPush`
+            // (InspectorPresenter), opened by the explicit Info button — one
+            // presentation, not two.
 
         // Listen for claim selection from inspector and sync to other panes
         .onReceive(NotificationCenter.default.publisher(for: .claimSelectedInInspector)) { notification in
@@ -468,7 +447,19 @@ struct ContentView: View {
             detailColumn
         }
         .navigationTitle(toolbarTitle)
-        .modifier(NavigationSubtitleCompat(subtitle: breadcrumbSubtitle))
+        // The breadcrumb subtitle is a desktop window-title affordance; on a
+        // compact iPhone nav bar it reads as duplicate path text, so drop it
+        // there and let the single inline title stand (#2814).
+        .modifier(NavigationSubtitleCompat(
+            subtitle: horizontalSizeClass == .compact ? "" : breadcrumbSubtitle
+        ))
+        // At compact width, search moves out of the (dropped) principal toolbar
+        // field into the native `.searchable` bar (#2814).
+        .modifier(CompactSearchableModifier(
+            text: $toolbarSearchText,
+            isCompact: horizontalSizeClass == .compact,
+            onSubmit: { runToolbarSearch(toolbarSearchText) }
+        ))
         .onAppear {
             handleOnAppear()
             syncFocusedDocumentSelection(detailDocument)
@@ -823,8 +814,13 @@ extension ContentView {
     /// extra horizontal padding so it reads as a single interactive label.
     @ToolbarContentBuilder
     private var principalToolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .principal) {
-            let libraryName: String? = {
+        // The breadcrumb lozenge + fixed 220pt search field is Mac/iPad window
+        // chrome. At compact width (iPhone) it overflows the nav bar, so it's
+        // dropped — the nav title carries the context and search moves to the
+        // native `.searchable` field instead (#2814).
+        if horizontalSizeClass != .compact {
+            ToolbarItem(placement: .principal) {
+                let libraryName: String? = {
                 guard case .library(let doc) = viewMode, doc != nil else { return nil }
                 return LibraryManager.shared.getLibrary(id: windowState.libraryId)?.displayName
             }()
@@ -868,6 +864,7 @@ extension ContentView {
                         runToolbarSearch(toolbarSearchText)
                     }
                     .help("Search current content")
+                }
             }
         }
     }
@@ -893,6 +890,31 @@ private struct NavigationSubtitleCompat: ViewModifier {
         content
         #else
         content.navigationSubtitle(subtitle)
+        #endif
+    }
+}
+
+/// Adds a native `.searchable` field + inline title at compact width (iPhone),
+/// where the Mac-style principal breadcrumb + fixed-width search field are
+/// dropped (#2814). A no-op elsewhere, so macOS/iPad-regular keep the principal
+/// search field.
+private struct CompactSearchableModifier: ViewModifier {
+    @Binding var text: String
+    let isCompact: Bool
+    let onSubmit: () -> Void
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        if isCompact {
+            content
+                .searchable(text: $text, prompt: "Search")
+                .onSubmit(of: .search, onSubmit)
+                .navigationBarTitleDisplayMode(.inline)
+        } else {
+            content
+        }
+        #else
+        content
         #endif
     }
 }

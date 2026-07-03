@@ -420,18 +420,6 @@ extension ContentView {
         inspectorPlacement != .sheet
     }
 
-    var detailPopoverDocument: Binding<Document?> {
-        Binding(
-            get: {
-                usesDockedInspector ? nil : detailDocument
-            },
-            set: { newValue in
-                guard !usesDockedInspector else { return }
-                detailDocument = newValue
-            }
-        )
-    }
-
     var paneAwareDetailMinWidth: Double {
         guard supportsReadingWorkspace else {
             return ContentView.contentMinWidth
