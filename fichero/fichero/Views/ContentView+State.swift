@@ -783,7 +783,7 @@ extension ContentView {
         }
 
         // Persist view mode to @SceneStorage
-        let (type, id) = serializeViewMode(newMode)
+        let (type, id) = Self.serializeViewMode(newMode)
         storedViewModeType = type
         storedViewModeItemId = id
         recordNavigationEntry()
