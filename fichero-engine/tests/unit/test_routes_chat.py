@@ -5,6 +5,7 @@ is out of scope here — tests focus on conversation CRUD (list, get, update,
 delete, reorder) and the providers list. Chat routes live at /api/chat/...
 """
 
+import pytest
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from fichero.models import Conversation, DocType, Document
@@ -312,6 +313,91 @@ class TestChatWithSources:
             },
         )
         assert r.status_code == 422
+
+    def test_chat_rejects_empty_message_with_400(self, client):
+        response = client.post("/api/chat", json={"message": "   "})
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Message cannot be empty"
+
+    def test_chat_rejects_missing_required_message_field(self, client):
+        response = client.post("/api/chat", json={"include_sources": True})
+
+        assert response.status_code == 422
+
+    def test_chat_surfaces_retrieval_sources_when_present(self, client, monkeypatch):
+        class _FakeRetriever:
+            def retrieve(self, **_kwargs):
+                payload = _FakeRetrievalPayload()
+                payload.context_docs = [
+                    {
+                        "kind": "document",
+                        "id": "doc-1",
+                        "name": "Archive note",
+                        "content": "Ada kept detailed archival notes.",
+                    }
+                ]
+                payload.sources = [
+                    {
+                        "document_id": "doc-1",
+                        "document_name": "Archive note",
+                        "excerpt": "Ada kept detailed archival notes.",
+                        "relevance_score": 0.91,
+                    }
+                ]
+                return payload
+
+        fake_llm = _FakeLLM()
+        monkeypatch.setattr(
+            "fichero.api.routes.chat._get_langchain_llm",
+            lambda *_args, **_kwargs: fake_llm,
+        )
+        monkeypatch.setattr(
+            "fichero.api.routes.chat.GraphAwareRetriever",
+            lambda *_args, **_kwargs: _FakeRetriever(),
+        )
+
+        response = client.post(
+            "/api/chat",
+            json={"message": "What do the notes say?", "include_sources": True},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["sources"] == [
+            {
+                "document_id": "doc-1",
+                "document_name": "Archive note",
+                "excerpt": "Ada kept detailed archival notes.",
+                "relevance_score": 0.91,
+            }
+        ]
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason="Route still swallows LLM/provider failures and returns a 200 apology instead of raising cleanly.",
+    )
+    def test_chat_provider_error_prefers_raise_over_silent_fallback(
+        self, client, monkeypatch
+    ):
+        class _BrokenLLM:
+            def invoke(self, _messages):
+                raise RuntimeError("provider misconfigured")
+
+        monkeypatch.setattr(
+            "fichero.api.routes.chat._get_langchain_llm",
+            lambda *_args, **_kwargs: _BrokenLLM(),
+        )
+
+        response = client.post(
+            "/api/chat",
+            json={
+                "message": "hello",
+                "provider": "openai",
+                "model": "gpt-4o-mini",
+            },
+        )
+
+        assert response.status_code >= 500
 
 
 # ---------------------------------------------------------------------------
