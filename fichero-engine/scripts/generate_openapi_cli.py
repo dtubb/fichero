@@ -57,6 +57,14 @@ class Operation:
     query_params: tuple[QueryParam, ...]
     request_kind: str | None
     request_required: bool
+    request_fields: tuple["RequestField", ...]
+
+
+@dataclass(frozen=True)
+class RequestField:
+    name: str
+    required: bool
+    schema: dict
 
 
 def _slug(text: str) -> str:
@@ -185,8 +193,41 @@ def _request_kind(details: dict) -> tuple[str | None, bool]:
     return None, bool(request_body.get("required"))
 
 
+def _resolve_schema(schema: dict, components: dict[str, dict]) -> dict:
+    if "$ref" in schema:
+        ref_name = schema["$ref"].split("/")[-1]
+        return _resolve_schema(components.get(ref_name, {}), components)
+    if "allOf" in schema:
+        merged: dict = {"type": "object", "properties": {}, "required": []}
+        for item in schema.get("allOf", []):
+            resolved = _resolve_schema(item, components)
+            merged["properties"].update(resolved.get("properties", {}))
+            merged["required"].extend(resolved.get("required", []))
+        return {**schema, **merged}
+    return schema
+
+
+def _request_fields(details: dict, components: dict[str, dict]) -> tuple[RequestField, ...]:
+    request_body = details.get("requestBody") or {}
+    content = request_body.get("content") or {}
+    schema = content.get("application/json", {}).get("schema") or {}
+    resolved = _resolve_schema(schema, components)
+    if resolved.get("type") != "object":
+        return ()
+    required = set(resolved.get("required", []))
+    return tuple(
+        RequestField(
+            name=name,
+            required=name in required,
+            schema=_resolve_schema(field_schema, components),
+        )
+        for name, field_schema in sorted((resolved.get("properties") or {}).items())
+    )
+
+
 def _build_operations() -> list[Operation]:
     schema = json.loads(OPENAPI.read_text())
+    components = schema.get("components", {}).get("schemas", {})
     operations: list[Operation] = []
     for path, methods in sorted(schema.get("paths", {}).items()):
         if path in INTENTIONALLY_UNWIRED_PATHS:
@@ -224,13 +265,33 @@ def _build_operations() -> list[Operation]:
                     query_params=tuple(query_params),
                     request_kind=request_kind,
                     request_required=request_required,
+                    request_fields=_request_fields(details, components),
                 )
             )
     return operations
 
 
+def _request_field_annotation(field: RequestField) -> str:
+    schema_type = field.schema.get("type")
+    if schema_type in {"integer", "number", "boolean"}:
+        return _annotation(schema_type, field.required)
+    return "str" if field.required else "Optional[str]"
+
+
+def _request_field_option_expr(field: RequestField) -> str:
+    flag = f"--{field.name.replace('_', '-')}"
+    help_text = f"Request field: {field.name}."
+    schema_type = field.schema.get("type")
+    if schema_type == "boolean":
+        if field.required:
+            return f'typer.Option(..., "{flag}/--no-{field.name.replace("_", "-")}", help="{help_text}")'
+        return f'typer.Option(None, "{flag}/--no-{field.name.replace("_", "-")}", help="{help_text}")'
+    default = "..." if field.required else "None"
+    return f'typer.Option({default}, "{flag}", help="{help_text}")'
+
+
 def _emit_function(op: Operation, command_name: str) -> list[str]:
-    used_identifiers = {"ctx", "body", "body_file", "field", "upload"}
+    used_identifiers = {"ctx", "body", "body_file", "field", "upload", "payload"}
     param_map: list[tuple[str, str]] = []
     lines = ["    @target_app.command(" + json.dumps(command_name) + ")", f"    def {_identifier(f'{op.resource}_{command_name}_{op.method.lower()}', set())}("]
     lines.append("        ctx: typer.Context,")
@@ -249,13 +310,23 @@ def _emit_function(op: Operation, command_name: str) -> list[str]:
             + ","
         )
     if op.request_kind == "json":
-        lines.append(
-            '        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),'
-        )
-        lines.append(
-            '        body_file: Optional[Path] = typer.Option('
-            'None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),'
-        )
+        if op.request_fields:
+            for request_field in op.request_fields:
+                var_name = _identifier(request_field.name, used_identifiers)
+                param_map.append((request_field.name, var_name))
+                lines.append(
+                    f"        {var_name}: {_request_field_annotation(request_field)} = "
+                    + _request_field_option_expr(request_field)
+                    + ","
+                )
+        else:
+            lines.append(
+                '        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),'
+            )
+            lines.append(
+                '        body_file: Optional[Path] = typer.Option('
+                'None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),'
+            )
     elif op.request_kind == "multipart":
         lines.append(
             '        field: Optional[list[str]] = typer.Option('
@@ -286,9 +357,21 @@ def _emit_function(op: Operation, command_name: str) -> list[str]:
     else:
         lines.append("            params = None")
     if op.request_kind == "json":
-        lines.append(
-            f"            payload = _load_json_payload(body, body_file, required={str(op.request_required)})"
-        )
+        if op.request_fields:
+            lines.append("            payload = _build_json_payload({")
+            for request_field in op.request_fields:
+                var_name = next(v for source, v in param_map if source == request_field.name)
+                lines.append(f'                "{request_field.name}": {var_name},')
+            lines.append("            }, {")
+            for request_field in op.request_fields:
+                schema_literal = dict(request_field.schema)
+                schema_literal["x-cli-required"] = request_field.required
+                lines.append(f'                "{request_field.name}": {schema_literal!r},')
+            lines.append(f"            }}, required={str(op.request_required)})")
+        else:
+            lines.append(
+                f"            payload = _load_json_payload(body, body_file, required={str(op.request_required)})"
+            )
         lines.append(
             f'            return client.request("{op.method}", path, params=params, json=payload)'
         )
@@ -331,6 +414,45 @@ def _generate_module(operations: list[Operation]) -> str:
         "import typer",
         "",
         "from fichero.cli import FicheroClient",
+        "",
+        "",
+        "def _coerce_json_field(value: Any, schema: dict[str, Any]) -> Any:",
+        '    """Coerce CLI option values into the request-body field shape."""',
+        "    if value is None:",
+        "        return None",
+        '    schema_type = schema.get("type")',
+        '    if schema_type in {"array", "object"} or "$ref" in schema or "allOf" in schema or "anyOf" in schema or "oneOf" in schema:',
+        "        if not isinstance(value, str):",
+        "            return value",
+        "        try:",
+        "            return json.loads(value)",
+        "        except json.JSONDecodeError as exc:",
+        '            raise typer.BadParameter(f\"Invalid JSON value: {exc}\") from exc',
+        "    return value",
+        "",
+        "",
+        "def _build_json_payload(",
+        "    values: dict[str, Any],",
+        "    field_schemas: dict[str, dict[str, Any]],",
+        "    *,",
+        "    required: bool,",
+        ") -> Any:",
+        '    """Build a JSON object payload from generated request-field flags."""',
+        "    payload: dict[str, Any] = {}",
+        "    missing: list[str] = []",
+        "    for name, value in values.items():",
+        "        if value is None:",
+        "            if field_schemas.get(name, {}).get(\"x-cli-required\"):",
+        "                missing.append(name)",
+        "            continue",
+        "        payload[name] = _coerce_json_field(value, field_schemas.get(name, {}))",
+        "    if missing:",
+        '        raise typer.BadParameter(\"Missing required fields: \" + \", \".join(sorted(missing)))',
+        "    if payload:",
+        "        return payload",
+        "    if required:",
+        '        raise typer.BadParameter(\"This endpoint requires request fields.\")',
+        "    return None",
         "",
         "",
         "def _load_json_payload(",

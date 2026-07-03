@@ -15,6 +15,45 @@ import typer
 from fichero.cli import FicheroClient
 
 
+def _coerce_json_field(value: Any, schema: dict[str, Any]) -> Any:
+    """Coerce CLI option values into the request-body field shape."""
+    if value is None:
+        return None
+    schema_type = schema.get("type")
+    if schema_type in {"array", "object"} or "$ref" in schema or "allOf" in schema or "anyOf" in schema or "oneOf" in schema:
+        if not isinstance(value, str):
+            return value
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError as exc:
+            raise typer.BadParameter(f"Invalid JSON value: {exc}") from exc
+    return value
+
+
+def _build_json_payload(
+    values: dict[str, Any],
+    field_schemas: dict[str, dict[str, Any]],
+    *,
+    required: bool,
+) -> Any:
+    """Build a JSON object payload from generated request-field flags."""
+    payload: dict[str, Any] = {}
+    missing: list[str] = []
+    for name, value in values.items():
+        if value is None:
+            if field_schemas.get(name, {}).get("x-cli-required"):
+                missing.append(name)
+            continue
+        payload[name] = _coerce_json_field(value, field_schemas.get(name, {}))
+    if missing:
+        raise typer.BadParameter("Missing required fields: " + ", ".join(sorted(missing)))
+    if payload:
+        return payload
+    if required:
+        raise typer.BadParameter("This endpoint requires request fields.")
+    return None
+
+
 def _load_json_payload(
     body: Optional[str],
     body_file: Optional[Path],
@@ -88,14 +127,41 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def actions_create_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        author: Optional[str] = typer.Option(None, "--author", help="Request field: author."),
+        category: Optional[str] = typer.Option(None, "--category", help="Request field: category."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        edges: Optional[str] = typer.Option(None, "--edges", help="Request field: edges."),
+        icon: Optional[str] = typer.Option(None, "--icon", help="Request field: icon."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        node_template: Optional[str] = typer.Option(None, "--node-template", help="Request field: node_template."),
+        nodes: Optional[str] = typer.Option(None, "--nodes", help="Request field: nodes."),
+        tags: Optional[str] = typer.Option(None, "--tags", help="Request field: tags."),
     ) -> None:
         """Create Action (POST /api/actions)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/actions"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "author": author,
+                "category": category,
+                "description": description,
+                "edges": edges,
+                "icon": icon,
+                "name": name,
+                "node_template": node_template,
+                "nodes": nodes,
+                "tags": tags,
+            }, {
+                "author": {'type': 'string', 'title': 'Author', 'default': '', 'x-cli-required': False},
+                "category": {'type': 'string', 'title': 'Category', 'default': 'custom', 'x-cli-required': False},
+                "description": {'type': 'string', 'title': 'Description', 'default': '', 'x-cli-required': False},
+                "edges": {'items': {'additionalProperties': True, 'type': 'object'}, 'type': 'array', 'title': 'Edges', 'default': [], 'x-cli-required': False},
+                "icon": {'type': 'string', 'title': 'Icon', 'default': 'square.stack.3d.up', 'x-cli-required': False},
+                "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
+                "node_template": {'additionalProperties': True, 'type': 'object', 'title': 'Node Template', 'default': {}, 'x-cli-required': False},
+                "nodes": {'items': {'additionalProperties': True, 'type': 'object'}, 'type': 'array', 'title': 'Nodes', 'default': [], 'x-cli-required': False},
+                "tags": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Tags', 'default': [], 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -162,14 +228,32 @@ def register_generated_openapi_commands(
     @target_app.command("create-composite")
     def actions_create_composite_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        category: Optional[str] = typer.Option(None, "--category", help="Request field: category."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        edges: str = typer.Option(..., "--edges", help="Request field: edges."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        nodes: str = typer.Option(..., "--nodes", help="Request field: nodes."),
+        tags: Optional[str] = typer.Option(None, "--tags", help="Request field: tags."),
     ) -> None:
         """Create Composite Action (POST /api/actions/composite)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/actions/composite"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "category": category,
+                "description": description,
+                "edges": edges,
+                "name": name,
+                "nodes": nodes,
+                "tags": tags,
+            }, {
+                "category": {'type': 'string', 'title': 'Category', 'default': 'custom', 'x-cli-required': False},
+                "description": {'type': 'string', 'title': 'Description', 'default': '', 'x-cli-required': False},
+                "edges": {'items': {'additionalProperties': True, 'type': 'object'}, 'type': 'array', 'title': 'Edges', 'x-cli-required': True},
+                "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
+                "nodes": {'items': {'additionalProperties': True, 'type': 'object'}, 'type': 'array', 'title': 'Nodes', 'x-cli-required': True},
+                "tags": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Tags', 'default': [], 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -187,42 +271,78 @@ def register_generated_openapi_commands(
     @target_app.command("create-from-node")
     def actions_create_from_node_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        category: Optional[str] = typer.Option(None, "--category", help="Request field: category."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        node: str = typer.Option(..., "--node", help="Request field: node."),
+        tags: Optional[str] = typer.Option(None, "--tags", help="Request field: tags."),
     ) -> None:
         """Create Action From Node (POST /api/actions/from-node)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/actions/from-node"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "category": category,
+                "description": description,
+                "name": name,
+                "node": node,
+                "tags": tags,
+            }, {
+                "category": {'type': 'string', 'title': 'Category', 'default': 'custom', 'x-cli-required': False},
+                "description": {'type': 'string', 'title': 'Description', 'default': '', 'x-cli-required': False},
+                "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
+                "node": {'additionalProperties': True, 'type': 'object', 'title': 'Node', 'x-cli-required': True},
+                "tags": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Tags', 'default': [], 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("import")
     def actions_import_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        json_data: str = typer.Option(..., "--json-data", help="Request field: json_data."),
+        new_id: Optional[bool] = typer.Option(None, "--new-id/--no-new-id", help="Request field: new_id."),
     ) -> None:
         """Import Action (POST /api/actions/import)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/actions/import"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "json_data": json_data,
+                "new_id": new_id,
+            }, {
+                "json_data": {'type': 'string', 'title': 'Json Data', 'x-cli-required': True},
+                "new_id": {'type': 'boolean', 'title': 'New Id', 'default': True, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("invoke")
     def actions_invoke_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        actor: Optional[str] = typer.Option(None, "--actor", help="Request field: actor."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        origin_window: Optional[str] = typer.Option(None, "--origin-window", help="Request field: origin_window."),
+        params: Optional[str] = typer.Option(None, "--params", help="Request field: params."),
+        run_id: Optional[str] = typer.Option(None, "--run-id", help="Request field: run_id."),
     ) -> None:
         """Invoke Action (POST /api/actions/invoke)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/actions/invoke"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "actor": actor,
+                "name": name,
+                "origin_window": origin_window,
+                "params": params,
+                "run_id": run_id,
+            }, {
+                "actor": {'type': 'string', 'nullable': True, 'title': 'Actor', 'description': "Override actor; defaults to 'ui'", 'x-cli-required': False},
+                "name": {'type': 'string', 'title': 'Name', 'description': "Registered action name, '<domain>.<verb>'", 'x-cli-required': True},
+                "origin_window": {'type': 'string', 'nullable': True, 'title': 'Origin Window', 'description': 'Self-echo de-dup seam for the change stream', 'x-cli-required': False},
+                "params": {'additionalProperties': True, 'type': 'object', 'title': 'Params', 'description': 'Raw action params', 'x-cli-required': False},
+                "run_id": {'type': 'string', 'nullable': True, 'title': 'Run Id', 'description': 'AI run id, if any (#1832)', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -311,14 +431,38 @@ def register_generated_openapi_commands(
     def actions_update_put(
         ctx: typer.Context,
         action_id: str = typer.Argument(..., help="Path parameter: action_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        category: Optional[str] = typer.Option(None, "--category", help="Request field: category."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        edges: Optional[str] = typer.Option(None, "--edges", help="Request field: edges."),
+        icon: Optional[str] = typer.Option(None, "--icon", help="Request field: icon."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        node_template: Optional[str] = typer.Option(None, "--node-template", help="Request field: node_template."),
+        nodes: Optional[str] = typer.Option(None, "--nodes", help="Request field: nodes."),
+        tags: Optional[str] = typer.Option(None, "--tags", help="Request field: tags."),
     ) -> None:
         """Update Action (PUT /api/actions/{action_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/actions/{action_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "category": category,
+                "description": description,
+                "edges": edges,
+                "icon": icon,
+                "name": name,
+                "node_template": node_template,
+                "nodes": nodes,
+                "tags": tags,
+            }, {
+                "category": {'type': 'string', 'nullable': True, 'title': 'Category', 'x-cli-required': False},
+                "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'x-cli-required': False},
+                "edges": {'items': {'additionalProperties': True, 'type': 'object'}, 'type': 'array', 'nullable': True, 'title': 'Edges', 'x-cli-required': False},
+                "icon": {'type': 'string', 'nullable': True, 'title': 'Icon', 'x-cli-required': False},
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
+                "node_template": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Node Template', 'x-cli-required': False},
+                "nodes": {'items': {'additionalProperties': True, 'type': 'object'}, 'type': 'array', 'nullable': True, 'title': 'Nodes', 'x-cli-required': False},
+                "tags": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Tags', 'x-cli-required': False},
+            }, required=True)
             return client.request("PUT", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -572,14 +716,29 @@ def register_generated_openapi_commands(
     @target_app.command("create-note")
     def agent_memory_create_note_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        actor: str = typer.Option(..., "--actor", help="Request field: actor."),
+        body_2: str = typer.Option(..., "--body", help="Request field: body."),
+        kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
+        source_anchor: str = typer.Option(..., "--source-anchor", help="Request field: source_anchor."),
+        tags: Optional[str] = typer.Option(None, "--tags", help="Request field: tags."),
     ) -> None:
         """Create Agent Note (POST /api/agent-memory)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/agent-memory"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "actor": actor,
+                "body": body_2,
+                "kind": kind,
+                "source_anchor": source_anchor,
+                "tags": tags,
+            }, {
+                "actor": {'properties': {'actor_id': {'type': 'string', 'title': 'Actor Id'}, 'model_name': {'type': 'string', 'nullable': True, 'title': 'Model Name'}, 'run_id': {'type': 'string', 'nullable': True, 'title': 'Run Id'}}, 'type': 'object', 'required': ['actor_id'], 'title': 'AgentNoteActor', 'description': 'Who wrote the agent note — explicit, transparent attribution (#2152).', 'x-cli-required': True},
+                "body": {'type': 'string', 'title': 'Body', 'x-cli-required': True},
+                "kind": {'type': 'string', 'nullable': True, 'title': 'Kind', 'x-cli-required': False},
+                "source_anchor": {'properties': {'document_id': {'type': 'string', 'nullable': True, 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'expediente': {'type': 'string', 'nullable': True, 'title': 'Expediente'}, 'page_label': {'type': 'string', 'nullable': True, 'title': 'Page Label'}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}}, 'type': 'object', 'title': 'AgentNoteSourceAnchor', 'description': 'User-visible provenance anchor for AI working-memory notes (#2152).', 'x-cli-required': True},
+                "tags": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Tags', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -611,14 +770,29 @@ def register_generated_openapi_commands(
     def agent_memory_patch_note_patch(
         ctx: typer.Context,
         note_id: str = typer.Argument(..., help="Path parameter: note_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        actor: Optional[str] = typer.Option(None, "--actor", help="Request field: actor."),
+        body_2: Optional[str] = typer.Option(None, "--body", help="Request field: body."),
+        kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
+        source_anchor: Optional[str] = typer.Option(None, "--source-anchor", help="Request field: source_anchor."),
+        tags: Optional[str] = typer.Option(None, "--tags", help="Request field: tags."),
     ) -> None:
         """Patch Agent Note (PATCH /api/agent-memory/{note_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/agent-memory/{note_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "actor": actor,
+                "body": body_2,
+                "kind": kind,
+                "source_anchor": source_anchor,
+                "tags": tags,
+            }, {
+                "actor": {'properties': {'actor_id': {'type': 'string', 'title': 'Actor Id'}, 'model_name': {'type': 'string', 'nullable': True, 'title': 'Model Name'}, 'run_id': {'type': 'string', 'nullable': True, 'title': 'Run Id'}}, 'type': 'object', 'required': ['actor_id'], 'title': 'AgentNoteActor', 'description': 'Who wrote the agent note — explicit, transparent attribution (#2152).', 'x-cli-required': False},
+                "body": {'type': 'string', 'nullable': True, 'title': 'Body', 'x-cli-required': False},
+                "kind": {'type': 'string', 'nullable': True, 'title': 'Kind', 'x-cli-required': False},
+                "source_anchor": {'properties': {'document_id': {'type': 'string', 'nullable': True, 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'expediente': {'type': 'string', 'nullable': True, 'title': 'Expediente'}, 'page_label': {'type': 'string', 'nullable': True, 'title': 'Page Label'}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}}, 'type': 'object', 'title': 'AgentNoteSourceAnchor', 'description': 'User-visible provenance anchor for AI working-memory notes (#2152).', 'x-cli-required': False},
+                "tags": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Tags', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -630,14 +804,50 @@ def register_generated_openapi_commands(
     @target_app.command("submit-an-write-request")
     def agents_submit_an_write_request_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        agent_id: str = typer.Option(..., "--agent-id", help="Request field: agent_id."),
+        agent_name: str = typer.Option(..., "--agent-name", help="Request field: agent_name."),
+        artifact_id: Optional[str] = typer.Option(None, "--artifact-id", help="Request field: artifact_id."),
+        confidence: Optional[float] = typer.Option(None, "--confidence", help="Request field: confidence."),
+        document_id: Optional[str] = typer.Option(None, "--document-id", help="Request field: document_id."),
+        entity_id: Optional[str] = typer.Option(None, "--entity-id", help="Request field: entity_id."),
+        entity_type: str = typer.Option(..., "--entity-type", help="Request field: entity_type."),
+        evidence: Optional[str] = typer.Option(None, "--evidence", help="Request field: evidence."),
+        justification: Optional[str] = typer.Option(None, "--justification", help="Request field: justification."),
+        operation: str = typer.Option(..., "--operation", help="Request field: operation."),
+        payload_2: Optional[str] = typer.Option(None, "--payload", help="Request field: payload."),
+        sources: Optional[str] = typer.Option(None, "--sources", help="Request field: sources."),
     ) -> None:
         """Submit an agent write request (POST /api/agents/write)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/agents/write"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "agent_id": agent_id,
+                "agent_name": agent_name,
+                "artifact_id": artifact_id,
+                "confidence": confidence,
+                "document_id": document_id,
+                "entity_id": entity_id,
+                "entity_type": entity_type,
+                "evidence": evidence,
+                "justification": justification,
+                "operation": operation,
+                "payload": payload_2,
+                "sources": sources,
+            }, {
+                "agent_id": {'type': 'string', 'title': 'Agent Id', 'x-cli-required': True},
+                "agent_name": {'type': 'string', 'title': 'Agent Name', 'x-cli-required': True},
+                "artifact_id": {'type': 'string', 'nullable': True, 'title': 'Artifact Id', 'x-cli-required': False},
+                "confidence": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Confidence', 'x-cli-required': False},
+                "document_id": {'type': 'string', 'nullable': True, 'title': 'Document Id', 'x-cli-required': False},
+                "entity_id": {'type': 'string', 'nullable': True, 'title': 'Entity Id', 'x-cli-required': False},
+                "entity_type": {'type': 'string', 'title': 'Entity Type', 'x-cli-required': True},
+                "evidence": {'items': {'additionalProperties': True, 'type': 'object'}, 'type': 'array', 'title': 'Evidence', 'x-cli-required': False},
+                "justification": {'type': 'string', 'title': 'Justification', 'default': '', 'x-cli-required': False},
+                "operation": {'type': 'string', 'title': 'Operation', 'x-cli-required': True},
+                "payload": {'additionalProperties': True, 'type': 'object', 'title': 'Payload', 'x-cli-required': False},
+                "sources": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Sources', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -645,8 +855,9 @@ def register_generated_openapi_commands(
     def agents_approve_or_reject_a_pending_write_request_post(
         ctx: typer.Context,
         record_id: str = typer.Option(..., "--record-id", help="Query parameter: record_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        approved: bool = typer.Option(..., "--approved/--no-approved", help="Request field: approved."),
+        approved_by: str = typer.Option(..., "--approved-by", help="Request field: approved_by."),
+        reason: Optional[str] = typer.Option(None, "--reason", help="Request field: reason."),
     ) -> None:
         """Approve or reject a pending write request (POST /api/agents/write/approve)."""
         def op_call(client: FicheroClient) -> Any:
@@ -654,7 +865,15 @@ def register_generated_openapi_commands(
             params = {
                 "record_id": record_id,
             }
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "approved": approved,
+                "approved_by": approved_by,
+                "reason": reason,
+            }, {
+                "approved": {'type': 'boolean', 'title': 'Approved', 'x-cli-required': True},
+                "approved_by": {'type': 'string', 'title': 'Approved By', 'x-cli-required': True},
+                "reason": {'type': 'string', 'title': 'Reason', 'default': '', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -728,28 +947,109 @@ def register_generated_openapi_commands(
     @target_app.command("create-an")
     def annotations_create_an_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        anchor_kind: Optional[str] = typer.Option(None, "--anchor-kind", help="Request field: anchor_kind."),
+        bbox: Optional[str] = typer.Option(None, "--bbox", help="Request field: bbox."),
+        char_end: Optional[int] = typer.Option(None, "--char-end", help="Request field: char_end."),
+        char_start: Optional[int] = typer.Option(None, "--char-start", help="Request field: char_start."),
+        color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
+        document_id: Optional[str] = typer.Option(None, "--document-id", help="Request field: document_id."),
+        folder_id: Optional[str] = typer.Option(None, "--folder-id", help="Request field: folder_id."),
+        kind: str = typer.Option(..., "--kind", help="Request field: kind."),
+        linked_claim_ids: Optional[str] = typer.Option(None, "--linked-claim-ids", help="Request field: linked_claim_ids."),
+        linked_entity_ids: Optional[str] = typer.Option(None, "--linked-entity-ids", help="Request field: linked_entity_ids."),
+        linked_note_ids: Optional[str] = typer.Option(None, "--linked-note-ids", help="Request field: linked_note_ids."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        page_id: Optional[str] = typer.Option(None, "--page-id", help="Request field: page_id."),
+        page_index: Optional[int] = typer.Option(None, "--page-index", help="Request field: page_index."),
+        page_label: Optional[str] = typer.Option(None, "--page-label", help="Request field: page_label."),
+        paragraph_index: Optional[int] = typer.Option(None, "--paragraph-index", help="Request field: paragraph_index."),
+        rating: Optional[int] = typer.Option(None, "--rating", help="Request field: rating."),
+        tags: Optional[str] = typer.Option(None, "--tags", help="Request field: tags."),
+        text: Optional[str] = typer.Option(None, "--text", help="Request field: text."),
     ) -> None:
         """Create an annotation (POST /api/annotations)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/annotations"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "anchor_kind": anchor_kind,
+                "bbox": bbox,
+                "char_end": char_end,
+                "char_start": char_start,
+                "color": color,
+                "document_id": document_id,
+                "folder_id": folder_id,
+                "kind": kind,
+                "linked_claim_ids": linked_claim_ids,
+                "linked_entity_ids": linked_entity_ids,
+                "linked_note_ids": linked_note_ids,
+                "metadata": metadata,
+                "page_id": page_id,
+                "page_index": page_index,
+                "page_label": page_label,
+                "paragraph_index": paragraph_index,
+                "rating": rating,
+                "tags": tags,
+                "text": text,
+            }, {
+                "anchor_kind": {'type': 'string', 'nullable': True, 'title': 'Anchor Kind', 'x-cli-required': False},
+                "bbox": {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Bbox', 'x-cli-required': False},
+                "char_end": {'type': 'integer', 'nullable': True, 'title': 'Char End', 'x-cli-required': False},
+                "char_start": {'type': 'integer', 'nullable': True, 'title': 'Char Start', 'x-cli-required': False},
+                "color": {'type': 'string', 'nullable': True, 'title': 'Color', 'x-cli-required': False},
+                "document_id": {'type': 'string', 'nullable': True, 'title': 'Document Id', 'x-cli-required': False},
+                "folder_id": {'type': 'string', 'nullable': True, 'title': 'Folder Id', 'x-cli-required': False},
+                "kind": {'type': 'string', 'enum': ['highlight', 'note', 'rating', 'bookmark', 'comment'], 'title': 'AnnotationKind', 'description': 'User annotation kinds (#914).\n\nEach kind has slightly different rendering + payload conventions:\n- highlight: coloured tint over a span; ``color`` + ``rating`` carry weight\n- note: margin/sticky note; ``text`` is the body\n- rating: 1-5 importance flag; ``rating`` carries weight\n- bookmark: navigation marker; ``text`` optional label\n- comment: threaded discussion (future); ``text`` is the body', 'x-cli-required': True},
+                "linked_claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Linked Claim Ids', 'default': [], 'x-cli-required': False},
+                "linked_entity_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Linked Entity Ids', 'default': [], 'x-cli-required': False},
+                "linked_note_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Linked Note Ids', 'default': [], 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'default': {}, 'x-cli-required': False},
+                "page_id": {'type': 'string', 'nullable': True, 'title': 'Page Id', 'x-cli-required': False},
+                "page_index": {'type': 'integer', 'nullable': True, 'title': 'Page Index', 'x-cli-required': False},
+                "page_label": {'type': 'string', 'nullable': True, 'title': 'Page Label', 'x-cli-required': False},
+                "paragraph_index": {'type': 'integer', 'nullable': True, 'title': 'Paragraph Index', 'x-cli-required': False},
+                "rating": {'type': 'integer', 'nullable': True, 'title': 'Rating', 'x-cli-required': False},
+                "tags": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Tags', 'default': [], 'x-cli-required': False},
+                "text": {'type': 'string', 'nullable': True, 'title': 'Text', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("ephemeral-crop-for-an-unsaved-region-no-persisted")
     def annotations_ephemeral_crop_for_an_unsaved_region_no_persisted_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        bbox: Optional[str] = typer.Option(None, "--bbox", help="Request field: bbox."),
+        char_end: Optional[int] = typer.Option(None, "--char-end", help="Request field: char_end."),
+        char_start: Optional[int] = typer.Option(None, "--char-start", help="Request field: char_start."),
+        document_id: str = typer.Option(..., "--document-id", help="Request field: document_id."),
+        kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
+        page_index: Optional[int] = typer.Option(None, "--page-index", help="Request field: page_index."),
+        page_label: Optional[str] = typer.Option(None, "--page-label", help="Request field: page_label."),
+        text: Optional[str] = typer.Option(None, "--text", help="Request field: text."),
     ) -> None:
         """Ephemeral crop for an unsaved region (no annotation persisted) (POST /api/annotations/crop)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/annotations/crop"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "bbox": bbox,
+                "char_end": char_end,
+                "char_start": char_start,
+                "document_id": document_id,
+                "kind": kind,
+                "page_index": page_index,
+                "page_label": page_label,
+                "text": text,
+            }, {
+                "bbox": {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Bbox', 'x-cli-required': False},
+                "char_end": {'type': 'integer', 'nullable': True, 'title': 'Char End', 'x-cli-required': False},
+                "char_start": {'type': 'integer', 'nullable': True, 'title': 'Char Start', 'x-cli-required': False},
+                "document_id": {'type': 'string', 'title': 'Document Id', 'x-cli-required': True},
+                "kind": {'type': 'string', 'enum': ['highlight', 'note', 'rating', 'bookmark', 'comment'], 'title': 'AnnotationKind', 'description': 'User annotation kinds (#914).\n\nEach kind has slightly different rendering + payload conventions:\n- highlight: coloured tint over a span; ``color`` + ``rating`` carry weight\n- note: margin/sticky note; ``text`` is the body\n- rating: 1-5 importance flag; ``rating`` carries weight\n- bookmark: navigation marker; ``text`` optional label\n- comment: threaded discussion (future); ``text`` is the body', 'x-cli-required': False},
+                "page_index": {'type': 'integer', 'nullable': True, 'title': 'Page Index', 'x-cli-required': False},
+                "page_label": {'type': 'string', 'nullable': True, 'title': 'Page Label', 'x-cli-required': False},
+                "text": {'type': 'string', 'nullable': True, 'title': 'Text', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -781,14 +1081,62 @@ def register_generated_openapi_commands(
     def annotations_patch_patch(
         ctx: typer.Context,
         annotation_id: str = typer.Argument(..., help="Path parameter: annotation_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        anchor_kind: Optional[str] = typer.Option(None, "--anchor-kind", help="Request field: anchor_kind."),
+        bbox: Optional[str] = typer.Option(None, "--bbox", help="Request field: bbox."),
+        char_end: Optional[int] = typer.Option(None, "--char-end", help="Request field: char_end."),
+        char_start: Optional[int] = typer.Option(None, "--char-start", help="Request field: char_start."),
+        color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
+        document_id: Optional[str] = typer.Option(None, "--document-id", help="Request field: document_id."),
+        folder_id: Optional[str] = typer.Option(None, "--folder-id", help="Request field: folder_id."),
+        linked_claim_ids: Optional[str] = typer.Option(None, "--linked-claim-ids", help="Request field: linked_claim_ids."),
+        linked_entity_ids: Optional[str] = typer.Option(None, "--linked-entity-ids", help="Request field: linked_entity_ids."),
+        linked_note_ids: Optional[str] = typer.Option(None, "--linked-note-ids", help="Request field: linked_note_ids."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        page_id: Optional[str] = typer.Option(None, "--page-id", help="Request field: page_id."),
+        paragraph_index: Optional[int] = typer.Option(None, "--paragraph-index", help="Request field: paragraph_index."),
+        rating: Optional[int] = typer.Option(None, "--rating", help="Request field: rating."),
+        tags: Optional[str] = typer.Option(None, "--tags", help="Request field: tags."),
+        text: Optional[str] = typer.Option(None, "--text", help="Request field: text."),
     ) -> None:
         """Patch Annotation (PATCH /api/annotations/{annotation_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/annotations/{annotation_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "anchor_kind": anchor_kind,
+                "bbox": bbox,
+                "char_end": char_end,
+                "char_start": char_start,
+                "color": color,
+                "document_id": document_id,
+                "folder_id": folder_id,
+                "linked_claim_ids": linked_claim_ids,
+                "linked_entity_ids": linked_entity_ids,
+                "linked_note_ids": linked_note_ids,
+                "metadata": metadata,
+                "page_id": page_id,
+                "paragraph_index": paragraph_index,
+                "rating": rating,
+                "tags": tags,
+                "text": text,
+            }, {
+                "anchor_kind": {'type': 'string', 'nullable': True, 'title': 'Anchor Kind', 'x-cli-required': False},
+                "bbox": {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Bbox', 'x-cli-required': False},
+                "char_end": {'type': 'integer', 'nullable': True, 'title': 'Char End', 'x-cli-required': False},
+                "char_start": {'type': 'integer', 'nullable': True, 'title': 'Char Start', 'x-cli-required': False},
+                "color": {'type': 'string', 'nullable': True, 'title': 'Color', 'x-cli-required': False},
+                "document_id": {'type': 'string', 'nullable': True, 'title': 'Document Id', 'x-cli-required': False},
+                "folder_id": {'type': 'string', 'nullable': True, 'title': 'Folder Id', 'x-cli-required': False},
+                "linked_claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Linked Claim Ids', 'x-cli-required': False},
+                "linked_entity_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Linked Entity Ids', 'x-cli-required': False},
+                "linked_note_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Linked Note Ids', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
+                "page_id": {'type': 'string', 'nullable': True, 'title': 'Page Id', 'x-cli-required': False},
+                "paragraph_index": {'type': 'integer', 'nullable': True, 'title': 'Paragraph Index', 'x-cli-required': False},
+                "rating": {'type': 'integer', 'nullable': True, 'title': 'Rating', 'x-cli-required': False},
+                "tags": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Tags', 'x-cli-required': False},
+                "text": {'type': 'string', 'nullable': True, 'title': 'Text', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -842,14 +1190,53 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def artifacts_create_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        artifact_type: str = typer.Option(..., "--artifact-type", help="Request field: artifact_type."),
+        confidence: Optional[float] = typer.Option(None, "--confidence", help="Request field: confidence."),
+        content: Optional[str] = typer.Option(None, "--content", help="Request field: content."),
+        data: Optional[str] = typer.Option(None, "--data", help="Request field: data."),
+        document_id: str = typer.Option(..., "--document-id", help="Request field: document_id."),
+        model: Optional[str] = typer.Option(None, "--model", help="Request field: model."),
+        provider: Optional[str] = typer.Option(None, "--provider", help="Request field: provider."),
+        reviewed: Optional[bool] = typer.Option(None, "--reviewed/--no-reviewed", help="Request field: reviewed."),
+        run_id: Optional[str] = typer.Option(None, "--run-id", help="Request field: run_id."),
+        source_artifact_id: Optional[str] = typer.Option(None, "--source-artifact-id", help="Request field: source_artifact_id."),
+        source_document_id: Optional[str] = typer.Option(None, "--source-document-id", help="Request field: source_document_id."),
+        step_name: Optional[str] = typer.Option(None, "--step-name", help="Request field: step_name."),
+        version: Optional[int] = typer.Option(None, "--version", help="Request field: version."),
     ) -> None:
         """Create Artifact (POST /api/artifacts/)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/artifacts/"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "artifact_type": artifact_type,
+                "confidence": confidence,
+                "content": content,
+                "data": data,
+                "document_id": document_id,
+                "model": model,
+                "provider": provider,
+                "reviewed": reviewed,
+                "run_id": run_id,
+                "source_artifact_id": source_artifact_id,
+                "source_document_id": source_document_id,
+                "step_name": step_name,
+                "version": version,
+            }, {
+                "artifact_type": {'type': 'string', 'title': 'Artifact Type', 'x-cli-required': True},
+                "confidence": {'type': 'number', 'nullable': True, 'title': 'Confidence', 'x-cli-required': False},
+                "content": {'type': 'string', 'nullable': True, 'title': 'Content', 'x-cli-required': False},
+                "data": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Data', 'x-cli-required': False},
+                "document_id": {'type': 'string', 'title': 'Document Id', 'x-cli-required': True},
+                "model": {'type': 'string', 'nullable': True, 'title': 'Model', 'x-cli-required': False},
+                "provider": {'type': 'string', 'nullable': True, 'title': 'Provider', 'x-cli-required': False},
+                "reviewed": {'type': 'boolean', 'title': 'Reviewed', 'default': False, 'x-cli-required': False},
+                "run_id": {'type': 'string', 'nullable': True, 'title': 'Run Id', 'x-cli-required': False},
+                "source_artifact_id": {'type': 'string', 'nullable': True, 'title': 'Source Artifact Id', 'x-cli-required': False},
+                "source_document_id": {'type': 'string', 'nullable': True, 'title': 'Source Document Id', 'x-cli-required': False},
+                "step_name": {'type': 'string', 'nullable': True, 'title': 'Step Name', 'x-cli-required': False},
+                "version": {'type': 'integer', 'title': 'Version', 'default': 1, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -913,14 +1300,20 @@ def register_generated_openapi_commands(
     def artifacts_update_put(
         ctx: typer.Context,
         artifact_id: str = typer.Argument(..., help="Path parameter: artifact_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        content: Optional[str] = typer.Option(None, "--content", help="Request field: content."),
+        reviewed: Optional[bool] = typer.Option(None, "--reviewed/--no-reviewed", help="Request field: reviewed."),
     ) -> None:
         """Update Artifact (PUT /api/artifacts/{artifact_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/artifacts/{artifact_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "content": content,
+                "reviewed": reviewed,
+            }, {
+                "content": {'type': 'string', 'nullable': True, 'title': 'Content', 'x-cli-required': False},
+                "reviewed": {'type': 'boolean', 'nullable': True, 'title': 'Reviewed', 'x-cli-required': False},
+            }, required=True)
             return client.request("PUT", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -932,14 +1325,23 @@ def register_generated_openapi_commands(
     @target_app.command("login")
     def auth_login_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        device_label: Optional[str] = typer.Option(None, "--device-label", help="Request field: device_label."),
+        password: str = typer.Option(..., "--password", help="Request field: password."),
+        username: str = typer.Option(..., "--username", help="Request field: username."),
     ) -> None:
         """Login (POST /api/auth/login)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/auth/login"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "device_label": device_label,
+                "password": password,
+                "username": username,
+            }, {
+                "device_label": {'type': 'string', 'minLength': 1, 'nullable': True, 'title': 'Device Label', 'x-cli-required': False},
+                "password": {'type': 'string', 'minLength': 1, 'title': 'Password', 'x-cli-required': True},
+                "username": {'type': 'string', 'minLength': 1, 'title': 'Username', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -1012,28 +1414,46 @@ def register_generated_openapi_commands(
     @target_app.command("set-library-member-role")
     def authz_set_library_member_role_put(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        role: str = typer.Option(..., "--role", help="Request field: role."),
+        user: str = typer.Option(..., "--user", help="Request field: user."),
     ) -> None:
         """Set Library Member Role (PUT /api/authz/members)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/authz/members"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "role": role,
+                "user": user,
+            }, {
+                "role": {'type': 'string', 'title': 'Role', 'description': 'owner/editor/viewer', 'x-cli-required': True},
+                "user": {'type': 'string', 'title': 'User', 'description': 'Target user id or username', 'x-cli-required': True},
+            }, required=True)
             return client.request("PUT", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("share-library-object")
     def authz_share_library_object_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        object_id: Optional[str] = typer.Option(None, "--object-id", help="Request field: object_id."),
+        object_type: Optional[str] = typer.Option(None, "--object-type", help="Request field: object_type."),
+        role: Optional[str] = typer.Option(None, "--role", help="Request field: role."),
+        user: str = typer.Option(..., "--user", help="Request field: user."),
     ) -> None:
         """Share Library Object (POST /api/authz/share)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/authz/share"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "object_id": object_id,
+                "object_type": object_type,
+                "role": role,
+                "user": user,
+            }, {
+                "object_id": {'type': 'string', 'nullable': True, 'title': 'Object Id', 'description': 'Entity/document id (required for those types)', 'x-cli-required': False},
+                "object_type": {'type': 'string', 'title': 'Object Type', 'description': 'library | entity | document', 'default': 'library', 'x-cli-required': False},
+                "role": {'type': 'string', 'title': 'Role', 'description': 'Role to grant: owner/editor/viewer', 'default': 'viewer', 'x-cli-required': False},
+                "user": {'type': 'string', 'title': 'User', 'description': 'Recipient user id or username', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -1063,14 +1483,23 @@ def register_generated_openapi_commands(
     @target_app.command("create-batch")
     def batches_create_batch_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        items: str = typer.Option(..., "--items", help="Request field: items."),
+        max_concurrent: Optional[int] = typer.Option(None, "--max-concurrent", help="Request field: max_concurrent."),
+        workflow_id: str = typer.Option(..., "--workflow-id", help="Request field: workflow_id."),
     ) -> None:
         """Create Batch (POST /api/batches)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/batches"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "items": items,
+                "max_concurrent": max_concurrent,
+                "workflow_id": workflow_id,
+            }, {
+                "items": {'items': {'additionalProperties': True, 'type': 'object'}, 'type': 'array', 'title': 'Items', 'description': 'List of input dictionaries, one per item', 'x-cli-required': True},
+                "max_concurrent": {'type': 'integer', 'maximum': 50.0, 'minimum': 1.0, 'title': 'Max Concurrent', 'description': 'Maximum concurrent executions', 'default': 5, 'x-cli-required': False},
+                "workflow_id": {'type': 'string', 'title': 'Workflow Id', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -1194,14 +1623,17 @@ def register_generated_openapi_commands(
     def bibliography_set_or_update_a_document_s_bibliographic_metadata_patch(
         ctx: typer.Context,
         document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        metadata: str = typer.Option(..., "--metadata", help="Request field: metadata."),
     ) -> None:
         """Set or update a document's bibliographic metadata (PATCH /api/bibliography/document/{document_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/bibliography/document/{document_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "metadata": metadata,
+            }, {
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': True},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -1209,14 +1641,20 @@ def register_generated_openapi_commands(
     def bibliography_attach_a_bibtex_ris_csl_json_record_to_a_document_post(
         ctx: typer.Context,
         document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        format: Optional[str] = typer.Option(None, "--format", help="Request field: format."),
+        text: str = typer.Option(..., "--text", help="Request field: text."),
     ) -> None:
         """Attach a BibTeX / RIS / CSL-JSON record to a document (POST /api/bibliography/document/{document_id}/attach)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/bibliography/document/{document_id}/attach"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "format": format,
+                "text": text,
+            }, {
+                "format": {'type': 'string', 'nullable': True, 'title': 'Format', 'x-cli-required': False},
+                "text": {'type': 'string', 'title': 'Text', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -1238,28 +1676,37 @@ def register_generated_openapi_commands(
     @target_app.command("bulk-export-multiple-documents-as-bibtex")
     def bibliography_bulk_export_multiple_documents_as_bibtex_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        document_ids: str = typer.Option(..., "--document-ids", help="Request field: document_ids."),
     ) -> None:
         """Bulk export multiple documents as BibTeX (POST /api/bibliography/export.bib)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/bibliography/export.bib"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "document_ids": document_ids,
+            }, {
+                "document_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Document Ids', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("parse-bibtex-ris-csl-json-into-sourcemetadata-dicts-909")
     def bibliography_parse_bibtex_ris_csl_json_into_sourcemetadata_dicts_909_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        format: Optional[str] = typer.Option(None, "--format", help="Request field: format."),
+        text: str = typer.Option(..., "--text", help="Request field: text."),
     ) -> None:
         """Parse BibTeX / RIS / CSL JSON into SourceMetadata dicts (#909) (POST /api/bibliography/import)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/bibliography/import"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "format": format,
+                "text": text,
+            }, {
+                "format": {'type': 'string', 'nullable': True, 'title': 'Format', 'x-cli-required': False},
+                "text": {'type': 'string', 'title': 'Text', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -1267,8 +1714,8 @@ def register_generated_openapi_commands(
     def bibliography_resolve_a_doi_or_isbn_via_crossref_open_library_910_post(
         ctx: typer.Context,
         document_id: Optional[str] = typer.Option(None, "--document-id", help="Query parameter: document_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        doi: Optional[str] = typer.Option(None, "--doi", help="Request field: doi."),
+        isbn: Optional[str] = typer.Option(None, "--isbn", help="Request field: isbn."),
     ) -> None:
         """Resolve a DOI or ISBN via Crossref / Open Library (#910) (POST /api/bibliography/resolve)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1276,7 +1723,13 @@ def register_generated_openapi_commands(
             params = {
                 "document_id": document_id,
             }
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "doi": doi,
+                "isbn": isbn,
+            }, {
+                "doi": {'type': 'string', 'nullable': True, 'title': 'Doi', 'x-cli-required': False},
+                "isbn": {'type': 'string', 'nullable': True, 'title': 'Isbn', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -1302,14 +1755,23 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def bookmarks_create_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Request field: parent_id."),
+        target_id: str = typer.Option(..., "--target-id", help="Request field: target_id."),
     ) -> None:
         """Create Bookmark (POST /api/bookmarks)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/bookmarks"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "name": name,
+                "parent_id": parent_id,
+                "target_id": target_id,
+            }, {
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
+                "parent_id": {'type': 'string', 'nullable': True, 'title': 'Parent Id', 'x-cli-required': False},
+                "target_id": {'type': 'string', 'title': 'Target Id', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -1349,14 +1811,29 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def chains_create_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        entry_step: Optional[str] = typer.Option(None, "--entry-step", help="Request field: entry_step."),
+        initial_inputs: Optional[str] = typer.Option(None, "--initial-inputs", help="Request field: initial_inputs."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        steps: Optional[str] = typer.Option(None, "--steps", help="Request field: steps."),
     ) -> None:
         """Create Chain (POST /api/chains)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/chains"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "description": description,
+                "entry_step": entry_step,
+                "initial_inputs": initial_inputs,
+                "name": name,
+                "steps": steps,
+            }, {
+                "description": {'type': 'string', 'title': 'Description', 'default': '', 'x-cli-required': False},
+                "entry_step": {'type': 'string', 'nullable': True, 'title': 'Entry Step', 'x-cli-required': False},
+                "initial_inputs": {'additionalProperties': True, 'type': 'object', 'title': 'Initial Inputs', 'x-cli-required': False},
+                "name": {'type': 'string', 'minLength': 1, 'title': 'Name', 'x-cli-required': True},
+                "steps": {'items': {'$ref': '#/components/schemas/ChainStepRequest'}, 'type': 'array', 'title': 'Steps', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -1434,14 +1911,29 @@ def register_generated_openapi_commands(
     def chains_update_put(
         ctx: typer.Context,
         chain_id: str = typer.Argument(..., help="Path parameter: chain_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        entry_step: Optional[str] = typer.Option(None, "--entry-step", help="Request field: entry_step."),
+        initial_inputs: Optional[str] = typer.Option(None, "--initial-inputs", help="Request field: initial_inputs."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        steps: Optional[str] = typer.Option(None, "--steps", help="Request field: steps."),
     ) -> None:
         """Update Chain (PUT /api/chains/{chain_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/chains/{chain_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "description": description,
+                "entry_step": entry_step,
+                "initial_inputs": initial_inputs,
+                "name": name,
+                "steps": steps,
+            }, {
+                "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'x-cli-required': False},
+                "entry_step": {'type': 'string', 'nullable': True, 'title': 'Entry Step', 'x-cli-required': False},
+                "initial_inputs": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Initial Inputs', 'x-cli-required': False},
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
+                "steps": {'items': {'$ref': '#/components/schemas/ChainStepRequest'}, 'type': 'array', 'nullable': True, 'title': 'Steps', 'x-cli-required': False},
+            }, required=True)
             return client.request("PUT", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -1449,14 +1941,20 @@ def register_generated_openapi_commands(
     def chains_execute_post(
         ctx: typer.Context,
         chain_id: str = typer.Argument(..., help="Path parameter: chain_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        input_files: Optional[str] = typer.Option(None, "--input-files", help="Request field: input_files."),
+        inputs: Optional[str] = typer.Option(None, "--inputs", help="Request field: inputs."),
     ) -> None:
         """Execute Chain (POST /api/chains/{chain_id}/execute)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/chains/{chain_id}/execute"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "input_files": input_files,
+                "inputs": inputs,
+            }, {
+                "input_files": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Input Files', 'x-cli-required': False},
+                "inputs": {'additionalProperties': True, 'type': 'object', 'title': 'Inputs', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -1484,14 +1982,41 @@ def register_generated_openapi_commands(
     @target_app.command("chat")
     def chat_chat_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        conversation_id: Optional[str] = typer.Option(None, "--conversation-id", help="Request field: conversation_id."),
+        document_ids: Optional[str] = typer.Option(None, "--document-ids", help="Request field: document_ids."),
+        graph_hops: Optional[int] = typer.Option(None, "--graph-hops", help="Request field: graph_hops."),
+        include_sources: Optional[bool] = typer.Option(None, "--include-sources/--no-include-sources", help="Request field: include_sources."),
+        max_kg_claims: Optional[int] = typer.Option(None, "--max-kg-claims", help="Request field: max_kg_claims."),
+        max_sources: Optional[int] = typer.Option(None, "--max-sources", help="Request field: max_sources."),
+        message: str = typer.Option(..., "--message", help="Request field: message."),
+        model: Optional[str] = typer.Option(None, "--model", help="Request field: model."),
+        provider: Optional[str] = typer.Option(None, "--provider", help="Request field: provider."),
     ) -> None:
         """Chat (POST /api/chat)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/chat"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "conversation_id": conversation_id,
+                "document_ids": document_ids,
+                "graph_hops": graph_hops,
+                "include_sources": include_sources,
+                "max_kg_claims": max_kg_claims,
+                "max_sources": max_sources,
+                "message": message,
+                "model": model,
+                "provider": provider,
+            }, {
+                "conversation_id": {'type': 'string', 'nullable': True, 'title': 'Conversation Id', 'x-cli-required': False},
+                "document_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Document Ids', 'x-cli-required': False},
+                "graph_hops": {'type': 'integer', 'maximum': 3.0, 'minimum': 0.0, 'title': 'Graph Hops', 'default': 1, 'x-cli-required': False},
+                "include_sources": {'type': 'boolean', 'title': 'Include Sources', 'default': True, 'x-cli-required': False},
+                "max_kg_claims": {'type': 'integer', 'maximum': 100.0, 'minimum': 0.0, 'title': 'Max Kg Claims', 'default': 12, 'x-cli-required': False},
+                "max_sources": {'type': 'integer', 'maximum': 50.0, 'minimum': 1.0, 'title': 'Max Sources', 'default': 5, 'x-cli-required': False},
+                "message": {'type': 'string', 'title': 'Message', 'x-cli-required': True},
+                "model": {'type': 'string', 'nullable': True, 'title': 'Model', 'x-cli-required': False},
+                "provider": {'type': 'string', 'nullable': True, 'title': 'Provider', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -1554,14 +2079,20 @@ def register_generated_openapi_commands(
     def chat_update_conversation_put(
         ctx: typer.Context,
         conversation_id: str = typer.Argument(..., help="Path parameter: conversation_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        folder_path: Optional[str] = typer.Option(None, "--folder-path", help="Request field: folder_path."),
+        title: Optional[str] = typer.Option(None, "--title", help="Request field: title."),
     ) -> None:
         """Update Conversation (PUT /api/chat/conversations/{conversation_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/chat/conversations/{conversation_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "folder_path": folder_path,
+                "title": title,
+            }, {
+                "folder_path": {'type': 'string', 'nullable': True, 'title': 'Folder Path', 'x-cli-required': False},
+                "title": {'type': 'string', 'nullable': True, 'title': 'Title', 'x-cli-required': False},
+            }, required=True)
             return client.request("PUT", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -1580,14 +2111,20 @@ def register_generated_openapi_commands(
     @target_app.command("extract-text")
     def chat_extract_text_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        document_ids: Optional[str] = typer.Option(None, "--document-ids", help="Request field: document_ids."),
+        force: Optional[bool] = typer.Option(None, "--force/--no-force", help="Request field: force."),
     ) -> None:
         """Extract Text (POST /api/chat/extract-text)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/chat/extract-text"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "document_ids": document_ids,
+                "force": force,
+            }, {
+                "document_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Document Ids', 'x-cli-required': False},
+                "force": {'type': 'boolean', 'title': 'Force', 'default': False, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -1695,14 +2232,41 @@ def register_generated_openapi_commands(
     @target_app.command("record-a-from-one-document-to-another")
     def citations_record_a_from_one_document_to_another_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        char_end: Optional[int] = typer.Option(None, "--char-end", help="Request field: char_end."),
+        char_start: Optional[int] = typer.Option(None, "--char-start", help="Request field: char_start."),
+        confidence: Optional[float] = typer.Option(None, "--confidence", help="Request field: confidence."),
+        detector: Optional[str] = typer.Option(None, "--detector", help="Request field: detector."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        page_label: Optional[str] = typer.Option(None, "--page-label", help="Request field: page_label."),
+        source_document_id: str = typer.Option(..., "--source-document-id", help="Request field: source_document_id."),
+        target_citation_text: str = typer.Option(..., "--target-citation-text", help="Request field: target_citation_text."),
+        target_document_id: Optional[str] = typer.Option(None, "--target-document-id", help="Request field: target_document_id."),
     ) -> None:
         """Record a citation from one document to another (POST /api/citations/graph)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/citations/graph"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "char_end": char_end,
+                "char_start": char_start,
+                "confidence": confidence,
+                "detector": detector,
+                "metadata": metadata,
+                "page_label": page_label,
+                "source_document_id": source_document_id,
+                "target_citation_text": target_citation_text,
+                "target_document_id": target_document_id,
+            }, {
+                "char_end": {'type': 'integer', 'nullable': True, 'title': 'Char End', 'x-cli-required': False},
+                "char_start": {'type': 'integer', 'nullable': True, 'title': 'Char Start', 'x-cli-required': False},
+                "confidence": {'type': 'number', 'title': 'Confidence', 'default': 1.0, 'x-cli-required': False},
+                "detector": {'type': 'string', 'title': 'Detector', 'default': 'manual', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'default': {}, 'x-cli-required': False},
+                "page_label": {'type': 'string', 'nullable': True, 'title': 'Page Label', 'x-cli-required': False},
+                "source_document_id": {'type': 'string', 'title': 'Source Document Id', 'x-cli-required': True},
+                "target_citation_text": {'type': 'string', 'title': 'Target Citation Text', 'x-cli-required': True},
+                "target_document_id": {'type': 'string', 'nullable': True, 'title': 'Target Document Id', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -1746,14 +2310,32 @@ def register_generated_openapi_commands(
     def citations_patch_patch(
         ctx: typer.Context,
         citation_id: str = typer.Argument(..., help="Path parameter: citation_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        char_end: Optional[int] = typer.Option(None, "--char-end", help="Request field: char_end."),
+        char_start: Optional[int] = typer.Option(None, "--char-start", help="Request field: char_start."),
+        confidence: Optional[float] = typer.Option(None, "--confidence", help="Request field: confidence."),
+        page_label: Optional[str] = typer.Option(None, "--page-label", help="Request field: page_label."),
+        target_citation_text: Optional[str] = typer.Option(None, "--target-citation-text", help="Request field: target_citation_text."),
+        target_document_id: Optional[str] = typer.Option(None, "--target-document-id", help="Request field: target_document_id."),
     ) -> None:
         """Patch Citation (PATCH /api/citations/graph/{citation_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/citations/graph/{citation_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "char_end": char_end,
+                "char_start": char_start,
+                "confidence": confidence,
+                "page_label": page_label,
+                "target_citation_text": target_citation_text,
+                "target_document_id": target_document_id,
+            }, {
+                "char_end": {'type': 'integer', 'nullable': True, 'title': 'Char End', 'x-cli-required': False},
+                "char_start": {'type': 'integer', 'nullable': True, 'title': 'Char Start', 'x-cli-required': False},
+                "confidence": {'type': 'number', 'nullable': True, 'title': 'Confidence', 'x-cli-required': False},
+                "page_label": {'type': 'string', 'nullable': True, 'title': 'Page Label', 'x-cli-required': False},
+                "target_citation_text": {'type': 'string', 'nullable': True, 'title': 'Target Citation Text', 'x-cli-required': False},
+                "target_document_id": {'type': 'string', 'nullable': True, 'title': 'Target Document Id', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -1790,14 +2372,26 @@ def register_generated_openapi_commands(
     def claim_links_update_patch(
         ctx: typer.Context,
         link_id: str = typer.Argument(..., help="Path parameter: link_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        evidence: Optional[str] = typer.Option(None, "--evidence", help="Request field: evidence."),
+        link_quality: Optional[float] = typer.Option(None, "--link-quality", help="Request field: link_quality."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        relation_type: Optional[str] = typer.Option(None, "--relation-type", help="Request field: relation_type."),
     ) -> None:
         """Update Claim Link (PATCH /api/claim-links/{link_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/claim-links/{link_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "evidence": evidence,
+                "link_quality": link_quality,
+                "metadata": metadata,
+                "relation_type": relation_type,
+            }, {
+                "evidence": {'type': 'string', 'nullable': True, 'title': 'Evidence', 'x-cli-required': False},
+                "link_quality": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Link Quality', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
+                "relation_type": {'type': 'string', 'enum': ['supports', 'contradicts', 'refines', 'duplicate_of', 'corroborates', 'derives_from', 'cites', 'follows', 'caused_by', 'related_to'], 'title': 'ClaimRelationType', 'description': "Typed relationship kinds for KnowledgeClaimLink (#1123 Phase B).\n\nOriginally four kinds (supports / contradicts / refines / duplicate_of).\n#1123 extends with five new dimensions plus ``related_to`` (the generic\nfallback used by ``kg_predictions._record_predictions`` when a model\nsurfaces a relation outside the curated set):\n\n- ``corroborates`` — independent evidence agreeing with the source\n  claim. Distinct from ``supports`` (which just reinforces with\n  additional evidence drawn from the same line of reasoning).\n- ``derives_from`` — claim B is inferred from / built on claim A;\n  removing A invalidates B. Stronger than ``cites``.\n- ``cites`` — B references A as a source. Bibliographic / citation\n  graph use.\n- ``follows`` — temporal sequence (A then B). Doesn't imply\n  causation; ``caused_by`` is the explicit causal claim.\n- ``caused_by`` — A is the cause of B. Strong claim; reviewers\n  should treat with corroboration.\n- ``related_to`` — generic fallback when the typed kinds don't\n  fit. Closes the latent crash in\n  ``kg_predictions.py:269`` where the relation_map fallback\n  referenced this value before it existed.\n\nNote: ``contests`` was considered as a synonym for ``contradicts``\nbut excluded — same semantic, different word, doesn't earn a\nseparate enum slot. Writers should keep using ``contradicts``.", 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -1845,56 +2439,224 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def claims_create_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        audience: Optional[str] = typer.Option(None, "--audience", help="Request field: audience."),
+        claim_geo: Optional[str] = typer.Option(None, "--claim-geo", help="Request field: claim_geo."),
+        claim_recorded_at: Optional[str] = typer.Option(None, "--claim-recorded-at", help="Request field: claim_recorded_at."),
+        claim_type: Optional[str] = typer.Option(None, "--claim-type", help="Request field: claim_type."),
+        confidence: Optional[float] = typer.Option(None, "--confidence", help="Request field: confidence."),
+        confidence_source: Optional[str] = typer.Option(None, "--confidence-source", help="Request field: confidence_source."),
+        created_by: Optional[str] = typer.Option(None, "--created-by", help="Request field: created_by."),
+        curation_state: Optional[str] = typer.Option(None, "--curation-state", help="Request field: curation_state."),
+        editor_entity_id: Optional[str] = typer.Option(None, "--editor-entity-id", help="Request field: editor_entity_id."),
+        editor_name: Optional[str] = typer.Option(None, "--editor-name", help="Request field: editor_name."),
+        entity_ids: Optional[str] = typer.Option(None, "--entity-ids", help="Request field: entity_ids."),
+        epistemic_status: Optional[str] = typer.Option(None, "--epistemic-status", help="Request field: epistemic_status."),
+        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        object_phrase: Optional[str] = typer.Option(None, "--object-phrase", help="Request field: object_phrase."),
+        predicate_verb: Optional[str] = typer.Option(None, "--predicate-verb", help="Request field: predicate_verb."),
+        predicted_by: Optional[str] = typer.Option(None, "--predicted-by", help="Request field: predicted_by."),
+        predicted_confidence: Optional[float] = typer.Option(None, "--predicted-confidence", help="Request field: predicted_confidence."),
+        prediction: Optional[str] = typer.Option(None, "--prediction", help="Request field: prediction."),
+        provenance_layer: Optional[str] = typer.Option(None, "--provenance-layer", help="Request field: provenance_layer."),
+        quotation_kind: Optional[str] = typer.Option(None, "--quotation-kind", help="Request field: quotation_kind."),
+        scribe_entity_id: Optional[str] = typer.Option(None, "--scribe-entity-id", help="Request field: scribe_entity_id."),
+        scribe_name: Optional[str] = typer.Option(None, "--scribe-name", help="Request field: scribe_name."),
+        source_document_id: Optional[str] = typer.Option(None, "--source-document-id", help="Request field: source_document_id."),
+        source_excerpt: Optional[str] = typer.Option(None, "--source-excerpt", help="Request field: source_excerpt."),
+        source_genre: Optional[str] = typer.Option(None, "--source-genre", help="Request field: source_genre."),
+        source_ids: Optional[str] = typer.Option(None, "--source-ids", help="Request field: source_ids."),
+        source_language: Optional[str] = typer.Option(None, "--source-language", help="Request field: source_language."),
+        source_languages: Optional[str] = typer.Option(None, "--source-languages", help="Request field: source_languages."),
+        source_page_label: Optional[str] = typer.Option(None, "--source-page-label", help="Request field: source_page_label."),
+        source_page_labels: Optional[str] = typer.Option(None, "--source-page-labels", help="Request field: source_page_labels."),
+        source_ref: Optional[str] = typer.Option(None, "--source-ref", help="Request field: source_ref."),
+        source_segment_id: Optional[str] = typer.Option(None, "--source-segment-id", help="Request field: source_segment_id."),
+        source_type: Optional[str] = typer.Option(None, "--source-type", help="Request field: source_type."),
+        speaker_entity_id: Optional[str] = typer.Option(None, "--speaker-entity-id", help="Request field: speaker_entity_id."),
+        speaker_name: Optional[str] = typer.Option(None, "--speaker-name", help="Request field: speaker_name."),
+        subject_canonical: Optional[str] = typer.Option(None, "--subject-canonical", help="Request field: subject_canonical."),
+        subject_entity_id: Optional[str] = typer.Option(None, "--subject-entity-id", help="Request field: subject_entity_id."),
+        subject_of_inquiry_entity_id: Optional[str] = typer.Option(None, "--subject-of-inquiry-entity-id", help="Request field: subject_of_inquiry_entity_id."),
+        text: str = typer.Option(..., "--text", help="Request field: text."),
+        translation_chain: Optional[str] = typer.Option(None, "--translation-chain", help="Request field: translation_chain."),
     ) -> None:
         """Create Claim (POST /api/claims)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/claims"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "audience": audience,
+                "claim_geo": claim_geo,
+                "claim_recorded_at": claim_recorded_at,
+                "claim_type": claim_type,
+                "confidence": confidence,
+                "confidence_source": confidence_source,
+                "created_by": created_by,
+                "curation_state": curation_state,
+                "editor_entity_id": editor_entity_id,
+                "editor_name": editor_name,
+                "entity_ids": entity_ids,
+                "epistemic_status": epistemic_status,
+                "language": language,
+                "metadata": metadata,
+                "object_phrase": object_phrase,
+                "predicate_verb": predicate_verb,
+                "predicted_by": predicted_by,
+                "predicted_confidence": predicted_confidence,
+                "prediction": prediction,
+                "provenance_layer": provenance_layer,
+                "quotation_kind": quotation_kind,
+                "scribe_entity_id": scribe_entity_id,
+                "scribe_name": scribe_name,
+                "source_document_id": source_document_id,
+                "source_excerpt": source_excerpt,
+                "source_genre": source_genre,
+                "source_ids": source_ids,
+                "source_language": source_language,
+                "source_languages": source_languages,
+                "source_page_label": source_page_label,
+                "source_page_labels": source_page_labels,
+                "source_ref": source_ref,
+                "source_segment_id": source_segment_id,
+                "source_type": source_type,
+                "speaker_entity_id": speaker_entity_id,
+                "speaker_name": speaker_name,
+                "subject_canonical": subject_canonical,
+                "subject_entity_id": subject_entity_id,
+                "subject_of_inquiry_entity_id": subject_of_inquiry_entity_id,
+                "text": text,
+                "translation_chain": translation_chain,
+            }, {
+                "audience": {'type': 'string', 'nullable': True, 'title': 'Audience', 'x-cli-required': False},
+                "claim_geo": {'properties': {'lat': {'type': 'number', 'maximum': 90.0, 'minimum': -90.0, 'title': 'Lat'}, 'lon': {'type': 'number', 'maximum': 180.0, 'minimum': -180.0, 'title': 'Lon'}, 'precision_m': {'type': 'number', 'nullable': True, 'title': 'Precision M', 'description': 'Radius of locational uncertainty in metres (None = exact).'}, 'place_name': {'type': 'string', 'nullable': True, 'title': 'Place Name'}}, 'additionalProperties': True, 'type': 'object', 'required': ['lat', 'lon'], 'title': 'GeoPoint', 'description': "Lat/lon for the spatial scope a claim refers to.\n\nDistinct from entity locations (a claim about Pedro travelling from\nPopayán to Quito has a different geo scope than Pedro's birthplace).\nOptional precision_m lets the renderer draw a confidence radius\ninstead of a point pin when locations are imprecise.", 'x-cli-required': False},
+                "claim_recorded_at": {'type': 'string', 'nullable': True, 'title': 'Claim Recorded At', 'x-cli-required': False},
+                "claim_type": {'type': 'string', 'enum': ['fact', 'analysis', 'interpretation', 'argument', 'historiography', 'theory'], 'title': 'ClaimType', 'x-cli-required': False},
+                "confidence": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'title': 'Confidence', 'default': 0.5, 'x-cli-required': False},
+                "confidence_source": {'type': 'string', 'nullable': True, 'title': 'Confidence Source', 'x-cli-required': False},
+                "created_by": {'type': 'string', 'title': 'Created By', 'default': 'human', 'x-cli-required': False},
+                "curation_state": {'type': 'string', 'enum': ['unreviewed', 'shortlisted', 'curated', 'rejected'], 'title': 'ClaimCurationState', 'x-cli-required': False},
+                "editor_entity_id": {'type': 'string', 'nullable': True, 'title': 'Editor Entity Id', 'x-cli-required': False},
+                "editor_name": {'type': 'string', 'nullable': True, 'title': 'Editor Name', 'x-cli-required': False},
+                "entity_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Entity Ids', 'x-cli-required': False},
+                "epistemic_status": {'type': 'string', 'enum': ['tentative', 'confirmed', 'rejected'], 'title': 'EpistemicStatus', 'x-cli-required': False},
+                "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+                "object_phrase": {'type': 'string', 'nullable': True, 'title': 'Object Phrase', 'x-cli-required': False},
+                "predicate_verb": {'type': 'string', 'nullable': True, 'title': 'Predicate Verb', 'x-cli-required': False},
+                "predicted_by": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Predicted By', 'x-cli-required': False},
+                "predicted_confidence": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Predicted Confidence', 'x-cli-required': False},
+                "prediction": {'properties': {'confidence': {'type': 'number', 'title': 'Confidence'}, 'model': {'type': 'string', 'title': 'Model'}, 'entities': {'items': {'$ref': '#/components/schemas/PredictionEntity'}, 'type': 'array', 'title': 'Entities'}, 'uncertainty_spans': {'items': {'$ref': '#/components/schemas/PredictionUncertaintySpan'}, 'type': 'array', 'title': 'Uncertainty Spans'}, 'predicted_links': {'items': {'$ref': '#/components/schemas/PredictionLink'}, 'type': 'array', 'nullable': True, 'title': 'Predicted Links'}}, 'type': 'object', 'required': ['confidence', 'model'], 'title': 'PredictionMetadata', 'x-cli-required': False},
+                "provenance_layer": {'type': 'string', 'enum': ['main_text', 'marginalia', 'footnote', 'annotation_later', 'scribal_correction', 'interlinear'], 'title': 'ProvenanceLayer', 'description': "Where on a page the claim's source text lives.\n\nMarginalia and interlinear annotations were added by later readers and\ncarry different evidentiary weight than the main text. ``main_text``\nis the default; PDF-bbox heuristics (top/bottom margin offsets) flip\nto ``marginalia`` or ``footnote``.", 'x-cli-required': False},
+                "quotation_kind": {'type': 'string', 'enum': ['verbatim', 'paraphrase', 'indirect', 'inference', 'free_indirect'], 'title': 'QuotationKind', 'description': "How literally a claim reproduces its source text.\n\nPicks up the warrant strength: a verbatim quotation supports a stronger\nepistemic status than an inferred one. Defaults to ``paraphrase`` —\nthat's the realistic default for an LLM extractor that summarised the\nsource rather than copying it verbatim.", 'x-cli-required': False},
+                "scribe_entity_id": {'type': 'string', 'nullable': True, 'title': 'Scribe Entity Id', 'x-cli-required': False},
+                "scribe_name": {'type': 'string', 'nullable': True, 'title': 'Scribe Name', 'x-cli-required': False},
+                "source_document_id": {'type': 'string', 'nullable': True, 'title': 'Source Document Id', 'x-cli-required': False},
+                "source_excerpt": {'type': 'string', 'nullable': True, 'title': 'Source Excerpt', 'x-cli-required': False},
+                "source_genre": {'type': 'string', 'enum': ['petition', 'testimony', 'royal_decree', 'private_letter', 'receipt', 'inventory', 'deed', 'minutes', 'report', 'article', 'book', 'note', 'other'], 'title': 'SourceGenre', 'description': 'Genre of the source passage that produced this claim.\n\nPer-passage, not per-document — a 19th-century compiled collection may\nreprint an 18th-century royal decree alongside private letters; each\nexcerpt carries its own genre. Classified per-doc at ingest, stamped\nonto every claim from that doc as a default; overridable per-claim.', 'x-cli-required': False},
+                "source_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Source Ids', 'x-cli-required': False},
+                "source_language": {'type': 'string', 'nullable': True, 'title': 'Source Language', 'x-cli-required': False},
+                "source_languages": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Source Languages', 'x-cli-required': False},
+                "source_page_label": {'type': 'string', 'nullable': True, 'title': 'Source Page Label', 'x-cli-required': False},
+                "source_page_labels": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Source Page Labels', 'x-cli-required': False},
+                "source_ref": {'type': 'string', 'nullable': True, 'title': 'Source Ref', 'x-cli-required': False},
+                "source_segment_id": {'type': 'string', 'nullable': True, 'title': 'Source Segment Id', 'x-cli-required': False},
+                "source_type": {'type': 'string', 'enum': ['document', 'claim', 'multiple', 'synthesis'], 'title': 'SourceType', 'x-cli-required': False},
+                "speaker_entity_id": {'type': 'string', 'nullable': True, 'title': 'Speaker Entity Id', 'x-cli-required': False},
+                "speaker_name": {'type': 'string', 'nullable': True, 'title': 'Speaker Name', 'x-cli-required': False},
+                "subject_canonical": {'type': 'string', 'nullable': True, 'title': 'Subject Canonical', 'x-cli-required': False},
+                "subject_entity_id": {'type': 'string', 'nullable': True, 'title': 'Subject Entity Id', 'x-cli-required': False},
+                "subject_of_inquiry_entity_id": {'type': 'string', 'nullable': True, 'title': 'Subject Of Inquiry Entity Id', 'x-cli-required': False},
+                "text": {'type': 'string', 'minLength': 1, 'title': 'Text', 'x-cli-required': True},
+                "translation_chain": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Translation Chain', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("assign-time-period")
     def claims_assign_time_period_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        include_descendants: Optional[bool] = typer.Option(None, "--include-descendants/--no-include-descendants", help="Request field: include_descendants."),
+        overwrite_existing: Optional[bool] = typer.Option(None, "--overwrite-existing/--no-overwrite-existing", help="Request field: overwrite_existing."),
+        page_end: Optional[int] = typer.Option(None, "--page-end", help="Request field: page_end."),
+        page_start: Optional[int] = typer.Option(None, "--page-start", help="Request field: page_start."),
+        source_document_id: str = typer.Option(..., "--source-document-id", help="Request field: source_document_id."),
+        time_end: Optional[str] = typer.Option(None, "--time-end", help="Request field: time_end."),
+        time_precision: Optional[str] = typer.Option(None, "--time-precision", help="Request field: time_precision."),
+        time_start: str = typer.Option(..., "--time-start", help="Request field: time_start."),
     ) -> None:
         """Assign Time Period (POST /api/claims/assign-time-period)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/claims/assign-time-period"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "include_descendants": include_descendants,
+                "overwrite_existing": overwrite_existing,
+                "page_end": page_end,
+                "page_start": page_start,
+                "source_document_id": source_document_id,
+                "time_end": time_end,
+                "time_precision": time_precision,
+                "time_start": time_start,
+            }, {
+                "include_descendants": {'type': 'boolean', 'title': 'Include Descendants', 'default': False, 'x-cli-required': False},
+                "overwrite_existing": {'type': 'boolean', 'title': 'Overwrite Existing', 'default': True, 'x-cli-required': False},
+                "page_end": {'type': 'integer', 'minimum': 1.0, 'nullable': True, 'title': 'Page End', 'x-cli-required': False},
+                "page_start": {'type': 'integer', 'minimum': 1.0, 'nullable': True, 'title': 'Page Start', 'x-cli-required': False},
+                "source_document_id": {'type': 'string', 'title': 'Source Document Id', 'x-cli-required': True},
+                "time_end": {'type': 'string', 'nullable': True, 'title': 'Time End', 'x-cli-required': False},
+                "time_precision": {'type': 'string', 'nullable': True, 'title': 'Time Precision', 'x-cli-required': False},
+                "time_start": {'type': 'string', 'title': 'Time Start', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("assign-time-period-from-metadata")
     def claims_assign_time_period_from_metadata_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        include_descendants: Optional[bool] = typer.Option(None, "--include-descendants/--no-include-descendants", help="Request field: include_descendants."),
+        overwrite_existing: Optional[bool] = typer.Option(None, "--overwrite-existing/--no-overwrite-existing", help="Request field: overwrite_existing."),
+        source_document_id: str = typer.Option(..., "--source-document-id", help="Request field: source_document_id."),
     ) -> None:
         """Assign Time Period From Metadata (POST /api/claims/assign-time-period-from-metadata)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/claims/assign-time-period-from-metadata"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "include_descendants": include_descendants,
+                "overwrite_existing": overwrite_existing,
+                "source_document_id": source_document_id,
+            }, {
+                "include_descendants": {'type': 'boolean', 'title': 'Include Descendants', 'default': False, 'x-cli-required': False},
+                "overwrite_existing": {'type': 'boolean', 'title': 'Overwrite Existing', 'default': True, 'x-cli-required': False},
+                "source_document_id": {'type': 'string', 'title': 'Source Document Id', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("batch-transition")
     def claims_batch_transition_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        claim_ids: str = typer.Option(..., "--claim-ids", help="Request field: claim_ids."),
+        reason: Optional[str] = typer.Option(None, "--reason", help="Request field: reason."),
+        reviewed_by: Optional[str] = typer.Option(None, "--reviewed-by", help="Request field: reviewed_by."),
+        to_state: str = typer.Option(..., "--to-state", help="Request field: to_state."),
     ) -> None:
         """Batch transition claims (POST /api/claims/batch/transition)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/claims/batch/transition"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "claim_ids": claim_ids,
+                "reason": reason,
+                "reviewed_by": reviewed_by,
+                "to_state": to_state,
+            }, {
+                "claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Claim Ids', 'description': 'List of claim IDs to transition', 'x-cli-required': True},
+                "reason": {'type': 'string', 'nullable': True, 'title': 'Reason', 'description': 'Optional reason for transition', 'x-cli-required': False},
+                "reviewed_by": {'type': 'string', 'title': 'Reviewed By', 'description': 'Who performed the review', 'default': 'human', 'x-cli-required': False},
+                "to_state": {'type': 'string', 'title': 'To State', 'description': 'Target curation state', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -1989,14 +2751,29 @@ def register_generated_openapi_commands(
     @target_app.command("resolve-source")
     def claims_resolve_source_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        claim_id: Optional[str] = typer.Option(None, "--claim-id", help="Request field: claim_id."),
+        object_phrase: Optional[str] = typer.Option(None, "--object-phrase", help="Request field: object_phrase."),
+        predicate_verb: Optional[str] = typer.Option(None, "--predicate-verb", help="Request field: predicate_verb."),
+        source_document_id: Optional[str] = typer.Option(None, "--source-document-id", help="Request field: source_document_id."),
+        subject_canonical: Optional[str] = typer.Option(None, "--subject-canonical", help="Request field: subject_canonical."),
     ) -> None:
         """Resolve Claim Source (POST /api/claims/resolve-source)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/claims/resolve-source"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "claim_id": claim_id,
+                "object_phrase": object_phrase,
+                "predicate_verb": predicate_verb,
+                "source_document_id": source_document_id,
+                "subject_canonical": subject_canonical,
+            }, {
+                "claim_id": {'type': 'string', 'nullable': True, 'title': 'Claim Id', 'x-cli-required': False},
+                "object_phrase": {'type': 'string', 'nullable': True, 'title': 'Object Phrase', 'x-cli-required': False},
+                "predicate_verb": {'type': 'string', 'nullable': True, 'title': 'Predicate Verb', 'x-cli-required': False},
+                "source_document_id": {'type': 'string', 'nullable': True, 'title': 'Source Document Id', 'x-cli-required': False},
+                "subject_canonical": {'type': 'string', 'nullable': True, 'title': 'Subject Canonical', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -2028,14 +2805,164 @@ def register_generated_openapi_commands(
     def claims_patch_patch(
         ctx: typer.Context,
         claim_id: str = typer.Argument(..., help="Path parameter: claim_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        audience: Optional[str] = typer.Option(None, "--audience", help="Request field: audience."),
+        claim_geo: Optional[str] = typer.Option(None, "--claim-geo", help="Request field: claim_geo."),
+        claim_recorded_at: Optional[str] = typer.Option(None, "--claim-recorded-at", help="Request field: claim_recorded_at."),
+        claim_type: Optional[str] = typer.Option(None, "--claim-type", help="Request field: claim_type."),
+        confidence: Optional[float] = typer.Option(None, "--confidence", help="Request field: confidence."),
+        confidence_source: Optional[str] = typer.Option(None, "--confidence-source", help="Request field: confidence_source."),
+        curation_state: Optional[str] = typer.Option(None, "--curation-state", help="Request field: curation_state."),
+        editor_entity_id: Optional[str] = typer.Option(None, "--editor-entity-id", help="Request field: editor_entity_id."),
+        editor_name: Optional[str] = typer.Option(None, "--editor-name", help="Request field: editor_name."),
+        entity_ids: Optional[str] = typer.Option(None, "--entity-ids", help="Request field: entity_ids."),
+        epistemic_status: Optional[str] = typer.Option(None, "--epistemic-status", help="Request field: epistemic_status."),
+        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        object_phrase: Optional[str] = typer.Option(None, "--object-phrase", help="Request field: object_phrase."),
+        predicate_canonical: Optional[str] = typer.Option(None, "--predicate-canonical", help="Request field: predicate_canonical."),
+        predicate_verb: Optional[str] = typer.Option(None, "--predicate-verb", help="Request field: predicate_verb."),
+        predicted_by: Optional[str] = typer.Option(None, "--predicted-by", help="Request field: predicted_by."),
+        predicted_confidence: Optional[float] = typer.Option(None, "--predicted-confidence", help="Request field: predicted_confidence."),
+        prediction: Optional[str] = typer.Option(None, "--prediction", help="Request field: prediction."),
+        provenance_layer: Optional[str] = typer.Option(None, "--provenance-layer", help="Request field: provenance_layer."),
+        quotation_kind: Optional[str] = typer.Option(None, "--quotation-kind", help="Request field: quotation_kind."),
+        scribe_entity_id: Optional[str] = typer.Option(None, "--scribe-entity-id", help="Request field: scribe_entity_id."),
+        scribe_name: Optional[str] = typer.Option(None, "--scribe-name", help="Request field: scribe_name."),
+        source_bbox: Optional[str] = typer.Option(None, "--source-bbox", help="Request field: source_bbox."),
+        source_char_end: Optional[int] = typer.Option(None, "--source-char-end", help="Request field: source_char_end."),
+        source_char_start: Optional[int] = typer.Option(None, "--source-char-start", help="Request field: source_char_start."),
+        source_document_id: Optional[str] = typer.Option(None, "--source-document-id", help="Request field: source_document_id."),
+        source_excerpt: Optional[str] = typer.Option(None, "--source-excerpt", help="Request field: source_excerpt."),
+        source_genre: Optional[str] = typer.Option(None, "--source-genre", help="Request field: source_genre."),
+        source_ids: Optional[str] = typer.Option(None, "--source-ids", help="Request field: source_ids."),
+        source_language: Optional[str] = typer.Option(None, "--source-language", help="Request field: source_language."),
+        source_languages: Optional[str] = typer.Option(None, "--source-languages", help="Request field: source_languages."),
+        source_page_label: Optional[str] = typer.Option(None, "--source-page-label", help="Request field: source_page_label."),
+        source_page_labels: Optional[str] = typer.Option(None, "--source-page-labels", help="Request field: source_page_labels."),
+        source_ref: Optional[str] = typer.Option(None, "--source-ref", help="Request field: source_ref."),
+        source_segment_id: Optional[str] = typer.Option(None, "--source-segment-id", help="Request field: source_segment_id."),
+        source_type: Optional[str] = typer.Option(None, "--source-type", help="Request field: source_type."),
+        speaker_entity_id: Optional[str] = typer.Option(None, "--speaker-entity-id", help="Request field: speaker_entity_id."),
+        speaker_name: Optional[str] = typer.Option(None, "--speaker-name", help="Request field: speaker_name."),
+        subject_canonical: Optional[str] = typer.Option(None, "--subject-canonical", help="Request field: subject_canonical."),
+        subject_entity_id: Optional[str] = typer.Option(None, "--subject-entity-id", help="Request field: subject_entity_id."),
+        subject_of_inquiry_entity_id: Optional[str] = typer.Option(None, "--subject-of-inquiry-entity-id", help="Request field: subject_of_inquiry_entity_id."),
+        svo_object: Optional[str] = typer.Option(None, "--svo-object", help="Request field: svo_object."),
+        svo_subject: Optional[str] = typer.Option(None, "--svo-subject", help="Request field: svo_subject."),
+        svo_verb: Optional[str] = typer.Option(None, "--svo-verb", help="Request field: svo_verb."),
+        text: Optional[str] = typer.Option(None, "--text", help="Request field: text."),
+        time_end: Optional[str] = typer.Option(None, "--time-end", help="Request field: time_end."),
+        time_precision: Optional[str] = typer.Option(None, "--time-precision", help="Request field: time_precision."),
+        time_start: Optional[str] = typer.Option(None, "--time-start", help="Request field: time_start."),
+        translation_chain: Optional[str] = typer.Option(None, "--translation-chain", help="Request field: translation_chain."),
     ) -> None:
         """Patch Claim (PATCH /api/claims/{claim_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/claims/{claim_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "audience": audience,
+                "claim_geo": claim_geo,
+                "claim_recorded_at": claim_recorded_at,
+                "claim_type": claim_type,
+                "confidence": confidence,
+                "confidence_source": confidence_source,
+                "curation_state": curation_state,
+                "editor_entity_id": editor_entity_id,
+                "editor_name": editor_name,
+                "entity_ids": entity_ids,
+                "epistemic_status": epistemic_status,
+                "language": language,
+                "metadata": metadata,
+                "object_phrase": object_phrase,
+                "predicate_canonical": predicate_canonical,
+                "predicate_verb": predicate_verb,
+                "predicted_by": predicted_by,
+                "predicted_confidence": predicted_confidence,
+                "prediction": prediction,
+                "provenance_layer": provenance_layer,
+                "quotation_kind": quotation_kind,
+                "scribe_entity_id": scribe_entity_id,
+                "scribe_name": scribe_name,
+                "source_bbox": source_bbox,
+                "source_char_end": source_char_end,
+                "source_char_start": source_char_start,
+                "source_document_id": source_document_id,
+                "source_excerpt": source_excerpt,
+                "source_genre": source_genre,
+                "source_ids": source_ids,
+                "source_language": source_language,
+                "source_languages": source_languages,
+                "source_page_label": source_page_label,
+                "source_page_labels": source_page_labels,
+                "source_ref": source_ref,
+                "source_segment_id": source_segment_id,
+                "source_type": source_type,
+                "speaker_entity_id": speaker_entity_id,
+                "speaker_name": speaker_name,
+                "subject_canonical": subject_canonical,
+                "subject_entity_id": subject_entity_id,
+                "subject_of_inquiry_entity_id": subject_of_inquiry_entity_id,
+                "svo_object": svo_object,
+                "svo_subject": svo_subject,
+                "svo_verb": svo_verb,
+                "text": text,
+                "time_end": time_end,
+                "time_precision": time_precision,
+                "time_start": time_start,
+                "translation_chain": translation_chain,
+            }, {
+                "audience": {'type': 'string', 'nullable': True, 'title': 'Audience', 'x-cli-required': False},
+                "claim_geo": {'properties': {'lat': {'type': 'number', 'maximum': 90.0, 'minimum': -90.0, 'title': 'Lat'}, 'lon': {'type': 'number', 'maximum': 180.0, 'minimum': -180.0, 'title': 'Lon'}, 'precision_m': {'type': 'number', 'nullable': True, 'title': 'Precision M', 'description': 'Radius of locational uncertainty in metres (None = exact).'}, 'place_name': {'type': 'string', 'nullable': True, 'title': 'Place Name'}}, 'additionalProperties': True, 'type': 'object', 'required': ['lat', 'lon'], 'title': 'GeoPoint', 'description': "Lat/lon for the spatial scope a claim refers to.\n\nDistinct from entity locations (a claim about Pedro travelling from\nPopayán to Quito has a different geo scope than Pedro's birthplace).\nOptional precision_m lets the renderer draw a confidence radius\ninstead of a point pin when locations are imprecise.", 'x-cli-required': False},
+                "claim_recorded_at": {'type': 'string', 'nullable': True, 'title': 'Claim Recorded At', 'x-cli-required': False},
+                "claim_type": {'type': 'string', 'enum': ['fact', 'analysis', 'interpretation', 'argument', 'historiography', 'theory'], 'title': 'ClaimType', 'x-cli-required': False},
+                "confidence": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Confidence', 'x-cli-required': False},
+                "confidence_source": {'type': 'string', 'nullable': True, 'title': 'Confidence Source', 'x-cli-required': False},
+                "curation_state": {'type': 'string', 'enum': ['unreviewed', 'shortlisted', 'curated', 'rejected'], 'title': 'ClaimCurationState', 'x-cli-required': False},
+                "editor_entity_id": {'type': 'string', 'nullable': True, 'title': 'Editor Entity Id', 'x-cli-required': False},
+                "editor_name": {'type': 'string', 'nullable': True, 'title': 'Editor Name', 'x-cli-required': False},
+                "entity_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Entity Ids', 'x-cli-required': False},
+                "epistemic_status": {'type': 'string', 'enum': ['tentative', 'confirmed', 'rejected'], 'title': 'EpistemicStatus', 'x-cli-required': False},
+                "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
+                "object_phrase": {'type': 'string', 'nullable': True, 'title': 'Object Phrase', 'x-cli-required': False},
+                "predicate_canonical": {'type': 'string', 'nullable': True, 'title': 'Predicate Canonical', 'x-cli-required': False},
+                "predicate_verb": {'type': 'string', 'nullable': True, 'title': 'Predicate Verb', 'x-cli-required': False},
+                "predicted_by": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Predicted By', 'x-cli-required': False},
+                "predicted_confidence": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Predicted Confidence', 'x-cli-required': False},
+                "prediction": {'properties': {'confidence': {'type': 'number', 'title': 'Confidence'}, 'model': {'type': 'string', 'title': 'Model'}, 'entities': {'items': {'$ref': '#/components/schemas/PredictionEntity'}, 'type': 'array', 'title': 'Entities'}, 'uncertainty_spans': {'items': {'$ref': '#/components/schemas/PredictionUncertaintySpan'}, 'type': 'array', 'title': 'Uncertainty Spans'}, 'predicted_links': {'items': {'$ref': '#/components/schemas/PredictionLink'}, 'type': 'array', 'nullable': True, 'title': 'Predicted Links'}}, 'type': 'object', 'required': ['confidence', 'model'], 'title': 'PredictionMetadata', 'x-cli-required': False},
+                "provenance_layer": {'type': 'string', 'enum': ['main_text', 'marginalia', 'footnote', 'annotation_later', 'scribal_correction', 'interlinear'], 'title': 'ProvenanceLayer', 'description': "Where on a page the claim's source text lives.\n\nMarginalia and interlinear annotations were added by later readers and\ncarry different evidentiary weight than the main text. ``main_text``\nis the default; PDF-bbox heuristics (top/bottom margin offsets) flip\nto ``marginalia`` or ``footnote``.", 'x-cli-required': False},
+                "quotation_kind": {'type': 'string', 'enum': ['verbatim', 'paraphrase', 'indirect', 'inference', 'free_indirect'], 'title': 'QuotationKind', 'description': "How literally a claim reproduces its source text.\n\nPicks up the warrant strength: a verbatim quotation supports a stronger\nepistemic status than an inferred one. Defaults to ``paraphrase`` —\nthat's the realistic default for an LLM extractor that summarised the\nsource rather than copying it verbatim.", 'x-cli-required': False},
+                "scribe_entity_id": {'type': 'string', 'nullable': True, 'title': 'Scribe Entity Id', 'x-cli-required': False},
+                "scribe_name": {'type': 'string', 'nullable': True, 'title': 'Scribe Name', 'x-cli-required': False},
+                "source_bbox": {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Source Bbox', 'x-cli-required': False},
+                "source_char_end": {'type': 'integer', 'nullable': True, 'title': 'Source Char End', 'x-cli-required': False},
+                "source_char_start": {'type': 'integer', 'nullable': True, 'title': 'Source Char Start', 'x-cli-required': False},
+                "source_document_id": {'type': 'string', 'nullable': True, 'title': 'Source Document Id', 'x-cli-required': False},
+                "source_excerpt": {'type': 'string', 'nullable': True, 'title': 'Source Excerpt', 'x-cli-required': False},
+                "source_genre": {'type': 'string', 'enum': ['petition', 'testimony', 'royal_decree', 'private_letter', 'receipt', 'inventory', 'deed', 'minutes', 'report', 'article', 'book', 'note', 'other'], 'title': 'SourceGenre', 'description': 'Genre of the source passage that produced this claim.\n\nPer-passage, not per-document — a 19th-century compiled collection may\nreprint an 18th-century royal decree alongside private letters; each\nexcerpt carries its own genre. Classified per-doc at ingest, stamped\nonto every claim from that doc as a default; overridable per-claim.', 'x-cli-required': False},
+                "source_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Source Ids', 'x-cli-required': False},
+                "source_language": {'type': 'string', 'nullable': True, 'title': 'Source Language', 'x-cli-required': False},
+                "source_languages": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Source Languages', 'x-cli-required': False},
+                "source_page_label": {'type': 'string', 'nullable': True, 'title': 'Source Page Label', 'x-cli-required': False},
+                "source_page_labels": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Source Page Labels', 'x-cli-required': False},
+                "source_ref": {'type': 'string', 'nullable': True, 'title': 'Source Ref', 'x-cli-required': False},
+                "source_segment_id": {'type': 'string', 'nullable': True, 'title': 'Source Segment Id', 'x-cli-required': False},
+                "source_type": {'type': 'string', 'enum': ['document', 'claim', 'multiple', 'synthesis'], 'title': 'SourceType', 'x-cli-required': False},
+                "speaker_entity_id": {'type': 'string', 'nullable': True, 'title': 'Speaker Entity Id', 'x-cli-required': False},
+                "speaker_name": {'type': 'string', 'nullable': True, 'title': 'Speaker Name', 'x-cli-required': False},
+                "subject_canonical": {'type': 'string', 'nullable': True, 'title': 'Subject Canonical', 'x-cli-required': False},
+                "subject_entity_id": {'type': 'string', 'nullable': True, 'title': 'Subject Entity Id', 'x-cli-required': False},
+                "subject_of_inquiry_entity_id": {'type': 'string', 'nullable': True, 'title': 'Subject Of Inquiry Entity Id', 'x-cli-required': False},
+                "svo_object": {'type': 'string', 'nullable': True, 'title': 'Svo Object', 'x-cli-required': False},
+                "svo_subject": {'type': 'string', 'nullable': True, 'title': 'Svo Subject', 'x-cli-required': False},
+                "svo_verb": {'type': 'string', 'nullable': True, 'title': 'Svo Verb', 'x-cli-required': False},
+                "text": {'type': 'string', 'nullable': True, 'title': 'Text', 'x-cli-required': False},
+                "time_end": {'type': 'string', 'nullable': True, 'title': 'Time End', 'x-cli-required': False},
+                "time_precision": {'type': 'string', 'nullable': True, 'title': 'Time Precision', 'x-cli-required': False},
+                "time_start": {'type': 'string', 'nullable': True, 'title': 'Time Start', 'x-cli-required': False},
+                "translation_chain": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Translation Chain', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -2055,14 +2982,29 @@ def register_generated_openapi_commands(
     def claims_create_link_post(
         ctx: typer.Context,
         claim_id: str = typer.Argument(..., help="Path parameter: claim_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        evidence: Optional[str] = typer.Option(None, "--evidence", help="Request field: evidence."),
+        link_quality: Optional[float] = typer.Option(None, "--link-quality", help="Request field: link_quality."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        related_claim_id: str = typer.Option(..., "--related-claim-id", help="Request field: related_claim_id."),
+        relation_type: str = typer.Option(..., "--relation-type", help="Request field: relation_type."),
     ) -> None:
         """Create Claim Link (POST /api/claims/{claim_id}/links)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/claims/{claim_id}/links"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "evidence": evidence,
+                "link_quality": link_quality,
+                "metadata": metadata,
+                "related_claim_id": related_claim_id,
+                "relation_type": relation_type,
+            }, {
+                "evidence": {'type': 'string', 'nullable': True, 'title': 'Evidence', 'x-cli-required': False},
+                "link_quality": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'title': 'Link Quality', 'default': 0.5, 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+                "related_claim_id": {'type': 'string', 'title': 'Related Claim Id', 'x-cli-required': True},
+                "relation_type": {'type': 'string', 'enum': ['supports', 'contradicts', 'refines', 'duplicate_of', 'corroborates', 'derives_from', 'cites', 'follows', 'caused_by', 'related_to'], 'title': 'ClaimRelationType', 'description': "Typed relationship kinds for KnowledgeClaimLink (#1123 Phase B).\n\nOriginally four kinds (supports / contradicts / refines / duplicate_of).\n#1123 extends with five new dimensions plus ``related_to`` (the generic\nfallback used by ``kg_predictions._record_predictions`` when a model\nsurfaces a relation outside the curated set):\n\n- ``corroborates`` — independent evidence agreeing with the source\n  claim. Distinct from ``supports`` (which just reinforces with\n  additional evidence drawn from the same line of reasoning).\n- ``derives_from`` — claim B is inferred from / built on claim A;\n  removing A invalidates B. Stronger than ``cites``.\n- ``cites`` — B references A as a source. Bibliographic / citation\n  graph use.\n- ``follows`` — temporal sequence (A then B). Doesn't imply\n  causation; ``caused_by`` is the explicit causal claim.\n- ``caused_by`` — A is the cause of B. Strong claim; reviewers\n  should treat with corroboration.\n- ``related_to`` — generic fallback when the typed kinds don't\n  fit. Closes the latent crash in\n  ``kg_predictions.py:269`` where the relation_map fallback\n  referenced this value before it existed.\n\nNote: ``contests`` was considered as a synonym for ``contradicts``\nbut excluded — same semantic, different word, doesn't earn a\nseparate enum slot. Writers should keep using ``contradicts``.", 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -2085,14 +3027,23 @@ def register_generated_openapi_commands(
     def claims_transition_curation_state_patch(
         ctx: typer.Context,
         claim_id: str = typer.Argument(..., help="Path parameter: claim_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        reason: Optional[str] = typer.Option(None, "--reason", help="Request field: reason."),
+        reviewed_by: Optional[str] = typer.Option(None, "--reviewed-by", help="Request field: reviewed_by."),
+        to_state: str = typer.Option(..., "--to-state", help="Request field: to_state."),
     ) -> None:
         """Transition claim curation state (PATCH /api/claims/{claim_id}/transition)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/claims/{claim_id}/transition"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "reason": reason,
+                "reviewed_by": reviewed_by,
+                "to_state": to_state,
+            }, {
+                "reason": {'type': 'string', 'nullable': True, 'title': 'Reason', 'description': 'Optional reason for transition', 'x-cli-required': False},
+                "reviewed_by": {'type': 'string', 'title': 'Reviewed By', 'description': 'Who performed the review', 'default': 'human', 'x-cli-required': False},
+                "to_state": {'type': 'string', 'title': 'To State', 'description': 'Target curation state: unreviewed, shortlisted, curated, rejected', 'x-cli-required': True},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -2118,14 +3069,38 @@ def register_generated_openapi_commands(
     @target_app.command("add-a-custom-value")
     def classifications_add_a_custom_value_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        dimension: str = typer.Option(..., "--dimension", help="Request field: dimension."),
+        icon: Optional[str] = typer.Option(None, "--icon", help="Request field: icon."),
+        key: str = typer.Option(..., "--key", help="Request field: key."),
+        label: str = typer.Option(..., "--label", help="Request field: label."),
+        parent_key: Optional[str] = typer.Option(None, "--parent-key", help="Request field: parent_key."),
+        sort_order: Optional[int] = typer.Option(None, "--sort-order", help="Request field: sort_order."),
     ) -> None:
         """Add a custom classification value (POST /api/classifications)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/classifications"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "color": color,
+                "description": description,
+                "dimension": dimension,
+                "icon": icon,
+                "key": key,
+                "label": label,
+                "parent_key": parent_key,
+                "sort_order": sort_order,
+            }, {
+                "color": {'type': 'string', 'nullable': True, 'title': 'Color', 'x-cli-required': False},
+                "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'x-cli-required': False},
+                "dimension": {'type': 'string', 'enum': ['epistemic_status', 'claim_type', 'entity_type', 'document_prototype', 'node_class'], 'title': 'ClassificationDimension', 'description': 'Which classification axis a registry value belongs to (#915).\n\n``node_class`` (#1570) is the Tinderbox-style prototype/class axis for\nworkspace curated items; values key off ``ClassificationValue.key``.', 'x-cli-required': True},
+                "icon": {'type': 'string', 'nullable': True, 'title': 'Icon', 'x-cli-required': False},
+                "key": {'type': 'string', 'title': 'Key', 'x-cli-required': True},
+                "label": {'type': 'string', 'title': 'Label', 'x-cli-required': True},
+                "parent_key": {'type': 'string', 'nullable': True, 'title': 'Parent Key', 'x-cli-required': False},
+                "sort_order": {'type': 'integer', 'title': 'Sort Order', 'default': 0, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -2145,14 +3120,32 @@ def register_generated_openapi_commands(
     def classifications_edit_a_value_s_label_color_order_patch(
         ctx: typer.Context,
         value_id: str = typer.Argument(..., help="Path parameter: value_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        icon: Optional[str] = typer.Option(None, "--icon", help="Request field: icon."),
+        label: Optional[str] = typer.Option(None, "--label", help="Request field: label."),
+        parent_key: Optional[str] = typer.Option(None, "--parent-key", help="Request field: parent_key."),
+        sort_order: Optional[int] = typer.Option(None, "--sort-order", help="Request field: sort_order."),
     ) -> None:
         """Edit a classification value's label / color / order (PATCH /api/classifications/{value_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/classifications/{value_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "color": color,
+                "description": description,
+                "icon": icon,
+                "label": label,
+                "parent_key": parent_key,
+                "sort_order": sort_order,
+            }, {
+                "color": {'type': 'string', 'nullable': True, 'title': 'Color', 'x-cli-required': False},
+                "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'x-cli-required': False},
+                "icon": {'type': 'string', 'nullable': True, 'title': 'Icon', 'x-cli-required': False},
+                "label": {'type': 'string', 'nullable': True, 'title': 'Label', 'x-cli-required': False},
+                "parent_key": {'type': 'string', 'nullable': True, 'title': 'Parent Key', 'x-cli-required': False},
+                "sort_order": {'type': 'integer', 'nullable': True, 'title': 'Sort Order', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -2192,28 +3185,82 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def documents_create_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        doc_type: Optional[str] = typer.Option(None, "--doc-type", help="Request field: doc_type."),
+        file_type: Optional[str] = typer.Option(None, "--file-type", help="Request field: file_type."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        node_kind: Optional[str] = typer.Option(None, "--node-kind", help="Request field: node_kind."),
+        page_content: Optional[str] = typer.Option(None, "--page-content", help="Request field: page_content."),
+        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Request field: parent_id."),
+        path: Optional[str] = typer.Option(None, "--path", help="Request field: path."),
+        position_x: Optional[float] = typer.Option(None, "--position-x", help="Request field: position_x."),
+        position_y: Optional[float] = typer.Option(None, "--position-y", help="Request field: position_y."),
+        position_z: Optional[float] = typer.Option(None, "--position-z", help="Request field: position_z."),
+        prototype_key: Optional[str] = typer.Option(None, "--prototype-key", help="Request field: prototype_key."),
+        rotation_z: Optional[float] = typer.Option(None, "--rotation-z", help="Request field: rotation_z."),
+        scale: Optional[float] = typer.Option(None, "--scale", help="Request field: scale."),
+        z_index: Optional[int] = typer.Option(None, "--z-index", help="Request field: z_index."),
     ) -> None:
         """Create Document (POST /api/documents)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/documents"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "doc_type": doc_type,
+                "file_type": file_type,
+                "metadata": metadata,
+                "name": name,
+                "node_kind": node_kind,
+                "page_content": page_content,
+                "parent_id": parent_id,
+                "path": path,
+                "position_x": position_x,
+                "position_y": position_y,
+                "position_z": position_z,
+                "prototype_key": prototype_key,
+                "rotation_z": rotation_z,
+                "scale": scale,
+                "z_index": z_index,
+            }, {
+                "doc_type": {'type': 'string', 'enum': ['folder', 'group', 'file', 'page', 'chunk'], 'title': 'DocType', 'description': 'Type of document node in the hierarchy.', 'x-cli-required': False},
+                "file_type": {'type': 'string', 'enum': ['image', 'pdf', 'audio', 'video', 'text', 'word', 'docx', 'epub', 'spreadsheet', 'presentation', 'other'], 'title': 'FileType', 'description': 'Type of source file.', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'default': {}, 'x-cli-required': False},
+                "name": {'type': 'string', 'minLength': 1, 'title': 'Name', 'x-cli-required': True},
+                "node_kind": {'type': 'string', 'nullable': True, 'title': 'Node Kind', 'x-cli-required': False},
+                "page_content": {'type': 'string', 'nullable': True, 'title': 'Page Content', 'x-cli-required': False},
+                "parent_id": {'type': 'string', 'nullable': True, 'title': 'Parent Id', 'x-cli-required': False},
+                "path": {'type': 'string', 'nullable': True, 'title': 'Path', 'x-cli-required': False},
+                "position_x": {'type': 'number', 'nullable': True, 'title': 'Position X', 'x-cli-required': False},
+                "position_y": {'type': 'number', 'nullable': True, 'title': 'Position Y', 'x-cli-required': False},
+                "position_z": {'type': 'number', 'nullable': True, 'title': 'Position Z', 'x-cli-required': False},
+                "prototype_key": {'type': 'string', 'nullable': True, 'title': 'Prototype Key', 'x-cli-required': False},
+                "rotation_z": {'type': 'number', 'nullable': True, 'title': 'Rotation Z', 'x-cli-required': False},
+                "scale": {'type': 'number', 'nullable': True, 'title': 'Scale', 'x-cli-required': False},
+                "z_index": {'type': 'integer', 'nullable': True, 'title': 'Z Index', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("batch-exclude")
     def documents_batch_exclude_patch(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        document_ids: str = typer.Option(..., "--document-ids", help="Request field: document_ids."),
+        excluded: bool = typer.Option(..., "--excluded/--no-excluded", help="Request field: excluded."),
+        reason: Optional[str] = typer.Option(None, "--reason", help="Request field: reason."),
     ) -> None:
         """Batch Exclude Documents (PATCH /api/documents/batch-exclude)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/documents/batch-exclude"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "document_ids": document_ids,
+                "excluded": excluded,
+                "reason": reason,
+            }, {
+                "document_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Document Ids', 'x-cli-required': True},
+                "excluded": {'type': 'boolean', 'title': 'Excluded', 'x-cli-required': True},
+                "reason": {'type': 'string', 'nullable': True, 'title': 'Reason', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -2352,14 +3399,74 @@ def register_generated_openapi_commands(
     def documents_update_put(
         ctx: typer.Context,
         doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        doc_type: Optional[str] = typer.Option(None, "--doc-type", help="Request field: doc_type."),
+        exclude_from_processing: Optional[bool] = typer.Option(None, "--exclude-from-processing/--no-exclude-from-processing", help="Request field: exclude_from_processing."),
+        file_type: Optional[str] = typer.Option(None, "--file-type", help="Request field: file_type."),
+        is_flagged: Optional[bool] = typer.Option(None, "--is-flagged/--no-is-flagged", help="Request field: is_flagged."),
+        is_read: Optional[bool] = typer.Option(None, "--is-read/--no-is-read", help="Request field: is_read."),
+        is_starred: Optional[bool] = typer.Option(None, "--is-starred/--no-is-starred", help="Request field: is_starred."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        node_kind: Optional[str] = typer.Option(None, "--node-kind", help="Request field: node_kind."),
+        page_content: Optional[str] = typer.Option(None, "--page-content", help="Request field: page_content."),
+        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Request field: parent_id."),
+        path: Optional[str] = typer.Option(None, "--path", help="Request field: path."),
+        position_x: Optional[float] = typer.Option(None, "--position-x", help="Request field: position_x."),
+        position_y: Optional[float] = typer.Option(None, "--position-y", help="Request field: position_y."),
+        position_z: Optional[float] = typer.Option(None, "--position-z", help="Request field: position_z."),
+        prototype_key: Optional[str] = typer.Option(None, "--prototype-key", help="Request field: prototype_key."),
+        rotation_z: Optional[float] = typer.Option(None, "--rotation-z", help="Request field: rotation_z."),
+        scale: Optional[float] = typer.Option(None, "--scale", help="Request field: scale."),
+        status: Optional[str] = typer.Option(None, "--status", help="Request field: status."),
+        z_index: Optional[int] = typer.Option(None, "--z-index", help="Request field: z_index."),
     ) -> None:
         """Update Document (PUT /api/documents/{doc_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/documents/{doc_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "doc_type": doc_type,
+                "exclude_from_processing": exclude_from_processing,
+                "file_type": file_type,
+                "is_flagged": is_flagged,
+                "is_read": is_read,
+                "is_starred": is_starred,
+                "metadata": metadata,
+                "name": name,
+                "node_kind": node_kind,
+                "page_content": page_content,
+                "parent_id": parent_id,
+                "path": path,
+                "position_x": position_x,
+                "position_y": position_y,
+                "position_z": position_z,
+                "prototype_key": prototype_key,
+                "rotation_z": rotation_z,
+                "scale": scale,
+                "status": status,
+                "z_index": z_index,
+            }, {
+                "doc_type": {'type': 'string', 'enum': ['folder', 'group', 'file', 'page', 'chunk'], 'title': 'DocType', 'description': 'Type of document node in the hierarchy.', 'x-cli-required': False},
+                "exclude_from_processing": {'type': 'boolean', 'nullable': True, 'title': 'Exclude From Processing', 'x-cli-required': False},
+                "file_type": {'type': 'string', 'enum': ['image', 'pdf', 'audio', 'video', 'text', 'word', 'docx', 'epub', 'spreadsheet', 'presentation', 'other'], 'title': 'FileType', 'description': 'Type of source file.', 'x-cli-required': False},
+                "is_flagged": {'type': 'boolean', 'nullable': True, 'title': 'Is Flagged', 'x-cli-required': False},
+                "is_read": {'type': 'boolean', 'nullable': True, 'title': 'Is Read', 'x-cli-required': False},
+                "is_starred": {'type': 'boolean', 'nullable': True, 'title': 'Is Starred', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
+                "node_kind": {'type': 'string', 'nullable': True, 'title': 'Node Kind', 'x-cli-required': False},
+                "page_content": {'type': 'string', 'nullable': True, 'title': 'Page Content', 'x-cli-required': False},
+                "parent_id": {'type': 'string', 'nullable': True, 'title': 'Parent Id', 'x-cli-required': False},
+                "path": {'type': 'string', 'nullable': True, 'title': 'Path', 'x-cli-required': False},
+                "position_x": {'type': 'number', 'nullable': True, 'title': 'Position X', 'x-cli-required': False},
+                "position_y": {'type': 'number', 'nullable': True, 'title': 'Position Y', 'x-cli-required': False},
+                "position_z": {'type': 'number', 'nullable': True, 'title': 'Position Z', 'x-cli-required': False},
+                "prototype_key": {'type': 'string', 'nullable': True, 'title': 'Prototype Key', 'x-cli-required': False},
+                "rotation_z": {'type': 'number', 'nullable': True, 'title': 'Rotation Z', 'x-cli-required': False},
+                "scale": {'type': 'number', 'nullable': True, 'title': 'Scale', 'x-cli-required': False},
+                "status": {'type': 'string', 'enum': ['pending', 'processing', 'active', 'completed', 'failed'], 'title': 'Status', 'description': 'Processing status.', 'x-cli-required': False},
+                "z_index": {'type': 'integer', 'nullable': True, 'title': 'Z Index', 'x-cli-required': False},
+            }, required=True)
             return client.request("PUT", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -2445,14 +3552,17 @@ def register_generated_openapi_commands(
     def documents_put_note_put(
         ctx: typer.Context,
         doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        content: str = typer.Option(..., "--content", help="Request field: content."),
     ) -> None:
         """Put Document Note (PUT /api/documents/{doc_id}/notes)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/documents/{doc_id}/notes"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "content": content,
+            }, {
+                "content": {'type': 'string', 'title': 'Content', 'x-cli-required': True},
+            }, required=True)
             return client.request("PUT", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -2472,14 +3582,17 @@ def register_generated_openapi_commands(
     def documents_upsert_page_ranges_put(
         ctx: typer.Context,
         doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        items: str = typer.Option(..., "--items", help="Request field: items."),
     ) -> None:
         """Upsert Page Ranges (PUT /api/documents/{doc_id}/page-ranges)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/documents/{doc_id}/page-ranges"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "items": items,
+            }, {
+                "items": {'items': {'$ref': '#/components/schemas/PageRangeItem'}, 'type': 'array', 'title': 'Items', 'x-cli-required': True},
+            }, required=True)
             return client.request("PUT", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -2512,14 +3625,26 @@ def register_generated_openapi_commands(
     def documents_assign_prototype_put(
         ctx: typer.Context,
         doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        include_descendants: Optional[bool] = typer.Option(None, "--include-descendants/--no-include-descendants", help="Request field: include_descendants."),
+        page_end: Optional[int] = typer.Option(None, "--page-end", help="Request field: page_end."),
+        page_start: Optional[int] = typer.Option(None, "--page-start", help="Request field: page_start."),
+        prototype_key: str = typer.Option(..., "--prototype-key", help="Request field: prototype_key."),
     ) -> None:
         """Assign Document Prototype (PUT /api/documents/{doc_id}/prototype)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/documents/{doc_id}/prototype"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "include_descendants": include_descendants,
+                "page_end": page_end,
+                "page_start": page_start,
+                "prototype_key": prototype_key,
+            }, {
+                "include_descendants": {'type': 'boolean', 'title': 'Include Descendants', 'default': False, 'x-cli-required': False},
+                "page_end": {'type': 'integer', 'nullable': True, 'title': 'Page End', 'x-cli-required': False},
+                "page_start": {'type': 'integer', 'nullable': True, 'title': 'Page Start', 'x-cli-required': False},
+                "prototype_key": {'type': 'string', 'title': 'Prototype Key', 'x-cli-required': True},
+            }, required=True)
             return client.request("PUT", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -2578,14 +3703,23 @@ def register_generated_openapi_commands(
     def documents_patch_workspace_items_patch(
         ctx: typer.Context,
         doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        add: Optional[str] = typer.Option(None, "--add", help="Request field: add."),
+        remove_ids: Optional[str] = typer.Option(None, "--remove-ids", help="Request field: remove_ids."),
+        reorder_ids: Optional[str] = typer.Option(None, "--reorder-ids", help="Request field: reorder_ids."),
     ) -> None:
         """Patch Workspace Items (PATCH /api/documents/{doc_id}/workspace)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/documents/{doc_id}/workspace"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "add": add,
+                "remove_ids": remove_ids,
+                "reorder_ids": reorder_ids,
+            }, {
+                "add": {'items': {'$ref': '#/components/schemas/WorkspaceCuratedItem'}, 'type': 'array', 'title': 'Add', 'default': [], 'x-cli-required': False},
+                "remove_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Remove Ids', 'default': [], 'x-cli-required': False},
+                "reorder_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Reorder Ids', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -2692,14 +3826,38 @@ def register_generated_openapi_commands(
     @target_app.command("upsert")
     def entities_upsert_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        aliases: Optional[str] = typer.Option(None, "--aliases", help="Request field: aliases."),
+        canonical_name: str = typer.Option(..., "--canonical-name", help="Request field: canonical_name."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        entity_type: Optional[str] = typer.Option(None, "--entity-type", help="Request field: entity_type."),
+        id: Optional[str] = typer.Option(None, "--id", help="Request field: id."),
+        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        source_document_ids: Optional[str] = typer.Option(None, "--source-document-ids", help="Request field: source_document_ids."),
     ) -> None:
         """Upsert Entity (POST /api/entities)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/entities"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "aliases": aliases,
+                "canonical_name": canonical_name,
+                "description": description,
+                "entity_type": entity_type,
+                "id": id,
+                "language": language,
+                "metadata": metadata,
+                "source_document_ids": source_document_ids,
+            }, {
+                "aliases": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Aliases', 'x-cli-required': False},
+                "canonical_name": {'type': 'string', 'minLength': 1, 'title': 'Canonical Name', 'x-cli-required': True},
+                "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'x-cli-required': False},
+                "entity_type": {'type': 'string', 'enum': ['person', 'location', 'organization', 'event', 'concept', 'citation', 'other'], 'title': 'EntityType', 'x-cli-required': False},
+                "id": {'type': 'string', 'nullable': True, 'title': 'Id', 'x-cli-required': False},
+                "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+                "source_document_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Source Document Ids', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -2800,14 +3958,32 @@ def register_generated_openapi_commands(
     def entities_patch_patch(
         ctx: typer.Context,
         entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        aliases: Optional[str] = typer.Option(None, "--aliases", help="Request field: aliases."),
+        canonical_name: Optional[str] = typer.Option(None, "--canonical-name", help="Request field: canonical_name."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        entity_type: Optional[str] = typer.Option(None, "--entity-type", help="Request field: entity_type."),
+        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
     ) -> None:
         """Patch Entity (PATCH /api/entities/{entity_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/entities/{entity_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "aliases": aliases,
+                "canonical_name": canonical_name,
+                "description": description,
+                "entity_type": entity_type,
+                "language": language,
+                "metadata": metadata,
+            }, {
+                "aliases": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Aliases', 'x-cli-required': False},
+                "canonical_name": {'type': 'string', 'nullable': True, 'title': 'Canonical Name', 'x-cli-required': False},
+                "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'x-cli-required': False},
+                "entity_type": {'type': 'string', 'enum': ['person', 'location', 'organization', 'event', 'concept', 'citation', 'other'], 'title': 'EntityType', 'x-cli-required': False},
+                "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -2815,14 +3991,17 @@ def register_generated_openapi_commands(
     def entities_add_aliases_post(
         ctx: typer.Context,
         entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        aliases: str = typer.Option(..., "--aliases", help="Request field: aliases."),
     ) -> None:
         """Add Entity Aliases (POST /api/entities/{entity_id}/aliases)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/entities/{entity_id}/aliases"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "aliases": aliases,
+            }, {
+                "aliases": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Aliases', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -2914,56 +4093,113 @@ def register_generated_openapi_commands(
     @target_app.command("eleventy-site-route")
     def export_eleventy_site_route_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        output_path: str = typer.Option(..., "--output-path", help="Request field: output_path."),
+        overwrite: Optional[bool] = typer.Option(None, "--overwrite/--no-overwrite", help="Request field: overwrite."),
+        recursive: Optional[bool] = typer.Option(None, "--recursive/--no-recursive", help="Request field: recursive."),
+        site_title: Optional[str] = typer.Option(None, "--site-title", help="Request field: site_title."),
+        target_id: Optional[str] = typer.Option(None, "--target-id", help="Request field: target_id."),
     ) -> None:
         """Export Eleventy Site Route (POST /api/export/eleventy-site)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/export/eleventy-site"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "output_path": output_path,
+                "overwrite": overwrite,
+                "recursive": recursive,
+                "site_title": site_title,
+                "target_id": target_id,
+            }, {
+                "output_path": {'type': 'string', 'title': 'Output Path', 'description': 'Destination folder for the site project', 'x-cli-required': True},
+                "overwrite": {'type': 'boolean', 'title': 'Overwrite', 'description': 'Allow writing into a non-empty folder', 'default': False, 'x-cli-required': False},
+                "recursive": {'type': 'boolean', 'title': 'Recursive', 'description': 'Include descendants of folders', 'default': True, 'x-cli-required': False},
+                "site_title": {'type': 'string', 'nullable': True, 'title': 'Site Title', 'description': 'Site title (defaults to the root folder name)', 'x-cli-required': False},
+                "target_id": {'type': 'string', 'nullable': True, 'title': 'Target Id', 'description': 'Optional folder id to publish; omitted exports the library', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("excel-route")
     def export_excel_route_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        output_path: str = typer.Option(..., "--output-path", help="Request field: output_path."),
+        overwrite: Optional[bool] = typer.Option(None, "--overwrite/--no-overwrite", help="Request field: overwrite."),
+        recursive: Optional[bool] = typer.Option(None, "--recursive/--no-recursive", help="Request field: recursive."),
+        target_id: Optional[str] = typer.Option(None, "--target-id", help="Request field: target_id."),
     ) -> None:
         """Export Excel Route (POST /api/export/excel)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/export/excel"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "output_path": output_path,
+                "overwrite": overwrite,
+                "recursive": recursive,
+                "target_id": target_id,
+            }, {
+                "output_path": {'type': 'string', 'title': 'Output Path', 'description': 'Destination .xlsx path', 'x-cli-required': True},
+                "overwrite": {'type': 'boolean', 'title': 'Overwrite', 'description': 'Overwrite existing .xlsx', 'default': False, 'x-cli-required': False},
+                "recursive": {'type': 'boolean', 'title': 'Recursive', 'description': 'Include descendants of folders', 'default': True, 'x-cli-required': False},
+                "target_id": {'type': 'string', 'nullable': True, 'title': 'Target Id', 'description': 'Optional document/folder id to export; omitted exports library', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("markdown-folder-route")
     def export_markdown_folder_route_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        include_assets: Optional[bool] = typer.Option(None, "--include-assets/--no-include-assets", help="Request field: include_assets."),
+        output_path: str = typer.Option(..., "--output-path", help="Request field: output_path."),
+        overwrite: Optional[bool] = typer.Option(None, "--overwrite/--no-overwrite", help="Request field: overwrite."),
+        recursive: Optional[bool] = typer.Option(None, "--recursive/--no-recursive", help="Request field: recursive."),
+        target_id: Optional[str] = typer.Option(None, "--target-id", help="Request field: target_id."),
     ) -> None:
         """Export Markdown Folder Route (POST /api/export/markdown-folder)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/export/markdown-folder"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "include_assets": include_assets,
+                "output_path": output_path,
+                "overwrite": overwrite,
+                "recursive": recursive,
+                "target_id": target_id,
+            }, {
+                "include_assets": {'type': 'boolean', 'title': 'Include Assets', 'description': 'Copy image assets', 'default': True, 'x-cli-required': False},
+                "output_path": {'type': 'string', 'title': 'Output Path', 'description': 'Destination folder for export files', 'x-cli-required': True},
+                "overwrite": {'type': 'boolean', 'title': 'Overwrite', 'description': 'Allow writing into non-empty folder', 'default': False, 'x-cli-required': False},
+                "recursive": {'type': 'boolean', 'title': 'Recursive', 'description': 'Include descendants of folders', 'default': True, 'x-cli-required': False},
+                "target_id": {'type': 'string', 'nullable': True, 'title': 'Target Id', 'description': 'Optional document/folder id to export; omitted exports library', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("word-route")
     def export_word_route_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        include_knowledge_graph: Optional[bool] = typer.Option(None, "--include-knowledge-graph/--no-include-knowledge-graph", help="Request field: include_knowledge_graph."),
+        output_path: str = typer.Option(..., "--output-path", help="Request field: output_path."),
+        overwrite: Optional[bool] = typer.Option(None, "--overwrite/--no-overwrite", help="Request field: overwrite."),
+        recursive: Optional[bool] = typer.Option(None, "--recursive/--no-recursive", help="Request field: recursive."),
+        target_id: Optional[str] = typer.Option(None, "--target-id", help="Request field: target_id."),
     ) -> None:
         """Export Word Route (POST /api/export/word)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/export/word"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "include_knowledge_graph": include_knowledge_graph,
+                "output_path": output_path,
+                "overwrite": overwrite,
+                "recursive": recursive,
+                "target_id": target_id,
+            }, {
+                "include_knowledge_graph": {'type': 'boolean', 'title': 'Include Knowledge Graph', 'description': 'Append relevant knowledge graph entities and claims', 'default': True, 'x-cli-required': False},
+                "output_path": {'type': 'string', 'title': 'Output Path', 'description': 'Destination .docx path', 'x-cli-required': True},
+                "overwrite": {'type': 'boolean', 'title': 'Overwrite', 'description': 'Overwrite existing .docx', 'default': False, 'x-cli-required': False},
+                "recursive": {'type': 'boolean', 'title': 'Recursive', 'description': 'Include descendants of folders', 'default': True, 'x-cli-required': False},
+                "target_id": {'type': 'string', 'nullable': True, 'title': 'Target Id', 'description': 'Optional document/folder id to export; omitted exports library', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -3023,14 +4259,20 @@ def register_generated_openapi_commands(
     def folders_rename_put(
         ctx: typer.Context,
         entity_type: str = typer.Argument(..., help="Path parameter: entity_type."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        new_path: str = typer.Option(..., "--new-path", help="Request field: new_path."),
+        old_path: str = typer.Option(..., "--old-path", help="Request field: old_path."),
     ) -> None:
         """Rename Folder (PUT /api/folders/{entity_type}/folders)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/folders/{entity_type}/folders"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "new_path": new_path,
+                "old_path": old_path,
+            }, {
+                "new_path": {'type': 'string', 'title': 'New Path', 'x-cli-required': True},
+                "old_path": {'type': 'string', 'title': 'Old Path', 'x-cli-required': True},
+            }, required=True)
             return client.request("PUT", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -3038,14 +4280,20 @@ def register_generated_openapi_commands(
     def folders_move_items_put(
         ctx: typer.Context,
         entity_type: str = typer.Argument(..., help="Path parameter: entity_type."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        folder_path: str = typer.Option(..., "--folder-path", help="Request field: folder_path."),
+        item_ids: str = typer.Option(..., "--item-ids", help="Request field: item_ids."),
     ) -> None:
         """Move Items (PUT /api/folders/{entity_type}/move)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/folders/{entity_type}/move"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "folder_path": folder_path,
+                "item_ids": item_ids,
+            }, {
+                "folder_path": {'type': 'string', 'title': 'Folder Path', 'x-cli-required': True},
+                "item_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Item Ids', 'x-cli-required': True},
+            }, required=True)
             return client.request("PUT", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -3083,14 +4331,32 @@ def register_generated_openapi_commands(
     @target_app.command("create-circle-state")
     def hermeneutics_create_circle_state_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        claim_id: str = typer.Option(..., "--claim-id", help="Request field: claim_id."),
+        current_focus: str = typer.Option(..., "--current-focus", help="Request field: current_focus."),
+        direction: str = typer.Option(..., "--direction", help="Request field: direction."),
+        focus_id: str = typer.Option(..., "--focus-id", help="Request field: focus_id."),
+        focus_label: str = typer.Option(..., "--focus-label", help="Request field: focus_label."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
     ) -> None:
         """Create Circle State (POST /api/hermeneutics/circle-state)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/hermeneutics/circle-state"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "claim_id": claim_id,
+                "current_focus": current_focus,
+                "direction": direction,
+                "focus_id": focus_id,
+                "focus_label": focus_label,
+                "metadata": metadata,
+            }, {
+                "claim_id": {'type': 'string', 'title': 'Claim Id', 'x-cli-required': True},
+                "current_focus": {'type': 'string', 'title': 'Current Focus', 'x-cli-required': True},
+                "direction": {'type': 'string', 'enum': ['part_to_whole', 'whole_to_part'], 'title': 'CircleNavigationDirection', 'description': 'Movement through the hermeneutic circle.', 'x-cli-required': True},
+                "focus_id": {'type': 'string', 'title': 'Focus Id', 'x-cli-required': True},
+                "focus_label": {'type': 'string', 'title': 'Focus Label', 'x-cli-required': True},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -3122,14 +4388,23 @@ def register_generated_openapi_commands(
     def hermeneutics_navigate_circle_post(
         ctx: typer.Context,
         state_id: str = typer.Argument(..., help="Path parameter: state_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        direction: str = typer.Option(..., "--direction", help="Request field: direction."),
+        focus_id: str = typer.Option(..., "--focus-id", help="Request field: focus_id."),
+        focus_label: str = typer.Option(..., "--focus-label", help="Request field: focus_label."),
     ) -> None:
         """Navigate Circle (POST /api/hermeneutics/circle-state/{state_id}/navigate)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/hermeneutics/circle-state/{state_id}/navigate"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "direction": direction,
+                "focus_id": focus_id,
+                "focus_label": focus_label,
+            }, {
+                "direction": {'type': 'string', 'enum': ['part_to_whole', 'whole_to_part'], 'title': 'CircleNavigationDirection', 'description': 'Movement through the hermeneutic circle.', 'x-cli-required': True},
+                "focus_id": {'type': 'string', 'title': 'Focus Id', 'x-cli-required': True},
+                "focus_label": {'type': 'string', 'title': 'Focus Label', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -3152,14 +4427,44 @@ def register_generated_openapi_commands(
     @target_app.command("create-framework")
     def hermeneutics_create_framework_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        core_questions: Optional[str] = typer.Option(None, "--core-questions", help="Request field: core_questions."),
+        creator: Optional[str] = typer.Option(None, "--creator", help="Request field: creator."),
+        description: str = typer.Option(..., "--description", help="Request field: description."),
+        framework_type: str = typer.Option(..., "--framework-type", help="Request field: framework_type."),
+        key_concepts: Optional[str] = typer.Option(None, "--key-concepts", help="Request field: key_concepts."),
+        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        origin: Optional[str] = typer.Option(None, "--origin", help="Request field: origin."),
+        typical_applications: Optional[str] = typer.Option(None, "--typical-applications", help="Request field: typical_applications."),
     ) -> None:
         """Create Framework (POST /api/hermeneutics/frameworks)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/hermeneutics/frameworks"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "core_questions": core_questions,
+                "creator": creator,
+                "description": description,
+                "framework_type": framework_type,
+                "key_concepts": key_concepts,
+                "language": language,
+                "metadata": metadata,
+                "name": name,
+                "origin": origin,
+                "typical_applications": typical_applications,
+            }, {
+                "core_questions": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Core Questions', 'x-cli-required': False},
+                "creator": {'type': 'string', 'nullable': True, 'title': 'Creator', 'x-cli-required': False},
+                "description": {'type': 'string', 'title': 'Description', 'x-cli-required': True},
+                "framework_type": {'type': 'string', 'enum': ['historical', 'disciplinary', 'thematic', 'methodological', 'theoretical', 'narrative'], 'title': 'FrameworkType', 'description': 'Interpretive lens categories.', 'x-cli-required': True},
+                "key_concepts": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Key Concepts', 'x-cli-required': False},
+                "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+                "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
+                "origin": {'type': 'string', 'nullable': True, 'title': 'Origin', 'x-cli-required': False},
+                "typical_applications": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Typical Applications', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -3191,14 +4496,47 @@ def register_generated_openapi_commands(
     def hermeneutics_update_framework_patch(
         ctx: typer.Context,
         framework_id: str = typer.Argument(..., help="Path parameter: framework_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        core_questions: Optional[str] = typer.Option(None, "--core-questions", help="Request field: core_questions."),
+        creator: Optional[str] = typer.Option(None, "--creator", help="Request field: creator."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        framework_type: Optional[str] = typer.Option(None, "--framework-type", help="Request field: framework_type."),
+        is_active: Optional[bool] = typer.Option(None, "--is-active/--no-is-active", help="Request field: is_active."),
+        key_concepts: Optional[str] = typer.Option(None, "--key-concepts", help="Request field: key_concepts."),
+        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        origin: Optional[str] = typer.Option(None, "--origin", help="Request field: origin."),
+        typical_applications: Optional[str] = typer.Option(None, "--typical-applications", help="Request field: typical_applications."),
     ) -> None:
         """Update Framework (PATCH /api/hermeneutics/frameworks/{framework_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/hermeneutics/frameworks/{framework_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "core_questions": core_questions,
+                "creator": creator,
+                "description": description,
+                "framework_type": framework_type,
+                "is_active": is_active,
+                "key_concepts": key_concepts,
+                "language": language,
+                "metadata": metadata,
+                "name": name,
+                "origin": origin,
+                "typical_applications": typical_applications,
+            }, {
+                "core_questions": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Core Questions', 'x-cli-required': False},
+                "creator": {'type': 'string', 'nullable': True, 'title': 'Creator', 'x-cli-required': False},
+                "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'x-cli-required': False},
+                "framework_type": {'type': 'string', 'enum': ['historical', 'disciplinary', 'thematic', 'methodological', 'theoretical', 'narrative'], 'title': 'FrameworkType', 'description': 'Interpretive lens categories.', 'x-cli-required': False},
+                "is_active": {'type': 'boolean', 'nullable': True, 'title': 'Is Active', 'x-cli-required': False},
+                "key_concepts": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Key Concepts', 'x-cli-required': False},
+                "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
+                "origin": {'type': 'string', 'nullable': True, 'title': 'Origin', 'x-cli-required': False},
+                "typical_applications": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Typical Applications', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -3225,14 +4563,53 @@ def register_generated_openapi_commands(
     @target_app.command("create-interpretation")
     def hermeneutics_create_interpretation_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        act: str = typer.Option(..., "--act", help="Request field: act."),
+        claim_id: Optional[str] = typer.Option(None, "--claim-id", help="Request field: claim_id."),
+        confidence: Optional[float] = typer.Option(None, "--confidence", help="Request field: confidence."),
+        connections: Optional[str] = typer.Option(None, "--connections", help="Request field: connections."),
+        created_by: Optional[str] = typer.Option(None, "--created-by", help="Request field: created_by."),
+        document_id: Optional[str] = typer.Option(None, "--document-id", help="Request field: document_id."),
+        framework_id: str = typer.Option(..., "--framework-id", help="Request field: framework_id."),
+        interpretation_text: str = typer.Option(..., "--interpretation-text", help="Request field: interpretation_text."),
+        key_insights: Optional[str] = typer.Option(None, "--key-insights", help="Request field: key_insights."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        passage_text: Optional[str] = typer.Option(None, "--passage-text", help="Request field: passage_text."),
+        predicate: Optional[str] = typer.Option(None, "--predicate", help="Request field: predicate."),
+        tensions: Optional[str] = typer.Option(None, "--tensions", help="Request field: tensions."),
     ) -> None:
         """Create Interpretation (POST /api/hermeneutics/interpretations)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/hermeneutics/interpretations"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "act": act,
+                "claim_id": claim_id,
+                "confidence": confidence,
+                "connections": connections,
+                "created_by": created_by,
+                "document_id": document_id,
+                "framework_id": framework_id,
+                "interpretation_text": interpretation_text,
+                "key_insights": key_insights,
+                "metadata": metadata,
+                "passage_text": passage_text,
+                "predicate": predicate,
+                "tensions": tensions,
+            }, {
+                "act": {'type': 'string', 'enum': ['reading', 'translating', 'contextualizing', 'synthesizing', 'critiquing', 'applying'], 'title': 'InterpretiveActType', 'description': 'Types of interpretive operations.', 'x-cli-required': True},
+                "claim_id": {'type': 'string', 'nullable': True, 'title': 'Claim Id', 'x-cli-required': False},
+                "confidence": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'title': 'Confidence', 'default': 0.5, 'x-cli-required': False},
+                "connections": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Connections', 'x-cli-required': False},
+                "created_by": {'type': 'string', 'title': 'Created By', 'default': 'human', 'x-cli-required': False},
+                "document_id": {'type': 'string', 'nullable': True, 'title': 'Document Id', 'x-cli-required': False},
+                "framework_id": {'type': 'string', 'title': 'Framework Id', 'x-cli-required': True},
+                "interpretation_text": {'type': 'string', 'title': 'Interpretation Text', 'x-cli-required': True},
+                "key_insights": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Key Insights', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+                "passage_text": {'type': 'string', 'nullable': True, 'title': 'Passage Text', 'x-cli-required': False},
+                "predicate": {'type': 'string', 'nullable': True, 'title': 'Predicate', 'x-cli-required': False},
+                "tensions": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Tensions', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -3252,14 +4629,38 @@ def register_generated_openapi_commands(
     def hermeneutics_update_interpretation_patch(
         ctx: typer.Context,
         interpretation_id: str = typer.Argument(..., help="Path parameter: interpretation_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        act: Optional[str] = typer.Option(None, "--act", help="Request field: act."),
+        confidence: Optional[float] = typer.Option(None, "--confidence", help="Request field: confidence."),
+        connections: Optional[str] = typer.Option(None, "--connections", help="Request field: connections."),
+        interpretation_text: Optional[str] = typer.Option(None, "--interpretation-text", help="Request field: interpretation_text."),
+        key_insights: Optional[str] = typer.Option(None, "--key-insights", help="Request field: key_insights."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        predicate: Optional[str] = typer.Option(None, "--predicate", help="Request field: predicate."),
+        tensions: Optional[str] = typer.Option(None, "--tensions", help="Request field: tensions."),
     ) -> None:
         """Update Interpretation (PATCH /api/hermeneutics/interpretations/{interpretation_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/hermeneutics/interpretations/{interpretation_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "act": act,
+                "confidence": confidence,
+                "connections": connections,
+                "interpretation_text": interpretation_text,
+                "key_insights": key_insights,
+                "metadata": metadata,
+                "predicate": predicate,
+                "tensions": tensions,
+            }, {
+                "act": {'type': 'string', 'enum': ['reading', 'translating', 'contextualizing', 'synthesizing', 'critiquing', 'applying'], 'title': 'InterpretiveActType', 'description': 'Types of interpretive operations.', 'x-cli-required': False},
+                "confidence": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Confidence', 'x-cli-required': False},
+                "connections": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Connections', 'x-cli-required': False},
+                "interpretation_text": {'type': 'string', 'nullable': True, 'title': 'Interpretation Text', 'x-cli-required': False},
+                "key_insights": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Key Insights', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
+                "predicate": {'type': 'string', 'nullable': True, 'title': 'Predicate', 'x-cli-required': False},
+                "tensions": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Tensions', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -3284,14 +4685,47 @@ def register_generated_openapi_commands(
     @target_app.command("create-pattern")
     def hermeneutics_create_pattern_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        claim_ids: Optional[str] = typer.Option(None, "--claim-ids", help="Request field: claim_ids."),
+        description: str = typer.Option(..., "--description", help="Request field: description."),
+        entity_ids: Optional[str] = typer.Option(None, "--entity-ids", help="Request field: entity_ids."),
+        framework_id: Optional[str] = typer.Option(None, "--framework-id", help="Request field: framework_id."),
+        frequency: Optional[int] = typer.Option(None, "--frequency", help="Request field: frequency."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        pattern_type: str = typer.Option(..., "--pattern-type", help="Request field: pattern_type."),
+        significance: Optional[float] = typer.Option(None, "--significance", help="Request field: significance."),
+        status: Optional[str] = typer.Option(None, "--status", help="Request field: status."),
+        supporting_passages: Optional[str] = typer.Option(None, "--supporting-passages", help="Request field: supporting_passages."),
     ) -> None:
         """Create Pattern (POST /api/hermeneutics/patterns)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/hermeneutics/patterns"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "claim_ids": claim_ids,
+                "description": description,
+                "entity_ids": entity_ids,
+                "framework_id": framework_id,
+                "frequency": frequency,
+                "metadata": metadata,
+                "name": name,
+                "pattern_type": pattern_type,
+                "significance": significance,
+                "status": status,
+                "supporting_passages": supporting_passages,
+            }, {
+                "claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Claim Ids', 'x-cli-required': False},
+                "description": {'type': 'string', 'title': 'Description', 'x-cli-required': True},
+                "entity_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Entity Ids', 'x-cli-required': False},
+                "framework_id": {'type': 'string', 'nullable': True, 'title': 'Framework Id', 'x-cli-required': False},
+                "frequency": {'type': 'integer', 'title': 'Frequency', 'default': 0, 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+                "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
+                "pattern_type": {'type': 'string', 'title': 'Pattern Type', 'x-cli-required': True},
+                "significance": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'title': 'Significance', 'default': 0.5, 'x-cli-required': False},
+                "status": {'type': 'string', 'enum': ['tentative', 'confirmed', 'superseded'], 'title': 'PatternStatus', 'description': 'Lifecycle state of a recognized pattern.', 'x-cli-required': False},
+                "supporting_passages": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Supporting Passages', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -3311,14 +4745,47 @@ def register_generated_openapi_commands(
     def hermeneutics_update_pattern_patch(
         ctx: typer.Context,
         pattern_id: str = typer.Argument(..., help="Path parameter: pattern_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        claim_ids: Optional[str] = typer.Option(None, "--claim-ids", help="Request field: claim_ids."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        entity_ids: Optional[str] = typer.Option(None, "--entity-ids", help="Request field: entity_ids."),
+        framework_id: Optional[str] = typer.Option(None, "--framework-id", help="Request field: framework_id."),
+        frequency: Optional[int] = typer.Option(None, "--frequency", help="Request field: frequency."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        pattern_type: Optional[str] = typer.Option(None, "--pattern-type", help="Request field: pattern_type."),
+        significance: Optional[float] = typer.Option(None, "--significance", help="Request field: significance."),
+        status: Optional[str] = typer.Option(None, "--status", help="Request field: status."),
+        supporting_passages: Optional[str] = typer.Option(None, "--supporting-passages", help="Request field: supporting_passages."),
     ) -> None:
         """Update Pattern (PATCH /api/hermeneutics/patterns/{pattern_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/hermeneutics/patterns/{pattern_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "claim_ids": claim_ids,
+                "description": description,
+                "entity_ids": entity_ids,
+                "framework_id": framework_id,
+                "frequency": frequency,
+                "metadata": metadata,
+                "name": name,
+                "pattern_type": pattern_type,
+                "significance": significance,
+                "status": status,
+                "supporting_passages": supporting_passages,
+            }, {
+                "claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Claim Ids', 'x-cli-required': False},
+                "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'x-cli-required': False},
+                "entity_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Entity Ids', 'x-cli-required': False},
+                "framework_id": {'type': 'string', 'nullable': True, 'title': 'Framework Id', 'x-cli-required': False},
+                "frequency": {'type': 'integer', 'nullable': True, 'title': 'Frequency', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
+                "pattern_type": {'type': 'string', 'nullable': True, 'title': 'Pattern Type', 'x-cli-required': False},
+                "significance": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Significance', 'x-cli-required': False},
+                "status": {'type': 'string', 'enum': ['tentative', 'confirmed', 'superseded'], 'title': 'PatternStatus', 'description': 'Lifecycle state of a recognized pattern.', 'x-cli-required': False},
+                "supporting_passages": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Supporting Passages', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -3338,14 +4805,26 @@ def register_generated_openapi_commands(
     @target_app.command("suggest-interpretations")
     def hermeneutics_suggest_interpretations_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        claim_ids: str = typer.Option(..., "--claim-ids", help="Request field: claim_ids."),
+        context_claim_ids: Optional[str] = typer.Option(None, "--context-claim-ids", help="Request field: context_claim_ids."),
+        framework_ids: Optional[str] = typer.Option(None, "--framework-ids", help="Request field: framework_ids."),
+        num_suggestions: Optional[int] = typer.Option(None, "--num-suggestions", help="Request field: num_suggestions."),
     ) -> None:
         """Suggest Interpretations (POST /api/hermeneutics/suggestions)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/hermeneutics/suggestions"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "claim_ids": claim_ids,
+                "context_claim_ids": context_claim_ids,
+                "framework_ids": framework_ids,
+                "num_suggestions": num_suggestions,
+            }, {
+                "claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Claim Ids', 'x-cli-required': True},
+                "context_claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Context Claim Ids', 'x-cli-required': False},
+                "framework_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Framework Ids', 'x-cli-required': False},
+                "num_suggestions": {'type': 'integer', 'maximum': 10.0, 'minimum': 1.0, 'title': 'Num Suggestions', 'default': 3, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -3455,14 +4934,17 @@ def register_generated_openapi_commands(
     def images_put_edit_chain_put(
         ctx: typer.Context,
         document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        operations: Optional[str] = typer.Option(None, "--operations", help="Request field: operations."),
     ) -> None:
         """Put Edit Chain (PUT /api/images/{document_id}/edits)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/images/{document_id}/edits"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "operations": operations,
+            }, {
+                "operations": {'items': {'additionalProperties': True, 'type': 'object'}, 'type': 'array', 'title': 'Operations', 'x-cli-required': False},
+            }, required=True)
             return client.request("PUT", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -3470,14 +4952,32 @@ def register_generated_openapi_commands(
     def images_crop_post(
         ctx: typer.Context,
         document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        auto_orient: Optional[bool] = typer.Option(None, "--auto-orient/--no-auto-orient", help="Request field: auto_orient."),
+        height: int = typer.Option(..., "--height", help="Request field: height."),
+        left: int = typer.Option(..., "--left", help="Request field: left."),
+        page: Optional[int] = typer.Option(None, "--page", help="Request field: page."),
+        top: int = typer.Option(..., "--top", help="Request field: top."),
+        width: int = typer.Option(..., "--width", help="Request field: width."),
     ) -> None:
         """Crop Image (POST /api/images/{document_id}/operations/crop)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/images/{document_id}/operations/crop"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "auto_orient": auto_orient,
+                "height": height,
+                "left": left,
+                "page": page,
+                "top": top,
+                "width": width,
+            }, {
+                "auto_orient": {'type': 'boolean', 'title': 'Auto Orient', 'default': True, 'x-cli-required': False},
+                "height": {'type': 'integer', 'title': 'Height', 'x-cli-required': True},
+                "left": {'type': 'integer', 'title': 'Left', 'x-cli-required': True},
+                "page": {'type': 'integer', 'title': 'Page', 'default': 1, 'x-cli-required': False},
+                "top": {'type': 'integer', 'title': 'Top', 'x-cli-required': True},
+                "width": {'type': 'integer', 'title': 'Width', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -3485,14 +4985,29 @@ def register_generated_openapi_commands(
     def images_enhance_post(
         ctx: typer.Context,
         document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        auto_levels: Optional[bool] = typer.Option(None, "--auto-levels/--no-auto-levels", help="Request field: auto_levels."),
+        brightness: Optional[float] = typer.Option(None, "--brightness", help="Request field: brightness."),
+        contrast: Optional[float] = typer.Option(None, "--contrast", help="Request field: contrast."),
+        page: Optional[int] = typer.Option(None, "--page", help="Request field: page."),
+        sharpen: Optional[float] = typer.Option(None, "--sharpen", help="Request field: sharpen."),
     ) -> None:
         """Enhance Image (POST /api/images/{document_id}/operations/enhance)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/images/{document_id}/operations/enhance"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "auto_levels": auto_levels,
+                "brightness": brightness,
+                "contrast": contrast,
+                "page": page,
+                "sharpen": sharpen,
+            }, {
+                "auto_levels": {'type': 'boolean', 'title': 'Auto Levels', 'default': False, 'x-cli-required': False},
+                "brightness": {'type': 'number', 'minimum': 0.0, 'title': 'Brightness', 'default': 1.0, 'x-cli-required': False},
+                "contrast": {'type': 'number', 'minimum': 0.0, 'title': 'Contrast', 'default': 1.0, 'x-cli-required': False},
+                "page": {'type': 'integer', 'minimum': 1.0, 'title': 'Page', 'default': 1, 'x-cli-required': False},
+                "sharpen": {'type': 'number', 'minimum': 0.0, 'title': 'Sharpen', 'default': 1.0, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -3500,14 +5015,23 @@ def register_generated_openapi_commands(
     def images_remove_background_post(
         ctx: typer.Context,
         document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        method: Optional[str] = typer.Option(None, "--method", help="Request field: method."),
+        page: Optional[int] = typer.Option(None, "--page", help="Request field: page."),
+        threshold: Optional[int] = typer.Option(None, "--threshold", help="Request field: threshold."),
     ) -> None:
         """Remove Background Image (POST /api/images/{document_id}/operations/remove-background)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/images/{document_id}/operations/remove-background"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "method": method,
+                "page": page,
+                "threshold": threshold,
+            }, {
+                "method": {'type': 'string', 'pattern': '^(opencv|threshold|rembg)$', 'title': 'Method', 'default': 'opencv', 'x-cli-required': False},
+                "page": {'type': 'integer', 'minimum': 1.0, 'title': 'Page', 'default': 1, 'x-cli-required': False},
+                "threshold": {'type': 'integer', 'maximum': 255.0, 'minimum': 0.0, 'title': 'Threshold', 'default': 28, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -3515,14 +5039,23 @@ def register_generated_openapi_commands(
     def images_rotate_post(
         ctx: typer.Context,
         document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        angle: float = typer.Option(..., "--angle", help="Request field: angle."),
+        expand: Optional[bool] = typer.Option(None, "--expand/--no-expand", help="Request field: expand."),
+        page: Optional[int] = typer.Option(None, "--page", help="Request field: page."),
     ) -> None:
         """Rotate Image (POST /api/images/{document_id}/operations/rotate)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/images/{document_id}/operations/rotate"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "angle": angle,
+                "expand": expand,
+                "page": page,
+            }, {
+                "angle": {'type': 'number', 'title': 'Angle', 'x-cli-required': True},
+                "expand": {'type': 'boolean', 'title': 'Expand', 'default': True, 'x-cli-required': False},
+                "page": {'type': 'integer', 'title': 'Page', 'default': 1, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -3530,14 +5063,29 @@ def register_generated_openapi_commands(
     def images_segment_post(
         ctx: typer.Context,
         document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        max_segments: Optional[int] = typer.Option(None, "--max-segments", help="Request field: max_segments."),
+        method: Optional[str] = typer.Option(None, "--method", help="Request field: method."),
+        min_area: Optional[int] = typer.Option(None, "--min-area", help="Request field: min_area."),
+        page: Optional[int] = typer.Option(None, "--page", help="Request field: page."),
+        threshold: Optional[int] = typer.Option(None, "--threshold", help="Request field: threshold."),
     ) -> None:
         """Segment Image (POST /api/images/{document_id}/operations/segment)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/images/{document_id}/operations/segment"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "max_segments": max_segments,
+                "method": method,
+                "min_area": min_area,
+                "page": page,
+                "threshold": threshold,
+            }, {
+                "max_segments": {'type': 'integer', 'maximum': 200.0, 'minimum': 1.0, 'title': 'Max Segments', 'default': 20, 'x-cli-required': False},
+                "method": {'type': 'string', 'pattern': '^(foreground|page)$', 'title': 'Method', 'default': 'foreground', 'x-cli-required': False},
+                "min_area": {'type': 'integer', 'minimum': 1.0, 'title': 'Min Area', 'default': 100, 'x-cli-required': False},
+                "page": {'type': 'integer', 'minimum': 1.0, 'title': 'Page', 'default': 1, 'x-cli-required': False},
+                "threshold": {'type': 'integer', 'maximum': 255.0, 'minimum': 0.0, 'title': 'Threshold', 'default': 28, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -3545,14 +5093,17 @@ def register_generated_openapi_commands(
     def images_straighten_post(
         ctx: typer.Context,
         document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        page: Optional[int] = typer.Option(None, "--page", help="Request field: page."),
     ) -> None:
         """Straighten Image (POST /api/images/{document_id}/operations/straighten)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/images/{document_id}/operations/straighten"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "page": page,
+            }, {
+                "page": {'type': 'integer', 'minimum': 1.0, 'title': 'Page', 'default': 1, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -3581,28 +5132,61 @@ def register_generated_openapi_commands(
     @target_app.command("file")
     def ingest_file_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        auto_embed: Optional[bool] = typer.Option(None, "--auto-embed/--no-auto-embed", help="Request field: auto_embed."),
+        copy_mode: Optional[bool] = typer.Option(None, "--copy-mode/--no-copy-mode", help="Request field: copy_mode."),
+        extract_text: Optional[bool] = typer.Option(None, "--extract-text/--no-extract-text", help="Request field: extract_text."),
+        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Request field: parent_id."),
+        path: str = typer.Option(..., "--path", help="Request field: path."),
     ) -> None:
         """Ingest File (POST /api/ingest/file)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/ingest/file"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "auto_embed": auto_embed,
+                "copy_mode": copy_mode,
+                "extract_text": extract_text,
+                "parent_id": parent_id,
+                "path": path,
+            }, {
+                "auto_embed": {'type': 'boolean', 'title': 'Auto Embed', 'default': True, 'x-cli-required': False},
+                "copy_mode": {'type': 'boolean', 'title': 'Copy Mode', 'default': False, 'x-cli-required': False},
+                "extract_text": {'type': 'boolean', 'title': 'Extract Text', 'default': True, 'x-cli-required': False},
+                "parent_id": {'type': 'string', 'nullable': True, 'title': 'Parent Id', 'x-cli-required': False},
+                "path": {'type': 'string', 'title': 'Path', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("folder")
     def ingest_folder_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        auto_embed: Optional[bool] = typer.Option(None, "--auto-embed/--no-auto-embed", help="Request field: auto_embed."),
+        copy_mode: Optional[bool] = typer.Option(None, "--copy-mode/--no-copy-mode", help="Request field: copy_mode."),
+        extract_text: Optional[bool] = typer.Option(None, "--extract-text/--no-extract-text", help="Request field: extract_text."),
+        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Request field: parent_id."),
+        path: str = typer.Option(..., "--path", help="Request field: path."),
+        recursive: Optional[bool] = typer.Option(None, "--recursive/--no-recursive", help="Request field: recursive."),
     ) -> None:
         """Ingest Folder (POST /api/ingest/folder)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/ingest/folder"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "auto_embed": auto_embed,
+                "copy_mode": copy_mode,
+                "extract_text": extract_text,
+                "parent_id": parent_id,
+                "path": path,
+                "recursive": recursive,
+            }, {
+                "auto_embed": {'type': 'boolean', 'title': 'Auto Embed', 'default': True, 'x-cli-required': False},
+                "copy_mode": {'type': 'boolean', 'title': 'Copy Mode', 'default': False, 'x-cli-required': False},
+                "extract_text": {'type': 'boolean', 'title': 'Extract Text', 'default': True, 'x-cli-required': False},
+                "parent_id": {'type': 'string', 'nullable': True, 'title': 'Parent Id', 'x-cli-required': False},
+                "path": {'type': 'string', 'title': 'Path', 'x-cli-required': True},
+                "recursive": {'type': 'boolean', 'title': 'Recursive', 'default': True, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -3621,14 +5205,29 @@ def register_generated_openapi_commands(
     @target_app.command("xlsx")
     def ingest_xlsx_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        column_map: Optional[str] = typer.Option(None, "--column-map", help="Request field: column_map."),
+        dry_run: Optional[bool] = typer.Option(None, "--dry-run/--no-dry-run", help="Request field: dry_run."),
+        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Request field: parent_id."),
+        path: str = typer.Option(..., "--path", help="Request field: path."),
+        sheet_index: Optional[int] = typer.Option(None, "--sheet-index", help="Request field: sheet_index."),
     ) -> None:
         """Ingest Xlsx (POST /api/ingest/xlsx)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/ingest/xlsx"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "column_map": column_map,
+                "dry_run": dry_run,
+                "parent_id": parent_id,
+                "path": path,
+                "sheet_index": sheet_index,
+            }, {
+                "column_map": {'additionalProperties': {'type': 'string'}, 'type': 'object', 'nullable': True, 'title': 'Column Map', 'x-cli-required': False},
+                "dry_run": {'type': 'boolean', 'title': 'Dry Run', 'default': True, 'x-cli-required': False},
+                "parent_id": {'type': 'string', 'nullable': True, 'title': 'Parent Id', 'x-cli-required': False},
+                "path": {'type': 'string', 'title': 'Path', 'x-cli-required': True},
+                "sheet_index": {'type': 'integer', 'title': 'Sheet Index', 'default': 0, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -3710,14 +5309,29 @@ def register_generated_openapi_commands(
     @target_app.command("create-tinderbox-note")
     def integrations_create_tinderbox_note_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        attributes: Optional[str] = typer.Option(None, "--attributes", help="Request field: attributes."),
+        container: Optional[str] = typer.Option(None, "--container", help="Request field: container."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        prototype: Optional[str] = typer.Option(None, "--prototype", help="Request field: prototype."),
+        text: Optional[str] = typer.Option(None, "--text", help="Request field: text."),
     ) -> None:
         """Create Tinderbox Note (POST /api/integrations/tinderbox/notes)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/integrations/tinderbox/notes"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "attributes": attributes,
+                "container": container,
+                "name": name,
+                "prototype": prototype,
+                "text": text,
+            }, {
+                "attributes": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Attributes', 'x-cli-required': False},
+                "container": {'type': 'string', 'nullable': True, 'title': 'Container', 'x-cli-required': False},
+                "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
+                "prototype": {'type': 'string', 'nullable': True, 'title': 'Prototype', 'x-cli-required': False},
+                "text": {'type': 'string', 'title': 'Text', 'default': '', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -3740,14 +5354,17 @@ def register_generated_openapi_commands(
     def integrations_set_tinderbox_attributes_put(
         ctx: typer.Context,
         external_id: str = typer.Argument(..., help="Path parameter: external_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        attributes: str = typer.Option(..., "--attributes", help="Request field: attributes."),
     ) -> None:
         """Set Tinderbox Attributes (PUT /api/integrations/tinderbox/notes/{external_id}/attributes)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/integrations/tinderbox/notes/{external_id}/attributes"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "attributes": attributes,
+            }, {
+                "attributes": {'additionalProperties': True, 'type': 'object', 'title': 'Attributes', 'x-cli-required': True},
+            }, required=True)
             return client.request("PUT", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -3767,14 +5384,32 @@ def register_generated_openapi_commands(
     def integrations_export_item_post(
         ctx: typer.Context,
         app_name: str = typer.Argument(..., help="Path parameter: app_name."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        container: Optional[str] = typer.Option(None, "--container", help="Request field: container."),
+        database: Optional[str] = typer.Option(None, "--database", help="Request field: database."),
+        file_path: str = typer.Option(..., "--file-path", help="Request field: file_path."),
+        group: Optional[str] = typer.Option(None, "--group", help="Request field: group."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        prototype: Optional[str] = typer.Option(None, "--prototype", help="Request field: prototype."),
     ) -> None:
         """Export Item (POST /api/integrations/{app_name}/export)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/integrations/{app_name}/export"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "container": container,
+                "database": database,
+                "file_path": file_path,
+                "group": group,
+                "metadata": metadata,
+                "prototype": prototype,
+            }, {
+                "container": {'type': 'string', 'nullable': True, 'title': 'Container', 'x-cli-required': False},
+                "database": {'type': 'string', 'nullable': True, 'title': 'Database', 'x-cli-required': False},
+                "file_path": {'type': 'string', 'title': 'File Path', 'x-cli-required': True},
+                "group": {'type': 'string', 'nullable': True, 'title': 'Group', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
+                "prototype": {'type': 'string', 'nullable': True, 'title': 'Prototype', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -3782,14 +5417,20 @@ def register_generated_openapi_commands(
     def integrations_import_item_post(
         ctx: typer.Context,
         app_name: str = typer.Argument(..., help="Path parameter: app_name."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        external_id: str = typer.Option(..., "--external-id", help="Request field: external_id."),
+        target_path: Optional[str] = typer.Option(None, "--target-path", help="Request field: target_path."),
     ) -> None:
         """Import Item (POST /api/integrations/{app_name}/import)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/integrations/{app_name}/import"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "external_id": external_id,
+                "target_path": target_path,
+            }, {
+                "external_id": {'type': 'string', 'title': 'External Id', 'x-cli-required': True},
+                "target_path": {'type': 'string', 'nullable': True, 'title': 'Target Path', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -3912,14 +5553,17 @@ def register_generated_openapi_commands(
     @target_app.command("embed-claims")
     def kg_embed_claims_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        claim_ids: Optional[str] = typer.Option(None, "--claim-ids", help="Request field: claim_ids."),
     ) -> None:
         """Embed Claims (POST /api/kg/claim-search/embed)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/claim-search/embed"
             params = None
-            payload = _load_json_payload(body, body_file, required=False)
+            payload = _build_json_payload({
+                "claim_ids": claim_ids,
+            }, {
+                "claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Claim Ids', 'x-cli-required': False},
+            }, required=False)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -3941,70 +5585,103 @@ def register_generated_openapi_commands(
     @target_app.command("batch-set-claim-curation-state")
     def kg_batch_set_claim_curation_state_patch(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        claim_ids: str = typer.Option(..., "--claim-ids", help="Request field: claim_ids."),
+        curation_state: str = typer.Option(..., "--curation-state", help="Request field: curation_state."),
     ) -> None:
         """Batch set claim curation state (PATCH /api/kg/claims/batch-curation)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/claims/batch-curation"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "claim_ids": claim_ids,
+                "curation_state": curation_state,
+            }, {
+                "claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Claim Ids', 'description': 'Claim IDs to update.', 'x-cli-required': True},
+                "curation_state": {'type': 'string', 'enum': ['unreviewed', 'shortlisted', 'curated', 'rejected'], 'title': 'ClaimCurationState', 'x-cli-required': True},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("merge-duplicate-claims-into-a-surviving-claim")
     def kg_merge_duplicate_claims_into_a_surviving_claim_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        absorbed_claim_ids: str = typer.Option(..., "--absorbed-claim-ids", help="Request field: absorbed_claim_ids."),
+        surviving_claim_id: str = typer.Option(..., "--surviving-claim-id", help="Request field: surviving_claim_id."),
     ) -> None:
         """Merge duplicate claims into a surviving claim (POST /api/kg/claims/merge)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/claims/merge"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "absorbed_claim_ids": absorbed_claim_ids,
+                "surviving_claim_id": surviving_claim_id,
+            }, {
+                "absorbed_claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Absorbed Claim Ids', 'description': 'Duplicate claims absorbed into the survivor.', 'x-cli-required': True},
+                "surviving_claim_id": {'type': 'string', 'title': 'Surviving Claim Id', 'description': 'Claim that remains canonical after the merge.', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("prune-trivially-true-claims")
     def kg_prune_trivially_true_claims_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        created_by: Optional[str] = typer.Option(None, "--created-by", help="Request field: created_by."),
+        document_id: Optional[str] = typer.Option(None, "--document-id", help="Request field: document_id."),
+        folder_id: Optional[str] = typer.Option(None, "--folder-id", help="Request field: folder_id."),
+        library_wide: Optional[bool] = typer.Option(None, "--library-wide/--no-library-wide", help="Request field: library_wide."),
+        reason: Optional[str] = typer.Option(None, "--reason", help="Request field: reason."),
     ) -> None:
         """Prune trivially-true claims (POST /api/kg/claims/prune-trivial)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/claims/prune-trivial"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "created_by": created_by,
+                "document_id": document_id,
+                "folder_id": folder_id,
+                "library_wide": library_wide,
+                "reason": reason,
+            }, {
+                "created_by": {'type': 'string', 'title': 'Created By', 'description': 'Actor recorded on any generated suppression rule.', 'default': 'human', 'x-cli-required': False},
+                "document_id": {'type': 'string', 'nullable': True, 'title': 'Document Id', 'description': 'Single document/page scope. Only claims directly attached to this document are checked.', 'x-cli-required': False},
+                "folder_id": {'type': 'string', 'nullable': True, 'title': 'Folder Id', 'description': 'Folder scope. The folder and every descendant document are checked.', 'x-cli-required': False},
+                "library_wide": {'type': 'boolean', 'title': 'Library Wide', 'description': 'When true, scan the whole library and persist a global trivial-copula suppression rule.', 'default': False, 'x-cli-required': False},
+                "reason": {'type': 'string', 'title': 'Reason', 'description': 'Audit note stored on any generated suppression rule.', 'default': 'Prune trivial is-a copula claims', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("reverse-a-recorded-claim-merge")
     def kg_reverse_a_recorded_claim_merge_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        audit_id: str = typer.Option(..., "--audit-id", help="Request field: audit_id."),
     ) -> None:
         """Reverse a recorded claim merge (POST /api/kg/claims/unmerge)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/claims/unmerge"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "audit_id": audit_id,
+            }, {
+                "audit_id": {'type': 'string', 'title': 'Audit Id', 'description': 'ClaimMergeAudit.id from the merge being reversed.', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete-claim-rule")
     def kg_delete_claim_rule_delete(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        rule_id: str = typer.Option(..., "--rule-id", help="Request field: rule_id."),
     ) -> None:
         """Delete Claim Rule (DELETE /api/kg/curation-rules/claim-rules)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/curation-rules/claim-rules"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "rule_id": rule_id,
+            }, {
+                "rule_id": {'type': 'string', 'title': 'Rule Id', 'x-cli-required': True},
+            }, required=True)
             return client.request("DELETE", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -4022,42 +5699,69 @@ def register_generated_openapi_commands(
     @target_app.command("create-claim-rule")
     def kg_create_claim_rule_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        action: str = typer.Option(..., "--action", help="Request field: action."),
+        created_by: Optional[str] = typer.Option(None, "--created-by", help="Request field: created_by."),
+        match_object_phrase: Optional[str] = typer.Option(None, "--match-object-phrase", help="Request field: match_object_phrase."),
+        match_predicate_verb: Optional[str] = typer.Option(None, "--match-predicate-verb", help="Request field: match_predicate_verb."),
+        match_subject_name: Optional[str] = typer.Option(None, "--match-subject-name", help="Request field: match_subject_name."),
+        reason: str = typer.Option(..., "--reason", help="Request field: reason."),
+        suppress_is_a_copulas: Optional[bool] = typer.Option(None, "--suppress-is-a-copulas/--no-suppress-is-a-copulas", help="Request field: suppress_is_a_copulas."),
     ) -> None:
         """Create Claim Rule (POST /api/kg/curation-rules/claim-rules)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/curation-rules/claim-rules"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "action": action,
+                "created_by": created_by,
+                "match_object_phrase": match_object_phrase,
+                "match_predicate_verb": match_predicate_verb,
+                "match_subject_name": match_subject_name,
+                "reason": reason,
+                "suppress_is_a_copulas": suppress_is_a_copulas,
+            }, {
+                "action": {'type': 'string', 'enum': ['disable', 'demote', 'prune'], 'title': 'ClaimSuppressionRuleAction', 'x-cli-required': True},
+                "created_by": {'type': 'string', 'title': 'Created By', 'default': 'human', 'x-cli-required': False},
+                "match_object_phrase": {'type': 'string', 'nullable': True, 'title': 'Match Object Phrase', 'x-cli-required': False},
+                "match_predicate_verb": {'type': 'string', 'nullable': True, 'title': 'Match Predicate Verb', 'x-cli-required': False},
+                "match_subject_name": {'type': 'string', 'nullable': True, 'title': 'Match Subject Name', 'x-cli-required': False},
+                "reason": {'type': 'string', 'title': 'Reason', 'x-cli-required': True},
+                "suppress_is_a_copulas": {'type': 'boolean', 'title': 'Suppress Is A Copulas', 'default': False, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("create-claim-rules-batch")
     def kg_create_claim_rules_batch_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        items: Optional[str] = typer.Option(None, "--items", help="Request field: items."),
     ) -> None:
         """Create Claim Rules Batch (POST /api/kg/curation-rules/claim-rules/batch)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/curation-rules/claim-rules/batch"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "items": items,
+            }, {
+                "items": {'items': {'$ref': '#/components/schemas/ClaimRuleCreateRequest'}, 'type': 'array', 'title': 'Items', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete-entity-rule")
     def kg_delete_entity_rule_delete(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        rule_id: str = typer.Option(..., "--rule-id", help="Request field: rule_id."),
     ) -> None:
         """Delete Entity Rule (DELETE /api/kg/curation-rules/entity-rules)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/curation-rules/entity-rules"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "rule_id": rule_id,
+            }, {
+                "rule_id": {'type': 'string', 'title': 'Rule Id', 'x-cli-required': True},
+            }, required=True)
             return client.request("DELETE", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -4075,42 +5779,72 @@ def register_generated_openapi_commands(
     @target_app.command("create-entity-rule")
     def kg_create_entity_rule_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        created_by: Optional[str] = typer.Option(None, "--created-by", help="Request field: created_by."),
+        match_canonical_name: str = typer.Option(..., "--match-canonical-name", help="Request field: match_canonical_name."),
+        match_entity_type: Optional[str] = typer.Option(None, "--match-entity-type", help="Request field: match_entity_type."),
+        reason: str = typer.Option(..., "--reason", help="Request field: reason."),
+        rule_type: str = typer.Option(..., "--rule-type", help="Request field: rule_type."),
+        target_canonical_name: Optional[str] = typer.Option(None, "--target-canonical-name", help="Request field: target_canonical_name."),
+        target_entity_type: Optional[str] = typer.Option(None, "--target-entity-type", help="Request field: target_entity_type."),
     ) -> None:
         """Create Entity Rule (POST /api/kg/curation-rules/entity-rules)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/curation-rules/entity-rules"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "created_by": created_by,
+                "match_canonical_name": match_canonical_name,
+                "match_entity_type": match_entity_type,
+                "reason": reason,
+                "rule_type": rule_type,
+                "target_canonical_name": target_canonical_name,
+                "target_entity_type": target_entity_type,
+            }, {
+                "created_by": {'type': 'string', 'title': 'Created By', 'default': 'human', 'x-cli-required': False},
+                "match_canonical_name": {'type': 'string', 'title': 'Match Canonical Name', 'x-cli-required': True},
+                "match_entity_type": {'type': 'string', 'enum': ['person', 'location', 'organization', 'event', 'concept', 'citation', 'other'], 'title': 'EntityType', 'x-cli-required': False},
+                "reason": {'type': 'string', 'title': 'Reason', 'x-cli-required': True},
+                "rule_type": {'type': 'string', 'enum': ['suppress', 'merge_into', 'reclassify', 'alias'], 'title': 'EntityResolutionRuleType', 'x-cli-required': True},
+                "target_canonical_name": {'type': 'string', 'nullable': True, 'title': 'Target Canonical Name', 'x-cli-required': False},
+                "target_entity_type": {'type': 'string', 'enum': ['person', 'location', 'organization', 'event', 'concept', 'citation', 'other'], 'title': 'EntityType', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("create-entity-rules-batch")
     def kg_create_entity_rules_batch_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        items: Optional[str] = typer.Option(None, "--items", help="Request field: items."),
     ) -> None:
         """Create Entity Rules Batch (POST /api/kg/curation-rules/entity-rules/batch)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/curation-rules/entity-rules/batch"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "items": items,
+            }, {
+                "items": {'items': {'$ref': '#/components/schemas/EntityRuleCreateRequest'}, 'type': 'array', 'title': 'Items', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("batch-set-entity-curation-state")
     def kg_batch_set_entity_curation_state_patch(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        curation_state: str = typer.Option(..., "--curation-state", help="Request field: curation_state."),
+        entity_ids: str = typer.Option(..., "--entity-ids", help="Request field: entity_ids."),
     ) -> None:
         """Batch set entity curation state (PATCH /api/kg/entities/batch-curation)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/entities/batch-curation"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "curation_state": curation_state,
+                "entity_ids": entity_ids,
+            }, {
+                "curation_state": {'type': 'string', 'enum': ['unreviewed', 'verified', 'rejected', 'merged'], 'title': 'EntityCurationState', 'x-cli-required': True},
+                "entity_ids": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Entity Ids', 'description': 'Entity IDs to update.', 'x-cli-required': True},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -4175,14 +5909,26 @@ def register_generated_openapi_commands(
     @target_app.command("merge-entities")
     def kg_merge_entities_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        absorbed_entity_ids: str = typer.Option(..., "--absorbed-entity-ids", help="Request field: absorbed_entity_ids."),
+        absorbing_entity_id: str = typer.Option(..., "--absorbing-entity-id", help="Request field: absorbing_entity_id."),
+        merged_aliases: Optional[str] = typer.Option(None, "--merged-aliases", help="Request field: merged_aliases."),
+        merged_description: Optional[str] = typer.Option(None, "--merged-description", help="Request field: merged_description."),
     ) -> None:
         """Merge Entities (POST /api/kg/entity-curation/merge)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/entity-curation/merge"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "absorbed_entity_ids": absorbed_entity_ids,
+                "absorbing_entity_id": absorbing_entity_id,
+                "merged_aliases": merged_aliases,
+                "merged_description": merged_description,
+            }, {
+                "absorbed_entity_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Absorbed Entity Ids', 'description': 'Entities merged into the absorber', 'x-cli-required': True},
+                "absorbing_entity_id": {'type': 'string', 'title': 'Absorbing Entity Id', 'description': 'Entity that absorbs the others (survivor)', 'x-cli-required': True},
+                "merged_aliases": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Merged Aliases', 'x-cli-required': False},
+                "merged_description": {'type': 'string', 'nullable': True, 'title': 'Merged Description', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -4207,28 +5953,40 @@ def register_generated_openapi_commands(
     @target_app.command("embed-entities")
     def kg_embed_entities_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        entity_ids: Optional[str] = typer.Option(None, "--entity-ids", help="Request field: entity_ids."),
     ) -> None:
         """Embed Entities (POST /api/kg/entity-curation/semantic/embed)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/entity-curation/semantic/embed"
             params = None
-            payload = _load_json_payload(body, body_file, required=False)
+            payload = _build_json_payload({
+                "entity_ids": entity_ids,
+            }, {
+                "entity_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Entity Ids', 'x-cli-required': False},
+            }, required=False)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("split-entity")
     def kg_split_entity_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        aliases_to_move: Optional[str] = typer.Option(None, "--aliases-to-move", help="Request field: aliases_to_move."),
+        primary_entity_id: str = typer.Option(..., "--primary-entity-id", help="Request field: primary_entity_id."),
+        split_off_entity_ids: str = typer.Option(..., "--split-off-entity-ids", help="Request field: split_off_entity_ids."),
     ) -> None:
         """Split Entity (POST /api/kg/entity-curation/split)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/entity-curation/split"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "aliases_to_move": aliases_to_move,
+                "primary_entity_id": primary_entity_id,
+                "split_off_entity_ids": split_off_entity_ids,
+            }, {
+                "aliases_to_move": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Aliases To Move', 'x-cli-required': False},
+                "primary_entity_id": {'type': 'string', 'title': 'Primary Entity Id', 'x-cli-required': True},
+                "split_off_entity_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Split Off Entity Ids', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -4440,14 +6198,29 @@ def register_generated_openapi_commands(
     @target_app.command("upsert-inclusion")
     def kg_upsert_inclusion_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        included: bool = typer.Option(..., "--included/--no-included", help="Request field: included."),
+        reason: Optional[str] = typer.Option(None, "--reason", help="Request field: reason."),
+        scope_type: str = typer.Option(..., "--scope-type", help="Request field: scope_type."),
+        target_id: str = typer.Option(..., "--target-id", help="Request field: target_id."),
+        updated_by: Optional[str] = typer.Option(None, "--updated-by", help="Request field: updated_by."),
     ) -> None:
         """Upsert Inclusion (POST /api/kg/inclusion)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/inclusion"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "included": included,
+                "reason": reason,
+                "scope_type": scope_type,
+                "target_id": target_id,
+                "updated_by": updated_by,
+            }, {
+                "included": {'type': 'boolean', 'title': 'Included', 'x-cli-required': True},
+                "reason": {'type': 'string', 'nullable': True, 'title': 'Reason', 'x-cli-required': False},
+                "scope_type": {'type': 'string', 'enum': ['library', 'folder', 'document'], 'title': 'InclusionScopeType', 'x-cli-required': True},
+                "target_id": {'type': 'string', 'title': 'Target Id', 'x-cli-required': True},
+                "updated_by": {'type': 'string', 'title': 'Updated By', 'default': 'human', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -4468,14 +6241,32 @@ def register_generated_openapi_commands(
     @target_app.command("create-circle-state")
     def kg_create_circle_state_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        claim_id: str = typer.Option(..., "--claim-id", help="Request field: claim_id."),
+        current_focus: str = typer.Option(..., "--current-focus", help="Request field: current_focus."),
+        direction: str = typer.Option(..., "--direction", help="Request field: direction."),
+        focus_id: str = typer.Option(..., "--focus-id", help="Request field: focus_id."),
+        focus_label: str = typer.Option(..., "--focus-label", help="Request field: focus_label."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
     ) -> None:
         """Create Circle State (POST /api/kg/interpretations/circle-state)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/interpretations/circle-state"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "claim_id": claim_id,
+                "current_focus": current_focus,
+                "direction": direction,
+                "focus_id": focus_id,
+                "focus_label": focus_label,
+                "metadata": metadata,
+            }, {
+                "claim_id": {'type': 'string', 'title': 'Claim Id', 'x-cli-required': True},
+                "current_focus": {'type': 'string', 'title': 'Current Focus', 'x-cli-required': True},
+                "direction": {'type': 'string', 'enum': ['part_to_whole', 'whole_to_part'], 'title': 'CircleNavigationDirection', 'description': 'Movement through the hermeneutic circle.', 'x-cli-required': True},
+                "focus_id": {'type': 'string', 'title': 'Focus Id', 'x-cli-required': True},
+                "focus_label": {'type': 'string', 'title': 'Focus Label', 'x-cli-required': True},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -4507,14 +6298,23 @@ def register_generated_openapi_commands(
     def kg_navigate_circle_post(
         ctx: typer.Context,
         state_id: str = typer.Argument(..., help="Path parameter: state_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        direction: str = typer.Option(..., "--direction", help="Request field: direction."),
+        focus_id: str = typer.Option(..., "--focus-id", help="Request field: focus_id."),
+        focus_label: str = typer.Option(..., "--focus-label", help="Request field: focus_label."),
     ) -> None:
         """Navigate Circle (POST /api/kg/interpretations/circle-state/{state_id}/navigate)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/kg/interpretations/circle-state/{state_id}/navigate"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "direction": direction,
+                "focus_id": focus_id,
+                "focus_label": focus_label,
+            }, {
+                "direction": {'type': 'string', 'enum': ['part_to_whole', 'whole_to_part'], 'title': 'CircleNavigationDirection', 'description': 'Movement through the hermeneutic circle.', 'x-cli-required': True},
+                "focus_id": {'type': 'string', 'title': 'Focus Id', 'x-cli-required': True},
+                "focus_label": {'type': 'string', 'title': 'Focus Label', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -4537,14 +6337,44 @@ def register_generated_openapi_commands(
     @target_app.command("create-framework")
     def kg_create_framework_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        core_questions: Optional[str] = typer.Option(None, "--core-questions", help="Request field: core_questions."),
+        creator: Optional[str] = typer.Option(None, "--creator", help="Request field: creator."),
+        description: str = typer.Option(..., "--description", help="Request field: description."),
+        framework_type: str = typer.Option(..., "--framework-type", help="Request field: framework_type."),
+        key_concepts: Optional[str] = typer.Option(None, "--key-concepts", help="Request field: key_concepts."),
+        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        origin: Optional[str] = typer.Option(None, "--origin", help="Request field: origin."),
+        typical_applications: Optional[str] = typer.Option(None, "--typical-applications", help="Request field: typical_applications."),
     ) -> None:
         """Create Framework (POST /api/kg/interpretations/frameworks)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/interpretations/frameworks"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "core_questions": core_questions,
+                "creator": creator,
+                "description": description,
+                "framework_type": framework_type,
+                "key_concepts": key_concepts,
+                "language": language,
+                "metadata": metadata,
+                "name": name,
+                "origin": origin,
+                "typical_applications": typical_applications,
+            }, {
+                "core_questions": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Core Questions', 'x-cli-required': False},
+                "creator": {'type': 'string', 'nullable': True, 'title': 'Creator', 'x-cli-required': False},
+                "description": {'type': 'string', 'title': 'Description', 'x-cli-required': True},
+                "framework_type": {'type': 'string', 'enum': ['historical', 'disciplinary', 'thematic', 'methodological', 'theoretical', 'narrative'], 'title': 'FrameworkType', 'description': 'Interpretive lens categories.', 'x-cli-required': True},
+                "key_concepts": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Key Concepts', 'x-cli-required': False},
+                "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+                "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
+                "origin": {'type': 'string', 'nullable': True, 'title': 'Origin', 'x-cli-required': False},
+                "typical_applications": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Typical Applications', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -4576,14 +6406,47 @@ def register_generated_openapi_commands(
     def kg_update_framework_patch(
         ctx: typer.Context,
         framework_id: str = typer.Argument(..., help="Path parameter: framework_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        core_questions: Optional[str] = typer.Option(None, "--core-questions", help="Request field: core_questions."),
+        creator: Optional[str] = typer.Option(None, "--creator", help="Request field: creator."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        framework_type: Optional[str] = typer.Option(None, "--framework-type", help="Request field: framework_type."),
+        is_active: Optional[bool] = typer.Option(None, "--is-active/--no-is-active", help="Request field: is_active."),
+        key_concepts: Optional[str] = typer.Option(None, "--key-concepts", help="Request field: key_concepts."),
+        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        origin: Optional[str] = typer.Option(None, "--origin", help="Request field: origin."),
+        typical_applications: Optional[str] = typer.Option(None, "--typical-applications", help="Request field: typical_applications."),
     ) -> None:
         """Update Framework (PATCH /api/kg/interpretations/frameworks/{framework_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/kg/interpretations/frameworks/{framework_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "core_questions": core_questions,
+                "creator": creator,
+                "description": description,
+                "framework_type": framework_type,
+                "is_active": is_active,
+                "key_concepts": key_concepts,
+                "language": language,
+                "metadata": metadata,
+                "name": name,
+                "origin": origin,
+                "typical_applications": typical_applications,
+            }, {
+                "core_questions": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Core Questions', 'x-cli-required': False},
+                "creator": {'type': 'string', 'nullable': True, 'title': 'Creator', 'x-cli-required': False},
+                "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'x-cli-required': False},
+                "framework_type": {'type': 'string', 'enum': ['historical', 'disciplinary', 'thematic', 'methodological', 'theoretical', 'narrative'], 'title': 'FrameworkType', 'description': 'Interpretive lens categories.', 'x-cli-required': False},
+                "is_active": {'type': 'boolean', 'nullable': True, 'title': 'Is Active', 'x-cli-required': False},
+                "key_concepts": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Key Concepts', 'x-cli-required': False},
+                "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
+                "origin": {'type': 'string', 'nullable': True, 'title': 'Origin', 'x-cli-required': False},
+                "typical_applications": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Typical Applications', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -4610,14 +6473,53 @@ def register_generated_openapi_commands(
     @target_app.command("create-interpretation")
     def kg_create_interpretation_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        act: str = typer.Option(..., "--act", help="Request field: act."),
+        claim_id: Optional[str] = typer.Option(None, "--claim-id", help="Request field: claim_id."),
+        confidence: Optional[float] = typer.Option(None, "--confidence", help="Request field: confidence."),
+        connections: Optional[str] = typer.Option(None, "--connections", help="Request field: connections."),
+        created_by: Optional[str] = typer.Option(None, "--created-by", help="Request field: created_by."),
+        document_id: Optional[str] = typer.Option(None, "--document-id", help="Request field: document_id."),
+        framework_id: str = typer.Option(..., "--framework-id", help="Request field: framework_id."),
+        interpretation_text: str = typer.Option(..., "--interpretation-text", help="Request field: interpretation_text."),
+        key_insights: Optional[str] = typer.Option(None, "--key-insights", help="Request field: key_insights."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        passage_text: Optional[str] = typer.Option(None, "--passage-text", help="Request field: passage_text."),
+        predicate: Optional[str] = typer.Option(None, "--predicate", help="Request field: predicate."),
+        tensions: Optional[str] = typer.Option(None, "--tensions", help="Request field: tensions."),
     ) -> None:
         """Create Interpretation (POST /api/kg/interpretations/interpretations)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/interpretations/interpretations"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "act": act,
+                "claim_id": claim_id,
+                "confidence": confidence,
+                "connections": connections,
+                "created_by": created_by,
+                "document_id": document_id,
+                "framework_id": framework_id,
+                "interpretation_text": interpretation_text,
+                "key_insights": key_insights,
+                "metadata": metadata,
+                "passage_text": passage_text,
+                "predicate": predicate,
+                "tensions": tensions,
+            }, {
+                "act": {'type': 'string', 'enum': ['reading', 'translating', 'contextualizing', 'synthesizing', 'critiquing', 'applying'], 'title': 'InterpretiveActType', 'description': 'Types of interpretive operations.', 'x-cli-required': True},
+                "claim_id": {'type': 'string', 'nullable': True, 'title': 'Claim Id', 'x-cli-required': False},
+                "confidence": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'title': 'Confidence', 'default': 0.5, 'x-cli-required': False},
+                "connections": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Connections', 'x-cli-required': False},
+                "created_by": {'type': 'string', 'title': 'Created By', 'default': 'human', 'x-cli-required': False},
+                "document_id": {'type': 'string', 'nullable': True, 'title': 'Document Id', 'x-cli-required': False},
+                "framework_id": {'type': 'string', 'title': 'Framework Id', 'x-cli-required': True},
+                "interpretation_text": {'type': 'string', 'title': 'Interpretation Text', 'x-cli-required': True},
+                "key_insights": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Key Insights', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+                "passage_text": {'type': 'string', 'nullable': True, 'title': 'Passage Text', 'x-cli-required': False},
+                "predicate": {'type': 'string', 'nullable': True, 'title': 'Predicate', 'x-cli-required': False},
+                "tensions": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Tensions', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -4637,14 +6539,38 @@ def register_generated_openapi_commands(
     def kg_update_interpretation_patch(
         ctx: typer.Context,
         interpretation_id: str = typer.Argument(..., help="Path parameter: interpretation_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        act: Optional[str] = typer.Option(None, "--act", help="Request field: act."),
+        confidence: Optional[float] = typer.Option(None, "--confidence", help="Request field: confidence."),
+        connections: Optional[str] = typer.Option(None, "--connections", help="Request field: connections."),
+        interpretation_text: Optional[str] = typer.Option(None, "--interpretation-text", help="Request field: interpretation_text."),
+        key_insights: Optional[str] = typer.Option(None, "--key-insights", help="Request field: key_insights."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        predicate: Optional[str] = typer.Option(None, "--predicate", help="Request field: predicate."),
+        tensions: Optional[str] = typer.Option(None, "--tensions", help="Request field: tensions."),
     ) -> None:
         """Update Interpretation (PATCH /api/kg/interpretations/interpretations/{interpretation_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/kg/interpretations/interpretations/{interpretation_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "act": act,
+                "confidence": confidence,
+                "connections": connections,
+                "interpretation_text": interpretation_text,
+                "key_insights": key_insights,
+                "metadata": metadata,
+                "predicate": predicate,
+                "tensions": tensions,
+            }, {
+                "act": {'type': 'string', 'enum': ['reading', 'translating', 'contextualizing', 'synthesizing', 'critiquing', 'applying'], 'title': 'InterpretiveActType', 'description': 'Types of interpretive operations.', 'x-cli-required': False},
+                "confidence": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Confidence', 'x-cli-required': False},
+                "connections": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Connections', 'x-cli-required': False},
+                "interpretation_text": {'type': 'string', 'nullable': True, 'title': 'Interpretation Text', 'x-cli-required': False},
+                "key_insights": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Key Insights', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
+                "predicate": {'type': 'string', 'nullable': True, 'title': 'Predicate', 'x-cli-required': False},
+                "tensions": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Tensions', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -4669,14 +6595,47 @@ def register_generated_openapi_commands(
     @target_app.command("create-pattern")
     def kg_create_pattern_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        claim_ids: Optional[str] = typer.Option(None, "--claim-ids", help="Request field: claim_ids."),
+        description: str = typer.Option(..., "--description", help="Request field: description."),
+        entity_ids: Optional[str] = typer.Option(None, "--entity-ids", help="Request field: entity_ids."),
+        framework_id: Optional[str] = typer.Option(None, "--framework-id", help="Request field: framework_id."),
+        frequency: Optional[int] = typer.Option(None, "--frequency", help="Request field: frequency."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        pattern_type: str = typer.Option(..., "--pattern-type", help="Request field: pattern_type."),
+        significance: Optional[float] = typer.Option(None, "--significance", help="Request field: significance."),
+        status: Optional[str] = typer.Option(None, "--status", help="Request field: status."),
+        supporting_passages: Optional[str] = typer.Option(None, "--supporting-passages", help="Request field: supporting_passages."),
     ) -> None:
         """Create Pattern (POST /api/kg/interpretations/patterns)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/interpretations/patterns"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "claim_ids": claim_ids,
+                "description": description,
+                "entity_ids": entity_ids,
+                "framework_id": framework_id,
+                "frequency": frequency,
+                "metadata": metadata,
+                "name": name,
+                "pattern_type": pattern_type,
+                "significance": significance,
+                "status": status,
+                "supporting_passages": supporting_passages,
+            }, {
+                "claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Claim Ids', 'x-cli-required': False},
+                "description": {'type': 'string', 'title': 'Description', 'x-cli-required': True},
+                "entity_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Entity Ids', 'x-cli-required': False},
+                "framework_id": {'type': 'string', 'nullable': True, 'title': 'Framework Id', 'x-cli-required': False},
+                "frequency": {'type': 'integer', 'title': 'Frequency', 'default': 0, 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+                "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
+                "pattern_type": {'type': 'string', 'title': 'Pattern Type', 'x-cli-required': True},
+                "significance": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'title': 'Significance', 'default': 0.5, 'x-cli-required': False},
+                "status": {'type': 'string', 'enum': ['tentative', 'confirmed', 'superseded'], 'title': 'PatternStatus', 'description': 'Lifecycle state of a recognized pattern.', 'x-cli-required': False},
+                "supporting_passages": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Supporting Passages', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -4696,14 +6655,47 @@ def register_generated_openapi_commands(
     def kg_update_pattern_patch(
         ctx: typer.Context,
         pattern_id: str = typer.Argument(..., help="Path parameter: pattern_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        claim_ids: Optional[str] = typer.Option(None, "--claim-ids", help="Request field: claim_ids."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        entity_ids: Optional[str] = typer.Option(None, "--entity-ids", help="Request field: entity_ids."),
+        framework_id: Optional[str] = typer.Option(None, "--framework-id", help="Request field: framework_id."),
+        frequency: Optional[int] = typer.Option(None, "--frequency", help="Request field: frequency."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        pattern_type: Optional[str] = typer.Option(None, "--pattern-type", help="Request field: pattern_type."),
+        significance: Optional[float] = typer.Option(None, "--significance", help="Request field: significance."),
+        status: Optional[str] = typer.Option(None, "--status", help="Request field: status."),
+        supporting_passages: Optional[str] = typer.Option(None, "--supporting-passages", help="Request field: supporting_passages."),
     ) -> None:
         """Update Pattern (PATCH /api/kg/interpretations/patterns/{pattern_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/kg/interpretations/patterns/{pattern_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "claim_ids": claim_ids,
+                "description": description,
+                "entity_ids": entity_ids,
+                "framework_id": framework_id,
+                "frequency": frequency,
+                "metadata": metadata,
+                "name": name,
+                "pattern_type": pattern_type,
+                "significance": significance,
+                "status": status,
+                "supporting_passages": supporting_passages,
+            }, {
+                "claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Claim Ids', 'x-cli-required': False},
+                "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'x-cli-required': False},
+                "entity_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Entity Ids', 'x-cli-required': False},
+                "framework_id": {'type': 'string', 'nullable': True, 'title': 'Framework Id', 'x-cli-required': False},
+                "frequency": {'type': 'integer', 'nullable': True, 'title': 'Frequency', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
+                "pattern_type": {'type': 'string', 'nullable': True, 'title': 'Pattern Type', 'x-cli-required': False},
+                "significance": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Significance', 'x-cli-required': False},
+                "status": {'type': 'string', 'enum': ['tentative', 'confirmed', 'superseded'], 'title': 'PatternStatus', 'description': 'Lifecycle state of a recognized pattern.', 'x-cli-required': False},
+                "supporting_passages": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Supporting Passages', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -4723,14 +6715,26 @@ def register_generated_openapi_commands(
     @target_app.command("suggest-interpretations")
     def kg_suggest_interpretations_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        claim_ids: str = typer.Option(..., "--claim-ids", help="Request field: claim_ids."),
+        context_claim_ids: Optional[str] = typer.Option(None, "--context-claim-ids", help="Request field: context_claim_ids."),
+        framework_ids: Optional[str] = typer.Option(None, "--framework-ids", help="Request field: framework_ids."),
+        num_suggestions: Optional[int] = typer.Option(None, "--num-suggestions", help="Request field: num_suggestions."),
     ) -> None:
         """Suggest Interpretations (POST /api/kg/interpretations/suggestions)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/interpretations/suggestions"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "claim_ids": claim_ids,
+                "context_claim_ids": context_claim_ids,
+                "framework_ids": framework_ids,
+                "num_suggestions": num_suggestions,
+            }, {
+                "claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Claim Ids', 'x-cli-required': True},
+                "context_claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Context Claim Ids', 'x-cli-required': False},
+                "framework_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Framework Ids', 'x-cli-required': False},
+                "num_suggestions": {'type': 'integer', 'maximum': 10.0, 'minimum': 1.0, 'title': 'Num Suggestions', 'default': 3, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -4790,14 +6794,20 @@ def register_generated_openapi_commands(
     @target_app.command("generate-heuristic-predictions")
     def kg_generate_heuristic_predictions_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        entity_id: Optional[str] = typer.Option(None, "--entity-id", help="Request field: entity_id."),
+        top_k: Optional[int] = typer.Option(None, "--top-k", help="Request field: top_k."),
     ) -> None:
         """Generate Heuristic Predictions (POST /api/kg/predictions/heuristic)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/predictions/heuristic"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "entity_id": entity_id,
+                "top_k": top_k,
+            }, {
+                "entity_id": {'type': 'string', 'nullable': True, 'title': 'Entity Id', 'x-cli-required': False},
+                "top_k": {'type': 'integer', 'maximum': 100.0, 'minimum': 1.0, 'title': 'Top K', 'default': 10, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -4877,14 +6887,20 @@ def register_generated_openapi_commands(
     def kg_verify_or_refute_a_stored_prediction_patch(
         ctx: typer.Context,
         prediction_id: str = typer.Argument(..., help="Path parameter: prediction_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        notes: Optional[str] = typer.Option(None, "--notes", help="Request field: notes."),
+        verified: bool = typer.Option(..., "--verified/--no-verified", help="Request field: verified."),
     ) -> None:
         """Verify or refute a stored prediction (PATCH /api/kg/pykeen/stored/{prediction_id}/verify)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/kg/pykeen/stored/{prediction_id}/verify"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "notes": notes,
+                "verified": verified,
+            }, {
+                "notes": {'type': 'string', 'nullable': True, 'title': 'Notes', 'x-cli-required': False},
+                "verified": {'type': 'boolean', 'title': 'Verified', 'x-cli-required': True},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -4943,42 +6959,60 @@ def register_generated_openapi_commands(
     @target_app.command("run-a-sparql-query-against-the-library-s-rdf-graph")
     def kg_run_a_sparql_query_against_the_library_s_rdf_graph_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        limit: Optional[int] = typer.Option(None, "--limit", help="Request field: limit."),
+        query: str = typer.Option(..., "--query", help="Request field: query."),
     ) -> None:
         """Run a SPARQL query against the library's RDF graph (POST /api/kg/query/sparql)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/query/sparql"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "limit": limit,
+                "query": query,
+            }, {
+                "limit": {'type': 'integer', 'maximum': 10000.0, 'minimum': 1.0, 'title': 'Limit', 'description': 'Cap on result rows. Defaults to 1000.', 'default': 1000, 'x-cli-required': False},
+                "query": {'type': 'string', 'title': 'Query', 'description': 'SPARQL 1.1 query. Read-only: SELECT / ASK / CONSTRUCT / DESCRIBE only — INSERT/DELETE/DROP/CLEAR/LOAD/CREATE rejected.', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("backfill-derived-stores")
     def kg_backfill_derived_stores_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        triples: Optional[bool] = typer.Option(None, "--triples/--no-triples", help="Request field: triples."),
+        vectors: Optional[bool] = typer.Option(None, "--vectors/--no-vectors", help="Request field: vectors."),
     ) -> None:
         """Backfill KG derived stores (POST /api/kg/rebuild)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/rebuild"
             params = None
-            payload = _load_json_payload(body, body_file, required=False)
+            payload = _build_json_payload({
+                "triples": triples,
+                "vectors": vectors,
+            }, {
+                "triples": {'type': 'boolean', 'title': 'Triples', 'default': True, 'x-cli-required': False},
+                "vectors": {'type': 'boolean', 'title': 'Vectors', 'default': True, 'x-cli-required': False},
+            }, required=False)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("render-a-deterministic-paragraph")
     def kg_render_a_deterministic_paragraph_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        claim_ids: str = typer.Option(..., "--claim-ids", help="Request field: claim_ids."),
+        style: Optional[str] = typer.Option(None, "--style", help="Request field: style."),
     ) -> None:
         """Render a deterministic KG paragraph (POST /api/kg/render/paragraph)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/render/paragraph"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "claim_ids": claim_ids,
+                "style": style,
+            }, {
+                "claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Claim Ids', 'x-cli-required': True},
+                "style": {'type': 'string', 'enum': ['narrative', 'list', 'footnoted'], 'title': 'ParagraphStyle', 'description': 'Supported paragraph render styles.', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -5039,14 +7073,23 @@ def register_generated_openapi_commands(
     @target_app.command("manually-queue-an-entity-pair-for-review")
     def kg_manually_queue_an_entity_pair_for_review_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        candidate_entity_id: str = typer.Option(..., "--candidate-entity-id", help="Request field: candidate_entity_id."),
+        reason: Optional[str] = typer.Option(None, "--reason", help="Request field: reason."),
+        survivor_entity_id: str = typer.Option(..., "--survivor-entity-id", help="Request field: survivor_entity_id."),
     ) -> None:
         """Manually queue an entity pair for review (POST /api/kg/review/pairs)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/review/pairs"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "candidate_entity_id": candidate_entity_id,
+                "reason": reason,
+                "survivor_entity_id": survivor_entity_id,
+            }, {
+                "candidate_entity_id": {'type': 'string', 'title': 'Candidate Entity Id', 'x-cli-required': True},
+                "reason": {'type': 'string', 'nullable': True, 'title': 'Reason', 'x-cli-required': False},
+                "survivor_entity_id": {'type': 'string', 'title': 'Survivor Entity Id', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -5106,14 +7149,20 @@ def register_generated_openapi_commands(
     @target_app.command("run-a-sparql-query-against-the-library-s-rdf-graph-legacy-path")
     def kg_run_a_sparql_query_against_the_library_s_rdf_graph_legacy_path_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        limit: Optional[int] = typer.Option(None, "--limit", help="Request field: limit."),
+        query: str = typer.Option(..., "--query", help="Request field: query."),
     ) -> None:
         """Run a SPARQL query against the library's RDF graph (legacy path) (POST /api/kg/sparql)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/sparql"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "limit": limit,
+                "query": query,
+            }, {
+                "limit": {'type': 'integer', 'maximum': 10000.0, 'minimum': 1.0, 'title': 'Limit', 'description': 'Cap on result rows. Defaults to 1000.', 'default': 1000, 'x-cli-required': False},
+                "query": {'type': 'string', 'title': 'Query', 'description': 'SPARQL 1.1 query. Read-only: SELECT / ASK / CONSTRUCT / DESCRIBE only — INSERT/DELETE/DROP/CLEAR/LOAD/CREATE rejected.', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -5209,14 +7258,17 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def library_create_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        path: str = typer.Option(..., "--path", help="Request field: path."),
     ) -> None:
         """Create Library (POST /api/library)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/library"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "path": path,
+            }, {
+                "path": {'type': 'string', 'title': 'Path', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -5241,14 +7293,38 @@ def register_generated_openapi_commands(
     @target_app.command("create-link")
     def library_create_link_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        evidence: Optional[str] = typer.Option(None, "--evidence", help="Request field: evidence."),
+        link_quality: Optional[float] = typer.Option(None, "--link-quality", help="Request field: link_quality."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        relation_type: str = typer.Option(..., "--relation-type", help="Request field: relation_type."),
+        source_id: str = typer.Option(..., "--source-id", help="Request field: source_id."),
+        source_type: str = typer.Option(..., "--source-type", help="Request field: source_type."),
+        target_id: str = typer.Option(..., "--target-id", help="Request field: target_id."),
+        target_type: str = typer.Option(..., "--target-type", help="Request field: target_type."),
     ) -> None:
         """Create Library Link (POST /api/library/links)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/library/links"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "evidence": evidence,
+                "link_quality": link_quality,
+                "metadata": metadata,
+                "relation_type": relation_type,
+                "source_id": source_id,
+                "source_type": source_type,
+                "target_id": target_id,
+                "target_type": target_type,
+            }, {
+                "evidence": {'type': 'string', 'nullable': True, 'title': 'Evidence', 'x-cli-required': False},
+                "link_quality": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'title': 'Link Quality', 'default': 0.5, 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+                "relation_type": {'type': 'string', 'enum': ['supports', 'contradicts', 'refines', 'duplicate_of', 'corroborates', 'derives_from', 'cites', 'follows', 'caused_by', 'related_to'], 'title': 'ClaimRelationType', 'description': "Typed relationship kinds for KnowledgeClaimLink (#1123 Phase B).\n\nOriginally four kinds (supports / contradicts / refines / duplicate_of).\n#1123 extends with five new dimensions plus ``related_to`` (the generic\nfallback used by ``kg_predictions._record_predictions`` when a model\nsurfaces a relation outside the curated set):\n\n- ``corroborates`` — independent evidence agreeing with the source\n  claim. Distinct from ``supports`` (which just reinforces with\n  additional evidence drawn from the same line of reasoning).\n- ``derives_from`` — claim B is inferred from / built on claim A;\n  removing A invalidates B. Stronger than ``cites``.\n- ``cites`` — B references A as a source. Bibliographic / citation\n  graph use.\n- ``follows`` — temporal sequence (A then B). Doesn't imply\n  causation; ``caused_by`` is the explicit causal claim.\n- ``caused_by`` — A is the cause of B. Strong claim; reviewers\n  should treat with corroboration.\n- ``related_to`` — generic fallback when the typed kinds don't\n  fit. Closes the latent crash in\n  ``kg_predictions.py:269`` where the relation_map fallback\n  referenced this value before it existed.\n\nNote: ``contests`` was considered as a synonym for ``contradicts``\nbut excluded — same semantic, different word, doesn't earn a\nseparate enum slot. Writers should keep using ``contradicts``.", 'x-cli-required': True},
+                "source_id": {'type': 'string', 'title': 'Source Id', 'x-cli-required': True},
+                "source_type": {'type': 'string', 'enum': ['document', 'note', 'entity', 'claim'], 'title': 'LibraryItemType', 'description': 'Node kinds that can participate in a general library link.', 'x-cli-required': True},
+                "target_id": {'type': 'string', 'title': 'Target Id', 'x-cli-required': True},
+                "target_type": {'type': 'string', 'enum': ['document', 'note', 'entity', 'claim'], 'title': 'LibraryItemType', 'description': 'Node kinds that can participate in a general library link.', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -5280,14 +7356,26 @@ def register_generated_openapi_commands(
     def library_update_link_patch(
         ctx: typer.Context,
         link_id: str = typer.Argument(..., help="Path parameter: link_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        evidence: Optional[str] = typer.Option(None, "--evidence", help="Request field: evidence."),
+        link_quality: Optional[float] = typer.Option(None, "--link-quality", help="Request field: link_quality."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        relation_type: Optional[str] = typer.Option(None, "--relation-type", help="Request field: relation_type."),
     ) -> None:
         """Update Library Link (PATCH /api/library/links/{link_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/library/links/{link_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "evidence": evidence,
+                "link_quality": link_quality,
+                "metadata": metadata,
+                "relation_type": relation_type,
+            }, {
+                "evidence": {'type': 'string', 'nullable': True, 'title': 'Evidence', 'x-cli-required': False},
+                "link_quality": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Link Quality', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
+                "relation_type": {'type': 'string', 'enum': ['supports', 'contradicts', 'refines', 'duplicate_of', 'corroborates', 'derives_from', 'cites', 'follows', 'caused_by', 'related_to'], 'title': 'ClaimRelationType', 'description': "Typed relationship kinds for KnowledgeClaimLink (#1123 Phase B).\n\nOriginally four kinds (supports / contradicts / refines / duplicate_of).\n#1123 extends with five new dimensions plus ``related_to`` (the generic\nfallback used by ``kg_predictions._record_predictions`` when a model\nsurfaces a relation outside the curated set):\n\n- ``corroborates`` — independent evidence agreeing with the source\n  claim. Distinct from ``supports`` (which just reinforces with\n  additional evidence drawn from the same line of reasoning).\n- ``derives_from`` — claim B is inferred from / built on claim A;\n  removing A invalidates B. Stronger than ``cites``.\n- ``cites`` — B references A as a source. Bibliographic / citation\n  graph use.\n- ``follows`` — temporal sequence (A then B). Doesn't imply\n  causation; ``caused_by`` is the explicit causal claim.\n- ``caused_by`` — A is the cause of B. Strong claim; reviewers\n  should treat with corroboration.\n- ``related_to`` — generic fallback when the typed kinds don't\n  fit. Closes the latent crash in\n  ``kg_predictions.py:269`` where the relation_map fallback\n  referenced this value before it existed.\n\nNote: ``contests`` was considered as a synonym for ``contradicts``\nbut excluded — same semantic, different word, doesn't earn a\nseparate enum slot. Writers should keep using ``contradicts``.", 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -5338,14 +7426,53 @@ def register_generated_openapi_commands(
     @target_app.command("validate-profile")
     def local_inference_validate_profile_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        allows_paid_fallbacks: Optional[bool] = typer.Option(None, "--allows-paid-fallbacks/--no-allows-paid-fallbacks", help="Request field: allows_paid_fallbacks."),
+        base_url: str = typer.Option(..., "--base-url", help="Request field: base_url."),
+        healthcheck_path: Optional[str] = typer.Option(None, "--healthcheck-path", help="Request field: healthcheck_path."),
+        id: str = typer.Option(..., "--id", help="Request field: id."),
+        local_only: Optional[bool] = typer.Option(None, "--local-only/--no-local-only", help="Request field: local_only."),
+        managed_by_app: Optional[bool] = typer.Option(None, "--managed-by-app/--no-managed-by-app", help="Request field: managed_by_app."),
+        max_concurrency: Optional[int] = typer.Option(None, "--max-concurrency", help="Request field: max_concurrency."),
+        model_id: str = typer.Option(..., "--model-id", help="Request field: model_id."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        provider_type: str = typer.Option(..., "--provider-type", help="Request field: provider_type."),
+        startup_policy: Optional[str] = typer.Option(None, "--startup-policy", help="Request field: startup_policy."),
+        timeout_seconds: Optional[float] = typer.Option(None, "--timeout-seconds", help="Request field: timeout_seconds."),
+        visible_in_ui: Optional[bool] = typer.Option(None, "--visible-in-ui/--no-visible-in-ui", help="Request field: visible_in_ui."),
     ) -> None:
         """Validate Local Inference Profile (POST /api/local-inference/profiles/validate)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/local-inference/profiles/validate"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "allows_paid_fallbacks": allows_paid_fallbacks,
+                "base_url": base_url,
+                "healthcheck_path": healthcheck_path,
+                "id": id,
+                "local_only": local_only,
+                "managed_by_app": managed_by_app,
+                "max_concurrency": max_concurrency,
+                "model_id": model_id,
+                "name": name,
+                "provider_type": provider_type,
+                "startup_policy": startup_policy,
+                "timeout_seconds": timeout_seconds,
+                "visible_in_ui": visible_in_ui,
+            }, {
+                "allows_paid_fallbacks": {'type': 'boolean', 'title': 'Allows Paid Fallbacks', 'default': False, 'x-cli-required': False},
+                "base_url": {'type': 'string', 'maxLength': 2083, 'minLength': 1, 'format': 'uri', 'title': 'Base Url', 'x-cli-required': True},
+                "healthcheck_path": {'type': 'string', 'title': 'Healthcheck Path', 'default': '/health', 'x-cli-required': False},
+                "id": {'type': 'string', 'title': 'Id', 'x-cli-required': True},
+                "local_only": {'type': 'boolean', 'title': 'Local Only', 'default': True, 'x-cli-required': False},
+                "managed_by_app": {'type': 'boolean', 'title': 'Managed By App', 'default': True, 'x-cli-required': False},
+                "max_concurrency": {'type': 'integer', 'minimum': 1.0, 'title': 'Max Concurrency', 'default': 1, 'x-cli-required': False},
+                "model_id": {'type': 'string', 'title': 'Model Id', 'x-cli-required': True},
+                "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
+                "provider_type": {'type': 'string', 'enum': ['apple', 'mock', 'ollama', 'lmstudio', 'omlx', 'huggingface', 'openrouter', 'openai', 'anthropic', 'google', 'groq', 'together', 'deepseek', 'mistral', 'cohere', 'dashscope', 'xai', 'perplexity', 'fireworks', 'deepl', 'azure', 'bedrock'], 'title': 'ProviderType', 'description': 'Supported LLM provider types.', 'x-cli-required': True},
+                "startup_policy": {'type': 'string', 'enum': ['on_demand', 'eager', 'manual'], 'title': 'LocalProviderStartupPolicy', 'description': 'When the app should start a managed local provider.', 'x-cli-required': False},
+                "timeout_seconds": {'type': 'number', 'minimum': 0.0, 'title': 'Timeout Seconds', 'default': 5.0, 'x-cli-required': False},
+                "visible_in_ui": {'type': 'boolean', 'title': 'Visible In Ui', 'default': True, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -5365,14 +7492,17 @@ def register_generated_openapi_commands(
     def local_inference_start_profile_post(
         ctx: typer.Context,
         profile_id: str = typer.Argument(..., help="Path parameter: profile_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        timeout_seconds: Optional[float] = typer.Option(None, "--timeout-seconds", help="Request field: timeout_seconds."),
     ) -> None:
         """Start Local Inference Profile (POST /api/local-inference/profiles/{profile_id}/start)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/local-inference/profiles/{profile_id}/start"
             params = None
-            payload = _load_json_payload(body, body_file, required=False)
+            payload = _build_json_payload({
+                "timeout_seconds": timeout_seconds,
+            }, {
+                "timeout_seconds": {'type': 'number', 'minimum': 0.0, 'nullable': True, 'title': 'Timeout Seconds', 'x-cli-required': False},
+            }, required=False)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -5486,14 +7616,56 @@ def register_generated_openapi_commands(
     @target_app.command("create-knowledge-claim")
     def mcp_create_knowledge_claim_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        claim_type: Optional[str] = typer.Option(None, "--claim-type", help="Request field: claim_type."),
+        confidence: Optional[float] = typer.Option(None, "--confidence", help="Request field: confidence."),
+        created_by: Optional[str] = typer.Option(None, "--created-by", help="Request field: created_by."),
+        curation_state: Optional[str] = typer.Option(None, "--curation-state", help="Request field: curation_state."),
+        entity_ids: Optional[str] = typer.Option(None, "--entity-ids", help="Request field: entity_ids."),
+        epistemic_status: Optional[str] = typer.Option(None, "--epistemic-status", help="Request field: epistemic_status."),
+        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        source_document_id: Optional[str] = typer.Option(None, "--source-document-id", help="Request field: source_document_id."),
+        source_ids: Optional[str] = typer.Option(None, "--source-ids", help="Request field: source_ids."),
+        source_languages: Optional[str] = typer.Option(None, "--source-languages", help="Request field: source_languages."),
+        source_page_labels: Optional[str] = typer.Option(None, "--source-page-labels", help="Request field: source_page_labels."),
+        source_type: Optional[str] = typer.Option(None, "--source-type", help="Request field: source_type."),
+        text: str = typer.Option(..., "--text", help="Request field: text."),
     ) -> None:
         """Create knowledge claim (POST /api/mcp/tools/knowledge/claims/create)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/mcp/tools/knowledge/claims/create"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "claim_type": claim_type,
+                "confidence": confidence,
+                "created_by": created_by,
+                "curation_state": curation_state,
+                "entity_ids": entity_ids,
+                "epistemic_status": epistemic_status,
+                "language": language,
+                "metadata": metadata,
+                "source_document_id": source_document_id,
+                "source_ids": source_ids,
+                "source_languages": source_languages,
+                "source_page_labels": source_page_labels,
+                "source_type": source_type,
+                "text": text,
+            }, {
+                "claim_type": {'type': 'string', 'maxLength': 64, 'minLength': 1, 'title': 'Claim Type', 'description': 'Type: fact, analysis, interpretation, argument, historiography, theory', 'default': 'fact', 'x-cli-required': False},
+                "confidence": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'title': 'Confidence', 'default': 0.5, 'x-cli-required': False},
+                "created_by": {'type': 'string', 'maxLength': 128, 'minLength': 1, 'title': 'Created By', 'default': 'mcp', 'x-cli-required': False},
+                "curation_state": {'type': 'string', 'maxLength': 64, 'minLength': 1, 'title': 'Curation State', 'description': 'State: unreviewed, shortlisted, curated, rejected', 'default': 'unreviewed', 'x-cli-required': False},
+                "entity_ids": {'items': {'type': 'string'}, 'type': 'array', 'maxItems': 200, 'title': 'Entity Ids', 'description': 'Linked entity IDs', 'x-cli-required': False},
+                "epistemic_status": {'type': 'string', 'maxLength': 64, 'minLength': 1, 'title': 'Epistemic Status', 'description': 'Status: tentative, confirmed, rejected', 'default': 'tentative', 'x-cli-required': False},
+                "language": {'type': 'string', 'maxLength': 16, 'minLength': 2, 'nullable': True, 'title': 'Language', 'description': 'ISO 639-1 language code', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+                "source_document_id": {'type': 'string', 'maxLength': 255, 'nullable': True, 'title': 'Source Document Id', 'description': 'Primary source document ID', 'x-cli-required': False},
+                "source_ids": {'items': {'type': 'string'}, 'type': 'array', 'maxItems': 200, 'title': 'Source Ids', 'description': 'Multiple source document IDs', 'x-cli-required': False},
+                "source_languages": {'items': {'type': 'string'}, 'type': 'array', 'maxItems': 200, 'title': 'Source Languages', 'description': 'ISO 639-1 codes per source', 'x-cli-required': False},
+                "source_page_labels": {'items': {'type': 'string'}, 'type': 'array', 'maxItems': 200, 'title': 'Source Page Labels', 'x-cli-required': False},
+                "source_type": {'type': 'string', 'maxLength': 64, 'minLength': 1, 'title': 'Source Type', 'description': 'Source type: document, claim, multiple, synthesis', 'default': 'document', 'x-cli-required': False},
+                "text": {'type': 'string', 'maxLength': 10000, 'minLength': 1, 'title': 'Text', 'description': 'Claim text content', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -5544,14 +7716,35 @@ def register_generated_openapi_commands(
     @target_app.command("upsert-knowledge-entity")
     def mcp_upsert_knowledge_entity_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        aliases: Optional[str] = typer.Option(None, "--aliases", help="Request field: aliases."),
+        canonical_name: str = typer.Option(..., "--canonical-name", help="Request field: canonical_name."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        entity_type: Optional[str] = typer.Option(None, "--entity-type", help="Request field: entity_type."),
+        id: Optional[str] = typer.Option(None, "--id", help="Request field: id."),
+        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
     ) -> None:
         """Upsert knowledge entity (POST /api/mcp/tools/knowledge/entities/upsert)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/mcp/tools/knowledge/entities/upsert"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "aliases": aliases,
+                "canonical_name": canonical_name,
+                "description": description,
+                "entity_type": entity_type,
+                "id": id,
+                "language": language,
+                "metadata": metadata,
+            }, {
+                "aliases": {'items': {'type': 'string'}, 'type': 'array', 'maxItems': 200, 'title': 'Aliases', 'description': 'Alternative names', 'x-cli-required': False},
+                "canonical_name": {'type': 'string', 'maxLength': 512, 'minLength': 1, 'title': 'Canonical Name', 'description': 'Canonical entity name', 'x-cli-required': True},
+                "description": {'type': 'string', 'maxLength': 4000, 'nullable': True, 'title': 'Description', 'description': 'Entity description', 'x-cli-required': False},
+                "entity_type": {'type': 'string', 'maxLength': 64, 'minLength': 1, 'title': 'Entity Type', 'description': 'Entity type', 'default': 'other', 'x-cli-required': False},
+                "id": {'type': 'string', 'maxLength': 255, 'nullable': True, 'title': 'Id', 'description': 'Entity ID for updates', 'x-cli-required': False},
+                "language": {'type': 'string', 'maxLength': 16, 'minLength': 2, 'nullable': True, 'title': 'Language', 'description': 'ISO 639-1 language code', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'description': 'Custom metadata', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -5598,14 +7791,44 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def mcp_servers_create_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        args: Optional[str] = typer.Option(None, "--args", help="Request field: args."),
+        command: Optional[str] = typer.Option(None, "--command", help="Request field: command."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        enabled: Optional[bool] = typer.Option(None, "--enabled/--no-enabled", help="Request field: enabled."),
+        env: Optional[str] = typer.Option(None, "--env", help="Request field: env."),
+        headers: Optional[str] = typer.Option(None, "--headers", help="Request field: headers."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        tool_name_prefix: Optional[bool] = typer.Option(None, "--tool-name-prefix/--no-tool-name-prefix", help="Request field: tool_name_prefix."),
+        transport: str = typer.Option(..., "--transport", help="Request field: transport."),
+        url: Optional[str] = typer.Option(None, "--url", help="Request field: url."),
     ) -> None:
         """Create Mcp Server (POST /api/mcp-servers)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/mcp-servers"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "args": args,
+                "command": command,
+                "description": description,
+                "enabled": enabled,
+                "env": env,
+                "headers": headers,
+                "name": name,
+                "tool_name_prefix": tool_name_prefix,
+                "transport": transport,
+                "url": url,
+            }, {
+                "args": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Args', 'default': [], 'x-cli-required': False},
+                "command": {'type': 'string', 'nullable': True, 'title': 'Command', 'x-cli-required': False},
+                "description": {'type': 'string', 'title': 'Description', 'default': '', 'x-cli-required': False},
+                "enabled": {'type': 'boolean', 'title': 'Enabled', 'default': True, 'x-cli-required': False},
+                "env": {'additionalProperties': {'type': 'string'}, 'type': 'object', 'title': 'Env', 'default': {}, 'x-cli-required': False},
+                "headers": {'additionalProperties': {'type': 'string'}, 'type': 'object', 'title': 'Headers', 'default': {}, 'x-cli-required': False},
+                "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
+                "tool_name_prefix": {'type': 'boolean', 'title': 'Tool Name Prefix', 'default': True, 'x-cli-required': False},
+                "transport": {'type': 'string', 'title': 'Transport', 'x-cli-required': True},
+                "url": {'type': 'string', 'nullable': True, 'title': 'Url', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -5670,14 +7893,44 @@ def register_generated_openapi_commands(
     def mcp_servers_update_put(
         ctx: typer.Context,
         server_id: str = typer.Argument(..., help="Path parameter: server_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        args: Optional[str] = typer.Option(None, "--args", help="Request field: args."),
+        command: Optional[str] = typer.Option(None, "--command", help="Request field: command."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        enabled: Optional[bool] = typer.Option(None, "--enabled/--no-enabled", help="Request field: enabled."),
+        env: Optional[str] = typer.Option(None, "--env", help="Request field: env."),
+        headers: Optional[str] = typer.Option(None, "--headers", help="Request field: headers."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        tool_name_prefix: Optional[bool] = typer.Option(None, "--tool-name-prefix/--no-tool-name-prefix", help="Request field: tool_name_prefix."),
+        transport: Optional[str] = typer.Option(None, "--transport", help="Request field: transport."),
+        url: Optional[str] = typer.Option(None, "--url", help="Request field: url."),
     ) -> None:
         """Update Mcp Server (PUT /api/mcp-servers/{server_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/mcp-servers/{server_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "args": args,
+                "command": command,
+                "description": description,
+                "enabled": enabled,
+                "env": env,
+                "headers": headers,
+                "name": name,
+                "tool_name_prefix": tool_name_prefix,
+                "transport": transport,
+                "url": url,
+            }, {
+                "args": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Args', 'x-cli-required': False},
+                "command": {'type': 'string', 'nullable': True, 'title': 'Command', 'x-cli-required': False},
+                "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'x-cli-required': False},
+                "enabled": {'type': 'boolean', 'nullable': True, 'title': 'Enabled', 'x-cli-required': False},
+                "env": {'additionalProperties': {'type': 'string'}, 'type': 'object', 'nullable': True, 'title': 'Env', 'x-cli-required': False},
+                "headers": {'additionalProperties': {'type': 'string'}, 'type': 'object', 'nullable': True, 'title': 'Headers', 'x-cli-required': False},
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
+                "tool_name_prefix": {'type': 'boolean', 'nullable': True, 'title': 'Tool Name Prefix', 'x-cli-required': False},
+                "transport": {'type': 'string', 'nullable': True, 'title': 'Transport', 'x-cli-required': False},
+                "url": {'type': 'string', 'nullable': True, 'title': 'Url', 'x-cli-required': False},
+            }, required=True)
             return client.request("PUT", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -5726,28 +7979,43 @@ def register_generated_openapi_commands(
     @target_app.command("rollback")
     def migrations_rollback_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        run_id: str = typer.Option(..., "--run-id", help="Request field: run_id."),
     ) -> None:
         """Rollback Migration (POST /api/migrations/migrations/rollback)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/migrations/migrations/rollback"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "run_id": run_id,
+            }, {
+                "run_id": {'type': 'string', 'title': 'Run Id', 'description': 'Migration run ID to rollback', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("run")
     def migrations_run_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        batch_size: Optional[int] = typer.Option(None, "--batch-size", help="Request field: batch_size."),
+        command: str = typer.Option(..., "--command", help="Request field: command."),
+        dry_run: Optional[bool] = typer.Option(None, "--dry-run/--no-dry-run", help="Request field: dry_run."),
+        limit: Optional[int] = typer.Option(None, "--limit", help="Request field: limit."),
     ) -> None:
         """Run Migration (POST /api/migrations/migrations/run)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/migrations/migrations/run"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "batch_size": batch_size,
+                "command": command,
+                "dry_run": dry_run,
+                "limit": limit,
+            }, {
+                "batch_size": {'type': 'integer', 'minimum': 1.0, 'nullable': True, 'title': 'Batch Size', 'description': 'Process in batches', 'x-cli-required': False},
+                "command": {'type': 'string', 'enum': ['migrate_claims_to_multi_source', 'backfill_claim_source_metadata', 'repair_orphaned_claim_links', 'repair_kg_svo_repr_leak'], 'title': 'MigrationCommand', 'description': 'Available migration commands.', 'x-cli-required': True},
+                "dry_run": {'type': 'boolean', 'title': 'Dry Run', 'description': 'Validate without making changes', 'default': False, 'x-cli-required': False},
+                "limit": {'type': 'integer', 'minimum': 1.0, 'nullable': True, 'title': 'Limit', 'description': 'Maximum items to process', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -5766,14 +8034,20 @@ def register_generated_openapi_commands(
     @target_app.command("validate")
     def migrations_validate_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        command: str = typer.Option(..., "--command", help="Request field: command."),
+        sample_size: Optional[int] = typer.Option(None, "--sample-size", help="Request field: sample_size."),
     ) -> None:
         """Validate Migration (POST /api/migrations/migrations/validate)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/migrations/migrations/validate"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "command": command,
+                "sample_size": sample_size,
+            }, {
+                "command": {'type': 'string', 'enum': ['migrate_claims_to_multi_source', 'backfill_claim_source_metadata', 'repair_orphaned_claim_links', 'repair_kg_svo_repr_leak'], 'title': 'MigrationCommand', 'description': 'Available migration commands.', 'x-cli-required': True},
+                "sample_size": {'type': 'integer', 'maximum': 1000.0, 'minimum': 1.0, 'title': 'Sample Size', 'default': 100, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -5801,14 +8075,35 @@ def register_generated_openapi_commands(
     @target_app.command("create-connection")
     def mind_palace_create_connection_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        connection_type: str = typer.Option(..., "--connection-type", help="Request field: connection_type."),
+        created_by: Optional[str] = typer.Option(None, "--created-by", help="Request field: created_by."),
+        link_subtype: Optional[str] = typer.Option(None, "--link-subtype", help="Request field: link_subtype."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        room_id: str = typer.Option(..., "--room-id", help="Request field: room_id."),
+        source_node_id: str = typer.Option(..., "--source-node-id", help="Request field: source_node_id."),
+        target_node_id: str = typer.Option(..., "--target-node-id", help="Request field: target_node_id."),
     ) -> None:
         """Create Connection (POST /api/mind-palace/connections)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/mind-palace/connections"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "connection_type": connection_type,
+                "created_by": created_by,
+                "link_subtype": link_subtype,
+                "metadata": metadata,
+                "room_id": room_id,
+                "source_node_id": source_node_id,
+                "target_node_id": target_node_id,
+            }, {
+                "connection_type": {'type': 'string', 'enum': ['evidentiary', 'semantic', 'ontological', 'hermeneutic', 'user_drawn'], 'title': 'ConnectionType', 'x-cli-required': True},
+                "created_by": {'type': 'string', 'title': 'Created By', 'default': 'user', 'x-cli-required': False},
+                "link_subtype": {'type': 'string', 'nullable': True, 'title': 'Link Subtype', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+                "room_id": {'type': 'string', 'title': 'Room Id', 'x-cli-required': True},
+                "source_node_id": {'type': 'string', 'title': 'Source Node Id', 'x-cli-required': True},
+                "target_node_id": {'type': 'string', 'title': 'Target Node Id', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -5844,14 +8139,29 @@ def register_generated_openapi_commands(
     def mind_palace_arrange_folder_canvas_post(
         ctx: typer.Context,
         folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        columns: Optional[int] = typer.Option(None, "--columns", help="Request field: columns."),
+        node_ids: str = typer.Option(..., "--node-ids", help="Request field: node_ids."),
+        radius: Optional[float] = typer.Option(None, "--radius", help="Request field: radius."),
+        spacing: Optional[float] = typer.Option(None, "--spacing", help="Request field: spacing."),
+        strategy: Optional[str] = typer.Option(None, "--strategy", help="Request field: strategy."),
     ) -> None:
         """Arrange Folder Canvas (POST /api/mind-palace/folders/{folder_id}/arrange)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/mind-palace/folders/{folder_id}/arrange"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "columns": columns,
+                "node_ids": node_ids,
+                "radius": radius,
+                "spacing": spacing,
+                "strategy": strategy,
+            }, {
+                "columns": {'type': 'integer', 'nullable': True, 'title': 'Columns', 'x-cli-required': False},
+                "node_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Node Ids', 'x-cli-required': True},
+                "radius": {'type': 'number', 'nullable': True, 'title': 'Radius', 'x-cli-required': False},
+                "spacing": {'type': 'number', 'title': 'Spacing', 'default': 160.0, 'x-cli-required': False},
+                "strategy": {'type': 'string', 'enum': ['grid', 'row', 'column', 'circle', 'stack'], 'title': 'ArrangeStrategy', 'description': 'The geometric arrangement strategies supported by ``compute_arrangement``.', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -5874,14 +8184,29 @@ def register_generated_openapi_commands(
     def mind_palace_create_canvas_item_post(
         ctx: typer.Context,
         folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
+        payload_2: Optional[str] = typer.Option(None, "--payload", help="Request field: payload."),
+        source_item_id: Optional[str] = typer.Option(None, "--source-item-id", help="Request field: source_item_id."),
+        target_item_id: Optional[str] = typer.Option(None, "--target-item-id", help="Request field: target_item_id."),
+        text: Optional[str] = typer.Option(None, "--text", help="Request field: text."),
     ) -> None:
         """Create Canvas Item (POST /api/mind-palace/folders/{folder_id}/canvas-items)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/mind-palace/folders/{folder_id}/canvas-items"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "kind": kind,
+                "payload": payload_2,
+                "source_item_id": source_item_id,
+                "target_item_id": target_item_id,
+                "text": text,
+            }, {
+                "kind": {'type': 'string', 'enum': ['note', 'quote', 'work_note', 'link', 'text'], 'title': 'CanvasItemKind', 'description': 'What a standalone (non-document) canvas item IS.', 'x-cli-required': False},
+                "payload": {'additionalProperties': True, 'type': 'object', 'title': 'Payload', 'x-cli-required': False},
+                "source_item_id": {'type': 'string', 'nullable': True, 'title': 'Source Item Id', 'x-cli-required': False},
+                "target_item_id": {'type': 'string', 'nullable': True, 'title': 'Target Item Id', 'x-cli-required': False},
+                "text": {'type': 'string', 'title': 'Text', 'default': '', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -5903,14 +8228,29 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
         item_id: str = typer.Argument(..., help="Path parameter: item_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
+        payload_2: Optional[str] = typer.Option(None, "--payload", help="Request field: payload."),
+        source_item_id: Optional[str] = typer.Option(None, "--source-item-id", help="Request field: source_item_id."),
+        target_item_id: Optional[str] = typer.Option(None, "--target-item-id", help="Request field: target_item_id."),
+        text: Optional[str] = typer.Option(None, "--text", help="Request field: text."),
     ) -> None:
         """Update Canvas Item (PATCH /api/mind-palace/folders/{folder_id}/canvas-items/{item_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/mind-palace/folders/{folder_id}/canvas-items/{item_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "kind": kind,
+                "payload": payload_2,
+                "source_item_id": source_item_id,
+                "target_item_id": target_item_id,
+                "text": text,
+            }, {
+                "kind": {'type': 'string', 'enum': ['note', 'quote', 'work_note', 'link', 'text'], 'title': 'CanvasItemKind', 'description': 'What a standalone (non-document) canvas item IS.', 'x-cli-required': False},
+                "payload": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Payload', 'x-cli-required': False},
+                "source_item_id": {'type': 'string', 'nullable': True, 'title': 'Source Item Id', 'x-cli-required': False},
+                "target_item_id": {'type': 'string', 'nullable': True, 'title': 'Target Item Id', 'x-cli-required': False},
+                "text": {'type': 'string', 'nullable': True, 'title': 'Text', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -5930,14 +8270,17 @@ def register_generated_openapi_commands(
     def mind_palace_save_canvas_layout_put(
         ctx: typer.Context,
         folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        items: str = typer.Option(..., "--items", help="Request field: items."),
     ) -> None:
         """Save Canvas Layout (PUT /api/mind-palace/folders/{folder_id}/canvas-layout)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/mind-palace/folders/{folder_id}/canvas-layout"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "items": items,
+            }, {
+                "items": {'items': {'$ref': '#/components/schemas/CanvasLayoutItem'}, 'type': 'array', 'title': 'Items', 'x-cli-required': True},
+            }, required=True)
             return client.request("PUT", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -5976,14 +8319,53 @@ def register_generated_openapi_commands(
     @target_app.command("place-node")
     def mind_palace_place_node_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        created_by: Optional[str] = typer.Option(None, "--created-by", help="Request field: created_by."),
+        label: Optional[str] = typer.Option(None, "--label", help="Request field: label."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        node_type: str = typer.Option(..., "--node-type", help="Request field: node_type."),
+        position_x: Optional[float] = typer.Option(None, "--position-x", help="Request field: position_x."),
+        position_y: Optional[float] = typer.Option(None, "--position-y", help="Request field: position_y."),
+        position_z: Optional[float] = typer.Option(None, "--position-z", help="Request field: position_z."),
+        room_id: str = typer.Option(..., "--room-id", help="Request field: room_id."),
+        rotation_x: Optional[float] = typer.Option(None, "--rotation-x", help="Request field: rotation_x."),
+        rotation_y: Optional[float] = typer.Option(None, "--rotation-y", help="Request field: rotation_y."),
+        rotation_z: Optional[float] = typer.Option(None, "--rotation-z", help="Request field: rotation_z."),
+        scale: Optional[float] = typer.Option(None, "--scale", help="Request field: scale."),
+        source_id: Optional[str] = typer.Option(None, "--source-id", help="Request field: source_id."),
     ) -> None:
         """Place Node (POST /api/mind-palace/nodes)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/mind-palace/nodes"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "created_by": created_by,
+                "label": label,
+                "metadata": metadata,
+                "node_type": node_type,
+                "position_x": position_x,
+                "position_y": position_y,
+                "position_z": position_z,
+                "room_id": room_id,
+                "rotation_x": rotation_x,
+                "rotation_y": rotation_y,
+                "rotation_z": rotation_z,
+                "scale": scale,
+                "source_id": source_id,
+            }, {
+                "created_by": {'type': 'string', 'title': 'Created By', 'default': 'user', 'x-cli-required': False},
+                "label": {'type': 'string', 'title': 'Label', 'default': '', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+                "node_type": {'type': 'string', 'enum': ['source', 'claim', 'note', 'entity', 'transcription'], 'title': 'NodeType', 'x-cli-required': True},
+                "position_x": {'type': 'number', 'title': 'Position X', 'default': 0.0, 'x-cli-required': False},
+                "position_y": {'type': 'number', 'title': 'Position Y', 'default': 0.0, 'x-cli-required': False},
+                "position_z": {'type': 'number', 'title': 'Position Z', 'default': 0.0, 'x-cli-required': False},
+                "room_id": {'type': 'string', 'title': 'Room Id', 'x-cli-required': True},
+                "rotation_x": {'type': 'number', 'title': 'Rotation X', 'default': 0.0, 'x-cli-required': False},
+                "rotation_y": {'type': 'number', 'title': 'Rotation Y', 'default': 0.0, 'x-cli-required': False},
+                "rotation_z": {'type': 'number', 'title': 'Rotation Z', 'default': 0.0, 'x-cli-required': False},
+                "scale": {'type': 'number', 'title': 'Scale', 'default': 1.0, 'x-cli-required': False},
+                "source_id": {'type': 'string', 'nullable': True, 'title': 'Source Id', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -6015,14 +8397,35 @@ def register_generated_openapi_commands(
     def mind_palace_move_node_patch(
         ctx: typer.Context,
         node_id: str = typer.Argument(..., help="Path parameter: node_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        position_x: float = typer.Option(..., "--position-x", help="Request field: position_x."),
+        position_y: float = typer.Option(..., "--position-y", help="Request field: position_y."),
+        position_z: float = typer.Option(..., "--position-z", help="Request field: position_z."),
+        rotation_x: Optional[float] = typer.Option(None, "--rotation-x", help="Request field: rotation_x."),
+        rotation_y: Optional[float] = typer.Option(None, "--rotation-y", help="Request field: rotation_y."),
+        rotation_z: Optional[float] = typer.Option(None, "--rotation-z", help="Request field: rotation_z."),
+        scale: Optional[float] = typer.Option(None, "--scale", help="Request field: scale."),
     ) -> None:
         """Move Node (PATCH /api/mind-palace/nodes/{node_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/mind-palace/nodes/{node_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "position_x": position_x,
+                "position_y": position_y,
+                "position_z": position_z,
+                "rotation_x": rotation_x,
+                "rotation_y": rotation_y,
+                "rotation_z": rotation_z,
+                "scale": scale,
+            }, {
+                "position_x": {'type': 'number', 'title': 'Position X', 'x-cli-required': True},
+                "position_y": {'type': 'number', 'title': 'Position Y', 'x-cli-required': True},
+                "position_z": {'type': 'number', 'title': 'Position Z', 'x-cli-required': True},
+                "rotation_x": {'type': 'number', 'nullable': True, 'title': 'Rotation X', 'x-cli-required': False},
+                "rotation_y": {'type': 'number', 'nullable': True, 'title': 'Rotation Y', 'x-cli-required': False},
+                "rotation_z": {'type': 'number', 'nullable': True, 'title': 'Rotation Z', 'x-cli-required': False},
+                "scale": {'type': 'number', 'nullable': True, 'title': 'Scale', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -6049,14 +8452,38 @@ def register_generated_openapi_commands(
     @target_app.command("create-note")
     def mind_palace_create_note_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        author_id: Optional[str] = typer.Option(None, "--author-id", help="Request field: author_id."),
+        content: Optional[str] = typer.Option(None, "--content", help="Request field: content."),
+        linked_claim_ids: Optional[str] = typer.Option(None, "--linked-claim-ids", help="Request field: linked_claim_ids."),
+        linked_entity_ids: Optional[str] = typer.Option(None, "--linked-entity-ids", help="Request field: linked_entity_ids."),
+        linked_source_ids: Optional[str] = typer.Option(None, "--linked-source-ids", help="Request field: linked_source_ids."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        note_type: Optional[str] = typer.Option(None, "--note-type", help="Request field: note_type."),
+        room_id: Optional[str] = typer.Option(None, "--room-id", help="Request field: room_id."),
     ) -> None:
         """Create Note (POST /api/mind-palace/notes)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/mind-palace/notes"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "author_id": author_id,
+                "content": content,
+                "linked_claim_ids": linked_claim_ids,
+                "linked_entity_ids": linked_entity_ids,
+                "linked_source_ids": linked_source_ids,
+                "metadata": metadata,
+                "note_type": note_type,
+                "room_id": room_id,
+            }, {
+                "author_id": {'type': 'string', 'title': 'Author Id', 'default': 'user', 'x-cli-required': False},
+                "content": {'type': 'string', 'title': 'Content', 'default': '', 'x-cli-required': False},
+                "linked_claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Linked Claim Ids', 'x-cli-required': False},
+                "linked_entity_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Linked Entity Ids', 'x-cli-required': False},
+                "linked_source_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Linked Source Ids', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+                "note_type": {'type': 'string', 'enum': ['user', 'ai_workspace', 'ai_hypothesis', 'ai_summary', 'ai_relation', 'shared'], 'title': 'NoteType', 'x-cli-required': False},
+                "room_id": {'type': 'string', 'nullable': True, 'title': 'Room Id', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -6088,14 +8515,35 @@ def register_generated_openapi_commands(
     def mind_palace_update_note_patch(
         ctx: typer.Context,
         note_id: str = typer.Argument(..., help="Path parameter: note_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        content: Optional[str] = typer.Option(None, "--content", help="Request field: content."),
+        linked_claim_ids: Optional[str] = typer.Option(None, "--linked-claim-ids", help="Request field: linked_claim_ids."),
+        linked_entity_ids: Optional[str] = typer.Option(None, "--linked-entity-ids", help="Request field: linked_entity_ids."),
+        linked_source_ids: Optional[str] = typer.Option(None, "--linked-source-ids", help="Request field: linked_source_ids."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        note_type: Optional[str] = typer.Option(None, "--note-type", help="Request field: note_type."),
+        status: Optional[str] = typer.Option(None, "--status", help="Request field: status."),
     ) -> None:
         """Update Note (PATCH /api/mind-palace/notes/{note_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/mind-palace/notes/{note_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "content": content,
+                "linked_claim_ids": linked_claim_ids,
+                "linked_entity_ids": linked_entity_ids,
+                "linked_source_ids": linked_source_ids,
+                "metadata": metadata,
+                "note_type": note_type,
+                "status": status,
+            }, {
+                "content": {'type': 'string', 'nullable': True, 'title': 'Content', 'x-cli-required': False},
+                "linked_claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Linked Claim Ids', 'x-cli-required': False},
+                "linked_entity_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Linked Entity Ids', 'x-cli-required': False},
+                "linked_source_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Linked Source Ids', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
+                "note_type": {'type': 'string', 'enum': ['user', 'ai_workspace', 'ai_hypothesis', 'ai_summary', 'ai_relation', 'shared'], 'title': 'NoteType', 'x-cli-required': False},
+                "status": {'type': 'string', 'enum': ['draft', 'active', 'surfaced', 'accepted', 'archived', 'discarded'], 'title': 'NoteStatus', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -6118,14 +8566,29 @@ def register_generated_openapi_commands(
     @target_app.command("create-room")
     def mind_palace_create_room_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        owner_id: Optional[str] = typer.Option(None, "--owner-id", help="Request field: owner_id."),
+        room_type: Optional[str] = typer.Option(None, "--room-type", help="Request field: room_type."),
     ) -> None:
         """Create Room (POST /api/mind-palace/rooms)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/mind-palace/rooms"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "description": description,
+                "metadata": metadata,
+                "name": name,
+                "owner_id": owner_id,
+                "room_type": room_type,
+            }, {
+                "description": {'type': 'string', 'title': 'Description', 'default': '', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+                "name": {'type': 'string', 'minLength': 1, 'title': 'Name', 'x-cli-required': True},
+                "owner_id": {'type': 'string', 'title': 'Owner Id', 'default': 'user', 'x-cli-required': False},
+                "room_type": {'type': 'string', 'enum': ['research', 'synthesis', 'presentation'], 'title': 'RoomType', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -6157,14 +8620,26 @@ def register_generated_openapi_commands(
     def mind_palace_update_room_patch(
         ctx: typer.Context,
         room_id: str = typer.Argument(..., help="Path parameter: room_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        room_type: Optional[str] = typer.Option(None, "--room-type", help="Request field: room_type."),
     ) -> None:
         """Update Room (PATCH /api/mind-palace/rooms/{room_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/mind-palace/rooms/{room_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "description": description,
+                "metadata": metadata,
+                "name": name,
+                "room_type": room_type,
+            }, {
+                "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
+                "room_type": {'type': 'string', 'enum': ['research', 'synthesis', 'presentation'], 'title': 'RoomType', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -6172,14 +8647,20 @@ def register_generated_openapi_commands(
     def mind_palace_capture_viewport_post(
         ctx: typer.Context,
         room_id: str = typer.Argument(..., help="Path parameter: room_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        region: Optional[str] = typer.Option(None, "--region", help="Request field: region."),
+        selection_ids: Optional[str] = typer.Option(None, "--selection-ids", help="Request field: selection_ids."),
     ) -> None:
         """Capture Viewport (POST /api/mind-palace/rooms/{room_id}/capture)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/mind-palace/rooms/{room_id}/capture"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "region": region,
+                "selection_ids": selection_ids,
+            }, {
+                "region": {'type': 'string', 'enum': ['full', 'focused', 'selection'], 'title': 'CaptureRegion', 'x-cli-required': False},
+                "selection_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Selection Ids', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -6216,14 +8697,20 @@ def register_generated_openapi_commands(
     def mind_palace_suggest_arrangement_post(
         ctx: typer.Context,
         room_id: str = typer.Argument(..., help="Path parameter: room_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        arrangement_type: Optional[str] = typer.Option(None, "--arrangement-type", help="Request field: arrangement_type."),
+        node_ids: str = typer.Option(..., "--node-ids", help="Request field: node_ids."),
     ) -> None:
         """Suggest Arrangement (POST /api/mind-palace/rooms/{room_id}/suggest-arrangement)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/mind-palace/rooms/{room_id}/suggest-arrangement"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "arrangement_type": arrangement_type,
+                "node_ids": node_ids,
+            }, {
+                "arrangement_type": {'type': 'string', 'enum': ['semantic', 'chronological', 'thematic'], 'title': 'ArrangementType', 'x-cli-required': False},
+                "node_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Node Ids', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -6245,14 +8732,35 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         room_id: str = typer.Argument(..., help="Path parameter: room_id."),
         user_id: str = typer.Argument(..., help="Path parameter: user_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        bookmark_name: Optional[str] = typer.Option(None, "--bookmark-name", help="Request field: bookmark_name."),
+        camera_x: Optional[float] = typer.Option(None, "--camera-x", help="Request field: camera_x."),
+        camera_y: Optional[float] = typer.Option(None, "--camera-y", help="Request field: camera_y."),
+        camera_z: Optional[float] = typer.Option(None, "--camera-z", help="Request field: camera_z."),
+        focus_node_id: Optional[str] = typer.Option(None, "--focus-node-id", help="Request field: focus_node_id."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        zoom_level: Optional[float] = typer.Option(None, "--zoom-level", help="Request field: zoom_level."),
     ) -> None:
         """Save Viewport (POST /api/mind-palace/rooms/{room_id}/viewport/{user_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/mind-palace/rooms/{room_id}/viewport/{user_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "bookmark_name": bookmark_name,
+                "camera_x": camera_x,
+                "camera_y": camera_y,
+                "camera_z": camera_z,
+                "focus_node_id": focus_node_id,
+                "metadata": metadata,
+                "zoom_level": zoom_level,
+            }, {
+                "bookmark_name": {'type': 'string', 'nullable': True, 'title': 'Bookmark Name', 'x-cli-required': False},
+                "camera_x": {'type': 'number', 'title': 'Camera X', 'default': 0.0, 'x-cli-required': False},
+                "camera_y": {'type': 'number', 'title': 'Camera Y', 'default': 0.0, 'x-cli-required': False},
+                "camera_z": {'type': 'number', 'title': 'Camera Z', 'default': 10.0, 'x-cli-required': False},
+                "focus_node_id": {'type': 'string', 'nullable': True, 'title': 'Focus Node Id', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+                "zoom_level": {'type': 'number', 'title': 'Zoom Level', 'default': 1.0, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -6273,14 +8781,32 @@ def register_generated_openapi_commands(
     @target_app.command("create-stack")
     def mind_palace_create_stack_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        node_ids: Optional[str] = typer.Option(None, "--node-ids", help="Request field: node_ids."),
+        position_x: Optional[float] = typer.Option(None, "--position-x", help="Request field: position_x."),
+        position_y: Optional[float] = typer.Option(None, "--position-y", help="Request field: position_y."),
+        position_z: Optional[float] = typer.Option(None, "--position-z", help="Request field: position_z."),
+        room_id: str = typer.Option(..., "--room-id", help="Request field: room_id."),
     ) -> None:
         """Create Stack (POST /api/mind-palace/stacks)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/mind-palace/stacks"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "name": name,
+                "node_ids": node_ids,
+                "position_x": position_x,
+                "position_y": position_y,
+                "position_z": position_z,
+                "room_id": room_id,
+            }, {
+                "name": {'type': 'string', 'title': 'Name', 'default': '', 'x-cli-required': False},
+                "node_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Node Ids', 'x-cli-required': False},
+                "position_x": {'type': 'number', 'title': 'Position X', 'default': 0.0, 'x-cli-required': False},
+                "position_y": {'type': 'number', 'title': 'Position Y', 'default': 0.0, 'x-cli-required': False},
+                "position_z": {'type': 'number', 'title': 'Position Z', 'default': 0.0, 'x-cli-required': False},
+                "room_id": {'type': 'string', 'title': 'Room Id', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -6330,14 +8856,29 @@ def register_generated_openapi_commands(
     @target_app.command("render-scene")
     def mindpalace_render_scene_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        duration_seconds: Optional[float] = typer.Option(None, "--duration-seconds", help="Request field: duration_seconds."),
+        height: Optional[int] = typer.Option(None, "--height", help="Request field: height."),
+        include_video: Optional[bool] = typer.Option(None, "--include-video/--no-include-video", help="Request field: include_video."),
+        room_id: str = typer.Option(..., "--room-id", help="Request field: room_id."),
+        width: Optional[int] = typer.Option(None, "--width", help="Request field: width."),
     ) -> None:
         """Render Scene (POST /api/mindpalace/render)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/mindpalace/render"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "duration_seconds": duration_seconds,
+                "height": height,
+                "include_video": include_video,
+                "room_id": room_id,
+                "width": width,
+            }, {
+                "duration_seconds": {'type': 'number', 'maximum': 20.0, 'minimum': 0.5, 'title': 'Duration Seconds', 'default': 2.0, 'x-cli-required': False},
+                "height": {'type': 'integer', 'maximum': 4096.0, 'minimum': 240.0, 'title': 'Height', 'default': 720, 'x-cli-required': False},
+                "include_video": {'type': 'boolean', 'title': 'Include Video', 'default': True, 'x-cli-required': False},
+                "room_id": {'type': 'string', 'title': 'Room Id', 'x-cli-required': True},
+                "width": {'type': 'integer', 'maximum': 4096.0, 'minimum': 320.0, 'title': 'Width', 'default': 1280, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -6349,84 +8890,195 @@ def register_generated_openapi_commands(
     @target_app.command("compare-models")
     def model_comparison_compare_models_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        expect_json: Optional[bool] = typer.Option(None, "--expect-json/--no-expect-json", help="Request field: expect_json."),
+        models: Optional[str] = typer.Option(None, "--models", help="Request field: models."),
+        prompt: str = typer.Option(..., "--prompt", help="Request field: prompt."),
+        response_schema: Optional[str] = typer.Option(None, "--response-schema", help="Request field: response_schema."),
+        system_prompt: Optional[str] = typer.Option(None, "--system-prompt", help="Request field: system_prompt."),
+        timeout_seconds: Optional[int] = typer.Option(None, "--timeout-seconds", help="Request field: timeout_seconds."),
     ) -> None:
         """Compare Models (POST /api/model-comparison/compare)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/model-comparison/compare"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "expect_json": expect_json,
+                "models": models,
+                "prompt": prompt,
+                "response_schema": response_schema,
+                "system_prompt": system_prompt,
+                "timeout_seconds": timeout_seconds,
+            }, {
+                "expect_json": {'type': 'boolean', 'title': 'Expect Json', 'description': 'Mark structured decode success by parsing responses as JSON', 'default': False, 'x-cli-required': False},
+                "models": {'items': {'additionalProperties': True, 'type': 'object'}, 'type': 'array', 'title': 'Models', 'description': 'Models to compare', 'x-cli-required': False},
+                "prompt": {'type': 'string', 'title': 'Prompt', 'description': 'Prompt to send to all models', 'x-cli-required': True},
+                "response_schema": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Response Schema', 'description': 'Optional JSON schema requested by the comparison UI', 'x-cli-required': False},
+                "system_prompt": {'type': 'string', 'nullable': True, 'title': 'System Prompt', 'description': 'Optional system prompt', 'x-cli-required': False},
+                "timeout_seconds": {'type': 'integer', 'title': 'Timeout Seconds', 'description': 'Timeout per model', 'default': 60, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("compare-workflow-node")
     def model_comparison_compare_workflow_node_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        input_files: Optional[str] = typer.Option(None, "--input-files", help="Request field: input_files."),
+        inputs: Optional[str] = typer.Option(None, "--inputs", help="Request field: inputs."),
+        models: Optional[str] = typer.Option(None, "--models", help="Request field: models."),
+        node_id: str = typer.Option(..., "--node-id", help="Request field: node_id."),
+        outputs: Optional[str] = typer.Option(None, "--outputs", help="Request field: outputs."),
+        pinned_inputs: Optional[str] = typer.Option(None, "--pinned-inputs", help="Request field: pinned_inputs."),
+        timeout_seconds: Optional[int] = typer.Option(None, "--timeout-seconds", help="Request field: timeout_seconds."),
+        workflow: Optional[str] = typer.Option(None, "--workflow", help="Request field: workflow."),
+        workflow_config: Optional[str] = typer.Option(None, "--workflow-config", help="Request field: workflow_config."),
+        workflow_id: Optional[str] = typer.Option(None, "--workflow-id", help="Request field: workflow_id."),
     ) -> None:
         """Compare Workflow Node (POST /api/model-comparison/compare-node)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/model-comparison/compare-node"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "input_files": input_files,
+                "inputs": inputs,
+                "models": models,
+                "node_id": node_id,
+                "outputs": outputs,
+                "pinned_inputs": pinned_inputs,
+                "timeout_seconds": timeout_seconds,
+                "workflow": workflow,
+                "workflow_config": workflow_config,
+                "workflow_id": workflow_id,
+            }, {
+                "input_files": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Input Files', 'x-cli-required': False},
+                "inputs": {'additionalProperties': True, 'type': 'object', 'title': 'Inputs', 'description': 'Pinned workflow inputs for resolving this node', 'x-cli-required': False},
+                "models": {'items': {'additionalProperties': True, 'type': 'object'}, 'type': 'array', 'title': 'Models', 'description': 'Models to compare', 'x-cli-required': False},
+                "node_id": {'type': 'string', 'title': 'Node Id', 'description': 'Node to run across models', 'x-cli-required': True},
+                "outputs": {'additionalProperties': True, 'type': 'object', 'title': 'Outputs', 'description': 'Pinned upstream node outputs for resolving this node', 'x-cli-required': False},
+                "pinned_inputs": {'additionalProperties': True, 'type': 'object', 'title': 'Pinned Inputs', 'description': 'Resolved node inputs that override mappings/static inputs', 'x-cli-required': False},
+                "timeout_seconds": {'type': 'integer', 'title': 'Timeout Seconds', 'description': 'Timeout per model', 'default': 120, 'x-cli-required': False},
+                "workflow": {'properties': {'id': {'type': 'string', 'title': 'Id', 'description': 'Unique workflow identifier'}, 'name': {'type': 'string', 'title': 'Name', 'description': 'Display name'}, 'description': {'type': 'string', 'title': 'Description', 'default': ''}, 'nodes': {'items': {'$ref': '#/components/schemas/NodeDef-Input'}, 'type': 'array', 'title': 'Nodes'}, 'edges': {'items': {'$ref': '#/components/schemas/EdgeDef'}, 'type': 'array', 'title': 'Edges'}, 'provider': {'type': 'string', 'title': 'Provider', 'default': 'openai'}, 'model': {'type': 'string', 'title': 'Model', 'default': 'gpt-4o'}, 'input_source': {'type': 'string', 'enum': ['collection', 'current_selection'], 'title': 'Input Source', 'default': 'collection'}, 'timeout_seconds': {'type': 'integer', 'title': 'Timeout Seconds', 'default': 300}, 'max_retries': {'type': 'integer', 'title': 'Max Retries', 'default': 3}, 'version': {'type': 'string', 'title': 'Version', 'default': '1.0'}, 'created_at': {'type': 'string', 'nullable': True, 'title': 'Created At'}, 'updated_at': {'type': 'string', 'nullable': True, 'title': 'Updated At'}, 'folder_path': {'type': 'string', 'title': 'Folder Path', 'default': '/'}, 'sort_order': {'type': 'integer', 'title': 'Sort Order', 'default': 0}}, 'type': 'object', 'required': ['name'], 'title': 'WorkflowDef', 'description': 'Complete workflow definition.\n\nThis is the JSON-serializable representation of a workflow\nthat can be saved, loaded, and executed.', 'x-cli-required': False},
+                "workflow_config": {'additionalProperties': True, 'type': 'object', 'title': 'Workflow Config', 'x-cli-required': False},
+                "workflow_id": {'type': 'string', 'nullable': True, 'title': 'Workflow Id', 'description': 'Saved workflow ID when workflow is not supplied', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("apply-to-workflow-node")
     def model_comparison_apply_to_workflow_node_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        model_name: str = typer.Option(..., "--model-name", help="Request field: model_name."),
+        node_id: str = typer.Option(..., "--node-id", help="Request field: node_id."),
+        provider_name: str = typer.Option(..., "--provider-name", help="Request field: provider_name."),
+        workflow_id: str = typer.Option(..., "--workflow-id", help="Request field: workflow_id."),
     ) -> None:
         """Apply Model To Workflow Node (POST /api/model-comparison/compare-node/apply)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/model-comparison/compare-node/apply"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "model_name": model_name,
+                "node_id": node_id,
+                "provider_name": provider_name,
+                "workflow_id": workflow_id,
+            }, {
+                "model_name": {'type': 'string', 'title': 'Model Name', 'x-cli-required': True},
+                "node_id": {'type': 'string', 'title': 'Node Id', 'x-cli-required': True},
+                "provider_name": {'type': 'string', 'title': 'Provider Name', 'x-cli-required': True},
+                "workflow_id": {'type': 'string', 'title': 'Workflow Id', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("compare-tool-across-models")
     def model_comparison_compare_tool_across_models_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        inputs: str = typer.Option(..., "--inputs", help="Request field: inputs."),
+        models: Optional[str] = typer.Option(None, "--models", help="Request field: models."),
+        timeout_seconds: Optional[int] = typer.Option(None, "--timeout-seconds", help="Request field: timeout_seconds."),
+        tool_config: Optional[str] = typer.Option(None, "--tool-config", help="Request field: tool_config."),
+        tool_name: str = typer.Option(..., "--tool-name", help="Request field: tool_name."),
     ) -> None:
         """Compare Tool Across Models (POST /api/model-comparison/compare-tool)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/model-comparison/compare-tool"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "inputs": inputs,
+                "models": models,
+                "timeout_seconds": timeout_seconds,
+                "tool_config": tool_config,
+                "tool_name": tool_name,
+            }, {
+                "inputs": {'additionalProperties': True, 'type': 'object', 'title': 'Inputs', 'description': 'Tool-specific inputs (files, text, etc.)', 'x-cli-required': True},
+                "models": {'items': {'additionalProperties': True, 'type': 'object'}, 'type': 'array', 'title': 'Models', 'description': 'Models to compare', 'x-cli-required': False},
+                "timeout_seconds": {'type': 'integer', 'title': 'Timeout Seconds', 'description': 'Timeout per model', 'default': 120, 'x-cli-required': False},
+                "tool_config": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Tool Config', 'description': 'Optional tool configuration overrides', 'x-cli-required': False},
+                "tool_name": {'type': 'string', 'title': 'Tool Name', 'description': 'Name of the workflow tool (describe, summarize, classify, etc.)', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("compare-vision-models")
     def model_comparison_compare_vision_models_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        detail: Optional[str] = typer.Option(None, "--detail", help="Request field: detail."),
+        doc_ids: Optional[str] = typer.Option(None, "--doc-ids", help="Request field: doc_ids."),
+        images: Optional[str] = typer.Option(None, "--images", help="Request field: images."),
+        models: Optional[str] = typer.Option(None, "--models", help="Request field: models."),
+        prompt: Optional[str] = typer.Option(None, "--prompt", help="Request field: prompt."),
+        timeout_seconds: Optional[int] = typer.Option(None, "--timeout-seconds", help="Request field: timeout_seconds."),
     ) -> None:
         """Compare Vision Models (POST /api/model-comparison/compare-vision)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/model-comparison/compare-vision"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "detail": detail,
+                "doc_ids": doc_ids,
+                "images": images,
+                "models": models,
+                "prompt": prompt,
+                "timeout_seconds": timeout_seconds,
+            }, {
+                "detail": {'type': 'string', 'title': 'Detail', 'description': 'Image detail level: auto, low, high', 'default': 'auto', 'x-cli-required': False},
+                "doc_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Doc Ids', 'description': 'Library document IDs to render and compare as images', 'x-cli-required': False},
+                "images": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Images', 'description': 'Image URLs or base64 data URIs', 'x-cli-required': False},
+                "models": {'items': {'additionalProperties': True, 'type': 'object'}, 'type': 'array', 'title': 'Models', 'description': 'Vision-capable models to compare', 'x-cli-required': False},
+                "prompt": {'type': 'string', 'title': 'Prompt', 'description': 'Prompt for vision analysis', 'default': 'Describe this image in detail', 'x-cli-required': False},
+                "timeout_seconds": {'type': 'integer', 'title': 'Timeout Seconds', 'description': 'Timeout per model', 'default': 120, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("compare-workflow-across-models")
     def model_comparison_compare_workflow_across_models_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        doc_id: str = typer.Option(..., "--doc-id", help="Request field: doc_id."),
+        inputs: Optional[str] = typer.Option(None, "--inputs", help="Request field: inputs."),
+        models: Optional[str] = typer.Option(None, "--models", help="Request field: models."),
+        timeout_seconds: Optional[int] = typer.Option(None, "--timeout-seconds", help="Request field: timeout_seconds."),
+        workflow: Optional[str] = typer.Option(None, "--workflow", help="Request field: workflow."),
+        workflow_id: Optional[str] = typer.Option(None, "--workflow-id", help="Request field: workflow_id."),
     ) -> None:
         """Compare Workflow Across Models (POST /api/model-comparison/compare-workflow)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/model-comparison/compare-workflow"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "doc_id": doc_id,
+                "inputs": inputs,
+                "models": models,
+                "timeout_seconds": timeout_seconds,
+                "workflow": workflow,
+                "workflow_id": workflow_id,
+            }, {
+                "doc_id": {'type': 'string', 'title': 'Doc Id', 'description': 'Document ID to run through the workflow', 'x-cli-required': True},
+                "inputs": {'additionalProperties': True, 'type': 'object', 'title': 'Inputs', 'description': 'Additional workflow inputs merged with selected_doc_ids', 'x-cli-required': False},
+                "models": {'items': {'$ref': '#/components/schemas/ModelSpec'}, 'type': 'array', 'title': 'Models', 'description': 'Models to compare', 'x-cli-required': False},
+                "timeout_seconds": {'type': 'integer', 'title': 'Timeout Seconds', 'description': 'Timeout per workflow run', 'default': 300, 'x-cli-required': False},
+                "workflow": {'properties': {'id': {'type': 'string', 'title': 'Id', 'description': 'Unique workflow identifier'}, 'name': {'type': 'string', 'title': 'Name', 'description': 'Display name'}, 'description': {'type': 'string', 'title': 'Description', 'default': ''}, 'nodes': {'items': {'$ref': '#/components/schemas/NodeDef-Input'}, 'type': 'array', 'title': 'Nodes'}, 'edges': {'items': {'$ref': '#/components/schemas/EdgeDef'}, 'type': 'array', 'title': 'Edges'}, 'provider': {'type': 'string', 'title': 'Provider', 'default': 'openai'}, 'model': {'type': 'string', 'title': 'Model', 'default': 'gpt-4o'}, 'input_source': {'type': 'string', 'enum': ['collection', 'current_selection'], 'title': 'Input Source', 'default': 'collection'}, 'timeout_seconds': {'type': 'integer', 'title': 'Timeout Seconds', 'default': 300}, 'max_retries': {'type': 'integer', 'title': 'Max Retries', 'default': 3}, 'version': {'type': 'string', 'title': 'Version', 'default': '1.0'}, 'created_at': {'type': 'string', 'nullable': True, 'title': 'Created At'}, 'updated_at': {'type': 'string', 'nullable': True, 'title': 'Updated At'}, 'folder_path': {'type': 'string', 'title': 'Folder Path', 'default': '/'}, 'sort_order': {'type': 'integer', 'title': 'Sort Order', 'default': 0}}, 'type': 'object', 'required': ['name'], 'title': 'WorkflowDef', 'description': 'Complete workflow definition.\n\nThis is the JSON-serializable representation of a workflow\nthat can be saved, loaded, and executed.', 'x-cli-required': False},
+                "workflow_id": {'type': 'string', 'nullable': True, 'title': 'Workflow Id', 'description': 'Saved workflow ID when workflow is not supplied', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -6445,14 +9097,32 @@ def register_generated_openapi_commands(
     @target_app.command("estimate-cost")
     def model_comparison_estimate_cost_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        expect_json: Optional[bool] = typer.Option(None, "--expect-json/--no-expect-json", help="Request field: expect_json."),
+        models: Optional[str] = typer.Option(None, "--models", help="Request field: models."),
+        prompt: str = typer.Option(..., "--prompt", help="Request field: prompt."),
+        response_schema: Optional[str] = typer.Option(None, "--response-schema", help="Request field: response_schema."),
+        system_prompt: Optional[str] = typer.Option(None, "--system-prompt", help="Request field: system_prompt."),
+        timeout_seconds: Optional[int] = typer.Option(None, "--timeout-seconds", help="Request field: timeout_seconds."),
     ) -> None:
         """Estimate Comparison Cost (POST /api/model-comparison/estimate-cost)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/model-comparison/estimate-cost"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "expect_json": expect_json,
+                "models": models,
+                "prompt": prompt,
+                "response_schema": response_schema,
+                "system_prompt": system_prompt,
+                "timeout_seconds": timeout_seconds,
+            }, {
+                "expect_json": {'type': 'boolean', 'title': 'Expect Json', 'description': 'Mark structured decode success by parsing responses as JSON', 'default': False, 'x-cli-required': False},
+                "models": {'items': {'additionalProperties': True, 'type': 'object'}, 'type': 'array', 'title': 'Models', 'description': 'Models to compare', 'x-cli-required': False},
+                "prompt": {'type': 'string', 'title': 'Prompt', 'description': 'Prompt to send to all models', 'x-cli-required': True},
+                "response_schema": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Response Schema', 'description': 'Optional JSON schema requested by the comparison UI', 'x-cli-required': False},
+                "system_prompt": {'type': 'string', 'nullable': True, 'title': 'System Prompt', 'description': 'Optional system prompt', 'x-cli-required': False},
+                "timeout_seconds": {'type': 'integer', 'title': 'Timeout Seconds', 'description': 'Timeout per model', 'default': 60, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -6524,14 +9194,32 @@ def register_generated_openapi_commands(
     @target_app.command("recommend-models-for-picker")
     def model_comparison_recommend_models_for_picker_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        candidates: Optional[str] = typer.Option(None, "--candidates", help="Request field: candidates."),
+        capability: Optional[str] = typer.Option(None, "--capability", help="Request field: capability."),
+        language: str = typer.Option(..., "--language", help="Request field: language."),
+        local_only: Optional[bool] = typer.Option(None, "--local-only/--no-local-only", help="Request field: local_only."),
+        private: Optional[bool] = typer.Option(None, "--private/--no-private", help="Request field: private."),
+        task: Optional[str] = typer.Option(None, "--task", help="Request field: task."),
     ) -> None:
         """Recommend Models For Picker (POST /api/model-comparison/recommend-models)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/model-comparison/recommend-models"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "candidates": candidates,
+                "capability": capability,
+                "language": language,
+                "local_only": local_only,
+                "private": private,
+                "task": task,
+            }, {
+                "candidates": {'items': {'$ref': '#/components/schemas/ModelRecommendationCandidate'}, 'type': 'array', 'title': 'Candidates', 'description': 'Optional explicit candidates; Settings models are used when omitted.', 'x-cli-required': False},
+                "capability": {'type': 'string', 'nullable': True, 'title': 'Capability', 'description': 'Capability required by the caller, such as text or vision.', 'default': 'text', 'x-cli-required': False},
+                "language": {'type': 'string', 'title': 'Language', 'description': 'BCP-47-ish language code to score.', 'x-cli-required': True},
+                "local_only": {'type': 'boolean', 'title': 'Local Only', 'description': 'Refuse cloud providers when the caller requires local execution.', 'default': False, 'x-cli-required': False},
+                "private": {'type': 'boolean', 'title': 'Private', 'description': 'Refuse cloud providers when the task is private.', 'default': False, 'x-cli-required': False},
+                "task": {'type': 'string', 'nullable': True, 'title': 'Task', 'description': 'Human-readable task label for recommendation reasons.', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -6624,14 +9312,17 @@ def register_generated_openapi_commands(
     @target_app.command("detect-language")
     def multilingual_detect_language_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        text: str = typer.Option(..., "--text", help="Request field: text."),
     ) -> None:
         """Detect language (POST /api/multilingual/detect)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/multilingual/detect"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "text": text,
+            }, {
+                "text": {'type': 'string', 'minLength': 1, 'title': 'Text', 'description': 'Text to analyze', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -6658,42 +9349,66 @@ def register_generated_openapi_commands(
     @target_app.command("cross-language-entity-search")
     def multilingual_cross_language_entity_search_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        entity_type: Optional[str] = typer.Option(None, "--entity-type", help="Request field: entity_type."),
+        limit: Optional[int] = typer.Option(None, "--limit", help="Request field: limit."),
+        query: str = typer.Option(..., "--query", help="Request field: query."),
     ) -> None:
         """Cross-language entity search (POST /api/multilingual/entities/search)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/multilingual/entities/search"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "entity_type": entity_type,
+                "limit": limit,
+                "query": query,
+            }, {
+                "entity_type": {'type': 'string', 'nullable': True, 'title': 'Entity Type', 'description': 'Filter by entity type', 'x-cli-required': False},
+                "limit": {'type': 'integer', 'maximum': 100.0, 'minimum': 1.0, 'title': 'Limit', 'default': 20, 'x-cli-required': False},
+                "query": {'type': 'string', 'minLength': 1, 'title': 'Query', 'description': 'Search query', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("normalize-text")
     def multilingual_normalize_text_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
+        stemming: Optional[bool] = typer.Option(None, "--stemming/--no-stemming", help="Request field: stemming."),
+        text: Optional[str] = typer.Option(None, "--text", help="Request field: text."),
     ) -> None:
         """Normalize text (POST /api/multilingual/normalize)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/multilingual/normalize"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "language": language,
+                "stemming": stemming,
+                "text": text,
+            }, {
+                "language": {'type': 'string', 'title': 'Language', 'default': 'en', 'x-cli-required': False},
+                "stemming": {'type': 'boolean', 'title': 'Stemming', 'default': False, 'x-cli-required': False},
+                "text": {'type': 'string', 'title': 'Text', 'default': '', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-transliteration-variants")
     def multilingual_get_transliteration_variants_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        language: str = typer.Option(..., "--language", help="Request field: language."),
+        text: str = typer.Option(..., "--text", help="Request field: text."),
     ) -> None:
         """Get transliteration variants (POST /api/multilingual/transliterate)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/multilingual/transliterate"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "language": language,
+                "text": text,
+            }, {
+                "language": {'type': 'string', 'title': 'Language', 'description': 'Source language (ISO 639-1)', 'x-cli-required': True},
+                "text": {'type': 'string', 'title': 'Text', 'description': 'Text to transliterate', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -6735,14 +9450,53 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def notes_create_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        address: Optional[str] = typer.Option(None, "--address", help="Request field: address."),
+        body_2: Optional[str] = typer.Option(None, "--body", help="Request field: body."),
+        folder_id: Optional[str] = typer.Option(None, "--folder-id", help="Request field: folder_id."),
+        kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
+        linked_claim_ids: Optional[str] = typer.Option(None, "--linked-claim-ids", help="Request field: linked_claim_ids."),
+        linked_document_ids: Optional[str] = typer.Option(None, "--linked-document-ids", help="Request field: linked_document_ids."),
+        linked_entity_ids: Optional[str] = typer.Option(None, "--linked-entity-ids", help="Request field: linked_entity_ids."),
+        linked_note_ids: Optional[str] = typer.Option(None, "--linked-note-ids", help="Request field: linked_note_ids."),
+        linked_structure_node_id: Optional[str] = typer.Option(None, "--linked-structure-node-id", help="Request field: linked_structure_node_id."),
+        page_id: Optional[str] = typer.Option(None, "--page-id", help="Request field: page_id."),
+        parent_address: Optional[str] = typer.Option(None, "--parent-address", help="Request field: parent_address."),
+        tags: Optional[str] = typer.Option(None, "--tags", help="Request field: tags."),
+        title: Optional[str] = typer.Option(None, "--title", help="Request field: title."),
     ) -> None:
         """Create Note (POST /api/notes)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/notes"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "address": address,
+                "body": body_2,
+                "folder_id": folder_id,
+                "kind": kind,
+                "linked_claim_ids": linked_claim_ids,
+                "linked_document_ids": linked_document_ids,
+                "linked_entity_ids": linked_entity_ids,
+                "linked_note_ids": linked_note_ids,
+                "linked_structure_node_id": linked_structure_node_id,
+                "page_id": page_id,
+                "parent_address": parent_address,
+                "tags": tags,
+                "title": title,
+            }, {
+                "address": {'type': 'string', 'nullable': True, 'title': 'Address', 'x-cli-required': False},
+                "body": {'type': 'string', 'title': 'Body', 'default': '', 'x-cli-required': False},
+                "folder_id": {'type': 'string', 'nullable': True, 'title': 'Folder Id', 'x-cli-required': False},
+                "kind": {'type': 'string', 'enum': ['zettel', 'reference', 'hub', 'inbox', 'fleeting', 'permanent'], 'title': 'NoteKind', 'description': 'Zettelkasten note kinds (#917).', 'x-cli-required': False},
+                "linked_claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Linked Claim Ids', 'default': [], 'x-cli-required': False},
+                "linked_document_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Linked Document Ids', 'default': [], 'x-cli-required': False},
+                "linked_entity_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Linked Entity Ids', 'default': [], 'x-cli-required': False},
+                "linked_note_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Linked Note Ids', 'default': [], 'x-cli-required': False},
+                "linked_structure_node_id": {'type': 'string', 'nullable': True, 'title': 'Linked Structure Node Id', 'x-cli-required': False},
+                "page_id": {'type': 'string', 'nullable': True, 'title': 'Page Id', 'x-cli-required': False},
+                "parent_address": {'type': 'string', 'nullable': True, 'title': 'Parent Address', 'x-cli-required': False},
+                "tags": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Tags', 'default': [], 'x-cli-required': False},
+                "title": {'type': 'string', 'nullable': True, 'title': 'Title', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -6774,14 +9528,53 @@ def register_generated_openapi_commands(
     def notes_patch_patch(
         ctx: typer.Context,
         note_id: str = typer.Argument(..., help="Path parameter: note_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        address: Optional[str] = typer.Option(None, "--address", help="Request field: address."),
+        body_2: Optional[str] = typer.Option(None, "--body", help="Request field: body."),
+        folder_id: Optional[str] = typer.Option(None, "--folder-id", help="Request field: folder_id."),
+        kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
+        linked_claim_ids: Optional[str] = typer.Option(None, "--linked-claim-ids", help="Request field: linked_claim_ids."),
+        linked_document_ids: Optional[str] = typer.Option(None, "--linked-document-ids", help="Request field: linked_document_ids."),
+        linked_entity_ids: Optional[str] = typer.Option(None, "--linked-entity-ids", help="Request field: linked_entity_ids."),
+        linked_note_ids: Optional[str] = typer.Option(None, "--linked-note-ids", help="Request field: linked_note_ids."),
+        linked_structure_node_id: Optional[str] = typer.Option(None, "--linked-structure-node-id", help="Request field: linked_structure_node_id."),
+        page_id: Optional[str] = typer.Option(None, "--page-id", help="Request field: page_id."),
+        parent_address: Optional[str] = typer.Option(None, "--parent-address", help="Request field: parent_address."),
+        tags: Optional[str] = typer.Option(None, "--tags", help="Request field: tags."),
+        title: Optional[str] = typer.Option(None, "--title", help="Request field: title."),
     ) -> None:
         """Patch Note (PATCH /api/notes/{note_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/notes/{note_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "address": address,
+                "body": body_2,
+                "folder_id": folder_id,
+                "kind": kind,
+                "linked_claim_ids": linked_claim_ids,
+                "linked_document_ids": linked_document_ids,
+                "linked_entity_ids": linked_entity_ids,
+                "linked_note_ids": linked_note_ids,
+                "linked_structure_node_id": linked_structure_node_id,
+                "page_id": page_id,
+                "parent_address": parent_address,
+                "tags": tags,
+                "title": title,
+            }, {
+                "address": {'type': 'string', 'nullable': True, 'title': 'Address', 'x-cli-required': False},
+                "body": {'type': 'string', 'nullable': True, 'title': 'Body', 'x-cli-required': False},
+                "folder_id": {'type': 'string', 'nullable': True, 'title': 'Folder Id', 'x-cli-required': False},
+                "kind": {'type': 'string', 'enum': ['zettel', 'reference', 'hub', 'inbox', 'fleeting', 'permanent'], 'title': 'NoteKind', 'description': 'Zettelkasten note kinds (#917).', 'x-cli-required': False},
+                "linked_claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Linked Claim Ids', 'x-cli-required': False},
+                "linked_document_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Linked Document Ids', 'x-cli-required': False},
+                "linked_entity_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Linked Entity Ids', 'x-cli-required': False},
+                "linked_note_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Linked Note Ids', 'x-cli-required': False},
+                "linked_structure_node_id": {'type': 'string', 'nullable': True, 'title': 'Linked Structure Node Id', 'x-cli-required': False},
+                "page_id": {'type': 'string', 'nullable': True, 'title': 'Page Id', 'x-cli-required': False},
+                "parent_address": {'type': 'string', 'nullable': True, 'title': 'Parent Address', 'x-cli-required': False},
+                "tags": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Tags', 'x-cli-required': False},
+                "title": {'type': 'string', 'nullable': True, 'title': 'Title', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -6813,14 +9606,23 @@ def register_generated_openapi_commands(
     def notes_create_a_bidirectional_link_between_two_post(
         ctx: typer.Context,
         note_id: str = typer.Argument(..., help="Path parameter: note_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        annotation: Optional[str] = typer.Option(None, "--annotation", help="Request field: annotation."),
+        link_type: Optional[str] = typer.Option(None, "--link-type", help="Request field: link_type."),
+        target_note_id: str = typer.Option(..., "--target-note-id", help="Request field: target_note_id."),
     ) -> None:
         """Create a bidirectional link between two notes (POST /api/notes/{note_id}/links)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/notes/{note_id}/links"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "annotation": annotation,
+                "link_type": link_type,
+                "target_note_id": target_note_id,
+            }, {
+                "annotation": {'type': 'string', 'nullable': True, 'title': 'Annotation', 'x-cli-required': False},
+                "link_type": {'type': 'string', 'title': 'Link Type', 'default': 'free', 'x-cli-required': False},
+                "target_note_id": {'type': 'string', 'title': 'Target Note Id', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -6845,14 +9647,20 @@ def register_generated_openapi_commands(
     @target_app.command("device")
     def pair_device_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        code: str = typer.Option(..., "--code", help="Request field: code."),
+        device_name: str = typer.Option(..., "--device-name", help="Request field: device_name."),
     ) -> None:
         """Pair Device (POST /api/pair)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/pair"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "code": code,
+                "device_name": device_name,
+            }, {
+                "code": {'type': 'string', 'minLength': 1, 'title': 'Code', 'x-cli-required': True},
+                "device_name": {'type': 'string', 'minLength': 1, 'title': 'Device Name', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -6912,28 +9720,64 @@ def register_generated_openapi_commands(
     @target_app.command("create-a-new-rule")
     def policies_create_a_new_rule_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        action: Optional[str] = typer.Option(None, "--action", help="Request field: action."),
+        confidence_threshold: Optional[float] = typer.Option(None, "--confidence-threshold", help="Request field: confidence_threshold."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        entity_type: Optional[str] = typer.Option(None, "--entity-type", help="Request field: entity_type."),
+        min_evidence_count: Optional[int] = typer.Option(None, "--min-evidence-count", help="Request field: min_evidence_count."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        priority: Optional[int] = typer.Option(None, "--priority", help="Request field: priority."),
+        requires_source: Optional[bool] = typer.Option(None, "--requires-source/--no-requires-source", help="Request field: requires_source."),
     ) -> None:
         """Create a new policy rule (POST /api/policies/orchestration)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/policies/orchestration"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "action": action,
+                "confidence_threshold": confidence_threshold,
+                "description": description,
+                "entity_type": entity_type,
+                "min_evidence_count": min_evidence_count,
+                "name": name,
+                "priority": priority,
+                "requires_source": requires_source,
+            }, {
+                "action": {'type': 'string', 'enum': ['auto_approve', 'require_approval', 'deny'], 'title': 'PolicyAction', 'description': 'Actions that can be taken on a policy.', 'x-cli-required': False},
+                "confidence_threshold": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Confidence Threshold', 'x-cli-required': False},
+                "description": {'type': 'string', 'title': 'Description', 'default': '', 'x-cli-required': False},
+                "entity_type": {'type': 'string', 'enum': ['all', 'claims', 'entities', 'interpretations'], 'title': 'EntityTypeScope', 'description': 'Scope of entity types for policy rules.', 'x-cli-required': False},
+                "min_evidence_count": {'type': 'integer', 'minimum': 0.0, 'title': 'Min Evidence Count', 'default': 0, 'x-cli-required': False},
+                "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
+                "priority": {'type': 'integer', 'maximum': 1000.0, 'minimum': 1.0, 'title': 'Priority', 'default': 100, 'x-cli-required': False},
+                "requires_source": {'type': 'boolean', 'title': 'Requires Source', 'default': False, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("evaluate-a-hypothetical-write-against")
     def policies_evaluate_a_hypothetical_write_against_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        confidence: Optional[float] = typer.Option(None, "--confidence", help="Request field: confidence."),
+        entity_type: str = typer.Option(..., "--entity-type", help="Request field: entity_type."),
+        evidence_count: Optional[int] = typer.Option(None, "--evidence-count", help="Request field: evidence_count."),
+        has_source: Optional[bool] = typer.Option(None, "--has-source/--no-has-source", help="Request field: has_source."),
     ) -> None:
         """Evaluate a hypothetical write against policies (POST /api/policies/orchestration/evaluate)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/policies/orchestration/evaluate"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "confidence": confidence,
+                "entity_type": entity_type,
+                "evidence_count": evidence_count,
+                "has_source": has_source,
+            }, {
+                "confidence": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Confidence', 'x-cli-required': False},
+                "entity_type": {'type': 'string', 'title': 'Entity Type', 'x-cli-required': True},
+                "evidence_count": {'type': 'integer', 'minimum': 0.0, 'title': 'Evidence Count', 'default': 0, 'x-cli-required': False},
+                "has_source": {'type': 'boolean', 'title': 'Has Source', 'default': False, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -6998,14 +9842,32 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def projects_create_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        icon: Optional[str] = typer.Option(None, "--icon", help="Request field: icon."),
+        members: Optional[str] = typer.Option(None, "--members", help="Request field: members."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        status: Optional[str] = typer.Option(None, "--status", help="Request field: status."),
     ) -> None:
         """Create Project (POST /api/projects)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/projects"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "color": color,
+                "description": description,
+                "icon": icon,
+                "members": members,
+                "name": name,
+                "status": status,
+            }, {
+                "color": {'type': 'string', 'nullable': True, 'title': 'Color', 'x-cli-required': False},
+                "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'x-cli-required': False},
+                "icon": {'type': 'string', 'nullable': True, 'title': 'Icon', 'x-cli-required': False},
+                "members": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Members', 'default': [], 'x-cli-required': False},
+                "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
+                "status": {'type': 'string', 'enum': ['active', 'archived', 'shipped'], 'title': 'ProjectStatus', 'description': 'Lifecycle of a research workspace (#918).', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -7052,14 +9914,32 @@ def register_generated_openapi_commands(
     def projects_patch_patch(
         ctx: typer.Context,
         project_id: str = typer.Argument(..., help="Path parameter: project_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        icon: Optional[str] = typer.Option(None, "--icon", help="Request field: icon."),
+        members: Optional[str] = typer.Option(None, "--members", help="Request field: members."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        status: Optional[str] = typer.Option(None, "--status", help="Request field: status."),
     ) -> None:
         """Patch Project (PATCH /api/projects/{project_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/projects/{project_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "color": color,
+                "description": description,
+                "icon": icon,
+                "members": members,
+                "name": name,
+                "status": status,
+            }, {
+                "color": {'type': 'string', 'nullable': True, 'title': 'Color', 'x-cli-required': False},
+                "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'x-cli-required': False},
+                "icon": {'type': 'string', 'nullable': True, 'title': 'Icon', 'x-cli-required': False},
+                "members": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Members', 'x-cli-required': False},
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
+                "status": {'type': 'string', 'enum': ['active', 'archived', 'shipped'], 'title': 'ProjectStatus', 'description': 'Lifecycle of a research workspace (#918).', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -7067,14 +9947,26 @@ def register_generated_openapi_commands(
     def projects_add_a_kg_item_document_entity_claim_note_interpretation_annotation_to_a_post(
         ctx: typer.Context,
         project_id: str = typer.Argument(..., help="Path parameter: project_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        notes: Optional[str] = typer.Option(None, "--notes", help="Request field: notes."),
+        role: Optional[str] = typer.Option(None, "--role", help="Request field: role."),
+        target_id: str = typer.Option(..., "--target-id", help="Request field: target_id."),
+        target_type: str = typer.Option(..., "--target-type", help="Request field: target_type."),
     ) -> None:
         """Add a KG item (document / entity / claim / note / interpretation / annotation) to a project (POST /api/projects/{project_id}/include)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/projects/{project_id}/include"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "notes": notes,
+                "role": role,
+                "target_id": target_id,
+                "target_type": target_type,
+            }, {
+                "notes": {'type': 'string', 'nullable': True, 'title': 'Notes', 'x-cli-required': False},
+                "role": {'type': 'string', 'nullable': True, 'title': 'Role', 'x-cli-required': False},
+                "target_id": {'type': 'string', 'title': 'Target Id', 'x-cli-required': True},
+                "target_type": {'type': 'string', 'title': 'Target Type', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -7125,14 +10017,26 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def providers_create_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        api_base: Optional[str] = typer.Option(None, "--api-base", help="Request field: api_base."),
+        api_key: Optional[str] = typer.Option(None, "--api-key", help="Request field: api_key."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        provider_type: str = typer.Option(..., "--provider-type", help="Request field: provider_type."),
     ) -> None:
         """Create Provider (POST /api/providers)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/providers"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "api_base": api_base,
+                "api_key": api_key,
+                "name": name,
+                "provider_type": provider_type,
+            }, {
+                "api_base": {'type': 'string', 'nullable': True, 'title': 'Api Base', 'x-cli-required': False},
+                "api_key": {'type': 'string', 'nullable': True, 'title': 'Api Key', 'x-cli-required': False},
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
+                "provider_type": {'type': 'string', 'title': 'Provider Type', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -7203,14 +10107,17 @@ def register_generated_openapi_commands(
     @target_app.command("add-ref")
     def providers_add_ref_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        provider_id: str = typer.Option(..., "--provider-id", help="Request field: provider_id."),
     ) -> None:
         """Add Provider Ref (POST /api/providers/refs)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/providers/refs"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "provider_id": provider_id,
+            }, {
+                "provider_id": {'type': 'string', 'title': 'Provider Id', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -7230,14 +10137,20 @@ def register_generated_openapi_commands(
     def providers_update_ref_patch(
         ctx: typer.Context,
         ref_id: str = typer.Argument(..., help="Path parameter: ref_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        enabled: Optional[bool] = typer.Option(None, "--enabled/--no-enabled", help="Request field: enabled."),
+        sort_order: Optional[int] = typer.Option(None, "--sort-order", help="Request field: sort_order."),
     ) -> None:
         """Update Provider Ref (PATCH /api/providers/refs/{ref_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/providers/refs/{ref_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "enabled": enabled,
+                "sort_order": sort_order,
+            }, {
+                "enabled": {'type': 'boolean', 'nullable': True, 'title': 'Enabled', 'x-cli-required': False},
+                "sort_order": {'type': 'integer', 'nullable': True, 'title': 'Sort Order', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -7269,14 +10182,26 @@ def register_generated_openapi_commands(
     def providers_update_patch(
         ctx: typer.Context,
         provider_id: str = typer.Argument(..., help="Path parameter: provider_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        api_base: Optional[str] = typer.Option(None, "--api-base", help="Request field: api_base."),
+        api_key: Optional[str] = typer.Option(None, "--api-key", help="Request field: api_key."),
+        enabled: Optional[bool] = typer.Option(None, "--enabled/--no-enabled", help="Request field: enabled."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
     ) -> None:
         """Update Provider (PATCH /api/providers/{provider_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/providers/{provider_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "api_base": api_base,
+                "api_key": api_key,
+                "enabled": enabled,
+                "name": name,
+            }, {
+                "api_base": {'type': 'string', 'nullable': True, 'title': 'Api Base', 'x-cli-required': False},
+                "api_key": {'type': 'string', 'nullable': True, 'title': 'Api Key', 'x-cli-required': False},
+                "enabled": {'type': 'boolean', 'nullable': True, 'title': 'Enabled', 'x-cli-required': False},
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -7296,14 +10221,26 @@ def register_generated_openapi_commands(
     def providers_add_model_to_post(
         ctx: typer.Context,
         provider_id: str = typer.Argument(..., help="Path parameter: provider_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        is_default: Optional[bool] = typer.Option(None, "--is-default/--no-is-default", help="Request field: is_default."),
+        model_id: str = typer.Option(..., "--model-id", help="Request field: model_id."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        provider_id_2: str = typer.Option(..., "--provider-id", help="Request field: provider_id."),
     ) -> None:
         """Add Model To Provider (POST /api/providers/{provider_id}/models)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/providers/{provider_id}/models"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "is_default": is_default,
+                "model_id": model_id,
+                "name": name,
+                "provider_id": provider_id,
+            }, {
+                "is_default": {'type': 'boolean', 'title': 'Is Default', 'default': False, 'x-cli-required': False},
+                "model_id": {'type': 'string', 'title': 'Model Id', 'x-cli-required': True},
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
+                "provider_id": {'type': 'string', 'title': 'Provider Id', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -7336,14 +10273,17 @@ def register_generated_openapi_commands(
     def providers_set_api_key_post(
         ctx: typer.Context,
         provider_type: str = typer.Argument(..., help="Path parameter: provider_type."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        api_key: str = typer.Option(..., "--api-key", help="Request field: api_key."),
     ) -> None:
         """Set Provider Api Key (POST /api/providers/{provider_type}/api-key)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/providers/{provider_type}/api-key"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "api_key": api_key,
+            }, {
+                "api_key": {'type': 'string', 'title': 'Api Key', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -7434,14 +10374,71 @@ def register_generated_openapi_commands(
     def references_patch_patch(
         ctx: typer.Context,
         reference_id: str = typer.Argument(..., help="Path parameter: reference_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        authors: Optional[str] = typer.Option(None, "--authors", help="Request field: authors."),
+        bibtex: Optional[str] = typer.Option(None, "--bibtex", help="Request field: bibtex."),
+        doi: Optional[str] = typer.Option(None, "--doi", help="Request field: doi."),
+        isbn: Optional[str] = typer.Option(None, "--isbn", help="Request field: isbn."),
+        journal_or_book: Optional[str] = typer.Option(None, "--journal-or-book", help="Request field: journal_or_book."),
+        kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
+        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        notes: Optional[str] = typer.Option(None, "--notes", help="Request field: notes."),
+        pages: Optional[str] = typer.Option(None, "--pages", help="Request field: pages."),
+        publisher: Optional[str] = typer.Option(None, "--publisher", help="Request field: publisher."),
+        realized_as_document_id: Optional[str] = typer.Option(None, "--realized-as-document-id", help="Request field: realized_as_document_id."),
+        status: Optional[str] = typer.Option(None, "--status", help="Request field: status."),
+        tags: Optional[str] = typer.Option(None, "--tags", help="Request field: tags."),
+        title: Optional[str] = typer.Option(None, "--title", help="Request field: title."),
+        verification_score: Optional[float] = typer.Option(None, "--verification-score", help="Request field: verification_score."),
+        verification_source: Optional[str] = typer.Option(None, "--verification-source", help="Request field: verification_source."),
+        verified_at: Optional[str] = typer.Option(None, "--verified-at", help="Request field: verified_at."),
+        year: Optional[int] = typer.Option(None, "--year", help="Request field: year."),
     ) -> None:
         """Patch Reference (PATCH /api/references/{reference_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/references/{reference_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "authors": authors,
+                "bibtex": bibtex,
+                "doi": doi,
+                "isbn": isbn,
+                "journal_or_book": journal_or_book,
+                "kind": kind,
+                "language": language,
+                "metadata": metadata,
+                "notes": notes,
+                "pages": pages,
+                "publisher": publisher,
+                "realized_as_document_id": realized_as_document_id,
+                "status": status,
+                "tags": tags,
+                "title": title,
+                "verification_score": verification_score,
+                "verification_source": verification_source,
+                "verified_at": verified_at,
+                "year": year,
+            }, {
+                "authors": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Authors', 'x-cli-required': False},
+                "bibtex": {'type': 'string', 'nullable': True, 'title': 'Bibtex', 'x-cli-required': False},
+                "doi": {'type': 'string', 'nullable': True, 'title': 'Doi', 'x-cli-required': False},
+                "isbn": {'type': 'string', 'nullable': True, 'title': 'Isbn', 'x-cli-required': False},
+                "journal_or_book": {'type': 'string', 'nullable': True, 'title': 'Journal Or Book', 'x-cli-required': False},
+                "kind": {'type': 'string', 'enum': ['article', 'book', 'booklet', 'inbook', 'incollection', 'inproceedings', 'manual', 'mastersthesis', 'misc', 'phdthesis', 'proceedings', 'techreport', 'unpublished'], 'title': 'ReferenceKind', 'description': 'Standard BibTeX entry types for first-class references.', 'x-cli-required': False},
+                "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
+                "notes": {'type': 'string', 'nullable': True, 'title': 'Notes', 'x-cli-required': False},
+                "pages": {'type': 'string', 'nullable': True, 'title': 'Pages', 'x-cli-required': False},
+                "publisher": {'type': 'string', 'nullable': True, 'title': 'Publisher', 'x-cli-required': False},
+                "realized_as_document_id": {'type': 'string', 'nullable': True, 'title': 'Realized As Document Id', 'x-cli-required': False},
+                "status": {'type': 'string', 'enum': ['to_find', 'searching', 'found_external', 'unavailable', 'verified', 'duplicate', 'ignore'], 'title': 'ReferenceStatus', 'description': 'Lifecycle for a bibliographic reference.', 'x-cli-required': False},
+                "tags": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Tags', 'x-cli-required': False},
+                "title": {'type': 'string', 'nullable': True, 'title': 'Title', 'x-cli-required': False},
+                "verification_score": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Verification Score', 'x-cli-required': False},
+                "verification_source": {'type': 'string', 'enum': ['crossref', 'openalex', 'openlibrary', 'manual'], 'title': 'ReferenceVerificationSource', 'description': 'Where a verification signal came from.', 'x-cli-required': False},
+                "verified_at": {'type': 'string', 'format': 'date-time', 'nullable': True, 'title': 'Verified At', 'x-cli-required': False},
+                "year": {'type': 'integer', 'nullable': True, 'title': 'Year', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -7464,14 +10461,32 @@ def register_generated_openapi_commands(
     @target_app.command("add-a-custom-claim-kind")
     def registries_add_a_custom_claim_kind_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        icon: Optional[str] = typer.Option(None, "--icon", help="Request field: icon."),
+        key: str = typer.Option(..., "--key", help="Request field: key."),
+        label: str = typer.Option(..., "--label", help="Request field: label."),
+        parent_key: Optional[str] = typer.Option(None, "--parent-key", help="Request field: parent_key."),
     ) -> None:
         """Add a custom claim kind (POST /api/registries/claim-kinds)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/registries/claim-kinds"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "color": color,
+                "description": description,
+                "icon": icon,
+                "key": key,
+                "label": label,
+                "parent_key": parent_key,
+            }, {
+                "color": {'type': 'string', 'nullable': True, 'title': 'Color', 'description': "Hex color code for badges, e.g. '#FF8800'", 'x-cli-required': False},
+                "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'description': 'Optional prompt hint for extractors', 'x-cli-required': False},
+                "icon": {'type': 'string', 'nullable': True, 'title': 'Icon', 'description': 'SF Symbol name or emoji', 'x-cli-required': False},
+                "key": {'type': 'string', 'title': 'Key', 'description': 'Machine-readable identifier; lowercase, no spaces', 'x-cli-required': True},
+                "label": {'type': 'string', 'title': 'Label', 'description': 'Human-readable display label', 'x-cli-required': True},
+                "parent_key": {'type': 'string', 'nullable': True, 'title': 'Parent Key', 'description': 'Optional parent for hierarchical vocabularies', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -7491,14 +10506,32 @@ def register_generated_openapi_commands(
     def registries_update_a_claim_kind_patch(
         ctx: typer.Context,
         value_id: str = typer.Argument(..., help="Path parameter: value_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        icon: Optional[str] = typer.Option(None, "--icon", help="Request field: icon."),
+        key: Optional[str] = typer.Option(None, "--key", help="Request field: key."),
+        label: Optional[str] = typer.Option(None, "--label", help="Request field: label."),
+        parent_key: Optional[str] = typer.Option(None, "--parent-key", help="Request field: parent_key."),
     ) -> None:
         """Update a claim kind (PATCH /api/registries/claim-kinds/{value_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/registries/claim-kinds/{value_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "color": color,
+                "description": description,
+                "icon": icon,
+                "key": key,
+                "label": label,
+                "parent_key": parent_key,
+            }, {
+                "color": {'type': 'string', 'nullable': True, 'title': 'Color', 'x-cli-required': False},
+                "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'x-cli-required': False},
+                "icon": {'type': 'string', 'nullable': True, 'title': 'Icon', 'x-cli-required': False},
+                "key": {'type': 'string', 'nullable': True, 'title': 'Key', 'description': 'Rename to a new key (preserves id)', 'x-cli-required': False},
+                "label": {'type': 'string', 'nullable': True, 'title': 'Label', 'x-cli-required': False},
+                "parent_key": {'type': 'string', 'nullable': True, 'title': 'Parent Key', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -7516,14 +10549,32 @@ def register_generated_openapi_commands(
     @target_app.command("add-a-custom-epistemic-status")
     def registries_add_a_custom_epistemic_status_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        icon: Optional[str] = typer.Option(None, "--icon", help="Request field: icon."),
+        key: str = typer.Option(..., "--key", help="Request field: key."),
+        label: str = typer.Option(..., "--label", help="Request field: label."),
+        parent_key: Optional[str] = typer.Option(None, "--parent-key", help="Request field: parent_key."),
     ) -> None:
         """Add a custom epistemic status (POST /api/registries/epistemic-statuses)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/registries/epistemic-statuses"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "color": color,
+                "description": description,
+                "icon": icon,
+                "key": key,
+                "label": label,
+                "parent_key": parent_key,
+            }, {
+                "color": {'type': 'string', 'nullable': True, 'title': 'Color', 'description': "Hex color code for badges, e.g. '#FF8800'", 'x-cli-required': False},
+                "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'description': 'Optional prompt hint for extractors', 'x-cli-required': False},
+                "icon": {'type': 'string', 'nullable': True, 'title': 'Icon', 'description': 'SF Symbol name or emoji', 'x-cli-required': False},
+                "key": {'type': 'string', 'title': 'Key', 'description': 'Machine-readable identifier; lowercase, no spaces', 'x-cli-required': True},
+                "label": {'type': 'string', 'title': 'Label', 'description': 'Human-readable display label', 'x-cli-required': True},
+                "parent_key": {'type': 'string', 'nullable': True, 'title': 'Parent Key', 'description': 'Optional parent for hierarchical vocabularies', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -7543,14 +10594,32 @@ def register_generated_openapi_commands(
     def registries_update_an_epistemic_status_patch(
         ctx: typer.Context,
         value_id: str = typer.Argument(..., help="Path parameter: value_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        icon: Optional[str] = typer.Option(None, "--icon", help="Request field: icon."),
+        key: Optional[str] = typer.Option(None, "--key", help="Request field: key."),
+        label: Optional[str] = typer.Option(None, "--label", help="Request field: label."),
+        parent_key: Optional[str] = typer.Option(None, "--parent-key", help="Request field: parent_key."),
     ) -> None:
         """Update an epistemic status (PATCH /api/registries/epistemic-statuses/{value_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/registries/epistemic-statuses/{value_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "color": color,
+                "description": description,
+                "icon": icon,
+                "key": key,
+                "label": label,
+                "parent_key": parent_key,
+            }, {
+                "color": {'type': 'string', 'nullable': True, 'title': 'Color', 'x-cli-required': False},
+                "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'x-cli-required': False},
+                "icon": {'type': 'string', 'nullable': True, 'title': 'Icon', 'x-cli-required': False},
+                "key": {'type': 'string', 'nullable': True, 'title': 'Key', 'description': 'Rename to a new key (preserves id)', 'x-cli-required': False},
+                "label": {'type': 'string', 'nullable': True, 'title': 'Label', 'x-cli-required': False},
+                "parent_key": {'type': 'string', 'nullable': True, 'title': 'Parent Key', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -7620,14 +10689,35 @@ def register_generated_openapi_commands(
     @target_app.command("create-checklist")
     def research_create_checklist_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        created_by: Optional[str] = typer.Option(None, "--created-by", help="Request field: created_by."),
+        items: Optional[str] = typer.Option(None, "--items", help="Request field: items."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        project_id: str = typer.Option(..., "--project-id", help="Request field: project_id."),
+        step_id: Optional[str] = typer.Option(None, "--step-id", help="Request field: step_id."),
+        task_id: Optional[str] = typer.Option(None, "--task-id", help="Request field: task_id."),
+        title: str = typer.Option(..., "--title", help="Request field: title."),
     ) -> None:
         """Create Checklist (POST /api/research/checklists)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/research/checklists"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "created_by": created_by,
+                "items": items,
+                "metadata": metadata,
+                "project_id": project_id,
+                "step_id": step_id,
+                "task_id": task_id,
+                "title": title,
+            }, {
+                "created_by": {'type': 'string', 'title': 'Created By', 'default': 'human', 'x-cli-required': False},
+                "items": {'items': {'$ref': '#/components/schemas/ChecklistItem'}, 'type': 'array', 'title': 'Items', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+                "project_id": {'type': 'string', 'title': 'Project Id', 'x-cli-required': True},
+                "step_id": {'type': 'string', 'nullable': True, 'title': 'Step Id', 'x-cli-required': False},
+                "task_id": {'type': 'string', 'nullable': True, 'title': 'Task Id', 'x-cli-required': False},
+                "title": {'type': 'string', 'title': 'Title', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -7636,28 +10726,64 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         checklist_id: str = typer.Argument(..., help="Path parameter: checklist_id."),
         item_id: str = typer.Argument(..., help="Path parameter: item_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        checked: bool = typer.Option(..., "--checked/--no-checked", help="Request field: checked."),
+        notes: Optional[str] = typer.Option(None, "--notes", help="Request field: notes."),
     ) -> None:
         """Toggle Checklist Item (PATCH /api/research/checklists/{checklist_id}/items/{item_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/research/checklists/{checklist_id}/items/{item_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "checked": checked,
+                "notes": notes,
+            }, {
+                "checked": {'type': 'boolean', 'title': 'Checked', 'x-cli-required': True},
+                "notes": {'type': 'string', 'title': 'Notes', 'default': '', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("create-note")
     def research_create_note_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        content: str = typer.Option(..., "--content", help="Request field: content."),
+        created_by: Optional[str] = typer.Option(None, "--created-by", help="Request field: created_by."),
+        linked_claim_ids: Optional[str] = typer.Option(None, "--linked-claim-ids", help="Request field: linked_claim_ids."),
+        linked_source_ids: Optional[str] = typer.Option(None, "--linked-source-ids", help="Request field: linked_source_ids."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        note_type: Optional[str] = typer.Option(None, "--note-type", help="Request field: note_type."),
+        project_id: str = typer.Option(..., "--project-id", help="Request field: project_id."),
+        step_id: Optional[str] = typer.Option(None, "--step-id", help="Request field: step_id."),
+        tags: Optional[str] = typer.Option(None, "--tags", help="Request field: tags."),
+        task_id: Optional[str] = typer.Option(None, "--task-id", help="Request field: task_id."),
     ) -> None:
         """Create Note (POST /api/research/notes)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/research/notes"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "content": content,
+                "created_by": created_by,
+                "linked_claim_ids": linked_claim_ids,
+                "linked_source_ids": linked_source_ids,
+                "metadata": metadata,
+                "note_type": note_type,
+                "project_id": project_id,
+                "step_id": step_id,
+                "tags": tags,
+                "task_id": task_id,
+            }, {
+                "content": {'type': 'string', 'title': 'Content', 'x-cli-required': True},
+                "created_by": {'type': 'string', 'title': 'Created By', 'default': 'human', 'x-cli-required': False},
+                "linked_claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Linked Claim Ids', 'x-cli-required': False},
+                "linked_source_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Linked Source Ids', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+                "note_type": {'type': 'string', 'enum': ['observation', 'finding', 'question', 'hypothesis', 'synthesis'], 'title': 'ResearchNoteType', 'x-cli-required': False},
+                "project_id": {'type': 'string', 'title': 'Project Id', 'x-cli-required': True},
+                "step_id": {'type': 'string', 'nullable': True, 'title': 'Step Id', 'x-cli-required': False},
+                "tags": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Tags', 'x-cli-required': False},
+                "task_id": {'type': 'string', 'nullable': True, 'title': 'Task Id', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -7677,28 +10803,64 @@ def register_generated_openapi_commands(
     def research_update_note_patch(
         ctx: typer.Context,
         note_id: str = typer.Argument(..., help="Path parameter: note_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        content: Optional[str] = typer.Option(None, "--content", help="Request field: content."),
+        linked_claim_ids: Optional[str] = typer.Option(None, "--linked-claim-ids", help="Request field: linked_claim_ids."),
+        linked_source_ids: Optional[str] = typer.Option(None, "--linked-source-ids", help="Request field: linked_source_ids."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        note_type: Optional[str] = typer.Option(None, "--note-type", help="Request field: note_type."),
+        tags: Optional[str] = typer.Option(None, "--tags", help="Request field: tags."),
     ) -> None:
         """Update Note (PATCH /api/research/notes/{note_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/research/notes/{note_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "content": content,
+                "linked_claim_ids": linked_claim_ids,
+                "linked_source_ids": linked_source_ids,
+                "metadata": metadata,
+                "note_type": note_type,
+                "tags": tags,
+            }, {
+                "content": {'type': 'string', 'nullable': True, 'title': 'Content', 'x-cli-required': False},
+                "linked_claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Linked Claim Ids', 'x-cli-required': False},
+                "linked_source_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Linked Source Ids', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
+                "note_type": {'type': 'string', 'enum': ['observation', 'finding', 'question', 'hypothesis', 'synthesis'], 'title': 'ResearchNoteType', 'x-cli-required': False},
+                "tags": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Tags', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("create-plan")
     def research_create_plan_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        order_index: Optional[int] = typer.Option(None, "--order-index", help="Request field: order_index."),
+        project_id: str = typer.Option(..., "--project-id", help="Request field: project_id."),
+        term: Optional[str] = typer.Option(None, "--term", help="Request field: term."),
     ) -> None:
         """Create Plan (POST /api/research/plans)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/research/plans"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "description": description,
+                "metadata": metadata,
+                "name": name,
+                "order_index": order_index,
+                "project_id": project_id,
+                "term": term,
+            }, {
+                "description": {'type': 'string', 'title': 'Description', 'default': '', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+                "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
+                "order_index": {'type': 'integer', 'title': 'Order Index', 'default': 0, 'x-cli-required': False},
+                "project_id": {'type': 'string', 'title': 'Project Id', 'x-cli-required': True},
+                "term": {'type': 'string', 'nullable': True, 'title': 'Term', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -7718,14 +10880,29 @@ def register_generated_openapi_commands(
     def research_update_plan_patch(
         ctx: typer.Context,
         plan_id: str = typer.Argument(..., help="Path parameter: plan_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        order_index: Optional[int] = typer.Option(None, "--order-index", help="Request field: order_index."),
+        status: Optional[str] = typer.Option(None, "--status", help="Request field: status."),
     ) -> None:
         """Update Plan (PATCH /api/research/plans/{plan_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/research/plans/{plan_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "description": description,
+                "metadata": metadata,
+                "name": name,
+                "order_index": order_index,
+                "status": status,
+            }, {
+                "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
+                "order_index": {'type': 'integer', 'nullable': True, 'title': 'Order Index', 'x-cli-required': False},
+                "status": {'type': 'string', 'enum': ['draft', 'active', 'completed', 'cancelled'], 'title': 'PlanStatus', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -7758,14 +10935,29 @@ def register_generated_openapi_commands(
     @target_app.command("create-project")
     def research_create_project_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        created_by: Optional[str] = typer.Option(None, "--created-by", help="Request field: created_by."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        library_destination_folder_id: Optional[str] = typer.Option(None, "--library-destination-folder-id", help="Request field: library_destination_folder_id."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
     ) -> None:
         """Create Project (POST /api/research/projects)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/research/projects"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "created_by": created_by,
+                "description": description,
+                "library_destination_folder_id": library_destination_folder_id,
+                "metadata": metadata,
+                "name": name,
+            }, {
+                "created_by": {'type': 'string', 'title': 'Created By', 'default': 'human', 'x-cli-required': False},
+                "description": {'type': 'string', 'title': 'Description', 'default': '', 'x-cli-required': False},
+                "library_destination_folder_id": {'type': 'string', 'nullable': True, 'title': 'Library Destination Folder Id', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+                "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -7797,14 +10989,29 @@ def register_generated_openapi_commands(
     def research_update_project_patch(
         ctx: typer.Context,
         project_id: str = typer.Argument(..., help="Path parameter: project_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        library_destination_folder_id: Optional[str] = typer.Option(None, "--library-destination-folder-id", help="Request field: library_destination_folder_id."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        status: Optional[str] = typer.Option(None, "--status", help="Request field: status."),
     ) -> None:
         """Update Project (PATCH /api/research/projects/{project_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/research/projects/{project_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "description": description,
+                "library_destination_folder_id": library_destination_folder_id,
+                "metadata": metadata,
+                "name": name,
+                "status": status,
+            }, {
+                "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'x-cli-required': False},
+                "library_destination_folder_id": {'type': 'string', 'nullable': True, 'title': 'Library Destination Folder Id', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
+                "status": {'type': 'string', 'enum': ['active', 'paused', 'completed', 'archived'], 'title': 'ProjectStatus', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -7874,28 +11081,73 @@ def register_generated_openapi_commands(
     @target_app.command("create-search-source")
     def research_create_search_source_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        access_status: Optional[str] = typer.Option(None, "--access-status", help="Request field: access_status."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        label: str = typer.Option(..., "--label", help="Request field: label."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        path: Optional[str] = typer.Option(None, "--path", help="Request field: path."),
+        project_id: str = typer.Option(..., "--project-id", help="Request field: project_id."),
+        reliability: Optional[float] = typer.Option(None, "--reliability", help="Request field: reliability."),
+        source_type: str = typer.Option(..., "--source-type", help="Request field: source_type."),
+        url: Optional[str] = typer.Option(None, "--url", help="Request field: url."),
     ) -> None:
         """Create Search Source (POST /api/research/sources)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/research/sources"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "access_status": access_status,
+                "description": description,
+                "label": label,
+                "metadata": metadata,
+                "path": path,
+                "project_id": project_id,
+                "reliability": reliability,
+                "source_type": source_type,
+                "url": url,
+            }, {
+                "access_status": {'type': 'string', 'title': 'Access Status', 'default': 'public', 'x-cli-required': False},
+                "description": {'type': 'string', 'title': 'Description', 'default': '', 'x-cli-required': False},
+                "label": {'type': 'string', 'title': 'Label', 'x-cli-required': True},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+                "path": {'type': 'string', 'nullable': True, 'title': 'Path', 'x-cli-required': False},
+                "project_id": {'type': 'string', 'title': 'Project Id', 'x-cli-required': True},
+                "reliability": {'type': 'number', 'title': 'Reliability', 'default': 0.5, 'x-cli-required': False},
+                "source_type": {'type': 'string', 'enum': ['url', 'folder', 'database', 'api'], 'title': 'SearchSourceType', 'x-cli-required': True},
+                "url": {'type': 'string', 'nullable': True, 'title': 'Url', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("create-step")
     def research_create_step_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        config: Optional[str] = typer.Option(None, "--config", help="Request field: config."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        label: str = typer.Option(..., "--label", help="Request field: label."),
+        order_index: Optional[int] = typer.Option(None, "--order-index", help="Request field: order_index."),
+        task_id: str = typer.Option(..., "--task-id", help="Request field: task_id."),
+        tool: str = typer.Option(..., "--tool", help="Request field: tool."),
     ) -> None:
         """Create Step (POST /api/research/steps)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/research/steps"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "config": config,
+                "description": description,
+                "label": label,
+                "order_index": order_index,
+                "task_id": task_id,
+                "tool": tool,
+            }, {
+                "config": {'additionalProperties': True, 'type': 'object', 'title': 'Config', 'x-cli-required': False},
+                "description": {'type': 'string', 'title': 'Description', 'default': '', 'x-cli-required': False},
+                "label": {'type': 'string', 'title': 'Label', 'x-cli-required': True},
+                "order_index": {'type': 'integer', 'title': 'Order Index', 'default': 0, 'x-cli-required': False},
+                "task_id": {'type': 'string', 'title': 'Task Id', 'x-cli-required': True},
+                "tool": {'type': 'string', 'enum': ['web_search', 'browser_navigate', 'document_fetch', 'local_search'], 'title': 'StepTool', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -7903,28 +11155,64 @@ def register_generated_openapi_commands(
     def research_update_step_patch(
         ctx: typer.Context,
         step_id: str = typer.Argument(..., help="Path parameter: step_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        error: Optional[str] = typer.Option(None, "--error", help="Request field: error."),
+        label: Optional[str] = typer.Option(None, "--label", help="Request field: label."),
+        order_index: Optional[int] = typer.Option(None, "--order-index", help="Request field: order_index."),
+        result: Optional[str] = typer.Option(None, "--result", help="Request field: result."),
+        status: Optional[str] = typer.Option(None, "--status", help="Request field: status."),
     ) -> None:
         """Update Step (PATCH /api/research/steps/{step_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/research/steps/{step_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "description": description,
+                "error": error,
+                "label": label,
+                "order_index": order_index,
+                "result": result,
+                "status": status,
+            }, {
+                "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'x-cli-required': False},
+                "error": {'type': 'string', 'nullable': True, 'title': 'Error', 'x-cli-required': False},
+                "label": {'type': 'string', 'nullable': True, 'title': 'Label', 'x-cli-required': False},
+                "order_index": {'type': 'integer', 'nullable': True, 'title': 'Order Index', 'x-cli-required': False},
+                "result": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Result', 'x-cli-required': False},
+                "status": {'type': 'string', 'enum': ['pending', 'completed', 'failed', 'skipped'], 'title': 'StepStatus', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("create-task")
     def research_create_task_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        assigned_to: Optional[str] = typer.Option(None, "--assigned-to", help="Request field: assigned_to."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        plan_id: str = typer.Option(..., "--plan-id", help="Request field: plan_id."),
+        priority: Optional[int] = typer.Option(None, "--priority", help="Request field: priority."),
     ) -> None:
         """Create Task (POST /api/research/tasks)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/research/tasks"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "assigned_to": assigned_to,
+                "description": description,
+                "metadata": metadata,
+                "name": name,
+                "plan_id": plan_id,
+                "priority": priority,
+            }, {
+                "assigned_to": {'type': 'string', 'nullable': True, 'title': 'Assigned To', 'x-cli-required': False},
+                "description": {'type': 'string', 'title': 'Description', 'default': '', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+                "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
+                "plan_id": {'type': 'string', 'title': 'Plan Id', 'x-cli-required': True},
+                "priority": {'type': 'integer', 'title': 'Priority', 'default': 0, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -7944,14 +11232,32 @@ def register_generated_openapi_commands(
     def research_update_task_patch(
         ctx: typer.Context,
         task_id: str = typer.Argument(..., help="Path parameter: task_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        assigned_to: Optional[str] = typer.Option(None, "--assigned-to", help="Request field: assigned_to."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        priority: Optional[int] = typer.Option(None, "--priority", help="Request field: priority."),
+        status: Optional[str] = typer.Option(None, "--status", help="Request field: status."),
     ) -> None:
         """Update Task (PATCH /api/research/tasks/{task_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/research/tasks/{task_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "assigned_to": assigned_to,
+                "description": description,
+                "metadata": metadata,
+                "name": name,
+                "priority": priority,
+                "status": status,
+            }, {
+                "assigned_to": {'type': 'string', 'nullable': True, 'title': 'Assigned To', 'x-cli-required': False},
+                "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
+                "priority": {'type': 'integer', 'nullable': True, 'title': 'Priority', 'x-cli-required': False},
+                "status": {'type': 'string', 'enum': ['pending', 'in_progress', 'completed', 'blocked', 'cancelled'], 'title': 'TaskStatus', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -7970,56 +11276,110 @@ def register_generated_openapi_commands(
     @target_app.command("execute-browser-navigate")
     def research_execute_browser_navigate_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        screenshot: Optional[bool] = typer.Option(None, "--screenshot/--no-screenshot", help="Request field: screenshot."),
+        timeout_seconds: Optional[int] = typer.Option(None, "--timeout-seconds", help="Request field: timeout_seconds."),
+        url: str = typer.Option(..., "--url", help="Request field: url."),
+        wait_for_selectors: Optional[str] = typer.Option(None, "--wait-for-selectors", help="Request field: wait_for_selectors."),
     ) -> None:
         """Execute Browser Navigate (POST /api/research/tools/browser-navigate)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/research/tools/browser-navigate"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "screenshot": screenshot,
+                "timeout_seconds": timeout_seconds,
+                "url": url,
+                "wait_for_selectors": wait_for_selectors,
+            }, {
+                "screenshot": {'type': 'boolean', 'title': 'Screenshot', 'default': False, 'x-cli-required': False},
+                "timeout_seconds": {'type': 'integer', 'maximum': 120.0, 'minimum': 5.0, 'title': 'Timeout Seconds', 'default': 30, 'x-cli-required': False},
+                "url": {'type': 'string', 'title': 'Url', 'x-cli-required': True},
+                "wait_for_selectors": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Wait For Selectors', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("browser-save")
     def research_browser_save_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        parent_folder_id: Optional[str] = typer.Option(None, "--parent-folder-id", help="Request field: parent_folder_id."),
+        project_id: str = typer.Option(..., "--project-id", help="Request field: project_id."),
+        suggested_name: Optional[str] = typer.Option(None, "--suggested-name", help="Request field: suggested_name."),
+        url: str = typer.Option(..., "--url", help="Request field: url."),
     ) -> None:
         """Browser Save (POST /api/research/tools/browser-save)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/research/tools/browser-save"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "metadata": metadata,
+                "parent_folder_id": parent_folder_id,
+                "project_id": project_id,
+                "suggested_name": suggested_name,
+                "url": url,
+            }, {
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+                "parent_folder_id": {'type': 'string', 'nullable': True, 'title': 'Parent Folder Id', 'x-cli-required': False},
+                "project_id": {'type': 'string', 'title': 'Project Id', 'x-cli-required': True},
+                "suggested_name": {'type': 'string', 'nullable': True, 'title': 'Suggested Name', 'x-cli-required': False},
+                "url": {'type': 'string', 'title': 'Url', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("execute-document-fetch")
     def research_execute_document_fetch_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        create_as_source: Optional[bool] = typer.Option(None, "--create-as-source/--no-create-as-source", help="Request field: create_as_source."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        project_id: str = typer.Option(..., "--project-id", help="Request field: project_id."),
+        url: str = typer.Option(..., "--url", help="Request field: url."),
     ) -> None:
         """Execute Document Fetch (POST /api/research/tools/document-fetch)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/research/tools/document-fetch"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "create_as_source": create_as_source,
+                "metadata": metadata,
+                "project_id": project_id,
+                "url": url,
+            }, {
+                "create_as_source": {'type': 'boolean', 'title': 'Create As Source', 'default': True, 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+                "project_id": {'type': 'string', 'title': 'Project Id', 'x-cli-required': True},
+                "url": {'type': 'string', 'title': 'Url', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("execute-web-search")
     def research_execute_web_search_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
+        max_results: Optional[int] = typer.Option(None, "--max-results", help="Request field: max_results."),
+        query: str = typer.Option(..., "--query", help="Request field: query."),
+        source_ids: Optional[str] = typer.Option(None, "--source-ids", help="Request field: source_ids."),
+        timeout_seconds: Optional[int] = typer.Option(None, "--timeout-seconds", help="Request field: timeout_seconds."),
     ) -> None:
         """Execute Web Search (POST /api/research/tools/web-search)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/research/tools/web-search"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "language": language,
+                "max_results": max_results,
+                "query": query,
+                "source_ids": source_ids,
+                "timeout_seconds": timeout_seconds,
+            }, {
+                "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
+                "max_results": {'type': 'integer', 'maximum': 50.0, 'minimum': 1.0, 'title': 'Max Results', 'default': 10, 'x-cli-required': False},
+                "query": {'type': 'string', 'title': 'Query', 'x-cli-required': True},
+                "source_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Source Ids', 'x-cli-required': False},
+                "timeout_seconds": {'type': 'integer', 'maximum': 120.0, 'minimum': 5.0, 'title': 'Timeout Seconds', 'default': 30, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -8051,14 +11411,35 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def schedules_create_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        batch_items: Optional[str] = typer.Option(None, "--batch-items", help="Request field: batch_items."),
+        config: str = typer.Option(..., "--config", help="Request field: config."),
+        inputs: Optional[str] = typer.Option(None, "--inputs", help="Request field: inputs."),
+        max_concurrent: Optional[int] = typer.Option(None, "--max-concurrent", help="Request field: max_concurrent."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        use_batch: Optional[bool] = typer.Option(None, "--use-batch/--no-use-batch", help="Request field: use_batch."),
+        workflow_id: str = typer.Option(..., "--workflow-id", help="Request field: workflow_id."),
     ) -> None:
         """Create Schedule (POST /api/schedules)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/schedules"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "batch_items": batch_items,
+                "config": config,
+                "inputs": inputs,
+                "max_concurrent": max_concurrent,
+                "name": name,
+                "use_batch": use_batch,
+                "workflow_id": workflow_id,
+            }, {
+                "batch_items": {'items': {'additionalProperties': True, 'type': 'object'}, 'type': 'array', 'title': 'Batch Items', 'description': 'Batch input items', 'x-cli-required': False},
+                "config": {'properties': {'schedule_type': {'type': 'string', 'title': 'Schedule Type', 'description': 'Type: cron, interval, or once'}, 'cron_expression': {'type': 'string', 'nullable': True, 'title': 'Cron Expression', 'description': "Cron expression (e.g., '0 9 * * 1')"}, 'interval_seconds': {'type': 'integer', 'nullable': True, 'title': 'Interval Seconds', 'description': 'Interval in seconds'}, 'run_at': {'type': 'string', 'format': 'date-time', 'nullable': True, 'title': 'Run At', 'description': 'One-time run datetime'}, 'timezone': {'type': 'string', 'title': 'Timezone', 'description': 'Timezone for schedule', 'default': 'UTC'}, 'start_date': {'type': 'string', 'format': 'date-time', 'nullable': True, 'title': 'Start Date', 'description': 'Schedule start date'}, 'end_date': {'type': 'string', 'format': 'date-time', 'nullable': True, 'title': 'End Date', 'description': 'Schedule end date'}, 'max_runs': {'type': 'integer', 'nullable': True, 'title': 'Max Runs', 'description': 'Maximum number of runs'}}, 'type': 'object', 'required': ['schedule_type'], 'title': 'ScheduleConfigRequest', 'description': 'Schedule configuration request.', 'x-cli-required': True},
+                "inputs": {'additionalProperties': True, 'type': 'object', 'title': 'Inputs', 'description': 'Workflow inputs', 'x-cli-required': False},
+                "max_concurrent": {'type': 'integer', 'title': 'Max Concurrent', 'description': 'Max concurrent batch items', 'default': 5, 'x-cli-required': False},
+                "name": {'type': 'string', 'title': 'Name', 'description': 'Display name for the schedule', 'x-cli-required': True},
+                "use_batch": {'type': 'boolean', 'title': 'Use Batch', 'description': 'Use batch execution', 'default': False, 'x-cli-required': False},
+                "workflow_id": {'type': 'string', 'title': 'Workflow Id', 'description': 'ID of workflow to execute', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -8090,14 +11471,35 @@ def register_generated_openapi_commands(
     def schedules_update_put(
         ctx: typer.Context,
         schedule_id: str = typer.Argument(..., help="Path parameter: schedule_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        batch_items: Optional[str] = typer.Option(None, "--batch-items", help="Request field: batch_items."),
+        config: Optional[str] = typer.Option(None, "--config", help="Request field: config."),
+        inputs: Optional[str] = typer.Option(None, "--inputs", help="Request field: inputs."),
+        max_concurrent: Optional[int] = typer.Option(None, "--max-concurrent", help="Request field: max_concurrent."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        use_batch: Optional[bool] = typer.Option(None, "--use-batch/--no-use-batch", help="Request field: use_batch."),
+        workflow_id: Optional[str] = typer.Option(None, "--workflow-id", help="Request field: workflow_id."),
     ) -> None:
         """Update Schedule (PUT /api/schedules/{schedule_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/schedules/{schedule_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "batch_items": batch_items,
+                "config": config,
+                "inputs": inputs,
+                "max_concurrent": max_concurrent,
+                "name": name,
+                "use_batch": use_batch,
+                "workflow_id": workflow_id,
+            }, {
+                "batch_items": {'items': {'additionalProperties': True, 'type': 'object'}, 'type': 'array', 'nullable': True, 'title': 'Batch Items', 'description': 'Batch input items', 'x-cli-required': False},
+                "config": {'properties': {'schedule_type': {'type': 'string', 'title': 'Schedule Type', 'description': 'Type: cron, interval, or once'}, 'cron_expression': {'type': 'string', 'nullable': True, 'title': 'Cron Expression', 'description': "Cron expression (e.g., '0 9 * * 1')"}, 'interval_seconds': {'type': 'integer', 'nullable': True, 'title': 'Interval Seconds', 'description': 'Interval in seconds'}, 'run_at': {'type': 'string', 'format': 'date-time', 'nullable': True, 'title': 'Run At', 'description': 'One-time run datetime'}, 'timezone': {'type': 'string', 'title': 'Timezone', 'description': 'Timezone for schedule', 'default': 'UTC'}, 'start_date': {'type': 'string', 'format': 'date-time', 'nullable': True, 'title': 'Start Date', 'description': 'Schedule start date'}, 'end_date': {'type': 'string', 'format': 'date-time', 'nullable': True, 'title': 'End Date', 'description': 'Schedule end date'}, 'max_runs': {'type': 'integer', 'nullable': True, 'title': 'Max Runs', 'description': 'Maximum number of runs'}}, 'type': 'object', 'required': ['schedule_type'], 'title': 'ScheduleConfigRequest', 'description': 'Schedule configuration request.', 'x-cli-required': False},
+                "inputs": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Inputs', 'description': 'Workflow inputs', 'x-cli-required': False},
+                "max_concurrent": {'type': 'integer', 'nullable': True, 'title': 'Max Concurrent', 'description': 'Max concurrent batch items', 'x-cli-required': False},
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'description': 'Display name for the schedule', 'x-cli-required': False},
+                "use_batch": {'type': 'boolean', 'nullable': True, 'title': 'Use Batch', 'description': 'Use batch execution', 'x-cli-required': False},
+                "workflow_id": {'type': 'string', 'nullable': True, 'title': 'Workflow Id', 'description': 'ID of workflow to execute', 'x-cli-required': False},
+            }, required=True)
             return client.request("PUT", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -8160,14 +11562,47 @@ def register_generated_openapi_commands(
     @target_app.command("enhanced")
     def search_enhanced_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        filters: Optional[str] = typer.Option(None, "--filters", help="Request field: filters."),
+        highlight_results: Optional[bool] = typer.Option(None, "--highlight-results/--no-highlight-results", help="Request field: highlight_results."),
+        include: Optional[str] = typer.Option(None, "--include", help="Request field: include."),
+        limit: Optional[int] = typer.Option(None, "--limit", help="Request field: limit."),
+        min_score: Optional[float] = typer.Option(None, "--min-score", help="Request field: min_score."),
+        offset: Optional[int] = typer.Option(None, "--offset", help="Request field: offset."),
+        query: str = typer.Option(..., "--query", help="Request field: query."),
+        search_type: Optional[str] = typer.Option(None, "--search-type", help="Request field: search_type."),
+        sort_by: Optional[str] = typer.Option(None, "--sort-by", help="Request field: sort_by."),
+        sort_direction: Optional[str] = typer.Option(None, "--sort-direction", help="Request field: sort_direction."),
+        use_fuzzy_match: Optional[bool] = typer.Option(None, "--use-fuzzy-match/--no-use-fuzzy-match", help="Request field: use_fuzzy_match."),
     ) -> None:
         """Enhanced Search (POST /api/search)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/search"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "filters": filters,
+                "highlight_results": highlight_results,
+                "include": include,
+                "limit": limit,
+                "min_score": min_score,
+                "offset": offset,
+                "query": query,
+                "search_type": search_type,
+                "sort_by": sort_by,
+                "sort_direction": sort_direction,
+                "use_fuzzy_match": use_fuzzy_match,
+            }, {
+                "filters": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Filters', 'x-cli-required': False},
+                "highlight_results": {'type': 'boolean', 'title': 'Highlight Results', 'default': True, 'x-cli-required': False},
+                "include": {'items': {'$ref': '#/components/schemas/SearchInclude'}, 'type': 'array', 'title': 'Include', 'x-cli-required': False},
+                "limit": {'type': 'integer', 'title': 'Limit', 'default': 10, 'x-cli-required': False},
+                "min_score": {'type': 'number', 'title': 'Min Score', 'default': 0.55, 'x-cli-required': False},
+                "offset": {'type': 'integer', 'title': 'Offset', 'default': 0, 'x-cli-required': False},
+                "query": {'type': 'string', 'title': 'Query', 'x-cli-required': True},
+                "search_type": {'type': 'string', 'title': 'Search Type', 'default': 'hybrid', 'x-cli-required': False},
+                "sort_by": {'type': 'string', 'title': 'Sort By', 'default': 'relevance', 'x-cli-required': False},
+                "sort_direction": {'type': 'string', 'title': 'Sort Direction', 'default': 'desc', 'x-cli-required': False},
+                "use_fuzzy_match": {'type': 'boolean', 'title': 'Use Fuzzy Match', 'default': False, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -8186,14 +11621,29 @@ def register_generated_openapi_commands(
     @target_app.command("explain-a-query")
     def search_explain_a_query_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        limit: Optional[int] = typer.Option(None, "--limit", help="Request field: limit."),
+        query: str = typer.Option(..., "--query", help="Request field: query."),
+        rag_mode: Optional[str] = typer.Option(None, "--rag-mode", help="Request field: rag_mode."),
+        search_type: Optional[str] = typer.Option(None, "--search-type", help="Request field: search_type."),
+        show_scores: Optional[bool] = typer.Option(None, "--show-scores/--no-show-scores", help="Request field: show_scores."),
     ) -> None:
         """Explain a search query (POST /api/search/explain)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/search/explain"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "limit": limit,
+                "query": query,
+                "rag_mode": rag_mode,
+                "search_type": search_type,
+                "show_scores": show_scores,
+            }, {
+                "limit": {'type': 'integer', 'maximum': 100.0, 'minimum': 1.0, 'title': 'Limit', 'default': 10, 'x-cli-required': False},
+                "query": {'type': 'string', 'minLength': 1, 'title': 'Query', 'description': 'Search query to explain', 'x-cli-required': True},
+                "rag_mode": {'type': 'string', 'enum': ['conservative', 'balanced', 'speculative'], 'title': 'RAGMode', 'description': 'RAG search modes with different precision/recall tradeoffs.', 'x-cli-required': False},
+                "search_type": {'type': 'string', 'enum': ['semantic', 'fulltext', 'hybrid'], 'title': 'SearchType', 'description': 'Types of search performed.', 'x-cli-required': False},
+                "show_scores": {'type': 'boolean', 'title': 'Show Scores', 'description': 'Include relevance scores', 'default': True, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -8277,14 +11727,38 @@ def register_generated_openapi_commands(
     @target_app.command("save")
     def search_save_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        filters: Optional[str] = typer.Option(None, "--filters", help="Request field: filters."),
+        folder_path: Optional[str] = typer.Option(None, "--folder-path", help="Request field: folder_path."),
+        is_smart_search: Optional[bool] = typer.Option(None, "--is-smart-search/--no-is-smart-search", help="Request field: is_smart_search."),
+        query: str = typer.Option(..., "--query", help="Request field: query."),
+        search_type: Optional[str] = typer.Option(None, "--search-type", help="Request field: search_type."),
+        sort_by: Optional[str] = typer.Option(None, "--sort-by", help="Request field: sort_by."),
+        sort_direction: Optional[str] = typer.Option(None, "--sort-direction", help="Request field: sort_direction."),
+        sort_order: Optional[int] = typer.Option(None, "--sort-order", help="Request field: sort_order."),
     ) -> None:
         """Save Search (POST /api/search/saved)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/search/saved"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "filters": filters,
+                "folder_path": folder_path,
+                "is_smart_search": is_smart_search,
+                "query": query,
+                "search_type": search_type,
+                "sort_by": sort_by,
+                "sort_direction": sort_direction,
+                "sort_order": sort_order,
+            }, {
+                "filters": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Filters', 'x-cli-required': False},
+                "folder_path": {'type': 'string', 'title': 'Folder Path', 'default': '/', 'x-cli-required': False},
+                "is_smart_search": {'type': 'boolean', 'title': 'Is Smart Search', 'default': True, 'x-cli-required': False},
+                "query": {'type': 'string', 'minLength': 1, 'title': 'Query', 'x-cli-required': True},
+                "search_type": {'type': 'string', 'title': 'Search Type', 'default': 'hybrid', 'x-cli-required': False},
+                "sort_by": {'type': 'string', 'title': 'Sort By', 'default': 'relevance', 'x-cli-required': False},
+                "sort_direction": {'type': 'string', 'title': 'Sort Direction', 'default': 'desc', 'x-cli-required': False},
+                "sort_order": {'type': 'integer', 'title': 'Sort Order', 'default': 0, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -8321,14 +11795,35 @@ def register_generated_openapi_commands(
     def search_update_saved_put(
         ctx: typer.Context,
         search_id: str = typer.Argument(..., help="Path parameter: search_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        filters: Optional[str] = typer.Option(None, "--filters", help="Request field: filters."),
+        folder_path: Optional[str] = typer.Option(None, "--folder-path", help="Request field: folder_path."),
+        is_smart_search: Optional[bool] = typer.Option(None, "--is-smart-search/--no-is-smart-search", help="Request field: is_smart_search."),
+        query: Optional[str] = typer.Option(None, "--query", help="Request field: query."),
+        search_type: Optional[str] = typer.Option(None, "--search-type", help="Request field: search_type."),
+        sort_by: Optional[str] = typer.Option(None, "--sort-by", help="Request field: sort_by."),
+        sort_direction: Optional[str] = typer.Option(None, "--sort-direction", help="Request field: sort_direction."),
     ) -> None:
         """Update Saved Search (PUT /api/search/saved/{search_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/search/saved/{search_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "filters": filters,
+                "folder_path": folder_path,
+                "is_smart_search": is_smart_search,
+                "query": query,
+                "search_type": search_type,
+                "sort_by": sort_by,
+                "sort_direction": sort_direction,
+            }, {
+                "filters": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Filters', 'x-cli-required': False},
+                "folder_path": {'type': 'string', 'nullable': True, 'title': 'Folder Path', 'x-cli-required': False},
+                "is_smart_search": {'type': 'boolean', 'nullable': True, 'title': 'Is Smart Search', 'x-cli-required': False},
+                "query": {'type': 'string', 'nullable': True, 'title': 'Query', 'x-cli-required': False},
+                "search_type": {'type': 'string', 'nullable': True, 'title': 'Search Type', 'x-cli-required': False},
+                "sort_by": {'type': 'string', 'nullable': True, 'title': 'Sort By', 'x-cli-required': False},
+                "sort_direction": {'type': 'string', 'nullable': True, 'title': 'Sort Direction', 'x-cli-required': False},
+            }, required=True)
             return client.request("PUT", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -8454,14 +11949,92 @@ def register_generated_openapi_commands(
     @target_app.command("set-ai-defaults")
     def settings_set_ai_defaults_put(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        audio_model: Optional[str] = typer.Option(None, "--audio-model", help="Request field: audio_model."),
+        audio_provider: Optional[str] = typer.Option(None, "--audio-provider", help="Request field: audio_provider."),
+        embeddings_model: Optional[str] = typer.Option(None, "--embeddings-model", help="Request field: embeddings_model."),
+        embeddings_provider: Optional[str] = typer.Option(None, "--embeddings-provider", help="Request field: embeddings_provider."),
+        large_model: Optional[str] = typer.Option(None, "--large-model", help="Request field: large_model."),
+        large_provider: Optional[str] = typer.Option(None, "--large-provider", help="Request field: large_provider."),
+        max_tokens: Optional[str] = typer.Option(None, "--max-tokens", help="Request field: max_tokens."),
+        medium_model: Optional[str] = typer.Option(None, "--medium-model", help="Request field: medium_model."),
+        medium_provider: Optional[str] = typer.Option(None, "--medium-provider", help="Request field: medium_provider."),
+        primary_language: Optional[str] = typer.Option(None, "--primary-language", help="Request field: primary_language."),
+        prompt_prefix: Optional[str] = typer.Option(None, "--prompt-prefix", help="Request field: prompt_prefix."),
+        small_model: Optional[str] = typer.Option(None, "--small-model", help="Request field: small_model."),
+        small_provider: Optional[str] = typer.Option(None, "--small-provider", help="Request field: small_provider."),
+        temperature: Optional[str] = typer.Option(None, "--temperature", help="Request field: temperature."),
+        text_model: Optional[str] = typer.Option(None, "--text-model", help="Request field: text_model."),
+        text_provider: Optional[str] = typer.Option(None, "--text-provider", help="Request field: text_provider."),
+        video_model: Optional[str] = typer.Option(None, "--video-model", help="Request field: video_model."),
+        video_provider: Optional[str] = typer.Option(None, "--video-provider", help="Request field: video_provider."),
+        vision_large_model: Optional[str] = typer.Option(None, "--vision-large-model", help="Request field: vision_large_model."),
+        vision_large_provider: Optional[str] = typer.Option(None, "--vision-large-provider", help="Request field: vision_large_provider."),
+        vision_medium_model: Optional[str] = typer.Option(None, "--vision-medium-model", help="Request field: vision_medium_model."),
+        vision_medium_provider: Optional[str] = typer.Option(None, "--vision-medium-provider", help="Request field: vision_medium_provider."),
+        vision_model: Optional[str] = typer.Option(None, "--vision-model", help="Request field: vision_model."),
+        vision_provider: Optional[str] = typer.Option(None, "--vision-provider", help="Request field: vision_provider."),
+        vision_small_model: Optional[str] = typer.Option(None, "--vision-small-model", help="Request field: vision_small_model."),
+        vision_small_provider: Optional[str] = typer.Option(None, "--vision-small-provider", help="Request field: vision_small_provider."),
     ) -> None:
         """Set Ai Defaults (PUT /api/settings/ai-defaults)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/settings/ai-defaults"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "audio_model": audio_model,
+                "audio_provider": audio_provider,
+                "embeddings_model": embeddings_model,
+                "embeddings_provider": embeddings_provider,
+                "large_model": large_model,
+                "large_provider": large_provider,
+                "max_tokens": max_tokens,
+                "medium_model": medium_model,
+                "medium_provider": medium_provider,
+                "primary_language": primary_language,
+                "prompt_prefix": prompt_prefix,
+                "small_model": small_model,
+                "small_provider": small_provider,
+                "temperature": temperature,
+                "text_model": text_model,
+                "text_provider": text_provider,
+                "video_model": video_model,
+                "video_provider": video_provider,
+                "vision_large_model": vision_large_model,
+                "vision_large_provider": vision_large_provider,
+                "vision_medium_model": vision_medium_model,
+                "vision_medium_provider": vision_medium_provider,
+                "vision_model": vision_model,
+                "vision_provider": vision_provider,
+                "vision_small_model": vision_small_model,
+                "vision_small_provider": vision_small_provider,
+            }, {
+                "audio_model": {'type': 'string', 'nullable': True, 'title': 'Audio Model', 'x-cli-required': False},
+                "audio_provider": {'type': 'string', 'nullable': True, 'title': 'Audio Provider', 'x-cli-required': False},
+                "embeddings_model": {'type': 'string', 'nullable': True, 'title': 'Embeddings Model', 'x-cli-required': False},
+                "embeddings_provider": {'type': 'string', 'nullable': True, 'title': 'Embeddings Provider', 'x-cli-required': False},
+                "large_model": {'type': 'string', 'nullable': True, 'title': 'Large Model', 'x-cli-required': False},
+                "large_provider": {'type': 'string', 'nullable': True, 'title': 'Large Provider', 'x-cli-required': False},
+                "max_tokens": {'type': 'string', 'nullable': True, 'title': 'Max Tokens', 'x-cli-required': False},
+                "medium_model": {'type': 'string', 'nullable': True, 'title': 'Medium Model', 'x-cli-required': False},
+                "medium_provider": {'type': 'string', 'nullable': True, 'title': 'Medium Provider', 'x-cli-required': False},
+                "primary_language": {'type': 'string', 'nullable': True, 'title': 'Primary Language', 'x-cli-required': False},
+                "prompt_prefix": {'type': 'string', 'nullable': True, 'title': 'Prompt Prefix', 'x-cli-required': False},
+                "small_model": {'type': 'string', 'nullable': True, 'title': 'Small Model', 'x-cli-required': False},
+                "small_provider": {'type': 'string', 'nullable': True, 'title': 'Small Provider', 'x-cli-required': False},
+                "temperature": {'type': 'string', 'nullable': True, 'title': 'Temperature', 'x-cli-required': False},
+                "text_model": {'type': 'string', 'nullable': True, 'title': 'Text Model', 'x-cli-required': False},
+                "text_provider": {'type': 'string', 'nullable': True, 'title': 'Text Provider', 'x-cli-required': False},
+                "video_model": {'type': 'string', 'nullable': True, 'title': 'Video Model', 'x-cli-required': False},
+                "video_provider": {'type': 'string', 'nullable': True, 'title': 'Video Provider', 'x-cli-required': False},
+                "vision_large_model": {'type': 'string', 'nullable': True, 'title': 'Vision Large Model', 'x-cli-required': False},
+                "vision_large_provider": {'type': 'string', 'nullable': True, 'title': 'Vision Large Provider', 'x-cli-required': False},
+                "vision_medium_model": {'type': 'string', 'nullable': True, 'title': 'Vision Medium Model', 'x-cli-required': False},
+                "vision_medium_provider": {'type': 'string', 'nullable': True, 'title': 'Vision Medium Provider', 'x-cli-required': False},
+                "vision_model": {'type': 'string', 'nullable': True, 'title': 'Vision Model', 'x-cli-required': False},
+                "vision_provider": {'type': 'string', 'nullable': True, 'title': 'Vision Provider', 'x-cli-required': False},
+                "vision_small_model": {'type': 'string', 'nullable': True, 'title': 'Vision Small Model', 'x-cli-required': False},
+                "vision_small_provider": {'type': 'string', 'nullable': True, 'title': 'Vision Small Provider', 'x-cli-required': False},
+            }, required=True)
             return client.request("PUT", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -8490,14 +12063,44 @@ def register_generated_openapi_commands(
     @target_app.command("create-model-profile")
     def settings_create_model_profile_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        api_base: Optional[str] = typer.Option(None, "--api-base", help="Request field: api_base."),
+        extra: Optional[str] = typer.Option(None, "--extra", help="Request field: extra."),
+        id: Optional[str] = typer.Option(None, "--id", help="Request field: id."),
+        local_only: Optional[bool] = typer.Option(None, "--local-only/--no-local-only", help="Request field: local_only."),
+        model: str = typer.Option(..., "--model", help="Request field: model."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        params: Optional[str] = typer.Option(None, "--params", help="Request field: params."),
+        privacy: Optional[str] = typer.Option(None, "--privacy", help="Request field: privacy."),
+        provider: str = typer.Option(..., "--provider", help="Request field: provider."),
+        role: Optional[str] = typer.Option(None, "--role", help="Request field: role."),
     ) -> None:
         """Create Model Profile (POST /api/settings/model-profiles)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/settings/model-profiles"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "api_base": api_base,
+                "extra": extra,
+                "id": id,
+                "local_only": local_only,
+                "model": model,
+                "name": name,
+                "params": params,
+                "privacy": privacy,
+                "provider": provider,
+                "role": role,
+            }, {
+                "api_base": {'type': 'string', 'nullable': True, 'title': 'Api Base', 'x-cli-required': False},
+                "extra": {'additionalProperties': True, 'type': 'object', 'title': 'Extra', 'x-cli-required': False},
+                "id": {'type': 'string', 'nullable': True, 'title': 'Id', 'x-cli-required': False},
+                "local_only": {'type': 'boolean', 'title': 'Local Only', 'default': False, 'x-cli-required': False},
+                "model": {'type': 'string', 'title': 'Model', 'x-cli-required': True},
+                "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
+                "params": {'properties': {'temperature': {'type': 'number', 'nullable': True, 'title': 'Temperature'}, 'max_tokens': {'type': 'integer', 'nullable': True, 'title': 'Max Tokens'}, 'timeout': {'type': 'integer', 'nullable': True, 'title': 'Timeout'}, 'reasoning_effort': {'type': 'string', 'nullable': True, 'title': 'Reasoning Effort'}}, 'type': 'object', 'title': 'ModelProfileParams', 'description': 'LLM parameters supported by the current LLMConfig surface.', 'x-cli-required': False},
+                "privacy": {'type': 'string', 'enum': ['standard', 'local_only', 'private'], 'title': 'ModelProfilePrivacy', 'description': 'Privacy policy attached to a named model profile.', 'x-cli-required': False},
+                "provider": {'type': 'string', 'title': 'Provider', 'x-cli-required': True},
+                "role": {'type': 'string', 'enum': ['general', 'text', 'vision', 'audio', 'video', 'embeddings'], 'title': 'ModelProfileRole', 'description': 'Intended use/capability for a named model profile.', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -8529,14 +12132,41 @@ def register_generated_openapi_commands(
     def settings_update_model_profile_put(
         ctx: typer.Context,
         profile_id: str = typer.Argument(..., help="Path parameter: profile_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        api_base: Optional[str] = typer.Option(None, "--api-base", help="Request field: api_base."),
+        extra: Optional[str] = typer.Option(None, "--extra", help="Request field: extra."),
+        local_only: Optional[bool] = typer.Option(None, "--local-only/--no-local-only", help="Request field: local_only."),
+        model: Optional[str] = typer.Option(None, "--model", help="Request field: model."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        params: Optional[str] = typer.Option(None, "--params", help="Request field: params."),
+        privacy: Optional[str] = typer.Option(None, "--privacy", help="Request field: privacy."),
+        provider: Optional[str] = typer.Option(None, "--provider", help="Request field: provider."),
+        role: Optional[str] = typer.Option(None, "--role", help="Request field: role."),
     ) -> None:
         """Update Model Profile (PUT /api/settings/model-profiles/{profile_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/settings/model-profiles/{profile_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "api_base": api_base,
+                "extra": extra,
+                "local_only": local_only,
+                "model": model,
+                "name": name,
+                "params": params,
+                "privacy": privacy,
+                "provider": provider,
+                "role": role,
+            }, {
+                "api_base": {'type': 'string', 'nullable': True, 'title': 'Api Base', 'x-cli-required': False},
+                "extra": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Extra', 'x-cli-required': False},
+                "local_only": {'type': 'boolean', 'nullable': True, 'title': 'Local Only', 'x-cli-required': False},
+                "model": {'type': 'string', 'nullable': True, 'title': 'Model', 'x-cli-required': False},
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
+                "params": {'properties': {'temperature': {'type': 'number', 'nullable': True, 'title': 'Temperature'}, 'max_tokens': {'type': 'integer', 'nullable': True, 'title': 'Max Tokens'}, 'timeout': {'type': 'integer', 'nullable': True, 'title': 'Timeout'}, 'reasoning_effort': {'type': 'string', 'nullable': True, 'title': 'Reasoning Effort'}}, 'type': 'object', 'title': 'ModelProfileParams', 'description': 'LLM parameters supported by the current LLMConfig surface.', 'x-cli-required': False},
+                "privacy": {'type': 'string', 'enum': ['standard', 'local_only', 'private'], 'title': 'ModelProfilePrivacy', 'description': 'Privacy policy attached to a named model profile.', 'x-cli-required': False},
+                "provider": {'type': 'string', 'nullable': True, 'title': 'Provider', 'x-cli-required': False},
+                "role": {'type': 'string', 'enum': ['general', 'text', 'vision', 'audio', 'video', 'embeddings'], 'title': 'ModelProfileRole', 'description': 'Intended use/capability for a named model profile.', 'x-cli-required': False},
+            }, required=True)
             return client.request("PUT", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -8559,14 +12189,29 @@ def register_generated_openapi_commands(
     @target_app.command("upsert")
     def sources_upsert_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        document_type: Optional[str] = typer.Option(None, "--document-type", help="Request field: document_type."),
+        file_path: str = typer.Option(..., "--file-path", help="Request field: file_path."),
+        id: Optional[str] = typer.Option(None, "--id", help="Request field: id."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        title: str = typer.Option(..., "--title", help="Request field: title."),
     ) -> None:
         """Upsert Source (POST /api/sources)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/sources"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "document_type": document_type,
+                "file_path": file_path,
+                "id": id,
+                "metadata": metadata,
+                "title": title,
+            }, {
+                "document_type": {'type': 'string', 'title': 'Document Type', 'default': 'source', 'x-cli-required': False},
+                "file_path": {'type': 'string', 'title': 'File Path', 'x-cli-required': True},
+                "id": {'type': 'string', 'nullable': True, 'title': 'Id', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+                "title": {'type': 'string', 'title': 'Title', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -8598,14 +12243,29 @@ def register_generated_openapi_commands(
     def sources_update_put(
         ctx: typer.Context,
         source_id: str = typer.Argument(..., help="Path parameter: source_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        document_type: Optional[str] = typer.Option(None, "--document-type", help="Request field: document_type."),
+        file_path: str = typer.Option(..., "--file-path", help="Request field: file_path."),
+        id: Optional[str] = typer.Option(None, "--id", help="Request field: id."),
+        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        title: str = typer.Option(..., "--title", help="Request field: title."),
     ) -> None:
         """Update Source (PUT /api/sources/{source_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/sources/{source_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "document_type": document_type,
+                "file_path": file_path,
+                "id": id,
+                "metadata": metadata,
+                "title": title,
+            }, {
+                "document_type": {'type': 'string', 'title': 'Document Type', 'default': 'source', 'x-cli-required': False},
+                "file_path": {'type': 'string', 'title': 'File Path', 'x-cli-required': True},
+                "id": {'type': 'string', 'nullable': True, 'title': 'Id', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
+                "title": {'type': 'string', 'title': 'Title', 'x-cli-required': True},
+            }, required=True)
             return client.request("PUT", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -8807,14 +12467,23 @@ def register_generated_openapi_commands(
     @target_app.command("create-knowledge-graph-metrics-job")
     def tasks_create_knowledge_graph_metrics_job_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        options: Optional[str] = typer.Option(None, "--options", help="Request field: options."),
+        priority: Optional[int] = typer.Option(None, "--priority", help="Request field: priority."),
     ) -> None:
         """Create knowledge graph metrics job (POST /api/tasks/tasks/kg-metrics)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/tasks/tasks/kg-metrics"
             params = None
-            payload = _load_json_payload(body, body_file, required=False)
+            payload = _build_json_payload({
+                "name": name,
+                "options": options,
+                "priority": priority,
+            }, {
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'description': 'Optional display name for the task', 'x-cli-required': False},
+                "options": {'additionalProperties': True, 'type': 'object', 'title': 'Options', 'description': 'Task-specific options', 'x-cli-required': False},
+                "priority": {'type': 'integer', 'maximum': 100.0, 'minimum': 0.0, 'title': 'Priority', 'description': 'Priority (lower = higher priority)', 'default': 0, 'x-cli-required': False},
+            }, required=False)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -8833,14 +12502,23 @@ def register_generated_openapi_commands(
     @target_app.command("trigger-metrics-recomputation")
     def tasks_trigger_metrics_recomputation_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        options: Optional[str] = typer.Option(None, "--options", help="Request field: options."),
+        priority: Optional[int] = typer.Option(None, "--priority", help="Request field: priority."),
     ) -> None:
         """Trigger metrics recomputation (POST /api/tasks/tasks/metrics)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/tasks/tasks/metrics"
             params = None
-            payload = _load_json_payload(body, body_file, required=False)
+            payload = _build_json_payload({
+                "name": name,
+                "options": options,
+                "priority": priority,
+            }, {
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'description': 'Optional display name for the task', 'x-cli-required': False},
+                "options": {'additionalProperties': True, 'type': 'object', 'title': 'Options', 'description': 'Task-specific options', 'x-cli-required': False},
+                "priority": {'type': 'integer', 'maximum': 100.0, 'minimum': 0.0, 'title': 'Priority', 'description': 'Priority (lower = higher priority)', 'default': 0, 'x-cli-required': False},
+            }, required=False)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -8859,14 +12537,23 @@ def register_generated_openapi_commands(
     @target_app.command("create-reindex-job")
     def tasks_create_reindex_job_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        options: Optional[str] = typer.Option(None, "--options", help="Request field: options."),
+        priority: Optional[int] = typer.Option(None, "--priority", help="Request field: priority."),
     ) -> None:
         """Create reindex job (POST /api/tasks/tasks/reindex)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/tasks/tasks/reindex"
             params = None
-            payload = _load_json_payload(body, body_file, required=False)
+            payload = _build_json_payload({
+                "name": name,
+                "options": options,
+                "priority": priority,
+            }, {
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'description': 'Optional display name for the task', 'x-cli-required': False},
+                "options": {'additionalProperties': True, 'type': 'object', 'title': 'Options', 'description': 'Task-specific options', 'x-cli-required': False},
+                "priority": {'type': 'integer', 'maximum': 100.0, 'minimum': 0.0, 'title': 'Priority', 'description': 'Priority (lower = higher priority)', 'default': 0, 'x-cli-required': False},
+            }, required=False)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -8885,14 +12572,23 @@ def register_generated_openapi_commands(
     @target_app.command("create-vector-repair-job")
     def tasks_create_vector_repair_job_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        options: Optional[str] = typer.Option(None, "--options", help="Request field: options."),
+        priority: Optional[int] = typer.Option(None, "--priority", help="Request field: priority."),
     ) -> None:
         """Create vector repair job (POST /api/tasks/tasks/vector-repair)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/tasks/tasks/vector-repair"
             params = None
-            payload = _load_json_payload(body, body_file, required=False)
+            payload = _build_json_payload({
+                "name": name,
+                "options": options,
+                "priority": priority,
+            }, {
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'description': 'Optional display name for the task', 'x-cli-required': False},
+                "options": {'additionalProperties': True, 'type': 'object', 'title': 'Options', 'description': 'Task-specific options', 'x-cli-required': False},
+                "priority": {'type': 'integer', 'maximum': 100.0, 'minimum': 0.0, 'title': 'Priority', 'description': 'Priority (lower = higher priority)', 'default': 0, 'x-cli-required': False},
+            }, required=False)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -8984,14 +12680,32 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def triggers_create_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        config: str = typer.Option(..., "--config", help="Request field: config."),
+        inputs_template: Optional[str] = typer.Option(None, "--inputs-template", help="Request field: inputs_template."),
+        max_concurrent: Optional[int] = typer.Option(None, "--max-concurrent", help="Request field: max_concurrent."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        use_batch: Optional[bool] = typer.Option(None, "--use-batch/--no-use-batch", help="Request field: use_batch."),
+        workflow_id: str = typer.Option(..., "--workflow-id", help="Request field: workflow_id."),
     ) -> None:
         """Create Trigger (POST /api/triggers)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/triggers"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "config": config,
+                "inputs_template": inputs_template,
+                "max_concurrent": max_concurrent,
+                "name": name,
+                "use_batch": use_batch,
+                "workflow_id": workflow_id,
+            }, {
+                "config": {'properties': {'watch_path': {'type': 'string', 'title': 'Watch Path', 'description': 'Directory to watch'}, 'recursive': {'type': 'boolean', 'title': 'Recursive', 'description': 'Watch subdirectories', 'default': True}, 'events': {'items': {'type': 'string'}, 'type': 'array', 'title': 'Events', 'description': 'Events to trigger on: created, modified, deleted, moved, any', 'default': ['created']}, 'filter_mode': {'type': 'string', 'title': 'Filter Mode', 'description': 'Filter mode: glob, regex, extension', 'default': 'glob'}, 'filter_pattern': {'type': 'string', 'nullable': True, 'title': 'Filter Pattern', 'description': 'Pattern for glob/regex filter'}, 'filter_extensions': {'items': {'type': 'string'}, 'type': 'array', 'title': 'Filter Extensions', 'description': 'Extensions for extension filter'}, 'exclude_patterns': {'items': {'type': 'string'}, 'type': 'array', 'title': 'Exclude Patterns', 'description': 'Patterns to exclude'}, 'debounce_seconds': {'type': 'number', 'title': 'Debounce Seconds', 'description': 'Debounce rapid events', 'default': 1.0}, 'batch_delay_seconds': {'type': 'number', 'title': 'Batch Delay Seconds', 'description': 'Wait before batching events', 'default': 5.0}}, 'type': 'object', 'required': ['watch_path'], 'title': 'TriggerConfigRequest', 'description': 'Trigger configuration request.', 'x-cli-required': True},
+                "inputs_template": {'additionalProperties': True, 'type': 'object', 'title': 'Inputs Template', 'description': 'Template for workflow inputs with placeholders', 'x-cli-required': False},
+                "max_concurrent": {'type': 'integer', 'title': 'Max Concurrent', 'description': 'Max concurrent batch items', 'default': 5, 'x-cli-required': False},
+                "name": {'type': 'string', 'title': 'Name', 'description': 'Display name for the trigger', 'x-cli-required': True},
+                "use_batch": {'type': 'boolean', 'title': 'Use Batch', 'description': 'Batch multiple files', 'default': True, 'x-cli-required': False},
+                "workflow_id": {'type': 'string', 'title': 'Workflow Id', 'description': 'ID of workflow to execute', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -9023,14 +12737,32 @@ def register_generated_openapi_commands(
     def triggers_update_put(
         ctx: typer.Context,
         trigger_id: str = typer.Argument(..., help="Path parameter: trigger_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        config: Optional[str] = typer.Option(None, "--config", help="Request field: config."),
+        inputs_template: Optional[str] = typer.Option(None, "--inputs-template", help="Request field: inputs_template."),
+        max_concurrent: Optional[int] = typer.Option(None, "--max-concurrent", help="Request field: max_concurrent."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        use_batch: Optional[bool] = typer.Option(None, "--use-batch/--no-use-batch", help="Request field: use_batch."),
+        workflow_id: Optional[str] = typer.Option(None, "--workflow-id", help="Request field: workflow_id."),
     ) -> None:
         """Update Trigger (PUT /api/triggers/{trigger_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/triggers/{trigger_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "config": config,
+                "inputs_template": inputs_template,
+                "max_concurrent": max_concurrent,
+                "name": name,
+                "use_batch": use_batch,
+                "workflow_id": workflow_id,
+            }, {
+                "config": {'properties': {'watch_path': {'type': 'string', 'title': 'Watch Path', 'description': 'Directory to watch'}, 'recursive': {'type': 'boolean', 'title': 'Recursive', 'description': 'Watch subdirectories', 'default': True}, 'events': {'items': {'type': 'string'}, 'type': 'array', 'title': 'Events', 'description': 'Events to trigger on: created, modified, deleted, moved, any', 'default': ['created']}, 'filter_mode': {'type': 'string', 'title': 'Filter Mode', 'description': 'Filter mode: glob, regex, extension', 'default': 'glob'}, 'filter_pattern': {'type': 'string', 'nullable': True, 'title': 'Filter Pattern', 'description': 'Pattern for glob/regex filter'}, 'filter_extensions': {'items': {'type': 'string'}, 'type': 'array', 'title': 'Filter Extensions', 'description': 'Extensions for extension filter'}, 'exclude_patterns': {'items': {'type': 'string'}, 'type': 'array', 'title': 'Exclude Patterns', 'description': 'Patterns to exclude'}, 'debounce_seconds': {'type': 'number', 'title': 'Debounce Seconds', 'description': 'Debounce rapid events', 'default': 1.0}, 'batch_delay_seconds': {'type': 'number', 'title': 'Batch Delay Seconds', 'description': 'Wait before batching events', 'default': 5.0}}, 'type': 'object', 'required': ['watch_path'], 'title': 'TriggerConfigRequest', 'description': 'Trigger configuration request.', 'x-cli-required': False},
+                "inputs_template": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Inputs Template', 'description': 'Template for workflow inputs', 'x-cli-required': False},
+                "max_concurrent": {'type': 'integer', 'nullable': True, 'title': 'Max Concurrent', 'description': 'Max concurrent batch items', 'x-cli-required': False},
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'description': 'Display name for the trigger', 'x-cli-required': False},
+                "use_batch": {'type': 'boolean', 'nullable': True, 'title': 'Use Batch', 'description': 'Batch multiple files', 'x-cli-required': False},
+                "workflow_id": {'type': 'string', 'nullable': True, 'title': 'Workflow Id', 'description': 'ID of workflow to execute', 'x-cli-required': False},
+            }, required=True)
             return client.request("PUT", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -9092,14 +12824,26 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def users_create_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        display_name: str = typer.Option(..., "--display-name", help="Request field: display_name."),
+        is_owner: Optional[bool] = typer.Option(None, "--is-owner/--no-is-owner", help="Request field: is_owner."),
+        password: str = typer.Option(..., "--password", help="Request field: password."),
+        username: str = typer.Option(..., "--username", help="Request field: username."),
     ) -> None:
         """Create User (POST /api/users)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/users"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "display_name": display_name,
+                "is_owner": is_owner,
+                "password": password,
+                "username": username,
+            }, {
+                "display_name": {'type': 'string', 'minLength': 1, 'title': 'Display Name', 'x-cli-required': True},
+                "is_owner": {'type': 'boolean', 'title': 'Is Owner', 'default': False, 'x-cli-required': False},
+                "password": {'type': 'string', 'minLength': 1, 'title': 'Password', 'x-cli-required': True},
+                "username": {'type': 'string', 'minLength': 1, 'title': 'Username', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -9107,14 +12851,20 @@ def register_generated_openapi_commands(
     def users_update_patch(
         ctx: typer.Context,
         user_id: str = typer.Argument(..., help="Path parameter: user_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        active: Optional[bool] = typer.Option(None, "--active/--no-active", help="Request field: active."),
+        password: Optional[str] = typer.Option(None, "--password", help="Request field: password."),
     ) -> None:
         """Update User (PATCH /api/users/{user_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/users/{user_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "active": active,
+                "password": password,
+            }, {
+                "active": {'type': 'boolean', 'nullable': True, 'title': 'Active', 'x-cli-required': False},
+                "password": {'type': 'string', 'minLength': 1, 'nullable': True, 'title': 'Password', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -9176,14 +12926,44 @@ def register_generated_openapi_commands(
     @target_app.command("execute")
     def workflow_execution_execute_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        checkpoint_ns: Optional[str] = typer.Option(None, "--checkpoint-ns", help="Request field: checkpoint_ns."),
+        force_new: Optional[bool] = typer.Option(None, "--force-new/--no-force-new", help="Request field: force_new."),
+        inputs: Optional[str] = typer.Option(None, "--inputs", help="Request field: inputs."),
+        interrupt_after: Optional[str] = typer.Option(None, "--interrupt-after", help="Request field: interrupt_after."),
+        interrupt_before: Optional[str] = typer.Option(None, "--interrupt-before", help="Request field: interrupt_before."),
+        model_override: Optional[str] = typer.Option(None, "--model-override", help="Request field: model_override."),
+        provider_override: Optional[str] = typer.Option(None, "--provider-override", help="Request field: provider_override."),
+        skip_cache: Optional[bool] = typer.Option(None, "--skip-cache/--no-skip-cache", help="Request field: skip_cache."),
+        thread_id: Optional[str] = typer.Option(None, "--thread-id", help="Request field: thread_id."),
+        workflow_id: str = typer.Option(..., "--workflow-id", help="Request field: workflow_id."),
     ) -> None:
         """Execute Workflow (POST /api/workflow-execution/execute)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/workflow-execution/execute"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "checkpoint_ns": checkpoint_ns,
+                "force_new": force_new,
+                "inputs": inputs,
+                "interrupt_after": interrupt_after,
+                "interrupt_before": interrupt_before,
+                "model_override": model_override,
+                "provider_override": provider_override,
+                "skip_cache": skip_cache,
+                "thread_id": thread_id,
+                "workflow_id": workflow_id,
+            }, {
+                "checkpoint_ns": {'type': 'string', 'title': 'Checkpoint Ns', 'default': '', 'x-cli-required': False},
+                "force_new": {'type': 'boolean', 'title': 'Force New', 'default': False, 'x-cli-required': False},
+                "inputs": {'additionalProperties': True, 'type': 'object', 'title': 'Inputs', 'x-cli-required': False},
+                "interrupt_after": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Interrupt After', 'x-cli-required': False},
+                "interrupt_before": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Interrupt Before', 'x-cli-required': False},
+                "model_override": {'type': 'string', 'nullable': True, 'title': 'Model Override', 'x-cli-required': False},
+                "provider_override": {'type': 'string', 'nullable': True, 'title': 'Provider Override', 'x-cli-required': False},
+                "skip_cache": {'type': 'boolean', 'title': 'Skip Cache', 'default': False, 'x-cli-required': False},
+                "thread_id": {'type': 'string', 'nullable': True, 'title': 'Thread Id', 'x-cli-required': False},
+                "workflow_id": {'type': 'string', 'title': 'Workflow Id', 'x-cli-required': True},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -9280,14 +13060,20 @@ def register_generated_openapi_commands(
     def workflow_execution_resume_post(
         ctx: typer.Context,
         thread_id: str = typer.Argument(..., help="Path parameter: thread_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        answer: Optional[str] = typer.Option(None, "--answer", help="Request field: answer."),
+        inputs: Optional[str] = typer.Option(None, "--inputs", help="Request field: inputs."),
     ) -> None:
         """Resume Workflow (POST /api/workflow-execution/threads/{thread_id}/resume)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/workflow-execution/threads/{thread_id}/resume"
             params = None
-            payload = _load_json_payload(body, body_file, required=False)
+            payload = _build_json_payload({
+                "answer": answer,
+                "inputs": inputs,
+            }, {
+                "answer": {'nullable': True, 'title': 'Answer', 'x-cli-required': False},
+                "inputs": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Inputs', 'x-cli-required': False},
+            }, required=False)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -9403,14 +13189,59 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def workflows_create_post(
         ctx: typer.Context,
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        created_at: Optional[str] = typer.Option(None, "--created-at", help="Request field: created_at."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        edges: Optional[str] = typer.Option(None, "--edges", help="Request field: edges."),
+        folder_path: Optional[str] = typer.Option(None, "--folder-path", help="Request field: folder_path."),
+        id: Optional[str] = typer.Option(None, "--id", help="Request field: id."),
+        input_source: Optional[str] = typer.Option(None, "--input-source", help="Request field: input_source."),
+        max_retries: Optional[int] = typer.Option(None, "--max-retries", help="Request field: max_retries."),
+        model: Optional[str] = typer.Option(None, "--model", help="Request field: model."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        nodes: Optional[str] = typer.Option(None, "--nodes", help="Request field: nodes."),
+        provider: Optional[str] = typer.Option(None, "--provider", help="Request field: provider."),
+        sort_order: Optional[int] = typer.Option(None, "--sort-order", help="Request field: sort_order."),
+        timeout_seconds: Optional[int] = typer.Option(None, "--timeout-seconds", help="Request field: timeout_seconds."),
+        updated_at: Optional[str] = typer.Option(None, "--updated-at", help="Request field: updated_at."),
+        version: Optional[str] = typer.Option(None, "--version", help="Request field: version."),
     ) -> None:
         """Create Workflow (POST /api/workflows)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/workflows"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "created_at": created_at,
+                "description": description,
+                "edges": edges,
+                "folder_path": folder_path,
+                "id": id,
+                "input_source": input_source,
+                "max_retries": max_retries,
+                "model": model,
+                "name": name,
+                "nodes": nodes,
+                "provider": provider,
+                "sort_order": sort_order,
+                "timeout_seconds": timeout_seconds,
+                "updated_at": updated_at,
+                "version": version,
+            }, {
+                "created_at": {'type': 'string', 'nullable': True, 'title': 'Created At', 'x-cli-required': False},
+                "description": {'type': 'string', 'title': 'Description', 'default': '', 'x-cli-required': False},
+                "edges": {'items': {'$ref': '#/components/schemas/EdgeDef'}, 'type': 'array', 'title': 'Edges', 'x-cli-required': False},
+                "folder_path": {'type': 'string', 'title': 'Folder Path', 'default': '/', 'x-cli-required': False},
+                "id": {'type': 'string', 'title': 'Id', 'description': 'Unique workflow identifier', 'x-cli-required': False},
+                "input_source": {'type': 'string', 'enum': ['collection', 'current_selection'], 'title': 'Input Source', 'default': 'collection', 'x-cli-required': False},
+                "max_retries": {'type': 'integer', 'title': 'Max Retries', 'default': 3, 'x-cli-required': False},
+                "model": {'type': 'string', 'title': 'Model', 'default': 'gpt-4o', 'x-cli-required': False},
+                "name": {'type': 'string', 'title': 'Name', 'description': 'Display name', 'x-cli-required': True},
+                "nodes": {'items': {'$ref': '#/components/schemas/NodeDef-Input'}, 'type': 'array', 'title': 'Nodes', 'x-cli-required': False},
+                "provider": {'type': 'string', 'title': 'Provider', 'default': 'openai', 'x-cli-required': False},
+                "sort_order": {'type': 'integer', 'title': 'Sort Order', 'default': 0, 'x-cli-required': False},
+                "timeout_seconds": {'type': 'integer', 'title': 'Timeout Seconds', 'default': 300, 'x-cli-required': False},
+                "updated_at": {'type': 'string', 'nullable': True, 'title': 'Updated At', 'x-cli-required': False},
+                "version": {'type': 'string', 'title': 'Version', 'default': '1.0', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -9527,14 +13358,17 @@ def register_generated_openapi_commands(
     def workflows_get_tool_prompt_post(
         ctx: typer.Context,
         tool_name: str = typer.Argument(..., help="Path parameter: tool_name."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        config: Optional[str] = typer.Option(None, "--config", help="Request field: config."),
     ) -> None:
         """Get Tool Prompt (POST /api/workflows/tools/{tool_name}/prompt)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/workflows/tools/{tool_name}/prompt"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "config": config,
+            }, {
+                "config": {'additionalProperties': True, 'type': 'object', 'title': 'Config', 'default': {}, 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -9566,14 +13400,29 @@ def register_generated_openapi_commands(
     def workflows_patch_patch(
         ctx: typer.Context,
         workflow_id: str = typer.Argument(..., help="Path parameter: workflow_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        folder_path: Optional[str] = typer.Option(None, "--folder-path", help="Request field: folder_path."),
+        format: Optional[str] = typer.Option(None, "--format", help="Request field: format."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        sort_order: Optional[int] = typer.Option(None, "--sort-order", help="Request field: sort_order."),
     ) -> None:
         """Patch Workflow (PATCH /api/workflows/{workflow_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/workflows/{workflow_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "description": description,
+                "folder_path": folder_path,
+                "format": format,
+                "name": name,
+                "sort_order": sort_order,
+            }, {
+                "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'x-cli-required': False},
+                "folder_path": {'type': 'string', 'nullable': True, 'title': 'Folder Path', 'x-cli-required': False},
+                "format": {'type': 'string', 'nullable': True, 'title': 'Format', 'x-cli-required': False},
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
+                "sort_order": {'type': 'integer', 'nullable': True, 'title': 'Sort Order', 'x-cli-required': False},
+            }, required=True)
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -9581,14 +13430,59 @@ def register_generated_openapi_commands(
     def workflows_update_put(
         ctx: typer.Context,
         workflow_id: str = typer.Argument(..., help="Path parameter: workflow_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        created_at: Optional[str] = typer.Option(None, "--created-at", help="Request field: created_at."),
+        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
+        edges: Optional[str] = typer.Option(None, "--edges", help="Request field: edges."),
+        folder_path: Optional[str] = typer.Option(None, "--folder-path", help="Request field: folder_path."),
+        id: Optional[str] = typer.Option(None, "--id", help="Request field: id."),
+        input_source: Optional[str] = typer.Option(None, "--input-source", help="Request field: input_source."),
+        max_retries: Optional[int] = typer.Option(None, "--max-retries", help="Request field: max_retries."),
+        model: Optional[str] = typer.Option(None, "--model", help="Request field: model."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        nodes: Optional[str] = typer.Option(None, "--nodes", help="Request field: nodes."),
+        provider: Optional[str] = typer.Option(None, "--provider", help="Request field: provider."),
+        sort_order: Optional[int] = typer.Option(None, "--sort-order", help="Request field: sort_order."),
+        timeout_seconds: Optional[int] = typer.Option(None, "--timeout-seconds", help="Request field: timeout_seconds."),
+        updated_at: Optional[str] = typer.Option(None, "--updated-at", help="Request field: updated_at."),
+        version: Optional[str] = typer.Option(None, "--version", help="Request field: version."),
     ) -> None:
         """Update Workflow (PUT /api/workflows/{workflow_id})."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/workflows/{workflow_id}"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "created_at": created_at,
+                "description": description,
+                "edges": edges,
+                "folder_path": folder_path,
+                "id": id,
+                "input_source": input_source,
+                "max_retries": max_retries,
+                "model": model,
+                "name": name,
+                "nodes": nodes,
+                "provider": provider,
+                "sort_order": sort_order,
+                "timeout_seconds": timeout_seconds,
+                "updated_at": updated_at,
+                "version": version,
+            }, {
+                "created_at": {'type': 'string', 'nullable': True, 'title': 'Created At', 'x-cli-required': False},
+                "description": {'type': 'string', 'title': 'Description', 'default': '', 'x-cli-required': False},
+                "edges": {'items': {'$ref': '#/components/schemas/EdgeDef'}, 'type': 'array', 'title': 'Edges', 'x-cli-required': False},
+                "folder_path": {'type': 'string', 'title': 'Folder Path', 'default': '/', 'x-cli-required': False},
+                "id": {'type': 'string', 'title': 'Id', 'description': 'Unique workflow identifier', 'x-cli-required': False},
+                "input_source": {'type': 'string', 'enum': ['collection', 'current_selection'], 'title': 'Input Source', 'default': 'collection', 'x-cli-required': False},
+                "max_retries": {'type': 'integer', 'title': 'Max Retries', 'default': 3, 'x-cli-required': False},
+                "model": {'type': 'string', 'title': 'Model', 'default': 'gpt-4o', 'x-cli-required': False},
+                "name": {'type': 'string', 'title': 'Name', 'description': 'Display name', 'x-cli-required': True},
+                "nodes": {'items': {'$ref': '#/components/schemas/NodeDef-Input'}, 'type': 'array', 'title': 'Nodes', 'x-cli-required': False},
+                "provider": {'type': 'string', 'title': 'Provider', 'default': 'openai', 'x-cli-required': False},
+                "sort_order": {'type': 'integer', 'title': 'Sort Order', 'default': 0, 'x-cli-required': False},
+                "timeout_seconds": {'type': 'integer', 'title': 'Timeout Seconds', 'default': 300, 'x-cli-required': False},
+                "updated_at": {'type': 'string', 'nullable': True, 'title': 'Updated At', 'x-cli-required': False},
+                "version": {'type': 'string', 'title': 'Version', 'default': '1.0', 'x-cli-required': False},
+            }, required=True)
             return client.request("PUT", path, params=params, json=payload)
         invoke(ctx, op_call)
 
@@ -9608,14 +13502,29 @@ def register_generated_openapi_commands(
     def workflows_estimate_cost_post(
         ctx: typer.Context,
         workflow_id: str = typer.Argument(..., help="Path parameter: workflow_id."),
-        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
-        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+        estimated_input_tokens_per_file: Optional[int] = typer.Option(None, "--estimated-input-tokens-per-file", help="Request field: estimated_input_tokens_per_file."),
+        estimated_output_tokens_per_file: Optional[int] = typer.Option(None, "--estimated-output-tokens-per-file", help="Request field: estimated_output_tokens_per_file."),
+        file_count: Optional[int] = typer.Option(None, "--file-count", help="Request field: file_count."),
+        model: Optional[str] = typer.Option(None, "--model", help="Request field: model."),
+        provider: Optional[str] = typer.Option(None, "--provider", help="Request field: provider."),
     ) -> None:
         """Estimate Workflow Cost (POST /api/workflows/{workflow_id}/estimate-cost)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/workflows/{workflow_id}/estimate-cost"
             params = None
-            payload = _load_json_payload(body, body_file, required=True)
+            payload = _build_json_payload({
+                "estimated_input_tokens_per_file": estimated_input_tokens_per_file,
+                "estimated_output_tokens_per_file": estimated_output_tokens_per_file,
+                "file_count": file_count,
+                "model": model,
+                "provider": provider,
+            }, {
+                "estimated_input_tokens_per_file": {'type': 'integer', 'title': 'Estimated Input Tokens Per File', 'default': 1200, 'x-cli-required': False},
+                "estimated_output_tokens_per_file": {'type': 'integer', 'title': 'Estimated Output Tokens Per File', 'default': 300, 'x-cli-required': False},
+                "file_count": {'type': 'integer', 'title': 'File Count', 'default': 1, 'x-cli-required': False},
+                "model": {'type': 'string', 'nullable': True, 'title': 'Model', 'x-cli-required': False},
+                "provider": {'type': 'string', 'nullable': True, 'title': 'Provider', 'x-cli-required': False},
+            }, required=True)
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
