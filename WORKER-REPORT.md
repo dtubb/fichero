@@ -1,1 +1,0 @@
-2026-07-03 #2822: tightened fold and mutation input models to forbid unexpected fields and reject empty required strings across bookmarks, saved searches, notes, milestones, claims, entities, documents, and rooms; focused validation suite green (43 passed).
