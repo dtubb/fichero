@@ -33,6 +33,12 @@ _CONTRACT_PATH_PREFIXES = (
 
 _REPO_ROOT_MARKERS = ("fichero-engine", ".git")
 
+_EXTRA_TEST_TARGETS = {
+    "fichero-engine/src/fichero/api/routes/mcp_tools.py": (
+        "fichero-engine/tests/unit/test_mcp_knowledge_adapters.py",
+    ),
+}
+
 
 @dataclass(frozen=True)
 class VerificationPlan:
@@ -76,6 +82,7 @@ def _candidate_tests_for_source(repo_root: Path, normalized_path: str) -> set[st
         for path in tests_root.rglob(pattern):
             if path.is_file():
                 matches.add(path.relative_to(repo_root).as_posix())
+    matches.update(_EXTRA_TEST_TARGETS.get(normalized_path, ()))
     return matches
 
 
