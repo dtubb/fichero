@@ -284,10 +284,6 @@ def test_bookmark_create_route_writes_action_audit(client, db):
     assert audits[0].target_ids == [bookmark_id]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="POST /api/documents still calls create_document_impl directly and writes no ActionAudit row.",
-)
 def test_document_create_route_writes_action_audit(client, db):
     response = client.post("/api/documents", json={"name": "Route Doc"})
     assert response.status_code == 201
@@ -300,10 +296,6 @@ def test_document_create_route_writes_action_audit(client, db):
     assert audits[0].target_ids == [doc_id]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="POST /api/documents with doc_type=folder still calls create_document_impl directly and writes no ActionAudit row.",
-)
 def test_folder_create_route_writes_action_audit(client, db):
     response = client.post(
         "/api/documents",
@@ -319,10 +311,6 @@ def test_folder_create_route_writes_action_audit(client, db):
     assert audits[0].target_ids == [folder_id]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="PUT /api/documents/{doc_id}/move still calls move_document_impl directly and writes no ActionAudit row.",
-)
 def test_document_move_route_writes_action_audit(client, db):
     parent = Document(name="Route Parent", doc_type=DocType.folder)
     child = Document(name="Route Child", doc_type=DocType.file)
@@ -339,10 +327,6 @@ def test_document_move_route_writes_action_audit(client, db):
     assert audits[0].target_ids == [child.id]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="DELETE /api/documents/{doc_id} still calls delete_document_impl directly and writes no ActionAudit row.",
-)
 def test_document_delete_route_writes_action_audit(client, db):
     doc = Document(name="Route Delete Doc", doc_type=DocType.file)
     db.save(doc)

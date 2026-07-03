@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 import tempfile
 
+from fichero.models import ActionAudit
 from fichero.models import Document, DocType, FileType, Status, Artifact
 
 
@@ -836,7 +837,9 @@ class TestDocumentHierarchy:
         data = response.json()
         assert data["id"] == sample_doc.id
         assert data["parent_id"] == sample_collection.id
-        mock_db.save.assert_called_once()
+        saved_rows = [call.args[0] for call in mock_db.save.call_args_list]
+        assert sum(isinstance(row, Document) for row in saved_rows) == 1
+        assert sum(isinstance(row, ActionAudit) for row in saved_rows) == 1
 
     def test_move_document_to_root(self, client, mock_db, sample_doc):
         """Move document to root (no parent)."""

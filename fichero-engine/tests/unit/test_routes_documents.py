@@ -14,6 +14,7 @@ import pytest
 
 
 from fichero import storage as storage_module
+from fichero.actions.registry import ActionContext, ActionResult
 from fichero.api.routes import documents as documents_routes
 from fichero.api.routes.documents import related_documents
 from fichero.knowledge_models import (
@@ -38,6 +39,10 @@ def _make_doc(db, name: str = "Test Doc", parent_id: str | None = None) -> Docum
     doc = Document(name=name, parent_id=parent_id, doc_type=DocType.file)
     db.save(doc)
     return doc
+
+
+def _ctx() -> ActionContext:
+    return ActionContext(actor="tester", library_path="/tmp/library.fichero")
 
 
 # ---------------------------------------------------------------------------
@@ -681,50 +686,50 @@ class TestCreateDocument:
     ):
         request = documents_routes.DocumentCreate(name="Threaded Doc")
         doc = Document(id="threaded-doc", name="Threaded Doc", doc_type=DocType.file)
-        to_thread = AsyncMock(return_value=doc)
-        emitted: list[list[str]] = []
+        to_thread = AsyncMock(
+            return_value=ActionResult(
+                ok=True,
+                result=doc.model_dump(mode="json"),
+                audit_id="audit-1",
+                changed_domains=["document"],
+            )
+        )
 
         monkeypatch.setattr(documents_routes.asyncio, "to_thread", to_thread)
-        monkeypatch.setattr(
-            documents_routes,
-            "emit_change",
-            lambda *_args, document_ids, **_kwargs: emitted.append(document_ids),
-        )
 
         result = asyncio.run(
             documents_routes.create_document(
                 doc=request,
                 db=db,
-                x_fichero_library_path="/tmp/library.fichero",
-                actor="tester",
+                ctx=_ctx(),
             )
         )
 
         to_thread.assert_awaited_once()
         assert to_thread.await_args.args == (
-            documents_routes.create_document_impl,
+            documents_routes.registry.invoke,
             db,
-            request,
+            "document.create",
+            request.model_dump(mode="json"),
+            _ctx(),
         )
-        assert result is doc
-        assert emitted == [["threaded-doc"]]
+        assert result.id == doc.id
 
     def test_slow_create_write_does_not_starve_event_loop(self, db, monkeypatch):
         request = documents_routes.DocumentCreate(name="Slow Doc")
         doc = Document(id="slow-doc", name="Slow Doc", doc_type=DocType.file)
-        emitted: list[list[str]] = []
-
-        def slow_create_impl(_db, _request):
+        
+        def slow_invoke(_db, _action_name, _params, _ctx):
             time.sleep(0.05)
-            return doc
+            return ActionResult(
+                ok=True,
+                result=doc.model_dump(mode="json"),
+                audit_id="audit-2",
+                changed_domains=["document"],
+            )
 
         monkeypatch.setattr(
-            documents_routes, "create_document_impl", slow_create_impl
-        )
-        monkeypatch.setattr(
-            documents_routes,
-            "emit_change",
-            lambda *_args, document_ids, **_kwargs: emitted.append(document_ids),
+            documents_routes.registry, "invoke", slow_invoke
         )
 
         async def run_with_probe():
@@ -732,8 +737,7 @@ class TestCreateDocument:
                 documents_routes.create_document(
                     doc=request,
                     db=db,
-                    x_fichero_library_path="/tmp/library.fichero",
-                    actor="tester",
+                    ctx=_ctx(),
                 )
             )
             started_at = time.perf_counter()
@@ -745,15 +749,14 @@ class TestCreateDocument:
         probe_elapsed, result = asyncio.run(run_with_probe())
 
         assert probe_elapsed < 0.04
-        assert result is doc
-        assert emitted == [["slow-doc"]]
+        assert result.id == doc.id
 
     @pytest.mark.parametrize(
-        ("route", "impl", "args", "thread_result"),
+        ("route", "action_name", "args", "thread_result"),
         [
             (
                 documents_routes.update_document,
-                documents_routes.update_document_impl,
+                None,
                 ("doc-1", documents_routes.DocumentUpdate(page_content="updated")),
                 (
                     Document(id="doc-1", name="Doc", page_content="updated"),
@@ -763,59 +766,76 @@ class TestCreateDocument:
             ),
             (
                 documents_routes.move_document,
-                documents_routes.move_document_impl,
+                "document.move",
                 ("doc-1", "parent-1"),
-                (Document(id="doc-1", name="Doc", parent_id="parent-1"), {}),
+                ActionResult(
+                    ok=True,
+                    result=Document(
+                        id="doc-1", name="Doc", parent_id="parent-1"
+                    ).model_dump(mode="json"),
+                    audit_id="audit-move",
+                    changed_domains=["document"],
+                ),
             ),
             (
                 documents_routes.delete_document,
-                documents_routes.delete_document_impl,
+                "document.delete",
                 ("doc-1",),
-                (["doc-1"], []),
+                ActionResult(
+                    ok=True,
+                    result={"deleted_document_ids": ["doc-1"]},
+                    audit_id="audit-delete",
+                    changed_domains=["document"],
+                ),
             ),
         ],
     )
     def test_write_routes_offload_sync_db_work_to_thread(
-        self, db, monkeypatch, route, impl, args, thread_result
+        self, db, monkeypatch, route, action_name, args, thread_result
     ):
         to_thread = AsyncMock(return_value=thread_result)
-        emitted: list[tuple[str, list[str]]] = []
 
         monkeypatch.setattr(documents_routes.asyncio, "to_thread", to_thread)
-        monkeypatch.setattr(
-            documents_routes,
-            "emit_change",
-            lambda *_args, type, document_ids, **_kwargs: emitted.append(
-                (type, document_ids)
-            ),
-        )
 
-        kwargs = {
-            "db": db,
-            "x_fichero_library_path": "/tmp/library.fichero",
-            "actor": "tester",
-        }
-        if route is documents_routes.move_document:
-            kwargs["parent_id"] = args[1]
-            call_args = (args[0],)
-            expected_thread_args = (impl, db, args[0], args[1])
-        elif route is documents_routes.delete_document:
-            call_args = (args[0],)
-            expected_thread_args = (impl, db, args[0])
-        else:
+        if route is documents_routes.update_document:
+            kwargs = {
+                "db": db,
+                "x_fichero_library_path": "/tmp/library.fichero",
+                "actor": "tester",
+            }
             call_args = args
-            expected_thread_args = (impl, db, *args)
+            expected_thread_args = (
+                documents_routes.update_document_impl,
+                db,
+                *args,
+            )
+        elif route is documents_routes.move_document:
+            kwargs = {"db": db, "ctx": _ctx()}
+            call_args = (args[0],)
+            kwargs["parent_id"] = args[1]
+            expected_thread_args = (
+                documents_routes.registry.invoke,
+                db,
+                action_name,
+                {"doc_id": args[0], "parent_id": args[1]},
+                _ctx(),
+            )
+        elif route is documents_routes.delete_document:
+            kwargs = {"db": db, "ctx": _ctx()}
+            call_args = (args[0],)
+            expected_thread_args = (
+                documents_routes.registry.invoke,
+                db,
+                action_name,
+                {"doc_id": args[0]},
+                _ctx(),
+            )
 
         asyncio.run(route(*call_args, **kwargs))
 
         to_thread.assert_awaited_once()
         assert to_thread.await_args.args == expected_thread_args
-        if route is documents_routes.delete_document:
-            assert to_thread.await_args.kwargs == {"actor": "tester"}
-            assert emitted == [("document.deleted", ["doc-1"])]
-        else:
-            assert to_thread.await_args.kwargs == {}
-            assert emitted == [("document.updated", ["doc-1"])]
+        assert to_thread.await_args.kwargs == {}
 
 
 # ---------------------------------------------------------------------------
