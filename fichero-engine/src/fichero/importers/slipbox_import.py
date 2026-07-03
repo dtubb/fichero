@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Iterable
 
 from fichero.db import db_manager
+from fichero.importers.http_client import ImporterHttpClient, ensure_remote_document
 from fichero.ingest import IngestMode, detect_file_type, ingest_file
 from fichero.models import DocType, Document, Status
 from fichero.xml_security import iterparse_xml
@@ -211,6 +212,131 @@ def import_slipbox(
     )
 
 
+def import_slipbox_via_http(
+    client: ImporterHttpClient,
+    *,
+    library_path: Path = DEFAULT_LIBRARY,
+    filesystem_root: Path = DEFAULT_SLIPBOX_FILESYSTEM,
+    tinderbox_path: Path = DEFAULT_SLIPBOX_TBX,
+    limit: int | None = None,
+    reset: bool = False,
+    auto_embed: bool = True,
+) -> SlipboxImportSummary:
+    library_path = library_path.expanduser().resolve()
+    filesystem_root = filesystem_root.expanduser().resolve()
+    tinderbox_path = tinderbox_path.expanduser().resolve()
+
+    # ponytail: there is no remote reset endpoint yet; keep the old local-path
+    # delete when possible instead of inventing cross-host reset semantics here.
+    if reset and library_path.exists():
+        shutil.rmtree(library_path)
+    client.create_library(str(library_path))
+
+    root = ensure_remote_document(
+        client,
+        name="Daniel Slipbox",
+        path=str(library_path),
+        doc_type="folder",
+        parent_id=None,
+        metadata={"source_type": "slipbox_import"},
+    )
+    tinderbox_parent = ensure_remote_document(
+        client,
+        name="Tinderbox notes",
+        path=str(tinderbox_path),
+        doc_type="folder",
+        parent_id=root["id"],
+        metadata={
+            "source_type": "slipbox_tinderbox",
+            "source_path": str(tinderbox_path),
+        },
+    )
+    fs_parent = ensure_remote_document(
+        client,
+        name="Filesystem notes",
+        path=str(filesystem_root),
+        doc_type="folder",
+        parent_id=root["id"],
+        metadata={
+            "source_type": "slipbox_filesystem",
+            "source_path": str(filesystem_root),
+        },
+    )
+
+    errors: list[str] = []
+    tinderbox_count = 0
+    filesystem_count = 0
+    skipped_count = 0
+
+    if tinderbox_path.exists():
+        for note in iter_tinderbox_notes(tinderbox_path):
+            if limit is not None and tinderbox_count >= limit:
+                break
+            try:
+                ensure_remote_document(
+                    client,
+                    name=note.name,
+                    path=f"tinderbox://{note.external_id}",
+                    doc_type="file",
+                    file_type=str(detect_file_type(Path(f"{note.name}.md")).value),
+                    parent_id=tinderbox_parent["id"],
+                    page_content=note.text,
+                    metadata={
+                        "source_type": "slipbox_tinderbox",
+                        "tinderbox_id": note.external_id,
+                        "tinderbox_prototype": note.prototype,
+                        "tinderbox_creator": note.creator,
+                        "tinderbox_attributes": note.attributes,
+                    },
+                )
+                tinderbox_count += 1
+            except Exception as exc:  # pragma: no cover
+                errors.append(f"tinderbox:{note.external_id}: {exc}")
+    else:
+        errors.append(f"Tinderbox file not found: {tinderbox_path}")
+
+    if filesystem_root.exists():
+        hierarchy: dict[Path, str] = {filesystem_root: fs_parent["id"]}
+        for file_path in iter_slipbox_files(filesystem_root):
+            if limit is not None and filesystem_count >= limit:
+                break
+            if not _is_importable_file(file_path):
+                skipped_count += 1
+                continue
+            try:
+                parent_id = _ensure_remote_parent_hierarchy(
+                    client=client,
+                    root=filesystem_root,
+                    folder=file_path.parent,
+                    root_parent_id=fs_parent["id"],
+                    cache=hierarchy,
+                )
+                existing = next(
+                    (
+                        doc
+                        for doc in client.list_documents(parent_id=parent_id)
+                        if getattr(doc, "path", None) == str(file_path)
+                    ),
+                    None,
+                )
+                if existing is None:
+                    client.import_file(file_path, parent_id=parent_id)
+                filesystem_count += 1
+            except Exception as exc:
+                errors.append(f"filesystem:{file_path}: {exc}")
+    else:
+        errors.append(f"Filesystem slipbox root not found: {filesystem_root}")
+
+    return SlipboxImportSummary(
+        library_path=library_path,
+        root_document_id=root["id"],
+        tinderbox_notes=tinderbox_count,
+        filesystem_files=filesystem_count,
+        skipped_files=skipped_count,
+        errors=errors,
+    )
+
+
 def _ensure_library_package(library_path: Path) -> None:
     library_path.mkdir(parents=True, exist_ok=True)
     (library_path / "files").mkdir(exist_ok=True)
@@ -280,6 +406,39 @@ def _ensure_parent_hierarchy(
             )
             db.save(doc)
             cache[current_path] = doc.id
+        current_parent = cache[current_path]
+    return current_parent
+
+
+def _ensure_remote_parent_hierarchy(
+    *,
+    client: ImporterHttpClient,
+    root: Path,
+    folder: Path,
+    root_parent_id: str,
+    cache: dict[Path, str],
+) -> str:
+    folder = folder.resolve()
+    if folder in cache:
+        return cache[folder]
+    rel = folder.relative_to(root)
+    current_path = root
+    current_parent = root_parent_id
+    for part in rel.parts:
+        current_path = current_path / part
+        if current_path not in cache:
+            doc = ensure_remote_document(
+                client,
+                name=part,
+                path=str(current_path),
+                doc_type="folder",
+                parent_id=current_parent,
+                metadata={
+                    "source_type": "slipbox_filesystem_folder",
+                    "source_path": str(current_path),
+                },
+            )
+            cache[current_path] = doc["id"]
         current_parent = cache[current_path]
     return current_parent
 
@@ -431,6 +590,7 @@ __all__ = [
     'detect_file_type',
     'field',
     'import_slipbox',
+    'import_slipbox_via_http',
     'ingest_file',
     'iter_slipbox_files',
     'iter_tinderbox_notes',

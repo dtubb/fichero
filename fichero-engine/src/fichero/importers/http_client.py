@@ -21,6 +21,24 @@ class ManifestApiClient(Protocol):
     ) -> Any: ...
 
 
+class ImporterHttpClient(Protocol):
+    def create_library(self, path: str) -> Any: ...
+
+    def import_file(self, path: str | Path, parent_id: str | None = None) -> Any: ...
+
+    def list_documents(self, *, parent_id: str | None = None, **kwargs: Any) -> list[Any]: ...
+
+    def request(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        json: Any = None,
+        files: Any = None,
+    ) -> Any: ...
+
+
 class HttpManifestClient:
     """urllib-based transport for importers that talk to a running engine."""
 
@@ -68,10 +86,46 @@ def resolve_http_token(token_file: Path = DEFAULT_TOKEN_FILE) -> str:
     return token_file.read_text(encoding="utf-8").strip()
 
 
+def ensure_remote_document(
+    client: ImporterHttpClient,
+    *,
+    name: str,
+    path: str,
+    doc_type: str,
+    parent_id: str | None,
+    status: str = "completed",
+    file_type: str | None = None,
+    page_content: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "name": name,
+        "path": path,
+        "doc_type": doc_type,
+        "parent_id": parent_id,
+        "status": status,
+    }
+    if file_type is not None:
+        payload["file_type"] = file_type
+    if page_content is not None:
+        payload["page_content"] = page_content
+    if metadata is not None:
+        payload["metadata"] = metadata
+
+    for existing in client.list_documents(parent_id=parent_id):
+        existing_path = getattr(existing, "path", None)
+        existing_type = getattr(getattr(existing, "doc_type", None), "value", None) or getattr(existing, "doc_type", None)
+        if existing_path == path and existing_type == doc_type:
+            return client.request("PUT", f"/api/documents/{existing.id}", json=payload)
+    return client.request("POST", "/api/documents", json=payload)
+
+
 __all__ = [
     "DEFAULT_API_BASE",
     "DEFAULT_TOKEN_FILE",
     "HttpManifestClient",
+    "ImporterHttpClient",
     "ManifestApiClient",
+    "ensure_remote_document",
     "resolve_http_token",
 ]

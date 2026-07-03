@@ -627,6 +627,7 @@ def import_file(
 
 @app.command(name="import-slipbox")
 def import_slipbox_command(
+    ctx: typer.Context,
     library_path: Path = typer.Option(
         Path("~/Library/Application Support/Fichero/Slipbox.fichero"),
         "--library-path",
@@ -662,18 +663,23 @@ def import_slipbox_command(
     ),
 ) -> None:
     """Import Daniel's slipbox into a fresh/searchable Fichero catalogue."""
-
-    from fichero.slipbox_import import import_slipbox
+    from fichero.importers.slipbox_import import import_slipbox_via_http
 
     try:
-        summary = import_slipbox(
-            library_path=library_path,
-            filesystem_root=filesystem_root,
-            tinderbox_path=tinderbox_path,
-            limit=limit,
-            reset=reset,
-            auto_embed=not no_embed,
-        )
+        with FicheroClient(
+            base_url=ctx.obj["base_url"],
+            library_path=str(library_path),
+            token=ctx.obj["token"],
+        ) as client:
+            summary = import_slipbox_via_http(
+                client,
+                library_path=library_path,
+                filesystem_root=filesystem_root,
+                tinderbox_path=tinderbox_path,
+                limit=limit,
+                reset=reset,
+                auto_embed=not no_embed,
+            )
     except Exception as exc:
         typer.secho(f"Slipbox import failed: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
