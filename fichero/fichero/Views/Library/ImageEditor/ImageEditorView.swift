@@ -540,7 +540,7 @@ private extension ImageEditorView {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(red: 253/255, green: 253/255, blue: 253/255, opacity: 1))
+        .background(Color(platformColor: .textBackgroundColor))
     }
 
     private func comparePane(image: PlatformImage, pixelSize: CGSize, title: String) -> some View {

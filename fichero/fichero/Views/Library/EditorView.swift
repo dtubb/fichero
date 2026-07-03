@@ -227,7 +227,7 @@ struct EditorView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .background(Color(red: 253/255, green: 253/255, blue: 253/255, opacity: 1))
+        .background(Color(platformColor: .textBackgroundColor))
     }
 
     // MARK: - Generic Preview
@@ -260,7 +260,7 @@ struct EditorView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxHeight: 200)
-                .background(Color(red: 253/255, green: 253/255, blue: 253/255, opacity: 1))
+                .background(Color(platformColor: .textBackgroundColor))
                 .cornerRadius(8)
                 .padding(.horizontal)
             }

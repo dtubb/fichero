@@ -10,6 +10,7 @@ struct NotesInspectorPane: View {
     @Environment(NoteStore.self) private var noteStore
     @EnvironmentObject private var windowState: WindowState
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
 
     @Bindable var focused: FocusedNote
 
@@ -63,6 +64,9 @@ struct NotesInspectorPane: View {
     }
 
     private func openDetailWindow() {
+        // No-op on single-window platforms (iPhone) so the button isn't a silent
+        // dead affordance (#2805).
+        guard supportsMultipleWindows else { return }
         focused.resolve(in: notes)
         openWindow(id: "note-detail")
     }

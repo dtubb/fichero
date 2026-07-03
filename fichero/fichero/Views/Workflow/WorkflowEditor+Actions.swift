@@ -22,7 +22,11 @@ extension WorkflowEditor {
             name: editingWorkflow.name,
             threadId: executionThreadId
         )
-        openWindow(id: "activity-monitor")
+        // The workflow still runs; only skip popping the monitor window on
+        // single-window platforms (iPhone), where it's a silent no-op (#2805).
+        if supportsMultipleWindows {
+            openWindow(id: "activity-monitor")
+        }
 
         actionsLogger.info("Run workflow: \(editingWorkflow.name)")
 
