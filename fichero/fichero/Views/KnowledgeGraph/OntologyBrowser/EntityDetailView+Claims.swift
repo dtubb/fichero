@@ -140,12 +140,18 @@ extension EntityDetailView {
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .sheet(isPresented: $showContradictionTriageSheet) {
             ContradictionTriageSheet(entity: entity, claims: filteredClaims)
+                // Fixed sizing is a Mac window affordance; on iPhone/iPad the
+                // sheet must size to the screen or it clips (#2802).
+                #if os(macOS)
                 .frame(minWidth: 980, minHeight: 640)
+                #endif
                 .padding(16)
         }
         .sheet(isPresented: $showClaimReviewQueueSheet) {
             ClaimReviewQueueSheet(entity: entity, claims: filteredClaims)
+                #if os(macOS)
                 .frame(minWidth: 920, minHeight: 620)
+                #endif
                 .padding(16)
         }
         .alert("Delete Claims?", isPresented: $showingDeleteClaimsConfirmation) {
