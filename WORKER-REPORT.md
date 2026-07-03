@@ -1,0 +1,1 @@
+2026-07-02, f_fichero_codex_docs: added `docs/architecture/ios_ipad_interaction_model.md`, grounded in current SwiftUI shell code and clearly separating current iPhone/iPad behavior from planned EPIC `#2810` targets; `mkdocs build --strict` passed.
