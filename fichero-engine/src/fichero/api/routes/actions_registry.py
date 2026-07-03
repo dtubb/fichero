@@ -293,6 +293,10 @@ class AclSetParams(BaseModel):
     role: str | None = Field(default=None, description="owner/editor/viewer")
     target_id: str | None = Field(default=None, description="Folder/file id override")
     effect: str | None = Field(default=None, description="grant/deny override")
+    remove: bool = Field(
+        default=False,
+        description="Revoke: remove the user's whole-library role (fail-closed)",
+    )
 
 
 @action("acl.set", AclSetParams, domains=["authz"], undoable=False)
@@ -300,6 +304,26 @@ def _acl_set(_db: Database, params: AclSetParams, ctx: ActionContext):
     """Owner-only ACL mutation through the shared registry write path."""
     changes: dict[str, Any] = {"user": params.user}
     target_ids: list[str] = []
+
+    if params.remove:
+        # Revoke = drop the whole-library role. Overrides are subtree-scoped and
+        # out of scope here; a role-less user is denied by the fail-closed
+        # choke point. Owner-gated inside authz.remove_role.
+        authz.remove_role(
+            actor=ctx.actor,
+            library=ctx.library_path,
+            user=params.user,
+        )
+        changes["removed_role"] = True
+        return (
+            changes,
+            ChangeSpec(
+                domains=["authz"],
+                target_ids=target_ids,
+                after=changes,
+                emit_type="authz.changed",
+            ),
+        )
 
     if params.role is not None:
         role = authz.set_role(

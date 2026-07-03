@@ -1092,6 +1092,15 @@ class AppDatabase:
             ).fetchall()
         return [self._row_to_library_role(row) for row in rows]
 
+    def delete_library_role(self, user_id: str, library_path: str) -> None:
+        """Remove a user's role for one library (revoke). Idempotent."""
+        with self._lock:
+            self.conn.execute(
+                "DELETE FROM library_roles WHERE user_id = ? AND library_path = ?",
+                [user_id, library_path],
+            )
+            self.conn.commit()
+
     def set_library_acl_override(
         self,
         *,

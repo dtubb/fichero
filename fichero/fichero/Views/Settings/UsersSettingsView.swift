@@ -252,6 +252,17 @@ extension UsersContent {
             .pickerStyle(.menu)
             .frame(width: 120)
             .disabled(isApplyingRoleChange || !isRoleEditable())
+
+            // Revoke, hidden for your own row — the engine also refuses a
+            // self-revoke so the sole owner can't lock themselves out.
+            if isRoleEditable(), role.userId != store.currentUser?.id {
+                Button("Remove") {
+                    Task { await revokeRole(userId: role.userId) }
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(.red)
+                .disabled(isApplyingRoleChange)
+            }
         }
         .padding(.vertical, 2)
     }
@@ -408,6 +419,22 @@ extension UsersContent {
         } catch {
             authzError = error.localizedDescription
             pendingRoleDrafts.removeValue(forKey: userId)
+        }
+    }
+
+    @MainActor
+    fileprivate func revokeRole(userId: String) async {
+        guard authzSnapshot?.canManageRoles == true else { return }
+        isApplyingRoleChange = true
+        authzError = nil
+        defer { isApplyingRoleChange = false }
+
+        do {
+            try await library.actionsService.revokeLibraryRole(userId: userId)
+            await refreshAuthz()
+            syncAddMemberDefaults()
+        } catch {
+            authzError = error.localizedDescription
         }
     }
 

@@ -18,6 +18,10 @@ struct LibrarySharingBadge: View {
     @State private var showPopover = false
     @State private var isLoadingMembers = false
     @State private var membersError: String?
+    @State private var isApplying = false
+    @State private var manageError: String?
+
+    private let sharingRoles = ["owner", "editor", "viewer"]
 
     var body: some View {
         Group {
@@ -77,26 +81,60 @@ struct LibrarySharingBadge: View {
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(members, id: \.userId) { member in
-                    HStack(spacing: 8) {
-                        Image(systemName: member.isOwnerAccount ? "crown" : "person")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(member.displayName)
-                            Text("@\(member.username)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer(minLength: 12)
-                        Text(member.role.capitalized)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                    memberRow(member)
                 }
+            }
+
+            if let manageError {
+                Text(manageError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
             }
         }
         .padding(12)
         .frame(width: 260)
+    }
+
+    @ViewBuilder
+    private func memberRow(_ member: Components.Schemas.LibraryMember) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: member.isOwnerAccount ? "crown" : "person")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(member.displayName)
+                Text("@\(member.username)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 12)
+            // Owners manage roles inline (change / revoke). Your own row and
+            // non-owner viewers just show the role — the engine enforces both.
+            if canManage, member.userId != snapshot?.currentUserId {
+                Menu(member.role.capitalized) {
+                    ForEach(sharingRoles, id: \.self) { roleName in
+                        Button(roleName.capitalized) {
+                            Task { await changeRole(userId: member.userId, role: roleName) }
+                        }
+                    }
+                    Divider()
+                    Button("Remove", role: .destructive) {
+                        Task { await revoke(userId: member.userId) }
+                    }
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .disabled(isApplying)
+            } else {
+                Text(member.role.capitalized)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var canManage: Bool {
+        snapshot?.canManageRoles == true
     }
 
     private func loadSnapshot() async {
@@ -118,6 +156,34 @@ struct LibrarySharingBadge: View {
         } catch {
             members = []
             membersError = error.localizedDescription
+        }
+    }
+
+    private func changeRole(userId: String, role: String) async {
+        await applyManagement {
+            _ = try await library.actionsService.setLibraryRole(userId: userId, role: role)
+        }
+    }
+
+    private func revoke(userId: String) async {
+        await applyManagement {
+            _ = try await library.actionsService.revokeLibraryRole(userId: userId)
+        }
+    }
+
+    /// Run an owner-only ACL mutation, then refresh both the snapshot (your own
+    /// manage rights may have changed) and the member list.
+    private func applyManagement(_ mutate: () async throws -> Void) async {
+        guard canManage else { return }
+        isApplying = true
+        manageError = nil
+        defer { isApplying = false }
+        do {
+            try await mutate()
+            await loadSnapshot()
+            await loadMembers()
+        } catch {
+            manageError = error.localizedDescription
         }
     }
 }
