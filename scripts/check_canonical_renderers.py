@@ -156,6 +156,8 @@ def _strip_comments_and_previews(source: str) -> str:
 
 def _is_renderer_name(name: str) -> bool:
     low = name.lower()
+    if low.startswith(("make", "build")):
+        return False
     return any(d in low for d in DOMAIN_MARKERS) and any(r in low for r in RENDERER_MARKERS)
 
 
