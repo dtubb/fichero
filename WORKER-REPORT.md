@@ -1,0 +1,1 @@
+2026-07-03 #2820: routed mind-palace room create/update/delete through the action registry while preserving node-backed dual-write responses and change-stream emit; targeted room audit bundle green (120 passed, 7 xfailed).

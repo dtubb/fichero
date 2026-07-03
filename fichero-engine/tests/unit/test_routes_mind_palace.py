@@ -518,10 +518,6 @@ def _assert_room_mutation_audited(db, room_id: str) -> ActionAudit:
 
 
 class TestRoomWriteMutationInvariants:
-    @pytest.mark.xfail(
-        reason="mind-palace room create still bypasses registry.invoke / emit_change (#1848 / #1863)",
-        strict=True,
-    )
     def test_create_room_writes_audit_and_emits_change(self, client, db, monkeypatch):
         emit_calls: list[tuple[tuple, dict]] = []
         monkeypatch.setattr(
@@ -546,10 +542,6 @@ class TestRoomWriteMutationInvariants:
         assert emit_calls[-1][1]["actor"] == audit.actor
         assert room_id in (emit_calls[-1][1].get("document_ids") or [])
 
-    @pytest.mark.xfail(
-        reason="mind-palace room update still bypasses registry.invoke / emit_change (#1848 / #1863)",
-        strict=True,
-    )
     def test_update_room_writes_audit_and_emits_change(self, client, db, monkeypatch):
         emit_calls: list[tuple[tuple, dict]] = []
         monkeypatch.setattr(
@@ -577,10 +569,6 @@ class TestRoomWriteMutationInvariants:
         assert emit_calls[-1][1]["actor"] == audit.actor
         assert room.id in (emit_calls[-1][1].get("document_ids") or [])
 
-    @pytest.mark.xfail(
-        reason="mind-palace room delete still bypasses registry.invoke / emit_change (#1848 / #1863)",
-        strict=True,
-    )
     def test_delete_room_writes_audit_and_emits_change(self, client, db, monkeypatch):
         emit_calls: list[tuple[tuple, dict]] = []
         monkeypatch.setattr(
