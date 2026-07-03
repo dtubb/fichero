@@ -17,6 +17,7 @@ struct CitationsInspectorPane: View {
 
     @Environment(CitationStore.self) private var store
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
 
     /// Shared selection — the same instance the detached window observes.
     @State private var focused = FocusedCitation.shared
@@ -63,6 +64,9 @@ struct CitationsInspectorPane: View {
     }
 
     private func openDetailWindow() {
+        // No-op on single-window platforms (iPhone) so the button isn't a silent
+        // dead affordance (#2805).
+        guard supportsMultipleWindows else { return }
         focused.resolve(in: items)
         openWindow(id: "citation-detail")
     }
