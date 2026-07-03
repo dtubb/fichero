@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import duckdb
 from pathlib import Path
 
 from fichero.db import Database
@@ -139,21 +140,23 @@ def test_ensure_table_adds_missing_columns_for_existing_tables(tmp_path: Path):
     """0.0.x rule: adding a model field with a default must not require a migration."""
 
     db_path = tmp_path / "legacy.duckdb"
-    legacy_db = Database(db_path)
-    legacy_db.conn.execute(
-        """
-        CREATE TABLE artifacts (
-            id VARCHAR,
-            document_id VARCHAR,
-            source_artifact_id VARCHAR,
-            version INTEGER,
-            artifact_type VARCHAR,
-            content VARCHAR,
-            PRIMARY KEY (id)
+    legacy_conn = duckdb.connect(str(db_path))
+    try:
+        legacy_conn.execute(
+            """
+            CREATE TABLE artifacts (
+                id VARCHAR,
+                document_id VARCHAR,
+                source_artifact_id VARCHAR,
+                version INTEGER,
+                artifact_type VARCHAR,
+                content VARCHAR,
+                PRIMARY KEY (id)
+            )
+            """
         )
-        """
-    )
-    legacy_db.close()
+    finally:
+        legacy_conn.close()
 
     db = Database(db_path)
     artifact = Artifact(

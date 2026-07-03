@@ -6,7 +6,10 @@ MCP tools provide thin REST wrappers around canonical Knowledge API operations
 """
 
 import pytest
+from fastapi.testclient import TestClient
 
+from fichero import accounts, authz
+from fichero.api.main import app
 from fichero.knowledge_models import (
     KnowledgeEntity,
     KnowledgeClaim,
@@ -47,6 +50,28 @@ def _make_claim(claim_id: str = "claim-1", text: str = "Berlin is in Germany") -
     )
 
 
+def _authed_multiuser_client(monkeypatch, app_db, library_path: str, *, role: str = "viewer") -> TestClient:
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    user = app_db.create_user(
+        username="mcp-user",
+        display_name="MCP User",
+        password_hash=accounts.hash_password("password"),
+        is_owner=(role == "owner"),
+    )
+    app_db.set_library_role(
+        user_id=user.id,
+        library_path=authz.normalize_library_path(library_path),
+        role=role,
+    )
+    raw_token = accounts.new_session_token()
+    app_db.create_device(
+        name="MCP Device",
+        user_id=user.id,
+        token_hash=accounts.hash_token(raw_token),
+    )
+    return TestClient(app, headers={"Authorization": f"Bearer {raw_token}"})
+
+
 # ---------------------------------------------------------------------------
 # POST /api/mcp/tools/knowledge/entities/upsert
 # ---------------------------------------------------------------------------
@@ -84,6 +109,14 @@ class TestMcpEntityUpsert:
             "entity_type": "not-a-valid-type",
         })
         assert r.status_code == 400
+
+    def test_extra_field_returns_422(self, client):
+        r = client.post(f"{BASE}/knowledge/entities/upsert", json={
+            "canonical_name": "Paris",
+            "entity_type": "location",
+            "unexpected": True,
+        })
+        assert r.status_code == 422
 
 
 # ---------------------------------------------------------------------------
@@ -127,6 +160,14 @@ class TestMcpClaimCreate:
             "claim_type": "bad-type",
         })
         assert r.status_code == 400
+
+    def test_extra_field_returns_422(self, client):
+        r = client.post(f"{BASE}/knowledge/claims/create", json={
+            "text": "The Eiffel Tower is in Paris.",
+            "source_document_id": "doc-1",
+            "unexpected": True,
+        })
+        assert r.status_code == 422
 
 
 # ---------------------------------------------------------------------------
@@ -238,6 +279,10 @@ class TestMcpEntityList:
         assert r.status_code == 200
         assert len(r.json()["entities"]) == 1
 
+    def test_limit_is_bounded(self, client):
+        r = client.get(f"{BASE}/knowledge/entities?limit=1000")
+        assert r.status_code == 422
+
 
 # ---------------------------------------------------------------------------
 # GET /api/mcp/tools/knowledge/claims
@@ -267,3 +312,30 @@ class TestMcpClaimList:
         r = client.get(f"{BASE}/knowledge/claims?q=napoleon")
         assert r.status_code == 200
         assert len(r.json()["claims"]) == 1
+
+    def test_limit_is_bounded(self, client):
+        r = client.get(f"{BASE}/knowledge/claims?limit=1000")
+        assert r.status_code == 422
+
+
+class TestMcpToolAuth:
+    def test_multiuser_requires_real_auth(self, monkeypatch, app_db, test_package):
+        monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+        unauth_client = TestClient(app)
+
+        response = unauth_client.get(
+            f"{BASE}/knowledge/entities",
+            headers={"Authorization": "Bearer wrong-token"},
+        )
+
+        assert response.status_code == 401
+
+    def test_multiuser_authenticated_request_succeeds(self, monkeypatch, app_db, test_package):
+        authed_client = _authed_multiuser_client(monkeypatch, app_db, str(test_package))
+
+        response = authed_client.get(
+            f"{BASE}/knowledge/entities",
+            headers={"X-Fichero-Library-Path": str(test_package)},
+        )
+
+        assert response.status_code == 200

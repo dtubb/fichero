@@ -30,6 +30,8 @@ from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
+EmitFn = Callable[["ActionContext", "ChangeSpec"], None]
+
 
 # =============================================================================
 # Context, result, and the change spec returned by execute()
@@ -86,6 +88,7 @@ class ChangeSpec:
     citation_ids: list[str] = field(default_factory=list)
     reference_ids: list[str] = field(default_factory=list)
     interpretation_ids: list[str] = field(default_factory=list)
+    emit_fn: EmitFn | None = None
 
 
 # Type aliases for the action callables.
@@ -115,6 +118,7 @@ class ActionRegistration:
     domains: list[str]
     undoable: bool = False
     invert: InvertFn | None = None
+    atomic: bool = True
 
 
 class ActionNotFoundError(KeyError):
@@ -183,21 +187,36 @@ class ActionRegistry:
         for target_id in target_ids:
             authz.assert_can_write(ctx.actor, ctx.library_path, target_id)
 
-        result, spec = reg.execute(db, params, ctx)
+        if reg.atomic:
+            with db.transaction():
+                result, spec = reg.execute(db, params, ctx)
 
-        # Audit write is NOT best-effort: if it fails the action fails. The
-        # before/after captured by execute ARE the undo payload.
-        audit = ActionAudit(
-            action_name=name,
-            actor=ctx.actor,
-            target_ids=list(spec.target_ids),
-            params=params.model_dump(mode="json"),
-            before=spec.before,
-            after=spec.after,
-            run_id=ctx.run_id,
-            inverse_of=inverse_of,
-        )
-        save_chained_audit(db, audit)
+                # Audit write is NOT best-effort: if it fails the action fails. The
+                # before/after captured by execute ARE the undo payload.
+                audit = ActionAudit(
+                    action_name=name,
+                    actor=ctx.actor,
+                    target_ids=list(spec.target_ids),
+                    params=params.model_dump(mode="json"),
+                    before=spec.before,
+                    after=spec.after,
+                    run_id=ctx.run_id,
+                    inverse_of=inverse_of,
+                )
+                save_chained_audit(db, audit)
+        else:
+            result, spec = reg.execute(db, params, ctx)
+            audit = ActionAudit(
+                action_name=name,
+                actor=ctx.actor,
+                target_ids=list(spec.target_ids),
+                params=params.model_dump(mode="json"),
+                before=spec.before,
+                after=spec.after,
+                run_id=ctx.run_id,
+                inverse_of=inverse_of,
+            )
+            save_chained_audit(db, audit)
 
         # Broadcast to the observable layer — best-effort, never breaks the action.
         self._emit(ctx, spec)
@@ -210,6 +229,12 @@ class ActionRegistry:
         )
 
     def _emit(self, ctx: ActionContext, spec: ChangeSpec) -> None:
+        if spec.emit_fn is not None:
+            try:
+                spec.emit_fn(ctx, spec)
+            except Exception as exc:  # pragma: no cover - emit is already best-effort
+                logger.debug("action custom emit_change failed (ignored): %s", exc)
+            return
         if not ctx.library_path or not spec.emit_type:
             return
         from fichero.api.change_stream import (
@@ -247,6 +272,7 @@ def action(
     domains: list[str],
     undoable: bool = False,
     invert: InvertFn | None = None,
+    atomic: bool = True,
 ) -> Callable[[ExecuteFn], ExecuteFn]:
     """Decorator: register ``fn`` as the action ``name``.
 
@@ -262,6 +288,7 @@ def action(
                 domains=list(domains),
                 undoable=undoable,
                 invert=invert,
+                atomic=atomic,
             )
         )
         return fn

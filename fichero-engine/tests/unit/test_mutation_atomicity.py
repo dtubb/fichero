@@ -79,6 +79,13 @@ def _invoke_note_create(db: Database) -> tuple[Callable[[], object], Callable[[]
     return _call, _assert_rolled_back, "note.create"
 
 
+def _assert_note_create_committed(
+    db: Database, before_count: int, before_audits: int
+) -> None:
+    assert _note_count(db) == before_count + 1
+    assert _count_audits(db, "note.create") == before_audits + 1
+
+
 def _invoke_document_create(
     db: Database,
 ) -> tuple[Callable[[], object], Callable[[], None], str]:
@@ -93,6 +100,13 @@ def _invoke_document_create(
         assert _count_audits(db, "document.create") == before_audits
 
     return _call, _assert_rolled_back, "document.create"
+
+
+def _assert_document_create_committed(
+    db: Database, before_count: int, before_audits: int
+) -> None:
+    assert _document_count(db) == before_count + 1
+    assert _count_audits(db, "document.create") == before_audits + 1
 
 
 def _invoke_entity_create(
@@ -114,6 +128,13 @@ def _invoke_entity_create(
         assert _count_audits(db, "entity.create") == before_audits
 
     return _call, _assert_rolled_back, "entity.create"
+
+
+def _assert_entity_create_committed(
+    db: Database, before_count: int, before_audits: int
+) -> None:
+    assert _entity_count(db) == before_count + 1
+    assert _count_audits(db, "entity.create") == before_audits + 1
 
 
 def _invoke_document_move(
@@ -143,6 +164,95 @@ def _invoke_document_move(
         assert _count_audits(db, "document.move") == before_audits
 
     return _call, _assert_rolled_back, "document.move"
+
+
+def _assert_document_move_committed(
+    db: Database, doc_id: str, target_parent_id: str, before_audits: int
+) -> None:
+    reloaded = db.get(Document, doc_id)
+    assert reloaded is not None
+    assert reloaded.parent_id == target_parent_id
+    assert _count_audits(db, "document.move") == before_audits + 1
+
+
+def _emit_note_create_case(
+    db: Database,
+) -> tuple[Callable[[], object], Callable[[], None], str]:
+    before_count = _note_count(db)
+    before_audits = _count_audits(db, "note.create")
+
+    def _call():
+        return registry.invoke(
+            db,
+            "note.create",
+            {"title": "Atomicity Note", "body": "body"},
+            _ctx(),
+        )
+
+    def _assert_committed():
+        _assert_note_create_committed(db, before_count, before_audits)
+
+    return _call, _assert_committed, "fichero.api.routes.notes.emit_change"
+
+
+def _emit_document_create_case(
+    db: Database,
+) -> tuple[Callable[[], object], Callable[[], None], str]:
+    before_count = _document_count(db)
+    before_audits = _count_audits(db, "document.create")
+
+    def _call():
+        return registry.invoke(db, "document.create", {"name": "Atomic Doc"}, _ctx())
+
+    def _assert_committed():
+        _assert_document_create_committed(db, before_count, before_audits)
+
+    return _call, _assert_committed, "fichero.api.routes.documents.emit_change"
+
+
+def _emit_entity_create_case(
+    db: Database,
+) -> tuple[Callable[[], object], Callable[[], None], str]:
+    before_count = _entity_count(db)
+    before_audits = _count_audits(db, "entity.create")
+
+    def _call():
+        return registry.invoke(
+            db,
+            "entity.create",
+            {"canonical_name": "Atomic Entity"},
+            _ctx(),
+        )
+
+    def _assert_committed():
+        _assert_entity_create_committed(db, before_count, before_audits)
+
+    return _call, _assert_committed, "fichero.api.routes.entities.emit_change"
+
+
+def _emit_document_move_case(
+    db: Database,
+) -> tuple[Callable[[], object], Callable[[], None], str]:
+    source = Document(name="Source", doc_type=DocType.folder)
+    target = Document(name="Target", doc_type=DocType.folder)
+    doc = Document(name="Move Me", parent_id=source.id)
+    db.save(source)
+    db.save(target)
+    db.save(doc)
+    before_audits = _count_audits(db, "document.move")
+
+    def _call():
+        return registry.invoke(
+            db,
+            "document.move",
+            {"doc_id": doc.id, "parent_id": target.id},
+            _ctx(),
+        )
+
+    def _assert_committed():
+        _assert_document_move_committed(db, doc.id, target.id, before_audits)
+
+    return _call, _assert_committed, "fichero.api.routes.documents.emit_change"
 
 
 @pytest.mark.parametrize(
@@ -182,50 +292,10 @@ def test_storage_failure_rolls_back_without_audit_or_emit(
 @pytest.mark.parametrize(
     ("label", "builder"),
     [
-        pytest.param(
-            "note.create",
-            _invoke_note_create,
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason=(
-                    "note.create persists the Note before save_chained_audit; "
-                    "an audit insert failure leaves the row behind without ActionAudit."
-                ),
-            ),
-        ),
-        pytest.param(
-            "document.create",
-            _invoke_document_create,
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason=(
-                    "document.create persists the Document before save_chained_audit; "
-                    "an audit insert failure leaves the row behind without ActionAudit."
-                ),
-            ),
-        ),
-        pytest.param(
-            "entity.create",
-            _invoke_entity_create,
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason=(
-                    "entity.create persists the KnowledgeEntity before save_chained_audit; "
-                    "an audit insert failure leaves the row behind without ActionAudit."
-                ),
-            ),
-        ),
-        pytest.param(
-            "document.move",
-            _invoke_document_move,
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason=(
-                    "document.move saves the new parent_id before save_chained_audit; "
-                    "an audit insert failure leaves the reparent applied without ActionAudit."
-                ),
-            ),
-        ),
+        ("note.create", _invoke_note_create),
+        ("document.create", _invoke_document_create),
+        ("entity.create", _invoke_entity_create),
+        ("document.move", _invoke_document_move),
     ],
 )
 def test_audit_failure_does_not_leave_persisted_state_or_emit(
@@ -250,73 +320,27 @@ def test_audit_failure_does_not_leave_persisted_state_or_emit(
 
 
 @pytest.mark.parametrize(
-    ("label", "builder", "emit_symbol"),
+    ("label", "builder"),
     [
-        pytest.param(
-            "note.create",
-            _invoke_note_create,
-            "fichero.api.routes.notes.emit_change",
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason=(
-                    "note.create emits inside the action handler after db.save; "
-                    "an emit failure leaves the Note persisted without ActionAudit."
-                ),
-            ),
-        ),
-        pytest.param(
-            "document.create",
-            _invoke_document_create,
-            "fichero.api.routes.documents.emit_change",
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason=(
-                    "document.create emits inside the action handler after db.save; "
-                    "an emit failure leaves the Document persisted without ActionAudit."
-                ),
-            ),
-        ),
-        pytest.param(
-            "entity.create",
-            _invoke_entity_create,
-            "fichero.api.routes.entities.emit_change",
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason=(
-                    "entity.create emits inside the action handler after db.save; "
-                    "an emit failure leaves the KnowledgeEntity persisted without ActionAudit."
-                ),
-            ),
-        ),
-        pytest.param(
-            "document.move",
-            _invoke_document_move,
-            "fichero.api.routes.documents.emit_change",
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason=(
-                    "document.move emits inside the action handler after db.save; "
-                    "an emit failure leaves the new parent_id persisted without ActionAudit."
-                ),
-            ),
-        ),
+        ("note.create", _emit_note_create_case),
+        ("document.create", _emit_document_create_case),
+        ("entity.create", _emit_entity_create_case),
+        ("document.move", _emit_document_move_case),
     ],
 )
-def test_emit_failure_does_not_leave_persisted_state_or_audit(
+def test_emit_failure_is_best_effort_after_commit(
     label: str,
     builder: Callable[[Database], tuple[Callable[[], object], Callable[[], None], str]],
-    emit_symbol: str,
     db,
     monkeypatch,
 ):
-    call, assert_rolled_back, _action_name = builder(db)
+    call, assert_committed, emit_symbol = builder(db)
 
     def _boom(*args, **kwargs):
         raise RuntimeError(f"boom emit {label}")
 
     monkeypatch.setattr(emit_symbol, _boom)
 
-    with pytest.raises(RuntimeError, match=f"boom emit {label}"):
-        call()
-
-    assert_rolled_back()
+    result = call()
+    assert result.ok is True
+    assert_committed()
