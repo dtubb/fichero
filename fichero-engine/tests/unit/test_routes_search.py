@@ -819,6 +819,83 @@ class TestSaveSearch:
         queries = [s["query"] for s in r.json()["items"]]
         assert "find this" in queries
 
+    def test_saved_search_query_executes_through_search_endpoint(self, client, db, monkeypatch):
+        doc = Document(
+            id="saved-search-doc",
+            name="saved-search.txt",
+            page_content="Camilo appears in the saved search result set.",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+        )
+        db.save(doc)
+
+        created = client.post(
+            "/api/search/saved",
+            json={"query": "Camilo", "search_type": "hybrid"},
+        )
+        assert created.status_code == 200
+
+        saved = next(
+            item
+            for item in client.get("/api/search/saved").json()["items"]
+            if item["id"] == created.json()["id"]
+        )
+        to_thread = AsyncMock(
+            return_value=_mock_content_search(doc)
+        )
+        monkeypatch.setattr(search_routes.asyncio, "to_thread", to_thread)
+
+        executed = client.post(
+            "/api/search",
+            json={
+                "query": saved["query"],
+                "search_type": saved["search_type"],
+                "min_score": 0.0,
+                "include": ["content"],
+            },
+        )
+
+        assert executed.status_code == 200
+        assert executed.json()["query"] == "Camilo"
+        assert {item["document_id"] for item in executed.json()["results"]} == {doc.id}
+
+    def test_edge_saved_search_query_executes_cleanly(self, client, monkeypatch):
+        created = client.post("/api/search/saved", json={"query": "\"Camilo\""})
+        assert created.status_code == 200
+
+        saved = next(
+            item
+            for item in client.get("/api/search/saved").json()["items"]
+            if item["id"] == created.json()["id"]
+        )
+        to_thread = AsyncMock(
+            return_value=([], 0, {"search_type": "hybrid", "execution_time_ms": 1.0, "has_more": False})
+        )
+        monkeypatch.setattr(search_routes.asyncio, "to_thread", to_thread)
+
+        executed = client.post(
+            "/api/search",
+            json={"query": saved["query"], "include": ["content"]},
+        )
+
+        assert executed.status_code == 200
+        assert executed.json()["query"] == "\"Camilo\""
+        assert executed.json()["results"] == []
+
+    def test_list_saved_searches_returns_created_queries(self, client):
+        first = client.post("/api/search/saved", json={"query": "first term"})
+        second = client.post("/api/search/saved", json={"query": "\"Camilo\""})
+
+        assert first.status_code == 200
+        assert second.status_code == 200
+
+        listing = client.get("/api/search/saved")
+
+        assert listing.status_code == 200
+        items = {item["id"]: item for item in listing.json()["items"]}
+        assert items[first.json()["id"]]["query"] == "first term"
+        assert items[second.json()["id"]]["query"] == "\"Camilo\""
+
     def test_list_saved_searches_raises_for_malformed_folded_query_payload(self, db):
         db.save(
             Document(

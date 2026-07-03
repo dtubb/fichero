@@ -152,3 +152,38 @@ def test_create_bookmark_missing_target_returns_404(client):
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Bookmark target not found"
+
+
+def test_resolve_bookmark_tracks_target_after_reparent(client, db):
+    old_parent = Document(id="bookmark-parent-old", name="Old Parent", doc_type=DocType.folder)
+    new_parent = Document(id="bookmark-parent-new", name="New Parent", doc_type=DocType.folder)
+    target = Document(
+        id="bookmark-target-move",
+        name="Movable Target",
+        doc_type=DocType.file,
+        parent_id=old_parent.id,
+    )
+    bookmark = Document(
+        id="bookmark-move",
+        name="Bookmark Move",
+        doc_type=DocType.file,
+        node_kind=ALIAS_NODE_KIND,
+        prototype_key="bookmark",
+        alias_target_id=target.id,
+    )
+    db.save(old_parent)
+    db.save(new_parent)
+    db.save(target)
+    db.save(bookmark)
+
+    moved = client.put(f"/api/documents/{target.id}/move?parent_id={new_parent.id}")
+    assert moved.status_code == 200
+    assert moved.json()["id"] == target.id
+    assert moved.json()["parent_id"] == new_parent.id
+
+    resolved = client.get(f"/api/bookmarks/{bookmark.id}/resolve")
+
+    assert resolved.status_code == 200
+    assert resolved.json()["id"] == target.id
+    assert resolved.json()["name"] == "Movable Target"
+    assert resolved.json()["parent_id"] == new_parent.id
