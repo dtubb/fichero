@@ -372,10 +372,6 @@ class TestChatWithSources:
             }
         ]
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="Route still swallows LLM/provider failures and returns a 200 apology instead of raising cleanly.",
-    )
     def test_chat_provider_error_prefers_raise_over_silent_fallback(
         self, client, monkeypatch
     ):
@@ -388,16 +384,15 @@ class TestChatWithSources:
             lambda *_args, **_kwargs: _BrokenLLM(),
         )
 
-        response = client.post(
-            "/api/chat",
-            json={
-                "message": "hello",
-                "provider": "openai",
-                "model": "gpt-4o-mini",
-            },
-        )
-
-        assert response.status_code >= 500
+        with pytest.raises(RuntimeError, match="provider misconfigured"):
+            client.post(
+                "/api/chat",
+                json={
+                    "message": "hello",
+                    "provider": "openai",
+                    "model": "gpt-4o-mini",
+                },
+            )
 
 
 # ---------------------------------------------------------------------------
