@@ -215,8 +215,6 @@ struct LibraryLayoutSection: View {
     @ObservedObject var viewSettings: ViewSettings
     @ObservedObject var featureManager = FeatureManager.shared
     @FocusedValue(\.sidebarMode) var sidebarMode
-    @FocusedValue(\.libraryDisplayMode) private var displayMode
-    @FocusedValue(\.availableLibraryDisplayModes) private var availableModes
 
     /// Only show view options for modes that need them (Library, Search)
     private var shouldShowViewOptions: Bool {
@@ -227,10 +225,6 @@ struct LibraryLayoutSection: View {
         case .chat, .workflows, .automation, .activity, .research, .knowledgeGraph:
             return false
         }
-    }
-
-    private var availableSpatialModes: [ViewDisplayMode] {
-        availableModes ?? []
     }
 
     private var availableLayouts: [LibraryLayout] {
@@ -295,19 +289,9 @@ struct LibraryLayoutSection: View {
                     }
                 }
 
-                // Space (⌘5) — 3D RealityKit node view, peer to Canvas.
-                if availableSpatialModes.contains(.realitykit) {
-                    SpatialViewButton(
-                        mode: .realitykit,
-                        label: "as Space",
-                        icon: "cube.transparent",
-                        shortcut: "5",
-                        binding: displayMode
-                    )
-                }
-
-                // "Spatial (2D)" retired (#2667): the 2D canvas is now "Canvas"
-                // (⌘4 / .map), peer to "Space" (⌘5 / .realitykit).
+                // "Space" (⌘5 / 3D RealityKit) and "Spatial (2D)" both retired
+                // (#2667): the 3D Mind Palace renderer is removed and the 2D
+                // canvas is now "Canvas" (⌘4 / .map), the live spatial view.
             }
         }
     }
@@ -763,44 +747,5 @@ struct ShowFindBarButton: View {
         .keyboardShortcut("f", modifiers: .command)
         .disabled(true)
         #endif
-    }
-}
-
-// MARK: - Spatial View Button
-
-/// Reusable button for switching `ViewDisplayMode` from the View menu.
-/// Shows a checkmark when the mode is currently active.
-struct SpatialViewButton: View {
-    let mode: ViewDisplayMode
-    let label: String
-    let icon: String
-    /// Optional keyboard shortcut character (nil = menu-only, no shortcut).
-    let shortcut: String?
-    let binding: Binding<ViewDisplayMode>?
-
-    var body: some View {
-        if let shortcut {
-            button
-                .keyboardShortcut(KeyEquivalent(Character(shortcut)), modifiers: [.command])
-        } else {
-            button
-        }
-    }
-
-    private var button: some View {
-        Button {
-            binding?.wrappedValue = mode
-        } label: {
-            HStack(spacing: 8) {
-                if binding?.wrappedValue == mode {
-                    Image(systemName: "checkmark")
-                        .frame(width: 12)
-                }
-                Image(systemName: icon)
-                    .frame(width: 16)
-                Text(label)
-            }
-        }
-        .disabled(binding == nil)
     }
 }

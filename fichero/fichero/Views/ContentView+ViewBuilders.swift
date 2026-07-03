@@ -282,13 +282,11 @@ extension ContentView {
     // unchanged — the View menu still drives `viewSettings.libraryLayout`.
     @ViewBuilder
     var contentWithOptionalModeRail: some View {
+        // Was the publish point for the View menu's 3D "Space" (.realitykit)
+        // button via @FocusedValue; that button and its FocusedValues were
+        // retired with the Mind Palace renderer. Now a plain passthrough — the
+        // toolbar picker drives viewDisplayMode directly.
         contentView
-            // Publish viewDisplayMode + available modes so the View menu's
-            // SpatialViewSection can read/write them via @FocusedValue.
-            // (#2032 regression: the old icon rail was the only entry point
-            // for .realitykit/.spatial; this restores menu-driven access.)
-            .focusedSceneValue(\.libraryDisplayMode, $viewDisplayMode)
-            .focusedSceneValue(\.availableLibraryDisplayModes, availableViewDisplayModes)
     }
 
     @ViewBuilder

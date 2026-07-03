@@ -245,23 +245,13 @@ struct LibraryView: View {
                 listView
             case .table:
                 tableView
-            case .realitykit:
-                // Space (3D) — RealityKit render of the positioned-node data.
-                SpatialScene3D(
-                    nodes: libraryProjection.nodes,
-                    connections: [],
-                    links: libraryProjection.links,
-                    selectedNodeId: $spatialSelectedNodeId,
-                    layoutStore: canvasLayoutStore,
-                    itemStore: canvasItemStore,
-                    folderScopeId: folderId ?? wholeLibraryRoomId
-                )
-            case .map, .workspace, .spatial:
+            case .map, .workspace, .spatial, .realitykit:
                 // Canvas (2D) — the merged 2D positioned-node view (#2667).
-                // `.map` (Canvas) and the retired `.spatial` alias both render
-                // Spatial2DCanvas off the SAME canvasLayoutStore as Space, so
-                // moves/links/notes/aliases are shared across both renders. The
-                // old `mapView`/`mapPositions` ephemeral grid is retired.
+                // `.map` (Canvas) is the live spatial library view. The retired
+                // `.spatial` and `.realitykit` (3D "Space"/Mind Palace) aliases
+                // both normalize to `.map` upstream and render Spatial2DCanvas
+                // off the shared canvasLayoutStore — the 3D RealityKit renderer
+                // is removed. The old `mapView`/`mapPositions` grid is retired.
                 Spatial2DCanvas(
                     nodes: libraryProjection.nodes,
                     connections: [],
