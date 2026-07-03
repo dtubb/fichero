@@ -14,9 +14,10 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from fichero.api.library_header import require_library_path
-from fichero.api.auth import request_actor
+from fichero.api.auth import action_context, request_actor
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database, get_library_database_for_write
+from fichero.actions.registry import registry
 from fichero.db import Database
 from fichero.knowledge_models import (
     ClaimCurationState,
@@ -38,6 +39,47 @@ from fichero.models import Document
 from fichero.models import ClaimListResponse
 
 router = APIRouter(prefix="/claims", tags=["claims"])
+
+
+def _resolve_action_ctx(
+    ctx: "ActionContext" | object,
+    *,
+    actor: str | object = "system",
+    library_path: str | object | None = None,
+    origin_window: str | object | None = None,
+) -> "ActionContext":
+    if isinstance(ctx, ActionContext):
+        return ctx
+    resolved_actor = actor if isinstance(actor, str) else "system"
+    resolved_library_path = library_path if isinstance(library_path, str) else None
+    resolved_origin_window = (
+        origin_window if isinstance(origin_window, str) else None
+    )
+    return ActionContext(
+        actor=resolved_actor,
+        library_path=resolved_library_path,
+        origin_window=resolved_origin_window,
+    )
+
+
+def _emit_claim_change_ctx(
+    ctx: "ActionContext",
+    *,
+    event_type: str,
+    claim_ids: list[str],
+    entity_ids: list[str] | None = None,
+) -> None:
+    if not ctx.library_path or not claim_ids:
+        return
+    emit_change(
+        ctx.library_path,
+        type=event_type,
+        claim_ids=claim_ids,
+        entity_ids=list(entity_ids or []),
+        actor=ctx.actor,
+        origin_window=ctx.origin_window,
+        origin_user=ctx.actor,
+    )
 
 
 # =============================================================================
@@ -629,27 +671,27 @@ def assign_time_period_from_metadata_impl(
 async def create_claim(
     request: ClaimCreateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
+    x_fichero_library_path: str | object = Depends(require_library_path),
+    x_fichero_origin_window: str | object | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
-    actor: str = Depends(request_actor),
+    actor: str | object = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> KnowledgeClaim:
     """Create a new knowledge claim."""
-    claim = create_claim_impl(db, request)
-
-    # Observable data layer (#1863): broadcast the new claim so every window's
-    # ClaimStore refreshes. Best-effort — never breaks the mutation.
-    emit_change(
-        x_fichero_library_path,
-        type="claim.updated",
-        claim_ids=[claim.id],
-        entity_ids=list(claim.entity_ids or []),
+    ctx = _resolve_action_ctx(
+        ctx,
         actor=actor,
+        library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
-        origin_user=actor,
     )
-    return claim
+    result = registry.invoke(
+        db,
+        "claim.create",
+        request.model_dump(mode="json"),
+        ctx,
+    )
+    return KnowledgeClaim.model_validate(result.result)
 
 
 @router.patch("/{claim_id}", response_model=KnowledgeClaim)
@@ -657,27 +699,30 @@ async def patch_claim(
     claim_id: str,
     request: ClaimPatchRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
+    x_fichero_library_path: str | object = Depends(require_library_path),
+    x_fichero_origin_window: str | object | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
-    actor: str = Depends(request_actor),
+    actor: str | object = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> KnowledgeClaim:
     """Update an existing knowledge claim."""
-    claim, _before = patch_claim_impl(db, claim_id, request)
-
-    # Observable data layer (#1863): broadcast the update (incl. any entity
-    # re-link) so every window's ClaimStore refreshes. Best-effort.
-    emit_change(
-        x_fichero_library_path,
-        type="claim.updated",
-        claim_ids=[claim.id],
-        entity_ids=list(claim.entity_ids or []),
+    ctx = _resolve_action_ctx(
+        ctx,
         actor=actor,
+        library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
-        origin_user=actor,
     )
-    return claim
+    result = registry.invoke(
+        db,
+        "claim.patch",
+        {
+            "claim_id": claim_id,
+            "patch": request.model_dump(mode="json", exclude_unset=True),
+        },
+        ctx,
+    )
+    return KnowledgeClaim.model_validate(result.result)
 
 
 @router.post("/resolve-source", response_model=ClaimSourceResolveResponse)
@@ -774,11 +819,12 @@ async def get_claim(
 async def delete_claim(
     claim_id: str,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
+    x_fichero_library_path: str | object = Depends(require_library_path),
+    x_fichero_origin_window: str | object | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
-    actor: str = Depends(request_actor),
+    actor: str | object = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> None:
     """Hard-delete a single knowledge claim.
 
@@ -787,19 +833,13 @@ async def delete_claim(
     piece of evidence about it. Use ``DELETE /api/entities/{id}``
     to remove the entity itself. (#901)
     """
-    _before_state, _deleted_links, affected_entity_ids = delete_claim_impl(db, claim_id)
-
-    # Observable data layer (#1863): broadcast the deletion so every window's
-    # ClaimStore drops the row. Best-effort — never breaks the delete.
-    emit_change(
-        x_fichero_library_path,
-        type="claim.deleted",
-        claim_ids=[claim_id],
-        entity_ids=affected_entity_ids,
+    ctx = _resolve_action_ctx(
+        ctx,
         actor=actor,
+        library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
-        origin_user=actor,
     )
+    registry.invoke(db, "claim.delete", {"claim_id": claim_id}, ctx)
 
 
 # =============================================================================
@@ -1049,11 +1089,16 @@ def _action_create_claim(
 ) -> tuple[dict, ChangeSpec]:
     claim = create_claim_impl(db, params)
     entity_ids = list(claim.entity_ids or [])
+    _emit_claim_change_ctx(
+        ctx,
+        event_type="claim.updated",
+        claim_ids=[claim.id],
+        entity_ids=entity_ids,
+    )
     spec = ChangeSpec(
         domains=["claim"],
         target_ids=[claim.id],
         after={"claim_id": claim.id},
-        emit_type="claim.updated",
         claim_ids=[claim.id],
         entity_ids=entity_ids,
     )
@@ -1071,12 +1116,17 @@ def _action_patch_claim(
     db: Database, params: ClaimPatchActionParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
     claim, before = patch_claim_impl(db, params.claim_id, params.patch)
+    _emit_claim_change_ctx(
+        ctx,
+        event_type="claim.updated",
+        claim_ids=[claim.id],
+        entity_ids=list(claim.entity_ids or []),
+    )
     spec = ChangeSpec(
         domains=["claim"],
         target_ids=[claim.id],
         before=before,
         after=claim.model_dump(mode="json"),
-        emit_type="claim.updated",
         claim_ids=[claim.id],
         entity_ids=list(claim.entity_ids or []),
     )
@@ -1096,12 +1146,17 @@ def _action_delete_claim(
     before_state, deleted_links, affected_entity_ids = delete_claim_impl(
         db, params.claim_id
     )
+    _emit_claim_change_ctx(
+        ctx,
+        event_type="claim.deleted",
+        claim_ids=[params.claim_id],
+        entity_ids=affected_entity_ids,
+    )
     spec = ChangeSpec(
         domains=["claim"],
         target_ids=[params.claim_id],
         before={"claim": before_state, "deleted_links": deleted_links},
         after=None,
-        emit_type="claim.deleted",
         claim_ids=[params.claim_id],
         entity_ids=affected_entity_ids,
     )
