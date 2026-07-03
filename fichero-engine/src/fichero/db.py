@@ -3905,60 +3905,61 @@ class Database(DatabaseEmbeddingMixin):
         table = self._table_name(model)
         sql_table = self._sql_table_name(model)
 
-        if table in self._tables_created:
-            return
+        with self._lock:
+            if table in self._tables_created:
+                return
 
-        # Build column definitions from Pydantic model
-        columns = []
-        for name, field_info in model.model_fields.items():
-            col_type = self._python_to_duckdb_type(field_info.annotation)
-            columns.append(f"{name} {col_type}")
-
-        self._execute(f"""
-            CREATE TABLE IF NOT EXISTS {sql_table} (
-                {", ".join(columns)},
-                PRIMARY KEY (id)
-            )
-        """)
-
-        # Reconcile columns for tables that already existed from an earlier
-        # schema. The 0.0.x no-migration rule says "add the field to the model
-        # and fresh DBs pick it up" — but a pre-existing library (created before
-        # the field was added) keeps its old table and CREATE TABLE IF NOT
-        # EXISTS is a no-op for it. Without this, `save()` of a model with a new
-        # field hits "Table X does not have a column named Y" (e.g.
-        # provenance_chain on a Document table from before that field landed).
-        # ADD COLUMN is non-destructive and idempotent, so this is the generic
-        # mechanism that makes the no-migration rule hold for existing DBs too.
-        try:
-            existing = {
-                row[1]
-                for row in self._execute(f"PRAGMA table_info({sql_table})").fetchall()
-            }
-        except Exception:
-            existing = {
-                row[0]
-                for row in self._execute(
-                    f"SELECT column_name FROM information_schema.columns "
-                    f"WHERE table_name = '{table}'"
-                ).fetchall()
-            }
-        for name, field_info in model.model_fields.items():
-            if name not in existing:
+            # Build column definitions from Pydantic model
+            columns = []
+            for name, field_info in model.model_fields.items():
                 col_type = self._python_to_duckdb_type(field_info.annotation)
-                self._execute(
-                    f"ALTER TABLE {sql_table} ADD COLUMN {name} {col_type}"
+                columns.append(f"{name} {col_type}")
+
+            self._execute(f"""
+                CREATE TABLE IF NOT EXISTS {sql_table} (
+                    {", ".join(columns)},
+                    PRIMARY KEY (id)
                 )
+            """)
 
-        self._tables_created.add(table)
+            # Reconcile columns for tables that already existed from an earlier
+            # schema. The 0.0.x no-migration rule says "add the field to the model
+            # and fresh DBs pick it up" — but a pre-existing library (created before
+            # the field was added) keeps its old table and CREATE TABLE IF NOT
+            # EXISTS is a no-op for it. Without this, `save()` of a model with a new
+            # field hits "Table X does not have a column named Y" (e.g.
+            # provenance_chain on a Document table from before that field landed).
+            # ADD COLUMN is non-destructive and idempotent, so this is the generic
+            # mechanism that makes the no-migration rule hold for existing DBs too.
+            try:
+                existing = {
+                    row[1]
+                    for row in self._execute(f"PRAGMA table_info({sql_table})").fetchall()
+                }
+            except Exception:
+                existing = {
+                    row[0]
+                    for row in self._execute(
+                        f"SELECT column_name FROM information_schema.columns "
+                        f"WHERE table_name = '{table}'"
+                    ).fetchall()
+                }
+            for name, field_info in model.model_fields.items():
+                if name not in existing:
+                    col_type = self._python_to_duckdb_type(field_info.annotation)
+                    self._execute(
+                        f"ALTER TABLE {sql_table} ADD COLUMN {name} {col_type}"
+                    )
 
-        # Apply knowledge-table indices once both knowledgeclaims AND
-        # knowledgeentitys exist. Cheap (each CREATE INDEX IF NOT EXISTS
-        # is a no-op when already present); critical for query latency
-        # at 50K+ claims. (#991 — scaling-review bottleneck 2)
-        if table in {"knowledgeclaims", "knowledgeentitys"}:
-            from fichero.db_migrations import migrate_knowledge_indices
-            migrate_knowledge_indices(self.conn)
+            self._tables_created.add(table)
+
+            # Apply knowledge-table indices once both knowledgeclaims AND
+            # knowledgeentitys exist. Cheap (each CREATE INDEX IF NOT EXISTS
+            # is a no-op when already present); critical for query latency
+            # at 50K+ claims. (#991 — scaling-review bottleneck 2)
+            if table in {"knowledgeclaims", "knowledgeentitys"}:
+                from fichero.db_migrations import migrate_knowledge_indices
+                migrate_knowledge_indices(self.conn)
 
     def _python_to_duckdb_type(self, python_type) -> str:
         """Map Python types to DuckDB types."""
