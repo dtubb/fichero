@@ -302,6 +302,28 @@ def import_chota_colombian_pacific_maps(
     )
 
 
+def import_chota_colombian_pacific_maps_via_http(
+    client: ImporterHttpClient,
+    *,
+    library_path: Path = DEFAULT_CHOTA_PACIFIC_LIBRARY,
+    source_root: Path | None = None,
+    reset: bool = False,
+    auto_embed: bool = True,
+) -> SourceArchiveImportSummary:
+    source_root = _resolve_required(
+        source_root, env_var="FICHERO_CHOTA_PACIFIC_SOURCE", flag="--source-root"
+    )
+    return _import_roots_via_http(
+        client,
+        provider="chota_colombian_pacific_maps",
+        corpus_name="Chota Valley + Colombian Pacific Maps",
+        library_path=library_path,
+        roots={"maps_southern_colombia": source_root},
+        reset=reset,
+        auto_embed=auto_embed,
+    )
+
+
 def _import_roots(
     *,
     provider: str,

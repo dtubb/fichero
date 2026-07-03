@@ -1192,6 +1192,7 @@ def import_ghc_catalogued_materials_command(
 
 @app.command(name="import-chota-colombian-pacific-maps")
 def import_chota_colombian_pacific_maps_command(
+    ctx: typer.Context,
     library_path: Path = typer.Option(
         Path("~/Library/Application Support/Fichero/Chota-Pacific-Maps.fichero"),
         "--library-path",
@@ -1209,15 +1210,21 @@ def import_chota_colombian_pacific_maps_command(
     no_embed: bool = typer.Option(False, "--no-embed", help="Skip embedding creation."),
 ) -> None:
     """Import Chota Valley + Colombian Pacific maps corpus."""
-    from fichero.source_archive_import import import_chota_colombian_pacific_maps
+    from fichero.importers.source_archive_import import import_chota_colombian_pacific_maps_via_http
 
     try:
-        summary = import_chota_colombian_pacific_maps(
-            library_path=library_path,
-            source_root=source_root,
-            reset=reset,
-            auto_embed=not no_embed,
-        )
+        with FicheroClient(
+            base_url=ctx.obj["base_url"],
+            library_path=str(library_path),
+            token=ctx.obj["token"],
+        ) as client:
+            summary = import_chota_colombian_pacific_maps_via_http(
+                client,
+                library_path=library_path,
+                source_root=source_root,
+                reset=reset,
+                auto_embed=not no_embed,
+            )
     except Exception as exc:
         typer.secho(f"Chota/Pacific maps import failed: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
