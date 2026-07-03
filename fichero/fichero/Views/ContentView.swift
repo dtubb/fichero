@@ -337,33 +337,12 @@ struct ContentView: View {
                 maxWidth: .infinity,
                 maxHeight: .infinity
             )
-            .popover(
-                item: detailPopoverDocument,
-                attachmentAnchor: .rect(.bounds),
-                arrowEdge: .trailing
-            ) { document in
-                VStack(spacing: 0) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "doc.text.magnifyingglass")
-                            .foregroundStyle(.secondary)
-                        Text(document.name)
-                            .font(.headline)
-                            .lineLimit(1)
-                        Spacer(minLength: 0)
-                        DetachInspectorButton(isEnabled: true) {
-                            focusedDocument.select(document, libraryId: windowState.libraryId)
-                            openWindow(id: "document-detail")
-                        }
-                    }
-                    .padding(.horizontal, 12)
-                    .frame(height: MiniToolbar<EmptyView, EmptyView>.standardHeight)
-
-                    Divider()
-
-                    DocumentInspector(document: document)
-                }
-                .frame(minWidth: 360, minHeight: 420)
-            }
+            // The legacy compact inspector popover was removed (#2812): it fired
+            // on the same compact selection that already pushes the reader, so
+            // selection presented the reader AND a popover at once. At compact
+            // the adaptive inspector routes to `.navigationPush`
+            // (InspectorPresenter), opened by the explicit Info button — one
+            // presentation, not two.
 
         // Listen for claim selection from inspector and sync to other panes
         .onReceive(NotificationCenter.default.publisher(for: .claimSelectedInInspector)) { notification in
