@@ -192,7 +192,7 @@ struct ActivityRunGridCell: View {
                 .font(.system(size: 18))
                 .foregroundStyle(iconColor)
             Text(shortTime)
-                .font(.system(size: 9))
+                .font(.caption2)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }

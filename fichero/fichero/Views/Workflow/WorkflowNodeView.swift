@@ -332,7 +332,7 @@ struct NodeProgressBadge: View {
             if state.isParallelProcessing {
                 // Show file progress
                 Text("\(state.successCount + state.errorCount)/\(state.fileTotal)")
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .font(.system(.caption2, design: .rounded, weight: .bold))
             } else if state.status == .running {
                 // Spinning indicator for non-parallel running
                 ProgressView()
@@ -340,10 +340,10 @@ struct NodeProgressBadge: View {
                     .frame(width: 12, height: 12)
             } else if state.status == .completed {
                 Image(systemName: "checkmark")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.system(.caption2, weight: .bold))
             } else if state.status == .failed {
                 Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.system(.caption2, weight: .bold))
             } else {
                 EmptyView()
             }
@@ -351,7 +351,7 @@ struct NodeProgressBadge: View {
             // Error indicator
             if state.errorCount > 0 {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 8))
+                    .font(.caption2)
                     .foregroundColor(.orange)
             }
         }
