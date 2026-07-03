@@ -66,9 +66,9 @@ struct PDFThumbnailView: View {
     private var multiPageBadge: some View {
         HStack(spacing: 3) {
             Image(systemName: "doc.on.doc")
-                .font(.system(size: 9, weight: .medium))
+                .font(.system(.caption2, weight: .medium))
             Text("\(pageCount)")
-                .font(.system(size: 10, weight: .semibold))
+                .font(.system(.caption2, weight: .semibold))
                 .monospacedDigit()
         }
         .padding(.horizontal, 5)
