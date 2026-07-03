@@ -238,11 +238,14 @@ tier is done and the next tier is chosen automatically. — gardener agent #1919
 - Milestone: **Website**  (due 2027-01-05)
 - Milestone: **Documentation**  (due 2027-01-12)
 
-## Tier 12 — Source archives
-- Milestone: **Source Archive - ICANH**  (due 2027-01-19)
-- Milestone: **Source Archive - Marshall Diaries**  (due 2027-01-22)
-- Milestone: **Source Archive - Archivos Nuestros**  (due 2027-01-25)
-- Milestone: **Source Archive - Maps of the Black Pacific**  (due 2027-01-28)
+## Tier 12 — Source archives — ongoing corpora / demo-test datasets
+- Milestone: **Source Archives**  (due 2027-01-13)
+
+<!-- One umbrella owns every corpus (ICANH, Marshall Diaries, Archivos Nuestros,
+     Maps of the Black Pacific, GHG/ACENET, Sergio Notebook, slipbox, Medellín,
+     Istmina…) as issues. Per-corpus milestones #84/#85/#86/#87/#88/#89 were
+     over-split + closed too soon (demo data isn't done); folded into #65
+     2026-07-03. Do NOT re-create per-corpus milestones — file corpus issues here. -->
 
 ## Tier 13 — Far future
 - Milestone: **tvOS — Apple TV port**  (due 2027-02-15)
