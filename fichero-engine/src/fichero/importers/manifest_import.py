@@ -85,6 +85,18 @@ _VALID_ENTITY_TYPES = {
 _NODE_TYPE_TO_DOC_TYPE = {"folder": "folder", "group": "folder", "page": "page"}
 
 
+class CliManifestClient:
+    """ManifestApiClient adapter over the shared CLI transport."""
+
+    def __init__(self, client: Any) -> None:
+        self._client = client
+
+    def request(
+        self, method: str, path: str, body: dict[str, Any] | None = None
+    ) -> Any:
+        return self._client.request(method, f"/api{path}", json=body)
+
+
 def resolve_ingest_mode(ingest_mode: str | None, copy_images: bool) -> str:
     """Resolve the effective ingest mode from the new flag + legacy alias.
 
@@ -896,6 +908,7 @@ def import_manifest_via_http(
     create_library: bool = True,
     copy_images: bool = False,
     ingest_mode: str | None = None,
+    client: Any | None = None,
 ) -> ImportSummary:
     """Convenience entry point: import a manifest into a live engine over HTTP.
 
@@ -907,13 +920,18 @@ def import_manifest_via_http(
     brought into the library; a local preview is always cached. ``copy_images``
     is the legacy alias for ``copy``.
     """
-    token = resolve_http_token(token_file)
     library_str = str(library_path.expanduser())
-    client = HttpManifestClient(api_base, token, library_str)
-    if create_library:
-        client.request("POST", "/library", {"path": library_str})
+    if client is None:
+        token = resolve_http_token(token_file)
+        transport: ManifestApiClient = HttpManifestClient(api_base, token, library_str)
+        if create_library:
+            transport.request("POST", "/library", {"path": library_str})
+    else:
+        transport = CliManifestClient(client)
+        if create_library:
+            client.request("POST", "/api/library", json={"path": library_str})
     return import_manifest(
-        client,
+        transport,
         manifest_path.expanduser(),
         library_str,
         copy_images=copy_images,

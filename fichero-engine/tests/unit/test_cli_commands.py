@@ -1146,6 +1146,7 @@ def test_import_manifest_prints_artifact_counts(monkeypatch, tmp_path):
     def fake_import_manifest_via_http(**kwargs):
         assert kwargs["manifest_path"] == manifest
         assert kwargs["library_path"] == library
+        assert kwargs["client"].kwargs["base_url"] == "http://remote-engine.test"
         return ImportSummary(
             manifest=str(manifest),
             library_path=str(library),
@@ -1168,7 +1169,15 @@ def test_import_manifest_prints_artifact_counts(monkeypatch, tmp_path):
 
     result = runner.invoke(
         cli.app,
-        ["import-manifest", "--manifest", str(manifest), "--library", str(library)],
+        [
+            "--base-url",
+            "http://remote-engine.test",
+            "import-manifest",
+            "--manifest",
+            str(manifest),
+            "--library",
+            str(library),
+        ],
     )
 
     assert result.exit_code == 0
