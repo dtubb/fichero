@@ -357,10 +357,6 @@ def test_entity_create_route_writes_action_audit(client, db):
     assert audits[0].target_ids == [entity_id]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="PATCH /api/entities/{entity_id} updates entities directly and no entity.update audited action exists yet.",
-)
 def test_entity_patch_route_writes_action_audit(client, db):
     entity = KnowledgeEntity(canonical_name="Before Patch")
     db.save(entity)
