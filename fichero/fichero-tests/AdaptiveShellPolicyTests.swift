@@ -1,6 +1,6 @@
 @testable import Fichero
 import XCTest
-// swiftlint:disable type_body_length
+// swiftlint:disable type_body_length file_length
 
 final class AdaptiveShellPolicyTests: XCTestCase {
     private static func appSource(_ relativePath: String) throws -> String {
@@ -394,5 +394,89 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         let detailSource = buildersSource[detailRange.lowerBound...]
         XCTAssertTrue(detailSource.contains(".background(.bar)"))
     }
+
+    // MARK: - Boundary hardening (#3008 verify-and-close pass)
+
+    /// Unmeasured window (`windowWidth == nil`, e.g. a freshly opened Mac
+    /// window before geometry lands) or an absent minimum must default to
+    /// ALLOWING splits — a nil bound must never boot the shell collapsed.
+    func testSplittablePaneNilBoundsDefaultToAllowingSplits() {
+        XCTAssertTrue(
+            ContentView.shouldUseSplittablePane(
+                horizontalSizeClass: .regular, windowWidth: nil, minimumWidth: 800
+            )
+        )
+        XCTAssertTrue(
+            ContentView.shouldUseSplittablePane(
+                horizontalSizeClass: .regular, windowWidth: 1000, minimumWidth: nil
+            )
+        )
+        XCTAssertTrue(
+            ContentView.shouldUseSplittablePane(
+                horizontalSizeClass: .regular, windowWidth: nil, minimumWidth: nil
+            )
+        )
+    }
+
+    /// Compact width wins over nil bounds: even with no width/minimum known, a
+    /// compact layout must never split (the guard is checked before the bounds).
+    func testSplittablePaneCompactBeatsNilBounds() {
+        XCTAssertFalse(
+            ContentView.shouldUseSplittablePane(
+                horizontalSizeClass: .compact, windowWidth: nil, minimumWidth: nil
+            )
+        )
+    }
+
+    /// The `>=` boundary: at EXACTLY the minimum width the split is allowed
+    /// (the ±1 tests never probe the equality point where `>=` vs `>` bugs hide).
+    func testSplittablePaneExactMinimumWidthAllowsSplit() {
+        XCTAssertTrue(
+            ContentView.shouldUseSplittablePane(
+                horizontalSizeClass: .regular, windowWidth: 800, minimumWidth: 800
+            )
+        )
+    }
+
+    /// An unmeasured or non-positive window width must not force a collapse —
+    /// the shell keeps its preferred (uncollapsed) state until geometry lands.
+    func testShellCollapsePolicyNilOrZeroWidthDoesNotCollapse() {
+        for width in [nil, 0.0, -1.0] as [Double?] {
+            let policy = ContentView.shellCollapsePolicy(
+                windowWidth: width,
+                horizontalSizeClass: .regular,
+                sidebarVisible: true,
+                inspectorVisible: true,
+                detailMinWidth: 600
+            )
+            XCTAssertFalse(policy.collapseSidebar, "width \(String(describing: width))")
+            XCTAssertFalse(policy.collapseInspector, "width \(String(describing: width))")
+        }
+    }
+
+    /// The sidebar-collapse threshold is strict `<`: at EXACTLY
+    /// `sidebarMinWidth + detailMinWidth` the sidebar stays (only below collapses).
+    func testShellCollapseSidebarThresholdIsStrictLessThan() {
+        let detailWidth = 600.0
+        let exactSidebarBoundary = ContentView.sidebarMinWidth + detailWidth
+
+        let atBoundary = ContentView.shellCollapsePolicy(
+            windowWidth: exactSidebarBoundary,
+            horizontalSizeClass: .regular,
+            sidebarVisible: true,
+            inspectorVisible: false,
+            detailMinWidth: detailWidth
+        )
+        XCTAssertFalse(atBoundary.collapseSidebar)
+
+        let belowBoundary = ContentView.shellCollapsePolicy(
+            windowWidth: exactSidebarBoundary - 1,
+            horizontalSizeClass: .regular,
+            sidebarVisible: true,
+            inspectorVisible: false,
+            detailMinWidth: detailWidth
+        )
+        XCTAssertTrue(belowBoundary.collapseSidebar)
+    }
 }
-// swiftlint:enable type_body_length
+// swiftlint:enable type_body_length file_length

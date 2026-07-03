@@ -1084,3 +1084,47 @@ extension ContentView {
         }
     }
 }
+
+// MARK: - Compact center-content routing (#3009)
+
+/// The compact-width `centerContent` route for the active mode. Kept separate
+/// from the regular-width split path so the compact policy has one home.
+enum CompactShellRoute: Equatable {
+    /// Regular width (Mac / iPad-regular): the split preview layout — unchanged.
+    case regular
+    /// Compact library/search: the list is the `NavigationStack` root and
+    /// tapping a leaf pushes the reader (#2551).
+    case libraryReader
+    /// Compact non-library mode (chat, workflows, activity, …): the mode owns
+    /// the full content area itself, no preview split.
+    case modeContent
+}
+
+/// Pure routing policy for the compact (iPhone-width) center content. Replaces
+/// the ad-hoc `usesCompactReaderFlow` switch with an **exhaustive** per-mode map
+/// — no `default` fallthrough, so adding an `AppViewMode` fails to compile until
+/// its compact route is decided (#3009).
+enum CompactShellPolicy {
+    static func route(
+        horizontalSizeClass: UserInterfaceSizeClass?,
+        appViewMode: AppViewMode,
+        isEntitySelection: Bool
+    ) -> CompactShellRoute {
+        guard ContentView.shouldUseCompactNavigationFlow(
+            horizontalSizeClass: horizontalSizeClass
+        ) else {
+            return .regular
+        }
+        switch appViewMode {
+        case .library:
+            // The entities browser is a non-reader library selection — it owns
+            // its own content (the KG browser), so it takes the mode path.
+            return isEntitySelection ? .modeContent : .libraryReader
+        case .search:
+            return .libraryReader
+        case .chat, .comparison, .workflow, .chain, .batches, .batch,
+             .automation, .schedule, .trigger, .activity:
+            return .modeContent
+        }
+    }
+}

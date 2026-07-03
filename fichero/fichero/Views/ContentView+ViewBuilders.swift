@@ -499,17 +499,11 @@ extension ContentView {
     /// split layout is used instead, untouched). The entities browser is
     /// excluded — it drives the KG focus state, not a document reader.
     private var usesCompactReaderFlow: Bool {
-        guard Self.shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) else {
-            return false
-        }
-        switch viewMode {
-        case .library:
-            return !isEntityLibrarySelection
-        case .search:
-            return true
-        default:
-            return false
-        }
+        CompactShellPolicy.route(
+            horizontalSizeClass: horizontalSizeClass,
+            appViewMode: viewMode,
+            isEntitySelection: isEntityLibrarySelection
+        ) == .libraryReader
     }
 
     /// Resolves the current selection to a LEAF document for the compact reader
@@ -579,6 +573,36 @@ extension ContentView {
                         detailDocument = nil
                         browserSelection = []
                     }
+                }
+        }
+    }
+
+    /// Compact (iPhone) list→detail stack for the inner-sidebar modes
+    /// (Research / Workflow / Activity, #3010). Mirrors `compactLibraryReaderStack`:
+    /// the mode's list is the `NavigationStack` root and selecting an item pushes
+    /// its detail; `Back` (or a nil `selection`) pops to the list. Compact-only —
+    /// regular width keeps its existing two-column rail (the caller's `else`).
+    /// `selection` binds the mode's own selection store, so setting it to nil pops.
+    @ViewBuilder
+    func compactInnerModeStack<Item: Hashable, ListContent: View, DetailContent: View>(
+        title: String,
+        selection: Binding<Item?>,
+        @ViewBuilder list: () -> ListContent,
+        @ViewBuilder detail: @escaping (Item) -> DetailContent
+    ) -> some View {
+        NavigationStack {
+            list()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .navigationTitle(title)
+                #if !os(macOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+                .navigationDestination(item: selection) { item in
+                    detail(item)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        #if !os(macOS)
+                        .navigationBarTitleDisplayMode(.inline)
+                        #endif
                 }
         }
     }
