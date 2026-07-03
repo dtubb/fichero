@@ -17,7 +17,11 @@ from fichero.models import (
     LibraryMember,
     LibraryMembersResponse,
     SetLibraryRoleRequest,
+    ShareRequest,
+    ShareResponse,
 )
+
+_SHARE_OBJECT_TYPES = {"library", "entity", "document"}
 
 router = APIRouter(prefix="/authz", tags=["authz"])
 
@@ -30,28 +34,33 @@ def get_library_authz_snapshot(
 ) -> LibraryAuthzSnapshot:
     """Return the current library's ACL state for the logged-in user."""
     app_db = get_app_db()
+    # Roles are stored under the NORMALIZED library path, and can_read/can_write
+    # normalize internally — so the role lookups here must normalize too, or an
+    # owner sending an un-normalized path (trailing slash, symlink) is wrongly
+    # shown can_manage_roles=False / roles=[] while target_can_write stays True.
+    library_path = authz.normalize_library_path(x_fichero_library_path) or x_fichero_library_path
     resolved_user = authz.resolve_user(getattr(getattr(request, "state", None), "user", None))
     current_user_role = None
     if resolved_user is not None:
-        role = app_db.get_library_role(resolved_user.id, x_fichero_library_path)
+        role = app_db.get_library_role(resolved_user.id, library_path)
         current_user_role = role.role if role else None
 
     can_manage_roles = authz.multiuser_enabled() and current_user_role == authz.ROLE_OWNER
 
-    roles = app_db.list_library_roles(x_fichero_library_path) if can_manage_roles else []
+    roles = app_db.list_library_roles(library_path) if can_manage_roles else []
     target_can_read = authz.can_read(
         getattr(getattr(request, "state", None), "user", None),
-        x_fichero_library_path,
+        library_path,
         target_id,
     )
     target_can_write = authz.can_write(
         getattr(getattr(request, "state", None), "user", None),
-        x_fichero_library_path,
+        library_path,
         target_id,
     )
 
     return LibraryAuthzSnapshot(
-        library_path=x_fichero_library_path,
+        library_path=library_path,
         multiuser_enabled=authz.multiuser_enabled(),
         can_manage_roles=can_manage_roles,
         current_user_id=resolved_user.id if resolved_user is not None else None,
@@ -129,3 +138,89 @@ def set_library_member_role(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     return list_library_members(request, x_fichero_library_path)
+
+
+@router.delete("/members", response_model=LibraryMembersResponse)
+def revoke_library_member_role(
+    request: Request,
+    user: str,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+    x_fichero_library_path: str = Depends(require_library_path),
+) -> LibraryMembersResponse:
+    """Revoke a member's whole-library role — typed surface over ``acl.set``
+    remove. Same owner-gated, audited, change-stream path as the generic
+    ``POST /api/actions/invoke``; an owner cannot revoke their own role.
+    Returns the refreshed member list.
+    """
+    try:
+        registry.invoke(db, "acl.set", {"user": user, "remove": True}, ctx)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+    except authz.AuthorizationError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    return list_library_members(request, x_fichero_library_path)
+
+
+def _build_share_url(request: Request, object_type: str, object_id: str | None) -> str:
+    """Engine-served link to the shared object. The recipient's app connects to
+    this engine (it may be remote) and resolves the object — never a local path.
+    """
+    base = str(getattr(request, "base_url", "")).rstrip("/")
+    if object_type == "document" and object_id:
+        return f"{base}/api/documents/{object_id}"
+    if object_type == "entity" and object_id:
+        return f"{base}/api/entities/{object_id}"
+    # library: the engine root the recipient connects to, then opens the library.
+    return base
+
+
+@router.post("/share", response_model=ShareResponse)
+def share_library_object(
+    body: ShareRequest,
+    request: Request,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+    x_fichero_library_path: str = Depends(require_library_path),
+) -> ShareResponse:
+    """Share a library / entity / document (#1867) — the authz-gated model.
+
+    Grants the recipient a per-library role through the audited ``acl.set``
+    action (owner-gated, emits authz.changed) and returns an engine link to the
+    object. Entity/document shares grant library access so the recipient can
+    reach the object (the ACL is per-library); those types require an object_id.
+    """
+    object_type = body.object_type.strip().lower()
+    if object_type not in _SHARE_OBJECT_TYPES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"invalid object_type: {body.object_type!r} "
+            f"(expected one of: {', '.join(sorted(_SHARE_OBJECT_TYPES))})",
+        )
+    if object_type in {"entity", "document"} and not body.object_id:
+        raise HTTPException(
+            status_code=422,
+            detail=f"object_id is required to share a {object_type}",
+        )
+
+    try:
+        registry.invoke(db, "acl.set", {"user": body.user, "role": body.role}, ctx)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+    except authz.AuthorizationError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    library_path = authz.normalize_library_path(x_fichero_library_path) or x_fichero_library_path
+    return ShareResponse(
+        user=body.user,
+        role=body.role,
+        object_type=object_type,
+        object_id=body.object_id,
+        library_path=library_path,
+        share_url=_build_share_url(request, object_type, body.object_id),
+    )

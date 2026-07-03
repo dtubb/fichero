@@ -1458,6 +1458,35 @@ class SetLibraryRoleRequest(BaseModel):
     role: str = Field(description="owner/editor/viewer")
 
 
+class ShareRequest(BaseModel):
+    """Typed body for ``POST /api/authz/share`` — the Share button (#1867).
+
+    Authz-gated model: sharing an object grants the recipient a per-library
+    role via the existing ACL (not a tokenless public link). Sharing an
+    entity/document grants library access so the recipient can reach it — the
+    ACL is per-library and a role-less user can't be granted a subtree-only
+    override.
+    """
+
+    user: str = Field(description="Recipient user id or username")
+    role: str = Field(default="viewer", description="Role to grant: owner/editor/viewer")
+    object_type: str = Field(default="library", description="library | entity | document")
+    object_id: str | None = Field(
+        default=None, description="Entity/document id (required for those types)"
+    )
+
+
+class ShareResponse(BaseModel):
+    """Result of a share: the granted access + a link the recipient can open."""
+
+    user: str
+    role: str
+    object_type: str
+    object_id: str | None = None
+    library_path: str
+    share_url: str
+
+
 class ReinstallDefaultWorkflowsResponse(BaseModel):
     """Response from ``POST /api/workflows/reinstall-defaults``."""
 

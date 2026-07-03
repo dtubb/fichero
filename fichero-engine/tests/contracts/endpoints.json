@@ -1042,6 +1042,32 @@
         "query_params": [],
         "request_model": "SetLibraryRoleRequest",
         "response_model": "LibraryMembersResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/authz/members",
+        "operation_id": "revoke_library_member_role_api_authz_members_delete",
+        "summary": "Revoke Library Member Role",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "user",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "LibraryMembersResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/authz/share",
+        "operation_id": "share_library_object_api_authz_share_post",
+        "summary": "Share Library Object",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ShareRequest",
+        "response_model": "ShareResponse"
       }
     ],
     "batches": [
