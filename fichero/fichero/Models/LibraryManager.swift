@@ -54,6 +54,11 @@ class LibraryManager: ObservableObject {
     class LibraryReference: Identifiable, ObservableObject {
         let id: UUID
         let url: URL
+        /// Which backend this library talks to (#2866). Defaults to the local
+        /// embedded engine; a remote library carries its own host so the app can
+        /// hold several backends at once. Drives the clients' baseURL, the TLS
+        /// pin, and the sidebar location badge.
+        let host: BackendHost
         @Published var displayName: String  // Display name for window title (e.g., "Untitled 2", "MyResearch")
         @Published var document: FicheroDocument
 
@@ -207,9 +212,9 @@ class LibraryManager: ObservableObject {
 
         /// Where this library's engine lives — local embedded engine vs a named
         /// remote device/host. Drives the sidebar local-vs-remote badge (#2574).
-        /// Front-end-first: derived from the app-level `EngineConfig` host today;
-        /// the seam to read a per-library `host` once that lands is a single
-        /// change inside `LibraryLocationDescriptor.current()`.
+        /// Reflects the live app-global host today; once libraries are pinned to
+        /// a SPECIFIC remote host (#2866 follow-up) this reads `host` instead —
+        /// the seam is `host.isLocal`.
         var locationDescriptor: LibraryLocationDescriptor {
             LibraryLocationDescriptor.current()
         }
@@ -220,6 +225,7 @@ class LibraryManager: ObservableObject {
             document: FicheroDocument,
             displayName: String,
             id: UUID? = nil,
+            host: BackendHost = .appDefault,
             apiClient: APIClient? = nil,
             documentStore: DocumentStore? = nil,
             searchService: SearchServiceGenerated? = nil,
@@ -232,22 +238,30 @@ class LibraryManager: ObservableObject {
         ) {
             self.id = id ?? UUID()
             self.url = url
+            self.host = host
             self.displayName = displayName
             self.document = document
 
-            // Reuse existing instances or create new ones
+            // Persist this backend's SPKI pin so the pinned session validates
+            // its cert (#2866). No-op for the local engine (no pin) and for
+            // hosts already pinned.
+            host.persistPinIfNeeded()
+
+            // Reuse existing instances or create new ones. A new client targets
+            // THIS library's backend host, not the global one.
             if let existingClient = apiClient {
                 self.apiClient = existingClient
             } else {
-                self.apiClient = APIClient()
+                self.apiClient = APIClient(baseURL: host.url)
             }
 
             // Set the library path on the API client immediately
             // This ensures all services created below have access to the path
             self.apiClient.currentLibraryPath = url.path
 
-            // Create the generated API client (shares same library path)
-            self.ficheroClient = FicheroClient(baseURL: EngineConfig.host, libraryPath: url.path)
+            // Create the generated API client (shares same library path), bound
+            // to this library's backend host.
+            self.ficheroClient = FicheroClient(baseURL: host.url, libraryPath: url.path)
 
             // Initialize all services with the library's APIClient
             self.documentStore = documentStore ?? DocumentStore(apiClient: self.apiClient)
@@ -302,6 +316,10 @@ class LibraryManager: ObservableObject {
         }
 
         func reconfigureBackendHost() {
+            // Every library is currently created on the app-default host, so it
+            // follows the Settings engine-host switch (unchanged behavior). When
+            // a library is pinned to a SPECIFIC remote host (#2866 follow-up),
+            // this will branch on that; today there are no such libraries.
             ficheroClient.reconfigure(baseURL: EngineConfig.host)
             storageService.clearAll()
         }
