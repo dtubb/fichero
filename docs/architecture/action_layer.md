@@ -62,6 +62,33 @@ Emission is intentionally **best-effort after audit**:
 This matches the shipped split between durable mutation history and live UI
 observer updates.
 
+## Eager schema reconciliation on the write path
+
+The other part of the current write-path hardening lives in
+`fichero-engine/src/fichero/db.py`.
+
+`Database.save(...)`, `save_many(...)`, `delete(...)`, and the main query/count
+helpers call `_ensure_table(...)` before using a model's table. `_ensure_table`
+does two things on current `main`:
+
+- `CREATE TABLE IF NOT EXISTS ... PRIMARY KEY (id)` for first use on a
+  connection
+- reconcile missing declared Pydantic fields by issuing idempotent
+  `ALTER TABLE ... ADD COLUMN ...` statements for columns that are not yet in
+  the existing DuckDB table
+
+That means schema reconciliation is eager at the normal typed DB boundary, not
+a separate manual "remember to run an upgrade step first" phase for ordinary
+additive model changes.
+
+This does **not** replace real migrations for destructive or app-db changes.
+The accurate current rule is narrower:
+
+- additive library-table fields are usually picked up by the model declaration
+  plus `_ensure_table(...)`
+- destructive reshapes, data backfills, and app-db changes still need explicit
+  migration handling
+
 ## What "single audited write path" means in practice
 
 For a migrated mutation, the route should:

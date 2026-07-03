@@ -71,6 +71,53 @@ Manager or integrator expectations:
 
 One more repo-specific rule matters for API work: if you change the backend API, you must commit the regenerated client-facing contract artifacts in the same change set so the Swift side stays buildable.
 
+### `verify_all` is tiered, not all-or-nothing
+
+The shipped top-level verification entrypoint is `scripts/verify_all.sh`. It is
+deliberately incremental on current `main`, not "always rerun everything":
+
+- `--fast` runs Swift lint, backend `ruff`, the cheap `scripts/check_*.py`
+  guardrails, `scripts/check_version_date.sh`, and the OpenAPI model-sync
+  validator.
+- `--standard` runs everything in `--fast`, then backend unit tests under
+  `fichero-engine/tests/unit/`.
+- `--full` runs `--standard` plus the requested platform legs. If you do not
+  pass `--macos` or `--ios`, `--full` defaults to both.
+
+The platform legs are separately requestable with `--macos`, `--ios`,
+`VERIFY_ALL_MACOS=1`, or `VERIFY_ALL_IOS=1`, so callers can ask for an Xcode
+leg without promoting the entire run to `--full`.
+
+### Verification artifacts and failure capture
+
+`verify_all.sh` always writes `build/verify_all_report.json`, even on failure.
+That report records the failing checks, the tier, the invoked command, and, for
+the backend pytest leg, the parsed failing test node ids.
+
+If the caller opts in with `--file-issues`, `verify_all.sh` shells into
+`scripts/verify_to_issues.sh --apply`. That script de-duplicates by exact open
+issue title, files follow-up GitHub issues into milestone-specific buckets, and
+writes the manager handoff flag at `build/verify_all_needs_fixing.json`.
+
+For cheap repo-level drift reporting, `scripts/verify_report.py` scans the
+guardrail outputs directly and rolls them up into stable fingerprinted issues.
+
+### What runs when
+
+Current repo intent in the shipped scripts and docs:
+
+- workers use focused lint/tests for the area they touched
+- `verify_all --fast` is the cheap broad guardrail sweep
+- `verify_all --standard` is the combined backend-quality gate
+- managers or integrators own the Xcode legs in `verify_all --full`
+- nightly automation lives separately in `scripts/nightly-release.sh`, which
+  does the build health-check and publishes the daily prerelease artifact/notes
+
+The cheap guardrail that keeps this contract from drifting is
+`scripts/check_verify_all_modes.py`. It asserts that `verify_all.sh` still
+exposes the documented fast/standard/full tiers, the opt-in platform flags, and
+the linked smoke-checklist docs.
+
 ## Contributing Mechanics
 
 ### New Swift files require registration
