@@ -107,10 +107,6 @@ def test_pairing_owner_endpoints_reject_non_owner_session_scope_with_403(
         _assert_no_secret_leak(response, session_token)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Validation 422 echoes the submitted pairing code in the error payload; route should reject malformed input without secret reflection.",
-)
 def test_pair_route_malformed_requests_stay_4xx_and_do_not_leak_secrets(
     auth_client, app_db
 ):

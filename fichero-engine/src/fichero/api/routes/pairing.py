@@ -10,6 +10,9 @@ import secrets
 import sys
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 from pydantic import BaseModel, Field
 
 from fichero import accounts
@@ -26,7 +29,34 @@ PAIRING_RATE_LIMIT = 5
 PAIRING_RATE_WINDOW = timedelta(minutes=1)
 _PAIRING_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 
-router = APIRouter(prefix="/pair", tags=["pairing"])
+
+class _PairingValidationRoute(APIRoute):
+    """Route-local validation scrub for pairing secrets.
+
+    Keep FastAPI's default 422 shape everywhere else; only /api/pair* gets a
+    scrubbed response so malformed pairing submissions never reflect the code.
+    """
+
+    def get_route_handler(self):
+        original = super().get_route_handler()
+
+        async def custom_route_handler(request: Request):
+            try:
+                return await original(request)
+            except RequestValidationError:
+                return JSONResponse(
+                    status_code=422,
+                    content={"detail": "invalid pairing request"},
+                )
+
+        return custom_route_handler
+
+
+router = APIRouter(
+    prefix="/pair",
+    tags=["pairing"],
+    route_class=_PairingValidationRoute,
+)
 
 
 @dataclass
