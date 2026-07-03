@@ -22,7 +22,7 @@ struct EntitySplitSheet: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        NavigationStack {
             Form {
                 Section {
                     Text("Primary entity: **\(primaryEntity.canonicalName)**")
@@ -82,18 +82,21 @@ struct EntitySplitSheet: View {
                 }
             }
             .formStyle(.grouped)
-
-            Divider()
-
-            HStack {
-                Button("Cancel") { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-                Spacer()
-                Button("Split", action: split)
-                    .keyboardShortcut(.defaultAction)
-                    .disabled((selectedSplitIds.isEmpty && selectedAliases.isEmpty) || isSaving)
+            .navigationTitle("Split Entity")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            // Native sheet actions in the toolbar so they land in the right
+            // place on iOS (nav bar) as well as macOS (#2806).
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Split", action: split)
+                        .disabled((selectedSplitIds.isEmpty && selectedAliases.isEmpty) || isSaving)
+                }
             }
-            .padding()
         }
         // Mac-only fixed size; iPhone/iPad sheets size to the screen (#2802).
         #if os(macOS)
