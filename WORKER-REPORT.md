@@ -1,0 +1,1 @@
+2026-07-03: Landed eager schema materialization at `Database` init/reconnect so request-time DDL is gone; chain/concurrency/entities proofs passed, while #2856 transaction-based atomicity remains unresolved and `test_mutation_atomicity.py` stays at `8 xfailed`.

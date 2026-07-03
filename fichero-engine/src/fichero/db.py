@@ -549,6 +549,7 @@ class Database(DatabaseEmbeddingMixin):
         migrate_spatial_node_layout_fields(self.conn)
         migrate_references_table(self.conn)
         migrate_reference_provenance_table(self.conn)
+        self._materialize_schema()
         self._seed_builtin_document_prototypes()
         self._seed_builtin_node_classes()
         self._backfill_claim_links_to_library_links()
@@ -618,6 +619,134 @@ class Database(DatabaseEmbeddingMixin):
                 "Knowledge index reconciliation after reconnect failed: %s",
                 exc,
             )
+        self._materialize_schema()
+
+    def _all_schema_models(self) -> tuple[type[BaseModel], ...]:
+        from fichero.hermeneutics_models import (
+            HermeneuticCircleState,
+            Interpretation,
+            InterpretiveFramework,
+            PatternInstance,
+        )
+        from fichero.knowledge_models import (
+            Annotation,
+            BookStructureNode,
+            ClaimMergeAudit,
+            ClaimSuppressionRule,
+            ClassificationValue,
+            DocumentCitation,
+            EntityMatchCandidate,
+            EntityResolutionRule,
+            KnowledgeClaim,
+            KnowledgeClaimLink,
+            KnowledgeEntity,
+            KnowledgePredictionRun,
+            LibraryEntityType,
+            LibraryItemLink,
+            Milestone,
+            MutationLog,
+            Note as KnowledgeNote,
+            Project,
+            ProjectInclusion,
+            Reference,
+            ReferenceProvenance,
+        )
+        from fichero.models import (
+            ActionAudit,
+            AgentNote,
+            Artifact,
+            Conversation,
+            Document,
+            DocumentNote,
+            ImageEditChain,
+            KnownLibrary,
+            Note as LegacyNote,
+            ProviderRef,
+            Run,
+            SavedSearch,
+            Trace,
+            Workflow,
+        )
+        from fichero.research_models import (
+            ResearchChecklist,
+            ResearchNote,
+            ResearchPlan,
+            ResearchProject,
+            ResearchStep,
+            ResearchTask,
+            SearchSource,
+        )
+        from fichero.spatial_models import (
+            CanvasItem,
+            NativeNote,
+            SpatialConnection,
+            SpatialNode,
+            SpatialRoom,
+            SpatialStack,
+            SpatialViewport,
+        )
+
+        return (
+            ActionAudit,
+            AgentNote,
+            Annotation,
+            Artifact,
+            BookStructureNode,
+            CanvasItem,
+            ClaimMergeAudit,
+            ClaimSuppressionRule,
+            ClassificationValue,
+            Conversation,
+            Document,
+            DocumentCitation,
+            DocumentNote,
+            EntityMatchCandidate,
+            EntityResolutionRule,
+            HermeneuticCircleState,
+            ImageEditChain,
+            Interpretation,
+            InterpretiveFramework,
+            KnownLibrary,
+            KnowledgeClaim,
+            KnowledgeClaimLink,
+            KnowledgeEntity,
+            KnowledgeNote,
+            KnowledgePredictionRun,
+            LegacyNote,
+            LibraryEntityType,
+            LibraryItemLink,
+            Milestone,
+            MutationLog,
+            NativeNote,
+            PatternInstance,
+            Project,
+            ProjectInclusion,
+            ProviderRef,
+            Reference,
+            ReferenceProvenance,
+            ResearchChecklist,
+            ResearchNote,
+            ResearchPlan,
+            ResearchProject,
+            ResearchStep,
+            ResearchTask,
+            Run,
+            SavedSearch,
+            SearchSource,
+            SpatialConnection,
+            SpatialNode,
+            SpatialRoom,
+            SpatialStack,
+            SpatialViewport,
+            Trace,
+            Workflow,
+        )
+
+    def _materialize_schema(self) -> None:
+        """Create and reconcile all persisted tables/columns eagerly."""
+        for model in self._all_schema_models():
+            self._tables_created.discard(self._table_name(model))
+            self._ensure_table(model)
 
     def _execute(self, sql: str, params: Any | None = None, fetch: str | None = None):
         """Execute SQL, retrying bounded DuckDB transient write conflicts.
