@@ -180,6 +180,7 @@ struct DocumentInspectorEntitiesTab: View {
             }
             .buttonStyle(.plain)
             .help("Reload entities")
+            .accessibilityLabel("Reload entities")
         }
     }
 
@@ -264,6 +265,7 @@ struct DocumentInspectorEntitiesTab: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .help("Filter entity kinds")
+        .accessibilityLabel("Filter entity kinds")
     }
 
     private func entityKindSection(
