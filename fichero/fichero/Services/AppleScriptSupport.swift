@@ -193,9 +193,6 @@ class AppleScriptBridge {
             body: .json(.init(
                 path: filePath,
                 parentId: folderPath,
-                // Pass the mode through so "MOVE" isn't silently downgraded to
-                // LINK by the copyMode-only path (#2869 B1).
-                mode: mode,
                 copyMode: mode.uppercased() == "COPY"
             ))
         )

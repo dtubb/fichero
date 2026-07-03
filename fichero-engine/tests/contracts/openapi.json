@@ -43716,11 +43716,6 @@
             "nullable": true,
             "title": "Parent Id"
           },
-          "mode": {
-            "type": "string",
-            "nullable": true,
-            "title": "Mode"
-          },
           "copy_mode": {
             "type": "boolean",
             "title": "Copy Mode",
@@ -43754,11 +43749,6 @@
             "type": "string",
             "nullable": true,
             "title": "Parent Id"
-          },
-          "mode": {
-            "type": "string",
-            "nullable": true,
-            "title": "Mode"
           },
           "copy_mode": {
             "type": "boolean",
