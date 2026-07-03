@@ -1,0 +1,1 @@
+2026-07-03 Codex: added device/pairing auth boundary tests; targeted pytest green (`2 passed, 1 strict xfail`) with one documented finding that malformed `/api/pair` input currently echoes the submitted pairing code in the 422 response body.
