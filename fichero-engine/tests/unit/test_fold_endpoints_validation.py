@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import pytest
 
+from fichero.knowledge_models import EntityType, KnowledgeClaim, KnowledgeEntity
 from fichero.models import DocType, Document, SavedSearch
 
 
@@ -224,6 +225,250 @@ def test_milestone_create_rejects_unexpected_fields(client, db):
                 "unexpected_field": "should be rejected",
             },
         },
+    )
+
+    assert 400 <= response.status_code < 500
+
+
+def test_claim_create_rejects_missing_required_text(client):
+    response = client.post("/api/claims", json={})
+    assert response.status_code == 422
+
+
+@pytest.mark.xfail(
+    reason="ClaimCreateRequest currently accepts empty text and persists a blank claim",
+    strict=True,
+)
+def test_claim_create_rejects_empty_text(client):
+    response = client.post("/api/claims", json={"text": ""})
+    assert 400 <= response.status_code < 500
+
+
+def test_claim_create_rejects_missing_source_document_cleanly(client):
+    response = client.post(
+        "/api/claims",
+        json={"text": "Claim", "source_document_id": "ghost-document"},
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Source document not found: ghost-document"
+
+
+@pytest.mark.xfail(
+    reason="ClaimCreateRequest silently ignores unexpected fields instead of rejecting them (#2430 class)",
+    strict=True,
+)
+def test_claim_create_rejects_unexpected_fields(client):
+    response = client.post(
+        "/api/claims",
+        json={"text": "Claim", "unexpected_field": "should be rejected"},
+    )
+    assert 400 <= response.status_code < 500
+
+
+def test_claim_patch_rejects_missing_related_entity_cleanly(client, db):
+    claim = KnowledgeClaim(text="Original claim")
+    db.save(claim)
+
+    response = client.patch(
+        f"/api/claims/{claim.id}",
+        json={"subject_entity_id": "ghost-entity"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Unknown entity for subject_entity_id: ghost-entity"
+
+
+@pytest.mark.xfail(
+    reason="ClaimPatchRequest silently ignores unexpected fields instead of rejecting them (#2430 class)",
+    strict=True,
+)
+def test_claim_patch_rejects_unexpected_fields(client, db):
+    claim = KnowledgeClaim(text="Original claim")
+    db.save(claim)
+
+    response = client.patch(
+        f"/api/claims/{claim.id}",
+        json={"unexpected_field": "should be rejected"},
+    )
+
+    assert 400 <= response.status_code < 500
+
+
+def test_entity_create_rejects_missing_required_canonical_name(client):
+    response = client.post("/api/entities", json={})
+    assert response.status_code == 422
+
+
+def test_entity_create_rejects_empty_canonical_name(client):
+    response = client.post("/api/entities", json={"canonical_name": ""})
+    assert response.status_code == 422
+
+
+def test_entity_create_rejects_missing_explicit_target_id_cleanly(client):
+    response = client.post(
+        "/api/entities",
+        json={"id": "ghost-entity", "canonical_name": "Alice"},
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "entity 'ghost-entity' not found"
+
+
+@pytest.mark.xfail(
+    reason="EntityUpsertRequest silently ignores unexpected fields instead of rejecting them (#2430 class)",
+    strict=True,
+)
+def test_entity_create_rejects_unexpected_fields(client):
+    response = client.post(
+        "/api/entities",
+        json={"canonical_name": "Alice", "unexpected_field": "should be rejected"},
+    )
+    assert 400 <= response.status_code < 500
+
+
+def test_entity_patch_missing_id_returns_404(client):
+    response = client.patch("/api/entities/ghost-entity", json={"description": "After"})
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Entity not found: ghost-entity"
+
+
+@pytest.mark.xfail(
+    reason="EntityPatchRequest silently ignores unexpected fields instead of rejecting them (#2430 class)",
+    strict=True,
+)
+def test_entity_patch_rejects_unexpected_fields(client, db):
+    entity = KnowledgeEntity(
+        canonical_name="Alice",
+        entity_type=EntityType.person,
+    )
+    db.save(entity)
+
+    response = client.patch(
+        f"/api/entities/{entity.id}",
+        json={"unexpected_field": "should be rejected"},
+    )
+
+    assert 400 <= response.status_code < 500
+
+
+def test_document_create_rejects_missing_required_name(client):
+    response = client.post("/api/documents", json={})
+    assert response.status_code == 422
+
+
+@pytest.mark.xfail(
+    reason="DocumentCreate currently accepts empty names instead of rejecting them",
+    strict=True,
+)
+def test_document_create_rejects_empty_name(client):
+    response = client.post("/api/documents", json={"name": ""})
+    assert 400 <= response.status_code < 500
+
+
+def test_document_create_rejects_missing_parent_cleanly(client):
+    response = client.post(
+        "/api/documents",
+        json={"name": "Doc", "parent_id": "ghost-parent"},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Parent not found: ghost-parent"
+
+
+@pytest.mark.xfail(
+    reason="DocumentCreate uses extra='allow' and accepts unexpected fields instead of rejecting them (#2430 class)",
+    strict=True,
+)
+def test_document_create_rejects_unexpected_fields(client):
+    response = client.post(
+        "/api/documents",
+        json={"name": "Doc", "unexpected_field": "should be rejected"},
+    )
+    assert 400 <= response.status_code < 500
+
+
+def test_document_move_rejects_missing_document_id_cleanly(client):
+    response = client.put("/api/documents/ghost-document/move?parent_id=ghost-parent")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Document not found: ghost-document"
+
+
+def test_document_move_rejects_missing_parent_cleanly(client, db):
+    doc = Document(id="document-move-target", name="Target", doc_type=DocType.file)
+    db.save(doc)
+
+    response = client.put(f"/api/documents/{doc.id}/move?parent_id=ghost-parent")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Parent not found: ghost-parent"
+
+
+@pytest.mark.xfail(
+    reason="Document move route ignores unexpected query params instead of rejecting them (#2430 class)",
+    strict=True,
+)
+def test_document_move_rejects_unexpected_query_fields(client, db):
+    doc = Document(id="document-move-extra", name="Target", doc_type=DocType.file)
+    db.save(doc)
+
+    response = client.put(
+        f"/api/documents/{doc.id}/move?parent_id=&unexpected_field=should-be-rejected"
+    )
+
+    assert 400 <= response.status_code < 500
+
+
+def test_room_create_rejects_missing_required_name(client):
+    response = client.post("/api/mind-palace/rooms", json={})
+    assert response.status_code == 422
+
+
+@pytest.mark.xfail(
+    reason="RoomCreateRequest currently accepts empty names and creates blank rooms",
+    strict=True,
+)
+def test_room_create_rejects_empty_name(client):
+    response = client.post("/api/mind-palace/rooms", json={"name": ""})
+    assert 400 <= response.status_code < 500
+
+
+@pytest.mark.xfail(
+    reason="RoomCreateRequest silently ignores unexpected fields instead of rejecting them (#2430 class)",
+    strict=True,
+)
+def test_room_create_rejects_unexpected_fields(client):
+    response = client.post(
+        "/api/mind-palace/rooms",
+        json={"name": "Room", "unexpected_field": "should be rejected"},
+    )
+    assert 400 <= response.status_code < 500
+
+
+def test_room_update_missing_id_returns_404(client):
+    response = client.patch(
+        "/api/mind-palace/rooms/ghost-room",
+        json={"name": "After"},
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Room not found: ghost-room"
+
+
+@pytest.mark.xfail(
+    reason="RoomUpdateRequest silently ignores unexpected fields instead of rejecting them (#2430 class)",
+    strict=True,
+)
+def test_room_update_rejects_unexpected_fields(client, db):
+    room = Document(
+        id="room-update-extra",
+        name="Room",
+        node_kind="room",
+        prototype_key="room",
+        doc_type=DocType.folder,
+        attributes={"description": "", "room_type": "research", "owner_id": "user", "metadata": {}},
+    )
+    db.save(room)
+
+    response = client.patch(
+        "/api/mind-palace/rooms/room-update-extra",
+        json={"unexpected_field": "should be rejected"},
     )
 
     assert 400 <= response.status_code < 500
