@@ -25,6 +25,7 @@ import pytest
 
 _ROOT = Path(__file__).resolve().parents[3]
 _CHECKER = _ROOT / "scripts" / "check_ui_wiring.py"
+_MATRIX = _ROOT / "fichero-engine" / "tests" / "contracts" / "coverage_matrix.json"
 
 _spec = importlib.util.spec_from_file_location("check_ui_wiring", _CHECKER)
 _mod = importlib.util.module_from_spec(_spec)
@@ -58,3 +59,32 @@ def test_cli_allowlist_stays_small_and_intentional() -> None:
     allowed = set(allow.get("paths", {}).keys())
     assert allowed <= _CLI_INTENTIONAL_ALLOWLIST
     assert len(allowed) <= len(_CLI_INTENTIONAL_ALLOWLIST)
+
+
+def test_per_domain_coverage_only_improves() -> None:
+    baseline_rows = {
+        row["domain"]: row for row in _mod.json.loads(_MATRIX.read_text()).get("rows", [])
+    }
+    current_rows = {
+        row["domain"]: row
+        for row in _mod.coverage_matrix(_mod.json.loads(_mod.OPENAPI.read_text())).get("rows", [])
+    }
+
+    assert baseline_rows.keys() == current_rows.keys(), (
+        "coverage_matrix.json domains drifted; regenerate with "
+        "`python scripts/check_ui_wiring.py --matrix`"
+    )
+
+    regressions = []
+    for domain, baseline in baseline_rows.items():
+        current = current_rows[domain]
+        if current["swiftui_unwired"] > baseline["swiftui_unwired"]:
+            regressions.append(
+                f"{domain}: swiftui_unwired {current['swiftui_unwired']} > {baseline['swiftui_unwired']}"
+            )
+        if current["cli_untested"] > baseline["cli_untested"]:
+            regressions.append(
+                f"{domain}: cli_untested {current['cli_untested']} > {baseline['cli_untested']}"
+            )
+
+    assert not regressions, "Per-domain coverage regressed:\n  " + "\n  ".join(regressions)

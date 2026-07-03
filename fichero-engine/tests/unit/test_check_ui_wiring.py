@@ -73,3 +73,56 @@ def test_unwired_uses_operation_tokens_and_path_regex(monkeypatch, tmp_path):
     monkeypatch.setattr(check_ui_wiring, "surface_source", lambda _: src)
     miss = check_ui_wiring.unwired({}, openapi)
     assert miss == []
+
+
+def test_coverage_matrix_groups_by_domain(monkeypatch):
+    openapi = {
+        "paths": {
+            "/api/auth/login": {"post": {"operationId": "login_api_auth_login_post"}},
+            "/api/auth/logout": {"post": {"operationId": "logout_api_auth_logout_post"}},
+            "/api/search": {"get": {"operationId": "search_api_search_get"}},
+        }
+    }
+    monkeypatch.setattr(
+        check_ui_wiring,
+        "unwired",
+        lambda surface, _: (
+            ["/api/auth/logout"] if surface is check_ui_wiring.SURFACES["swiftui"] else ["/api/search"]
+        ),
+    )
+    monkeypatch.setattr(
+        check_ui_wiring,
+        "load_allowlist",
+        lambda surface, name: {
+            "paths": {
+                "/api/auth/logout" if name == "swiftui" else "/api/search": "baseline"
+            }
+        },
+    )
+    matrix = check_ui_wiring.coverage_matrix(openapi)
+    assert matrix["rows"] == [
+        {
+            "domain": "auth",
+            "total": 2,
+            "swiftui_wired": 1,
+            "swiftui_unwired": 1,
+            "swiftui_allowlisted": 1,
+            "swiftui_coverage": 0.5,
+            "cli_wired": 2,
+            "cli_untested": 0,
+            "cli_allowlisted": 0,
+            "cli_coverage": 1.0,
+        },
+        {
+            "domain": "search",
+            "total": 1,
+            "swiftui_wired": 1,
+            "swiftui_unwired": 0,
+            "swiftui_allowlisted": 0,
+            "swiftui_coverage": 1.0,
+            "cli_wired": 0,
+            "cli_untested": 1,
+            "cli_allowlisted": 1,
+            "cli_coverage": 0.0,
+        },
+    ]
