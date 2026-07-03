@@ -101,6 +101,37 @@ struct AuthTokenMiddlewareStorageTests {
         #expect(bootstrap?.lastPathComponent != remoteAccount)
     }
 
+    @Test("session token keychain accounts are host-specific and normalized")
+    func sessionTokenKeychainAccountsAreHostSpecific() {
+        let first = AuthTokenMiddleware.sessionTokenKeychainAccount(hostString: "https://host-one.tailnet.example")
+        let second = AuthTokenMiddleware.sessionTokenKeychainAccount(hostString: "https://host-two.tailnet.example")
+
+        #expect(first != second)
+        #expect(first.hasPrefix("session-token|https://"))
+        // Same normalization as the device token: default ports and path/query
+        // collapse, so one engine maps to one session slot.
+        let decorated = AuthTokenMiddleware.sessionTokenKeychainAccount(
+            hostString: "https://host-one.tailnet.example:443/api?x=1#frag"
+        )
+        #expect(first == decorated)
+    }
+
+    @Test("session and remote device tokens never share a keychain account")
+    func sessionAndRemoteTokensDoNotCollide() {
+        let host = "https://host.tailnet.example"
+        let session = AuthTokenMiddleware.sessionTokenKeychainAccount(hostString: host)
+        let remote = AuthTokenMiddleware.remoteTokenKeychainAccount(hostString: host)
+        #expect(session != remote)
+    }
+
+    @Test("login is unauthenticated so the sign-in request carries no stale token")
+    func loginPathIsUnauthenticated() {
+        #expect(AuthTokenMiddleware.isUnauthenticatedPath("/api/auth/login"))
+        // /api/auth/me and /api/auth/logout still require a bearer token.
+        #expect(AuthTokenMiddleware.isUnauthenticatedPath("/api/auth/me") == false)
+        #expect(AuthTokenMiddleware.isUnauthenticatedPath("/api/auth/logout") == false)
+    }
+
     @Test("unauthenticated paths require an exact path or path segment boundary")
     func unauthenticatedPathsRequireExactOrSegmentBoundary() {
         #expect(AuthTokenMiddleware.isUnauthenticatedPath("/api/health"))

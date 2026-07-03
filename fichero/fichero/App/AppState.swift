@@ -45,6 +45,7 @@ class AppState: ObservableObject {
     let mcpService: MCPService  // Public for @EnvironmentObject injection
     let modelService: ModelServiceGenerated  // Public for @EnvironmentObject injection (HuggingFace browsing)
     let usersStore: UsersStore  // Public for Settings → Users tab
+    let sessionStore: SessionStore  // Public for the login gate (#2021/#2022)
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "AppState")
 
     // MARK: - Initialization
@@ -56,6 +57,7 @@ class AppState: ObservableObject {
         self.mcpService = MCPService(apiClient: apiClient)
         self.modelService = ModelServiceGenerated(ficheroClient: ficheroClient)
         self.usersStore = UsersStore(client: ficheroClient)
+        self.sessionStore = SessionStore(client: ficheroClient)
         logger.info("⏱ AppState.init services ready")
     }
 
@@ -153,6 +155,11 @@ class AppState: ObservableObject {
                 // Now load providers
                 _ = await AuthTokenMiddleware.waitForToken()
                 await loadProviders()
+
+                // Resolve the multi-user login gate (#2021/#2022): restores a
+                // stored session, or flips ContentView to the login / owner-setup
+                // screen. A no-op (phase → .disabled) when multi-user is off.
+                await sessionStore.refresh()
 
             default:
                 backendError = "API returned error status"

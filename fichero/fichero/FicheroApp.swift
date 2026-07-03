@@ -234,6 +234,16 @@ struct FicheroApp: App {
                     SparkleUpdater.shared.checkForUpdates()
                 }
                 #endif
+
+                // Log out of the multi-user session (#2021/#2022). Only shown
+                // when a session is active; clears the Keychain token and drops
+                // back to the login gate.
+                if appState.sessionStore.phase == .authenticated {
+                    Divider()
+                    Button(appState.sessionStore.currentUser.map { "Log Out \($0.username)…" } ?? "Log Out…") {
+                        Task { await appState.sessionStore.logout() }
+                    }
+                }
             }
 
             // File menu - Database/Library management
