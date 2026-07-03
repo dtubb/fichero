@@ -1832,6 +1832,7 @@ def _action_delete_saved_search(
     ReorderSavedSearchesParams,
     domains=["savedsearch"],
     undoable=False,
+    atomic=False,
 )
 def _action_reorder_saved_searches(
     db: Database, params: ReorderSavedSearchesParams, ctx: ActionContext

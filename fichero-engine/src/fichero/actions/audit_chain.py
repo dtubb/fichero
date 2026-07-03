@@ -13,9 +13,9 @@ import os
 from pathlib import Path
 import secrets
 import stat
+import threading
 from typing import Any
 
-from fichero.app_db import get_app_db
 from fichero.paths import engine_state_dir
 from fichero.storage import settings
 from fichero.models import ActionAudit
@@ -26,6 +26,7 @@ _AUDIT_CHAIN_KEY_ACCOUNT = "action-audit-chain-hmac"
 _AUDIT_CHAIN_HASH_MODE = "hmac-sha256-v1"
 _AUDIT_CHAIN_ANCHOR_KEY_PREFIX = "audit_chain_anchor:"
 _AUDIT_CHAIN_SECRET_FILE = ".action-audit-chain.key"
+_AUDIT_CHAIN_ANCHOR_DIR = "audit-chain-anchors"
 
 _HASH_FIELDS: tuple[str, ...] = (
     "id",
@@ -95,6 +96,8 @@ def _compute_legacy_action_audit_hash(audit: ActionAudit) -> str:
 
 
 def _use_keychain_for_audit_secret() -> bool:
+    if threading.current_thread() is not threading.main_thread():
+        return False
     try:
         return settings.base_path.resolve() == engine_state_dir().resolve()
     except OSError:
@@ -178,14 +181,27 @@ def _anchor_setting_key(db) -> str:
     return f"{_AUDIT_CHAIN_ANCHOR_KEY_PREFIX}{library_id}"
 
 
+def _anchor_file_path(db) -> Path:
+    library_path = str(Path(db.path).resolve())
+    library_id = hashlib.sha256(library_path.encode("utf-8")).hexdigest()
+    return settings.base_path / _AUDIT_CHAIN_ANCHOR_DIR / f"{library_id}.json"
+
+
 def _load_chain_anchor(db) -> dict[str, Any] | None:
-    raw = get_app_db().get_setting(_anchor_setting_key(db))
-    if not raw:
-        return None
+    path = _anchor_file_path(db)
     try:
+        raw = path.read_text(encoding="utf-8")
         payload = json.loads(raw)
-    except json.JSONDecodeError:
-        return None
+    except (OSError, json.JSONDecodeError):
+        from fichero.app_db import get_app_db
+
+        raw = get_app_db().get_setting(_anchor_setting_key(db))
+        if not raw:
+            return None
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            return None
     if not isinstance(payload, dict):
         return None
     return payload
@@ -199,7 +215,9 @@ def _store_chain_anchor(db, *, chain_count: int, head_row_hash: str | None) -> d
         "hash_mode": _AUDIT_CHAIN_HASH_MODE,
         "updated_at": datetime.now().isoformat(),
     }
-    get_app_db().set_setting(_anchor_setting_key(db), json.dumps(payload, sort_keys=True))
+    path = _anchor_file_path(db)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
     return payload
 
 
@@ -233,22 +251,23 @@ def current_audit_chain_head(db) -> str | None:
 
 
 def save_chained_audit(db, audit: ActionAudit) -> None:
-    """Append ``audit`` under the database lock as one linear chain step."""
-    with db._lock:
-        # One ordered load (also backfills legacy rows) gives both the max
-        # chain_seq and the current head — no raw SQL needed (#1876).
-        rows = _audit_rows_in_chain_order(db)
-        audit.created_at = datetime.now()
-        head = rows[-1] if rows else None
-        audit.chain_seq = (head.chain_seq or 0) + 1 if head else 1
-        audit.prev_hash = head.row_hash or None if head else None
-        audit.row_hash = compute_action_audit_hash(audit)
-        db.save(audit)
-        _store_chain_anchor(
+    """Append ``audit`` as one linear chain step inside the caller's unit of work."""
+    # One ordered load (also backfills legacy rows) gives both the max chain_seq
+    # and the current head — no raw SQL needed (#1876).
+    rows = _audit_rows_in_chain_order(db)
+    audit.created_at = datetime.now()
+    head = rows[-1] if rows else None
+    audit.chain_seq = (head.chain_seq or 0) + 1 if head else 1
+    audit.prev_hash = head.row_hash or None if head else None
+    audit.row_hash = compute_action_audit_hash(audit)
+    db.save(audit)
+    db.add_after_commit_hook(
+        lambda: _store_chain_anchor(
             db,
             chain_count=len(rows) + 1,
             head_row_hash=audit.row_hash,
         )
+    )
 
 
 def verify_audit_chain(db) -> AuditChainVerificationResult:

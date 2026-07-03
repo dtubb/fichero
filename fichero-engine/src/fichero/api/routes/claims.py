@@ -82,6 +82,17 @@ def _emit_claim_change_ctx(
     )
 
 
+def _emit_claim_change_spec(ctx: "ActionContext", spec: "ChangeSpec") -> None:
+    if spec.emit_type is None:
+        return
+    _emit_claim_change_ctx(
+        ctx,
+        event_type=spec.emit_type,
+        claim_ids=list(spec.claim_ids),
+        entity_ids=list(spec.entity_ids),
+    )
+
+
 # =============================================================================
 # Request/Response Models
 # =============================================================================
@@ -1093,18 +1104,14 @@ def _action_create_claim(
 ) -> tuple[dict, ChangeSpec]:
     claim = create_claim_impl(db, params)
     entity_ids = list(claim.entity_ids or [])
-    _emit_claim_change_ctx(
-        ctx,
-        event_type="claim.updated",
-        claim_ids=[claim.id],
-        entity_ids=entity_ids,
-    )
     spec = ChangeSpec(
         domains=["claim"],
         target_ids=[claim.id],
         after={"claim_id": claim.id},
+        emit_type="claim.updated",
         claim_ids=[claim.id],
         entity_ids=entity_ids,
+        emit_fn=_emit_claim_change_spec,
     )
     return claim.model_dump(mode="json"), spec
 
@@ -1120,19 +1127,15 @@ def _action_patch_claim(
     db: Database, params: ClaimPatchActionParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
     claim, before = patch_claim_impl(db, params.claim_id, params.patch)
-    _emit_claim_change_ctx(
-        ctx,
-        event_type="claim.updated",
-        claim_ids=[claim.id],
-        entity_ids=list(claim.entity_ids or []),
-    )
     spec = ChangeSpec(
         domains=["claim"],
         target_ids=[claim.id],
         before=before,
         after=claim.model_dump(mode="json"),
+        emit_type="claim.updated",
         claim_ids=[claim.id],
         entity_ids=list(claim.entity_ids or []),
+        emit_fn=_emit_claim_change_spec,
     )
     return claim.model_dump(mode="json"), spec
 
@@ -1150,19 +1153,15 @@ def _action_delete_claim(
     before_state, deleted_links, affected_entity_ids = delete_claim_impl(
         db, params.claim_id
     )
-    _emit_claim_change_ctx(
-        ctx,
-        event_type="claim.deleted",
-        claim_ids=[params.claim_id],
-        entity_ids=affected_entity_ids,
-    )
     spec = ChangeSpec(
         domains=["claim"],
         target_ids=[params.claim_id],
         before={"claim": before_state, "deleted_links": deleted_links},
         after=None,
+        emit_type="claim.deleted",
         claim_ids=[params.claim_id],
         entity_ids=affected_entity_ids,
+        emit_fn=_emit_claim_change_spec,
     )
     return {"deleted_claim_id": params.claim_id}, spec
 

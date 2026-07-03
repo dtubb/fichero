@@ -39,9 +39,10 @@ Usage:
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from pathlib import Path
 from types import UnionType
-from typing import TypeVar, Type, get_origin, get_args, Union, Any, Sequence, cast
+from typing import TypeVar, Type, get_origin, get_args, Union, Any, Sequence, cast, Callable, Literal
 from dataclasses import dataclass, field
 from datetime import datetime
 import math
@@ -524,6 +525,8 @@ class Database(DatabaseEmbeddingMixin):
         self._embedding_model_name = None
         self._tables_created: set[str] = set()
         self._lock = threading.RLock()
+        self._transaction_gate = threading.RLock()
+        self._tx_state = threading.local()
         # Per-table count of LanceDB appends since the last compaction. Drives
         # the bounded auto-compaction trigger in save_vectors (#2542).
         self._vector_append_counts: dict[str, int] = {}
@@ -756,45 +759,47 @@ class Database(DatabaseEmbeddingMixin):
         the one shared connection (#2508). ``fetch=None`` returns the raw cursor
         (legacy in-method callers that fetch immediately under their own lock).
         """
-        with self._lock:
-            for attempt in range(_DUCKDB_WRITE_CONFLICT_RETRIES + 1):
-                try:
-                    cur = (
-                        self.conn.execute(sql)
-                        if params is None
-                        else self.conn.execute(sql, params)
-                    )
-                    if fetch == "all":
-                        return cur.fetchall()
-                    if fetch == "one":
-                        return cur.fetchone()
-                    return cur
-                except duckdb.Error as exc:
-                    if self._is_invalidated_error(exc):
-                        logger.warning(
-                            "DuckDB connection for %s was invalidated; reopening and retrying",
-                            self.path,
+        self._ensure_transaction_started()
+        with self._transaction_gate:
+            with self._lock:
+                for attempt in range(_DUCKDB_WRITE_CONFLICT_RETRIES + 1):
+                    try:
+                        cur = (
+                            self.conn.execute(sql)
+                            if params is None
+                            else self.conn.execute(sql, params)
                         )
-                        self._reconnect_after_invalidated()
-                        continue
-                    if not self._is_write_conflict_error(exc):
-                        raise
-                    if attempt >= _DUCKDB_WRITE_CONFLICT_RETRIES:
-                        raise RuntimeError(
-                            "DuckDB write conflict did not resolve after "
-                            f"{_DUCKDB_WRITE_CONFLICT_RETRIES} retries for {self.path}. "
-                            "The library is receiving concurrent writes; retry the operation."
-                        ) from exc
-                    delay = _DUCKDB_WRITE_CONFLICT_BACKOFF_SECONDS * (attempt + 1)
-                    logger.warning(
-                        "DuckDB write conflict for %s; retrying in %.3fs (%s/%s)",
-                        self.path,
-                        delay,
-                        attempt + 1,
-                        _DUCKDB_WRITE_CONFLICT_RETRIES,
-                    )
-                    time.sleep(delay)
-            raise RuntimeError("DuckDB execution retry loop exited unexpectedly")
+                        if fetch == "all":
+                            return cur.fetchall()
+                        if fetch == "one":
+                            return cur.fetchone()
+                        return cur
+                    except duckdb.Error as exc:
+                        if self._is_invalidated_error(exc):
+                            logger.warning(
+                                "DuckDB connection for %s was invalidated; reopening and retrying",
+                                self.path,
+                            )
+                            self._reconnect_after_invalidated()
+                            continue
+                        if not self._is_write_conflict_error(exc):
+                            raise
+                        if attempt >= _DUCKDB_WRITE_CONFLICT_RETRIES:
+                            raise RuntimeError(
+                                "DuckDB write conflict did not resolve after "
+                                f"{_DUCKDB_WRITE_CONFLICT_RETRIES} retries for {self.path}. "
+                                "The library is receiving concurrent writes; retry the operation."
+                            ) from exc
+                        delay = _DUCKDB_WRITE_CONFLICT_BACKOFF_SECONDS * (attempt + 1)
+                        logger.warning(
+                            "DuckDB write conflict for %s; retrying in %.3fs (%s/%s)",
+                            self.path,
+                            delay,
+                            attempt + 1,
+                            _DUCKDB_WRITE_CONFLICT_RETRIES,
+                        )
+                        time.sleep(delay)
+                raise RuntimeError("DuckDB execution retry loop exited unexpectedly")
 
     # =========================================================================
     # Direct-SQL seam for the store modules (#2508)
@@ -821,6 +826,116 @@ class Database(DatabaseEmbeddingMixin):
     def execute_fetchone(self, sql: str, params: Any | None = None):
         """Execute + ``fetchone`` atomically under the lock (#2508)."""
         return self._execute(sql, params, fetch="one")
+
+    def _execute_fetch_with_columns(
+        self,
+        sql: str,
+        params: Any | None = None,
+        *,
+        fetch: Literal["one", "all"] = "all",
+    ) -> tuple[Any, list[str]]:
+        """Fetch rows and column names atomically under the shared connection lock."""
+        self._ensure_transaction_started()
+        with self._transaction_gate:
+            with self._lock:
+                for attempt in range(_DUCKDB_WRITE_CONFLICT_RETRIES + 1):
+                    try:
+                        cur = (
+                            self.conn.execute(sql)
+                            if params is None
+                            else self.conn.execute(sql, params)
+                        )
+                        columns = [desc[0] for desc in cur.description]
+                        rows = cur.fetchone() if fetch == "one" else cur.fetchall()
+                        return rows, columns
+                    except duckdb.Error as exc:
+                        if self._is_invalidated_error(exc):
+                            logger.warning(
+                                "DuckDB connection for %s was invalidated; reopening and retrying",
+                                self.path,
+                            )
+                            self._reconnect_after_invalidated()
+                            continue
+                        if not self._is_write_conflict_error(exc):
+                            raise
+                        if attempt >= _DUCKDB_WRITE_CONFLICT_RETRIES:
+                            raise RuntimeError(
+                                "DuckDB write conflict did not resolve after "
+                                f"{_DUCKDB_WRITE_CONFLICT_RETRIES} retries for {self.path}. "
+                                "The library is receiving concurrent writes; retry the operation."
+                            ) from exc
+                        delay = _DUCKDB_WRITE_CONFLICT_BACKOFF_SECONDS * (attempt + 1)
+                        logger.warning(
+                            "DuckDB write conflict for %s; retrying in %.3fs (%s/%s)",
+                            self.path,
+                            delay,
+                            attempt + 1,
+                            _DUCKDB_WRITE_CONFLICT_RETRIES,
+                        )
+                        time.sleep(delay)
+                raise RuntimeError("DuckDB execution retry loop exited unexpectedly")
+
+    @property
+    def in_transaction(self) -> bool:
+        return getattr(self._tx_state, "depth", 0) > 0
+
+    def add_after_commit_hook(self, hook: Callable[[], None]) -> None:
+        if self.in_transaction:
+            hooks = getattr(self._tx_state, "after_commit_hooks", None)
+            if hooks is None:
+                hooks = []
+                self._tx_state.after_commit_hooks = hooks
+            hooks.append(hook)
+            return
+        hook()
+
+    def _ensure_transaction_started(self) -> None:
+        if not self.in_transaction or getattr(self._tx_state, "started", False):
+            return
+        self._transaction_gate.acquire()
+        try:
+            with self._lock:
+                self.conn.execute("BEGIN TRANSACTION")
+            self._tx_state.started = True
+        except Exception:
+            self._transaction_gate.release()
+            raise
+
+    @contextmanager
+    def transaction(self):
+        """Run a unit of work inside one serialized DuckDB transaction."""
+        outermost = not self.in_transaction
+        depth = getattr(self._tx_state, "depth", 0) + 1
+        self._tx_state.depth = depth
+        if outermost:
+            self._tx_state.started = False
+            self._tx_state.after_commit_hooks = []
+
+        hooks: list[Callable[[], None]] = []
+        started = False
+        try:
+            yield
+            started = bool(getattr(self._tx_state, "started", False))
+            if outermost and started:
+                with self._lock:
+                    self.conn.execute("COMMIT")
+                hooks = list(getattr(self._tx_state, "after_commit_hooks", []))
+        except Exception:
+            started = bool(getattr(self._tx_state, "started", False))
+            if outermost and started:
+                with self._lock:
+                    self.conn.execute("ROLLBACK")
+            raise
+        finally:
+            depth = getattr(self._tx_state, "depth", 1) - 1
+            self._tx_state.depth = max(0, depth)
+            if outermost:
+                self._tx_state.after_commit_hooks = []
+                self._tx_state.started = False
+                if started:
+                    self._transaction_gate.release()
+                for hook in hooks:
+                    hook()
 
     # =========================================================================
     # Core CRUD Operations
@@ -1682,11 +1797,11 @@ class Database(DatabaseEmbeddingMixin):
         sql_table = self._sql_table_name(model)
         self._ensure_table(model)
 
-        with self._lock:
-            result = self._execute(
-                f"SELECT * FROM {sql_table} WHERE id = $id", {"id": id}
-            ).fetchone()
-            columns = [desc[0] for desc in self.conn.description]
+        result, columns = self._execute_fetch_with_columns(
+            f"SELECT * FROM {sql_table} WHERE id = $id",
+            {"id": id},
+            fetch="one",
+        )
 
         if result is None:
             return None
@@ -1711,9 +1826,7 @@ class Database(DatabaseEmbeddingMixin):
         sql_table = self._sql_table_name(model)
         self._ensure_table(model)
 
-        with self._lock:
-            rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
-            columns = [desc[0] for desc in self.conn.description]
+        rows, columns = self._execute_fetch_with_columns(f"SELECT * FROM {sql_table}")
 
         if not rows:
             return []
@@ -1824,11 +1937,10 @@ class Database(DatabaseEmbeddingMixin):
                 where_clauses.append(f"{k} = ${k}")
 
         where = " AND ".join(where_clauses)
-        with self._lock:
-            rows = self._execute(
-                f"SELECT * FROM {sql_table} WHERE {where}", query_filters
-            ).fetchall()
-            columns = [desc[0] for desc in self.conn.description]
+        rows, columns = self._execute_fetch_with_columns(
+            f"SELECT * FROM {sql_table} WHERE {where}",
+            query_filters,
+        )
 
         if not rows:
             return []
@@ -1878,12 +1990,10 @@ class Database(DatabaseEmbeddingMixin):
             chunk = normalized[start : start + 500]
             placeholders = ",".join(f"$v{i}" for i in range(len(chunk)))
             params = {f"v{i}": val for i, val in enumerate(chunk)}
-            with self._lock:
-                rows = self._execute(
-                    f"SELECT * FROM {sql_table} WHERE {column} IN ({placeholders})",
-                    params,
-                ).fetchall()
-                columns = [desc[0] for desc in self.conn.description]
+            rows, columns = self._execute_fetch_with_columns(
+                f"SELECT * FROM {sql_table} WHERE {column} IN ({placeholders})",
+                params,
+            )
             if not rows:
                 continue
             out.extend(
@@ -4035,8 +4145,38 @@ class Database(DatabaseEmbeddingMixin):
         sql_table = self._sql_table_name(model)
 
         with self._lock:
-            if table in self._tables_created:
-                return
+            def _execute_locked(sql: str):
+                for attempt in range(_DUCKDB_WRITE_CONFLICT_RETRIES + 1):
+                    try:
+                        return self.conn.execute(sql)
+                    except duckdb.Error as exc:
+                        if self._is_invalidated_error(exc):
+                            logger.warning(
+                                "DuckDB connection for %s was invalidated during schema reconciliation; reopening and retrying",
+                                self.path,
+                            )
+                            self._reconnect_after_invalidated()
+                            continue
+                        if not self._is_write_conflict_error(exc):
+                            raise
+                        if attempt >= _DUCKDB_WRITE_CONFLICT_RETRIES:
+                            raise RuntimeError(
+                                "DuckDB write conflict did not resolve after "
+                                f"{_DUCKDB_WRITE_CONFLICT_RETRIES} retries for {self.path}. "
+                                "The library is receiving concurrent writes; retry the operation."
+                            ) from exc
+                        delay = _DUCKDB_WRITE_CONFLICT_BACKOFF_SECONDS * (attempt + 1)
+                        logger.warning(
+                            "DuckDB write conflict for %s during schema reconciliation; retrying in %.3fs (%s/%s)",
+                            self.path,
+                            delay,
+                            attempt + 1,
+                            _DUCKDB_WRITE_CONFLICT_RETRIES,
+                        )
+                        time.sleep(delay)
+                raise RuntimeError("DuckDB schema reconciliation retry loop exited unexpectedly")
+
+            first_reconcile_this_connection = table not in self._tables_created
 
             # Build column definitions from Pydantic model
             columns = []
@@ -4044,12 +4184,13 @@ class Database(DatabaseEmbeddingMixin):
                 col_type = self._python_to_duckdb_type(field_info.annotation)
                 columns.append(f"{name} {col_type}")
 
-            self._execute(f"""
-                CREATE TABLE IF NOT EXISTS {sql_table} (
-                    {", ".join(columns)},
-                    PRIMARY KEY (id)
-                )
-            """)
+            if first_reconcile_this_connection:
+                _execute_locked(f"""
+                    CREATE TABLE IF NOT EXISTS {sql_table} (
+                        {", ".join(columns)},
+                        PRIMARY KEY (id)
+                    )
+                """)
 
             # Reconcile columns for tables that already existed from an earlier
             # schema. The 0.0.x no-migration rule says "add the field to the model
@@ -4063,12 +4204,12 @@ class Database(DatabaseEmbeddingMixin):
             try:
                 existing = {
                     row[1]
-                    for row in self._execute(f"PRAGMA table_info({sql_table})").fetchall()
+                    for row in _execute_locked(f"PRAGMA table_info({sql_table})").fetchall()
                 }
             except Exception:
                 existing = {
                     row[0]
-                    for row in self._execute(
+                    for row in _execute_locked(
                         f"SELECT column_name FROM information_schema.columns "
                         f"WHERE table_name = '{table}'"
                     ).fetchall()
@@ -4076,7 +4217,7 @@ class Database(DatabaseEmbeddingMixin):
             for name, field_info in model.model_fields.items():
                 if name not in existing:
                     col_type = self._python_to_duckdb_type(field_info.annotation)
-                    self._execute(
+                    _execute_locked(
                         f"ALTER TABLE {sql_table} ADD COLUMN {name} {col_type}"
                     )
 
@@ -4086,7 +4227,7 @@ class Database(DatabaseEmbeddingMixin):
             # knowledgeentitys exist. Cheap (each CREATE INDEX IF NOT EXISTS
             # is a no-op when already present); critical for query latency
             # at 50K+ claims. (#991 — scaling-review bottleneck 2)
-            if table in {"knowledgeclaims", "knowledgeentitys"}:
+            if first_reconcile_this_connection and table in {"knowledgeclaims", "knowledgeentitys"}:
                 from fichero.db_migrations import migrate_knowledge_indices
                 migrate_knowledge_indices(self.conn)
 
