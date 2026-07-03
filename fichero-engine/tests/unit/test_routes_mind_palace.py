@@ -83,6 +83,29 @@ class TestCreateRoom:
         assert legacy.name == "Node Backed Room"
         assert legacy.room_type == RoomType.research
 
+    def test_create_room_dual_writes_empty_payload_defaults(self, client, db):
+        response = client.post(f"{BASE}/rooms", json={"name": "Sparse Room"})
+
+        assert response.status_code == 200
+        room_id = response.json()["id"]
+        assert response.json()["description"] == ""
+        assert response.json()["room_type"] == "research"
+        assert response.json()["owner_id"] == "user"
+        assert response.json()["metadata"] == {}
+
+        mirrored = db.get(Document, room_id)
+        legacy = _legacy_room(db, room_id)
+        assert mirrored is not None
+        assert mirrored.attributes["description"] == ""
+        assert mirrored.attributes["room_type"] == "research"
+        assert mirrored.attributes["owner_id"] == "user"
+        assert mirrored.attributes["metadata"] == {}
+        assert legacy is not None
+        assert legacy.description == ""
+        assert legacy.room_type == RoomType.research
+        assert legacy.owner_id == "user"
+        assert legacy.metadata == {}
+
 
 # ---------------------------------------------------------------------------
 # GET /api/mind-palace/rooms
@@ -185,6 +208,37 @@ class TestListRooms:
         assert item["description"] == "Node Description"
         assert item["metadata"] == {"theme": "blue"}
 
+    def test_list_room_defaults_shape_for_empty_node_attributes(self, client, db):
+        db.save(
+            Document(
+                id="room-empty-list",
+                name="Sparse Node Room",
+                node_kind="room",
+                prototype_key="room",
+                doc_type="folder",
+                attributes={},
+            )
+        )
+
+        response = client.get(f"{BASE}/rooms")
+
+        assert response.status_code == 200
+        item = next(item for item in response.json()["items"] if item["id"] == "room-empty-list")
+        assert item["description"] == ""
+        assert item["room_type"] == "research"
+        assert item["owner_id"] == "user"
+        assert item["metadata"] == {}
+
+    def test_list_rooms_raises_when_legacy_room_lost_its_node(self, client, db):
+        room = SpatialRoom(id="room-list-missing-node", name="Legacy Only")
+        db.save(room)
+        db._execute("DELETE FROM documents WHERE id = $id", {"id": room.id})
+
+        response = client.get(f"{BASE}/rooms")
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == f"Room node not found: {room.id}"
+
     @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_returns_rooms(self, client, db):
         db.save(_make_room("r-1", "Room A"))
@@ -249,6 +303,26 @@ class TestGetRoom:
         assert response.status_code == 200
         assert response.json()["name"] == "Node Truth"
         assert response.json()["description"] == "From node"
+
+    def test_get_room_defaults_shape_for_empty_node_attributes(self, client, db):
+        db.save(
+            Document(
+                id="room-empty-get",
+                name="Sparse Node Room",
+                node_kind="room",
+                prototype_key="room",
+                doc_type="folder",
+                attributes={},
+            )
+        )
+
+        response = client.get(f"{BASE}/rooms/room-empty-get")
+
+        assert response.status_code == 200
+        assert response.json()["description"] == ""
+        assert response.json()["room_type"] == "research"
+        assert response.json()["owner_id"] == "user"
+        assert response.json()["metadata"] == {}
 
     def test_get_room_raises_when_legacy_room_lost_its_node(self, client, db):
         room = SpatialRoom(id="room-missing-node", name="Legacy Only")
@@ -354,6 +428,40 @@ class TestUpdateRoom:
         assert legacy.description == "After update"
         assert legacy.room_type == RoomType.presentation
         assert legacy.metadata == {"theme": "gold"}
+
+    def test_update_document_backed_room_preserves_child_containment(self, client, db):
+        db.save(
+            Document(
+                id="room-child-parent",
+                parent_id="workspace-root",
+                name="Contained Room",
+                node_kind="room",
+                prototype_key="room",
+                doc_type="folder",
+                attributes={"room_type": "research"},
+            )
+        )
+        db.save(
+            Document(
+                id="room-child-doc",
+                parent_id="room-child-parent",
+                name="Child Note",
+                doc_type="file",
+            )
+        )
+
+        response = client.patch(
+            f"{BASE}/rooms/room-child-parent",
+            json={"name": "Renamed Contained Room", "description": "Still contains children"},
+        )
+
+        assert response.status_code == 200
+        mirrored = db.get(Document, "room-child-parent")
+        child = db.get(Document, "room-child-doc")
+        assert mirrored is not None
+        assert mirrored.parent_id == "workspace-root"
+        assert child is not None
+        assert child.parent_id == "room-child-parent"
 
     @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_update_room_name(self, client, db):
