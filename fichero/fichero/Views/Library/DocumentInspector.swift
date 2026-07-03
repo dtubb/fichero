@@ -161,6 +161,7 @@ struct DocumentInspector: View {
                 )
                 .foregroundStyle(selectedTab == tab ? Color.accentColor : Color.secondary)
                 .help(tab.helpText)
+                .accessibilityLabel(tab.rawValue)
                 // Stable per-tab XCUITest hook, e.g. "inspectorTab-Content" (#1230).
                 .accessibilityIdentifier("inspectorTab-\(tab.rawValue)")
             }

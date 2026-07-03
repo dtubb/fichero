@@ -239,6 +239,7 @@ private struct ArtifactRow: View {
                     .font(.caption)
                     .foregroundStyle(.green.opacity(0.7))
                     .help("Reviewed")
+                    .accessibilityLabel("Reviewed")
             }
             if artifact.version > 1 {
                 Text("v\(artifact.version)")

@@ -442,6 +442,7 @@ struct KnowledgeGraphInspectorSection: View {
             .menuIndicator(.hidden)
             .fixedSize()
             .help("Filter — choose which entity kinds (people, places, organizations…) appear in this list")
+            .accessibilityLabel("Filter entity kinds")
             // Text / List mode toggle
             Button {
                 displayMode = .text
@@ -451,6 +452,7 @@ struct KnowledgeGraphInspectorSection: View {
             .buttonStyle(.plain)
             .foregroundStyle(displayMode == .text ? Color.accentColor : Color.secondary)
             .help("Text digest — entities as a dense prose summary, one paragraph per kind")
+            .accessibilityLabel("Text digest")
             Button {
                 displayMode = .list
             } label: {
@@ -459,6 +461,7 @@ struct KnowledgeGraphInspectorSection: View {
             .buttonStyle(.plain)
             .foregroundStyle(displayMode == .list ? Color.accentColor : Color.secondary)
             .help("List view — entities as grouped, expandable rows you can click through to the source")
+            .accessibilityLabel("List view")
             Button {
                 Task { await loadStatements() }
             } label: {
@@ -466,6 +469,7 @@ struct KnowledgeGraphInspectorSection: View {
             }
             .buttonStyle(.plain)
             .help("Reload — re-fetch the knowledge-graph entities for this document")
+            .accessibilityLabel("Reload entities")
         }
         .foregroundStyle(.primary)
     }
