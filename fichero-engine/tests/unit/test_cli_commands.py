@@ -722,13 +722,24 @@ def test_health_json_output():
 def test_global_options_passed_to_client():
     result = runner.invoke(
         cli.app,
-        ["--library", "/tmp/L.fichero", "--base-url", "http://x", "--token", "tk", "health"],
+        [
+            "--library",
+            "/tmp/L.fichero",
+            "--base-url",
+            "http://x",
+            "--token",
+            "tk",
+            "--as-user",
+            "alice",
+            "health",
+        ],
     )
     assert result.exit_code == 0
     assert _last_client().kwargs == {
         "base_url": "http://x",
         "library_path": "/tmp/L.fichero",
         "token": "tk",
+        "as_user": "alice",
     }
 
 
@@ -778,9 +789,38 @@ def test_403_error_includes_user_and_library(monkeypatch, tmp_path):
         json.dumps({"session_token": "token", "user": {"username": "alice"}}),
         encoding="utf-8",
     )
+    client_module._CLI_SESSION_PATH.chmod(0o600)
     result = runner.invoke(cli.app, ["--library", "/tmp/Lib.fichero", "health"])
     assert result.exit_code == 1
     assert "Access denied for alice on /tmp/Lib.fichero." in result.output
+
+
+def test_401_error_for_missing_selected_user_session(monkeypatch, tmp_path):
+    class ErrorClient:
+        def __init__(self, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
+        def close(self):
+            pass
+
+        def health(self):
+            raise FicheroError("GET /api/health -> 401: unauthorized", status_code=401)
+
+    monkeypatch.setattr(cli, "FicheroClient", ErrorClient)
+    monkeypatch.setattr(client_module, "_CLI_SESSION_PATH", tmp_path / "cli-session.json")
+    client_module._CLI_SESSION_PATH.write_text(
+        json.dumps({"current_user": "alice", "sessions": {}}),
+        encoding="utf-8",
+    )
+    result = runner.invoke(cli.app, ["--as-user", "bob", "health"])
+    assert result.exit_code == 1
+    assert "No stored session for bob. Run `fichero auth login bob`." in result.output
 
 
 def test_generated_actions_group_is_exposed():

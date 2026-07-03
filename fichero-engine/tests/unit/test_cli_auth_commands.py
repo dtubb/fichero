@@ -19,9 +19,10 @@ runner = CliRunner()
 class _AppBackedClient:
     test_client: TestClient | None = None
 
-    def __init__(self, *, token=None, library_path=None, **_kwargs):
+    def __init__(self, *, token=None, library_path=None, as_user=None, **_kwargs):
         self.token = token
         self.library_path = library_path
+        self.as_user = as_user
 
     def __enter__(self):
         return self
@@ -34,7 +35,7 @@ class _AppBackedClient:
 
     def request(self, method, path, *, params=None, json=None, files=None):
         headers = {}
-        token = self.token if self.token is not None else client_module._read_token()
+        token = self.token if self.token is not None else client_module._read_token(as_user=self.as_user)
         if token:
             headers["Authorization"] = f"Bearer {token}"
         if self.library_path:
@@ -90,7 +91,9 @@ def test_auth_login_stores_session_file_and_whoami_uses_it(monkeypatch, app_db, 
         assert "username: alice" in login.output
 
         session_path = client_module._CLI_SESSION_PATH
-        assert json.loads(session_path.read_text(encoding="utf-8"))["session_token"]
+        session_payload = json.loads(session_path.read_text(encoding="utf-8"))
+        assert session_payload["current_user"] == "alice"
+        assert session_payload["sessions"]["alice"]["session_token"]
         assert (session_path.stat().st_mode & 0o777) == 0o600
 
         whoami = runner.invoke(cli.app, ["auth", "whoami"])
@@ -116,12 +119,46 @@ def test_auth_logout_revokes_session_and_deletes_file(monkeypatch, app_db, tmp_p
         assert runner.invoke(cli.app, ["auth", "login", "alice"]).exit_code == 0
         session_token = json.loads(
             client_module._CLI_SESSION_PATH.read_text(encoding="utf-8")
-        )["session_token"]
+        )["sessions"]["alice"]["session_token"]
 
         logout = runner.invoke(cli.app, ["auth", "logout"])
         assert logout.exit_code == 0
         assert not client_module._CLI_SESSION_PATH.exists()
         assert app_db.get_session_by_token_hash(accounts.hash_token(session_token)).revoked is True
+    finally:
+        test_client.close()
+        api_main.app.dependency_overrides.clear()
+
+
+def test_auth_login_preserves_multiple_user_sessions(monkeypatch, app_db, tmp_path):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    app_db.create_user(
+        username="alice",
+        display_name="Alice",
+        password_hash=accounts.hash_password("alice-secret"),
+        is_owner=True,
+    )
+    app_db.create_user(
+        username="bob",
+        display_name="Bob",
+        password_hash=accounts.hash_password("bob-secret"),
+        is_owner=False,
+    )
+    api_main, test_client = _install_cli_app_client(monkeypatch, app_db, tmp_path)
+    passwords = iter(["alice-secret", "bob-secret"])
+    monkeypatch.setattr(cli.getpass, "getpass", lambda _prompt: next(passwords))
+
+    try:
+        assert runner.invoke(cli.app, ["auth", "login", "alice"]).exit_code == 0
+        assert runner.invoke(cli.app, ["auth", "login", "bob"]).exit_code == 0
+
+        session_payload = json.loads(client_module._CLI_SESSION_PATH.read_text(encoding="utf-8"))
+        assert session_payload["current_user"] == "bob"
+        assert set(session_payload["sessions"]) == {"alice", "bob"}
+
+        whoami = runner.invoke(cli.app, ["--as-user", "alice", "auth", "whoami"])
+        assert whoami.exit_code == 0
+        assert "username: alice" in whoami.output
     finally:
         test_client.close()
         api_main.app.dependency_overrides.clear()
