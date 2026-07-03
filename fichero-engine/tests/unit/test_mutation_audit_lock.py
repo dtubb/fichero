@@ -249,30 +249,9 @@ def test_node_model_create_routes_write_audit_and_emit_change(
         ("claim.patch", _patch_claim),
         ("claim.delete", _delete_claim),
         ("entity.upsert", _entity_upsert_update),
-        pytest.param(
-            "entity.patch",
-            _patch_entity,
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason="PATCH /api/entities/{entity_id} still updates directly on main and does not write entity.update ActionAudit.",
-            ),
-        ),
-        pytest.param(
-            "note.patch",
-            _patch_note,
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason="PATCH /api/notes/{note_id} still bypasses registry.invoke on main and does not write note.update ActionAudit.",
-            ),
-        ),
-        pytest.param(
-            "note.delete",
-            _delete_note,
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason="DELETE /api/notes/{note_id} still bypasses registry.invoke on main and does not write note.delete ActionAudit.",
-            ),
-        ),
+        ("entity.patch", _patch_entity),
+        ("note.patch", _patch_note),
+        ("note.delete", _delete_note),
         ("room.update", _update_room),
         ("room.delete", _delete_room),
     ],
