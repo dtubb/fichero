@@ -36,7 +36,10 @@ struct HeuristicReviewSheet: View {
             Divider()
             footer
         }
+        // Mac-only fixed size; iPhone/iPad sheets size to the screen (#2802).
+        #if os(macOS)
         .frame(width: 580, height: 480)
+        #endif
     }
 
     private var header: some View {

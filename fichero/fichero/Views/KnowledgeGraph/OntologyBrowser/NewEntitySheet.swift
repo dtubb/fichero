@@ -55,7 +55,10 @@ struct NewEntitySheet: View {
             Spacer()
             footer
         }
+        // Mac-only fixed size; iPhone/iPad sheets size to the screen (#2802).
+        #if os(macOS)
         .frame(width: 420, height: 320)
+        #endif
     }
 
     private var form: some View {

@@ -64,7 +64,10 @@ struct AIProviderAddModelsSheet: View {
             }
             .padding()
         }
+        // Mac-only fixed size; iPhone/iPad sheets size to the screen (#2802).
+        #if os(macOS)
         .frame(width: 600, height: 600)
+        #endif
     }
 
     private func addModel() {
