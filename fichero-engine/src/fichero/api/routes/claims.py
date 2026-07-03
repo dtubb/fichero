@@ -11,7 +11,7 @@ import re
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from fichero.api.library_header import require_library_path
 from fichero.api.auth import action_context, request_actor
@@ -90,7 +90,9 @@ def _emit_claim_change_ctx(
 class ClaimCreateRequest(BaseModel):
     """Request to create a knowledge claim."""
 
-    text: str
+    model_config = ConfigDict(extra="forbid")
+
+    text: str = Field(min_length=1)
     source_document_id: str | None = None  # None for manually-asserted claims
     source_segment_id: str | None = None
     source_page_label: str | None = None
@@ -142,6 +144,8 @@ class ClaimCreateRequest(BaseModel):
 
 class ClaimPatchRequest(BaseModel):
     """Request to patch/update a knowledge claim."""
+
+    model_config = ConfigDict(extra="forbid")
 
     text: str | None = None
     source_document_id: str | None = None
