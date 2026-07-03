@@ -15,7 +15,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from fichero.api.library_header import optional_library_path, require_library_path
 from fichero.api.change_stream import emit_change
@@ -98,8 +98,10 @@ def _emit_entity_change_ctx(
 class EntityUpsertRequest(BaseModel):
     """Request to create or update a knowledge entity."""
 
+    model_config = ConfigDict(extra="forbid")
+
     id: str | None = None
-    canonical_name: str
+    canonical_name: str = Field(min_length=1)
     entity_type: EntityType = EntityType.other
     aliases: list[str] = Field(default_factory=list)
     description: str | None = None
@@ -851,6 +853,8 @@ class EntityPatchRequest(BaseModel):
     Every editable attribute is here as ``Optional`` so PATCH can
     target a single field without losing the rest. (#901)
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     canonical_name: str | None = None
     entity_type: EntityType | None = None
