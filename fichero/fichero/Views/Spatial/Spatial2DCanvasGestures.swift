@@ -24,10 +24,19 @@ extension Spatial2DCanvas {
 
     /// Native corner grab handle shown on a selected item; drag to resize.
     func resizeHandle(for item: CanvasItemDisplay) -> some View {
-        Circle()
+        // Keep the 12pt visual dot but expand the drag target to 44pt on touch
+        // so a finger can grab it (#2806). Mac keeps the precise 12pt target.
+        #if os(macOS)
+        let hitTarget: CGFloat = 12
+        #else
+        let hitTarget: CGFloat = 44
+        #endif
+        return Circle()
             .fill(Color.accentColor)
             .overlay(Circle().stroke(.white, lineWidth: 1.5))
             .frame(width: 12, height: 12)
+            .frame(width: hitTarget, height: hitTarget)
+            .contentShape(Circle())
             .offset(x: 6, y: 6)
             .gesture(resizeGesture(for: item))
             .help("Drag to resize")
