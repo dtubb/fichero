@@ -47,6 +47,10 @@ struct ViewMenuCommands: View {
 
         Divider()
 
+        ShowRulerButton()
+
+        Divider()
+
         ShowFindBarButton()
     }
 }
@@ -704,6 +708,31 @@ struct NavigateToParentButton: View {
         }
         .keyboardShortcut("`", modifiers: [.command])
         .disabled(action == nil)
+    }
+}
+
+/// App-wide toggle for the rich-text ruler. Keeps the menu checkmark in sync
+/// with the persisted preference and forwards the actual toggle to the focused
+/// text view when one exists.
+struct ShowRulerButton: View {
+    @AppStorage("editor.rulersVisible") private var rulersVisible: Bool = true
+
+    private var binding: Binding<Bool> {
+        Binding(
+            get: { rulersVisible },
+            set: { newValue in
+                rulersVisible = newValue
+                #if canImport(AppKit)
+                NSApp.sendAction(#selector(NSTextView.toggleRuler(_:)), to: nil, from: nil)
+                #endif
+            }
+        )
+    }
+
+    var body: some View {
+        Toggle(isOn: binding) {
+            Label("Show Ruler", systemImage: "ruler")
+        }
     }
 }
 
