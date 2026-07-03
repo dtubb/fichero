@@ -610,6 +610,7 @@ struct ZoomableImagePreview: View {
                     }
                     .buttonStyle(.plain)
                     .help("Zoom Out")
+                    .accessibilityLabel("Zoom Out")
 
                     Text("\(Int(scale * 100))%")
                         .font(.caption)
@@ -621,6 +622,7 @@ struct ZoomableImagePreview: View {
                     }
                     .buttonStyle(.plain)
                     .help("Zoom In")
+                    .accessibilityLabel("Zoom In")
 
                     Divider()
                         .frame(height: 16)
@@ -630,12 +632,14 @@ struct ZoomableImagePreview: View {
                     }
                     .buttonStyle(.plain)
                     .help("Fit to Window")
+                    .accessibilityLabel("Fit to Window")
 
                     Button(action: actualSize) {
                         Image(systemName: "1.square")
                     }
                     .buttonStyle(.plain)
                     .help("Actual Size (100%)")
+                    .accessibilityLabel("Actual Size (100%)")
 
                     // Immersive full-screen entry on iPad regular width too, not
                     // just iPhone-compact. Reuses the #2607 FullScreenImagePreview
@@ -712,6 +716,7 @@ struct ZoomableImagePreview: View {
                         .buttonStyle(.borderedProminent)
                         .disabled(previousAction == nil)
                         .help("Show the previous image in this folder")
+                        .accessibilityLabel("Previous image")
                         .accessibilityIdentifier("folderImagePrev")
 
                         Button {
@@ -724,6 +729,7 @@ struct ZoomableImagePreview: View {
                         .buttonStyle(.borderedProminent)
                         .disabled(nextAction == nil)
                         .help("Show the next image in this folder")
+                        .accessibilityLabel("Next image")
                         .accessibilityIdentifier("folderImageNext")
                     }
                     .padding(.bottom, 16)
