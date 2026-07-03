@@ -1247,6 +1247,7 @@ def import_chota_colombian_pacific_maps_command(
 
 @app.command(name="import-dropbox-links")
 def import_dropbox_links_command(
+    ctx: typer.Context,
     library_path: Path = typer.Option(
         Path("~/Library/Application Support/Fichero/Dropbox-Links.fichero"),
         "--library-path",
@@ -1265,14 +1266,20 @@ def import_dropbox_links_command(
 ) -> None:
     """Import Dropbox shared links as library references (no file download)."""
 
-    from fichero.cloud_link_import import import_dropbox_links
+    from fichero.importers.cloud_link_import import import_dropbox_links_via_http
 
     try:
-        summary = import_dropbox_links(
-            library_path=library_path,
-            manifest_path=manifest_path,
-            reset=reset,
-        )
+        with FicheroClient(
+            base_url=ctx.obj["base_url"],
+            library_path=str(library_path),
+            token=ctx.obj["token"],
+        ) as client:
+            summary = import_dropbox_links_via_http(
+                client,
+                library_path=library_path,
+                manifest_path=manifest_path,
+                reset=reset,
+            )
     except Exception as exc:
         typer.secho(f"Dropbox link import failed: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
