@@ -37,40 +37,22 @@ struct ChainListContent: View {
                     }
                 }
             } else {
+                // Native List selection + a selection-aware context menu with a
+                // primaryAction (double-click on Mac, tap-to-open on touch). No
+                // custom tap gesture — a `.onTapGesture(count:2)` on a
+                // `List(selection:)` row fought the built-in selection (#2806).
                 List(filteredChains, selection: $selectedChainIds) { chain in
                     ChainListRow(
                         chain: chain,
                         isExecuting: executingChainId == chain.id
                     )
                     .tag(chain.id)
-                    .contentShape(Rectangle())
-                    .onTapGesture(count: 2) {
-                        onSelectChain(chain.id)
-                    }
-                    .contextMenu {
-                        Button {
-                            onSelectChain(chain.id)
-                        } label: {
-                            Label("View Details", systemImage: "info.circle")
-                        }
-
-                        Button {
-                            onExecuteChain(chain)
-                        } label: {
-                            Label("Execute", systemImage: "play.fill")
-                        }
-
-                        Divider()
-
-                        Button(role: .destructive) {
-                            if selectedChainIds.contains(chain.id) {
-                                onConfirmDeleteSelection()
-                            } else {
-                                onConfirmDelete(chain)
-                            }
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
+                }
+                .contextMenu(forSelectionType: String.self) { ids in
+                    chainContextMenu(for: ids)
+                } primaryAction: { ids in
+                    if let id = ids.first {
+                        onSelectChain(id)
                     }
                 }
             }
@@ -104,5 +86,42 @@ struct ChainListContent: View {
         #if os(macOS)
         .onDeleteCommand(perform: onConfirmDeleteSelection)
         #endif
+    }
+
+    /// Context menu for the current List selection. A single row offers its
+    /// details / execute / delete; a multi-selection offers delete-all.
+    @ViewBuilder
+    private func chainContextMenu(for ids: Set<String>) -> some View {
+        if ids.count == 1, let id = ids.first {
+            Button {
+                onSelectChain(id)
+            } label: {
+                Label("View Details", systemImage: "info.circle")
+            }
+
+            if let chain = filteredChains.first(where: { $0.id == id }) {
+                Button {
+                    onExecuteChain(chain)
+                } label: {
+                    Label("Execute", systemImage: "play.fill")
+                }
+            }
+
+            Divider()
+
+            Button(role: .destructive) {
+                if let chain = filteredChains.first(where: { $0.id == id }) {
+                    onConfirmDelete(chain)
+                }
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        } else if !ids.isEmpty {
+            Button(role: .destructive) {
+                onConfirmDeleteSelection()
+            } label: {
+                Label("Delete \(ids.count) Chains", systemImage: "trash")
+            }
+        }
     }
 }
