@@ -702,6 +702,75 @@ def import_slipbox_command(
     typer.echo(f"skipped_files: {summary.skipped_files}")
 
 
+@app.command(name="import-sergio-corpus")
+def import_sergio_corpus_command(
+    ctx: typer.Context,
+    library_path: Path = typer.Option(
+        Path("~/Library/Application Support/Fichero/Sergio-Mosquera.fichero"),
+        "--library-path",
+        help="Target .fichero package to create/update.",
+    ),
+    source_root: Optional[Path] = typer.Option(
+        None,
+        "--source-root",
+        help="Sergio corpus root (or set FICHERO_SERGIO_SOURCE_ROOT).",
+    ),
+    spreadsheet_path: Optional[Path] = typer.Option(
+        None,
+        "--spreadsheet-path",
+        help="Catalogue spreadsheet (or set FICHERO_SERGIO_SPREADSHEET).",
+    ),
+    limit: Optional[int] = typer.Option(
+        None,
+        "--limit",
+        help="Maximum source files to import.",
+    ),
+    reset: bool = typer.Option(False, "--reset", help="Delete target package before import."),
+    no_embed: bool = typer.Option(False, "--no-embed", help="Skip embedding creation."),
+) -> None:
+    """Import Sergio Mosquera corpus + catalogue spreadsheet into a Fichero library."""
+    from fichero.importers.sergio_import import import_sergio_corpus_via_http
+
+    try:
+        with FicheroClient(
+            base_url=ctx.obj["base_url"],
+            library_path=str(library_path),
+            token=ctx.obj["token"],
+        ) as client:
+            summary = import_sergio_corpus_via_http(
+                client,
+                library_path=library_path,
+                source_root=source_root,
+                spreadsheet_path=spreadsheet_path,
+                limit=limit,
+                reset=reset,
+                auto_embed=not no_embed,
+            )
+    except Exception as exc:
+        typer.secho(f"Sergio corpus import failed: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    if summary.errors:
+        typer.secho(
+            f"Imported with {len(summary.errors)} errors.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        for err in summary.errors[:10]:
+            typer.echo(f"  {err}", err=True)
+        if len(summary.errors) > 10:
+            typer.echo(f"  ... {len(summary.errors) - 10} more", err=True)
+
+    typer.echo(f"library: {summary.library_path}")
+    typer.echo(f"root_document_id: {summary.root_document_id}")
+    typer.echo(f"imported_files: {summary.imported_files}")
+    typer.echo(f"spreadsheet_rows: {summary.spreadsheet_rows}")
+    typer.echo(f"matched_rows: {summary.matched_rows}")
+    typer.echo(f"unmatched_rows: {summary.unmatched_rows}")
+    typer.echo(f"duplicate_filename_rows: {summary.duplicate_filename_rows}")
+    typer.echo(f"skipped_files: {summary.skipped_files}")
+
+
 @app.command(name="import-newton-marshall-diary")
 def import_newton_marshall_diary_command(
     library_path: Path = typer.Option(

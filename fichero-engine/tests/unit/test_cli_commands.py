@@ -783,10 +783,10 @@ def test_generated_actions_group_is_exposed():
     assert "record-use" in result.output
 
 
-def test_sergio_import_command_is_not_exposed():
+def test_sergio_import_command_is_exposed():
     result = runner.invoke(cli.app, ["import-sergio-corpus", "--help"])
-    assert result.exit_code != 0
-    assert "No such command" in result.output
+    assert result.exit_code == 0
+    assert "--spreadsheet-path" in result.output
 
 
 def test_generated_command_forwards_path_params_via_raw_request():
