@@ -134,6 +134,25 @@ was written to *keep* "Space (3D)" as a peer to "Canvas (2D)". This removal
 overrides that per direct instruction (3D rooms retired). #2667 should be
 re-scoped to Canvas-only.
 
+### Issue / milestone cleanup
+
+Closed as retired (3D rooms): #1158, #1297, #1343, #1376, #1432, #1455, #1479,
+#1498, #271, #511.
+
+**Milestone "Mind Palace" (#12) intentionally NOT closed yet** — it is a
+grab-bag, and 5 open issues are *not* the retired 3D feature. They need
+re-homing (board-organizer) before the milestone can close:
+
+- **#2299** — backend Mind Palace cleanup (dead `/rooms/*` routes + MCP + CLI).
+  **Still real, undone** — the backend half of this removal; codex/backend lane.
+- **#2788** (Node Model milestone) — retire parallel mind-palace room storage;
+  backend, tracks the same teardown.
+- **#1433** — wire 6 Notes endpoints (Notes, not Mind Palace).
+- **#1755** — georeference maps (a Maps feature; the 3D-globe uses RealityKit but
+  it is not the rooms feature).
+- **#821** — Apple-Intelligence Tool protocol (backend, mis-milestoned).
+- **#2300** — guardrail debt (mis-milestoned).
+
 ## Problem 4 — other retired / stale cruft
 
 - **`SidebarMode` numbering comments are fossils** (`App/ViewSettings.swift`):
