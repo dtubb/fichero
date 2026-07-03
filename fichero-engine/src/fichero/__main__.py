@@ -140,12 +140,41 @@ def _invoke(ctx: typer.Context, operation: Callable[[FicheroClient], Any]) -> No
         with _client(ctx) as client:
             data = operation(client)
     except FicheroError as exc:
-        typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1) from exc
+        _report_fichero_error(ctx, exc)
     typer.echo(render(data, as_json=ctx.obj["json"]))
 
 
-def _auth_error(exc: FicheroError) -> None:
+def _read_cli_session() -> dict[str, Any]:
+    try:
+        payload = json.loads(client_module._CLI_SESSION_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _report_fichero_error(ctx: typer.Context, exc: FicheroError) -> None:
+    if exc.status_code == 401:
+        typer.secho("Authentication required. Run `fichero auth login`.", fg=typer.colors.RED, err=True)
+    elif exc.status_code == 403:
+        session = _read_cli_session()
+        user = session.get("username")
+        if not isinstance(user, str) or not user.strip():
+            user_payload = session.get("user")
+            if isinstance(user_payload, dict):
+                maybe_username = user_payload.get("username")
+                if isinstance(maybe_username, str) and maybe_username.strip():
+                    user = maybe_username.strip()
+        library = ctx.obj.get("library") or os.environ.get("FICHERO_LIBRARY_PATH") or "(no library selected)"
+        typer.secho(
+            f"Access denied for {user or 'the current user'} on {library}.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+    typer.secho(str(exc), fg=typer.colors.RED, err=True)
+    raise typer.Exit(code=1) from exc
+
+
+def _auth_error(ctx: typer.Context, exc: FicheroError) -> None:
     if exc.status_code == 404 and "multi-user auth is disabled" in str(exc):
         typer.secho(
             "Multi-user auth is disabled on this engine.",
@@ -153,14 +182,14 @@ def _auth_error(exc: FicheroError) -> None:
             err=True,
         )
     else:
-        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        _report_fichero_error(ctx, exc)
     raise typer.Exit(code=1) from exc
 
 
-def _write_cli_session(token: str) -> None:
+def _write_cli_session(token: str, user: Any = None) -> None:
     client_module._CLI_SESSION_PATH.parent.mkdir(parents=True, exist_ok=True)
     client_module._CLI_SESSION_PATH.write_text(
-        json.dumps({"session_token": token}, indent=2) + "\n",
+        json.dumps({"session_token": token, "user": user}, indent=2) + "\n",
         encoding="utf-8",
     )
     os.chmod(client_module._CLI_SESSION_PATH, 0o600)
@@ -341,12 +370,12 @@ def auth_login_command(
                 },
             )
     except FicheroError as exc:
-        _auth_error(exc)
+        _auth_error(ctx, exc)
     token = payload.get("session_token") if isinstance(payload, dict) else None
     if not isinstance(token, str) or not token.strip():
         typer.secho("POST /api/auth/login returned no session_token", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
-    _write_cli_session(token.strip())
+    _write_cli_session(token.strip(), payload.get("user") if isinstance(payload, dict) else None)
     typer.echo(render(payload.get("user", payload), as_json=ctx.obj["json"]))
 
 
@@ -356,7 +385,7 @@ def auth_logout_command(ctx: typer.Context) -> None:
         with _client(ctx) as client:
             payload = client.request("POST", "/api/auth/logout")
     except FicheroError as exc:
-        _auth_error(exc)
+        _auth_error(ctx, exc)
     _delete_cli_session()
     typer.echo(render(payload, as_json=ctx.obj["json"]))
 
@@ -367,7 +396,7 @@ def auth_whoami_command(ctx: typer.Context) -> None:
         with _client(ctx) as client:
             payload = client.request("GET", "/api/auth/me")
     except FicheroError as exc:
-        _auth_error(exc)
+        _auth_error(ctx, exc)
     typer.echo(render(payload, as_json=ctx.obj["json"]))
 
 
