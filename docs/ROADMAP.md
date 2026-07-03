@@ -2,6 +2,11 @@
 
 > **READ THIS AT SESSION START** (and `/session-start-manager`). It is the
 > source of truth for *what to work on next* and *in what order*.
+>
+> **Selector order:** `scripts/choose_next.py` reads the **`## Tier` PRIORITY
+> SPINE at the bottom of this file** — milestone order = ascending milestone
+> due-date (kept in sync on the GitHub board). The 4-phase narrative below is the
+> *why*; the spine is the *what-next*. Re-sorted 2026-07-03 by the board organizer.
 
 **Worker model-selection policy (token economy):** default workers to the cheap
 tier — **Claude Sonnet** (frontend) + **codex 5.4-mini** (backend). Escalate to
@@ -152,3 +157,93 @@ tier is done and the next tier is chosen automatically. — gardener agent #1919
    codex-5.5 for keystones) running `/session-start-worker`.
 5. Build/test-verify the result, cherry-pick to the branch, clean the worktree,
    update issues. Repeat.
+
+---
+
+# ▶▶ PRIORITY SPINE — machine-read by `scripts/choose_next.py`
+
+> Milestone order below = ascending milestone due-date on the GitHub board
+> (priority order). The selector walks these tiers top-down and returns the
+> highest-priority ready, unclaimed work. Milestone names **must match GitHub
+> exactly**. Keep this list and the board's `due_on` dates in sync — this is the
+> single point of truth for "what next". Synced 2026-07-03.
+
+## Tier 1 — Dev & Build Harness
+- Milestone: **Dev & Build Harness**  (due 2026-07-05)
+
+## Tier 2 — Connection & Startup Bulletproofing
+- Milestone: **Connection & Startup Bulletproofing**  (due 2026-07-09)
+
+## Tier 3 — Multi-user & Shared Libraries
+- Milestone: **Multi-user & Shared Libraries**  (due 2026-07-14)
+
+## Tier 4 — iOS / iPad / Mac UX
+- Milestone: **iOS/iPad/Mac UX**  (due 2026-07-22)
+
+## Tier 5 — Import & Index Modes
+- Milestone: **Import & Index Modes**  (due 2026-07-28)
+
+## Tier 6 — iOS / iPad Embedding & Briefcase
+- Milestone: **iOS/iPad Embedding & Multi-Library**  (due 2026-08-03)
+
+## Tier 7 — Big feature backlogs
+- Milestone: **Library & Reading Surface**  (due 2026-08-10)
+- Milestone: **KG & Hermeneutics**  (due 2026-08-17)
+- Milestone: **Search**  (due 2026-08-24)
+- Milestone: **Chat**  (due 2026-08-31)
+- Milestone: **Workflows**  (due 2026-09-07)
+- Milestone: **Researcher**  (due 2026-09-14)
+
+## Tier 8 — Mac shell & polish
+- Milestone: **Window Chrome & Toolbars**  (due 2026-09-21)
+- Milestone: **Mac App Shell**  (due 2026-09-24)
+- Milestone: **Mac Polish — Fonts, SF Symbols, No Emoji**  (due 2026-09-27)
+- Milestone: **Observable Data Layer**  (due 2026-09-30)
+- Milestone: **UI Reform — Representations**  (due 2026-10-03)
+- Milestone: **UI Reform — Inspector & Annotation**  (due 2026-10-06)
+- Milestone: **SwiftUI App Structure & Naming**  (due 2026-10-09)
+- Milestone: **Node Model & Endpoint Unification**  (due 2026-10-12)
+- Milestone: **Multiplatform — iOS / iPadOS / Mac**  (due 2026-10-15)
+
+## Tier 9 — Feature backlogs
+- Milestone: **Settings & Providers**  (due 2026-10-18)
+- Milestone: **Importers**  (due 2026-10-21)
+- Milestone: **Image Editing**  (due 2026-10-24)
+- Milestone: **Exporter**  (due 2026-10-27)
+- Milestone: **Mind Palace**  (due 2026-10-30)
+- Milestone: **Activity & Automation**  (due 2026-11-02)
+- Milestone: **Curation**  (due 2026-11-05)
+- Milestone: **Bibliography & Citations**  (due 2026-11-08)
+- Milestone: **MCP**  (due 2026-11-11)
+- Milestone: **Chat & Agent**  (due 2026-11-14)
+- Milestone: **Watched-Entity Research Agents**  (due 2026-11-17)
+- Milestone: **Clip Service — Web & Document Capture**  (due 2026-11-20)
+- Milestone: **Device Pairing & Discovery**  (due 2026-11-23)
+- Milestone: **Archive Capture — Mobile & Camera Intake**  (due 2026-11-26)
+- Milestone: **Archive Capture — Automation & Provenance**  (due 2026-11-29)
+
+## Tier 10 — Infra & hardening
+- Milestone: **Developer Experience**  (due 2026-12-02)
+- Milestone: **API Surface & Test Harness**  (due 2026-12-05)
+- Milestone: **Remote & Self-Hosting**  (due 2026-12-08)
+- Milestone: **AI Backend Hardening**  (due 2026-12-11)
+- Milestone: **Workflows & Catalogue Hardening**  (due 2026-12-14)
+- Milestone: **Programmatic Guardrails**  (due 2026-12-17)
+- Milestone: **Repo Hygiene & Structure**  (due 2026-12-20)
+
+## Tier 11 — Sharing, notifications, distribution, web, docs
+- Milestone: **Sharing & Collaboration**  (due 2026-12-23)
+- Milestone: **Notifications & Watchlist**  (due 2026-12-26)
+- Milestone: **Release & Distribution**  (due 2026-12-29)
+- Milestone: **Website**  (due 2027-01-05)
+- Milestone: **Documentation**  (due 2027-01-12)
+
+## Tier 12 — Source archives
+- Milestone: **Source Archive - ICANH**  (due 2027-01-19)
+- Milestone: **Source Archive - Marshall Diaries**  (due 2027-01-22)
+- Milestone: **Source Archive - Archivos Nuestros**  (due 2027-01-25)
+- Milestone: **Source Archive - Maps of the Black Pacific**  (due 2027-01-28)
+
+## Tier 13 — Far future
+- Milestone: **tvOS — Apple TV port**  (due 2027-02-15)
+- Milestone: **visionOS — Apple Vision Pro port**  (due 2027-03-15)
