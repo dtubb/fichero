@@ -204,6 +204,28 @@ def import_archivo_judicial_medellin(
     )
 
 
+def import_archivo_judicial_medellin_via_http(
+    client: ImporterHttpClient,
+    *,
+    library_path: Path = DEFAULT_ARCHIVO_JUDICIAL_LIBRARY,
+    catalogue_root: Path | None = None,
+    reset: bool = False,
+    auto_embed: bool = True,
+) -> SourceArchiveImportSummary:
+    catalogue_root = _resolve_required(
+        catalogue_root, env_var="FICHERO_ARCHIVO_JUDICIAL_CATALOGUE", flag="--catalogue-root"
+    )
+    return _import_roots_via_http(
+        client,
+        provider="archivo_judicial_medellin",
+        corpus_name="Archivo Judicial de Medellin",
+        library_path=library_path,
+        roots={"catalogue": catalogue_root},
+        reset=reset,
+        auto_embed=auto_embed,
+    )
+
+
 def import_ghc_catalogued_materials(
     *,
     library_path: Path = DEFAULT_GHC_LIBRARY,

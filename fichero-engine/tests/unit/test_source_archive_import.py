@@ -8,6 +8,7 @@ from fichero import __main__ as cli
 from fichero.importers.source_archive_import import (
     import_chota_colombian_pacific_maps,
     import_archivo_judicial_medellin,
+    import_archivo_judicial_medellin_via_http,
     import_ghc_catalogued_materials,
     import_istmina_mineria,
     import_istmina_mineria_via_http,
@@ -239,9 +240,9 @@ def test_import_archivo_judicial_medellin_ingests_catalogue(tmp_path):
 def test_cli_import_archivo_judicial_invokes_importer(monkeypatch, tmp_path):
     called: dict = {}
 
-    def fake_import(**kwargs):
-        called.update(kwargs)
-        from fichero.source_archive_import import SourceArchiveImportSummary
+    def fake_import(client, **kwargs):
+        called.update({"client": client, **kwargs})
+        from fichero.importers.source_archive_import import SourceArchiveImportSummary
 
         return SourceArchiveImportSummary(
             provider="archivo_judicial_medellin",
@@ -253,13 +254,15 @@ def test_cli_import_archivo_judicial_invokes_importer(monkeypatch, tmp_path):
         )
 
     monkeypatch.setattr(
-        "fichero.source_archive_import.import_archivo_judicial_medellin",
+        "fichero.importers.source_archive_import.import_archivo_judicial_medellin_via_http",
         fake_import,
     )
     runner = CliRunner()
     result = runner.invoke(
         cli.app,
         [
+            "--base-url",
+            "http://remote-engine.test",
             "import-archivo-judicial-medellin",
             "--library-path",
             str(tmp_path / "AJM.fichero"),
@@ -269,6 +272,28 @@ def test_cli_import_archivo_judicial_invokes_importer(monkeypatch, tmp_path):
     )
     assert result.exit_code == 0
     assert Path(called["library_path"]) == tmp_path / "AJM.fichero"
+    assert called["client"].base_url == "http://remote-engine.test"
+
+
+def test_import_archivo_judicial_medellin_via_http_ingests_catalogue(tmp_path):
+    library = tmp_path / "ArchivoJudicial.fichero"
+    catalogue = tmp_path / "Archivo Judicial de Medellin" / "Catalogue"
+    (catalogue / "Batch-1").mkdir(parents=True)
+    (catalogue / "Batch-1" / "entry-001.jpg").write_text("x", encoding="utf-8")
+    (catalogue / "Batch-1" / "entry-002.pdf").write_text("x", encoding="utf-8")
+    (catalogue / "Batch-1" / "ignore.bin").write_text("x", encoding="utf-8")
+
+    client = FakeClient()
+    summary = import_archivo_judicial_medellin_via_http(
+        client,
+        library_path=library,
+        catalogue_root=catalogue,
+    )
+
+    assert summary.provider == "archivo_judicial_medellin"
+    assert summary.files_imported == 2
+    assert summary.skipped == 1
+    assert client.created_library == str(library.resolve())
 
 
 def test_import_ghc_catalogued_materials_ingests_roots(tmp_path):
