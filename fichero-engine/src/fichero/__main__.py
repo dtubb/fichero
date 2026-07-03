@@ -24,7 +24,6 @@ from fichero.cli import client as client_module
 from fichero.cli.openapi_surface_generated import register_generated_openapi_commands
 from fichero.cli.formatters import render
 app = typer.Typer(
-    add_completion=False,
     help="Fichero CLI — a thin HTTP client for the Fichero backend.",
     no_args_is_help=True,
 )

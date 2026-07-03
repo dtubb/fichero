@@ -783,6 +783,13 @@ def test_generated_actions_group_is_exposed():
     assert "record-use" in result.output
 
 
+def test_root_help_exposes_shell_completion_install():
+    result = runner.invoke(cli.app, ["--help"])
+    assert result.exit_code == 0
+    assert "--install-completion" in result.output
+    assert "--show-completion" in result.output
+
+
 def test_sergio_import_command_is_exposed():
     result = runner.invoke(cli.app, ["import-sergio-corpus", "--help"])
     assert result.exit_code == 0
