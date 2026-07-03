@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 
 from fichero.api.library_header import optional_library_path, require_library_path
 from fichero.api.change_stream import emit_change
-from fichero.api.auth import request_actor
+from fichero.api.auth import action_context, request_actor
 from fichero.api.main import (
     _is_allowed_library_path,
     assert_library_read_authorized,
@@ -27,6 +27,7 @@ from fichero.api.main import (
     get_library_database,
     get_library_database_for_write,
 )
+from fichero.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero.knowledge_models import KnowledgeClaim
 from fichero.db import Database
 from fichero.knowledge_models import (
@@ -50,6 +51,45 @@ router = APIRouter(prefix="/entities", tags=["entities"])
 _BARE_DATE_NAME_RE = re.compile(r"^\d{4}(?:-\d{2}(?:-\d{2})?)?$")
 
 
+def _resolve_action_ctx(
+    ctx: ActionContext | object,
+    *,
+    actor: str | object = "system",
+    library_path: str | object | None = None,
+    origin_window: str | object | None = None,
+) -> ActionContext:
+    if isinstance(ctx, ActionContext):
+        return ctx
+    resolved_actor = actor if isinstance(actor, str) else "system"
+    resolved_library_path = library_path if isinstance(library_path, str) else None
+    resolved_origin_window = (
+        origin_window if isinstance(origin_window, str) else None
+    )
+    return ActionContext(
+        actor=resolved_actor,
+        library_path=resolved_library_path,
+        origin_window=resolved_origin_window,
+    )
+
+
+def _emit_entity_change_ctx(
+    ctx: ActionContext,
+    *,
+    event_type: str,
+    entity_ids: list[str],
+) -> None:
+    if not ctx.library_path or not entity_ids:
+        return
+    emit_change(
+        ctx.library_path,
+        type=event_type,
+        entity_ids=entity_ids,
+        actor=ctx.actor,
+        origin_window=ctx.origin_window,
+        origin_user=ctx.actor,
+    )
+
+
 # =============================================================================
 # Request/Response Models
 # =============================================================================
@@ -59,6 +99,16 @@ class EntityUpsertRequest(BaseModel):
     """Request to create or update a knowledge entity."""
 
     id: str | None = None
+    canonical_name: str
+    entity_type: EntityType = EntityType.other
+    aliases: list[str] = Field(default_factory=list)
+    description: str | None = None
+    language: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    source_document_ids: list[str] = Field(default_factory=list)
+
+
+class EntityCreateActionParams(BaseModel):
     canonical_name: str
     entity_type: EntityType = EntityType.other
     aliases: list[str] = Field(default_factory=list)
@@ -321,17 +371,7 @@ def _is_garbage_entity_name(name: str) -> bool:
     return len(stripped) < 2 or not any(c.isalpha() for c in stripped)
 
 
-@router.post("", response_model=KnowledgeEntity)
-async def upsert_entity(
-    request: EntityUpsertRequest,
-    db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
-) -> KnowledgeEntity:
-    """Create or update a knowledge entity."""
+def create_entity_impl(db: Database, request: "EntityUpsertRequest") -> KnowledgeEntity:
     if _is_garbage_entity_name(request.canonical_name):
         raise HTTPException(
             status_code=422,
@@ -340,7 +380,85 @@ async def upsert_entity(
                 "and cannot be stored as an entity name"
             ),
         )
+    now = datetime.now()
+    entity = KnowledgeEntity(
+        canonical_name=request.canonical_name.strip(),
+        entity_type=request.entity_type,
+        aliases=sorted(set(a.strip() for a in request.aliases if a.strip())),
+        description=request.description,
+        language=request.language,
+        metadata=request.metadata,
+        source_document_ids=sorted(
+            set(doc_id for doc_id in request.source_document_ids if doc_id)
+        ),
+        created_at=now,
+        updated_at=now,
+    )
+    db.save(entity)
+    return entity
+
+
+@action(
+    "entity.create",
+    EntityCreateActionParams,
+    domains=["entity"],
+    undoable=False,
+)
+def _action_create_entity(
+    db: Database, params: EntityCreateActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    entity = create_entity_impl(
+        db,
+        EntityUpsertRequest.model_validate(params.model_dump(mode="json")),
+    )
+    _emit_entity_change_ctx(
+        ctx,
+        event_type="entity.created",
+        entity_ids=[entity.id],
+    )
+    spec = ChangeSpec(
+        domains=["entity"],
+        target_ids=[entity.id],
+        after={"entity_id": entity.id},
+        entity_ids=[entity.id],
+    )
+    return entity.model_dump(mode="json"), spec
+
+
+@router.post("", response_model=KnowledgeEntity)
+async def upsert_entity(
+    request: EntityUpsertRequest,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | object = Depends(require_library_path),
+    x_fichero_origin_window: str | object | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str | object = Depends(request_actor),
+    ctx: ActionContext | object = Depends(action_context),
+) -> KnowledgeEntity:
+    """Create or update a knowledge entity."""
+    ctx = _resolve_action_ctx(
+        ctx,
+        actor=actor,
+        library_path=x_fichero_library_path,
+        origin_window=x_fichero_origin_window,
+    )
+    emit_library_path = (
+        x_fichero_library_path if isinstance(x_fichero_library_path, str) else None
+    )
+    emit_actor = actor if isinstance(actor, str) else ctx.actor
+    emit_origin_window = (
+        x_fichero_origin_window if isinstance(x_fichero_origin_window, str) else None
+    )
     if request.id:
+        if _is_garbage_entity_name(request.canonical_name):
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"canonical_name {request.canonical_name!r} contains no letter characters "
+                    "and cannot be stored as an entity name"
+                ),
+            )
         entity = db.get(KnowledgeEntity, request.id)
         if entity is None:
             # A specific entity id was requested for update but does not exist.
@@ -353,25 +471,7 @@ async def upsert_entity(
                 status_code=404,
                 detail=f"entity {request.id!r} not found",
             )
-    else:
-        entity = None
-    is_create = entity is None
-    now = datetime.now()
-    if entity is None:
-        entity = KnowledgeEntity(
-            canonical_name=request.canonical_name.strip(),
-            entity_type=request.entity_type,
-            aliases=sorted(set(a.strip() for a in request.aliases if a.strip())),
-            description=request.description,
-            language=request.language,
-            metadata=request.metadata,
-            source_document_ids=sorted(
-                set(doc_id for doc_id in request.source_document_ids if doc_id)
-            ),
-            created_at=now,
-            updated_at=now,
-        )
-    else:
+        now = datetime.now()
         entity.canonical_name = request.canonical_name.strip()
         entity.entity_type = request.entity_type
         entity.aliases = sorted(set(a.strip() for a in request.aliases if a.strip()))
@@ -385,19 +485,25 @@ async def upsert_entity(
             )
         )
         entity.updated_at = now
-    db.save(entity)
+        db.save(entity)
 
-    # Observable data layer (#1863): broadcast the create/update so every
-    # window's EntityStore refreshes. Best-effort.
-    emit_change(
-        x_fichero_library_path,
-        type="entity.created" if is_create else "entity.updated",
-        entity_ids=[entity.id],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
+        emit_change(
+            emit_library_path,
+            type="entity.updated",
+            entity_ids=[entity.id],
+            actor=emit_actor,
+            origin_window=emit_origin_window,
+            origin_user=emit_actor,
+        )
+        return entity
+
+    result = registry.invoke(
+        db,
+        "entity.create",
+        request.model_dump(mode="json"),
+        ctx,
     )
-    return entity
+    return KnowledgeEntity.model_validate(result.result)
 
 
 @router.get("", response_model=EntityListResponse)

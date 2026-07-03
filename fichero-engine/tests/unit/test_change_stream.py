@@ -356,6 +356,28 @@ def _make_note(
 
 
 class TestClaimMutationsEmitChange:
+    def test_create_claim_calls_emit_change(self, client, db, test_package, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.claims.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        doc = _make_document(db, "doc-claim-create", "claim-create.txt")
+        r = client.post(
+            "/api/claims",
+            json={"text": "Created claim.", "source_document_id": doc.id},
+        )
+        assert r.status_code == 200, r.text
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "claim.updated"
+        assert r.json()["id"] in call["claim_ids"]
+
     def test_assign_time_period_calls_emit_change(
         self, client, db, test_package, monkeypatch
     ):
@@ -406,8 +428,48 @@ class TestClaimMutationsEmitChange:
         assert call["type"] == "claim.updated"
         assert claim.id in call["claim_ids"]
 
+    def test_delete_claim_calls_emit_change(self, client, db, test_package, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.claims.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        claim = _make_claim(db)
+        r = client.delete(f"/api/claims/{claim.id}")
+        assert r.status_code == 204, r.text
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "claim.deleted"
+        assert claim.id in call["claim_ids"]
+
 
 class TestEntityMutationsEmitChange:
+    def test_create_entity_calls_emit_change(self, client, test_package, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.entities.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        r = client.post(
+            "/api/entities",
+            json={"canonical_name": "Nikolai", "entity_type": "person"},
+        )
+        assert r.status_code == 200, r.text
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "entity.created"
+        assert r.json()["id"] in call["entity_ids"]
+
     def test_add_entity_aliases_calls_emit_change(
         self, client, db, test_package, monkeypatch
     ):

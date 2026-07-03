@@ -11,6 +11,7 @@ import pytest
 import fichero.api.routes.bookmarks  # noqa: F401
 import fichero.api.routes.claims  # noqa: F401
 import fichero.api.routes.documents  # noqa: F401
+import fichero.api.routes.entities  # noqa: F401
 import fichero.api.routes.notes  # noqa: F401
 import fichero.api.routes.search  # noqa: F401
 from fichero.actions.registry import ActionContext, registry
@@ -176,6 +177,21 @@ def test_document_delete_action_writes_action_audit(db):
     assert audit.target_ids == [doc.id]
 
 
+def test_entity_create_action_writes_action_audit(db):
+    result = registry.invoke(
+        db,
+        "entity.create",
+        {"canonical_name": "Asprilla"},
+        _ctx(),
+    )
+
+    audit = db.get(ActionAudit, result.audit_id)
+    assert audit is not None
+    assert audit.actor == "ui"
+    assert audit.action_name == "entity.create"
+    assert audit.target_ids == [result.result["id"]]
+
+
 def test_saved_search_create_route_writes_action_audit(client, db):
     response = client.post(
         "/api/search/saved",
@@ -214,10 +230,6 @@ def test_note_create_route_writes_action_audit(client, db):
     assert audits[0].target_ids == [note_id]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="POST /api/claims still calls create_claim_impl directly and writes no ActionAudit row.",
-)
 def test_claim_create_route_writes_action_audit(client, db):
     response = client.post("/api/claims", json={"text": "Route claim"})
     assert response.status_code == 200
@@ -230,10 +242,6 @@ def test_claim_create_route_writes_action_audit(client, db):
     assert audits[0].target_ids == [claim_id]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="PATCH /api/claims/{claim_id} still calls patch_claim_impl directly and writes no ActionAudit row.",
-)
 def test_claim_patch_route_writes_action_audit(client, db):
     claim = KnowledgeClaim(text="Before route patch")
     db.save(claim)
@@ -248,10 +256,6 @@ def test_claim_patch_route_writes_action_audit(client, db):
     assert audits[0].target_ids == [claim.id]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="DELETE /api/claims/{claim_id} still calls delete_claim_impl directly and writes no ActionAudit row.",
-)
 def test_claim_delete_route_writes_action_audit(client, db):
     claim = KnowledgeClaim(text="Delete via route")
     db.save(claim)
@@ -341,10 +345,6 @@ def test_document_delete_route_writes_action_audit(client, db):
     assert audits[0].target_ids == [doc.id]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="POST /api/entities creates entities directly and no entity.create audited action exists yet.",
-)
 def test_entity_create_route_writes_action_audit(client, db):
     response = client.post("/api/entities", json={"canonical_name": "Asprilla"})
     assert response.status_code == 200
