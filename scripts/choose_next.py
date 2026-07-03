@@ -26,6 +26,7 @@ from typing import Any, Iterable
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_ROADMAP = ROOT / "docs" / "ROADMAP.md"
+PRIORITY_SPINE_MARKER = "# ▶▶ PRIORITY SPINE"
 BLOCKING_LABELS = {"status:in-progress"}
 SECONDARY_SKIP_LABELS = {"status:blocked", "needs-human-test", "needs:human"}
 BIG_MARKERS = (
@@ -143,13 +144,20 @@ def _extract_milestones(block: str) -> tuple[str, ...]:
 
 def parse_roadmap(path: Path = DEFAULT_ROADMAP) -> list[RoadmapTier]:
     text = path.read_text(encoding="utf-8")
-    legacy_tiers = _parse_legacy_tiers(text)
+    legacy_tiers = _parse_legacy_tiers(_priority_spine_text(text))
     if legacy_tiers:
         return legacy_tiers
     current_work_order = _parse_current_work_order(text)
     if current_work_order:
         return current_work_order
     return _parse_phase_work_order(text)
+
+
+def _priority_spine_text(text: str) -> str:
+    marker_index = text.find(PRIORITY_SPINE_MARKER)
+    if marker_index == -1:
+        return text
+    return text[marker_index:]
 
 
 def _parse_legacy_tiers(text: str) -> list[RoadmapTier]:
@@ -493,7 +501,7 @@ def run_self_test() -> int:
 
 
 def parse_roadmap_from_text_for_test(text: str) -> list[RoadmapTier]:
-    legacy_tiers = _parse_legacy_tiers(text)
+    legacy_tiers = _parse_legacy_tiers(_priority_spine_text(text))
     if legacy_tiers:
         return legacy_tiers
     current_work_order = _parse_current_work_order(text)
