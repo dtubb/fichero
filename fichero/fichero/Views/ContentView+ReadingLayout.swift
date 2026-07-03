@@ -11,11 +11,21 @@ extension ContentView {
     ///
     /// The `sequence - 1 == index` formula converts our 1-based `sequence`
     /// (page_number) to PDFKit's 0-based index.
+    /// Pure: the page Document whose 1-based `sequence` maps to PDFKit's 0-based
+    /// `index` (`sequence - 1 == index`). Extracted for #3013 page-index tests.
+    static func pageDocument(atPDFIndex index: Int, in documents: [Document]) -> Document? {
+        documents.first { $0.docType == .page && ($0.sequence ?? 0) == index + 1 }
+    }
+
+    /// Pure: the 0-based PDF page index for a page Document (1-based `sequence`),
+    /// clamped to 0; non-page docs (or nil) resolve to the first page. (#3013)
+    static func pdfPageIndex(for doc: Document?) -> Int {
+        guard let doc, doc.docType == .page else { return 0 }
+        return max(0, (doc.sequence ?? 1) - 1)
+    }
+
     func syncGridSelectionToPDFPage(index: Int) {
-        let match = documentStore.currentDocuments.first { doc in
-            doc.docType == .page && (doc.sequence ?? 0) == index + 1
-        }
-        guard let match else { return }
+        guard let match = Self.pageDocument(atPDFIndex: index, in: documentStore.currentDocuments) else { return }
         // Update only the page-focus cursor — never re-root detailDocument or
         // browserSelection from a scroll event (#1463). detailDocument stays
         // pinned to the active container (parent PDF / folder) so the WebKit
@@ -47,11 +57,7 @@ extension ContentView {
     /// over detailDocument so the PDF viewer tracks scrolling without
     /// re-rooting the active container (#1463).
     var selectedPageIndex: Int {
-        let focusDoc = pageFocusDocument ?? detailDocument
-        if let doc = focusDoc, doc.docType == .page {
-            return max(0, (doc.sequence ?? 1) - 1)
-        }
-        return 0
+        Self.pdfPageIndex(for: pageFocusDocument ?? detailDocument)
     }
 
     /// Page-child documents for the previewed PDF, sorted by sequence.

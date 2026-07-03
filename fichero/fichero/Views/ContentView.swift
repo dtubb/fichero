@@ -69,6 +69,8 @@ struct ContentView: View {
     @Environment(WorkflowExecutionObserver.self) var executionObserver
     @Environment(KGFocusState.self) var kgFocusState
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    /// iOS has no `willTerminate`; backgrounding is the save signal (#3016).
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openWindow) var openWindow
     @EnvironmentObject var claimFocusState: ClaimFocusState
     @EnvironmentObject var researchService: ResearchService
@@ -522,6 +524,17 @@ struct ContentView: View {
             #if canImport(AppKit)
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
                 handleWillTerminate()
+            }
+            #else
+            // iOS/iPadOS have no willTerminate — the system can suspend then kill
+            // a backgrounded app with no further callback. Backgrounding is the
+            // last reliable save point, so mirror the macOS terminate path (#3016).
+            // @SceneStorage nav/selection persist automatically; this covers the
+            // editing-workflow autosave that handleWillTerminate() performs.
+            .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .background {
+                    handleWillTerminate()
+                }
             }
             #endif
             .onReceive(NotificationCenter.default.publisher(for: .ficheroEntitySearchRequested)) { note in

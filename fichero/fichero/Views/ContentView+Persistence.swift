@@ -115,8 +115,11 @@ extension ContentView {
         }
     }
 
-    // swiftlint:disable:next cyclomatic_complexity
-    func serializeViewMode(_ mode: AppViewMode) -> (type: String, id: String?) {
+    // swiftlint:disable cyclomatic_complexity
+    /// Pure `AppViewMode` → persisted `(type, id)` mapping. Static so the save
+    /// contract (what iOS scene-background / macOS terminate flush) is unit-
+    /// testable without a live ContentView (#3016).
+    static func serializeViewMode(_ mode: AppViewMode) -> (type: String, id: String?) {
         switch mode {
         case .library(let doc):
             return ("library", doc?.id)
@@ -142,6 +145,7 @@ extension ContentView {
             return ("activity", run?.id)
         }
     }
+    // swiftlint:enable cyclomatic_complexity
 
     func restorePersistedState() {
         columnVisibility = Self.restoredColumnVisibility(from: columnVisibilityRaw)
@@ -200,7 +204,7 @@ extension ContentView {
             browserSelectionData = encoded
         }
 
-        let (type, id) = serializeViewMode(viewMode)
+        let (type, id) = Self.serializeViewMode(viewMode)
         storedViewModeType = type
         storedViewModeItemId = id
         selectedSidebarItemId = sidebarSelectionState.selectedItemId ?? sidebarSelectionId(for: type, itemId: id)

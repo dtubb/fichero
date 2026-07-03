@@ -5,7 +5,7 @@ import SwiftUI
 extension ContentView {
     func recordNavigationEntry() {
         guard !isRestoringNavigationHistory else { return }
-        let serialized = serializeViewMode(viewMode)
+        let serialized = Self.serializeViewMode(viewMode)
         navigationHistory.push(AppNavigationHistory.Entry(
             viewType: serialized.type,
             viewItemId: serialized.id,
