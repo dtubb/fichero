@@ -19,50 +19,44 @@ struct AIProviderAddModelsSheet: View {
     @EnvironmentObject var providerService: ProviderServiceGenerated
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Text("Add Model to \(provider.name)")
-                    .font(.headline)
-                Spacer()
-                Button("Cancel") { dismiss() }
-            }
-            .padding()
-
-            Divider()
-
-            if provider.providerType == "huggingface" {
-                // Use full AIModelCatalog for HuggingFace
-                AIModelCatalog(
-                    selectedModel: $selectedHFModel,
-                    onModelSelected: { model in
-                        selectedHFModel = model
-                    }
-                )
-            } else {
-                // Use shared AIModelSelectionView with selection mode
-                AIModelSelectionView(
-                    providerType: provider.providerType,
-                    providerId: provider.id,
-                    selectionMode: .select,
-                    selectedModel: $selectedModel,
-                    onModelAdded: {}
-                )
-            }
-
-            Divider()
-
-            // Footer
-            HStack {
-                Spacer()
-
-                Button("Add Model") {
-                    addModel()
+        NavigationStack {
+            Group {
+                if provider.providerType == "huggingface" {
+                    // Use full AIModelCatalog for HuggingFace
+                    AIModelCatalog(
+                        selectedModel: $selectedHFModel,
+                        onModelSelected: { model in
+                            selectedHFModel = model
+                        }
+                    )
+                } else {
+                    // Use shared AIModelSelectionView with selection mode
+                    AIModelSelectionView(
+                        providerType: provider.providerType,
+                        providerId: provider.id,
+                        selectionMode: .select,
+                        selectedModel: $selectedModel,
+                        onModelAdded: {}
+                    )
                 }
-                .keyboardShortcut(.defaultAction)
-                .disabled(isAdding || (selectedModel == nil && selectedHFModel == nil))
             }
-            .padding()
+            .navigationTitle("Add Model to \(provider.name)")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            // Native sheet actions in the toolbar (correct placement on iOS +
+            // macOS) instead of a hand-rolled footer HStack (#2806).
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add Model") {
+                        addModel()
+                    }
+                    .disabled(isAdding || (selectedModel == nil && selectedHFModel == nil))
+                }
+            }
         }
         // Mac-only fixed size; iPhone/iPad sheets size to the screen (#2802).
         #if os(macOS)

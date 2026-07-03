@@ -29,6 +29,8 @@ struct SearchResultsDisplay: View {
     /// caller (SearchView).
     var recentSearches: [String] = []
     var onRecentSearchTap: ((String) -> Void)?
+
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     /// Top-N keywords for browse-by-tag. Each pill click runs a search
     /// for that keyword. Sized by frequency for visual hierarchy.
     var keywordCloud: [KeywordCloudEntryDTO] = []
@@ -179,7 +181,19 @@ struct SearchResultsDisplay: View {
 
     // MARK: - Table View
 
+    @ViewBuilder
     private var tableView: some View {
+        // A multi-column Table has no room to breathe on a compact iPhone; fall
+        // back to the existing list rows there, mirroring the library table
+        // (#2806). Mac/iPad-regular keep the columns.
+        if horizontalSizeClass == .compact {
+            listView
+        } else {
+            resultsTable
+        }
+    }
+
+    private var resultsTable: some View {
         Table(searchResults, selection: $selection) {
             TableColumn("Name") { result in
                 if let name = result.metadata["name"]?.value as? String {

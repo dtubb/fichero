@@ -99,7 +99,7 @@ struct PreviewNodeView: View {
             ZStack {
                 if isCurrentNode && (state.status == .running || state.status == .parallelRunning) {
                     Circle()
-                        .fill(Color.blue.opacity(isPulsing ? 0.5 : 0.2))
+                        .fill(Color.accentColor.opacity(isPulsing ? 0.5 : 0.2))
                         .frame(width: 40, height: 40)
                         .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isPulsing)
                 }
@@ -138,7 +138,7 @@ struct PreviewNodeView: View {
             Spacer()
         }
         .padding()
-        .background(isCurrentNode ? Color.blue.opacity(0.1) : Color(.controlBackgroundColor))
+        .background(isCurrentNode ? Color.accentColor.opacity(0.1) : Color(.controlBackgroundColor))
         .cornerRadius(8)
         .onAppear {
             if isCurrentNode {

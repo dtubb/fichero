@@ -5,41 +5,19 @@ struct MCPServersSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Text("MCP Servers")
-                    .font(.title)
-                    .fontWeight(.semibold)
-                Spacer()
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
-                        .imageScale(.large)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding()
-
-            Divider()
-
-            // Main content
+        NavigationStack {
             MCPServersView()
-
-            Divider()
-
-            // Footer
-            HStack {
-                Spacer()
-                Button("Done") {
-                    dismiss()
+                .navigationTitle("MCP Servers")
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+                // Single native Done action in the toolbar instead of a
+                // hand-rolled header close + footer button (#2806).
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { dismiss() }
+                    }
                 }
-                .keyboardShortcut(.defaultAction)
-                .buttonStyle(.borderedProminent)
-            }
-            .padding()
         }
         // Mac-only fixed size; iPhone/iPad sheets size to the screen (#2802).
         #if os(macOS)

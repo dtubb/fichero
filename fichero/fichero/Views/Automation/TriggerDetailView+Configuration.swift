@@ -83,7 +83,7 @@ extension TriggerDetailView {
             if trigger.useBatch {
                 HStack {
                     Image(systemName: "square.stack.3d.up")
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.accentColor)
                     Text("Batch Mode")
                         .font(.subheadline)
                     Text("(max \(trigger.maxConcurrent) concurrent)")
@@ -91,7 +91,7 @@ extension TriggerDetailView {
                         .foregroundStyle(.secondary)
                 }
                 .padding(8)
-                .background(.blue.opacity(0.1))
+                .background(Color.accentColor.opacity(0.1))
                 .cornerRadius(8)
             }
         }

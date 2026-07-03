@@ -132,6 +132,8 @@ struct PickerMiniToolbar<T: Hashable>: View {
     let options: [PickerOption]
     let actions: [ToolbarAction]
 
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
     init(
         title: String? = nil,
         selection: Binding<T>,
@@ -152,19 +154,7 @@ struct PickerMiniToolbar<T: Hashable>: View {
                     .foregroundStyle(.secondary)
             }
 
-            Picker("", selection: $selection) {
-                ForEach(options) { option in
-                    if let icon = option.icon {
-                        Label(option.label, systemImage: icon)
-                            .tag(option.value)
-                    } else {
-                        Text(option.label)
-                            .tag(option.value)
-                    }
-                }
-            }
-            .pickerStyle(.segmented)
-            .frame(maxWidth: 300)
+            styledPicker
 
             if !actions.isEmpty {
                 Spacer()
@@ -177,6 +167,40 @@ struct PickerMiniToolbar<T: Hashable>: View {
                 }
             }
         }
+    }
+
+    private var picker: some View {
+        Picker("", selection: $selection) {
+            ForEach(options) { option in
+                if let icon = option.icon {
+                    Label(option.label, systemImage: icon)
+                        .tag(option.value)
+                } else {
+                    Text(option.label)
+                        .tag(option.value)
+                }
+            }
+        }
+    }
+
+    /// Segmented on Mac/iPad-regular (capped width); menu on a compact iPhone
+    /// toolbar, where several segments overflow (#2806).
+    @ViewBuilder
+    private var styledPicker: some View {
+        #if os(macOS)
+        picker
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 300)
+        #else
+        if horizontalSizeClass == .compact {
+            picker
+                .pickerStyle(.menu)
+        } else {
+            picker
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 300)
+        }
+        #endif
     }
 }
 
