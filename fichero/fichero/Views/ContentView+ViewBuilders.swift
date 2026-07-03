@@ -499,17 +499,11 @@ extension ContentView {
     /// split layout is used instead, untouched). The entities browser is
     /// excluded — it drives the KG focus state, not a document reader.
     private var usesCompactReaderFlow: Bool {
-        guard Self.shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) else {
-            return false
-        }
-        switch viewMode {
-        case .library:
-            return !isEntityLibrarySelection
-        case .search:
-            return true
-        default:
-            return false
-        }
+        CompactShellPolicy.route(
+            horizontalSizeClass: horizontalSizeClass,
+            appViewMode: viewMode,
+            isEntitySelection: isEntityLibrarySelection
+        ) == .libraryReader
     }
 
     /// Resolves the current selection to a LEAF document for the compact reader
