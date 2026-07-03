@@ -43176,6 +43176,16 @@
             "type": "string",
             "nullable": true,
             "title": "Server Proof"
+          },
+          "engine_pid": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Engine Pid"
+          },
+          "launch_nonce": {
+            "type": "string",
+            "nullable": true,
+            "title": "Launch Nonce"
           }
         },
         "type": "object",
