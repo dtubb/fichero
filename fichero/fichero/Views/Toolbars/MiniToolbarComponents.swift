@@ -164,6 +164,7 @@ struct PickerMiniToolbar<T: Hashable>: View {
                         Image(systemName: action.icon)
                     }
                     .help(action.title)
+                    .accessibilityLabel(action.title)
                 }
             }
         }

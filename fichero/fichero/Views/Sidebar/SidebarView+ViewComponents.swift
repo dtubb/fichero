@@ -60,6 +60,7 @@ extension SidebarView {
                 }
                 .buttonStyle(.plain)
                 .help("Clear filter")
+                .accessibilityLabel("Clear filter")
             }
         }
     }

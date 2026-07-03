@@ -165,6 +165,7 @@ struct ReaderToolbar: View {
             }
             .buttonStyle(.plain)
             .help(isInSplit ? "Close this split" : "Close this pane")
+            .accessibilityLabel(isInSplit ? "Close this split" : "Close this pane")
 
             sectionDivider
         }
@@ -198,6 +199,7 @@ struct ReaderToolbar: View {
         .buttonStyle(.plain)
         .disabled(!(enabled && (pageNav?.canGoPrevious ?? false)))
         .help("Previous Page")
+        .accessibilityLabel("Previous Page")
         .accessibilityIdentifier("pdfPreviousPage")
 
         Text(indexLabel)
@@ -215,6 +217,7 @@ struct ReaderToolbar: View {
         .buttonStyle(.plain)
         .disabled(!(enabled && (pageNav?.canGoNext ?? false)))
         .help("Next Page")
+        .accessibilityLabel("Next Page")
         .accessibilityIdentifier("pdfNextPage")
 
         sectionDivider
@@ -230,6 +233,7 @@ struct ReaderToolbar: View {
         }
         .buttonStyle(.plain)
         .help("Zoom Out")
+        .accessibilityLabel("Zoom Out")
 
         Text("\(scalePercent)%")
             .font(.caption)
@@ -242,6 +246,7 @@ struct ReaderToolbar: View {
         }
         .buttonStyle(.plain)
         .help("Zoom In")
+        .accessibilityLabel("Zoom In")
 
         sectionDivider
     }
@@ -254,6 +259,7 @@ struct ReaderToolbar: View {
         }
         .buttonStyle(.plain)
         .help("Fit to Window")
+        .accessibilityLabel("Fit to Window")
 
         Button(action: actualSize) {
             Image(systemName: "1.square")
@@ -261,6 +267,7 @@ struct ReaderToolbar: View {
         }
         .buttonStyle(.plain)
         .help("Actual Size (100%)")
+        .accessibilityLabel("Actual Size (100%)")
 
         sectionDivider
     }
@@ -279,6 +286,7 @@ struct ReaderToolbar: View {
         .foregroundColor(binding.wrappedValue ? .accentColor : .primary)
         .disabled(magnifierEnabled == nil)
         .help(magnifierEnabled == nil ? "Magnifier panel (not available for this document)" : "Magnifier Panel")
+        .accessibilityLabel("Magnifier Panel")
     }
 
     // MARK: - Loupe
@@ -300,6 +308,7 @@ struct ReaderToolbar: View {
             .foregroundColor(enabledBinding.wrappedValue ? .accentColor : .primary)
             .disabled(loupeEnabled == nil)
             .help(loupeEnabled == nil ? "Loupe (not available for this document)" : "Toggle loupe")
+            .accessibilityLabel("Loupe")
 
             if loupeEnabled != nil, enabledBinding.wrappedValue {
                 Button {
@@ -310,6 +319,7 @@ struct ReaderToolbar: View {
                 .buttonStyle(.plain)
                 .foregroundColor(lockedBinding.wrappedValue ? .accentColor : .secondary)
                 .help(lockedBinding.wrappedValue ? "Unlock loupe" : "Lock loupe")
+                .accessibilityLabel(lockedBinding.wrappedValue ? "Unlock loupe" : "Lock loupe")
 
                 if let mag = loupeMagnification {
                     Text(String(format: "%.1fx", mag.wrappedValue))
@@ -347,6 +357,7 @@ struct ReaderToolbar: View {
                 : (binding.wrappedValue
                     ? "Done — return to viewing"
                     : "Edit image (crop, rotate, straighten, enhance, remove background)"))
+        .accessibilityLabel(binding.wrappedValue ? "Done editing" : "Edit image")
         .accessibilityIdentifier("canvasEditModeToggle")
 
         sectionDivider
@@ -365,6 +376,7 @@ struct ReaderToolbar: View {
             .buttonStyle(.plain)
             .disabled(onAnnotate == nil)
             .help(onAnnotate == nil ? "\(tool.label) (not available for this document)" : tool.label)
+            .accessibilityLabel(tool.label)
             .accessibilityIdentifier("readerAnnotate_\(tool.rawValue)")
         }
     }
@@ -419,6 +431,7 @@ struct ReaderToolbar: View {
             .buttonStyle(.plain)
             .foregroundStyle(isPinned.wrappedValue ? Color.accentColor : Color.secondary)
             .help(isPinned.wrappedValue ? "Unpin — follow current selection" : "Pin to this document")
+            .accessibilityLabel(isPinned.wrappedValue ? "Unpin" : "Pin to this document")
         }
     }
 }
@@ -536,6 +549,7 @@ extension ReaderToolbar {
         .menuIndicator(.hidden)
         .fixedSize()
         .help("More tools")
+        .accessibilityLabel("More tools")
         .accessibilityIdentifier("readerToolbarOverflow")
     }
 }

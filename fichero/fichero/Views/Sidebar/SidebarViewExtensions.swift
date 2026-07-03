@@ -126,6 +126,7 @@ struct SidebarBottomToolbar: View {
             .menuIndicator(.hidden)
             .fixedSize()
             .help("New Item")
+            .accessibilityLabel("New Item")
 
             // Remove / delete selected item
             Button {
@@ -139,6 +140,7 @@ struct SidebarBottomToolbar: View {
             .buttonStyle(.borderless)
             .disabled(!hasSelection)
             .help("Remove selected item")
+            .accessibilityLabel("Remove selected item")
 
             Spacer()
 
@@ -154,6 +156,7 @@ struct SidebarBottomToolbar: View {
             .buttonStyle(.borderless)
             .disabled(true)
             .help("Export (not yet wired)")
+            .accessibilityLabel("Export")
 
             // Import menu
             Menu {
@@ -187,6 +190,7 @@ struct SidebarBottomToolbar: View {
             .menuIndicator(.hidden)
             .fixedSize()
             .help("Import Files (⌘I)")
+            .accessibilityLabel("Import Files")
 
             // Run workflow on selection (only shown when workflows feature is enabled)
             if featureManager.isWorkflowsEnabled {
@@ -201,6 +205,7 @@ struct SidebarBottomToolbar: View {
                 .buttonStyle(.borderless)
                 .disabled(!hasSelection)
                 .help("New Workflow")
+                .accessibilityLabel("New Workflow")
             }
     }
 }
