@@ -42,6 +42,13 @@ struct WorkflowPortView: View {
             }
         }
         .help(portTooltip)
+        #if !os(macOS)
+        // The 12pt port dot is far below the 44pt touch minimum. Keep the small
+        // visual but expand the tappable area to 44pt so a finger can grab the
+        // connection point (#2806). Mac keeps the precise mouse-sized target.
+        .frame(width: 44, height: 44)
+        .contentShape(Circle())
+        #endif
     }
 
     private var portColor: Color {
