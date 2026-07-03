@@ -374,10 +374,6 @@ def test_entity_patch_route_writes_action_audit(client, db):
     assert audits[0].target_ids == [entity.id]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="DELETE /api/entities/{entity_id} deletes entities directly and no entity.delete audited action exists yet.",
-)
 def test_entity_delete_route_writes_action_audit(client, db):
     entity = KnowledgeEntity(canonical_name="Delete Me")
     db.save(entity)

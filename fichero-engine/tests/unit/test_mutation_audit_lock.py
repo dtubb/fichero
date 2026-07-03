@@ -159,6 +159,13 @@ def _patch_entity(client, db) -> tuple[object, str, str, str, str, str]:
     return response, entity_id, "entity.update", "entity.updated", "entity_ids", entity_id
 
 
+def _delete_entity(client, db) -> tuple[object, str, str, str, str, str]:
+    create = client.post("/api/entities", json={"canonical_name": "Delete Entity"})
+    entity_id = create.json()["id"]
+    response = client.delete(f"/api/entities/{entity_id}")
+    return response, entity_id, "entity.delete", "entity.deleted", "entity_ids", entity_id
+
+
 def _patch_note(client, db) -> tuple[object, str, str, str, str, str]:
     folder = Document(name="Patch Note Folder", doc_type=DocType.folder)
     db.save(folder)
@@ -250,6 +257,7 @@ def test_node_model_create_routes_write_audit_and_emit_change(
         ("claim.delete", _delete_claim),
         ("entity.upsert", _entity_upsert_update),
         ("entity.patch", _patch_entity),
+        ("entity.delete", _delete_entity),
         ("note.patch", _patch_note),
         ("note.delete", _delete_note),
         ("room.update", _update_room),

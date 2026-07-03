@@ -134,6 +134,11 @@ class EntityUpdateActionParams(EntityCreateActionParams):
     entity_id: str
 
 
+class EntityDeleteActionParams(BaseModel):
+    entity_id: str
+    cascade_claims: bool = False
+
+
 class EntityAliasRequest(BaseModel):
     """Request to add aliases to an entity."""
 
@@ -494,6 +499,84 @@ def _action_update_entity(
         emit_fn=_emit_entity_change_spec,
     )
     return entity.model_dump(mode="json"), spec
+
+
+def delete_entity_impl(
+    db: Database, entity_id: str, *, cascade_claims: bool = False
+) -> dict:
+    entity = db.get(KnowledgeEntity, entity_id)
+    if entity is None:
+        raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
+
+    before_state = entity.model_dump(mode="json")
+
+    all_claims = db.query(KnowledgeClaim)
+    dependent = [c for c in all_claims if entity_id in (c.entity_ids or [])]
+
+    if cascade_claims:
+        for claim in dependent:
+            db.delete(claim)
+    else:
+        for claim in dependent:
+            claim.entity_ids = [
+                eid for eid in (claim.entity_ids or []) if eid != entity_id
+            ]
+            claim.updated_at = datetime.now()
+            db.save(claim)
+
+    try:
+        from fichero.kg import entity_vectors
+
+        entity_vectors.remove(db=db, entity_id=entity_id)
+    except Exception as exc:
+        logging.getLogger(__name__).warning(
+            "delete_entity: vector remove failed for %s: %s", entity_id, exc
+        )
+
+    db.delete(entity)
+
+    try:
+        from fichero.knowledge_models import MutationLog, MutationOperationType
+
+        db.save(
+            MutationLog(
+                entity_type="KnowledgeEntity",
+                entity_id=entity_id,
+                operation=MutationOperationType.delete,
+                before_state=before_state,
+                after_state=None,
+            )
+        )
+    except Exception as exc:
+        logging.getLogger(__name__).warning(
+            "delete_entity: mutation log write failed: %s", exc
+        )
+
+    return {"entity_id": entity_id}
+
+
+@action(
+    "entity.delete",
+    EntityDeleteActionParams,
+    domains=["entity"],
+    undoable=False,
+)
+def _action_delete_entity(
+    db: Database, params: EntityDeleteActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    result = delete_entity_impl(
+        db,
+        params.entity_id,
+        cascade_claims=params.cascade_claims,
+    )
+    spec = ChangeSpec(
+        domains=["entity"],
+        target_ids=[params.entity_id],
+        after=result,
+        emit_type="entity.deleted",
+        entity_ids=[params.entity_id],
+    )
+    return result, spec
 
 
 @router.post("", response_model=KnowledgeEntity)
@@ -970,11 +1053,12 @@ async def delete_entity(
         ),
     ),
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
+    x_fichero_library_path: str | object = Depends(require_library_path),
+    x_fichero_origin_window: str | object | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
-    actor: str = Depends(request_actor),
+    actor: str | object = Depends(request_actor),
+    ctx: ActionContext | object = Depends(action_context),
 ) -> None:
     """Hard-delete a knowledge entity.
 
@@ -984,72 +1068,17 @@ async def delete_entity(
       or strips this id from each claim's ``entity_ids`` (default).
     (#901)
     """
-    entity = db.get(KnowledgeEntity, entity_id)
-    if entity is None:
-        raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
-
-    # Snapshot before-state for undo. (#901)
-    before_state = entity.model_dump(mode="json")
-
-    # Find dependent claims.
-    from fichero.knowledge_models import KnowledgeClaim
-
-    all_claims = db.query(KnowledgeClaim)
-    dependent = [c for c in all_claims if entity_id in (c.entity_ids or [])]
-
-    if cascade_claims:
-        for claim in dependent:
-            db.delete(claim)
-    else:
-        # Strip the id but keep the claim row.
-        for claim in dependent:
-            claim.entity_ids = [
-                eid for eid in (claim.entity_ids or []) if eid != entity_id
-            ]
-            claim.updated_at = datetime.now()
-            db.save(claim)
-
-    # Drop the vector.
-    try:
-        from fichero.kg import entity_vectors
-
-        entity_vectors.remove(db=db, entity_id=entity_id)
-    except Exception as exc:
-        import logging
-
-        logging.getLogger(__name__).warning(
-            "delete_entity: vector remove failed for %s: %s", entity_id, exc
-        )
-
-    db.delete(entity)
-
-    # Mutation log row.
-    try:
-        from fichero.knowledge_models import MutationLog, MutationOperationType
-
-        db.save(
-            MutationLog(
-                entity_type="KnowledgeEntity",
-                entity_id=entity_id,
-                operation=MutationOperationType.delete,
-                before_state=before_state,
-                after_state=None,
-            )
-        )
-    except Exception as exc:
-        import logging
-
-        logging.getLogger(__name__).warning(
-            "delete_entity: mutation log write failed: %s", exc
-        )
-
-    emit_change(
-        x_fichero_library_path,
-        type="entity.deleted",
-        entity_ids=[entity_id],
+    ctx = _resolve_action_ctx(
+        ctx,
         actor=actor,
+        library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
-        origin_user=actor,
+    )
+    registry.invoke(
+        db,
+        "entity.delete",
+        {"entity_id": entity_id, "cascade_claims": cascade_claims},
+        ctx,
     )
 
 
