@@ -1058,6 +1058,16 @@
         ],
         "request_model": null,
         "response_model": "LibraryMembersResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/authz/share",
+        "operation_id": "share_library_object_api_authz_share_post",
+        "summary": "Share Library Object",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ShareRequest",
+        "response_model": "ShareResponse"
       }
     ],
     "batches": [

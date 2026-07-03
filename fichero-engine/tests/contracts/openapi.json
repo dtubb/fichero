@@ -32253,6 +32253,61 @@
           }
         }
       }
+    },
+    "/api/authz/share": {
+      "post": {
+        "tags": [
+          "authz",
+          "authz"
+        ],
+        "summary": "Share Library Object",
+        "description": "Share a library / entity / document (#1867) \u2014 the authz-gated model.\n\nGrants the recipient a per-library role through the audited ``acl.set``\naction (owner-gated, emits authz.changed) and returns an engine link to the\nobject. Entity/document shares grant library access so the recipient can\nreach the object (the ACL is per-library); those types require an object_id.",
+        "operationId": "share_library_object_api_authz_share_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShareRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -61355,6 +61410,78 @@
         ],
         "title": "SetLibraryRoleRequest",
         "description": "Typed body for ``PUT /api/authz/members`` \u2014 assign/change a library role.\n\nA typed OpenAPI surface over the ``acl.set`` registry action so the Swift\nclient gets a generated method instead of hand-rolling ``/actions/invoke``."
+      },
+      "ShareRequest": {
+        "properties": {
+          "user": {
+            "type": "string",
+            "title": "User",
+            "description": "Recipient user id or username"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "description": "Role to grant: owner/editor/viewer",
+            "default": "viewer"
+          },
+          "object_type": {
+            "type": "string",
+            "title": "Object Type",
+            "description": "library | entity | document",
+            "default": "library"
+          },
+          "object_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Object Id",
+            "description": "Entity/document id (required for those types)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user"
+        ],
+        "title": "ShareRequest",
+        "description": "Typed body for ``POST /api/authz/share`` \u2014 the Share button (#1867).\n\nAuthz-gated model: sharing an object grants the recipient a per-library\nrole via the existing ACL (not a tokenless public link). Sharing an\nentity/document grants library access so the recipient can reach it \u2014 the\nACL is per-library and a role-less user can't be granted a subtree-only\noverride."
+      },
+      "ShareResponse": {
+        "properties": {
+          "user": {
+            "type": "string",
+            "title": "User"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "object_type": {
+            "type": "string",
+            "title": "Object Type"
+          },
+          "object_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Object Id"
+          },
+          "library_path": {
+            "type": "string",
+            "title": "Library Path"
+          },
+          "share_url": {
+            "type": "string",
+            "title": "Share Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user",
+          "role",
+          "object_type",
+          "library_path",
+          "share_url"
+        ],
+        "title": "ShareResponse",
+        "description": "Result of a share: the granted access + a link the recipient can open."
       }
     }
   }

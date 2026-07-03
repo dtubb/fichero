@@ -3,6 +3,7 @@
   "paths": {
     "/api/actions/registry": "#1848 action layer - cli-only, store/UI deferred",
     "/api/authz/members": "#2869 members read/role-set API - called via the generated OpenAPI client (ActionLibraryService.listLibraryMembers, #2869 A4 sidebar badge), which the path-based wiring detector cannot see; entry stays",
+    "/api/authz/share": "#1867 Share button backend (authz-gated grant) - the SwiftUI Share button wires it via the generated client (path-based detector can't see method calls); entry stays",
     "/api/activity/entity-types": "baseline: not yet wired",
     "/api/activity/feed": "baseline: not yet wired",
     "/api/activity/metrics/summary": "baseline: not yet wired",
