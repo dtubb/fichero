@@ -60,7 +60,9 @@ def _entity_count(db: Database) -> int:
     return len(db.all(KnowledgeEntity))
 
 
-def _invoke_note_create(db: Database) -> tuple[Callable[[], object], Callable[[], None], str]:
+def _invoke_note_create(
+    db: Database,
+) -> tuple[Callable[[], object], Callable[[], None], Callable[[], None], str]:
     before_count = _note_count(db)
     before_audits = _count_audits(db, "note.create")
 
@@ -76,7 +78,11 @@ def _invoke_note_create(db: Database) -> tuple[Callable[[], object], Callable[[]
         assert _note_count(db) == before_count
         assert _count_audits(db, "note.create") == before_audits
 
-    return _call, _assert_rolled_back, "note.create"
+    def _assert_persisted():
+        assert _note_count(db) == before_count + 1
+        assert _count_audits(db, "note.create") == before_audits + 1
+
+    return _call, _assert_rolled_back, _assert_persisted, "note.create"
 
 
 def _assert_note_create_committed(
@@ -88,7 +94,7 @@ def _assert_note_create_committed(
 
 def _invoke_document_create(
     db: Database,
-) -> tuple[Callable[[], object], Callable[[], None], str]:
+) -> tuple[Callable[[], object], Callable[[], None], Callable[[], None], str]:
     before_count = _document_count(db)
     before_audits = _count_audits(db, "document.create")
 
@@ -99,7 +105,11 @@ def _invoke_document_create(
         assert _document_count(db) == before_count
         assert _count_audits(db, "document.create") == before_audits
 
-    return _call, _assert_rolled_back, "document.create"
+    def _assert_persisted():
+        assert _document_count(db) == before_count + 1
+        assert _count_audits(db, "document.create") == before_audits + 1
+
+    return _call, _assert_rolled_back, _assert_persisted, "document.create"
 
 
 def _assert_document_create_committed(
@@ -111,7 +121,7 @@ def _assert_document_create_committed(
 
 def _invoke_entity_create(
     db: Database,
-) -> tuple[Callable[[], object], Callable[[], None], str]:
+) -> tuple[Callable[[], object], Callable[[], None], Callable[[], None], str]:
     before_count = _entity_count(db)
     before_audits = _count_audits(db, "entity.create")
 
@@ -127,7 +137,11 @@ def _invoke_entity_create(
         assert _entity_count(db) == before_count
         assert _count_audits(db, "entity.create") == before_audits
 
-    return _call, _assert_rolled_back, "entity.create"
+    def _assert_persisted():
+        assert _entity_count(db) == before_count + 1
+        assert _count_audits(db, "entity.create") == before_audits + 1
+
+    return _call, _assert_rolled_back, _assert_persisted, "entity.create"
 
 
 def _assert_entity_create_committed(
@@ -139,7 +153,7 @@ def _assert_entity_create_committed(
 
 def _invoke_document_move(
     db: Database,
-) -> tuple[Callable[[], object], Callable[[], None], str]:
+) -> tuple[Callable[[], object], Callable[[], None], Callable[[], None], str]:
     source = Document(name="Source", doc_type=DocType.folder)
     target = Document(name="Target", doc_type=DocType.folder)
     doc = Document(name="Move Me", parent_id=source.id)
@@ -163,7 +177,13 @@ def _invoke_document_move(
         assert reloaded.parent_id == before_parent
         assert _count_audits(db, "document.move") == before_audits
 
-    return _call, _assert_rolled_back, "document.move"
+    def _assert_persisted():
+        reloaded = db.get(Document, doc.id)
+        assert reloaded is not None
+        assert reloaded.parent_id == target.id
+        assert _count_audits(db, "document.move") == before_audits + 1
+
+    return _call, _assert_rolled_back, _assert_persisted, "document.move"
 
 
 def _assert_document_move_committed(
@@ -272,7 +292,7 @@ def test_storage_failure_rolls_back_without_audit_or_emit(
     monkeypatch,
 ):
     emit_calls = _emit_spy(monkeypatch)
-    call, assert_rolled_back, _action_name = builder(db)
+    call, assert_rolled_back, _assert_persisted, _action_name = builder(db)
     original_save = Database.save
 
     def _boom(self, obj, auto_embed=False):
@@ -305,7 +325,7 @@ def test_audit_failure_does_not_leave_persisted_state_or_emit(
     monkeypatch,
 ):
     emit_calls = _emit_spy(monkeypatch)
-    call, assert_rolled_back, _action_name = builder(db)
+    call, assert_rolled_back, _assert_persisted, _action_name = builder(db)
 
     def _boom(*args, **kwargs):
         raise RuntimeError(f"boom audit {label}")
@@ -339,7 +359,7 @@ def test_emit_failure_is_best_effort_after_commit(
     def _boom(*args, **kwargs):
         raise RuntimeError(f"boom emit {label}")
 
-    monkeypatch.setattr(emit_symbol, _boom)
+    monkeypatch.setattr("fichero.api.change_stream.emit_change", _boom)
 
     result = call()
     assert result.ok is True
