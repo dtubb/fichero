@@ -900,11 +900,12 @@ async def patch_entity(
     entity_id: str,
     request: EntityPatchRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
+    x_fichero_library_path: str | object = Depends(require_library_path),
+    x_fichero_origin_window: str | object | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
-    actor: str = Depends(request_actor),
+    actor: str | object = Depends(request_actor),
+    ctx: ActionContext | object = Depends(action_context),
 ) -> KnowledgeEntity:
     """Partial-update a knowledge entity.
 
@@ -914,85 +915,42 @@ async def patch_entity(
     entity = db.get(KnowledgeEntity, entity_id)
     if entity is None:
         raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
-
-    # Snapshot the before-state for the MutationLog so this edit is
-    # reversible via /api/kg/undo. (#901)
-    before_state = entity.model_dump(mode="json")
-
-    changed_fields: list[str] = []
-    if request.canonical_name is not None:
-        entity.canonical_name = request.canonical_name.strip()
-        changed_fields.append("canonical_name")
-    if request.entity_type is not None:
-        entity.entity_type = request.entity_type
-        changed_fields.append("entity_type")
-    if request.aliases is not None:
-        entity.aliases = sorted(set(a.strip() for a in request.aliases if a.strip()))
-        changed_fields.append("aliases")
-    if request.description is not None:
-        entity.description = request.description
-        changed_fields.append("description")
-    if request.language is not None:
-        entity.language = request.language
-        changed_fields.append("language")
-    if request.metadata is not None:
-        entity.metadata = request.metadata
-        changed_fields.append("metadata")
-    entity.updated_at = datetime.now()
-    db.save(entity)
-
-    # Mutation log row — captures before + after for undo.
-    try:
-        from fichero.knowledge_models import MutationLog, MutationOperationType
-
-        db.save(
-            MutationLog(
-                entity_type="KnowledgeEntity",
-                entity_id=entity.id,
-                operation=MutationOperationType.update,
-                before_state=before_state,
-                after_state=entity.model_dump(mode="json"),
-                changed_fields=changed_fields,
-            )
-        )
-    except Exception as exc:
-        import logging
-
-        logging.getLogger(__name__).warning(
-            "patch_entity: mutation log write failed: %s", exc
-        )
-
-    # Refresh the LanceDB vector so cosine search reflects the edit.
-    try:
-        from fichero.kg import entity_vectors
-
-        entity_vectors.index_entity(
-            db=db,
-            entity_id=entity.id,
-            entity_type=entity.entity_type,
-            canonical_name=entity.canonical_name,
-            description=entity.description,
-        )
-    except Exception as exc:
-        # Don't fail the API call if vector refresh fails — the
-        # DuckDB row is the canonical store.
-        import logging
-
-        logging.getLogger(__name__).warning(
-            "patch_entity: vector refresh failed for %s: %s", entity.id, exc
-        )
-
-    # Observable data layer (#1863): broadcast the edit so every window's
-    # EntityStore refreshes. Best-effort.
-    emit_change(
-        x_fichero_library_path,
-        type="entity.updated",
-        entity_ids=[entity.id],
+    ctx = _resolve_action_ctx(
+        ctx,
         actor=actor,
+        library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
-        origin_user=actor,
     )
-    return entity
+    result = registry.invoke(
+        db,
+        "entity.update",
+        {
+            "entity_id": entity_id,
+            "canonical_name": (
+                request.canonical_name
+                if request.canonical_name is not None
+                else entity.canonical_name
+            ),
+            "entity_type": (
+                request.entity_type
+                if request.entity_type is not None
+                else entity.entity_type
+            ),
+            "aliases": request.aliases if request.aliases is not None else entity.aliases,
+            "description": (
+                request.description
+                if request.description is not None
+                else entity.description
+            ),
+            "language": (
+                request.language if request.language is not None else entity.language
+            ),
+            "metadata": request.metadata if request.metadata is not None else entity.metadata,
+            "source_document_ids": entity.source_document_ids or [],
+        },
+        ctx,
+    )
+    return KnowledgeEntity.model_validate(result.result)
 
 
 @router.delete("/{entity_id}", status_code=204)
