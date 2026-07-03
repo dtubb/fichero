@@ -856,10 +856,21 @@ def test_generated_command_forwards_path_params_via_raw_request():
     ]
 
 
-def test_generated_json_body_command_parses_inline_payload():
+def test_generated_json_body_command_uses_typed_request_flags():
     result = runner.invoke(
         cli.app,
-        ["actions", "create", "--body", '{"name":"Example","kind":"builtin"}'],
+        [
+            "actions",
+            "create",
+            "--name",
+            "Example",
+            "--category",
+            "builtin",
+            "--tags",
+            '["cli"]',
+            "--node-template",
+            '{"kind":"leaf"}',
+        ],
     )
     assert result.exit_code == 0
     assert _last_client().calls == [
@@ -869,7 +880,12 @@ def test_generated_json_body_command_parses_inline_payload():
             "/api/actions",
             {
                 "params": None,
-                "json": {"name": "Example", "kind": "builtin"},
+                "json": {
+                    "name": "Example",
+                    "category": "builtin",
+                    "tags": ["cli"],
+                    "node_template": {"kind": "leaf"},
+                },
                 "files": None,
             },
         )
