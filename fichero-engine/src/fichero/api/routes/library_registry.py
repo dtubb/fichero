@@ -36,6 +36,7 @@ from fichero.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero.api.auth import actor_from_request
 from fichero.db import Database
 from fichero.db_manager import db_manager
+from fichero.knowledge_models import Annotation, KnowledgeEntity, Note
 from fichero.library_paths import nfc_path
 from fichero.models import (
     DocType,
@@ -339,11 +340,113 @@ def _snapshot_initiator_for_actor(actor: str | None) -> str:
     return actor if actor in {"user", "ai", "system"} else "system"
 
 
+def _fingerprint_payload(payload: dict[str, object]) -> str:
+    return json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+
+
+def _mapped_unique_ids(values: list[str], id_map: dict[str, str]) -> list[str]:
+    mapped: list[str] = []
+    for value in values:
+        target = id_map.get(value, value)
+        if target not in mapped:
+            mapped.append(target)
+    return mapped
+
+
+def _annotation_scope_matches_document(
+    annotation: Annotation,
+    document_ids: set[str],
+) -> bool:
+    return any(
+        value in document_ids
+        for value in (annotation.document_id, annotation.page_id, annotation.folder_id)
+        if value
+    )
+
+
+def _note_scope_matches_document(note: Note, document_ids: set[str]) -> bool:
+    return any(
+        value in document_ids
+        for value in [note.page_id, note.folder_id, *(note.linked_document_ids or [])]
+        if value
+    )
+
+
+def _normalized_entity_payload(
+    entity: KnowledgeEntity,
+    *,
+    document_id_map: dict[str, str],
+) -> dict[str, object]:
+    payload = entity.model_dump(mode="json")
+    payload.pop("id", None)
+    payload.pop("created_at", None)
+    payload.pop("updated_at", None)
+    payload["parent_id"] = document_id_map.get(entity.parent_id, entity.parent_id)
+    payload["source_document_ids"] = _mapped_unique_ids(
+        payload.get("source_document_ids") or [],
+        document_id_map,
+    )
+    return payload
+
+
+def _normalized_note_payload(
+    note: Note,
+    *,
+    document_id_map: dict[str, str],
+    entity_id_map: dict[str, str],
+    note_id_map: dict[str, str],
+) -> dict[str, object]:
+    payload = note.model_dump(mode="json")
+    payload.pop("id", None)
+    payload.pop("created_at", None)
+    payload.pop("updated_at", None)
+    payload["page_id"] = document_id_map.get(note.page_id, note.page_id)
+    payload["folder_id"] = document_id_map.get(note.folder_id, note.folder_id)
+    payload["linked_document_ids"] = _mapped_unique_ids(
+        payload.get("linked_document_ids") or [],
+        document_id_map,
+    )
+    payload["linked_entity_ids"] = _mapped_unique_ids(
+        payload.get("linked_entity_ids") or [],
+        entity_id_map,
+    )
+    payload["linked_note_ids"] = _mapped_unique_ids(
+        payload.get("linked_note_ids") or [],
+        note_id_map,
+    )
+    return payload
+
+
+def _normalized_annotation_payload(
+    annotation: Annotation,
+    *,
+    document_id_map: dict[str, str],
+    entity_id_map: dict[str, str],
+    note_id_map: dict[str, str],
+) -> dict[str, object]:
+    payload = annotation.model_dump(mode="json")
+    payload.pop("id", None)
+    payload.pop("created_at", None)
+    payload.pop("updated_at", None)
+    payload["document_id"] = document_id_map.get(annotation.document_id, annotation.document_id)
+    payload["page_id"] = document_id_map.get(annotation.page_id, annotation.page_id)
+    payload["folder_id"] = document_id_map.get(annotation.folder_id, annotation.folder_id)
+    payload["linked_entity_ids"] = _mapped_unique_ids(
+        payload.get("linked_entity_ids") or [],
+        entity_id_map,
+    )
+    payload["linked_note_ids"] = _mapped_unique_ids(
+        payload.get("linked_note_ids") or [],
+        note_id_map,
+    )
+    return payload
+
+
 def _merge_library_documents_and_files(
     *,
     winner_path: Path,
     loser_path: Path,
-) -> list[dict]:
+) -> tuple[list[dict], dict[str, str]]:
     winner_db = Database(winner_path / "fichero.duckdb")
     loser_db = Database(loser_path / "fichero.duckdb")
     dispositions: list[dict] = []
@@ -440,6 +543,192 @@ def _merge_library_documents_and_files(
                     "checksum": checksum,
                 }
             )
+        return dispositions, id_map
+    finally:
+        winner_db.close()
+        loser_db.close()
+
+
+def _merge_library_knowledge_sidecars(
+    *,
+    winner_path: Path,
+    loser_path: Path,
+    document_id_map: dict[str, str],
+) -> list[dict]:
+    winner_db = Database(winner_path / "fichero.duckdb")
+    loser_db = Database(loser_path / "fichero.duckdb")
+    dispositions: list[dict] = []
+    try:
+        carried_document_ids = set(document_id_map)
+
+        winner_entities = winner_db.all(KnowledgeEntity)
+        winner_entity_index = {
+            _fingerprint_payload(
+                _normalized_entity_payload(
+                    entity,
+                    document_id_map={},
+                )
+            ): entity
+            for entity in winner_entities
+        }
+        loser_entities = [
+            entity
+            for entity in loser_db.all(KnowledgeEntity)
+            if any(doc_id in carried_document_ids for doc_id in (entity.source_document_ids or []))
+        ]
+        entity_id_map: dict[str, str] = {}
+        for entity in loser_entities:
+            payload = _normalized_entity_payload(
+                entity,
+                document_id_map=document_id_map,
+            )
+            if not payload["source_document_ids"]:
+                continue
+            existing = winner_entity_index.get(_fingerprint_payload(payload))
+            if existing is not None:
+                entity_id_map[entity.id] = existing.id
+                dispositions.append(
+                    {
+                        "record_type": "entity",
+                        "source_entity_id": entity.id,
+                        "result_entity_id": existing.id,
+                        "disposition": "dedupe_identical",
+                    }
+                )
+                continue
+            copied = entity.model_copy(deep=True)
+            copied.id = uuid4().hex
+            copied.parent_id = payload["parent_id"]
+            copied.source_document_ids = payload["source_document_ids"]
+            winner_db.save(copied)
+            entity_id_map[entity.id] = copied.id
+            winner_entity_index[_fingerprint_payload(payload)] = copied
+            dispositions.append(
+                {
+                    "record_type": "entity",
+                    "source_entity_id": entity.id,
+                    "result_entity_id": copied.id,
+                    "disposition": "copy_entity",
+                }
+            )
+
+        winner_notes = winner_db.all(Note)
+        winner_note_index = {
+            _fingerprint_payload(
+                _normalized_note_payload(
+                    note,
+                    document_id_map={},
+                    entity_id_map={},
+                    note_id_map={},
+                )
+            ): note
+            for note in winner_notes
+        }
+        loser_notes = [
+            note
+            for note in loser_db.all(Note)
+            if _note_scope_matches_document(note, carried_document_ids)
+        ]
+        provisional_note_ids = {note.id: uuid4().hex for note in loser_notes}
+        note_id_map: dict[str, str] = {}
+        notes_to_copy: list[tuple[Note, str]] = []
+        for note in loser_notes:
+            payload = _normalized_note_payload(
+                note,
+                document_id_map=document_id_map,
+                entity_id_map=entity_id_map,
+                note_id_map={**provisional_note_ids, **note_id_map},
+            )
+            existing = winner_note_index.get(_fingerprint_payload(payload))
+            if existing is not None:
+                note_id_map[note.id] = existing.id
+                dispositions.append(
+                    {
+                        "record_type": "note",
+                        "source_note_id": note.id,
+                        "result_note_id": existing.id,
+                        "disposition": "dedupe_identical",
+                    }
+                )
+                continue
+            note_id_map[note.id] = provisional_note_ids[note.id]
+            notes_to_copy.append((note, provisional_note_ids[note.id]))
+
+        for note, target_id in notes_to_copy:
+            payload = _normalized_note_payload(
+                note,
+                document_id_map=document_id_map,
+                entity_id_map=entity_id_map,
+                note_id_map=note_id_map,
+            )
+            copied = note.model_copy(deep=True)
+            copied.id = target_id
+            copied.page_id = payload["page_id"]
+            copied.folder_id = payload["folder_id"]
+            copied.linked_document_ids = payload["linked_document_ids"]
+            copied.linked_entity_ids = payload["linked_entity_ids"]
+            copied.linked_note_ids = payload["linked_note_ids"]
+            winner_db.save(copied)
+            winner_note_index[_fingerprint_payload(payload)] = copied
+            dispositions.append(
+                {
+                    "record_type": "note",
+                    "source_note_id": note.id,
+                    "result_note_id": copied.id,
+                    "disposition": "copy_note",
+                }
+            )
+
+        winner_annotations = winner_db.all(Annotation)
+        winner_annotation_index = {
+            _fingerprint_payload(
+                _normalized_annotation_payload(
+                    annotation,
+                    document_id_map={},
+                    entity_id_map={},
+                    note_id_map={},
+                )
+            ): annotation
+            for annotation in winner_annotations
+        }
+        for annotation in loser_db.all(Annotation):
+            if not _annotation_scope_matches_document(annotation, carried_document_ids):
+                continue
+            payload = _normalized_annotation_payload(
+                annotation,
+                document_id_map=document_id_map,
+                entity_id_map=entity_id_map,
+                note_id_map=note_id_map,
+            )
+            existing = winner_annotation_index.get(_fingerprint_payload(payload))
+            if existing is not None:
+                dispositions.append(
+                    {
+                        "record_type": "annotation",
+                        "source_annotation_id": annotation.id,
+                        "result_annotation_id": existing.id,
+                        "disposition": "dedupe_identical",
+                    }
+                )
+                continue
+            copied = annotation.model_copy(deep=True)
+            copied.id = uuid4().hex
+            copied.document_id = payload["document_id"]
+            copied.page_id = payload["page_id"]
+            copied.folder_id = payload["folder_id"]
+            copied.linked_entity_ids = payload["linked_entity_ids"]
+            copied.linked_note_ids = payload["linked_note_ids"]
+            winner_db.save(copied)
+            winner_annotation_index[_fingerprint_payload(payload)] = copied
+            dispositions.append(
+                {
+                    "record_type": "annotation",
+                    "source_annotation_id": annotation.id,
+                    "result_annotation_id": copied.id,
+                    "disposition": "copy_annotation",
+                }
+            )
+
         return dispositions
     finally:
         winner_db.close()
@@ -488,10 +777,16 @@ def _action_unicode_merge_library(
         include_files=True,
     )
 
-    dispositions = _merge_library_documents_and_files(
+    document_dispositions, document_id_map = _merge_library_documents_and_files(
         winner_path=winner_path,
         loser_path=loser_path,
     )
+    sidecar_dispositions = _merge_library_knowledge_sidecars(
+        winner_path=winner_path,
+        loser_path=loser_path,
+        document_id_map=document_id_map,
+    )
+    dispositions = [*document_dispositions, *sidecar_dispositions]
     db_manager.close_database(str(winner_path))
     db_manager.close_database(str(loser_path))
 
