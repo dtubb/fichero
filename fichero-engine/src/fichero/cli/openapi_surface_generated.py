@@ -9160,6 +9160,17 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("renew-device-token")
+    def pair_renew_device_token_post(
+        ctx: typer.Context,
+    ) -> None:
+        """Renew Device Token (POST /api/pair/devices/renew)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/pair/devices/renew"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("revoke-device")
     def pair_revoke_device_post(
         ctx: typer.Context,

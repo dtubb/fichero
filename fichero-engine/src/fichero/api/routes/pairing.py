@@ -17,10 +17,10 @@ from pydantic import BaseModel, Field
 
 from fichero import accounts
 from fichero.actions import ActionContext, ChangeSpec, action
-from fichero.api.auth import _use_multiuser_auth
+from fichero.api.auth import _use_multiuser_auth, actor_from_request
 from fichero.api.routes.auth_accounts import _current_session_user
 from fichero.app_db import AppDatabase, get_app_db
-from fichero.models import AccountUser, Device
+from fichero.models import AccountUser, ActionAudit, Device
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +73,7 @@ class _PairingCode:
 # codes minted in one process will not be visible to another.
 _PAIRING_CODES: dict[str, _PairingCode] = {}
 _PAIRING_ATTEMPTS: dict[str, list[datetime]] = {}
+_PAIRING_RENEW_ATTEMPTS: dict[str, list[datetime]] = {}
 _PAIRING_WORKER_WARNING_EMITTED = False
 
 
@@ -89,6 +90,7 @@ class PairRequest(BaseModel):
 class PairResponse(BaseModel):
     device_id: str
     device_token: str
+    expires_at: datetime
 
 
 class DeviceResponse(BaseModel):
@@ -139,6 +141,14 @@ def _to_public_device(device: Device) -> DeviceResponse:
     )
 
 
+def _to_pair_response(device: Device, raw_token: str) -> PairResponse:
+    return PairResponse(
+        device_id=device.id,
+        device_token=raw_token,
+        expires_at=device.expires_at,
+    )
+
+
 def _owner_for_pairing(request: Request, app_db: AppDatabase) -> AccountUser:
     user = _current_session_user(request)
     if user is not None and user.is_owner:
@@ -167,17 +177,25 @@ def _prune_pairing_codes(now: datetime) -> None:
         _PAIRING_CODES.pop(code, None)
 
 
-def _prune_pairing_attempts(now: datetime) -> None:
+def _prune_attempt_table(attempts_by_host: dict[str, list[datetime]], now: datetime) -> None:
     window_start = now - PAIRING_RATE_WINDOW
     stale_hosts: list[str] = []
-    for host, attempts in _PAIRING_ATTEMPTS.items():
+    for host, attempts in attempts_by_host.items():
         current = [attempt for attempt in attempts if attempt >= window_start]
         if current:
-            _PAIRING_ATTEMPTS[host] = current
+            attempts_by_host[host] = current
         else:
             stale_hosts.append(host)
     for host in stale_hosts:
-        _PAIRING_ATTEMPTS.pop(host, None)
+        attempts_by_host.pop(host, None)
+
+
+def _prune_pairing_attempts(now: datetime) -> None:
+    _prune_attempt_table(_PAIRING_ATTEMPTS, now)
+
+
+def _prune_pairing_renew_attempts(now: datetime) -> None:
+    _prune_attempt_table(_PAIRING_RENEW_ATTEMPTS, now)
 
 
 def _detect_configured_worker_count() -> int | None:
@@ -219,15 +237,68 @@ def warn_pairing_single_process_invariant() -> None:
         )
 
 
-def _check_pair_rate_limit(request: Request, now: datetime) -> None:
-    _prune_pairing_attempts(now)
+def _check_rate_limit(
+    attempts_by_host: dict[str, list[datetime]],
+    request: Request,
+    now: datetime,
+    *,
+    detail: str,
+) -> None:
+    _prune_attempt_table(attempts_by_host, now)
     host = request.client.host if request.client else "unknown"
-    attempts = _PAIRING_ATTEMPTS.get(host, [])
+    attempts = attempts_by_host.get(host, [])
     if len(attempts) >= PAIRING_RATE_LIMIT:
-        _PAIRING_ATTEMPTS[host] = attempts
-        raise HTTPException(status_code=429, detail="pairing rate limit exceeded")
+        attempts_by_host[host] = attempts
+        raise HTTPException(status_code=429, detail=detail)
     attempts.append(now)
-    _PAIRING_ATTEMPTS[host] = attempts
+    attempts_by_host[host] = attempts
+
+
+def _check_pair_rate_limit(request: Request, now: datetime) -> None:
+    _check_rate_limit(
+        _PAIRING_ATTEMPTS,
+        request,
+        now,
+        detail="pairing rate limit exceeded",
+    )
+
+
+def _check_pair_renew_rate_limit(request: Request, now: datetime) -> None:
+    _check_rate_limit(
+        _PAIRING_RENEW_ATTEMPTS,
+        request,
+        now,
+        detail="pairing renew rate limit exceeded",
+    )
+
+
+def _current_paired_device(request: Request) -> Device:
+    device = getattr(request.state, "device", None)
+    if device is None:
+        raise HTTPException(status_code=401, detail="missing or invalid Authorization header")
+    return device
+
+
+def _record_device_audit(
+    *,
+    action_name: str,
+    actor: str,
+    params: dict,
+    device_id: str,
+    before: dict | None = None,
+    after: dict | None = None,
+) -> ActionAudit:
+    audit = ActionAudit(
+        action_name=action_name,
+        actor=actor,
+        target_ids=[device_id],
+        params=params,
+        before=before,
+        after=after,
+        created_at=datetime.now(),
+    )
+    get_app_db().save_action_audit(audit)
+    return audit
 
 
 @router.post("/code", response_model=PairCodeResponse)
@@ -285,7 +356,7 @@ def pair_device(
     )
     record.used = True
     _PAIRING_CODES.pop(code, None)
-    return PairResponse(device_id=device.id, device_token=raw_token)
+    return _to_pair_response(device, raw_token)
 
 
 @router.get("/devices", response_model=DeviceListResponse)
@@ -299,6 +370,35 @@ def list_devices(
     devices = app_db.list_devices()
     items = [_to_public_device(device) for device in devices]
     return DeviceListResponse(items=items, count=len(items))
+
+
+@router.post("/devices/renew", response_model=PairResponse)
+def renew_device_token(
+    request: Request,
+    app_db: AppDatabase = Depends(get_app_database),
+) -> PairResponse:
+    """Rotate one valid paired-device token and extend its expiry."""
+    _multiuser_disabled()
+    now = datetime.now()
+    _check_pair_renew_rate_limit(request, now)
+    current = _current_paired_device(request)
+    raw_token = accounts.new_session_token()
+    renewed = app_db.renew_device(
+        current.id,
+        token_hash=accounts.hash_token(raw_token),
+        when=now,
+    )
+    if renewed is None:
+        raise HTTPException(status_code=401, detail="missing or invalid Authorization header")
+    _record_device_audit(
+        action_name="device.renew",
+        actor=actor_from_request(request),
+        params={"device_id": renewed.id},
+        device_id=renewed.id,
+        before=_to_public_device(current).model_dump(mode="json"),
+        after=_to_public_device(renewed).model_dump(mode="json"),
+    )
+    return _to_pair_response(renewed, raw_token)
 
 
 @router.post("/devices/{device_id}/revoke", response_model=StatusResponse)

@@ -21,9 +21,11 @@ def _bearer(token: str) -> dict[str, str]:
 def clear_pairing_state():
     pairing._PAIRING_CODES.clear()
     pairing._PAIRING_ATTEMPTS.clear()
+    pairing._PAIRING_RENEW_ATTEMPTS.clear()
     yield
     pairing._PAIRING_CODES.clear()
     pairing._PAIRING_ATTEMPTS.clear()
+    pairing._PAIRING_RENEW_ATTEMPTS.clear()
 
 
 @pytest.fixture
@@ -208,6 +210,7 @@ def test_pair_device_normalizes_code_and_device_name_and_consumes_code(app_db, m
 
     stored = app_db.get_device(response.device_id)
     assert response.device_token == "device-token"
+    assert response.expires_at == stored.expires_at
     assert stored is not None
     assert stored.name == "Alice iPad"
     assert stored.user_id == owner.id
@@ -375,6 +378,102 @@ def test_auth_fork_rejects_invalid_token_matrix(monkeypatch, app_db, token_kind)
     response = client.get("/api/private", headers=_bearer(token))
 
     assert response.status_code == 401
+    if token_kind == "expired_device":
+        assert response.json()["detail"] == "device token expired"
+    else:
+        assert response.json()["detail"] == "missing or invalid Authorization header"
+
+
+def test_pairing_device_renew_rotates_token_extends_expiry_and_audits(pairing_client, app_db):
+    session_token = _owner_session_token(pairing_client, app_db)
+    pair_response = pairing_client.post(
+        "/api/pair",
+        json={
+            "code": pairing_client.post("/api/pair/code", headers=_bearer(session_token)).json()["code"],
+            "device_name": "Owner iPad",
+        },
+    )
+    old_token = pair_response.json()["device_token"]
+    old_device = app_db.get_device_by_token_hash(accounts.hash_token(old_token))
+    old_expires_at = old_device.expires_at
+
+    renew = pairing_client.post("/api/pair/devices/renew", headers=_bearer(old_token))
+
+    assert renew.status_code == 200
+    new_token = renew.json()["device_token"]
+    assert new_token != old_token
+    assert pairing_client.get("/api/auth/me", headers=_bearer(old_token)).status_code == 401
+    assert pairing_client.get("/api/auth/me", headers=_bearer(new_token)).status_code == 200
+    renewed = app_db.get_device(pair_response.json()["device_id"])
+    assert renewed is not None
+    assert renewed.expires_at > old_expires_at
+    audits = [row for row in app_db.list_action_audits() if row.action_name == "device.renew"]
+    assert len(audits) == 1
+    assert audits[0].actor == "owner"
+    assert audits[0].target_ids == [renewed.id]
+
+
+def test_pairing_device_renew_rejects_expired_at_boundary(pairing_client, app_db):
+    owner = _create_owner(app_db)
+    token = accounts.new_session_token()
+    device = app_db.create_device(
+        name="Boundary iPad",
+        user_id=owner.id,
+        token_hash=accounts.hash_token(token),
+        ttl=timedelta(days=1),
+    )
+    device.expires_at = datetime.now()
+    app_db.renew_device(
+        device.id,
+        token_hash=device.token_hash,
+        when=device.last_seen,
+        ttl=timedelta(seconds=0),
+    )
+
+    response = pairing_client.post("/api/pair/devices/renew", headers=_bearer(token))
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "device token expired"
+
+
+def test_pairing_device_renew_unknown_and_revoked_tokens_match(pairing_client, app_db):
+    owner = _create_owner(app_db)
+    revoked_token = accounts.new_session_token()
+    device = app_db.create_device(
+        name="Revoked iPad",
+        user_id=owner.id,
+        token_hash=accounts.hash_token(revoked_token),
+    )
+    app_db.revoke_device(device.id)
+
+    revoked = pairing_client.post("/api/pair/devices/renew", headers=_bearer(revoked_token))
+    unknown = pairing_client.post("/api/pair/devices/renew", headers=_bearer("not-a-real-token"))
+
+    assert revoked.status_code == 401
+    assert unknown.status_code == 401
+    assert revoked.json() == unknown.json() == {"detail": "missing or invalid Authorization header"}
+
+
+def test_pairing_device_renew_is_rate_limited_per_host(pairing_client, app_db):
+    session_token = _owner_session_token(pairing_client, app_db)
+    token = pairing_client.post(
+        "/api/pair",
+        json={
+            "code": pairing_client.post("/api/pair/code", headers=_bearer(session_token)).json()["code"],
+            "device_name": "Owner iPad",
+        },
+    ).json()["device_token"]
+
+    statuses: list[int] = []
+    for _ in range(pairing.PAIRING_RATE_LIMIT):
+        response = pairing_client.post("/api/pair/devices/renew", headers=_bearer(token))
+        statuses.append(response.status_code)
+        token = response.json()["device_token"]
+    blocked = pairing_client.post("/api/pair/devices/renew", headers=_bearer(token))
+
+    assert statuses == [200] * pairing.PAIRING_RATE_LIMIT
+    assert blocked.status_code == 429
+    assert blocked.json()["detail"] == "pairing renew rate limit exceeded"
 
 
 def test_auth_fork_rejects_bootstrap_secret_from_non_loopback(monkeypatch):

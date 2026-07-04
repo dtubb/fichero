@@ -1689,6 +1689,29 @@
         }
       }
     },
+    "/api/pair/devices/renew": {
+      "post": {
+        "tags": [
+          "pairing",
+          "pairing"
+        ],
+        "summary": "Renew Device Token",
+        "description": "Rotate one valid paired-device token and extend its expiry.",
+        "operationId": "renew_device_token_api_pair_devices_renew_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pair/devices/{device_id}/revoke": {
       "post": {
         "tags": [
@@ -45355,6 +45378,16 @@
             "type": "string",
             "title": "Lance Path"
           },
+          "files_path": {
+            "type": "string",
+            "nullable": true,
+            "title": "Files Path"
+          },
+          "includes_files": {
+            "type": "boolean",
+            "title": "Includes Files",
+            "default": false
+          },
           "offsite_path": {
             "type": "string",
             "nullable": true,
@@ -45373,6 +45406,11 @@
           "lance_size_bytes": {
             "type": "integer",
             "title": "Lance Size Bytes",
+            "default": 0
+          },
+          "files_size_bytes": {
+            "type": "integer",
+            "title": "Files Size Bytes",
             "default": 0
           },
           "is_pinned": {
@@ -48876,12 +48914,18 @@
           "device_token": {
             "type": "string",
             "title": "Device Token"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
           }
         },
         "type": "object",
         "required": [
           "device_id",
-          "device_token"
+          "device_token",
+          "expires_at"
         ],
         "title": "PairResponse"
       },

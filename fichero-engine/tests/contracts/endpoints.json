@@ -6439,6 +6439,16 @@
       },
       {
         "method": "POST",
+        "path": "/pair/devices/renew",
+        "operation_id": "renew_device_token_api_pair_devices_renew_post",
+        "summary": "Renew Device Token",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "PairResponse"
+      },
+      {
+        "method": "POST",
         "path": "/pair/devices/{device_id}/revoke",
         "operation_id": "revoke_device_api_pair_devices__device_id__revoke_post",
         "summary": "Revoke Device",
