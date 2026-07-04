@@ -3,6 +3,32 @@ import SwiftUI
 
 // swiftlint:disable file_length type_body_length
 
+/// Shared Tahoe glass-strip background for the inspector chrome strips (#3061 /
+/// #2550): Liquid Glass on macOS/iOS, `.regularMaterial` on visionOS — mirrors
+/// `MiniToolbar.body`. Applied as a TRAILING modifier so each strip's row content
+/// is untouched (segment-selection styling, heights, and XCUITest a11y hooks stay
+/// exactly as-is — this slice is visual-only).
+private struct InspectorGlassStrip: ViewModifier {
+    func body(content: Content) -> some View {
+        #if os(visionOS)
+        content
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        #else
+        GlassEffectContainer {
+            content
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8))
+        }
+        #endif
+    }
+}
+
+extension View {
+    /// Apply the inspector chrome-strip Tahoe glass treatment (#3061).
+    func inspectorGlassStrip() -> some View {
+        modifier(InspectorGlassStrip())
+    }
+}
+
 /// Inspector panel showing document metadata and details
 struct DocumentInspector: View {
     let document: Document?
@@ -72,6 +98,7 @@ struct DocumentInspector: View {
             }
             .padding(.horizontal, 12)
             .frame(height: MiniToolbar<EmptyView, EmptyView>.standardHeight)
+            .inspectorGlassStrip()
             .accessibilityIdentifier("inspectorEntityBackBar")
 
             Divider()
@@ -167,17 +194,11 @@ struct DocumentInspector: View {
             }
         }
         .frame(maxWidth: .infinity)
-        // Single grouped capsule: subtle fill + hairline border, like Xcode's
-        // inspector facet selector.
-        .background(
-            RoundedRectangle(cornerRadius: 7)
-                .fill(Color(platformColor: .platformQuaternaryLabel).opacity(0.5))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 7)
-                .strokeBorder(Color(platformColor: .separatorColor), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 7))
+        // Grouped facet capsule now on the shared Tahoe glass treatment (#3061 /
+        // #2550), replacing the hand-rolled quaternary fill + hairline border, so
+        // the strip matches SidebarModeBar / the pane mini-toolbars. The
+        // per-segment selection fill above is unchanged.
+        .inspectorGlassStrip()
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
         .frame(height: MiniToolbar<EmptyView, EmptyView>.standardHeight)
