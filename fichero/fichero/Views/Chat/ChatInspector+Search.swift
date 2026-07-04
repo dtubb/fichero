@@ -52,7 +52,7 @@ extension ChatInspector {
                 Spacer()
                 Button("Add All") {
                     for doc in searchResults {
-                        selectedDocuments.insert(doc.id)
+                        selectedDocuments = ChatDocumentScope.attaching([doc.id], to: selectedDocuments)
                     }
                     searchText = ""
                     showSearchResults = false
@@ -89,7 +89,7 @@ extension ChatInspector {
                                     .foregroundColor(.green)
                             } else {
                                 Button {
-                                    selectedDocuments.insert(doc.id)
+                                    selectedDocuments = ChatDocumentScope.attaching([doc.id], to: selectedDocuments)
                                 } label: {
                                     Image(systemName: "plus.circle")
                                         .foregroundColor(.accentColor)
@@ -101,7 +101,7 @@ extension ChatInspector {
                         .contentShape(Rectangle())
                         .onTapGesture {
                             if !selectedDocuments.contains(doc.id) {
-                                selectedDocuments.insert(doc.id)
+                                selectedDocuments = ChatDocumentScope.attaching([doc.id], to: selectedDocuments)
                             }
                         }
                     }
