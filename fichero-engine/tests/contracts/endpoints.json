@@ -1342,6 +1342,100 @@
         "response_model": "Document"
       }
     ],
+    "canvas": [
+      {
+        "method": "POST",
+        "path": "/canvas/folders/{scope_id}/arrange",
+        "operation_id": "arrange_folder_canvas_api_canvas_folders__scope_id__arrange_post",
+        "summary": "Arrange Folder Canvas",
+        "path_params": [
+          "scope_id"
+        ],
+        "query_params": [],
+        "request_model": "ArrangeNodesRequest",
+        "response_model": "CanvasLayoutBatchResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/canvas/folders/{scope_id}/items",
+        "operation_id": "list_canvas_items_api_canvas_folders__scope_id__items_get",
+        "summary": "List Canvas Items",
+        "path_params": [
+          "scope_id"
+        ],
+        "query_params": [
+          {
+            "name": "kind",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "CanvasListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/canvas/folders/{scope_id}/items",
+        "operation_id": "create_canvas_item_api_canvas_folders__scope_id__items_post",
+        "summary": "Create Canvas Item",
+        "path_params": [
+          "scope_id"
+        ],
+        "query_params": [],
+        "request_model": "CanvasItemCreateRequest",
+        "response_model": "CanvasItem"
+      },
+      {
+        "method": "DELETE",
+        "path": "/canvas/folders/{scope_id}/items/{item_id}",
+        "operation_id": "delete_canvas_item_api_canvas_folders__scope_id__items__item_id__delete",
+        "summary": "Delete Canvas Item",
+        "path_params": [
+          "scope_id",
+          "item_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "CanvasDeletedResponse"
+      },
+      {
+        "method": "PATCH",
+        "path": "/canvas/folders/{scope_id}/items/{item_id}",
+        "operation_id": "update_canvas_item_api_canvas_folders__scope_id__items__item_id__patch",
+        "summary": "Update Canvas Item",
+        "path_params": [
+          "scope_id",
+          "item_id"
+        ],
+        "query_params": [],
+        "request_model": "CanvasItemUpdateRequest",
+        "response_model": "CanvasItem"
+      },
+      {
+        "method": "GET",
+        "path": "/canvas/folders/{scope_id}/layout",
+        "operation_id": "get_canvas_layout_api_canvas_folders__scope_id__layout_get",
+        "summary": "Get Canvas Layout",
+        "path_params": [
+          "scope_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "CanvasListResponse"
+      },
+      {
+        "method": "PUT",
+        "path": "/canvas/folders/{scope_id}/layout",
+        "operation_id": "save_canvas_layout_api_canvas_folders__scope_id__layout_put",
+        "summary": "Save Canvas Layout",
+        "path_params": [
+          "scope_id"
+        ],
+        "query_params": [],
+        "request_model": "CanvasLayoutSaveRequest",
+        "response_model": "CanvasLayoutBatchResponse"
+      }
+    ],
     "chains": [
       {
         "method": "GET",
@@ -5817,100 +5911,6 @@
         "query_params": [],
         "request_model": "MigrationValidationRequest",
         "response_model": "MigrationValidationResponse"
-      }
-    ],
-    "mind-palace": [
-      {
-        "method": "POST",
-        "path": "/mind-palace/folders/{folder_id}/arrange",
-        "operation_id": "arrange_folder_canvas_api_mind_palace_folders__folder_id__arrange_post",
-        "summary": "Arrange Folder Canvas",
-        "path_params": [
-          "folder_id"
-        ],
-        "query_params": [],
-        "request_model": "ArrangeNodesRequest",
-        "response_model": "CanvasLayoutBatchResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/mind-palace/folders/{folder_id}/canvas-items",
-        "operation_id": "list_canvas_items_api_mind_palace_folders__folder_id__canvas_items_get",
-        "summary": "List Canvas Items",
-        "path_params": [
-          "folder_id"
-        ],
-        "query_params": [
-          {
-            "name": "kind",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "request_model": null,
-        "response_model": "MindPalaceListResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/mind-palace/folders/{folder_id}/canvas-items",
-        "operation_id": "create_canvas_item_api_mind_palace_folders__folder_id__canvas_items_post",
-        "summary": "Create Canvas Item",
-        "path_params": [
-          "folder_id"
-        ],
-        "query_params": [],
-        "request_model": "CanvasItemCreateRequest",
-        "response_model": "CanvasItem"
-      },
-      {
-        "method": "DELETE",
-        "path": "/mind-palace/folders/{folder_id}/canvas-items/{item_id}",
-        "operation_id": "delete_canvas_item_api_mind_palace_folders__folder_id__canvas_items__item_id__delete",
-        "summary": "Delete Canvas Item",
-        "path_params": [
-          "folder_id",
-          "item_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "MindPalaceDeletedResponse"
-      },
-      {
-        "method": "PATCH",
-        "path": "/mind-palace/folders/{folder_id}/canvas-items/{item_id}",
-        "operation_id": "update_canvas_item_api_mind_palace_folders__folder_id__canvas_items__item_id__patch",
-        "summary": "Update Canvas Item",
-        "path_params": [
-          "folder_id",
-          "item_id"
-        ],
-        "query_params": [],
-        "request_model": "CanvasItemUpdateRequest",
-        "response_model": "CanvasItem"
-      },
-      {
-        "method": "GET",
-        "path": "/mind-palace/folders/{folder_id}/canvas-layout",
-        "operation_id": "get_canvas_layout_api_mind_palace_folders__folder_id__canvas_layout_get",
-        "summary": "Get Canvas Layout",
-        "path_params": [
-          "folder_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "MindPalaceListResponse"
-      },
-      {
-        "method": "PUT",
-        "path": "/mind-palace/folders/{folder_id}/canvas-layout",
-        "operation_id": "save_canvas_layout_api_mind_palace_folders__folder_id__canvas_layout_put",
-        "summary": "Save Canvas Layout",
-        "path_params": [
-          "folder_id"
-        ],
-        "query_params": [],
-        "request_model": "CanvasLayoutSaveRequest",
-        "response_model": "CanvasLayoutBatchResponse"
       }
     ],
     "model-comparison": [

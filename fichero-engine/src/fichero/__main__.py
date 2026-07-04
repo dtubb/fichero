@@ -3733,7 +3733,7 @@ def check(ctx: typer.Context) -> None:
             and not p.startswith("/api/search/saved")
             and not p.startswith("/api/kg/interpretations")
             and not p.startswith("/api/classifications")
-            and not p.startswith("/api/mind-palace")
+            and not p.startswith("/api/canvas")
             and not p.startswith("/api/chat")
             and not p.startswith("/api/notes")
             and not p.startswith("/api/projects")

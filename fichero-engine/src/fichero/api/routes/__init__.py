@@ -22,7 +22,7 @@ __all__ = [
     "mcp_servers",
     "mcp_tools",
     "migrations",
-    "mind_palace",
+    "canvas",
     "model_comparison",
     "models",
     "multilingual",

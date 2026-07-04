@@ -1,4 +1,4 @@
-"""Mind Palace canvas routes."""
+"""Canvas routes."""
 
 from datetime import datetime
 import logging
@@ -11,17 +11,13 @@ from fichero.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero.api.auth import action_context
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
-from fichero.models import Document, MindPalaceListResponse
+from fichero.models import CanvasDeletedResponse, CanvasListResponse, Document
 from fichero.knowledge.knowledge_models import KnowledgeClaim, KnowledgeEntity
 from fichero.spatial_arrange import DEFAULT_SPACING, ArrangeStrategy, compute_arrangement
 from fichero.spatial_models import CanvasItem, CanvasItemKind, CanvasLayout
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-
-class MindPalaceDeletedResponse(BaseModel):
-    status: str
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -187,13 +183,13 @@ def _canvas_layout_change_spec(
     )
 
 
-@router.get("/folders/{folder_id}/canvas-layout", response_model=MindPalaceListResponse)
+@router.get("/folders/{scope_id}/layout", response_model=CanvasListResponse)
 async def get_canvas_layout(
-    folder_id: str,
+    scope_id: str,
     db: Database = Depends(get_library_database),
-) -> MindPalaceListResponse:
-    rows = _load_canvas_layout(db, folder_id)
-    return MindPalaceListResponse(items=rows, count=len(rows))
+) -> CanvasListResponse:
+    rows = _load_canvas_layout(db, scope_id)
+    return CanvasListResponse(items=rows, count=len(rows))
 
 
 def save_canvas_layout_impl(
@@ -211,9 +207,9 @@ def save_canvas_layout_impl(
     return saved, skipped
 
 
-@router.put("/folders/{folder_id}/canvas-layout", response_model=CanvasLayoutBatchResponse)
+@router.put("/folders/{scope_id}/layout", response_model=CanvasLayoutBatchResponse)
 async def save_canvas_layout(
-    folder_id: str,
+    scope_id: str,
     request: CanvasLayoutSaveRequest,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
@@ -222,7 +218,7 @@ async def save_canvas_layout(
         db,
         "canvas.layout.save",
         {
-            "folder_id": folder_id,
+            "folder_id": scope_id,
             "items": [item.model_dump(mode="json") for item in request.items],
         },
         ctx,
@@ -286,9 +282,9 @@ def arrange_impl(
     return saved, skipped
 
 
-@router.post("/folders/{folder_id}/arrange", response_model=CanvasLayoutBatchResponse)
+@router.post("/folders/{scope_id}/arrange", response_model=CanvasLayoutBatchResponse)
 async def arrange_folder_canvas(
-    folder_id: str,
+    scope_id: str,
     request: ArrangeNodesRequest,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
@@ -298,7 +294,7 @@ async def arrange_folder_canvas(
             db,
             "canvas.arrange",
             {
-                "folder_id": folder_id,
+                "folder_id": scope_id,
                 "node_ids": request.node_ids,
                 "strategy": request.strategy,
                 "spacing": request.spacing,
@@ -446,22 +442,22 @@ def delete_canvas_item_impl(db: Database, folder_id: str, item_id: str) -> Canva
     return item
 
 
-@router.get("/folders/{folder_id}/canvas-items", response_model=MindPalaceListResponse)
+@router.get("/folders/{scope_id}/items", response_model=CanvasListResponse)
 async def list_canvas_items(
-    folder_id: str,
+    scope_id: str,
     kind: CanvasItemKind | None = None,
     db: Database = Depends(get_library_database),
-) -> MindPalaceListResponse:
-    filters: dict[str, Any] = {"folder_id": folder_id}
+) -> CanvasListResponse:
+    filters: dict[str, Any] = {"folder_id": scope_id}
     if kind is not None:
         filters["kind"] = kind
     rows = db.query(CanvasItem, **filters)
-    return MindPalaceListResponse(items=rows, count=len(rows))
+    return CanvasListResponse(items=rows, count=len(rows))
 
 
-@router.post("/folders/{folder_id}/canvas-items", response_model=CanvasItem)
+@router.post("/folders/{scope_id}/items", response_model=CanvasItem)
 async def create_canvas_item(
-    folder_id: str,
+    scope_id: str,
     request: CanvasItemCreateRequest,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
@@ -470,7 +466,7 @@ async def create_canvas_item(
         db,
         "canvas.item.create",
         {
-            "folder_id": folder_id,
+            "folder_id": scope_id,
             **request.model_dump(mode="json"),
         },
         ctx,
@@ -478,9 +474,9 @@ async def create_canvas_item(
     return CanvasItem.model_validate(result.result)
 
 
-@router.patch("/folders/{folder_id}/canvas-items/{item_id}", response_model=CanvasItem)
+@router.patch("/folders/{scope_id}/items/{item_id}", response_model=CanvasItem)
 async def update_canvas_item(
-    folder_id: str,
+    scope_id: str,
     item_id: str,
     request: CanvasItemUpdateRequest,
     db: Database = Depends(get_library_database_for_write),
@@ -491,7 +487,7 @@ async def update_canvas_item(
             db,
             "canvas.item.update",
             {
-                "folder_id": folder_id,
+                "folder_id": scope_id,
                 "item_id": item_id,
                 **request.model_dump(mode="json", exclude_unset=True),
             },
@@ -503,25 +499,25 @@ async def update_canvas_item(
 
 
 @router.delete(
-    "/folders/{folder_id}/canvas-items/{item_id}",
-    response_model=MindPalaceDeletedResponse,
+    "/folders/{scope_id}/items/{item_id}",
+    response_model=CanvasDeletedResponse,
 )
 async def delete_canvas_item(
-    folder_id: str,
+    scope_id: str,
     item_id: str,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
-) -> MindPalaceDeletedResponse:
+) -> CanvasDeletedResponse:
     try:
         registry.invoke(
             db,
             "canvas.item.delete",
-            {"folder_id": folder_id, "item_id": item_id},
+            {"folder_id": scope_id, "item_id": item_id},
             ctx,
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="canvas item not found") from exc
-    return MindPalaceDeletedResponse(status="deleted")
+    return CanvasDeletedResponse(status="deleted")
 
 
 class CanvasItemCreateParams(CanvasItemCreateRequest):

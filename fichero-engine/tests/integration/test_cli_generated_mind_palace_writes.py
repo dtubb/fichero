@@ -1,4 +1,4 @@
-"""Live generated-CLI write coverage for folder-scoped mind-palace routes."""
+"""Live generated-CLI write coverage for folder-scoped canvas routes."""
 
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ def _cli_mind_palace_writes_ready() -> bool:
 
 pytestmark = pytest.mark.skipif(
     not _cli_mind_palace_writes_ready(),
-    reason="Generated CLI mind-palace write contracts are opt-in and require loopback socket access",
+    reason="Generated CLI canvas write contracts are opt-in and require loopback socket access",
 )
 
 
@@ -80,7 +80,7 @@ def test_generated_mind_palace_folder_write_contracts_current_main(
 
     item = _cli_json(
         cli_live_engine,
-        "mind-palace",
+        "canvas",
         "create-canvas-item",
         folder_id,
         "--kind",
@@ -94,7 +94,7 @@ def test_generated_mind_palace_folder_write_contracts_current_main(
 
     listed_items = _cli_json(
         cli_live_engine,
-        "mind-palace",
+        "canvas",
         "list-canvas-items",
         folder_id,
     )
@@ -102,7 +102,7 @@ def test_generated_mind_palace_folder_write_contracts_current_main(
 
     updated_item = _cli_json(
         cli_live_engine,
-        "mind-palace",
+        "canvas",
         "update-canvas-item",
         folder_id,
         item_id,
@@ -113,7 +113,7 @@ def test_generated_mind_palace_folder_write_contracts_current_main(
 
     saved_layout = _cli_json(
         cli_live_engine,
-        "mind-palace",
+        "canvas",
         "save-canvas-layout",
         folder_id,
         "--items",
@@ -134,12 +134,12 @@ def test_generated_mind_palace_folder_write_contracts_current_main(
                 ]
             ),
     )
-    assert saved_layout[0]["item_id"] == summary["keys"]["doc_letter"]
-    assert saved_layout[0]["x"] == 10.0
+    assert saved_layout["items"][0]["item_id"] == summary["keys"]["doc_letter"]
+    assert saved_layout["items"][0]["x"] == 10.0
 
     fetched_layout = _cli_json(
         cli_live_engine,
-        "mind-palace",
+        "canvas",
         "get-canvas-layout",
         folder_id,
     )
@@ -151,7 +151,7 @@ def test_generated_mind_palace_folder_write_contracts_current_main(
 
     arranged = _cli_json(
         cli_live_engine,
-        "mind-palace",
+        "canvas",
         "arrange-folder-canvas",
         folder_id,
         "--node-ids",
@@ -167,7 +167,7 @@ def test_generated_mind_palace_folder_write_contracts_current_main(
 
     deleted_item = _cli_json(
         cli_live_engine,
-        "mind-palace",
+        "canvas",
         "delete-canvas-item",
         folder_id,
         item_id,
@@ -185,7 +185,7 @@ def test_generated_mind_palace_room_render_command_is_gone_current_main(
 ) -> None:
     missing_room = _cli_result(
         cli_live_engine,
-        "mind-palace",
+        "canvas",
         "render-scene",
         "--room-id",
         "missing-room",
