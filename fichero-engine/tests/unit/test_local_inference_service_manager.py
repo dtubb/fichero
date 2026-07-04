@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
+import os
+from pathlib import Path
+import signal
+import socket
+import sys
 from datetime import UTC, datetime
 from typing import Any
 
@@ -10,6 +16,8 @@ from pydantic import ValidationError
 
 import fichero.local_inference as local_inference
 from fichero.local_inference import (
+    LocalInferenceRuntimeMissingError,
+    ManagedLocalInferenceProcess,
     LocalInferenceServiceManager,
     LocalProviderProfile,
     LocalServiceState,
@@ -20,12 +28,14 @@ from fichero.local_inference import (
 class FakeProcess:
     def __init__(self) -> None:
         self.pid: int | None = None
+        self.last_error: str | None = None
         self.start_calls = 0
         self.stop_calls = 0
         self.running = False
 
     async def start(self) -> None:
         self.start_calls += 1
+        self.last_error = None
         self.running = True
         self.pid = 1200 + self.start_calls
 
@@ -40,6 +50,81 @@ class FakeProcess:
     def crash(self) -> None:
         self.running = False
         self.pid = None
+
+
+def write_fake_managed_server(tmp_path: Path) -> Path:
+    script = tmp_path / "fake_mlx_server.py"
+    script.write_text(
+        """import argparse
+import http.server
+import json
+import os
+import signal
+import socketserver
+import sys
+import time
+
+shutdown = False
+
+def handle_signal(signum, frame):
+    global shutdown
+    shutdown = True
+
+signal.signal(signal.SIGTERM, handle_signal)
+signal.signal(signal.SIGINT, handle_signal)
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--model", required=True)
+parser.add_argument("--host", required=True)
+parser.add_argument("--port", required=True, type=int)
+args = parser.parse_args()
+
+mode = os.environ.get("FICHERO_FAKE_MLX_MODE", "serve")
+if mode == "exit":
+    sys.stderr.write(os.environ.get("FICHERO_FAKE_MLX_STDERR", "boom\\n"))
+    sys.stderr.flush()
+    raise SystemExit(int(os.environ.get("FICHERO_FAKE_MLX_EXIT_CODE", "7")))
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path not in {"/health", "/v1/health"}:
+            self.send_response(404)
+            self.end_headers()
+            return
+        payload = {
+            "reachable": True,
+            "model_loaded": True,
+            "configured_model_id": args.model,
+            "warm": True,
+        }
+        body = json.dumps(payload).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, format, *args):
+        return
+
+class ReusableTCPServer(socketserver.ThreadingTCPServer):
+    allow_reuse_address = True
+
+with ReusableTCPServer((args.host, args.port), Handler) as server:
+    server.daemon_threads = True
+    server.timeout = 0.1
+    while not shutdown:
+        server.handle_request()
+""",
+        encoding="utf-8",
+    )
+    return script
+
+
+def free_loopback_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
 
 
 class FakeHealthClient:
@@ -270,6 +355,136 @@ async def test_stop_resets_state() -> None:
     assert status.healthy is False
     assert status.started_at is None
     assert process.stop_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_managed_process_starts_and_stops_real_sidecar(tmp_path: Path) -> None:
+    script = write_fake_managed_server(tmp_path)
+    port = free_loopback_port()
+    process = ManagedLocalInferenceProcess(
+        profile(
+            python_executable=sys.executable,
+            command=[str(script)],
+            base_url=f"http://127.0.0.1:{port}/v1",
+        )
+    )
+    manager = LocalInferenceServiceManager(
+        profile(
+            python_executable=sys.executable,
+            command=[str(script)],
+            base_url=f"http://127.0.0.1:{port}/v1",
+        ),
+        process,
+        poll_interval_seconds=0.01,
+    )
+
+    status = await manager.start(timeout_seconds=2)
+
+    assert status.state == LocalServiceState.healthy
+    assert status.pid is not None
+    pid = status.pid
+    assert process.is_running() is True
+    os.kill(pid, 0)
+
+    stopped = await manager.stop()
+
+    assert stopped.state == LocalServiceState.stopped
+    assert process.pid is None
+    assert process.is_running() is False
+    with pytest.raises(ProcessLookupError):
+        os.kill(pid, 0)
+
+
+@pytest.mark.asyncio
+async def test_managed_process_surfaces_crash_error_and_allows_restart(tmp_path: Path) -> None:
+    script = write_fake_managed_server(tmp_path)
+    port = free_loopback_port()
+    managed_profile = profile(
+        python_executable=sys.executable,
+        command=[str(script)],
+        base_url=f"http://127.0.0.1:{port}/v1",
+    )
+    process = ManagedLocalInferenceProcess(managed_profile)
+    manager = LocalInferenceServiceManager(
+        managed_profile,
+        process,
+        poll_interval_seconds=0.01,
+    )
+
+    first = await manager.start(timeout_seconds=2)
+    assert first.state == LocalServiceState.healthy
+    assert process.pid is not None
+    os.kill(process.pid, signal.SIGKILL)
+    deadline = datetime.now(UTC).timestamp() + 2
+    while process.is_running() and datetime.now(UTC).timestamp() < deadline:
+        await asyncio.sleep(0.01)
+
+    crashed = await manager.health()
+
+    assert crashed.state == LocalServiceState.failed
+    assert "exited" in (crashed.last_error or "")
+
+    restarted = await manager.restart_after_crash(timeout_seconds=2)
+
+    assert restarted.state == LocalServiceState.healthy
+    assert restarted.restart_count == 1
+    await manager.stop()
+
+
+@pytest.mark.asyncio
+async def test_managed_process_missing_runtime_raises_typed_error() -> None:
+    managed_profile = profile(
+        python_executable="/does/not/exist/python",
+        command=["-m", "mlx_lm", "server"],
+    )
+    process = ManagedLocalInferenceProcess(managed_profile)
+
+    with pytest.raises(LocalInferenceRuntimeMissingError):
+        await process.start()
+
+    assert process.last_error is not None
+    assert "runtime not found" in process.last_error
+
+
+@pytest.mark.asyncio
+async def test_managed_process_stderr_excerpt_surfaces_in_status(tmp_path: Path) -> None:
+    script = write_fake_managed_server(tmp_path)
+    port = free_loopback_port()
+    managed_profile = profile(
+        python_executable=sys.executable,
+        command=[str(script)],
+        base_url=f"http://127.0.0.1:{port}/v1",
+    )
+    process = ManagedLocalInferenceProcess(managed_profile)
+    manager = LocalInferenceServiceManager(
+        managed_profile,
+        process,
+        poll_interval_seconds=0.01,
+    )
+    previous_mode = os.environ.get("FICHERO_FAKE_MLX_MODE")
+    previous_stderr = os.environ.get("FICHERO_FAKE_MLX_STDERR")
+    previous_exit = os.environ.get("FICHERO_FAKE_MLX_EXIT_CODE")
+    os.environ["FICHERO_FAKE_MLX_MODE"] = "exit"
+    os.environ["FICHERO_FAKE_MLX_STDERR"] = "mlx runtime missing"
+    os.environ["FICHERO_FAKE_MLX_EXIT_CODE"] = "9"
+    try:
+        status = await manager.start(timeout_seconds=0.2)
+    finally:
+        if previous_mode is None:
+            os.environ.pop("FICHERO_FAKE_MLX_MODE", None)
+        else:
+            os.environ["FICHERO_FAKE_MLX_MODE"] = previous_mode
+        if previous_stderr is None:
+            os.environ.pop("FICHERO_FAKE_MLX_STDERR", None)
+        else:
+            os.environ["FICHERO_FAKE_MLX_STDERR"] = previous_stderr
+        if previous_exit is None:
+            os.environ.pop("FICHERO_FAKE_MLX_EXIT_CODE", None)
+        else:
+            os.environ["FICHERO_FAKE_MLX_EXIT_CODE"] = previous_exit
+
+    assert status.state == LocalServiceState.failed
+    assert "mlx runtime missing" in (status.last_error or "")
 
 
 @pytest.mark.parametrize(

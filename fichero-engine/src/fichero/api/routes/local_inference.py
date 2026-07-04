@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Path
@@ -10,12 +11,14 @@ from pydantic import BaseModel, Field
 
 from fichero.local_inference import (
     ExternalLocalInferenceProcess,
+    LocalInferenceRuntimeMissingError,
     LocalInferenceServiceManager,
     LocalInferenceServiceStatus,
     LocalInferenceValidationError,
     LocalModelCatalogEntry,
     LocalModelSource,
     LocalProviderProfile,
+    ManagedLocalInferenceProcess,
 )
 
 router = APIRouter(prefix="/local-inference")
@@ -63,6 +66,7 @@ def _configured_omlx_profile() -> LocalProviderProfile:
     )
     model_id = os.environ.get("FICHERO_OMLX_MODEL") or DEFAULT_OMLX_MODEL_ID
     healthcheck_path = os.environ.get("FICHERO_OMLX_HEALTHCHECK_PATH") or "/health"
+    command = shlex.split(os.environ["FICHERO_OMLX_COMMAND"]) if os.environ.get("FICHERO_OMLX_COMMAND") else []
     return LocalProviderProfile(
         id=DEFAULT_OMLX_PROFILE_ID,
         name="App-managed oMLX",
@@ -76,6 +80,8 @@ def _configured_omlx_profile() -> LocalProviderProfile:
         timeout_seconds=float(os.environ.get("FICHERO_OMLX_TIMEOUT_SECONDS", "5.0")),
         max_concurrency=int(os.environ.get("FICHERO_OMLX_MAX_CONCURRENCY", "1")),
         visible_in_ui=True,
+        python_executable=os.environ.get("FICHERO_OMLX_PYTHON"),
+        command=command,
     )
 
 
@@ -104,9 +110,14 @@ def _manager_for_profile(profile_id: str) -> LocalInferenceServiceManager:
     existing = _MANAGERS.get(profile_id)
     if existing is not None and existing.profile == profile:
         return existing
+    process = (
+        ManagedLocalInferenceProcess(profile)
+        if profile.managed_by_app
+        else ExternalLocalInferenceProcess()
+    )
     manager = LocalInferenceServiceManager(
         profile,
-        ExternalLocalInferenceProcess(),
+        process,
     )
     _MANAGERS[profile_id] = manager
     return manager
@@ -181,6 +192,8 @@ async def start_local_inference_profile(
         )
     except LocalInferenceValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except LocalInferenceRuntimeMissingError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @router.post(
