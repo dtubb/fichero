@@ -4,16 +4,18 @@ import Foundation
 ///
 /// A page has N representations derived from its artifacts: the original image,
 /// and any conversions a workflow has produced — Markdown, HTML, SVG, a
-/// spreadsheet table, a 2D world-map, or a 3D globe. The picker lets the reader
-/// flip between them; ``RepresentationStore`` decides which exist for a given
-/// document from its artifact set.
+/// spreadsheet table, a 2D world-map, or a 3D globe. `Representation.from(artifactType:)`
+/// maps a stored artifact to the kind it renders as.
 ///
 /// `image` is always present (the scanned page). The rest appear only when a
 /// matching artifact exists. Only `image` and `markdown` are *rendered* today
-/// (see ``DocumentCanvas``); the others are modelled here so the store, picker,
-/// and backend presets (#2265) line up, and are wired in follow-ups — HTML/SVG
-/// need a raw-HTML web view, table needs `Table` over the rows, and world-map /
-/// globe need the geo endpoint (#2266) plus the §7.8 SceneKit-vs-RealityKit call.
+/// (see ``DocumentCanvas``); the others are modelled here so a future reader
+/// stage-picker and the backend presets (#2265) line up. The picker/store UI
+/// that once lived alongside this enum was unwired scaffolding and was removed
+/// (#3026); a real representation switcher belongs in UI Reform — Representations
+/// (#2667). HTML/SVG need a raw-HTML web view, table needs `Table` over the rows,
+/// and world-map / globe need the geo endpoint (#2266) plus the §7.8
+/// SceneKit-vs-RealityKit call.
 enum Representation: String, CaseIterable, Identifiable, Hashable {
     case image
     case markdown
