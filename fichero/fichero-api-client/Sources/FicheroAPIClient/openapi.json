@@ -15972,15 +15972,27 @@
         ],
         "summary": "Prune trivially-true claims",
         "operationId": "prune_trivial_claims_api_kg_claims_prune_trivial_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PruneTrivialClaimsRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -21257,15 +21269,27 @@
         ],
         "summary": "Create Entity Rule",
         "operationId": "create_entity_rule_api_kg_curation_rules_entity_rules_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/EntityRuleCreateRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -21296,15 +21320,27 @@
         ],
         "summary": "Delete Entity Rule",
         "operationId": "delete_entity_rule_api_kg_curation_rules_entity_rules_delete",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/EntityRuleDeleteRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -21337,15 +21373,27 @@
         ],
         "summary": "Create Entity Rules Batch",
         "operationId": "create_entity_rules_batch_api_kg_curation_rules_entity_rules_batch_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/EntityRuleBatchCreateRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -21397,15 +21445,27 @@
         ],
         "summary": "Create Claim Rule",
         "operationId": "create_claim_rule_api_kg_curation_rules_claim_rules_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ClaimRuleCreateRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -21436,15 +21496,27 @@
         ],
         "summary": "Delete Claim Rule",
         "operationId": "delete_claim_rule_api_kg_curation_rules_claim_rules_delete",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ClaimRuleDeleteRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -21477,15 +21549,27 @@
         ],
         "summary": "Create Claim Rules Batch",
         "operationId": "create_claim_rules_batch_api_kg_curation_rules_claim_rules_batch_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ClaimRuleBatchCreateRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -21517,7 +21601,6 @@
           "knowledge-graph"
         ],
         "summary": "Merge Entities",
-        "description": "Merge multiple entities into a single absorbing entity, with audit.",
         "operationId": "merge_entities_api_kg_entity_curation_merge_post",
         "parameters": [
           {
@@ -21625,7 +21708,6 @@
           "knowledge-graph"
         ],
         "summary": "Undo Entity Operation",
-        "description": "Undo a previous merge or split using its audit record.",
         "operationId": "undo_entity_operation_api_kg_entity_curation_audit__audit_id__undo_post",
         "parameters": [
           {
@@ -21635,6 +21717,16 @@
             "schema": {
               "type": "string",
               "title": "Audit Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
             }
           }
         ],

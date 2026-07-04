@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from fichero.api.library_header import require_library_path
-from fichero.api.auth import request_actor
+from fichero.api.auth import action_context, request_actor
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
@@ -282,28 +282,15 @@ def merge_entities_impl(
 async def merge_entities(
     request: EntityMergeRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: ActionContext = Depends(action_context),
 ) -> EntityAuditResponse:
-    """Merge multiple entities into a single absorbing entity, with audit."""
-    audit, entity_ids, repointed_claim_ids = merge_entities_impl(db, request)
-
-    # Observable data layer (#1863): tell every window in this library that the
-    # entity set changed so their KG stores refresh. Best-effort — never breaks
-    # the merge.
-    emit_change(
-        x_fichero_library_path,
-        type="entity.merged",
-        entity_ids=entity_ids,
-        claim_ids=repointed_claim_ids,
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
+    result = registry.invoke(
+        db,
+        "entity.merge",
+        request.model_dump(mode="json"),
+        ctx,
     )
-    return _audit_response(audit)
+    return EntityAuditResponse.model_validate(result.result)
 
 
 @kg_entities_router.patch(
@@ -496,9 +483,10 @@ def undo_entity_operation_impl(db: Database, audit_id: str) -> EntityMergeAudit:
 async def undo_entity_operation(
     audit_id: str,
     db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
 ) -> EntityAuditResponse:
-    """Undo a previous merge or split using its audit record."""
-    return _audit_response(undo_entity_operation_impl(db, audit_id))
+    result = registry.invoke(db, "entity.unmerge", {"audit_id": audit_id}, ctx)
+    return EntityAuditResponse.model_validate(result.result)
 
 
 @router.get("/audit", response_model=EntityAuditListResponse)
@@ -676,7 +664,7 @@ async def candidate_pairs(
 # uniform path that chat tools / App Intents / tests drive via
 # POST /api/actions/invoke.
 
-from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
+from fichero.actions.registry import action, ActionContext, ChangeSpec, registry  # noqa: E402
 
 
 class UnmergeEntitiesParams(BaseModel):

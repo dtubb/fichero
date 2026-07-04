@@ -1,6 +1,7 @@
 """Tests for persistent KG curation-rule routes."""
 
 from fichero.knowledge_models import ClaimSuppressionRule, EntityResolutionRule
+from fichero.models import ActionAudit
 
 
 class TestEntityCurationRules:
@@ -58,6 +59,48 @@ class TestEntityCurationRules:
         assert payload["count"] == 2
         assert {item["rule_type"] for item in payload["items"]} == {"alias", "suppress"}
 
+    def test_entity_rule_routes_write_action_audit_and_emit(
+        self, client, db, monkeypatch
+    ):
+        calls: list[tuple] = []
+        monkeypatch.setattr(
+            "fichero.api.change_stream.emit_change",
+            lambda *a, **k: calls.append((a, k)),
+        )
+
+        create = client.post(
+            "/api/kg/curation-rules/entity-rules",
+            json={
+                "rule_type": "merge_into",
+                "match_canonical_name": "J. Davidson",
+                "target_canonical_name": "John Davidson",
+                "reason": "same person",
+            },
+        )
+
+        assert create.status_code == 200
+        created_id = create.json()["id"]
+        create_audits = [
+            row for row in db.all(ActionAudit) if row.action_name == "kg.entity_rule.create"
+        ]
+        assert len(create_audits) == 1
+        assert create_audits[0].target_ids == [created_id]
+        assert calls[-1][1]["type"] == "entity.updated"
+
+        delete = client.request(
+            "DELETE",
+            "/api/kg/curation-rules/entity-rules",
+            json={"rule_id": created_id},
+        )
+
+        assert delete.status_code == 200
+        delete_audits = [
+            row for row in db.all(ActionAudit) if row.action_name == "kg.entity_rule.delete"
+        ]
+        assert len(delete_audits) == 1
+        assert delete_audits[0].target_ids == [created_id]
+        assert calls[-1][1]["type"] == "entity.updated"
+
 
 class TestClaimCurationRules:
     def test_create_list_delete_claim_rule(self, client, db):
@@ -113,3 +156,44 @@ class TestClaimCurationRules:
         payload = batch.json()
         assert payload["count"] == 2
         assert {item["action"] for item in payload["items"]} == {"disable", "prune"}
+
+    def test_claim_rule_routes_write_action_audit_and_emit(
+        self, client, db, monkeypatch
+    ):
+        calls: list[tuple] = []
+        monkeypatch.setattr(
+            "fichero.api.change_stream.emit_change",
+            lambda *a, **k: calls.append((a, k)),
+        )
+
+        create = client.post(
+            "/api/kg/curation-rules/claim-rules",
+            json={
+                "action": "prune",
+                "match_predicate_verb": "is",
+                "reason": "trivial copula",
+            },
+        )
+
+        assert create.status_code == 200
+        created_id = create.json()["id"]
+        create_audits = [
+            row for row in db.all(ActionAudit) if row.action_name == "kg.claim_rule.create"
+        ]
+        assert len(create_audits) == 1
+        assert create_audits[0].target_ids == [created_id]
+        assert calls[-1][1]["type"] == "claim.updated"
+
+        delete = client.request(
+            "DELETE",
+            "/api/kg/curation-rules/claim-rules",
+            json={"rule_id": created_id},
+        )
+
+        assert delete.status_code == 200
+        delete_audits = [
+            row for row in db.all(ActionAudit) if row.action_name == "kg.claim_rule.delete"
+        ]
+        assert len(delete_audits) == 1
+        assert delete_audits[0].target_ids == [created_id]
+        assert calls[-1][1]["type"] == "claim.updated"

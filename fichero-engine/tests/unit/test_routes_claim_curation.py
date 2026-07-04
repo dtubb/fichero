@@ -17,7 +17,7 @@ from fichero.knowledge_models import (
     EpistemicStatus,
     MutationLog,
 )
-from fichero.models import DocType, Document
+from fichero.models import ActionAudit, DocType, Document
 
 
 # ---------------------------------------------------------------------------
@@ -112,6 +112,24 @@ class TestTransitionClaim:
         })
         assert r.status_code == 400
 
+    def test_transition_writes_action_audit_and_emits(self, client, db, monkeypatch):
+        claim = _make_claim()
+        db.save(claim)
+        calls: list[tuple] = []
+        monkeypatch.setattr(
+            "fichero.api.change_stream.emit_change",
+            lambda *a, **k: calls.append((a, k)),
+        )
+
+        r = client.patch(f"/api/claims/{claim.id}/transition", json={"to_state": "shortlisted"})
+
+        assert r.status_code == 200
+        audits = [row for row in db.all(ActionAudit) if row.action_name == "claim.transition"]
+        assert len(audits) == 1
+        assert audits[0].target_ids == [claim.id]
+        assert calls[-1][1]["type"] == "claim.updated"
+        assert calls[-1][1]["claim_ids"] == [claim.id]
+
 
 # ---------------------------------------------------------------------------
 # POST /api/claims/batch/transition
@@ -197,6 +215,31 @@ class TestBatchClaimCuration:
         assert r.status_code == 200
         assert r.json() == {"updated": 0, "claim_ids": []}
         assert db.all(MutationLog) == []
+
+    def test_batch_curation_writes_action_audit_and_emits(self, client, db, monkeypatch):
+        c1 = _make_claim("c-1", "Claim one")
+        c2 = _make_claim("c-2", "Claim two")
+        db.save(c1)
+        db.save(c2)
+        calls: list[tuple] = []
+        monkeypatch.setattr(
+            "fichero.api.change_stream.emit_change",
+            lambda *a, **k: calls.append((a, k)),
+        )
+
+        r = client.patch("/api/kg/claims/batch-curation", json={
+            "claim_ids": ["c-1", "c-2"],
+            "curation_state": "curated",
+        })
+
+        assert r.status_code == 200
+        audits = [
+            row for row in db.all(ActionAudit) if row.action_name == "claim.batch_curation"
+        ]
+        assert len(audits) == 1
+        assert audits[0].target_ids == ["c-1", "c-2"]
+        assert calls[-1][1]["type"] == "claim.updated"
+        assert calls[-1][1]["claim_ids"] == ["c-1", "c-2"]
 
 
 class TestClaimMerge:
@@ -354,6 +397,32 @@ class TestClaimMerge:
         assert first.status_code == 200
         assert second.status_code == 409
 
+    def test_merge_writes_action_audit_and_emits(self, client, db, monkeypatch):
+        survivor = _make_claim("claim-survivor")
+        absorbed = _make_claim("claim-absorbed")
+        db.save(survivor)
+        db.save(absorbed)
+        calls: list[tuple] = []
+        monkeypatch.setattr(
+            "fichero.api.change_stream.emit_change",
+            lambda *a, **k: calls.append((a, k)),
+        )
+
+        r = client.post(
+            "/api/kg/claims/merge",
+            json={
+                "surviving_claim_id": survivor.id,
+                "absorbed_claim_ids": [absorbed.id],
+            },
+        )
+
+        assert r.status_code == 200
+        audits = [row for row in db.all(ActionAudit) if row.action_name == "claim.merge"]
+        assert len(audits) == 1
+        assert audits[0].target_ids == [survivor.id, absorbed.id]
+        assert calls[-1][1]["type"] == "claim.merged"
+        assert calls[-1][1]["claim_ids"] == [survivor.id, absorbed.id]
+
 
 class TestPruneTrivialClaims:
     def test_prunes_document_scoped_trivial_claims_only(self, client, db):
@@ -462,6 +531,31 @@ class TestPruneTrivialClaims:
         assert len(rules) == 1
         assert rules[0].suppress_is_a_copulas is True
         assert rules[0].match_subject_name is None
+
+    def test_prune_trivial_writes_action_audit_and_emits(self, client, db, monkeypatch):
+        db.save(_make_claim(
+            "c-library",
+            text="Andagoya is a place.",
+            subject_canonical="Andagoya",
+            predicate_verb="is",
+            object_phrase="a place",
+        ))
+        calls: list[tuple] = []
+        monkeypatch.setattr(
+            "fichero.api.change_stream.emit_change",
+            lambda *a, **k: calls.append((a, k)),
+        )
+
+        r = client.post("/api/kg/claims/prune-trivial", json={"library_wide": True})
+
+        assert r.status_code == 200
+        audits = [
+            row for row in db.all(ActionAudit) if row.action_name == "claim.prune_trivial"
+        ]
+        assert len(audits) == 1
+        assert audits[0].target_ids == ["c-library"]
+        assert calls[-1][1]["type"] == "claim.updated"
+        assert calls[-1][1]["claim_ids"] == ["c-library"]
 
 
 # ---------------------------------------------------------------------------
