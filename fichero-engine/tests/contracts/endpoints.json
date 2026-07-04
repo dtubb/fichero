@@ -7134,6 +7134,16 @@
       },
       {
         "method": "POST",
+        "path": "/registry/unicode-collisions/merge",
+        "operation_id": "confirm_unicode_library_merge_api_registry_unicode_collisions_merge_post",
+        "summary": "Confirm Unicode Library Merge",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "UnicodeLibraryMergeParams",
+        "response_model": null
+      },
+      {
+        "method": "POST",
         "path": "/registry/update-access",
         "operation_id": "update_library_access_api_registry_update_access_post",
         "summary": "Update Library Access",

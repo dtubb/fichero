@@ -10187,6 +10187,26 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("confirm-unicode-library-merge")
+    def registry_confirm_unicode_library_merge_post(
+        ctx: typer.Context,
+        left_path: str = typer.Option(..., "--left-path", help="Request field: left_path."),
+        right_path: str = typer.Option(..., "--right-path", help="Request field: right_path."),
+    ) -> None:
+        """Confirm Unicode Library Merge (POST /api/registry/unicode-collisions/merge)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/registry/unicode-collisions/merge"
+            params = None
+            payload = _build_json_payload({
+                "left_path": left_path,
+                "right_path": right_path,
+            }, {
+                "left_path": {'type': 'string', 'title': 'Left Path', 'x-cli-required': True},
+                "right_path": {'type': 'string', 'title': 'Right Path', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("update-library-access")
     def registry_update_library_access_post(
         ctx: typer.Context,

@@ -400,6 +400,7 @@
     "/api/registry": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/registry/add": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/registry/unicode-collisions": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
+    "/api/registry/unicode-collisions/merge": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/registry/update-access": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/registry/{library_path}": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/research/checklists": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
