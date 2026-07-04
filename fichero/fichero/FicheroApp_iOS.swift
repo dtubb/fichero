@@ -43,34 +43,22 @@ struct FicheroAppIOS: App {
                 .environmentObject(captureQueue)
                 .environment(kgFocusState)
                 .task {
-                    guard EngineConfig.hasConfiguredHost else {
-                        appState.isCheckingBackend = false
-                        appState.isBackendRunning = false
-                        backendService.status = .failed
-                        backendService.errorMessage = nil
+                    // One phase owner drives the shared BackendRootGate (#3107).
+                    // Not paired yet (or no host) → first-run pairing; paired but
+                    // unreachable → the diagnostic error, never the pairing prompt.
+                    guard RemoteAccessConfig.hasPairedLibraryPath else {
+                        appState.engine.markSetupNeeded()
                         return
                     }
 
                     await appState.checkBackendHealth()
-                    if appState.isBackendRunning {
-                        backendService.status = .running
-                        backendService.errorMessage = nil
-                        appState.startBackendHeartbeat()
-                    } else {
-                        backendService.status = .failed
-                        backendService.errorMessage = appState.backendError
+                    guard appState.isBackendRunning else {
                         logger.error(
                             "External backend is not reachable at \(EngineConfig.host.absoluteString, privacy: .public)"
                         )
                         return
                     }
-                    guard RemoteAccessConfig.hasPairedLibraryPath else {
-                        appState.isBackendRunning = false
-                        backendService.status = .failed
-                        backendService.errorMessage = nil
-                        return
-                    }
-
+                    appState.startBackendHeartbeat()
                     await KnownLibraryRegistryStore.shared.refresh()
                     libraryManager.adoptPairedRemoteLibrary()
                     await libraryManager.backendDidBecomeReady()
@@ -117,40 +105,37 @@ private struct FicheroSharedPlatformRoot: View {
     }
 
     var body: some View {
-        Group {
-            if appState.isCheckingBackend {
-                ProgressView("Connecting to Fichero…")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if needsInitialConnectionSetup {
+        // The SAME root gate as macOS, switching on the single phase (#3107):
+        // setupNeeded → pairing; ready → workspace; every other phase →
+        // BackendConnectionView (splash/diagnosis + Retry). No blank screen, and
+        // a configured-but-unreachable host shows the error, never the pairing
+        // prompt (#2864). backendService flows in via @EnvironmentObject.
+        BackendRootGate(
+            appState: appState,
+            onReconnect: { await reconnectToConfiguredHost() },
+            setup: {
                 RemoteConnectionSetupView {
                     await reconnectToConfiguredHost()
                 }
-            } else if !appState.isBackendRunning {
-                // #2864: a configured backend that's unreachable — or reachable
-                // but rejecting the app's credentials (authBroken) — shows the
-                // diagnostic connection error, never a blank screen or the
-                // first-run pairing prompt. Mirrors the macOS BackendRootGate;
-                // backendService flows in via @EnvironmentObject from the root.
-                BackendConnectionView(appState: appState) {
-                    await reconnectToConfiguredHost()
+            },
+            content: {
+                if let library = activeLibrary {
+                    LibraryWorkspaceRoot(
+                        library: library,
+                        windowState: windowState,
+                        executionObserver: executionObserver
+                    )
+                        .environmentObject(windowState)
+                        .environmentObject(library.apiClient)
+                } else {
+                    ContentUnavailableView(
+                        "Library Unavailable",
+                        systemImage: "externaldrive.badge.exclamationmark",
+                        description: Text("Fichero could not load the Local library.")
+                    )
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let library = activeLibrary {
-                LibraryWorkspaceRoot(
-                    library: library,
-                    windowState: windowState,
-                    executionObserver: executionObserver
-                )
-                    .environmentObject(windowState)
-                    .environmentObject(library.apiClient)
-            } else {
-                ContentUnavailableView(
-                    "Library Unavailable",
-                    systemImage: "externaldrive.badge.exclamationmark",
-                    description: Text("Fichero could not load the Local library.")
-                )
             }
-        }
+        )
         .onOpenURL { url in
             guard url.scheme?.lowercased() == "fichero", url.host?.lowercased() == "pair" else { return }
             pendingPairURL = IdentifiableURL(url: url)
@@ -165,19 +150,11 @@ private struct FicheroSharedPlatformRoot: View {
         }
     }
 
-    /// True only when NO host is configured/paired yet, so the user must run
-    /// first-time setup (scan a pairing QR). A configured-but-unreachable
-    /// backend is handled separately by the diagnostic error branch (#2864), so
-    /// a dropped connection no longer bounces back to the setup prompt.
-    private var needsInitialConnectionSetup: Bool {
-        EngineConfig.requiresExternalBackendConnection && !RemoteAccessConfig.hasPairedLibraryPath
-    }
-
     private func reconnectToConfiguredHost() async {
         await appState.checkBackendHealth()
         guard appState.isBackendRunning else { return }
         guard RemoteAccessConfig.hasPairedLibraryPath else {
-            appState.isBackendRunning = false
+            appState.engine.markSetupNeeded()
             return
         }
         appState.startBackendHeartbeat()

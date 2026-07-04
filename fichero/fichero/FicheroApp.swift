@@ -141,6 +141,9 @@ struct FicheroApp: App {
         // actionable diagnosis. Flip the service to .failed and let the gate do
         // its job — the window stays up and the user can start the engine + retry.
         logger.error("Backend failed to start: \(error.localizedDescription, privacy: .public)")
+        // The single phase owner drives the gate (#3107); service status is kept
+        // in sync as secondary lifecycle bookkeeping.
+        appState.engine.markFailed(error.localizedDescription)
         backendService.status = .failed
         backendService.errorMessage = error.localizedDescription
     }
@@ -155,9 +158,17 @@ struct FicheroApp: App {
         // running AND authenticated, the window shows BackendConnectionView
         // (full-window, with diagnosis) instead of LibraryWindow — never a
         // blank window with silent 401s behind the chrome.
-        BackendRootGate(appState: appState, backendService: backendService) {
-            LibraryWindow(seed: seed)
-        }
+        BackendRootGate(
+            appState: appState,
+            setup: {
+                // `.setupNeeded` never occurs on macOS (the engine is embedded,
+                // not paired); render the connection view for symmetry if it does.
+                BackendConnectionView(appState: appState)
+            },
+            content: {
+                LibraryWindow(seed: seed)
+            }
+        )
         .environmentObject(backendService)
         .environmentObject(appState)
         .environmentObject(viewSettings)

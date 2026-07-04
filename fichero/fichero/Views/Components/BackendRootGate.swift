@@ -1,31 +1,43 @@
 import SwiftUI
 
-/// The window's root switch (#2864). Real content renders ONLY when the backend
-/// is genuinely usable: the engine is running AND health-checks pass AND auth is
-/// intact. Every other phase — starting, unreachable, authBroken, failed —
-/// shows the full-window `BackendConnectionView` with its diagnosis, so the app
-/// can never present a blank window with silent 401s behind the chrome.
+/// The window's root switch (#2864/#3107). Real content renders in exactly ONE
+/// phase — `EngineSession.phase == .ready` — where the engine is running,
+/// health-checks pass, and the token is accepted. Every other phase renders
+/// explicit full-window UI, so the app can never present a blank window with
+/// silent 401s behind the chrome:
 ///
-/// This is deliberately the *root* gate rather than a per-tab one: a single
-/// authoritative switch means no sidebar/toolbar chrome frames a broken state,
-/// and there is exactly one place that decides "is the backend usable".
-struct BackendRootGate<Content: View>: View {
+///   • `.ready`        → `content` (the library window / workspace root)
+///   • `.setupNeeded`  → `setup` (first-run pairing on iOS; unused on macOS)
+///   • everything else → `BackendConnectionView` (splash while `.starting`,
+///                        or the diagnosis + Retry for portConflict / authRejected
+///                        / unreachable / failed)
+///
+/// This is deliberately the *root* gate and switches on the single `phase` sum
+/// type (not three ANDed booleans, #3107): there is exactly one authoritative
+/// place that decides "is the backend usable", and the compiler forces every
+/// phase to have a screen — no representable phase maps to "render nothing".
+///
+/// Both the macOS (`FicheroApp`) and iOS (`FicheroApp_iOS`) roots use this SAME
+/// gate, replacing the divergent hand-rolled iOS session handling.
+struct BackendRootGate<Content: View, Setup: View>: View {
     @ObservedObject var appState: AppState
-    @ObservedObject var backendService: EmbeddedBackendService
+    /// Optional reconnect run when the connection view's Retry succeeds (iOS
+    /// re-adopts its paired remote host). macOS restarts the embedded engine
+    /// inside the connection view, so it passes nil.
+    var onReconnect: (@MainActor () async -> Void)?
+    @ViewBuilder let setup: () -> Setup
     @ViewBuilder let content: () -> Content
 
-    private var isUsable: Bool {
-        backendService.status == .running
-            && appState.isBackendRunning
-            && !appState.authBroken
-    }
-
     var body: some View {
-        if isUsable {
+        // `appState.engine` is the single owner; observe it via appState, which
+        // re-publishes its phase changes (#3107).
+        switch appState.engine.phase {
+        case .ready:
             content()
-        } else {
-            // backendService flows in via @EnvironmentObject from the caller.
-            BackendConnectionView(appState: appState)
+        case .setupNeeded:
+            setup()
+        case .starting, .portConflict, .authRejected, .unreachable, .failed:
+            BackendConnectionView(appState: appState, onConnected: onReconnect)
         }
     }
 }
