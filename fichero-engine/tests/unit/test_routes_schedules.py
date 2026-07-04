@@ -7,7 +7,7 @@ dependency to avoid APScheduler installation requirements.
 
 import pytest
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 from fichero.api.main import app
 
@@ -192,3 +192,31 @@ class TestScheduleRuns:
         mock_scheduler.get_schedule.return_value = None
         r = client.get("/api/schedules/bad-id/runs")
         assert r.status_code == 404
+
+
+class TestScheduleOpenAPISchema:
+    def test_schedule_schema_uses_typed_maps_and_list_items(self, client):
+        schema = client.app.openapi()
+        create_request = schema["components"]["schemas"]["CreateScheduleRequest"]
+        update_request = schema["components"]["schemas"]["UpdateScheduleRequest"]
+        schedule_response = schema["components"]["schemas"]["ScheduleResponse"]
+        schedule_list = schema["components"]["schemas"]["ScheduleResponseList"]
+        runs_list = schema["components"]["schemas"]["ScheduleRunResponseList"]
+
+        assert create_request["properties"]["inputs"]["additionalProperties"]["type"] == "string"
+        assert (
+            create_request["properties"]["batch_items"]["items"]["additionalProperties"]["type"]
+            == "string"
+        )
+        assert update_request["properties"]["inputs"]["anyOf"][0]["additionalProperties"]["type"] == "string"
+        assert (
+            update_request["properties"]["batch_items"]["anyOf"][0]["items"]["additionalProperties"]["type"]
+            == "string"
+        )
+        assert schedule_response["properties"]["inputs"]["additionalProperties"]["type"] == "string"
+        assert (
+            schedule_response["properties"]["batch_items"]["items"]["additionalProperties"]["type"]
+            == "string"
+        )
+        assert schedule_list["properties"]["items"]["items"]["$ref"].endswith("/ScheduleResponse")
+        assert runs_list["properties"]["items"]["items"]["$ref"].endswith("/ScheduleRunResponse")

@@ -164,3 +164,31 @@ class TestTriggerExecutions:
         mock_watcher.get_trigger.return_value = None
         r = client.get("/api/triggers/bad-id/executions")
         assert r.status_code == 404
+
+
+class TestTriggerOpenAPISchema:
+    def test_trigger_schema_uses_typed_maps_and_list_items(self, client):
+        schema = client.app.openapi()
+        create_request = schema["components"]["schemas"]["CreateTriggerRequest"]
+        update_request = schema["components"]["schemas"]["UpdateTriggerRequest"]
+        trigger_response = schema["components"]["schemas"]["TriggerResponse"]
+        trigger_list = schema["components"]["schemas"]["TriggerResponseList"]
+        executions_list = schema["components"]["schemas"]["TriggerExecutionResponseList"]
+
+        assert (
+            create_request["properties"]["inputs_template"]["additionalProperties"]["type"]
+            == "string"
+        )
+        assert (
+            update_request["properties"]["inputs_template"]["anyOf"][0]["additionalProperties"]["type"]
+            == "string"
+        )
+        assert (
+            trigger_response["properties"]["inputs_template"]["additionalProperties"]["type"]
+            == "string"
+        )
+        assert trigger_list["properties"]["items"]["items"]["$ref"].endswith("/TriggerResponse")
+        assert (
+            executions_list["properties"]["items"]["items"]["$ref"]
+            .endswith("/TriggerExecutionResponse")
+        )
