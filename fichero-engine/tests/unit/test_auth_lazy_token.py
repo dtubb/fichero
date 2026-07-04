@@ -128,6 +128,42 @@ def test_startup_writes_token_file_so_client_is_not_deadlocked(monkeypatch, tmp_
     assert token_path.read_text().strip()
 
 
+def test_sync_debug_bootstrap_token_writes_sandbox_copy_that_authenticates(
+    monkeypatch, tmp_path
+):
+    import stat
+
+    import fichero.api.auth as auth_module
+
+    host_token_path = tmp_path / "host" / ".api-key"
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(auth_module, "_token_file_path", lambda: host_token_path)
+
+    token = auth_module.initialize_token(force_rotate=True)
+    sandbox_path = auth_module.sync_debug_bootstrap_token(
+        token,
+        app_id="app.fichero.debug-tests",
+    )
+
+    assert host_token_path.read_text() == token
+    assert sandbox_path.read_text() == token
+    assert stat.S_IMODE(sandbox_path.stat().st_mode) == 0o600
+
+    app = FastAPI()
+
+    @app.get("/api/registry")
+    async def registry():
+        return {"ok": True}
+
+    attach_auth_middleware(app, token)
+    client = TestClient(app)
+    response = client.get(
+        "/api/registry",
+        headers={"Authorization": f"Bearer {sandbox_path.read_text()}"},
+    )
+    assert response.status_code == 200
+
+
 def test_startup_skips_token_when_auth_disabled(monkeypatch, tmp_path):
     import fichero.api.auth as auth_module
     from fichero.api.main import _ensure_bootstrap_token_written

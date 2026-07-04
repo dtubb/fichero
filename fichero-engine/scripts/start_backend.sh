@@ -171,6 +171,19 @@ print(resolve_bind_host())
 PY
 )"
 
+FICHERO_DEBUG_APP_BUNDLE_ID="${FICHERO_DEBUG_APP_BUNDLE_ID:-app.fichero.fichero}"
+PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" - <<'PY'
+import os
+
+from fichero.api.auth import initialize_token, sync_debug_bootstrap_token
+
+token = initialize_token()
+sync_debug_bootstrap_token(
+    token,
+    app_id=os.environ.get("FICHERO_DEBUG_APP_BUNDLE_ID", "app.fichero.fichero"),
+)
+PY
+
 if [ "$SYNC_OPENAPI" = true ]; then
   "$API_ROOT/scripts/sync_openapi_schema.sh"
 fi

@@ -71,6 +71,21 @@ def _token_file_path() -> Path:
     return base / ".api-key"
 
 
+def _sandbox_token_file_path(app_id: str) -> Path:
+    """Sandbox container token path for the local macOS app bundle."""
+    return (
+        Path.home()
+        / "Library"
+        / "Containers"
+        / app_id
+        / "Data"
+        / "Library"
+        / "Application Support"
+        / "Fichero"
+        / ".api-key"
+    )
+
+
 def _is_account_or_device_token(token: str) -> bool:
     """Return true when a token already belongs to a session/device row.
 
@@ -91,12 +106,24 @@ def _is_account_or_device_token(token: str) -> bool:
 
 def _write_token_file(path: Path, token: str) -> None:
     """Write ``token`` to ``path`` with 0600 perms, overwriting any existing."""
+    path.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     try:
         os.write(fd, token.encode("utf-8"))
     finally:
         os.close(fd)
     os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
+
+
+def sync_debug_bootstrap_token(
+    token: str,
+    *,
+    app_id: str = "app.fichero.fichero",
+) -> Path:
+    """Mirror the bootstrap token into the sandboxed Debug app container."""
+    path = _sandbox_token_file_path(app_id)
+    _write_token_file(path, token)
+    return path
 
 
 def initialize_token(*, force_rotate: bool = False) -> str:
