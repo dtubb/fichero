@@ -8,13 +8,15 @@ from urllib.parse import unquote
 
 from fastapi import HTTPException, Request
 
+from fichero.library_paths import nfc_path
+
 LIBRARY_PATH_HEADER = "X-Fichero-Library-Path"
 
 
 def optional_library_path(request: Request) -> str | None:
     """Read the library path transport header without exposing it in OpenAPI."""
     library_path = request.headers.get(LIBRARY_PATH_HEADER)
-    return unquote(library_path) if library_path is not None else None
+    return nfc_path(unquote(library_path)) if library_path is not None else None
 
 
 def require_library_path(request: Request) -> str:

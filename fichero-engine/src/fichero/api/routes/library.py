@@ -20,6 +20,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 
 from fichero.db import db_manager
+from fichero.library_paths import nfc_path
 from fichero.models import (
     KnownLibrary,
     LibraryCreateRequest,
@@ -52,7 +53,7 @@ def create_library(
     # would close that loop.
     from fichero.api.main import _is_allowed_library_path
 
-    raw = body.path
+    raw = nfc_path(body.path)
     if not _is_allowed_library_path(raw):
         raise HTTPException(
             status_code=403,
@@ -63,6 +64,7 @@ def create_library(
         )
 
     package = Path(raw).expanduser().resolve()
+    stored_path = nfc_path(str(package))
     duckdb_path = package / "fichero.duckdb"
 
     already_existed = package.exists() and duckdb_path.exists()
@@ -98,7 +100,7 @@ def create_library(
     try:
         # Idempotent — if the DB already exists it just re-opens it.
         # Triggers all migrations + workflow seeding on first creation.
-        db_manager.get_database(package)
+        db_manager.get_database(stored_path)
     except Exception as exc:  # pragma: no cover - exercised live, not in unit
         logger.error("Failed to initialize library DB at %s: %s", package, exc)
         raise HTTPException(
@@ -110,12 +112,12 @@ def create_library(
     try:
         # Write to the global registry DB (where GET /api/registry reads from)
         registry_db = db_manager.get_database(str(settings.global_library_path))
-        existing = registry_db.query(KnownLibrary, path=str(package))
+        existing = registry_db.query(KnownLibrary, path=stored_path)
         if not existing:
             # New library — register it with basename as name
             library = KnownLibrary(
-                path=str(package),
-                name=package.name,  # e.g. "My Library.fichero"
+                path=stored_path,
+                name=nfc_path(package.name),  # e.g. "My Library.fichero"
             )
             registry_db.save(library)
             logger.info("Registered new library in registry: %s", package)
@@ -132,7 +134,7 @@ def create_library(
         logger.warning("Failed to bootstrap library owner for %s: %s", package, exc)
 
     return LibraryCreateResponse(
-        path=str(package),
+        path=stored_path,
         created=not already_existed,
         tables_initialized=True,
     )

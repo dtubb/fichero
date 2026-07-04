@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import shutil
+import unicodedata
 from pathlib import Path
 
 import pytest
@@ -132,6 +133,23 @@ def test_snapshot_manifest_records_reason_paths_and_sizes(
     assert "vectors" in manifest["paths"]["embeddings"]
     assert manifest["sizes"]["duckdb_size_bytes"] > 0
     assert manifest["sizes"]["lance_size_bytes"] > 0
+
+
+def test_snapshot_normalizes_unicode_library_name_to_nfc(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _use_snapshot_state(monkeypatch, tmp_path)
+    library_path = tmp_path / unicodedata.normalize("NFC", "Chocó.fichero")
+    _create_library_with_document(library_path)
+
+    snapshot = storage_snapshots.snapshot_library(
+        unicodedata.normalize("NFD", str(library_path)),
+        reason="unicode path",
+    )
+
+    assert snapshot.library_name == unicodedata.normalize("NFC", "Chocó")
+    assert Path(snapshot.snapshot_path).parts[-2] == unicodedata.normalize("NFC", "Chocó")
 
 
 def test_snapshot_quiesces_database_manager_before_copy(

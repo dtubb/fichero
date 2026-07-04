@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import ast
 import threading
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -117,6 +118,26 @@ def test_get_database_is_one_shared_instance_across_threads(tmp_path, monkeypatc
             f"{len(package_entries)}: {package_entries}"
         )
         assert manager.active_count == 1
+    finally:
+        manager.close_all()
+
+
+def test_get_database_normalizes_unicode_equivalent_package_keys(tmp_path, monkeypatch) -> None:
+    """NFD/NFC spellings of one package path must hit one shared cache entry."""
+    monkeypatch.setenv("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
+    from fichero.db_manager import DatabaseManager
+
+    manager = DatabaseManager()
+    lib = tmp_path / unicodedata.normalize("NFC", "Chocó.fichero")
+    lib.mkdir(parents=True, exist_ok=True)
+    nfd_path = unicodedata.normalize("NFD", str(lib))
+    nfc_path = unicodedata.normalize("NFC", str(lib))
+
+    try:
+        first = manager.get_database(nfd_path)
+        second = manager.get_database(nfc_path)
+        assert first is second
+        assert list(manager._databases) == [nfc_path]
     finally:
         manager.close_all()
 

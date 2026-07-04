@@ -27,6 +27,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from fichero.db import Database
 from fichero.db_manager import db_manager
+from fichero.library_paths import nfc_path
 from fichero.models import KnownLibrary, LibraryRegistryResponse
 from fichero.storage import settings
 
@@ -90,9 +91,10 @@ def add_known_library(
         500: If database operation fails
     """
     # Validate path
-    pkg_path = Path(path).expanduser().resolve()
+    normalized_path = nfc_path(path)
+    pkg_path = Path(normalized_path).expanduser().resolve()
     if not pkg_path.exists():
-        raise HTTPException(status_code=400, detail=f"Path does not exist: {path}")
+        raise HTTPException(status_code=400, detail=f"Path does not exist: {normalized_path}")
 
     # Verify it's a .fichero package
     if not pkg_path.name.endswith(".fichero"):
@@ -103,7 +105,8 @@ def add_known_library(
 
     try:
         # Check if already registered
-        existing = db.query(KnownLibrary, path=str(pkg_path))
+        stored_path = nfc_path(str(pkg_path))
+        existing = db.query(KnownLibrary, path=stored_path)
         if existing:
             # Update last_accessed
             lib = existing[0]
@@ -113,18 +116,18 @@ def add_known_library(
         else:
             # Create new registration
             if name is None:
-                name = pkg_path.name  # e.g. "My Library.fichero" → "My Library.fichero"
+                name = Path(stored_path).name
 
             library = KnownLibrary(
-                path=str(pkg_path),
-                name=name,
+                path=stored_path,
+                name=nfc_path(name),
                 added_at=datetime.now(),
                 last_accessed=datetime.now(),
             )
             db.save(library)
 
         try:
-            db_manager.get_database(str(pkg_path))
+            db_manager.get_database(stored_path)
         except Exception as exc:
             logger.warning("Inbox seeding skipped for %s: %s", pkg_path, exc)
 
@@ -155,14 +158,16 @@ def update_library_access(
         404: If the library is not in the registry
         500: If database operation fails
     """
-    pkg_path = Path(path).expanduser().resolve()
+    normalized_path = nfc_path(path)
+    pkg_path = Path(normalized_path).expanduser().resolve()
+    stored_path = nfc_path(str(pkg_path))
 
     try:
-        existing = db.query(KnownLibrary, path=str(pkg_path))
+        existing = db.query(KnownLibrary, path=stored_path)
         if not existing:
             raise HTTPException(
                 status_code=404,
-                detail=f"Library not in registry: {path}",
+                detail=f"Library not in registry: {normalized_path}",
             )
 
         library = existing[0]
@@ -196,19 +201,20 @@ def remove_known_library(
         500: If the database operation fails
     """
     # Decode the URL-encoded path (handles spaces and other reserved chars)
-    path = unquote(library_path)
+    path = nfc_path(unquote(library_path))
     pkg_path = Path(path).expanduser().resolve()
+    stored_path = nfc_path(str(pkg_path))
 
     try:
-        existing = db.query(KnownLibrary, path=str(pkg_path))
+        existing = db.query(KnownLibrary, path=stored_path)
         if not existing:
             # Idempotent no-op — the library is already absent from the registry.
             logger.info("Library not in registry (no-op remove): %s", pkg_path)
-            return {"status": "not_registered", "path": str(pkg_path)}
+            return {"status": "not_registered", "path": stored_path}
 
         for library in existing:
             db.delete(library)
-        return {"status": "removed", "path": str(pkg_path)}
+        return {"status": "removed", "path": stored_path}
     except Exception as e:
         logger.error("Failed to remove known library: %s", e)
         raise HTTPException(status_code=500, detail=str(e)) from e

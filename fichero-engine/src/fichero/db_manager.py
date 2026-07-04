@@ -11,6 +11,8 @@ import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from fichero.library_paths import nfc_path
+
 if TYPE_CHECKING:
     from fichero.db import Database
 
@@ -69,7 +71,7 @@ class DatabaseManager:
         from fichero.library_bootstrap import ensure_inbox_folder
         from fichero.workflows.default_workflows import seed_default_workflows
 
-        package_path = Path(package_path)
+        package_path = Path(nfc_path(package_path))
         package_str = str(package_path)
         cache_key = package_str
 
@@ -111,7 +113,7 @@ class DatabaseManager:
 
     def close_database(self, package_path: str | Path):
         """Close the shared connection for a package."""
-        package_str = str(Path(package_path))
+        package_str = str(Path(nfc_path(package_path)))
 
         with self._lock:
             keys = [k for k in self._databases if k == package_str]
@@ -135,7 +137,7 @@ class DatabaseManager:
         writes; independent direct DuckDB connections outside the manager remain
         outside this lock's scope.
         """
-        package_str = str(Path(package_path))
+        package_str = str(Path(nfc_path(package_path)))
 
         with self._lock:
             keys = [k for k in self._databases if k == package_str]

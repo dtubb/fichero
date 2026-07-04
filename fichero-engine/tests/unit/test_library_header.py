@@ -9,6 +9,9 @@ percent-encoded from the Swift client).
 
 from __future__ import annotations
 
+import unicodedata
+from urllib.parse import quote
+
 import fastapi
 import pytest
 
@@ -36,6 +39,14 @@ def test_optional_url_decodes_present_value() -> None:
         "/Users/x/My Lib.fichero"
 
 
+def test_optional_normalizes_unicode_path_to_nfc() -> None:
+    raw = quote(unicodedata.normalize("NFD", "/tmp/Chocó.fichero"), safe="/")
+    assert optional_library_path(_request(raw)) == unicodedata.normalize(
+        "NFC",
+        "/tmp/Chocó.fichero",
+    )
+
+
 def test_optional_returns_empty_string_when_header_blank() -> None:
     # Present-but-empty decodes to "" (distinct from absent -> None).
     assert optional_library_path(_request("")) == ""
@@ -48,6 +59,11 @@ def test_optional_returns_empty_string_when_header_blank() -> None:
 
 def test_require_returns_decoded_path() -> None:
     assert require_library_path(_request("%2Ftmp%2FLib.fichero")) == "/tmp/Lib.fichero"
+
+
+def test_require_leaves_nfc_paths_unchanged() -> None:
+    path = unicodedata.normalize("NFC", "/tmp/Chocó.fichero")
+    assert require_library_path(_request(quote(path, safe="/"))) == path
 
 
 def test_require_raises_400_when_absent() -> None:

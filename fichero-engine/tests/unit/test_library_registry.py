@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import os
+import unicodedata
 from datetime import datetime, timedelta
+from urllib.parse import quote
 
 import pytest
 
@@ -235,6 +237,55 @@ class TestGlobalRegistryHeaderless:
         assert listed.status_code == 200
         paths = [lib["path"] for lib in listed.json()["libraries"]]
         assert str(lib_path.resolve()) in paths
+
+    def test_add_deduplicates_nfd_and_nfc_library_paths(self, global_client, tmp_path):
+        lib_path = tmp_path / unicodedata.normalize("NFC", "Chocó.fichero")
+        lib_path.mkdir(parents=True, exist_ok=True)
+        nfd_path = unicodedata.normalize("NFD", str(lib_path))
+
+        first = global_client.post("/api/registry/add", params={"path": nfd_path})
+        assert first.status_code == 200, first.text
+
+        second = global_client.post("/api/registry/add", params={"path": str(lib_path)})
+        assert second.status_code == 200, second.text
+
+        listed = global_client.get("/api/registry")
+        assert listed.status_code == 200
+        libraries = listed.json()["libraries"]
+        assert len(libraries) == 1
+        assert libraries[0]["path"] == unicodedata.normalize("NFC", str(lib_path.resolve()))
+
+    def test_health_accepts_nfd_header_and_reuses_normalized_database(
+        self,
+        global_client,
+        tmp_path,
+    ):
+        from fichero.db_manager import db_manager
+
+        lib_path = tmp_path / unicodedata.normalize("NFC", "Chocó.fichero")
+        lib_path.mkdir(parents=True, exist_ok=True)
+        global_client.post("/api/registry/add", params={"path": str(lib_path)})
+
+        db_manager.close_database(str(lib_path))
+        normalized = unicodedata.normalize("NFC", str(lib_path))
+        try:
+            response = global_client.get(
+                "/api/health",
+                headers={
+                    "X-Fichero-Library-Path": quote(
+                        unicodedata.normalize("NFD", str(lib_path)),
+                        safe="/",
+                    )
+                },
+            )
+            assert response.status_code == 200, response.text
+            body = response.json()
+            assert body["status"] == "healthy"
+            assert body["library_path"] == normalized
+            matches = [key for key in db_manager._databases if key == normalized]
+            assert matches == [normalized]
+        finally:
+            db_manager.close_database(str(lib_path))
 
     def test_remove_handles_spaces(self, global_client, tmp_path):
         """DELETE /api/registry/{path} works for a path containing spaces."""
