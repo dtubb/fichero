@@ -98,92 +98,61 @@ class AppState: ObservableObject {
     }
 
     private func pingBackendOnce() async {
-        do {
-            let response = try await ficheroClient.api.healthCheckApiHealthGet(headers: .init())
-            switch response {
-            case .ok:
-                // Health-200 alone is NOT "online" (#2864): a leftover engine
-                // can answer health yet reject our token. Confirm auth before
-                // declaring recovery, and flip authBroken if it rejects us so
-                // the full-window error shows instead of silent 401s.
-                let status = await probeAuthenticatedRegistry()
-                switch status {
-                case 200:
-                    heartbeatFailureCount = 0
-                    authBroken = false
-                    if !isBackendRunning {
-                        isBackendRunning = true
-                        backendError = nil
-                        backendDiagnosis = nil
-                        logger.info("Backend heartbeat: recovered — back online")
-                        // Reload providers now that the engine is back so list
-                        // views aren't empty until next manual refresh.
-                        await loadProviders()
-                    }
-                case 401, 403:
-                    heartbeatFailureCount = 0
-                    authBroken = true
-                    isBackendRunning = false
-                    backendDiagnosis =
-                        "The engine is running but rejected this app's credentials (HTTP \(status ?? 401))."
-                    backendError = backendDiagnosis
-                    logger.warning("Backend heartbeat: auth rejected — flipping authBroken")
-                default:
-                    noteHeartbeatFailure(reason: "authenticated probe failed")
-                }
-            default:
-                noteHeartbeatFailure(reason: "API returned error status")
+        // Health-200 alone is NOT "online" (#2864): a leftover engine can answer
+        // health yet reject our token. The shared readiness probe (#3106) does
+        // health + authenticated registry in one, over the pinned transport.
+        switch await EngineReadinessProbe(hostURL: EngineConfig.host).probe() {
+        case .ready:
+            heartbeatFailureCount = 0
+            authBroken = false
+            if !isBackendRunning {
+                isBackendRunning = true
+                backendError = nil
+                backendDiagnosis = nil
+                logger.info("Backend heartbeat: recovered — back online")
+                // Reload providers now that the engine is back so list views
+                // aren't empty until next manual refresh.
+                await loadProviders()
             }
-        } catch {
-            noteHeartbeatFailure(reason: error.localizedDescription)
+        case .authRejected:
+            heartbeatFailureCount = 0
+            authBroken = true
+            isBackendRunning = false
+            backendDiagnosis = "The engine is running but rejected this app's credentials."
+            backendError = backendDiagnosis
+            logger.warning("Backend heartbeat: auth rejected — flipping authBroken")
+        case .notResponding:
+            noteHeartbeatFailure(reason: "engine not responding")
+        case .identityMismatch:
+            noteHeartbeatFailure(reason: "engine identity mismatch")
         }
     }
 
     /// After a health-200, confirm the engine accepts our token and load
-    /// providers, or flip authBroken/unreachable with a diagnosis (#2864).
+    /// providers, or flip authBroken/unreachable with a diagnosis (#2864). Uses
+    /// the one shared readiness probe (#3106).
     private func confirmAuthAndLoad() async {
-        let status = await probeAuthenticatedRegistry()
-        switch status {
-        case 200:
+        switch await EngineReadinessProbe(hostURL: EngineConfig.host).probe() {
+        case .ready:
             isBackendRunning = true
             authBroken = false
             backendError = nil
             backendDiagnosis = nil
             _ = await AuthTokenMiddleware.waitForToken()
             await loadProviders()
-        case 401, 403:
+        case .authRejected:
             isBackendRunning = false
             authBroken = true
             backendDiagnosis =
-                "The engine is running but rejected this app's credentials (HTTP \(status ?? 401)). "
+                "The engine is running but rejected this app's credentials. "
                 + "The token the app holds doesn't match the engine's."
             backendError = backendDiagnosis
             logger.error("Auth rejected on readiness probe — authBroken")
-        default:
+        case .notResponding, .identityMismatch:
             isBackendRunning = false
             authBroken = false
-            backendDiagnosis =
-                "The engine answered health checks but the authenticated probe failed"
-                + (status.map { " (HTTP \($0))" } ?? " (no response)") + "."
+            backendDiagnosis = "The engine answered health checks but the authenticated readiness probe failed."
             backendError = backendDiagnosis
-        }
-    }
-
-    /// GET /api/registry with the app's token — authenticated but needs no
-    /// library header, so it cleanly exercises auth. Returns the HTTP status
-    /// (200 ok, 401/403 auth rejected) or nil on a transport error. Shares the
-    /// engine's readiness contract with EmbeddedBackendService.probeReadiness.
-    private func probeAuthenticatedRegistry() async -> Int? {
-        let url = EngineConfig.apiBaseURL.appendingPathComponent("registry")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.addEngineAuth()
-        let session = RemoteCertificatePinning.configuredSession()
-        do {
-            let (_, response) = try await session.data(for: request)
-            return (response as? HTTPURLResponse)?.statusCode
-        } catch {
-            return nil
         }
     }
 

@@ -54,22 +54,9 @@ final class EmbeddedBackendService: ObservableObject {
         case failed
     }
 
-    /// Outcome of an authenticated readiness probe (#2862). "Running" is no
-    /// longer just health-200: the engine must ALSO be the instance we spawned
-    /// (nonce echo) AND accept the token we hold (authenticated /api/registry).
-    /// The richer cases feed the full-window diagnosis in #2864 so a blank
-    /// window with silent 401s can never happen again.
-    enum ReadinessResult: Equatable {
-        case ready
-        /// Health didn't answer 200 (down, TLS mismatch, still cold-starting).
-        case notResponding
-        /// Health answered 200 but echoed a different launch nonce — the port
-        /// is held by a process we did NOT spawn. `pid` is the responder's PID.
-        case identityMismatch(pid: Int?)
-        /// Health + identity OK, but the authenticated probe was rejected
-        /// (401/403) — the engine does not accept the token the app holds.
-        case authRejected
-    }
+    /// Outcome of an authenticated readiness probe (#2862) — now the shared
+    /// `EngineReadiness` (#3106), verified by the one `EngineReadinessProbe`.
+    typealias ReadinessResult = EngineReadiness
 
     /// The most recent readiness outcome, for #2864's diagnosis UI.
     private(set) var lastReadiness: ReadinessResult?
@@ -535,51 +522,10 @@ final class EmbeddedBackendService: ObservableObject {
         throw BackendError.timeout
     }
 
-    /// One authenticated readiness probe. Order matters: cheapest/most-telling
-    /// first. Health (unauth) proves the socket is up and identifies the
-    /// responder; the authenticated /api/registry call proves the token works.
+    /// One authenticated readiness probe — delegates to the shared
+    /// `EngineReadinessProbe` (#3106), the single home for the readiness contract.
     func probeReadiness() async -> ReadinessResult {
-        let session = RemoteCertificatePinning.configuredSession()
-
-        // 1. Health (unauthenticated) — is anything up, and is it ours?
-        let healthURL = backendURL.appendingPathComponent("api/health")
-        let probe: HealthProbe
-        do {
-            let (data, response) = try await session.data(from: healthURL)
-            guard (response as? HTTPURLResponse)?.statusCode == 200 else {
-                return .notResponding
-            }
-            probe = (try? JSONDecoder().decode(HealthProbe.self, from: data))
-                ?? HealthProbe(launchNonce: nil, enginePid: nil)
-        } catch {
-            return .notResponding
-        }
-
-        // 2. Instance identity — only when WE spawned it (have an expected
-        // nonce). An adopted external engine has no nonce to match, so we skip
-        // straight to the auth probe.
-        if let expected = expectedLaunchNonce, probe.launchNonce != expected {
-            return .identityMismatch(pid: probe.enginePid)
-        }
-
-        // 3. Authenticated probe — /api/registry needs the token but no library
-        // header, so it cleanly exercises auth. 200 = ready; 401/403 = the
-        // engine rejects our token (the blank-window-with-401s cause).
-        let registryURL = backendURL.appendingPathComponent("api/registry")
-        var request = URLRequest(url: registryURL)
-        request.httpMethod = "GET"
-        request.addEngineAuth()
-        do {
-            let (_, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse else { return .notResponding }
-            switch http.statusCode {
-            case 200: return .ready
-            case 401, 403: return .authRejected
-            default: return .notResponding
-            }
-        } catch {
-            return .notResponding
-        }
+        await EngineReadinessProbe(hostURL: backendURL, expectedNonce: expectedLaunchNonce).probe()
     }
 
     private func backendSupportsWorkflowRoutes() async -> Bool {
@@ -631,20 +577,6 @@ final class EmbeddedBackendService: ObservableObject {
             )
         } catch {
             logger.error("Failed to write bootstrap token file: \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
-    // MARK: - Health Check
-
-    func checkHealth() async -> Bool {
-        let healthURL = backendURL.appendingPathComponent("health")
-        let session = RemoteCertificatePinning.configuredSession()
-
-        do {
-            let (_, response) = try await session.data(from: healthURL)
-            return (response as? HTTPURLResponse)?.statusCode == 200
-        } catch {
-            return false
         }
     }
 
@@ -837,18 +769,6 @@ final class EmbeddedBackendService: ObservableObject {
 }
 
 // MARK: - Readiness probe payload
-
-/// Health-only JSON we care about at readiness time (#2862). Decoded from the
-/// raw /api/health body so we don't depend on the generated client's schema
-/// being regenerated for these two fields.
-private struct HealthProbe: Decodable {
-    let launchNonce: String?
-    let enginePid: Int?
-    enum CodingKeys: String, CodingKey {
-        case launchNonce = "launch_nonce"
-        case enginePid = "engine_pid"
-    }
-}
 
 // MARK: - Errors
 
