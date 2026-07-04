@@ -7,6 +7,7 @@ Thumbnail and file serving endpoints.
 import asyncio
 import logging
 import os
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote
 
@@ -15,9 +16,11 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from fichero.db import Database
+from fichero.app_db import get_app_db
+from fichero.api.change_stream import emit_change
 from fichero.api.library_header import require_library_path
 from fichero.api.main import get_library_database, get_library_database_for_write
-from fichero.models import Document, LibrarySnapshot, SnapshotInitiatorType
+from fichero.models import ActionAudit, Document, LibrarySnapshot, SnapshotInitiatorType
 from fichero.perf import perf_span
 from fichero.storage import (
     snapshot_library,
@@ -47,6 +50,35 @@ class DocumentDebugResponse(BaseModel):
 
 class NotFoundResponse(BaseModel):
     detail: str
+
+
+def _record_snapshot_audit(
+    *,
+    action_name: str,
+    actor: str,
+    library_path: str,
+    params: dict,
+    after: dict | None = None,
+) -> ActionAudit:
+    audit = ActionAudit(
+        action_name=action_name,
+        actor=actor,
+        target_ids=[library_path],
+        params=params,
+        after=after,
+        created_at=datetime.now(),
+    )
+    get_app_db().save_action_audit(audit)
+    return audit
+
+
+def _emit_snapshot_change(library_path: str, *, event_type: str, actor: str) -> None:
+    emit_change(
+        library_path,
+        type=event_type,
+        actor=actor,
+        origin_user=actor,
+    )
 
 
 def _normalize_document_id(doc_id: str) -> str:
@@ -425,8 +457,24 @@ async def create_snapshot(
 
     Use after bulk AI operations or before schema changes.
     """
+    actor = initiator.value
+    params = {
+        "library_path": library_path,
+        "reason": reason,
+        "initiator": actor,
+        "initiator_id": initiator_id,
+        "run_id": run_id,
+        "auto_expire_days": auto_expire_days,
+    }
     try:
-        return snapshot_library(
+        _record_snapshot_audit(
+            action_name="snapshot.create.intent",
+            actor=actor,
+            library_path=library_path,
+            params=params,
+        )
+        _emit_snapshot_change(library_path, event_type="snapshot.create.intent", actor=actor)
+        snapshot = snapshot_library(
             library_path=library_path,
             reason=reason,
             initiator=initiator.value,
@@ -434,6 +482,15 @@ async def create_snapshot(
             run_id=run_id,
             auto_expire_days=auto_expire_days,
         )
+        _record_snapshot_audit(
+            action_name="snapshot.create.outcome",
+            actor=actor,
+            library_path=library_path,
+            params=params,
+            after=snapshot.model_dump(mode="json"),
+        )
+        _emit_snapshot_change(library_path, event_type="snapshot.created", actor=actor)
+        return snapshot
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except RuntimeError as e:
@@ -480,7 +537,38 @@ async def restore_library_snapshot(snapshot_id: str) -> SnapshotRestoreResponse:
     .pre-restore suffix.
     """
     try:
+        snapshot = next(
+            (row for row in list_snapshots(include_expired=True) if row.id == snapshot_id),
+            None,
+        )
+        if snapshot is None:
+            raise FileNotFoundError(f"Snapshot not found: {snapshot_id}")
+        actor = snapshot.initiator.value
+        params = {"snapshot_id": snapshot_id, "library_path": snapshot.library_path}
+        _record_snapshot_audit(
+            action_name="snapshot.restore.intent",
+            actor=actor,
+            library_path=snapshot.library_path,
+            params=params,
+        )
+        _emit_snapshot_change(
+            snapshot.library_path,
+            event_type="snapshot.restore.intent",
+            actor=actor,
+        )
         result = restore_snapshot(snapshot_id)
+        _record_snapshot_audit(
+            action_name="snapshot.restore.outcome",
+            actor=actor,
+            library_path=snapshot.library_path,
+            params=params,
+            after=result,
+        )
+        _emit_snapshot_change(
+            snapshot.library_path,
+            event_type="snapshot.restored",
+            actor=actor,
+        )
         return SnapshotRestoreResponse(**result)
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))

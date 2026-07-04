@@ -23,6 +23,7 @@ import duckdb
 from pydantic import BaseModel
 from fichero.storage import settings
 from fichero.models import (
+    ActionAudit,
     AccountSession,
     AccountUser,
     Device,
@@ -57,6 +58,7 @@ def get_db_path() -> str:
 class AppDatabase:
     """App-wide database for providers and settings."""
     _TABLE_BY_MODEL_NAME: dict[str, str] = {
+        "ActionAudit": "actionaudits",
         "AccountUser": "users",
         "AccountSession": "sessions",
         "Device": "devices",
@@ -164,6 +166,25 @@ class AppDatabase:
                 key VARCHAR PRIMARY KEY,
                 value VARCHAR NOT NULL,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS actionaudits (
+                id VARCHAR PRIMARY KEY,
+                action_name VARCHAR NOT NULL,
+                actor VARCHAR NOT NULL,
+                target_ids JSON DEFAULT '[]',
+                params JSON DEFAULT '{}',
+                before JSON,
+                after JSON,
+                run_id VARCHAR,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                chain_seq BIGINT,
+                undone BOOLEAN DEFAULT FALSE,
+                inverse_of VARCHAR,
+                prev_hash VARCHAR,
+                row_hash VARCHAR DEFAULT ''
             )
         """)
 
@@ -289,6 +310,10 @@ class AppDatabase:
         )
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_mcp_servers_enabled ON mcp_servers(enabled)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_actionaudits_created_at "
+            "ON actionaudits(created_at)"
         )
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_model_profiles_name ON model_profiles(name)"
@@ -1534,6 +1559,83 @@ class AppDatabase:
         if server:
             self._delete_typed(server)
         self.conn.commit()
+
+    def save_action_audit(self, audit: ActionAudit) -> ActionAudit:
+        """Persist an app-scoped ActionAudit row."""
+        with self._lock:
+            self.conn.execute(
+                """
+                INSERT INTO actionaudits (
+                    id, action_name, actor, target_ids, params, before, after,
+                    run_id, created_at, chain_seq, undone, inverse_of, prev_hash, row_hash
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (id) DO UPDATE SET
+                    action_name = excluded.action_name,
+                    actor = excluded.actor,
+                    target_ids = excluded.target_ids,
+                    params = excluded.params,
+                    before = excluded.before,
+                    after = excluded.after,
+                    run_id = excluded.run_id,
+                    created_at = excluded.created_at,
+                    chain_seq = excluded.chain_seq,
+                    undone = excluded.undone,
+                    inverse_of = excluded.inverse_of,
+                    prev_hash = excluded.prev_hash,
+                    row_hash = excluded.row_hash
+                """,
+                [
+                    audit.id,
+                    audit.action_name,
+                    audit.actor,
+                    json.dumps(audit.target_ids),
+                    json.dumps(audit.params),
+                    json.dumps(audit.before) if audit.before is not None else None,
+                    json.dumps(audit.after) if audit.after is not None else None,
+                    audit.run_id,
+                    audit.created_at,
+                    audit.chain_seq,
+                    audit.undone,
+                    audit.inverse_of,
+                    audit.prev_hash,
+                    audit.row_hash,
+                ],
+            )
+            self.conn.commit()
+        return audit
+
+    def list_action_audits(self) -> list[ActionAudit]:
+        """Return app-scoped ActionAudit rows in created order."""
+        with self._lock:
+            rows = self.conn.execute(
+                """
+                SELECT
+                    id, action_name, actor, target_ids, params, before, after,
+                    run_id, created_at, chain_seq, undone, inverse_of, prev_hash, row_hash
+                FROM actionaudits
+                ORDER BY created_at, id
+                """
+            ).fetchall()
+        return [
+            ActionAudit(
+                id=row[0],
+                action_name=row[1],
+                actor=row[2],
+                target_ids=json.loads(row[3]) if row[3] else [],
+                params=json.loads(row[4]) if row[4] else {},
+                before=json.loads(row[5]) if row[5] else None,
+                after=json.loads(row[6]) if row[6] else None,
+                run_id=row[7],
+                created_at=row[8],
+                chain_seq=row[9],
+                undone=row[10],
+                inverse_of=row[11],
+                prev_hash=row[12],
+                row_hash=row[13] or "",
+            )
+            for row in rows
+        ]
 
     def _delete_typed(
         self,
