@@ -6,6 +6,9 @@ management, and entity resolution. Route ordering fix required: static paths
 /alias-map and /resolve/{v} must be registered before /{entity_id}.
 """
 
+import asyncio
+from unittest.mock import patch
+
 from fichero.knowledge_models import EntityType, KnowledgeEntity
 
 
@@ -215,6 +218,66 @@ class TestListEntities:
         names = [e["canonical_name"] for e in r.json()["items"]]
         assert "1960" in names
 
+    def test_top_entities_logs_malformed_entity_payloads(self, db):
+        from datetime import datetime
+
+        from fichero.api.routes import entities as entities_routes
+        from fichero.api.routes.entities import top_entities
+        from fichero.knowledge_models import KnowledgeClaim
+
+        entity = KnowledgeEntity(
+            id="ent-valid",
+            canonical_name="Valid",
+            entity_type=EntityType.person,
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
+        db.save(entity)
+        db.save(
+            KnowledgeClaim(
+                id="claim-bad-json",
+                text="Malformed payload",
+                source_document_id="doc-1",
+                entity_ids=[],
+            )
+        )
+        db._execute(
+            "UPDATE knowledgeclaims SET entity_ids = $raw WHERE id = $id",
+            {"raw": '{"unexpected": "shape"}', "id": "claim-bad-json"},
+        )
+
+        with patch.object(entities_routes.logger, "warning") as mock_warning:
+            response = asyncio.run(top_entities(limit=10, db=db))
+
+        assert response.count == 0
+        mock_warning.assert_called_once()
+        assert "malformed entity_ids payload" in mock_warning.call_args.args[0]
+
+    def test_entity_claim_counts_logs_malformed_entity_payloads(self, db):
+        from fichero.api.routes import entities as entities_routes
+        from fichero.api.routes.entities import entity_claim_counts
+        from fichero.knowledge_models import KnowledgeClaim
+
+        db.save(
+            KnowledgeClaim(
+                id="claim-bad-json",
+                text="Malformed payload",
+                source_document_id="doc-1",
+                entity_ids=[],
+            )
+        )
+        db._execute(
+            "UPDATE knowledgeclaims SET entity_ids = $raw WHERE id = $id",
+            {"raw": '{"unexpected": "shape"}', "id": "claim-bad-json"},
+        )
+
+        with patch.object(entities_routes.logger, "warning") as mock_warning:
+            response = asyncio.run(entity_claim_counts(db=db))
+
+        assert response.counts == {}
+        mock_warning.assert_called_once()
+        assert "malformed entity_ids payload" in mock_warning.call_args.args[0]
+
 
 # ---------------------------------------------------------------------------
 # POST /api/entities (upsert)
@@ -258,6 +321,64 @@ class TestUpsertEntity:
         entities = listing.json()["items"]
         assert all(e["id"] != "no-such-entity-id" for e in entities)
         assert all(e["canonical_name"] != "Ghost" for e in entities)
+
+
+class TestEntityReadLogging:
+    def test_entity_drill_down_logs_excerpt_lookup_failure(self, db):
+        from fichero.api.routes import entities as entities_routes
+        from fichero.api.routes.entities import entity_drill_down
+
+        entity = _make_entity(db, "Alice")
+        with (
+            patch.object(db, "knowledge_claim_excerpts_for_entity", side_effect=RuntimeError("boom")),
+            patch.object(entities_routes.logger, "warning") as mock_warning,
+        ):
+            response = asyncio.run(entity_drill_down(entity.id, db=db))
+
+        assert response.claim_excerpts == []
+        mock_warning.assert_called_once()
+        assert entity.id in mock_warning.call_args.args[1]
+
+    def test_entity_biography_logs_document_lookup_failure(self, db):
+        from fichero.api.routes import entities as entities_routes
+        from fichero.api.routes.entities import assemble_entity_biography
+
+        entity = _make_entity(db, "Alice")
+        with (
+            patch.object(db, "entity_document_claim_counts", side_effect=RuntimeError("boom")),
+            patch.object(entities_routes.logger, "warning") as mock_warning,
+        ):
+            response = assemble_entity_biography(entity.id, db)
+
+        assert response.documents == []
+        mock_warning.assert_called_once()
+        assert entity.id in mock_warning.call_args.args[1]
+
+    def test_entity_co_occurrence_logs_malformed_payloads(self, db):
+        from fichero.api.routes import entities as entities_routes
+        from fichero.api.routes.entities import get_entity_co_occurrence
+        from fichero.knowledge_models import KnowledgeClaim
+
+        entity = _make_entity(db, "Alice")
+        db.save(
+            KnowledgeClaim(
+                id="claim-bad-json",
+                text="Malformed payload",
+                source_document_id="doc-1",
+                entity_ids=[],
+            )
+        )
+        db._execute(
+            "UPDATE knowledgeclaims SET entity_ids = $raw WHERE id = $id",
+            {"raw": '{"unexpected": "shape"}', "id": "claim-bad-json"},
+        )
+
+        with patch.object(entities_routes.logger, "warning") as mock_warning:
+            response = asyncio.run(get_entity_co_occurrence(entity.id, db=db))
+
+        assert response.count == 0
+        mock_warning.assert_called_once()
+        assert entity.id in mock_warning.call_args.args[1]
 
     def test_upsert_unknown_id_leaves_other_entities_untouched(self, client, db):
         """The failed upsert must not create a substitute row alongside real data."""
