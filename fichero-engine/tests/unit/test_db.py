@@ -33,7 +33,18 @@ from fichero.research_models import (
     ResearchTask,
     StepTool,
 )
-from fichero.spatial_models import RoomType, SpatialRoom
+from fichero.canvas_models import (
+    CanvasItem,
+    CanvasItemKind,
+    CanvasLayout,
+    ConnectionType,
+    NodeType,
+    RoomType,
+    SpatialConnection,
+    SpatialNode,
+    SpatialRoom,
+    SpatialViewport,
+)
 from fichero.knowledge_models import (
     ClaimRelationType,
     ClassificationDimension,
@@ -1736,6 +1747,37 @@ class TestSpatialRoomFold:
 
         with pytest.raises(PrototypeResolutionError):
             temp_db.get(SpatialRoom, doc.id)
+
+
+class TestKeptCanvasModels:
+    def test_kept_canvas_models_round_trip(self, temp_db):
+        layout = CanvasLayout(folder_id="scope-1", item_id="item-1", x=12.0, y=34.0)
+        item = CanvasItem(
+            folder_id="scope-1",
+            kind=CanvasItemKind.note,
+            text="Canvas note",
+        )
+        node = SpatialNode(
+            room_id="room-1",
+            node_type=NodeType.note,
+            label="Node",
+        )
+        connection = SpatialConnection(
+            room_id="room-1",
+            source_node_id="a",
+            target_node_id="b",
+            connection_type=ConnectionType.semantic,
+        )
+        viewport = SpatialViewport(room_id="room-1", user_id="user-1")
+
+        for obj in (layout, item, node, connection, viewport):
+            temp_db.save(obj)
+
+        assert temp_db.get(CanvasLayout, layout.id) is not None
+        assert temp_db.get(CanvasItem, item.id) is not None
+        assert temp_db.get(SpatialNode, node.id) is not None
+        assert temp_db.get(SpatialConnection, connection.id) is not None
+        assert temp_db.get(SpatialViewport, viewport.id) is not None
 
 
 class TestFiledEntityFold:

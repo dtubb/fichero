@@ -16,7 +16,7 @@ import fichero.api.routes.canvas  # noqa: F401
 from fichero import accounts, authz
 from fichero.actions.registry import ActionContext, registry
 from fichero.models import ActionAudit
-from fichero.spatial_models import CanvasItem, CanvasItemKind
+from fichero.canvas_models import CanvasItem, CanvasItemKind
 
 BASE = "/api/canvas/folders"
 KINDS = ["note", "quote", "work_note", "link", "text"]

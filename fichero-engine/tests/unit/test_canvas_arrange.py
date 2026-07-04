@@ -21,7 +21,7 @@ from fichero.spatial_arrange import (
 )
 from fichero.models import DocType, Document
 from fichero.models import ActionAudit
-from fichero.spatial_models import CanvasLayout
+from fichero.canvas_models import CanvasLayout
 
 BASE = "/api/canvas/folders"
 IDS = ["a", "b", "c", "d", "e"]
