@@ -45,3 +45,17 @@ def test_http_manifest_client_reuses_fichero_client_transport():
     assert calls[0].headers["authorization"] == "Bearer token-123"
     assert calls[0].headers["x-fichero-library-path"] == "/tmp/library.fichero"
     assert calls[0].read().decode("utf-8") == '{"path":"/tmp/library.fichero"}'
+
+
+def test_reset_local_library_if_loopback_deletes_only_loopback_clients(tmp_path):
+    library = tmp_path / "Library.fichero"
+    library.mkdir()
+
+    local_client = type("Client", (), {"base_url": "http://127.0.0.1:8765"})()
+    http_client.reset_local_library_if_loopback(local_client, library, reset=True)
+    assert not library.exists()
+
+    library.mkdir()
+    remote_client = type("Client", (), {"base_url": "http://remote-engine.test"})()
+    http_client.reset_local_library_if_loopback(remote_client, library, reset=True)
+    assert library.exists()

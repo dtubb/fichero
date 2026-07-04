@@ -1,15 +1,15 @@
 """Link-only Tinderbox (.tbx) importer into the Fichero library model."""
 
 from __future__ import annotations
-
-import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from fichero.db import db_manager
-from fichero.importers.http_client import ImporterHttpClient, ensure_remote_document
-from fichero.models import DocType, Document, FileType, Status
+from fichero.importers.http_client import (
+    ImporterHttpClient,
+    ensure_remote_document,
+    reset_local_library_if_loopback,
+)
 from fichero.xml_security import iterparse_xml
 
 
@@ -25,111 +25,6 @@ class TinderboxLinkImportSummary:
     errors: list[str] = field(default_factory=list)
 
 
-def import_tinderbox_links(
-    *,
-    library_path: Path,
-    tbx_path: Path,
-    reset: bool = False,
-) -> TinderboxLinkImportSummary:
-    library_path = library_path.expanduser().resolve()
-    tbx_path = tbx_path.expanduser().resolve()
-
-    _ensure_library_package(library_path)
-    db = db_manager.get_database(library_path)
-
-    root = _find_root_doc(db, tbx_path) or Document(
-        name=f"Tinderbox: {tbx_path.stem}",
-        path=str(tbx_path),
-        doc_type=DocType.folder,
-        status=Status.completed,
-        metadata={"source_type": "tinderbox_link_import", "tbx_path": str(tbx_path)},
-    )
-    db.save(root, auto_embed=False)
-
-    notes = parse_tinderbox_notes(tbx_path)
-    note_ids = {note["id"] for note in notes}
-
-    existing_docs = [
-        doc
-        for doc in db.query(Document, parent_id=root.id)
-        if doc.doc_type == DocType.file and (doc.metadata or {}).get("source_type") == "tinderbox_note"
-    ]
-    existing_by_note_id = {
-        str((doc.metadata or {}).get("tinderbox_id") or ""): doc
-        for doc in existing_docs
-        if (doc.metadata or {}).get("tinderbox_id")
-    }
-
-    imported = 0
-    updated = 0
-    skipped = 0
-    errors: list[str] = []
-
-    for note in notes:
-        note_id = note["id"]
-        content = note.get("text") or ""
-        url = note.get("url") or ""
-        if url and not content.strip():
-            skipped += 1
-            continue
-
-        metadata = {
-            "source_type": "tinderbox_note",
-            "tinderbox_id": note_id,
-            "tinderbox_path": note.get("tb_path") or "",
-            "tinderbox_tags": note.get("tags") or [],
-            "tinderbox_prototype": note.get("prototype") or "",
-            "tinderbox_attrs": note.get("attrs") or {},
-            "tinderbox_modified": note.get("modified") or "",
-            "link_only": True,
-            "remote_reference": True,
-        }
-
-        existing = existing_by_note_id.get(note_id)
-        try:
-            if existing is None:
-                doc = Document(
-                    name=note.get("name") or f"Tinderbox note {note_id}",
-                    path=f"tinderbox://{tbx_path.name}/{note_id}",
-                    doc_type=DocType.file,
-                    file_type=FileType.text,
-                    parent_id=root.id,
-                    status=Status.completed,
-                    page_content=content,
-                    metadata=metadata,
-                )
-                db.save(doc)
-                imported += 1
-            else:
-                existing.name = note.get("name") or existing.name
-                existing.path = f"tinderbox://{tbx_path.name}/{note_id}"
-                existing.page_content = content
-                existing.metadata = metadata
-                existing.status = Status.completed
-                db.save(existing)
-                updated += 1
-        except Exception as exc:  # pragma: no cover
-            errors.append(f"note:{note_id}:{exc}")
-
-    deleted = 0
-    for doc in existing_docs:
-        note_id = str((doc.metadata or {}).get("tinderbox_id") or "")
-        if note_id and note_id not in note_ids:
-            db.delete(doc)
-            deleted += 1
-
-    return TinderboxLinkImportSummary(
-        library_path=library_path,
-        tbx_path=tbx_path,
-        root_document_id=root.id,
-        imported_notes=imported,
-        updated_notes=updated,
-        deleted_notes=deleted,
-        skipped_notes=skipped,
-        errors=errors,
-    )
-
-
 def import_tinderbox_links_via_http(
     client: ImporterHttpClient,
     *,
@@ -140,10 +35,8 @@ def import_tinderbox_links_via_http(
     library_path = library_path.expanduser().resolve()
     tbx_path = tbx_path.expanduser().resolve()
 
-    # ponytail: same-host reset is still local delete until the backend grows a
-    # real remote library-reset endpoint.
-    if reset and library_path.exists():
-        shutil.rmtree(library_path)
+    # ponytail: only local loopback engines may delete local libraries.
+    reset_local_library_if_loopback(client, library_path, reset=reset)
     client.create_library(str(library_path))
 
     root = ensure_remote_document(
@@ -295,44 +188,4 @@ def _local_name(tag: str) -> str:
     return tag.rsplit("}", 1)[-1].lower()
 
 
-def _find_root_doc(db: Any, tbx_path: Path) -> Document | None:
-    for doc in db.all(Document):
-        metadata = doc.metadata if isinstance(doc.metadata, dict) else {}
-        if (
-            doc.doc_type == DocType.folder
-            and metadata.get("source_type") == "tinderbox_link_import"
-            and metadata.get("tbx_path") == str(tbx_path)
-        ):
-            return doc
-    return None
-
-
-def _ensure_library_package(library_path: Path) -> None:
-    library_path.mkdir(parents=True, exist_ok=True)
-    (library_path / "files").mkdir(exist_ok=True)
-    (library_path / "lance").mkdir(exist_ok=True)
-    (library_path / "vectors").mkdir(exist_ok=True)
-
 __all__ = [name for name in dir() if not name.startswith("__")]
-
-__all__ = [
-    'Any',
-    'DocType',
-    'Document',
-    'FileType',
-    'Path',
-    'Status',
-    'TinderboxLinkImportSummary',
-    '_collect_attrs',
-    '_ensure_library_package',
-    '_find_root_doc',
-    '_local_name',
-    '_pick',
-    'annotations',
-    'dataclass',
-    'db_manager',
-    'field',
-    'import_tinderbox_links',
-    'iterparse_xml',
-    'parse_tinderbox_notes',
-]

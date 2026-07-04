@@ -7,11 +7,8 @@ import pytest
 from typer.testing import CliRunner
 
 from fichero import __main__ as cli
-from fichero.db import db_manager
-from fichero.models import DocType, Document
 from fichero.slipbox_import import (
     decode_tinderbox_text,
-    import_slipbox,
     import_slipbox_via_http,
     iter_slipbox_files,
     iter_tinderbox_notes,
@@ -86,48 +83,6 @@ def test_iter_slipbox_files_skips_hidden_and_virtualenv(tmp_path):
     files = list(iter_slipbox_files(root))
 
     assert files == [root / "notes" / "kept.md"]
-
-
-def test_import_slipbox_creates_catalogue_documents(tmp_path, monkeypatch):
-    fs_root = tmp_path / "slipbox"
-    fs_root.mkdir()
-    fs_note = fs_root / "fieldwork.md"
-    fs_note.write_text("fieldwork and authorship", encoding="utf-8")
-    tbx = _tbx(tmp_path / "sample.tbx", text="Tinderbox sovereignty note")
-    library = tmp_path / "Slipbox.fichero"
-
-    def fake_ingest_file(path, **kwargs):
-        db = kwargs["db"]
-        doc = Document(
-            name=Path(path).name,
-            path=str(path),
-            doc_type=DocType.file,
-            parent_id=kwargs["parent_id"],
-            page_content=Path(path).read_text(encoding="utf-8"),
-        )
-        db.save(doc, auto_embed=kwargs.get("auto_embed", False))
-        return doc
-
-    monkeypatch.setattr("fichero.slipbox_import.ingest_file", fake_ingest_file)
-
-    try:
-        summary = import_slipbox(
-            library_path=library,
-            filesystem_root=fs_root,
-            tinderbox_path=tbx,
-            auto_embed=False,
-        )
-        db = db_manager.get_database(library)
-        docs = db.query(Document)
-    finally:
-        db_manager.close_all()
-
-    assert summary.tinderbox_notes == 1
-    assert summary.filesystem_files == 1
-    assert summary.errors == []
-    assert any(d.name == "Daniel Slipbox" for d in docs)
-    assert any(d.name == "Writing note" and d.page_content == "Tinderbox sovereignty note" for d in docs)
-    assert any(d.name == "fieldwork.md" and d.page_content == "fieldwork and authorship" for d in docs)
 
 
 def test_cli_import_slipbox_invokes_importer(monkeypatch, tmp_path):

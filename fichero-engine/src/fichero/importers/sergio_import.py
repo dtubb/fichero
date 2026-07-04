@@ -4,16 +4,17 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from fichero.db import db_manager
-from fichero.importers.http_client import ImporterHttpClient, ensure_remote_document
-from fichero.ingest import IngestMode, detect_file_type, ingest_file
+from fichero.importers.http_client import (
+    ImporterHttpClient,
+    ensure_remote_document,
+    reset_local_library_if_loopback,
+)
+from fichero.ingest import detect_file_type
 from fichero.loaders.xlsx_reader import read_xlsx_records
-from fichero.models import DocType, Document, Status
 
 DEFAULT_LIBRARY = Path(
     "~/Library/Application Support/Fichero/Sergio-Mosquera.fichero"
@@ -63,147 +64,6 @@ class SergioImportSummary:
     errors: list[str] = field(default_factory=list)
 
 
-def import_sergio_corpus(
-    *,
-    library_path: Path = DEFAULT_LIBRARY,
-    source_root: Path | None = None,
-    spreadsheet_path: Path | None = None,
-    reset: bool = False,
-    auto_embed: bool = True,
-    limit: int | None = None,
-) -> SergioImportSummary:
-    source_root = _resolve_required(
-        source_root, env_var="FICHERO_SERGIO_SOURCE_ROOT", flag="--source-root"
-    )
-    spreadsheet_path = _resolve_required(
-        spreadsheet_path, env_var="FICHERO_SERGIO_SPREADSHEET", flag="--spreadsheet-path"
-    )
-    library_path = library_path.expanduser().resolve()
-    source_root = source_root.expanduser().resolve()
-    spreadsheet_path = spreadsheet_path.expanduser().resolve()
-
-    if reset and library_path.exists():
-        shutil.rmtree(library_path)
-    _ensure_library_package(library_path)
-    db = db_manager.get_database(library_path)
-
-    root = Document(
-        name="Sergio Mosquera Notebooks",
-        path=str(source_root),
-        doc_type=DocType.folder,
-        status=Status.completed,
-        metadata={"source_type": "sergio_import"},
-    )
-    db.save(root)
-
-    files_parent = _folder_doc(
-        db,
-        name="Notebook Files",
-        path=str(source_root),
-        parent_id=root.id,
-        metadata={"source_type": "sergio_files"},
-    )
-    spreadsheet_parent = _folder_doc(
-        db,
-        name="Spreadsheet Catalogue",
-        path=str(spreadsheet_path),
-        parent_id=root.id,
-        metadata={"source_type": "sergio_catalogue_spreadsheet"},
-    )
-
-    errors: list[str] = []
-    imported_files = 0
-    skipped_files = 0
-
-    imported_by_basename: dict[str, str] = {}
-    if source_root.exists():
-        for file_path in _iter_source_files(source_root):
-            if limit is not None and imported_files >= limit:
-                break
-            if file_path.suffix.lower() not in IMPORTABLE_EXTENSIONS:
-                skipped_files += 1
-                continue
-            try:
-                doc = ingest_file(
-                    file_path,
-                    mode=IngestMode.LINK,
-                    parent_id=files_parent.id,
-                    extract_metadata=True,
-                    extract_text=True,
-                    auto_embed=auto_embed,
-                    save=True,
-                    db=db,
-                    package_path=library_path,
-                )
-                imported_files += 1
-                imported_by_basename[file_path.name.lower()] = doc.id
-            except Exception as exc:  # pragma: no cover
-                errors.append(f"file:{file_path}: {exc}")
-    else:
-        errors.append(f"Source root not found: {source_root}")
-
-    spreadsheet_rows = 0
-    matched_rows = 0
-    unmatched_rows = 0
-    duplicate_rows = 0
-
-    if spreadsheet_path.exists():
-        rows = read_xlsx_records(spreadsheet_path)
-        filename_key = _detect_filename_key(rows)
-        seen_filenames: dict[str, int] = {}
-
-        for index, row in enumerate(rows, start=2):
-            spreadsheet_rows += 1
-            filename = ""
-            if filename_key:
-                filename = str(row.get(filename_key, "")).strip()
-            if filename:
-                lookup = filename.lower()
-                seen_filenames[lookup] = seen_filenames.get(lookup, 0) + 1
-                if seen_filenames[lookup] > 1:
-                    duplicate_rows += 1
-            matched_doc_id = imported_by_basename.get(filename.lower()) if filename else None
-            if matched_doc_id:
-                matched_rows += 1
-            else:
-                unmatched_rows += 1
-
-            title = str(row.get("title") or row.get("titulo") or row.get("name") or "").strip()
-            row_doc_name = f"row-{index}: {title or filename or 'catalogue entry'}"
-            row_doc = Document(
-                name=row_doc_name,
-                path=f"xlsx://{spreadsheet_path.name}#row={index}",
-                doc_type=DocType.file,
-                file_type=detect_file_type(Path("row.json")),
-                parent_id=spreadsheet_parent.id,
-                status=Status.completed,
-                page_content=json.dumps(row, ensure_ascii=False),
-                metadata={
-                    "source_type": "sergio_catalogue_row",
-                    "spreadsheet_row": index,
-                    "spreadsheet_filename_key": filename_key,
-                    "spreadsheet_filename_value": filename,
-                    "matched_document_id": matched_doc_id,
-                    "row_data": row,
-                },
-            )
-            db.save(row_doc, auto_embed=auto_embed)
-    else:
-        errors.append(f"Spreadsheet not found: {spreadsheet_path}")
-
-    return SergioImportSummary(
-        library_path=library_path,
-        root_document_id=root.id,
-        imported_files=imported_files,
-        spreadsheet_rows=spreadsheet_rows,
-        matched_rows=matched_rows,
-        unmatched_rows=unmatched_rows,
-        skipped_files=skipped_files,
-        duplicate_filename_rows=duplicate_rows,
-        errors=errors,
-    )
-
-
 def import_sergio_corpus_via_http(
     client: ImporterHttpClient,
     *,
@@ -224,10 +84,8 @@ def import_sergio_corpus_via_http(
     source_root = source_root.expanduser().resolve()
     spreadsheet_path = spreadsheet_path.expanduser().resolve()
 
-    # ponytail: same-host reset is still local delete until the backend grows a
-    # real remote library-reset endpoint.
-    if reset and library_path.exists():
-        shutil.rmtree(library_path)
+    # ponytail: only local loopback engines may delete local libraries.
+    reset_local_library_if_loopback(client, library_path, reset=reset)
     client.create_library(str(library_path))
 
     root = ensure_remote_document(
@@ -362,26 +220,5 @@ def _iter_source_files(root: Path):
     for path in sorted(root.rglob("*")):
         if path.is_file() and not any(part.startswith(".") for part in path.relative_to(root).parts):
             yield path
-
-
-def _ensure_library_package(library_path: Path) -> None:
-    library_path.mkdir(parents=True, exist_ok=True)
-    (library_path / "files").mkdir(exist_ok=True)
-    (library_path / "lance").mkdir(exist_ok=True)
-    (library_path / "vectors").mkdir(exist_ok=True)
-
-
-def _folder_doc(db, *, name: str, path: str, parent_id: str, metadata: dict[str, Any]) -> Document:
-    doc = Document(
-        name=name,
-        path=path,
-        doc_type=DocType.folder,
-        parent_id=parent_id,
-        status=Status.completed,
-        metadata=metadata,
-    )
-    db.save(doc)
-    return doc
-
 
 __all__ = [name for name in dir() if not name.startswith("__")]
