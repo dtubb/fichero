@@ -66,20 +66,14 @@ struct AnnotationListView: View {
         AnnotationRow(annotation: annotation)
     }
 
-    @ViewBuilder
     private var emptyState: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "highlighter")
-                .font(.title2)
-                .foregroundStyle(.secondary)
-            Text("No annotations")
-                .font(.callout)
-            Text("Add a note, or highlight a region on the page.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .padding(.horizontal, 16)
+        // Standardized on ContentUnavailableView (#3039) — system semantic fonts,
+        // consistent with every other lens/inspector empty state.
+        ContentUnavailableView(
+            "No annotations",
+            systemImage: "highlighter",
+            description: Text("Add a note, or highlight a region on the page.")
+        )
     }
 
     private func postRevealNotification(for annotation: DocumentAnnotation) {

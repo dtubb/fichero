@@ -286,7 +286,11 @@ final class EmbeddedBackendService: ObservableObject {
         // Check if backend executable exists
         guard FileManager.default.fileExists(atPath: executablePath) else {
             logger.error("Backend executable not found at: \(executablePath)")
-            logger.error("Build backend with: ./scripts/build_backend_bundle.sh")
+            // Debug builds skip the "Embed Fichero Engine" phase (it only runs in
+            // Release), so in a Debug ⌘R the engine is expected to be running
+            // externally on :8765. If it isn't, that's this path.
+            logger.error("Debug: start the engine first — fichero-engine/scripts/start_backend.sh. "
+                + "Release: briefcase build macOS --app engine (in fichero-engine/), then rebuild.")
             throw BackendError.backendAppNotFound
         }
 
@@ -863,8 +867,16 @@ enum BackendError: LocalizedError {
         case .bundleNotFound:
             return "App bundle resources not found"
         case .backendAppNotFound:
-            return "Backend app not found in bundle. Build the engine with: " +
-                "briefcase build macOS --app engine (in fichero-engine/), then rebuild Fichero in Xcode."
+            // Debug builds don't embed the engine (the embed phase is Release-only),
+            // so the usual cause in a Debug ⌘R is simply no engine running on :8765.
+            #if DEBUG
+            return "The Fichero Engine isn't running. In a Debug build the engine is "
+                + "not bundled — start it first with fichero-engine/scripts/start_backend.sh "
+                + "(or briefcase dev), then Retry."
+            #else
+            return "Backend app not found in bundle. Build the engine with: "
+                + "briefcase build macOS --app engine (in fichero-engine/), then rebuild Fichero in Xcode."
+            #endif
         case .launchFailed(let error):
             return "Failed to launch backend app: \(error.localizedDescription)"
         case .timeout:

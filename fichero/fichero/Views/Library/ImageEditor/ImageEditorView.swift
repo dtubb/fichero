@@ -220,7 +220,9 @@ private extension ImageEditorView {
         // Single source of truth for top-toolbar height so the image-edit
         // toolbar lines up with every other pane mini-toolbar (#1449/#1460).
         .frame(height: MiniToolbar<EmptyView, EmptyView>.standardHeight)
-        .background(Color(.windowBackgroundColor))
+        // Tahoe/Golden-Gate Liquid Glass, matching MiniToolbar / SidebarModeBar /
+        // the library bars instead of a solid window-background fill (#3038).
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 10))
     }
 
     /// Prev/next stepping through sibling images (#1265).

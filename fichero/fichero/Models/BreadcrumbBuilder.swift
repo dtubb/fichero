@@ -7,6 +7,47 @@ struct BreadcrumbBuilder {
 
     private init() { }
 
+    /// One clickable segment of the content-header breadcrumb (#1928).
+    struct Segment: Equatable, Identifiable {
+        let name: String
+        /// The document to navigate to when tapped, or nil. `isRoot` marks the
+        /// leading "Library" segment (navigates to the library root); a nil
+        /// `documentId` on a non-root segment is a non-navigable leaf (a page label).
+        let documentId: String?
+        let isRoot: Bool
+
+        var id: String { isRoot ? "root" : (documentId ?? "leaf:\(name)") }
+        var isNavigable: Bool { isRoot || documentId != nil }
+    }
+
+    /// Build clickable breadcrumb segments: Library ▸ folder ▸ … ▸ document ▸ page.
+    /// Pure — the same parent-chain walk as `buildBreadcrumb`, but structured so
+    /// the header can render each segment as a button (#1928). A `guardCount`
+    /// bounds a malformed (cyclic) parent chain.
+    static func buildSegments(
+        from document: Document?,
+        parentLookup: DocumentLookup,
+        pageLabel: String? = nil
+    ) -> [Segment] {
+        var segments = [Segment(name: "Library", documentId: nil, isRoot: true)]
+        guard let document else { return segments }
+
+        var chain: [Document] = []
+        var current: Document? = document
+        var guardCount = 0
+        while let doc = current, guardCount <= 256 {
+            chain.insert(doc, at: 0)
+            current = doc.parentId.flatMap(parentLookup)
+            guardCount += 1
+        }
+        segments += chain.map { Segment(name: $0.name, documentId: $0.id, isRoot: false) }
+
+        if let pageLabel {
+            segments.append(Segment(name: pageLabel, documentId: nil, isRoot: false))
+        }
+        return segments
+    }
+
     /// Build a breadcrumb trail from a document and its parent hierarchy.
     /// Returns a string like "Library › Folder › File › p.4" or just the document name
     /// if hierarchy is empty.

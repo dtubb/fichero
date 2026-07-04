@@ -140,20 +140,13 @@ struct NoteListView: View {
         }
     }
 
-    @ViewBuilder
     private var emptyState: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "note.text")
-                .font(.title2)
-                .foregroundStyle(.secondary)
-            Text("No notes")
-                .font(.callout)
-            Text("Add a note, or adjust the filters.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .padding(.horizontal, 16)
+        // Standardized on ContentUnavailableView (#3039).
+        ContentUnavailableView(
+            "No notes",
+            systemImage: "note.text",
+            description: Text("Add a note, or adjust the filters.")
+        )
     }
 }
 

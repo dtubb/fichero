@@ -72,7 +72,9 @@ struct ArtifactListView: View {
                 emptyState
             }
         }
+        #if os(macOS)
         .onDeleteCommand(perform: promptDeleteSelection)
+        #endif
         .alert("Delete Artifacts?", isPresented: $showingDeleteConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) {
@@ -168,20 +170,13 @@ struct ArtifactListView: View {
         artifactsToDelete = []
     }
 
-    @ViewBuilder
     private var emptyState: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "sparkles")
-                .font(.title2)
-                .foregroundStyle(.secondary)
-            Text("No artifacts yet")
-                .font(.callout)
-            Text("Run a workflow to generate transcriptions, catalogues, or summaries.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .padding(.horizontal, 16)
+        // Standardized on ContentUnavailableView (#3039).
+        ContentUnavailableView(
+            "No artifacts yet",
+            systemImage: "sparkles",
+            description: Text("Run a workflow to generate transcriptions, catalogues, or summaries.")
+        )
     }
 }
 
