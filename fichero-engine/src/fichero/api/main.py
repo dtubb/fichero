@@ -61,6 +61,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from fichero.api.library_header import optional_library_path, require_library_path
+from fichero.api.routes.local_inference import shutdown_managed_local_inference_services
 from fichero.db import Database, db_manager
 from fichero.discovery import start_bonjour_advertiser
 from fichero.models import (
@@ -769,6 +770,7 @@ async def lifespan(app: FastAPI):
     await stop_periodic_snapshot_task(periodic_snapshot_task)
     if bonjour_advertiser is not None:
         bonjour_advertiser.stop()
+    await shutdown_managed_local_inference_services()
     # Shutdown: close all database connections
     logger.info("Fichero API shutting down...")
     db_manager.close_all()

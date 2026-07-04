@@ -149,6 +149,12 @@ def _manager_for_profile(profile_id: str) -> LocalInferenceServiceManager:
     return manager
 
 
+async def shutdown_managed_local_inference_services() -> None:
+    for manager in list(_MANAGERS.values()):
+        if manager.profile.managed_by_app:
+            await manager.stop()
+
+
 def _profile_by_id(profile_id: str) -> LocalProviderProfile:
     for profile in _local_profiles():
         if profile.id == profile_id:

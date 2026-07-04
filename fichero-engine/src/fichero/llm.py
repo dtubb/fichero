@@ -369,6 +369,18 @@ class AppleUnavailableError(RuntimeError):
     """
 
 
+class LocalModelUnavailableError(AppleUnavailableError):
+    """Managed local inference failed to become healthy."""
+
+
+class LocalModelRuntimeMissingError(LocalModelUnavailableError):
+    """Managed local inference runtime has not been provisioned."""
+
+
+class LocalModelHardwareError(LocalModelUnavailableError):
+    """Managed local inference cannot run on current hardware."""
+
+
 class GuardrailViolationError(AppleUnavailableError):
     """Raised when Apple Intelligence's on-device safety filter refuses a
     generation. The Foundation Models error surface gives us a structured
@@ -1362,6 +1374,7 @@ async def chat(
         return mock_chat_response(prompt_text)
 
     # Get LangChain model
+    await _ensure_managed_local_provider_ready(config)
     model = get_langchain_model(config)
 
     # Build messages
@@ -1454,6 +1467,7 @@ async def chat_batch(
             for index, result in enumerate(results)
         ]
 
+    await _ensure_managed_local_provider_ready(config)
     model = get_langchain_model(config)
     messages_batch = [
         _normalize_batch_chat_prompt(prompt, system=system)
@@ -2213,6 +2227,7 @@ async def vision(
             return _LLM_RESULT_CACHE[_cache_key]
 
     # Get LangChain model
+    await _ensure_managed_local_provider_ready(config)
     model = get_langchain_model(config)
 
     # Build multimodal message content (LangChain format)
@@ -2292,6 +2307,7 @@ async def vision_batch(
             for index, result in enumerate(results)
         ]
 
+    await _ensure_managed_local_provider_ready(config)
     model = get_langchain_model(config)
     messages_batch = []
     for images in image_lists:
@@ -2560,6 +2576,7 @@ async def chat_with_tools(
     from langchain_core.messages import HumanMessage
 
     # Get LangChain model
+    await _ensure_managed_local_provider_ready(config)
     model = get_langchain_model(config)
 
     # Bind tools to model
@@ -2655,6 +2672,7 @@ async def structured_output(
     from langchain_core.messages import HumanMessage
 
     # Get LangChain model
+    await _ensure_managed_local_provider_ready(config)
     model = get_langchain_model(config)
 
     # Use LangChain's with_structured_output for clean schema binding
@@ -2728,6 +2746,7 @@ async def chat_structured(
 
     from langchain_core.messages import HumanMessage, SystemMessage
 
+    await _ensure_managed_local_provider_ready(config)
     model = get_langchain_model(config)
 
     # Some local OpenAI-compatible servers (omlx/lmstudio/ollama) do
@@ -3492,6 +3511,46 @@ _OPENAI_COMPATIBLE_BASE_URLS: dict[str, str] = {
 # field — the actual auth is unsigned localhost. We pass a placeholder
 # so ChatOpenAI's required-key check doesn't reject empty.
 _KEYLESS_OPENAI_COMPATIBLE: set[str] = {"ollama", "lmstudio", "omlx"}
+_MANAGED_OMLX_RESTART_CAP = 2
+
+
+async def _ensure_managed_local_provider_ready(config: LLMConfig) -> None:
+    if config.provider.lower() != "omlx":
+        return
+    from fichero.api.routes.local_inference import _configured_omlx_profile, _manager_for_profile
+    from fichero.local_inference import (
+        LocalInferenceRuntimeMissingError,
+        LocalModelNotInstalledError,
+        LocalProviderStartupPolicy,
+        LocalServiceState,
+    )
+
+    profile = _configured_omlx_profile()
+    effective_base_url = (config.api_base or _OPENAI_COMPATIBLE_BASE_URLS["omlx"]).rstrip("/")
+    if not profile.managed_by_app or str(profile.base_url).rstrip("/") != effective_base_url:
+        return
+
+    manager = _manager_for_profile(profile.id)
+    try:
+        if profile.startup_policy == LocalProviderStartupPolicy.manual:
+            status = await manager.health() if manager.state != LocalServiceState.stopped else manager.status()
+        elif manager.state != LocalServiceState.stopped and not manager.process.is_running():
+            if manager.restart_count >= _MANAGED_OMLX_RESTART_CAP:
+                status = await manager.health()
+            else:
+                status = await manager.restart_after_crash()
+        else:
+            status = await manager.start()
+    except LocalInferenceRuntimeMissingError as exc:
+        raise LocalModelRuntimeMissingError(str(exc)) from exc
+    except LocalModelNotInstalledError as exc:
+        raise LocalModelUnavailableError(str(exc)) from exc
+
+    if not status.healthy:
+        detail = status.last_error or "local model unavailable"
+        if profile.startup_policy == LocalProviderStartupPolicy.manual:
+            detail = f"Managed local model is manual-start only and not healthy: {detail}"
+        raise LocalModelUnavailableError(detail)
 
 # Sentinel for dict.pop "was-present" detection without colliding on a
 # legitimately-stored None value.
