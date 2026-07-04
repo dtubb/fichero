@@ -10,6 +10,7 @@ from cryptography.hazmat.primitives import serialization
 
 from fichero.remote_access_tls import (
     prepare_remote_access_tls,
+    validate_tailnet_url,
     uvicorn_ssl_kwargs_from_env,
 )
 
@@ -77,3 +78,20 @@ def test_uvicorn_ssl_kwargs_from_env_requires_both_paths() -> None:
 
     with pytest.raises(ValueError, match="Both"):
         uvicorn_ssl_kwargs_from_env({"FICHERO_TLS_CERTFILE": "/tmp/cert.pem"})
+
+
+def test_validate_tailnet_url_accepts_https_ts_net_host() -> None:
+    assert validate_tailnet_url("https://fichero-demo.ts.net") == "https://fichero-demo.ts.net"
+
+
+@pytest.mark.parametrize(
+    ("raw", "message"),
+    [
+        ("http://fichero-demo.ts.net", "public_base_url must use https"),
+        ("https://127.0.0.1:8765", "tailnet_url must use a .ts.net host"),
+        ("https://localhost:8765", "tailnet_url must use a .ts.net host"),
+    ],
+)
+def test_validate_tailnet_url_rejects_non_tailnet_or_insecure_urls(raw: str, message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        validate_tailnet_url(raw)
