@@ -389,11 +389,6 @@ struct SearchResult: Identifiable, Codable {
 
 // MARK: - API Response Types
 
-struct DocumentListResponse: Codable {
-    let items: [Document]
-    let count: Int
-}
-
 struct SearchResponse: Codable {
     let results: [SearchResult]
     let entityHits: [Components.Schemas.SearchEntityHit]

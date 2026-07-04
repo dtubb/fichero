@@ -239,8 +239,7 @@ final class DocumentStore {
         logger.info("loadChildren called for document: \(document.id), library path: \(libraryPath)")
 
         do {
-            let response: DocumentListResponse = try await self.api.get("/documents/\(document.id)/children")
-            let children = applyStatusOverrides(response.items)
+            let children = applyStatusOverrides(try await documentService.getChildren(document.id))
             self.childrenCache[document.id] = children
             self.currentDocuments = children
             logger.info("loadChildren succeeded, got \(children.count) children")

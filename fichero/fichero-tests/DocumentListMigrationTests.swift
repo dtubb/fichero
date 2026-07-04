@@ -88,4 +88,37 @@ struct DocumentListMigrationTests {
             _ = try await service.listDocuments(limit: 100)
         }
     }
+
+    @Test("updateDocument(name:) PUTs to /api/documents/{id} (DocumentStore rename path)")
+    func updateDocumentRenameContract() async throws {
+        let service = makeService { request in
+            #expect(request.httpMethod == "PUT")
+            #expect(request.url?.path == "/api/documents/d1")
+            let json = """
+            {"id":"d1","name":"Renamed","doc_type":"file","expected_thumbnail_path":"t","expected_display_path":"v"}
+            """
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data(json.utf8))
+        }
+
+        let doc = try await service.updateDocument("d1", name: "Renamed")
+        #expect(doc.name == "Renamed")
+    }
+
+    @Test("deleteDocument DELETEs /api/documents/{id} (DocumentStore delete path)")
+    func deleteDocumentContract() async throws {
+        let service = makeService { request in
+            #expect(request.httpMethod == "DELETE")
+            #expect(request.url?.path == "/api/documents/d9")
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 204, httpVersion: nil, headerFields: [:]
+            )!
+            return (response, Data())
+        }
+
+        try await service.deleteDocument("d9")
+    }
 }

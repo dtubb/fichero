@@ -24,12 +24,9 @@ extension DocumentStore {
 
     /// Create a new folder.
     func createFolder(name: String, parentId: String? = nil) async throws -> Document {
-        let doc = DocumentCreateRequest(
-            name: name,
-            parentId: parentId,
-            docType: .folder
-        )
-        let folder: Document = try await api.post("/documents", body: doc)
+        // Generated create_document op via the typed service (#3030); createCollection
+        // posts docType .folder, matching the old hand-rolled DocumentCreateRequest.
+        let folder = try await documentService.createCollection(name: name, parentId: parentId)
 
         // Reload collections to show the newly created folder
         // This handles both root-level folders and nested folders
@@ -82,7 +79,7 @@ extension DocumentStore {
         publish(.documentDeleted(document))
 
         do {
-            try await api.delete("/documents/\(document.id)")
+            try await documentService.deleteDocument(document.id)
         } catch {
             collections = snapshot
             selectedCollection = previousSelection
@@ -113,15 +110,14 @@ extension DocumentStore {
 
     /// Delete document by ID (for non-document items like searches, chats, workflows)
     func deleteDocumentById(_ id: String) async throws {
-        try await api.delete("/documents/\(id)")
+        try await documentService.deleteDocument(id)
         // Refresh from backend
         await loadCollections()
     }
 
     /// Rename a document.
     func renameDocument(_ document: Document, to newName: String) async throws -> Document {
-        let update = DocumentUpdateRequest(name: newName)
-        let updated: Document = try await api.put("/documents/\(document.id)", body: update)
+        let updated = try await documentService.updateDocument(document.id, name: newName)
 
         // Update local state
         updateLocal(updated)
@@ -134,8 +130,7 @@ extension DocumentStore {
 
     /// Rename document by ID (for non-document items like searches, chats, workflows)
     func renameDocumentById(_ id: String, to newName: String) async throws -> Document {
-        let update = DocumentUpdateRequest(name: newName)
-        let updated: Document = try await api.put("/documents/\(id)", body: update)
+        let updated = try await documentService.updateDocument(id, name: newName)
         // Reload collections to refresh UI
         await loadCollections()
         return updated
@@ -292,9 +287,8 @@ extension DocumentStore {
     func moveDocument(_ documentId: String, toParent parentId: String?) async throws -> Document {
         logger.info("Moving \(documentId) to parent: \(parentId ?? "nil (root)")")
 
-        // Use dedicated /move endpoint with proper query parameter handling
-        let query: [String: String] = parentId == nil ? [:] : ["parent_id": parentId!]
-        let updated: Document = try await api.put("/documents/\(documentId)/move", query: query)
+        // Generated move_document op via the typed service (#3030).
+        let updated = try await documentService.moveDocument(documentId, to: parentId)
 
         logger.info("Response: \(updated.name), parent_id: \(updated.parentId ?? "nil")")
 
@@ -322,7 +316,7 @@ extension DocumentStore {
     /// their parent folder.
     func reorderDocuments(_ idsInOrder: [String]) async throws {
         logger.info("Reordering \(idsInOrder.count) documents")
-        let _: Empty = try await api.post("/documents/reorder", body: idsInOrder)
+        try await documentService.reorderDocuments(idsInOrder)
         await refresh()
     }
 
@@ -367,7 +361,3 @@ extension DocumentStore {
         }
     }
 }
-
-/// Decodes an empty `{}` response body — the reorder endpoint returns
-/// 200 OK with no useful JSON payload.
-private struct Empty: Decodable {}
