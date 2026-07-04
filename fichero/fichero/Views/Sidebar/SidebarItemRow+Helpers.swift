@@ -301,7 +301,12 @@ extension SidebarItemRow {
             }
             sidebarRowLogger.debug(" Move successful — UI updates via @Published")
         } catch {
-            sidebarRowLogger.debug(" Move failed: \(error.localizedDescription)")
+            // Surface the failure instead of a silent no-op (#3027 /
+            // prefer-raise-over-silent-fallback). Same channel the compact
+            // "Move to Folder" menu already uses, so drag-drop moves that fail
+            // now show the user feedback rather than appearing to do nothing.
+            sidebarRowLogger.error("Move failed: \(error.localizedDescription)")
+            sidebarState.dropErrorMessage = error.localizedDescription
         }
     }
 
