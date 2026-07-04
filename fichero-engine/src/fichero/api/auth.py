@@ -255,6 +255,10 @@ def _authenticate_device_token(token: str):
         return None, device, "missing or invalid Authorization header"
     if device.expires_at <= now:
         return None, device, "device token expired"
+    if not _use_multiuser_auth():
+        if _should_touch_last_seen(device.last_seen, now):
+            app_db.touch_device(token_hash, when=now)
+        return None, device, None
     user = app_db.get_user(device.user_id)
     if user is None or not user.active:
         return None, device, "missing or invalid Authorization header"
@@ -361,6 +365,20 @@ def attach_auth_middleware(
         is_loopback = _is_loopback_request(request)
         if not _use_multiuser_auth():
             provided = request.headers.get("authorization", "")
+            if provided.startswith("Bearer "):
+                raw_token = provided.removeprefix("Bearer ").strip()
+                if raw_token:
+                    user, device, detail = _authenticate_device_token(raw_token)
+                    if device is not None and detail is None:
+                        request.state.user = user
+                        request.state.device = device
+                        request.state.bootstrap_auth = False
+                        return await call_next(request)
+                    if detail == "device token expired" or device is not None:
+                        return JSONResponse(
+                            {"detail": detail or "missing or invalid Authorization header"},
+                            status_code=401,
+                        )
             if not is_loopback:
                 client_host = request.client.host if request.client else None
                 logger.warning("Reject non-loopback request from %s", client_host)
@@ -370,6 +388,8 @@ def attach_auth_middleware(
                     {"detail": "missing or invalid Authorization header"},
                     status_code=401,
                 )
+            request.state.bootstrap_auth = True
+            request.state.user = None
             return await call_next(request)
 
         provided = request.headers.get("authorization", "")

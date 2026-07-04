@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from fichero import accounts
 from fichero.api.auth import attach_auth_middleware, initialize_token
+from fichero.api.routes import pairing
 
 
 def _app_with_auth() -> FastAPI:
@@ -98,6 +99,25 @@ def test_non_loopback_device_token_authenticates_multiuser(monkeypatch, app_db):
     app_db.create_device(
         name="Alice iPad",
         user_id=user.id,
+        token_hash=accounts.hash_token(raw_token),
+    )
+    client = TestClient(_app_with_auth(), client=("192.0.2.10", 5000))
+
+    response = client.get(
+        "/api/private",
+        headers={"Authorization": f"Bearer {raw_token}"},
+    )
+
+    assert response.status_code == 200
+
+
+def test_non_loopback_device_token_authenticates_single_user(monkeypatch, app_db):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "0")
+    raw_token = accounts.new_session_token()
+    owner = pairing._single_user_pairing_owner(app_db)
+    app_db.create_device(
+        name="Alice iPad",
+        user_id=owner.id,
         token_hash=accounts.hash_token(raw_token),
     )
     client = TestClient(_app_with_auth(), client=("192.0.2.10", 5000))
