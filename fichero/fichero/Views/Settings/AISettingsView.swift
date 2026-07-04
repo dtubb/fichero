@@ -45,6 +45,7 @@ struct AISettingsView: View {
                     Text("Defaults").tag(AISettingsTab.defaults)
                     Text("Models & Providers").tag(AISettingsTab.providers)
                     Text("Downloads").tag(AISettingsTab.downloads)
+                    Text("Local LLM").tag(AISettingsTab.localLLM)
                     Text("Advanced").tag(AISettingsTab.advanced)
                 }
                 .pickerStyle(.segmented)
@@ -58,6 +59,8 @@ struct AISettingsView: View {
                     providersTab
                 case .downloads:
                     downloadsTab
+                case .localLLM:
+                    localLLMTab
                 case .advanced:
                     advancedTab
                 }
@@ -87,5 +90,6 @@ enum AISettingsTab: Hashable {
     case defaults
     case providers
     case downloads
+    case localLLM
     case advanced
 }

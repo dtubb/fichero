@@ -157,6 +157,11 @@ extension AISettingsView {
     }
 
     @ViewBuilder
+    var localLLMTab: some View {
+        LocalInferenceSettingsView(store: appState.localInferenceStore)
+    }
+
+    @ViewBuilder
     var advancedTab: some View {
         Form {
             Section("Generation") {
