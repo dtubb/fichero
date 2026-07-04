@@ -1,16 +1,6 @@
 """Unit tests for hermeneutics API routes."""
 
-from fichero.models import KnowledgeClaim
-from fichero.hermeneutics_models import (
-    CircleNavigationDirection,
-    FrameworkType,
-    HermeneuticCircleState,
-    Interpretation,
-    InterpretiveActType,
-    InterpretiveFramework,
-    PatternInstance,
-    PatternStatus,
-)
+from fichero.models import ActionAudit, KnowledgeClaim
 
 
 def test_framework_crud(client, db):
@@ -249,7 +239,7 @@ def test_circle_state_crud(client, db):
     assert len(state["navigation_log"]) == 1
 
     # List by claim
-    list_resp = client.get(f"/api/hermeneutics/circle-state?claim_id=test-claim-abc")
+    list_resp = client.get("/api/hermeneutics/circle-state?claim_id=test-claim-abc")
     assert list_resp.status_code == 200
     assert list_resp.json()["count"] >= 1
 
@@ -337,3 +327,116 @@ def test_interpretation_suggestions_invalid_num(client, db):
         },
     )
     assert resp.status_code == 422  # Pydantic validation error
+
+
+def test_hermeneutics_write_routes_write_action_audit(client, db):
+    framework = client.post(
+        "/api/hermeneutics/frameworks",
+        json={
+            "name": "Audit framework",
+            "framework_type": "historical",
+            "description": "Track route audits.",
+        },
+    )
+    assert framework.status_code == 200
+    framework_id = framework.json()["id"]
+    assert db.all(ActionAudit)[-1].action_name == "framework.create"
+
+    patched_framework = client.patch(
+        f"/api/hermeneutics/frameworks/{framework_id}",
+        json={"description": "Updated route audit."},
+    )
+    assert patched_framework.status_code == 200
+    assert db.all(ActionAudit)[-1].action_name == "framework.update"
+
+    deleted_framework = client.delete(f"/api/hermeneutics/frameworks/{framework_id}")
+    assert deleted_framework.status_code == 200
+    assert db.all(ActionAudit)[-1].action_name == "framework.delete"
+
+    live_framework = client.post(
+        "/api/hermeneutics/frameworks",
+        json={
+            "name": "Live framework",
+            "framework_type": "theoretical",
+            "description": "For route audit flow.",
+        },
+    )
+    assert live_framework.status_code == 200
+    live_framework_id = live_framework.json()["id"]
+    db.save(KnowledgeClaim(id="audit-claim", text="c", source_document_id="d", entity_ids=[]))
+
+    interpretation = client.post(
+        "/api/hermeneutics/interpretations",
+        json={
+            "framework_id": live_framework_id,
+            "claim_id": "audit-claim",
+            "interpretation_text": "Audit interpretation",
+            "act": "reading",
+        },
+    )
+    assert interpretation.status_code == 200
+    interpretation_id = interpretation.json()["id"]
+    assert db.all(ActionAudit)[-1].action_name == "interpretation.create"
+
+    patched_interpretation = client.patch(
+        f"/api/hermeneutics/interpretations/{interpretation_id}",
+        json={"interpretation_text": "Audit interpretation updated"},
+    )
+    assert patched_interpretation.status_code == 200
+    assert db.all(ActionAudit)[-1].action_name == "interpretation.update"
+
+    pattern = client.post(
+        "/api/hermeneutics/patterns",
+        json={
+            "name": "Audit pattern",
+            "description": "Track pattern actions.",
+            "pattern_type": "motif",
+        },
+    )
+    assert pattern.status_code == 200
+    pattern_id = pattern.json()["id"]
+    assert db.all(ActionAudit)[-1].action_name == "pattern.create"
+
+    patched_pattern = client.patch(
+        f"/api/hermeneutics/patterns/{pattern_id}",
+        json={"description": "Track updated pattern actions."},
+    )
+    assert patched_pattern.status_code == 200
+    assert db.all(ActionAudit)[-1].action_name == "pattern.update"
+
+    claimed_pattern = client.post(
+        f"/api/hermeneutics/patterns/{pattern_id}/claims/audit-claim"
+    )
+    assert claimed_pattern.status_code == 200
+    assert db.all(ActionAudit)[-1].action_name == "pattern.add_claim"
+
+    circle_state = client.post(
+        "/api/hermeneutics/circle-state",
+        json={
+            "claim_id": "audit-claim",
+            "current_focus": "whole",
+            "focus_id": "audit-whole",
+            "focus_label": "Audit whole",
+            "direction": "whole_to_part",
+        },
+    )
+    assert circle_state.status_code == 200
+    circle_state_id = circle_state.json()["id"]
+    assert db.all(ActionAudit)[-1].action_name == "circle_state.create"
+
+    navigated_circle = client.post(
+        f"/api/hermeneutics/circle-state/{circle_state_id}/navigate",
+        json={
+            "direction": "whole_to_part",
+            "focus_id": "audit-part",
+            "focus_label": "Audit part",
+        },
+    )
+    assert navigated_circle.status_code == 200
+    assert db.all(ActionAudit)[-1].action_name == "circle_state.navigate"
+
+    backtracked_circle = client.post(
+        f"/api/hermeneutics/circle-state/{circle_state_id}/backtrack"
+    )
+    assert backtracked_circle.status_code == 200
+    assert db.all(ActionAudit)[-1].action_name == "circle_state.backtrack"
