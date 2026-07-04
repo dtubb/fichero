@@ -9,14 +9,13 @@ import Foundation
 // The generated schedule/trigger timestamp fields are `format: date-time` → Swift
 // `Date`, but the app models carry them as ISO8601 `String` (their views parse
 // those strings). Convert Date→String here so behavior is unchanged.
-private let automationISOFormatter: ISO8601DateFormatter = {
-    let formatter = ISO8601DateFormatter()
-    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    return formatter
-}()
+// `Date.ISO8601FormatStyle` is a Sendable value type (unlike the non-Sendable
+// ISO8601DateFormatter class), so a shared global `let` is concurrency-safe.
+// `includingFractionalSeconds: true` keeps the prior .withFractionalSeconds format.
+private let automationISOFormat = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
 
-private func isoString(_ date: Date) -> String { automationISOFormatter.string(from: date) }
-private func isoString(_ date: Date?) -> String? { date.map { automationISOFormatter.string(from: $0) } }
+private func isoString(_ date: Date) -> String { date.formatted(automationISOFormat) }
+private func isoString(_ date: Date?) -> String? { date.map { $0.formatted(automationISOFormat) } }
 
 // MARK: - Schedules
 
