@@ -743,6 +743,31 @@ def test_global_options_passed_to_client():
     }
 
 
+def test_generated_ingest_commands_send_request_body_path(tmp_path):
+    file_path = tmp_path / "upload.txt"
+    file_path.write_text("hello")
+    folder_path = tmp_path / "folder"
+    folder_path.mkdir()
+
+    file_result = runner.invoke(
+        cli.app,
+        ["--json", "ingest", "file", "--path", str(file_path)],
+    )
+    assert file_result.exit_code == 0, file_result.output
+    file_call = _last_client().calls[-1]
+    assert file_call[:3] == ("request", "POST", "/api/ingest/file")
+    assert file_call[3]["json"]["path"] == str(file_path)
+
+    folder_result = runner.invoke(
+        cli.app,
+        ["--json", "ingest", "folder", "--path", str(folder_path)],
+    )
+    assert folder_result.exit_code == 0, folder_result.output
+    folder_call = _last_client().calls[-1]
+    assert folder_call[:3] == ("request", "POST", "/api/ingest/folder")
+    assert folder_call[3]["json"]["path"] == str(folder_path)
+
+
 def test_401_error_suggests_auth_login(monkeypatch):
     class ErrorClient:
         def __init__(self, **_kwargs):

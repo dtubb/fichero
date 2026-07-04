@@ -251,6 +251,7 @@ async def run_migration(
                 status_code=400, detail=f"Unknown command: {request.command}"
             )
 
+        runner.save_run_result(result)
         return _migration_result_to_response(result)
 
     except Exception as e:
@@ -299,11 +300,21 @@ async def get_migration_status(
         raise HTTPException(status_code=404, detail=f"Migration run {run_id} not found")
 
     return MigrationStatusResponse(
-        migration_name=status.get("run_id", "unknown"),
+        migration_name=status.get("migration_name", status.get("run_id", "unknown")),
         status=status.get("status", "unknown"),
-        migrated=status.get("total_mutations", 0),
-        started_at=datetime.fromisoformat(status["created_at"]),
-        details=status,
+        migrated=status.get("migrated", status.get("total_mutations", 0)),
+        skipped=status.get("skipped", 0),
+        failed=status.get("failed", 0),
+        dry_run=status.get("dry_run", False),
+        audit_id=status.get("audit_id"),
+        error_message=status.get("error_message"),
+        started_at=datetime.fromisoformat(status["started_at"])
+        if isinstance(status.get("started_at"), str)
+        else status["started_at"],
+        completed_at=datetime.fromisoformat(status["completed_at"])
+        if isinstance(status.get("completed_at"), str) and status.get("completed_at")
+        else status.get("completed_at"),
+        details=status.get("details", status),
     )
 
 

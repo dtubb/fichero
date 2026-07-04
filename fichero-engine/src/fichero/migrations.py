@@ -38,6 +38,8 @@ from enum import Enum
 from typing import Callable, TypeVar
 from uuid import uuid4
 
+from pydantic import BaseModel, Field
+
 from fichero.db import Database
 from fichero.kg._common import parse_kwarg_repr
 from fichero.knowledge_models import (
@@ -52,6 +54,25 @@ from fichero.models import Document
 
 logger = logging.getLogger(__name__)
 T = TypeVar("T")
+
+
+class MigrationRunRecord(BaseModel):
+    """Persisted migration run summary for status lookups."""
+
+    id: str = Field(description="Stable record id; matches run_id")
+    run_id: str
+    migration_name: str
+    status: str
+    migrated: int = 0
+    skipped: int = 0
+    failed: int = 0
+    dry_run: bool = False
+    audit_id: str | None = None
+    error_message: str | None = None
+    started_at: datetime
+    completed_at: datetime | None = None
+    details: dict = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=datetime.now)
 
 
 class MigrationStatus(str, Enum):
@@ -147,6 +168,30 @@ class MigrationRunner:
         """Report progress if callback is set."""
         if self._progress_callback:
             self._progress_callback(operation, current, total)
+
+    def save_run_result(self, result: MigrationResult) -> str:
+        """Persist a run summary so status lookups round-trip the returned run_id."""
+        run_id = result.details.get("run_id") or result.audit_id
+        if not run_id:
+            raise ValueError("Migration result is missing a run_id")
+        self.db.save(
+            MigrationRunRecord(
+                id=run_id,
+                run_id=run_id,
+                migration_name=result.migration_name,
+                status=result.status.value,
+                migrated=result.migrated,
+                skipped=result.skipped,
+                failed=result.failed,
+                dry_run=result.dry_run,
+                audit_id=result.audit_id,
+                error_message=result.error_message,
+                started_at=result.started_at,
+                completed_at=result.completed_at,
+                details=result.details,
+            )
+        )
+        return run_id
 
     def _log_mutation(
         self,
@@ -850,6 +895,10 @@ class MigrationRunner:
 
     def get_migration_status(self, run_id: str) -> dict | None:
         """Get status of a migration run from its audit logs."""
+        records = self.db.query(MigrationRunRecord, run_id=run_id)
+        if records:
+            return records[0].model_dump()
+
         mutations = self.db.query(MutationLog, run_id=run_id)
         if not mutations:
             return None

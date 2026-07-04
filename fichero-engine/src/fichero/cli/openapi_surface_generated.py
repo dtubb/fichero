@@ -5140,7 +5140,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Ingest File (POST /api/ingest/file)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/ingest/file"
+            request_path = "/api/ingest/file"
             params = None
             payload = _build_json_payload({
                 "auto_embed": auto_embed,
@@ -5155,7 +5155,7 @@ def register_generated_openapi_commands(
                 "parent_id": {'type': 'string', 'nullable': True, 'title': 'Parent Id', 'x-cli-required': False},
                 "path": {'type': 'string', 'title': 'Path', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", request_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("folder")
@@ -5170,7 +5170,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Ingest Folder (POST /api/ingest/folder)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/ingest/folder"
+            request_path = "/api/ingest/folder"
             params = None
             payload = _build_json_payload({
                 "auto_embed": auto_embed,
@@ -5187,7 +5187,7 @@ def register_generated_openapi_commands(
                 "path": {'type': 'string', 'title': 'Path', 'x-cli-required': True},
                 "recursive": {'type': 'boolean', 'title': 'Recursive', 'default': True, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", request_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-status")
@@ -13539,4 +13539,3 @@ def register_generated_openapi_commands(
             params = None
             return client.request("GET", path, params=params)
         invoke(ctx, op_call)
-
