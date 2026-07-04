@@ -13,8 +13,6 @@ test strict xfail so it flips when fixed.
 
 from __future__ import annotations
 
-import pytest
-
 from fichero.knowledge_models import EntityType, KnowledgeClaim, KnowledgeEntity
 from fichero.models import DocType, Document, SavedSearch
 
@@ -359,52 +357,6 @@ def test_document_move_rejects_unexpected_query_fields(client, db):
 
     response = client.put(
         f"/api/documents/{doc.id}/move?parent_id=&unexpected_field=should-be-rejected"
-    )
-
-    assert 400 <= response.status_code < 500
-
-
-def test_room_create_rejects_missing_required_name(client):
-    response = client.post("/api/mind-palace/rooms", json={})
-    assert response.status_code == 422
-
-
-def test_room_create_rejects_empty_name(client):
-    response = client.post("/api/mind-palace/rooms", json={"name": ""})
-    assert 400 <= response.status_code < 500
-
-
-def test_room_create_rejects_unexpected_fields(client):
-    response = client.post(
-        "/api/mind-palace/rooms",
-        json={"name": "Room", "unexpected_field": "should be rejected"},
-    )
-    assert 400 <= response.status_code < 500
-
-
-def test_room_update_missing_id_returns_404(client):
-    response = client.patch(
-        "/api/mind-palace/rooms/ghost-room",
-        json={"name": "After"},
-    )
-    assert response.status_code == 404
-    assert response.json()["detail"] == "Room not found: ghost-room"
-
-
-def test_room_update_rejects_unexpected_fields(client, db):
-    room = Document(
-        id="room-update-extra",
-        name="Room",
-        node_kind="room",
-        prototype_key="room",
-        doc_type=DocType.folder,
-        attributes={"description": "", "room_type": "research", "owner_id": "user", "metadata": {}},
-    )
-    db.save(room)
-
-    response = client.patch(
-        "/api/mind-palace/rooms/room-update-extra",
-        json={"unexpected_field": "should be rejected"},
     )
 
     assert 400 <= response.status_code < 500

@@ -24,7 +24,6 @@ NOTE_N = 8
 DOCUMENT_N = 8
 CLAIM_N = 8
 ENTITY_N = 8
-ROOM_N = 8
 MOVE_N = 8
 
 
@@ -223,35 +222,33 @@ class TestAuditedMutationConcurrency:
         assert set(emitted_ids) == set(entity_ids)
 
     @pytest.mark.asyncio
-    async def test_room_create_concurrent_writes_audit_emit_and_dual_write(
+    async def test_folder_create_concurrent_writes_audit_emit_and_rows(
         self, client, db, emit_calls
     ):
         responses = await asyncio.gather(
             *[
                 _post_json(
                     client,
-                    "/api/mind-palace/rooms",
-                    {"name": f"Room {i}", "room_type": "research"},
+                    "/api/documents",
+                    {"name": f"Folder {i}", "doc_type": "folder"},
                 )
-                for i in range(ROOM_N)
+                for i in range(DOCUMENT_N)
             ]
         )
 
-        assert all(response.status_code == 200 for response in responses)
-        room_ids = [response.json()["id"] for response in responses]
-        assert len(set(room_ids)) == ROOM_N
-        assert _audit_targets(db, "room.create") == set(room_ids)
+        assert all(response.status_code == 201 for response in responses)
+        folder_ids = [response.json()["id"] for response in responses]
+        assert len(set(folder_ids)) == DOCUMENT_N
+        assert _audit_targets(db, "document.create") == set(folder_ids)
 
         emitted_ids = _emitted_document_ids(emit_calls, "document.created")
-        room_emits = [room_id for room_id in emitted_ids if room_id in set(room_ids)]
-        assert len(room_emits) == ROOM_N
+        folder_emits = [doc_id for doc_id in emitted_ids if doc_id in set(folder_ids)]
+        assert len(folder_emits) == DOCUMENT_N
 
-        legacy_ids = {room.id for room in db._legacy_all_spatial_room_rows()}
-        for room_id in room_ids:
-            mirrored = db.get(Document, room_id)
+        for folder_id in folder_ids:
+            mirrored = db.get(Document, folder_id)
             assert mirrored is not None
-            assert mirrored.node_kind == "room"
-            assert room_id in legacy_ids
+            assert mirrored.doc_type == DocType.folder
 
     @pytest.mark.asyncio
     async def test_document_move_concurrent_writes_audit_emit_and_state(
@@ -489,7 +486,7 @@ class TestAuditedMutationConcurrency:
             _post_json(client, "/api/notes", {"title": "Storm Note", "body": "body", "folder_id": parent.id}),
             _post_json(client, "/api/documents", {"name": "Storm Doc", "parent_id": parent.id}),
             _post_json(client, "/api/claims", {"text": "Storm Claim"}),
-            _post_json(client, "/api/mind-palace/rooms", {"name": "Storm Room", "room_type": "research"}),
+            _post_json(client, "/api/documents", {"name": "Storm Folder", "doc_type": "folder"}),
             _patch_json(client, f"/api/claims/{claim_id}", {"text": "Storm Claim After Patch"}),
             _put(client, f"/api/documents/{move_doc.id}/move?parent_id={target.id}"),
             _delete(client, f"/api/documents/{delete_doc.id}"),
@@ -497,13 +494,12 @@ class TestAuditedMutationConcurrency:
         )
 
         _assert_no_server_errors(responses)
-        assert [response.status_code for response in responses] == [200, 201, 200, 200, 200, 200, 204, 200]
+        assert [response.status_code for response in responses] == [200, 201, 200, 201, 200, 200, 204, 200]
 
         assert len(_audits_for_action(db, "note.create")) == 1
-        assert len(_audits_for_action(db, "document.create")) == 1
+        assert len(_audits_for_action(db, "document.create")) == 2
         assert len(_audits_for_action(db, "claim.create")) == 2
         assert len(_audits_for_action(db, "claim.patch")) == 1
-        assert len(_audits_for_action(db, "room.create")) == 1
         assert len(_audits_for_action(db, "document.move")) == 1
         assert len(_audits_for_action(db, "document.delete")) == 1
         assert len(_audits_for_action(db, "entity.create")) == 2

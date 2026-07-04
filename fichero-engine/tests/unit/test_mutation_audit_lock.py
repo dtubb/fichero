@@ -15,7 +15,6 @@ import pytest
 import fichero.api.routes.claims  # noqa: F401
 import fichero.api.routes.documents  # noqa: F401
 import fichero.api.routes.entities  # noqa: F401
-import fichero.api.routes.mind_palace  # noqa: F401
 import fichero.api.routes.notes  # noqa: F401
 from fichero.models import ActionAudit, DocType, Document
 
@@ -94,17 +93,13 @@ def _create_entity(client, db) -> tuple[object, str, str, str, str, str]:
     return response, entity_id, "entity.create", "entity.created", "entity_ids", entity_id
 
 
-def _create_room(client, db) -> tuple[object, str, str, str, str, str]:
+def _create_folder(client, db) -> tuple[object, str, str, str, str, str]:
     response = client.post(
-        "/api/mind-palace/rooms",
-        json={
-            "name": "Audit Lock Room",
-            "room_type": "research",
-            "description": "must audit and emit",
-        },
+        "/api/documents",
+        json={"name": "Audit Lock Folder", "doc_type": "folder"},
     )
-    room_id = response.json()["id"]
-    return response, room_id, "room.create", "document.created", "document_ids", room_id
+    doc_id = response.json()["id"]
+    return response, doc_id, "document.create", "document.created", "document_ids", doc_id
 
 
 def _move_document(client, db) -> tuple[object, str, str, str, str, str]:
@@ -190,21 +185,11 @@ def _delete_note(client, db) -> tuple[object, str, str, str, str, str]:
     return response, note_id, "note.delete", "note.deleted", "document_ids", folder.id
 
 
-def _update_room(client, db) -> tuple[object, str, str, str, str, str]:
-    create = client.post("/api/mind-palace/rooms", json={"name": "Before Room"})
-    room_id = create.json()["id"]
-    response = client.patch(
-        f"/api/mind-palace/rooms/{room_id}",
-        json={"description": "After room update"},
-    )
-    return response, room_id, "room.update", "document.updated", "document_ids", room_id
-
-
-def _delete_room(client, db) -> tuple[object, str, str, str, str, str]:
-    create = client.post("/api/mind-palace/rooms", json={"name": "Delete Room"})
-    room_id = create.json()["id"]
-    response = client.delete(f"/api/mind-palace/rooms/{room_id}")
-    return response, room_id, "room.delete", "document.deleted", "document_ids", room_id
+def _delete_folder(client, db) -> tuple[object, str, str, str, str, str]:
+    doc = Document(name="Delete Folder", doc_type=DocType.folder)
+    db.save(doc)
+    response = client.delete(f"/api/documents/{doc.id}")
+    return response, doc.id, "document.delete", "document.deleted", "document_ids", doc.id
 
 
 @pytest.mark.parametrize(
@@ -214,7 +199,7 @@ def _delete_room(client, db) -> tuple[object, str, str, str, str, str]:
         ("document.create", _create_document),
         ("claim.create", _create_claim),
         ("entity.create", _create_entity),
-        ("room.create", _create_room),
+        ("folder.create", _create_folder),
     ],
 )
 def test_node_model_create_routes_write_audit_and_emit_change(
@@ -260,8 +245,7 @@ def test_node_model_create_routes_write_audit_and_emit_change(
         ("entity.delete", _delete_entity),
         ("note.patch", _patch_note),
         ("note.delete", _delete_note),
-        ("room.update", _update_room),
-        ("room.delete", _delete_room),
+        ("folder.delete", _delete_folder),
     ],
 )
 def test_node_model_mutation_routes_write_audit_and_emit_change(

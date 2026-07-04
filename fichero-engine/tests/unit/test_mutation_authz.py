@@ -10,7 +10,6 @@ from fastapi.testclient import TestClient
 from fichero import accounts, authz
 from fichero.knowledge_models import Note
 from fichero.models import ActionAudit, AccountUser, Document, KnowledgeClaim, KnowledgeEntity
-from fichero.spatial_models import SpatialRoom
 
 
 @pytest.fixture
@@ -73,10 +72,6 @@ def multiuser_client(test_package, app_db, monkeypatch):
         importlib.reload(api_main)
 
 
-def _room_document_count(db) -> int:
-    return len([doc for doc in db.all(Document) if doc.node_kind == "room"])
-
-
 CASES = [
     {
         "id": "note",
@@ -109,14 +104,6 @@ CASES = [
         "status_code": 200,
         "action_name": "entity.create",
         "snapshot": lambda db: len(db.all(KnowledgeEntity)),
-    },
-    {
-        "id": "room",
-        "path": "/api/mind-palace/rooms",
-        "payload": {"name": "ACL Room", "room_type": "research"},
-        "status_code": 200,
-        "action_name": "room.create",
-        "snapshot": lambda db: (len(db.all(SpatialRoom)), _room_document_count(db)),
     },
 ]
 
