@@ -29521,7 +29521,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MCPServerListResponse"
+                  "$ref": "#/components/schemas/MCPServerResponseList"
                 }
               }
             }
@@ -46595,26 +46595,6 @@
         "title": "MCPServerDeletedResponse",
         "description": "Confirmation that an MCP server was deleted."
       },
-      "MCPServerListResponse": {
-        "properties": {
-          "items": {
-            "items": {},
-            "type": "array",
-            "title": "Items"
-          },
-          "count": {
-            "type": "integer",
-            "title": "Count"
-          }
-        },
-        "type": "object",
-        "required": [
-          "items",
-          "count"
-        ],
-        "title": "MCPServerListResponse",
-        "description": "Standardized envelope for GET /api/mcp-servers list endpoints."
-      },
       "MCPServerResponse": {
         "properties": {
           "id": {
@@ -46699,6 +46679,27 @@
         ],
         "title": "MCPServerResponse",
         "description": "Response containing MCP server details."
+      },
+      "MCPServerResponseList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MCPServerResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "MCPServerResponseList"
       },
       "MCPServerToolsResponse": {
         "properties": {

@@ -5840,7 +5840,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "MCPServerListResponse"
+        "response_model": "MCPServerResponseList"
       },
       {
         "method": "POST",

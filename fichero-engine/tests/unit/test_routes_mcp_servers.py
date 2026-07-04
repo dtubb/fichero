@@ -6,7 +6,6 @@ Dev-tier feature.
 """
 
 import pytest
-from unittest.mock import MagicMock, patch
 
 from fichero.models import MCPServer
 
@@ -61,6 +60,14 @@ class TestListMCPServers:
         r = client.get("/api/mcp-servers")
         assert r.status_code == 200
         assert len(r.json()["items"]["items"]) == 2
+
+    def test_openapi_lists_typed_mcp_server_items(self, client):
+        schema = client.app.openapi()
+        server_list = schema["components"]["schemas"]["MCPServerResponseList"]
+
+        assert server_list["properties"]["items"]["items"]["$ref"].endswith(
+            "/MCPServerResponse"
+        )
 
 
 # ---------------------------------------------------------------------------
