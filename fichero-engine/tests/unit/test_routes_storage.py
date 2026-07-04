@@ -19,6 +19,7 @@ import fitz
 
 from fichero import storage as storage_module
 from fichero.api.routes import storage as storage_routes
+from fichero.db import Database
 from fichero.models import Document, DocType, FileType, Status
 from fichero.storage import expected_display_path, expected_thumbnail_path
 
@@ -473,6 +474,72 @@ class TestListSnapshots:
         data = r.json()
         assert data["total"] == 1
         assert len(data["snapshots"]) == 1
+
+
+class TestSnapshotAuditWrapper:
+    def test_create_and_restore_write_app_db_audits_around_library_close(
+        self, client, app_db, tmp_path, monkeypatch
+    ):
+        library_path = tmp_path / "AuditWrapped.fichero"
+        library_path.mkdir(parents=True, exist_ok=True)
+        seeded = Database(library_path / "fichero.duckdb")
+        seeded.save(
+            Document(
+                id="snap-doc-1",
+                name="Snapshot Source",
+                page_content="content long enough to embed",
+            )
+        )
+        seeded.close()
+
+        emitted: list[tuple[str, str, str]] = []
+        monkeypatch.setattr(
+            storage_routes,
+            "emit_change",
+            lambda library_path, *, type, actor, origin_user=None: emitted.append(
+                (library_path, type, actor)
+            ),
+        )
+
+        created = client.post(
+            "/api/storage/snapshots",
+            params={"library_path": str(library_path), "reason": "before restore"},
+        )
+        assert created.status_code == 200, created.text
+        snapshot_id = created.json()["id"]
+
+        mutated = Database(library_path / "fichero.duckdb")
+        mutated.delete(mutated.get(Document, "snap-doc-1"))
+        mutated.close()
+
+        restored = client.post(f"/api/storage/snapshots/{snapshot_id}/restore")
+        assert restored.status_code == 200, restored.text
+
+        snapshot_audits = [
+            row
+            for row in app_db.list_action_audits()
+            if row.action_name.startswith("snapshot.")
+            and row.target_ids == [str(library_path)]
+        ]
+        assert [row.action_name for row in snapshot_audits] == [
+            "snapshot.create.intent",
+            "snapshot.create.outcome",
+            "snapshot.restore.intent",
+            "snapshot.restore.outcome",
+        ]
+        assert snapshot_audits[1].after["id"] == snapshot_id
+        assert snapshot_audits[3].after["snapshot_id"] == snapshot_id
+
+        restored_db = Database(library_path / "fichero.duckdb")
+        assert restored_db.get(Document, "snap-doc-1") is not None
+        restored_db.close()
+
+        assert emitted == [
+            (str(library_path), "snapshot.create.intent", "user"),
+            (str(library_path), "snapshot.created", "user"),
+            (str(library_path), "snapshot.restore.intent", "user"),
+            (str(library_path), "snapshot.restored", "user"),
+        ]
 
 
 def _write_test_pdf(path: Path) -> Path:
