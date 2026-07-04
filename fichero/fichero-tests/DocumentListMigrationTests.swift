@@ -127,6 +127,37 @@ struct DocumentListMigrationTests {
         #expect(parent.id == "parent-1")
     }
 
+    @Test("markAsWorkspace PATCHes an empty body to /workspace (flag-only flip)")
+    func markAsWorkspaceContract() async throws {
+        let service = makeService { request in
+            #expect(request.httpMethod == "PATCH")
+            #expect(request.url?.path == "/api/documents/f1/workspace")
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data("{\"folder_id\":\"f1\",\"items\":[]}".utf8))
+        }
+
+        try await service.markAsWorkspace(folderId: "f1")
+    }
+
+    @Test("ingestFolder POSTs to /api/ingest/folder and returns the task descriptor")
+    func ingestFolderContract() async throws {
+        let service = makeService { request in
+            #expect(request.httpMethod == "POST")
+            #expect(request.url?.path == "/api/ingest/folder")
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data("{\"task_id\":\"t1\",\"status\":\"queued\",\"path\":\"/x\"}".utf8))
+        }
+
+        let task = try await service.ingestFolder(path: "/x")
+        #expect(task.taskId == "t1")
+    }
+
     @Test("deleteDocument DELETEs /api/documents/{id} (DocumentStore delete path)")
     func deleteDocumentContract() async throws {
         let service = makeService { request in
