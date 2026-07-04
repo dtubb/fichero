@@ -60,9 +60,12 @@ generated operation), not an open security hole.
    wrapper (`StorageServiceGenerated`) that always sets the library path and
    never swallows status/decode failures.
 
-## Enforcement gap
+## Enforcement (closed — #3031)
 
-`scripts/check_no_raw_urlsession.py` scans only the client **package**, so new
-raw URLSession in the **app** is currently unguarded. A follow-up should extend
-it (or add a companion) to scan `fichero/fichero/**` with a ratchet allowlist of
-the KEEP sites above, so the MIGRATE list can only shrink.
+`scripts/check_no_raw_urlsession.py` scans only the client **package**.
+`scripts/check_no_raw_urlsession_app.py` now covers the **app**
+(`fichero/fichero/**`) as a ratchet: all 12 current raw-transport files are
+grandfathered, so a NEW file with raw URLSession fails the gate. As the MIGRATE
+sub-issues land, drop their entries from `GRANDFATHERED_FILES` (the check reports
+stale entries). Auto-wired via the `scripts/check_*.py` gate convention; has a
+`--self-test`.
