@@ -314,11 +314,17 @@ struct TriggerExecutionInfo: Codable, Identifiable {
 
 enum AutomationServiceError: LocalizedError {
     case invalidInput(String)
+    case validationError(String)
+    case unexpectedResponse
 
     var errorDescription: String? {
         switch self {
         case .invalidInput(let message):
             return "Invalid input: \(message)"
+        case .validationError(let message):
+            return "Validation error: \(message)"
+        case .unexpectedResponse:
+            return "Unexpected response from the automation service."
         }
     }
 }

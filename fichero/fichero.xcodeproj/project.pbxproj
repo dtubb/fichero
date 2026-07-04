@@ -361,6 +361,7 @@
 		A1A3AA202F110D520021909D /* CanvasHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA012F110D520021909D /* CanvasHelpers.swift */; };
 		A1A3AA212F110D520021909D /* WorkflowToolBlocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA102F110D520021909D /* WorkflowToolBlocks.swift */; };
 		A1A3AA282F113E6F0021909D /* AutomationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA272F113E6F0021909D /* AutomationService.swift */; };
+		A1A3AA292F113E6F0021909D /* AutomationServiceMappers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA2A2F113E6F0021909D /* AutomationServiceMappers.swift */; };
 		A1A3AA362F11665B0021909D /* IntegrationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA342F11665B0021909D /* IntegrationsView.swift */; };
 		A1A3AA382F1166660021909D /* IntegrationsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA372F1166660021909D /* IntegrationsService.swift */; };
 		A1A3AB242F11CCC70021909D /* Artifact.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AB162F11CCC70021909D /* Artifact.swift */; };
@@ -967,6 +968,7 @@
 		A1A3AA0F2F110D520021909D /* WorkflowPortView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowPortView.swift; sourceTree = "<group>"; };
 		A1A3AA102F110D520021909D /* WorkflowToolBlocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowToolBlocks.swift; sourceTree = "<group>"; };
 		A1A3AA272F113E6F0021909D /* AutomationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationService.swift; sourceTree = "<group>"; };
+		A1A3AA2A2F113E6F0021909D /* AutomationServiceMappers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationServiceMappers.swift; sourceTree = "<group>"; };
 		A1A3AA342F11665B0021909D /* IntegrationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationsView.swift; sourceTree = "<group>"; };
 		A1A3AA372F1166660021909D /* IntegrationsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationsService.swift; sourceTree = "<group>"; };
 		A1A3AB162F11CCC70021909D /* Artifact.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Artifact.swift; sourceTree = "<group>"; };
@@ -1677,6 +1679,7 @@
 				149 /* WorkflowExecutionObserver.swift */,
 				141 /* AppleScriptSupport.swift */,
 				A1A3AA272F113E6F0021909D /* AutomationService.swift */,
+				A1A3AA2A2F113E6F0021909D /* AutomationServiceMappers.swift */,
 				A1A3AA372F1166660021909D /* IntegrationsService.swift */,
 				A13E7C2B2F27E17F00EC9EE1 /* BatchServiceGenerated.swift */,
 				A13E7C2C2F27E17F00EC9EE1 /* ProviderServiceGenerated.swift */,
@@ -2473,6 +2476,7 @@
 				A1BFB2CF2F042C4100EAA55A /* AIModelSelectionView.swift in Sources */,
 				A1BFB2D02F042C4100EAA55A /* AIProviderAddModelsSheet.swift in Sources */,
 				A1A3AA282F113E6F0021909D /* AutomationService.swift in Sources */,
+				A1A3AA292F113E6F0021909D /* AutomationServiceMappers.swift in Sources */,
 				20D8ED6D2F48E62F006950A3 /* DocumentStore+Helpers.swift in Sources */,
 				20D8EE3E2F4BE1AB006950A3 /* ActionLibraryService.swift in Sources */,
 				2026749D2F475B64008EAB5D /* TranscribeNodeConfig.swift in Sources */,
