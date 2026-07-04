@@ -277,6 +277,8 @@
 		913F07667F8EF62FE204D1E7 /* SidebarView+ActivityRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0E93BA60F99453057135B99 /* SidebarView+ActivityRows.swift */; };
 		9155478503635D556FECE3D4 /* EngineConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C31EBD6243D124565257708 /* EngineConfig.swift */; };
 		92F3AFC896A444D7D060547E /* CanvasLayoutStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4887C223276D2F5E2C498065 /* CanvasLayoutStore.swift */; };
+		CA00000000000000000000B1 /* CanvasLayoutStore+ChangeStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA00000000000000000000A1 /* CanvasLayoutStore+ChangeStream.swift */; };
+		CA00000000000000000000B2 /* CanvasItemStore+ChangeStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA00000000000000000000A2 /* CanvasItemStore+ChangeStream.swift */; };
 		92F7E655373456AAB3EAFB8C /* ActivityMonitorModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36839A1C65A10F63B92E4121 /* ActivityMonitorModel.swift */; };
 		9366577BEB84A06792568C3F /* DocumentInspectorArtifactsTab+EntityKindRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D62D87E6614928970950D52 /* DocumentInspectorArtifactsTab+EntityKindRow.swift */; };
 		93C8C41A0D48127945007810 /* SearchArrowKeyNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0888678B07B4D4F9B3111FE /* SearchArrowKeyNavigation.swift */; };
@@ -790,6 +792,8 @@
 		462 /* Workflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Workflow.swift; sourceTree = "<group>"; };
 		47244E304896B65E6F12976C /* SidebarItemRow+Preview.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SidebarItemRow+Preview.swift"; sourceTree = "<group>"; };
 		4887C223276D2F5E2C498065 /* CanvasLayoutStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CanvasLayoutStore.swift; sourceTree = "<group>"; };
+		CA00000000000000000000A1 /* CanvasLayoutStore+ChangeStream.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "CanvasLayoutStore+ChangeStream.swift"; sourceTree = "<group>"; };
+		CA00000000000000000000A2 /* CanvasItemStore+ChangeStream.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "CanvasItemStore+ChangeStream.swift"; sourceTree = "<group>"; };
 		489A0FBA854FF9A1158996D6 /* WorkspaceItemPicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkspaceItemPicker.swift; sourceTree = "<group>"; };
 		48FFFFE4A294ADC2F1299E2D /* FicheroAppEntities.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FicheroAppEntities.swift; sourceTree = "<group>"; };
 		4A697CECBDA1A7EF050BF765 /* DocumentInspectorArtifactsTab+EntityKindBlock.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "DocumentInspectorArtifactsTab+EntityKindBlock.swift"; sourceTree = "<group>"; };
@@ -1578,7 +1582,9 @@
 				F42C41E0F485064FDA5EAEB9 /* InterpretationStore.swift */,
 				9CD011DB2E5A714A716944F3 /* Platform */,
 				4887C223276D2F5E2C498065 /* CanvasLayoutStore.swift */,
+				CA00000000000000000000A1 /* CanvasLayoutStore+ChangeStream.swift */,
 				5921F26A97AF84B80B4DCD29 /* CanvasItemStore.swift */,
+				CA00000000000000000000A2 /* CanvasItemStore+ChangeStream.swift */,
 				FD8F8D42618D304271F81962 /* AuditStore.swift */,
 				70C062A29951726302108FD2 /* BackupStore.swift */,
 				DA1EB898A19FAA64EF466CD2 /* UsersStore.swift */,
@@ -2808,7 +2814,9 @@
 				9A321613F87806CF952668A1 /* PlatformAliases.swift in Sources */,
 				CC357CD884EE29BAE8A64F4B /* PlatformPasteboard.swift in Sources */,
 				92F3AFC896A444D7D060547E /* CanvasLayoutStore.swift in Sources */,
+				CA00000000000000000000B1 /* CanvasLayoutStore+ChangeStream.swift in Sources */,
 				441627D26C9932352CE1FDF1 /* CanvasItemStore.swift in Sources */,
+				CA00000000000000000000B2 /* CanvasItemStore+ChangeStream.swift in Sources */,
 				75FF7AE84AC04F85A9A728AA /* AuditStore.swift in Sources */,
 				5435A98021D72C073130730B /* AuditHistoryView.swift in Sources */,
 				C38F232612EE4EEB87E62A76 /* FicheroAppEntities.swift in Sources */,
