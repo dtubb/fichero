@@ -282,6 +282,20 @@ def export_eleventy_site(
             page_paths_by_id=page_paths_by_id,
             result=result,
         )
+    search_page = src_dir / "search.md"
+    search_page.write_text(
+        _render_eleventy_search_page(
+            db=db,
+            documents=documents,
+            page_records=page_records,
+            page_paths_by_id=page_paths_by_id,
+            search_page=search_page,
+            src_dir=src_dir,
+        ),
+        encoding="utf-8",
+    )
+    result.files.append(ExportedFile(path=str(search_page), kind="search"))
+    extra_links["Search"] = [("Search", search_page.relative_to(src_dir).as_posix())]
 
     # Site scaffolding — a minimal but real, buildable 11ty + Netlify project.
     (src_dir / "index.md").write_text(
@@ -454,6 +468,7 @@ def _write_eleventy_knowledge_pages(
             page_claim_records,
             page_path=claim_index,
             page_paths_by_id=page_paths_by_id,
+            src_dir=src_dir,
         ),
         encoding="utf-8",
     )
@@ -508,6 +523,7 @@ def _write_eleventy_entity_pages(
                 page_claim_records=page_claim_records,
                 page_path=path,
                 page_paths_by_id=page_paths_by_id,
+                src_dir=src_dir,
             ),
             encoding="utf-8",
         )
@@ -545,6 +561,7 @@ def _write_eleventy_scope_indexes(
                 records,
                 page_path=path,
                 page_paths_by_id=page_paths_by_id,
+                src_dir=src_dir,
             ),
             encoding="utf-8",
         )
@@ -559,6 +576,7 @@ def _render_eleventy_entity_page(
     page_claim_records: list[dict[str, Any]],
     page_path: Path,
     page_paths_by_id: dict[str, Path],
+    src_dir: Path,
 ) -> str:
     entity = records[0]
     lines = [
@@ -575,7 +593,8 @@ def _render_eleventy_entity_page(
         "",
     ]
     lines.extend(
-        _eleventy_provenance_line(record, page_path, page_paths_by_id) for record in records
+        _eleventy_provenance_line(record, page_path, page_paths_by_id, src_dir)
+        for record in records
     )
     related_claims = [
         claim
@@ -585,7 +604,7 @@ def _render_eleventy_entity_page(
     if related_claims:
         lines.extend(["", "## Claims", ""])
         lines.extend(
-            f"- {claim['text']} ({_eleventy_page_link(claim, page_path, page_paths_by_id)})"
+            f"- {claim['text']} ({_eleventy_page_link(claim, page_path, page_paths_by_id, src_dir)})"
             for claim in related_claims
         )
     return "\n".join(lines).rstrip() + "\n"
@@ -596,13 +615,14 @@ def _render_eleventy_claim_index(
     *,
     page_path: Path,
     page_paths_by_id: dict[str, Path],
+    src_dir: Path,
 ) -> str:
     lines = ["---", 'title: "Claims"', "---", "", "# Claims", ""]
     if not records:
         lines.append("_No claims exported._")
         return "\n".join(lines).rstrip() + "\n"
     lines.extend(
-        f"- {record['text']} ({_eleventy_page_link(record, page_path, page_paths_by_id)})"
+        f"- {record['text']} ({_eleventy_page_link(record, page_path, page_paths_by_id, src_dir)})"
         for record in records
     )
     return "\n".join(lines).rstrip() + "\n"
@@ -613,6 +633,7 @@ def _render_eleventy_scope_index(
     *,
     page_path: Path,
     page_paths_by_id: dict[str, Path],
+    src_dir: Path,
 ) -> str:
     scope = records[0]
     lines = [
@@ -629,7 +650,7 @@ def _render_eleventy_scope_index(
     if documents:
         lines.extend(["## Documents", ""])
         lines.extend(
-            f"- {_eleventy_page_link(record, page_path, page_paths_by_id)}"
+            f"- {_eleventy_page_link(record, page_path, page_paths_by_id, src_dir)}"
             for record in documents
         )
         lines.append("")
@@ -640,7 +661,7 @@ def _render_eleventy_scope_index(
     if claims:
         lines.extend(["## Claims", ""])
         lines.extend(
-            f"- {record['text']} ({_eleventy_page_link(record, page_path, page_paths_by_id)})"
+            f"- {record['text']} ({_eleventy_page_link(record, page_path, page_paths_by_id, src_dir)})"
             for record in claims
         )
         lines.append("")
@@ -651,8 +672,9 @@ def _eleventy_provenance_line(
     record: dict[str, Any],
     page_path: Path,
     page_paths_by_id: dict[str, Path],
+    src_dir: Path,
 ) -> str:
-    parts = [f"- {_eleventy_page_link(record, page_path, page_paths_by_id)}"]
+    parts = [f"- {_eleventy_page_link(record, page_path, page_paths_by_id, src_dir)}"]
     if record.get("found_in_expediente_name"):
         parts.append(record["found_in_expediente_name"])
     if record.get("found_in_box_collection_name"):
@@ -666,12 +688,132 @@ def _eleventy_page_link(
     record: dict[str, Any],
     page_path: Path,
     page_paths_by_id: dict[str, Path],
+    src_dir: Path,
 ) -> str:
     target = page_paths_by_id.get(record["found_in_page_id"])
     if target is None:
         return record["found_in_document_name"]
-    relative = os.path.relpath(target, start=page_path.parent)
-    return f"[{record['found_in_document_name']}]({Path(relative).as_posix()})"
+    return f"[{record['found_in_document_name']}]({_eleventy_href(page_path, target, src_dir)})"
+
+
+def _render_eleventy_search_page(
+    *,
+    db: Database,
+    documents: list[Document],
+    page_records: list[dict[str, Any]],
+    page_paths_by_id: dict[str, Path],
+    search_page: Path,
+    src_dir: Path,
+) -> str:
+    entries = _eleventy_search_entries(
+        db=db,
+        documents=documents,
+        page_records=page_records,
+        page_paths_by_id=page_paths_by_id,
+        search_page=search_page,
+        src_dir=src_dir,
+    )
+    return "\n".join(
+        [
+            "---",
+            'title: "Search"',
+            "---",
+            "",
+            "# Search",
+            "",
+            '<input id="search-box" type="search" placeholder="Search documents and entities" />',
+            '<div id="search-results"></div>',
+            "",
+            '<script type="application/json" id="search-index">',
+            json.dumps(entries, ensure_ascii=False),
+            "</script>",
+            "<script>",
+            "const entries = JSON.parse(document.getElementById('search-index').textContent);",
+            "const box = document.getElementById('search-box');",
+            "const results = document.getElementById('search-results');",
+            "function render(query) {",
+            "  const q = query.trim().toLowerCase();",
+            "  const matches = q ? entries.filter((entry) => (entry.title + ' ' + entry.text).toLowerCase().includes(q)) : [];",
+            "  results.innerHTML = matches.length",
+            "    ? '<ul>' + matches.map((entry) => `<li><a href=\"${entry.url}\">${entry.title}</a> <small>${entry.kind}</small></li>`).join('') + '</ul>'",
+            "    : (q ? '<p>No matches.</p>' : '<p>Type to search this export.</p>');",
+            "}",
+            "box.addEventListener('input', (event) => render(event.target.value));",
+            "render('');",
+            "</script>",
+            "",
+        ]
+    )
+
+
+def _eleventy_search_entries(
+    *,
+    db: Database,
+    documents: list[Document],
+    page_records: list[dict[str, Any]],
+    page_paths_by_id: dict[str, Path],
+    search_page: Path,
+    src_dir: Path,
+) -> list[dict[str, str]]:
+    entries: list[dict[str, str]] = []
+    for doc in documents:
+        page_path = page_paths_by_id.get(doc.id)
+        if page_path is None:
+            continue
+        entries.append(
+            {
+                "title": doc.name,
+                "kind": "document",
+                "url": _eleventy_href(search_page, page_path, src_dir),
+                "text": _document_text(db, doc),
+            }
+        )
+
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for record in page_records:
+        if record["record_type"] != "entity":
+            continue
+        grouped.setdefault(record["entity_id"], []).append(record)
+    claim_records = [r for r in page_records if r["record_type"] == "claim"]
+    for records in grouped.values():
+        entity = records[0]
+        claims_text = " ".join(
+            claim["text"]
+            for claim in claim_records
+            if entity["entity_id"] in claim["entity_ids"]
+        )
+        entries.append(
+            {
+                "title": entity["canonical_name"],
+                "kind": "entity",
+                "url": _eleventy_href(
+                    search_page,
+                    src_dir / "entities" / f"{_slugify(entity['canonical_name'])}.md",
+                    src_dir,
+                ),
+                "text": " ".join(
+                    part
+                    for part in [entity["canonical_name"], entity["description"] or "", claims_text]
+                    if part
+                ),
+            }
+        )
+    return entries
+
+
+def _eleventy_href(from_source: Path, to_source: Path, src_dir: Path) -> str:
+    from_output = _eleventy_output_path(from_source, src_dir)
+    to_output = _eleventy_output_path(to_source, src_dir)
+    relative = os.path.relpath(to_output.parent, start=from_output.parent)
+    posix = Path(relative).as_posix()
+    return "./" if posix == "." else f"{posix}/"
+
+
+def _eleventy_output_path(source_path: Path, src_dir: Path) -> Path:
+    rel = source_path.relative_to(src_dir)
+    if rel.stem == "index":
+        return rel.with_suffix(".html")
+    return rel.with_suffix("") / "index.html"
 
 
 def _render_eleventy_item(

@@ -444,11 +444,18 @@ class TestEleventySiteExport:
         assert expediente_index.exists()
 
         entity_body = entity_page.read_text(encoding="utf-8")
-        assert "[Carta Uno](../Caja-7/Expediente-12/Carta-Uno.md)" in entity_body
+        assert "[Carta Uno](../../Caja-7/Expediente-12/Carta-Uno/)" in entity_body
         assert "Expediente 12" in entity_body
         assert "Caja 7" in entity_body
         assert "localhost" not in entity_body
         assert "/api/" not in entity_body
 
         claims_body = claims_index.read_text(encoding="utf-8")
-        assert "[Carta Uno](../Caja-7/Expediente-12/Carta-Uno.md)" in claims_body
+        assert "[Carta Uno](../Caja-7/Expediente-12/Carta-Uno/)" in claims_body
+
+        search_page = output_path / "src" / "search.md"
+        search_body = search_page.read_text(encoding="utf-8")
+        assert '"title": "Carta Uno"' in search_body
+        assert '"title": "Pedro"' in search_body
+        assert '"url": "../Caja-7/Expediente-12/Carta-Uno/"' in search_body
+        assert '"url": "../entities/Pedro/"' in search_body
