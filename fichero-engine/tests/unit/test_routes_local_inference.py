@@ -7,18 +7,20 @@ from typing import Any
 import pytest
 
 from fichero.api.routes import local_inference as routes
-from fichero.local_inference import LocalInferenceServiceManager
+from fichero.local_inference import LocalInferenceServiceManager, ManagedLocalInferenceProcess
 
 
 class FakeProcess:
     def __init__(self) -> None:
         self.pid: int | None = None
+        self.last_error: str | None = None
         self.running = False
         self.start_calls = 0
         self.stop_calls = 0
 
     async def start(self) -> None:
         self.start_calls += 1
+        self.last_error = None
         self.running = True
         self.pid = 9000 + self.start_calls
 
@@ -76,6 +78,13 @@ def test_local_inference_catalog_exposes_configured_model(client) -> None:
     assert entry["model_id"] == routes.DEFAULT_OMLX_MODEL_ID
     assert entry["capabilities"] == ["text", "vision"]
     assert entry["installed"] is False
+
+
+def test_manager_for_managed_profile_uses_managed_process() -> None:
+    manager = routes._manager_for_profile(routes.DEFAULT_OMLX_PROFILE_ID)
+
+    assert isinstance(manager, LocalInferenceServiceManager)
+    assert isinstance(manager.process, ManagedLocalInferenceProcess)
 
 
 def test_validate_local_profile_rejects_cloud_escape(client) -> None:

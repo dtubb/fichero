@@ -8,7 +8,9 @@ fake process and health clients.
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 import ipaddress
+import sys
 import time
 from datetime import UTC, datetime
 from enum import Enum
@@ -23,6 +25,10 @@ from fichero.providers import ProviderType, get_provider_info
 
 class LocalInferenceValidationError(ValueError):
     """Raised when a local inference profile violates the local-only boundary."""
+
+
+class LocalInferenceRuntimeMissingError(RuntimeError):
+    """Raised when the managed local runtime/interpreter is unavailable."""
 
 
 class LocalServiceState(str, Enum):
@@ -70,6 +76,8 @@ class LocalProviderProfile(BaseModel):
     timeout_seconds: float = Field(default=5.0, ge=0)
     max_concurrency: int = Field(default=1, ge=1)
     visible_in_ui: bool = True
+    python_executable: str | None = None
+    command: list[str] = Field(default_factory=list)
 
     @field_validator("healthcheck_path")
     @classmethod
@@ -226,6 +234,7 @@ class LocalInferenceProcess(Protocol):
     """Process adapter for app-managed local inference servers."""
 
     pid: int | None
+    last_error: str | None
 
     async def start(self) -> None:
         """Start the local process."""
@@ -247,8 +256,10 @@ class ExternalLocalInferenceProcess:
     def __init__(self) -> None:
         self.pid: int | None = None
         self._running = False
+        self.last_error: str | None = None
 
     async def start(self) -> None:
+        self.last_error = None
         self._running = True
 
     async def stop(self) -> None:
@@ -257,6 +268,145 @@ class ExternalLocalInferenceProcess:
 
     def is_running(self) -> bool:
         return self._running
+
+
+class ManagedLocalInferenceProcess:
+    """Spawn and supervise a loopback-only local inference subprocess."""
+
+    def __init__(
+        self,
+        profile: LocalProviderProfile,
+        *,
+        stop_grace_seconds: float = 2.0,
+        output_buffer_lines: int = 50,
+    ) -> None:
+        self.profile = profile
+        self.stop_grace_seconds = stop_grace_seconds
+        self.pid: int | None = None
+        self.last_error: str | None = None
+        self._process: asyncio.subprocess.Process | None = None
+        self._stdout_task: asyncio.Task[None] | None = None
+        self._stderr_task: asyncio.Task[None] | None = None
+        self._recent_stdout: deque[str] = deque(maxlen=output_buffer_lines)
+        self._recent_stderr: deque[str] = deque(maxlen=output_buffer_lines)
+
+    async def start(self) -> None:
+        if self.is_running():
+            return
+        python_executable = self._python_executable()
+        argv = [
+            python_executable,
+            *self._command(),
+            "--model",
+            self.profile.model_id,
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(self._port()),
+        ]
+        self.last_error = None
+        self._recent_stdout.clear()
+        self._recent_stderr.clear()
+        try:
+            self._process = await asyncio.create_subprocess_exec(
+                *argv,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+        except FileNotFoundError as exc:
+            self._process = None
+            self.pid = None
+            self.last_error = (
+                f"Local inference runtime not found: {python_executable}. "
+                "Provision the local MLX runtime before starting oMLX."
+            )
+            raise LocalInferenceRuntimeMissingError(self.last_error) from exc
+        self.pid = self._process.pid
+        self._stdout_task = asyncio.create_task(
+            self._drain_stream(self._process.stdout, self._recent_stdout)
+        )
+        self._stderr_task = asyncio.create_task(
+            self._drain_stream(self._process.stderr, self._recent_stderr)
+        )
+
+    async def stop(self) -> None:
+        process = self._process
+        if process is None:
+            self.pid = None
+            return
+        if process.returncode is None:
+            process.terminate()
+            try:
+                await asyncio.wait_for(process.wait(), timeout=self.stop_grace_seconds)
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+        await self._join_stream_tasks()
+        self._update_last_error()
+        self._process = None
+        self.pid = None
+
+    def is_running(self) -> bool:
+        if self._process is None:
+            return False
+        if self._process.returncode is None:
+            return True
+        self._update_last_error()
+        return False
+
+    async def _drain_stream(
+        self,
+        stream: asyncio.StreamReader | None,
+        sink: deque[str],
+    ) -> None:
+        if stream is None:
+            return
+        while True:
+            line = await stream.readline()
+            if not line:
+                break
+            sink.append(line.decode("utf-8", errors="replace").rstrip())
+        while True:
+            remainder = await stream.read(4096)
+            if not remainder:
+                break
+            sink.append(remainder.decode("utf-8", errors="replace").rstrip())
+
+    async def _join_stream_tasks(self) -> None:
+        tasks = [task for task in (self._stdout_task, self._stderr_task) if task is not None]
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        self._stdout_task = None
+        self._stderr_task = None
+
+    def _python_executable(self) -> str:
+        candidate = (self.profile.python_executable or "").strip()
+        if candidate:
+            return candidate
+        return sys.executable
+
+    def _command(self) -> list[str]:
+        if self.profile.command:
+            return list(self.profile.command)
+        return ["-m", "mlx_lm", "server"]
+
+    def _port(self) -> int:
+        parsed = urlparse(str(self.profile.base_url))
+        if parsed.port is None:
+            raise LocalInferenceValidationError(
+                f"Managed local inference base_url must include an explicit port: {self.profile.base_url}"
+            )
+        return parsed.port
+
+    def _update_last_error(self) -> None:
+        if self._process is None or self._process.returncode in {None, 0}:
+            return
+        excerpt = next(
+            (line for line in reversed(self._recent_stderr) if line),
+            next((line for line in reversed(self._recent_stdout) if line), ""),
+        )
+        suffix = f": {excerpt}" if excerpt else ""
+        self.last_error = f"local inference process exited {self._process.returncode}{suffix}"
 
 
 class LocalHealthClient(Protocol):
@@ -382,7 +532,7 @@ class LocalInferenceServiceManager:
 
         if not self.process.is_running():
             self.state = LocalServiceState.failed
-            self.last_error = "local inference process is not running"
+            self.last_error = self.process.last_error or "local inference process is not running"
             return self.status()
 
         try:
@@ -409,7 +559,7 @@ class LocalInferenceServiceManager:
 
         if not self.process.is_running():
             self.state = LocalServiceState.failed
-            self.last_error = "local inference process is not running"
+            self.last_error = self.process.last_error or "local inference process is not running"
             return self.status()
 
         try:
@@ -502,12 +652,14 @@ __all__ = [
     "LocalInferenceProcess",
     "LocalInferenceRequest",
     "LocalInferenceResult",
+    "LocalInferenceRuntimeMissingError",
     "LocalInferenceServiceHealth",
     "LocalInferenceServiceManager",
     "LocalInferenceServiceStatus",
     "LocalInferenceValidationError",
     "LocalModelCatalogEntry",
     "LocalModelSource",
+    "ManagedLocalInferenceProcess",
     "LocalProviderProfile",
     "LocalProviderStartupPolicy",
     "LocalServiceState",
