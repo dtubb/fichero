@@ -132,15 +132,17 @@ struct FicheroApp: App {
 
     @MainActor
     private func showBackendError(_ error: Error) async {
-        let alert = NSAlert()
-        alert.messageText = "Backend Failed to Start"
-        alert.informativeText = error.localizedDescription
-        alert.alertStyle = .critical
-        alert.addButton(withTitle: "Quit")
-
-        if alert.runModal() == .alertFirstButtonReturn {
-            NSApplication.shared.terminate(nil)
-        }
+        // Do NOT terminate the app (#3042). The window's BackendRootGate (#2864)
+        // already renders the full-window BackendConnectionView — with the error
+        // text AND a Retry/Restart button — for any non-usable backend state.
+        // A modal Quit here fired BEFORE that gate could show, so a start failure
+        // (e.g. Debug ⌘R with no external engine on :8765, where the engine is
+        // deliberately not embedded) killed the window instead of surfacing an
+        // actionable diagnosis. Flip the service to .failed and let the gate do
+        // its job — the window stays up and the user can start the engine + retry.
+        logger.error("Backend failed to start: \(error.localizedDescription, privacy: .public)")
+        backendService.status = .failed
+        backendService.errorMessage = error.localizedDescription
     }
 
     /// The shared library-window root + its environment. Used by BOTH the
