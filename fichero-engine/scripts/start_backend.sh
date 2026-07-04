@@ -108,6 +108,8 @@ PY
     if [ "$DEFAULTS_BONJOUR_ENABLED" = true ]; then
       export FICHERO_ENABLE_BONJOUR="${FICHERO_ENABLE_BONJOUR:-1}"
     fi
+  else
+    export FICHERO_MULTIUSER="${FICHERO_MULTIUSER:-0}"
   fi
   if command -v defaults >/dev/null 2>&1; then
     EXISTING_ENGINE_HOST="$(defaults read app.fichero.fichero fichero.engine.host 2>/dev/null || true)"

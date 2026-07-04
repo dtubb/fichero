@@ -181,6 +181,13 @@ def test_start_backend_defaults_to_dev_feature_tier() -> None:
     assert 'export FICHERO_FEATURE_TIER="${FICHERO_FEATURE_TIER:-dev}"' in text
 
 
+def test_start_backend_makes_multiuser_default_explicit_for_local_and_remote() -> None:
+    text = _script_text(START_BACKEND)
+
+    assert 'FICHERO_MULTIUSER="${FICHERO_MULTIUSER:-1}"' in text
+    assert 'export FICHERO_MULTIUSER="${FICHERO_MULTIUSER:-0}"' in text
+
+
 def test_start_backend_syncs_bootstrap_token_into_debug_sandbox() -> None:
     text = _script_text(START_BACKEND)
 
