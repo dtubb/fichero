@@ -9,7 +9,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Literal
 from xml.sax.saxutils import escape
 
 from fichero.db import Database
@@ -85,6 +85,100 @@ class EleventySiteExportResult:
     collection_count: int
     files: list[ExportedFile] = field(default_factory=list)
     assets: list[ExportedFile] = field(default_factory=list)
+
+
+ExportGranularity = Literal["page", "expediente-folder", "box-collection"]
+
+
+def iter_export_records(
+    db: Database,
+    target_id: str | None = None,
+    recursive: bool = True,
+    granularity: ExportGranularity = "page",
+) -> Iterable[dict[str, Any]]:
+    """Yield plain export records shared by static export emitters."""
+    root, documents = _collect_documents(db, target_id=target_id, recursive=recursive)
+    by_id = {d.id: d for d in db.all(Document)}
+    root_id = root.id if root else None
+    doc_ids = {doc.id for doc in documents}
+
+    for doc in documents:
+        provenance = _document_export_provenance(doc, by_id, root_id)
+        scope = _scope_for_document(doc, by_id, root_id, granularity)
+        yield {
+            "record_type": "document",
+            "granularity": granularity,
+            **scope,
+            **provenance,
+            "id": doc.id,
+            "document_id": doc.id,
+            "name": doc.name,
+            "doc_type": doc.doc_type.value,
+            "file_type": doc.file_type.value if doc.file_type else None,
+            "path": doc.path,
+            "parent_id": doc.parent_id,
+            "sequence": doc.sequence,
+            "page_content": doc.page_content,
+            "metadata": doc.metadata,
+            "provenance_chain": doc.provenance_chain,
+            "workflow_runs": doc.workflow_runs,
+        }
+
+    entities, claims = _knowledge_graph_rows(db, documents)
+    for entity in entities:
+        for scope in _knowledge_scope_records(
+            entity.source_document_ids,
+            by_id,
+            root_id,
+            granularity,
+            allowed_doc_ids=doc_ids,
+        ):
+            yield {
+                "record_type": "entity",
+                "granularity": granularity,
+                **scope,
+                "id": entity.id,
+                "entity_id": entity.id,
+                "canonical_name": entity.canonical_name,
+                "entity_type": entity.entity_type.value,
+                "aliases": entity.aliases,
+                "description": entity.description,
+                "metadata": entity.metadata,
+                "source_document_ids": entity.source_document_ids,
+            }
+
+    for claim in claims:
+        source_ids = [
+            doc_id
+            for doc_id in [claim.source_document_id, *claim.source_ids]
+            if isinstance(doc_id, str)
+        ]
+        for scope in _knowledge_scope_records(
+            source_ids,
+            by_id,
+            root_id,
+            granularity,
+            allowed_doc_ids=doc_ids,
+            page_label=claim.source_page_label,
+            excerpt=claim.source_excerpt,
+        ):
+            yield {
+                "record_type": "claim",
+                "granularity": granularity,
+                **scope,
+                "id": claim.id,
+                "claim_id": claim.id,
+                "text": claim.text,
+                "claim_type": claim.claim_type.value if claim.claim_type else None,
+                "epistemic_status": (
+                    claim.epistemic_status.value if claim.epistemic_status else None
+                ),
+                "entity_ids": claim.entity_ids,
+                "metadata": claim.metadata,
+                "source_document_id": claim.source_document_id,
+                "source_page_label": claim.source_page_label,
+                "source_excerpt": claim.source_excerpt,
+            }
 
 
 def export_eleventy_site(
@@ -192,6 +286,108 @@ def _collection_path_for(
             parts.append(_slugify(cur.name))
         cur = by_id.get(cur.parent_id) if cur.parent_id else None
     return list(reversed(parts))
+
+
+def _folder_chain_for(
+    doc: Document,
+    by_id: dict[str, Document],
+    root_id: str | None,
+) -> list[Document]:
+    chain: list[Document] = []
+    cur = doc if doc.doc_type == DocType.folder else by_id.get(doc.parent_id or "")
+    seen: set[str] = set()
+    while cur is not None and cur.id not in seen:
+        seen.add(cur.id)
+        if cur.doc_type == DocType.folder:
+            chain.append(cur)
+        if cur.id == root_id:
+            break
+        cur = by_id.get(cur.parent_id or "")
+    chain.reverse()
+    if chain and root_id and chain[0].id == root_id:
+        chain = chain[1:]
+    return chain
+
+
+def _document_export_provenance(
+    doc: Document,
+    by_id: dict[str, Document],
+    root_id: str | None,
+) -> dict[str, Any]:
+    folders = _folder_chain_for(doc, by_id, root_id)
+    box = folders[0] if folders else None
+    expediente = folders[-1] if folders else None
+    page_label = doc.page_label or doc.metadata.get("page_label") or (
+        str(doc.sequence) if doc.sequence is not None else None
+    )
+    return {
+        "found_in_document_id": doc.id,
+        "found_in_document_name": doc.name,
+        "found_in_page_id": doc.id,
+        "found_in_page_label": page_label,
+        "found_in_expediente_id": expediente.id if expediente else None,
+        "found_in_expediente_name": expediente.name if expediente else None,
+        "found_in_box_collection_id": box.id if box else None,
+        "found_in_box_collection_name": box.name if box else None,
+    }
+
+
+def _scope_for_document(
+    doc: Document,
+    by_id: dict[str, Document],
+    root_id: str | None,
+    granularity: ExportGranularity,
+) -> dict[str, Any]:
+    provenance = _document_export_provenance(doc, by_id, root_id)
+    if granularity == "page":
+        return {
+            "scope_id": doc.id,
+            "scope_name": doc.name,
+            "scope_kind": "page",
+        }
+    if granularity == "expediente-folder":
+        return {
+            "scope_id": provenance["found_in_expediente_id"] or doc.id,
+            "scope_name": provenance["found_in_expediente_name"] or doc.name,
+            "scope_kind": "expediente-folder",
+        }
+    return {
+        "scope_id": provenance["found_in_box_collection_id"] or doc.id,
+        "scope_name": provenance["found_in_box_collection_name"] or doc.name,
+        "scope_kind": "box-collection",
+    }
+
+
+def _knowledge_scope_records(
+    source_document_ids: list[str],
+    by_id: dict[str, Document],
+    root_id: str | None,
+    granularity: ExportGranularity,
+    *,
+    allowed_doc_ids: set[str],
+    page_label: str | None = None,
+    excerpt: str | None = None,
+) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    seen_scope_ids: set[str] = set()
+    for doc_id in source_document_ids:
+        if doc_id not in allowed_doc_ids:
+            continue
+        doc = by_id.get(doc_id)
+        if doc is None:
+            continue
+        provenance = _document_export_provenance(doc, by_id, root_id)
+        provenance["found_in_page_label"] = (
+            page_label or provenance["found_in_page_label"]
+        )
+        if excerpt is not None:
+            provenance["found_in_excerpt"] = excerpt
+        scope = _scope_for_document(doc, by_id, root_id, granularity)
+        if scope["scope_id"] in seen_scope_ids:
+            continue
+        seen_scope_ids.add(scope["scope_id"])
+        records.append({**scope, **provenance})
+    return records
 
 
 def _render_eleventy_item(
