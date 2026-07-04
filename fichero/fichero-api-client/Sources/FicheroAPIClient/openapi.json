@@ -35139,6 +35139,16 @@
           "updated_at": {
             "type": "string",
             "title": "Updated At"
+          },
+          "folder_path": {
+            "type": "string",
+            "title": "Folder Path",
+            "description": "Folder organization path for the chain."
+          },
+          "sort_order": {
+            "type": "integer",
+            "title": "Sort Order",
+            "description": "Sort order within the chain folder."
           }
         },
         "type": "object",
@@ -35150,7 +35160,9 @@
           "entry_step",
           "initial_inputs",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "folder_path",
+          "sort_order"
         ],
         "title": "ChainResponse",
         "description": "Response model for chain data."

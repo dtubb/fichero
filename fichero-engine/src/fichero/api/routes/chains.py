@@ -157,6 +157,12 @@ class ChainResponse(BaseModel):
     )
     created_at: str
     updated_at: str
+    folder_path: str = Field(
+        description="Folder organization path for the chain."
+    )
+    sort_order: int = Field(
+        description="Sort order within the chain folder."
+    )
 
 
 class ChainListResponse(BaseModel):
@@ -733,4 +739,6 @@ def _chain_to_response(chain: WorkflowChain) -> ChainResponse:
         initial_inputs=chain.initial_inputs,
         created_at=chain.created_at.isoformat(),
         updated_at=chain.updated_at.isoformat(),
+        folder_path=chain.folder_path,
+        sort_order=chain.sort_order,
     )

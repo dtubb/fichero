@@ -64,6 +64,8 @@ class TestCreateChain:
         data = r.json()
         assert data["name"] == "My Chain"
         assert "id" in data
+        assert data["folder_path"] == "/"
+        assert data["sort_order"] == 0
 
     def test_missing_name_rejected(self, client):
         payload = _chain_payload()
@@ -231,6 +233,8 @@ class TestChainOpenAPISchema:
 
         assert create_request["properties"]["steps"]["items"]["$ref"].endswith("/ChainStepRequest")
         assert chain_response["properties"]["steps"]["items"]["$ref"].endswith("/ChainStepResponse")
+        assert chain_response["properties"]["folder_path"]["type"] == "string"
+        assert chain_response["properties"]["sort_order"]["type"] == "integer"
         assert (
             "Free-form JSON inputs for the chain entrypoint"
             in create_request["properties"]["initial_inputs"]["description"]
@@ -250,5 +254,9 @@ class TestChainOpenAPISchema:
         assert (
             "Values stay workflow-defined and are not coerced."
             in step_response["properties"]["static_inputs"]["description"]
+        )
+        assert (
+            "Output shape remains workflow-defined."
+            in execution_status["properties"]["final_outputs"]["description"]
         )
         assert execution_status["properties"]["final_files"]["items"]["type"] == "string"
