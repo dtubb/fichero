@@ -20,16 +20,17 @@ final class ViewDisplayModeTests: XCTestCase {
         XCTAssertEqual(ViewDisplayMode(rawValue: "Spatial"), .canvas)
     }
 
-    func testLegacyRealityKitMigratesToSpace() {
-        // The old 3D RealityKit / Mind Palace render is the new .space case.
-        XCTAssertEqual(ViewDisplayMode(rawValue: "RealityKit"), .space)
+    func testLegacyRealityKitMigratesToCanvasDuringRendererGap() {
+        // Old 3D RealityKit folds to the working 2D .canvas (not .space) while
+        // the .space renderer is unbuilt (P3 of #3070) — Daniel 2026-07-04.
+        XCTAssertEqual(ViewDisplayMode(rawValue: "RealityKit"), .canvas)
     }
 
     func testMigratedValueRoundTripsToCanonicalRawValue() {
         // A migrated value must persist back as the canonical rawValue so the
         // legacy string is rewritten on next save, not carried forever.
         XCTAssertEqual(ViewDisplayMode(rawValue: "Map")?.rawValue, "Canvas")
-        XCTAssertEqual(ViewDisplayMode(rawValue: "RealityKit")?.rawValue, "Space")
+        XCTAssertEqual(ViewDisplayMode(rawValue: "RealityKit")?.rawValue, "Canvas")
     }
 
     // MARK: - Canonical decode

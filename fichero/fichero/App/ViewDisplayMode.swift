@@ -23,18 +23,21 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
 
     /// Decode that migrates legacy persisted/`@SceneStorage`/`@AppStorage`
     /// rawValues (#3081). The old cases are gone, so this init folds their
-    /// stored strings onto the new ones: `"Map"` (old Canvas) and `"Spatial"`
-    /// (old 2D spatial, merged into Canvas) → `.canvas`; `"RealityKit"` (old 3D
-    /// Mind Palace render) → `.space`. Without this, those strings would decode
-    /// to `nil` and silently reset to `.icon`. The synthesized `rawValue` getter
-    /// is unaffected, so values still round-trip to the canonical rawValue.
+    /// stored strings onto the new ones: `"Map"` (old Canvas), `"Spatial"`
+    /// (old 2D spatial, merged into Canvas), AND `"RealityKit"` (old 3D Mind
+    /// Palace render) → `.canvas`. `"RealityKit"` folds to `.canvas` (not
+    /// `.space`) during the renderer gap: the 3D `.space` renderer isn't built
+    /// yet (P3 of #3070), so old 3D users land on the working 2D Canvas rather
+    /// than an empty Space (Daniel, 2026-07-04). Without this, those strings
+    /// would decode to `nil` and silently reset to `.icon`. The synthesized
+    /// `rawValue` getter is unaffected, so values still round-trip.
     init?(rawValue: String) {
         switch rawValue {
         case "Icon": self = .icon
         case "List": self = .list
         case "Table": self = .table
-        case "Canvas", "Map", "Spatial": self = .canvas
-        case "Space", "RealityKit": self = .space
+        case "Canvas", "Map", "Spatial", "RealityKit": self = .canvas
+        case "Space": self = .space
         case "Workspace": self = .workspace
         default: return nil
         }
