@@ -8,7 +8,7 @@ pagination. No external dependencies; uses real in-memory DB fixture.
 
 import asyncio
 import time
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -342,6 +342,28 @@ class TestRelatedDocuments:
         assert [item.document_id for item in response.items] == [peer.id]
         assert response.items[0].sample_entity_names == ["Valid Entity"]
 
+    def test_direct_helper_logs_malformed_entity_payloads(self, db):
+        seed = _make_doc(db, "Seed")
+        db.save(
+            KnowledgeClaim(
+                id="seed-bad-json",
+                text="Malformed payload",
+                source_document_id=seed.id,
+                entity_ids=[],
+            )
+        )
+        db._execute(
+            "UPDATE knowledgeclaims SET entity_ids = $raw WHERE id = $id",
+            {"raw": '{"unexpected": "shape"}', "id": "seed-bad-json"},
+        )
+
+        with patch.object(documents_routes.logger, "warning") as mock_warning:
+            response = asyncio.run(related_documents(seed.id, limit=10, db=db))
+
+        assert response.count == 0
+        mock_warning.assert_called_once()
+        assert seed.id in mock_warning.call_args.args[1]
+
 
 # ---------------------------------------------------------------------------
 # GET /api/documents/{doc_id}/children
@@ -376,6 +398,20 @@ class TestGetChildren:
         assert entity.id in items
         assert items[entity.id]["node_kind"] == "entity"
         assert items[entity.id]["name"] == "Eldorado"
+
+
+class TestWorkspaceLogging:
+    def test_normalize_curated_items_logs_bad_entries(self):
+        items = [
+            "bad-item",
+            {"id": "ok", "target_type": "", "target_id": "doc-1"},
+        ]
+
+        with patch.object(documents_routes.logger, "warning") as mock_warning:
+            normalized = documents_routes._normalize_curated_items(items)
+
+        assert normalized == []
+        assert mock_warning.call_count == 2
 
     def test_returns_folded_notes_and_milestones_as_children(self, client, db):
         parent = Document(name="Parent", doc_type=DocType.folder)
