@@ -5,8 +5,11 @@ contradicts, refines, etc.). These routes manage the graph edges between
 claims. Uses real in-memory DB fixtures.
 """
 
-import pytest
 from datetime import datetime
+
+import pytest
+
+from fichero.models import ActionAudit
 from fichero.knowledge_models import (
     ClaimRelationType,
     ClaimCurationState,
@@ -186,6 +189,38 @@ class TestDeleteClaimLink:
     def test_delete_missing_returns_404(self, client):
         r = client.delete("/api/claim-links/no-such-id")
         assert r.status_code == 404
+
+
+class TestClaimLinkRouteAudit:
+    def test_create_update_delete_routes_write_action_audit(self, client, db):
+        doc = _make_document(db)
+        c1 = _make_claim(db, doc, "Claim 1")
+        c2 = _make_claim(db, doc, "Claim 2")
+
+        created = client.post(
+            f"/api/claims/{c1.id}/links",
+            json={"related_claim_id": c2.id, "relation_type": "supports"},
+        )
+        assert created.status_code == 200
+        link_id = created.json()["id"]
+        create_audit = db.all(ActionAudit)[-1]
+        assert create_audit.action_name == "claim.create_link"
+        assert create_audit.target_ids == [link_id]
+
+        updated = client.patch(
+            f"/api/claim-links/{link_id}",
+            json={"link_quality": 0.95},
+        )
+        assert updated.status_code == 200
+        update_audit = db.all(ActionAudit)[-1]
+        assert update_audit.action_name == "claim.update_link"
+        assert update_audit.target_ids == [link_id]
+
+        deleted = client.delete(f"/api/claim-links/{link_id}")
+        assert deleted.status_code == 200
+        delete_audit = db.all(ActionAudit)[-1]
+        assert delete_audit.action_name == "claim.delete_link"
+        assert delete_audit.target_ids == [link_id]
 
 
 # ---------------------------------------------------------------------------
