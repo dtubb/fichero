@@ -7,6 +7,7 @@ pagination. No external dependencies; uses real in-memory DB fixture.
 
 
 import asyncio
+import logging
 import time
 from unittest.mock import AsyncMock, patch
 
@@ -342,7 +343,7 @@ class TestRelatedDocuments:
         assert [item.document_id for item in response.items] == [peer.id]
         assert response.items[0].sample_entity_names == ["Valid Entity"]
 
-    def test_direct_helper_logs_malformed_entity_payloads(self, db):
+    def test_direct_helper_logs_malformed_entity_payloads(self, db, caplog):
         seed = _make_doc(db, "Seed")
         db.save(
             KnowledgeClaim(
@@ -354,15 +355,17 @@ class TestRelatedDocuments:
         )
         db._execute(
             "UPDATE knowledgeclaims SET entity_ids = $raw WHERE id = $id",
-            {"raw": '{"unexpected": "shape"}', "id": "seed-bad-json"},
+            {"raw": '{not-json', "id": "seed-bad-json"},
         )
 
-        with patch.object(documents_routes.logger, "warning") as mock_warning:
+        with caplog.at_level(logging.WARNING, logger=documents_routes.logger.name):
             response = asyncio.run(related_documents(seed.id, limit=10, db=db))
 
         assert response.count == 0
-        mock_warning.assert_called_once()
-        assert seed.id in mock_warning.call_args.args[1]
+        assert (
+            f"related-documents malformed entity_ids payload for {seed.id}: '{{not-json'"
+            in caplog.text
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -401,18 +404,21 @@ class TestGetChildren:
 
 
 class TestWorkspaceLogging:
-    def test_normalize_curated_items_logs_bad_entries(self):
+    def test_normalize_curated_items_logs_bad_entries(self, caplog):
         items = [
             "bad-item",
             {"id": "ok", "target_type": "", "target_id": "doc-1"},
         ]
 
-        with patch.object(documents_routes.logger, "warning") as mock_warning:
+        with caplog.at_level(logging.WARNING, logger=documents_routes.logger.name):
             normalized = documents_routes._normalize_curated_items(items)
 
         assert normalized == []
-        assert mock_warning.call_count == 2
+        assert "workspace curated item is not an object: 'bad-item'" in caplog.text
+        assert "workspace curated item missing required fields" in caplog.text
 
+
+class TestFoldedChildren:
     def test_returns_folded_notes_and_milestones_as_children(self, client, db):
         parent = Document(name="Parent", doc_type=DocType.folder)
         db.save(parent)
