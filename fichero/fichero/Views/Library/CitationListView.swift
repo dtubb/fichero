@@ -67,20 +67,13 @@ struct CitationListView: View {
             }
     }
 
-    @ViewBuilder
     private var emptyState: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "text.quote")
-                .font(.title2)
-                .foregroundStyle(.secondary)
-            Text("No citations recorded")
-                .font(.callout)
-            Text("Run a workflow that includes citation extraction to populate this list.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .padding(.horizontal, 16)
+        // Standardized on ContentUnavailableView (#3039).
+        ContentUnavailableView(
+            "No citations recorded",
+            systemImage: "text.quote",
+            description: Text("Run a workflow that includes citation extraction to populate this list.")
+        )
     }
 }
 
