@@ -2,7 +2,7 @@ import FicheroAPIClient
 import RealityKit
 import SwiftUI
 
-// MARK: - 2D 'Canvas' — RealityKit ortho renderer on the shared contract (#3083)
+// MARK: - 2D 'Canvas' — RealityKit ortho renderer on the shared contract (#3083/#3084)
 
 /// The 2D 'Canvas' view: a thin SwiftUI shell over `CanvasOrtho2DRenderer` (the
 /// `CanvasSceneRenderer` impl, #3103). It resolves the shared #3082 stores into a
@@ -10,9 +10,9 @@ import SwiftUI
 /// routes gestures as `CanvasIntent`s through the shared `CanvasInteractionController`
 /// — so a move made in the 3D 'Space' window shows up here live, and vice-versa.
 ///
-/// This slice (#3083) is the skeleton: render placeables + connectors, ortho
-/// camera pan/zoom, tap-to-select, thumbnail LOD. Node drag/persist is #3084;
-/// CRUD #3085; drag-onto #3086; SwiftUI-canvas cutover #3087.
+/// #3083 delivered render + camera pan/zoom + tap-select + LOD. #3084 adds node
+/// drag (single-row persist + snap-on-release + mid-drag echo suppression),
+/// marquee multi-select, animated store-driven repositioning, and move undo.
 struct CanvasSceneView: View {
     let nodes: [SpatialNode]
     let connections: [SpatialConnection]
@@ -22,10 +22,23 @@ struct CanvasSceneView: View {
     var itemStore: CanvasItemStore?
     var folderScopeId: String?
 
+    @Environment(\.undoManager) private var undoManager
+
     @State private var renderer = CanvasOrtho2DRenderer()
     @State private var controller: CanvasInteractionController?
+
+    // Camera-pan bookkeeping.
     @State private var panBaseline: CGSize = .zero
     @State private var zoomBaseline: Float = 0
+
+    // Node-drag state.
+    @State private var draggingNodeId: String?
+    @State private var dragStartScene: SIMD3<Float>?
+    @State private var dragOriginWorld: SIMD3<Double>?
+
+    // Marquee state (shift-drag on the background).
+    @State private var shiftHeld = false
+    @State private var marqueeRect: CGRect?
 
     private var scopeKey: String { folderScopeId ?? wholeLibraryRoomId }
 
@@ -54,11 +67,14 @@ struct CanvasSceneView: View {
                 renderer.detailTier = CanvasDetailTier.forZoomScale(renderer.reportedZoomScale)
                 renderer.reconcile(to: resolvedState)
             }
+            .highPriorityGesture(nodeDrag(in: geo.size))
             .highPriorityGesture(tapSelect)
-            .simultaneousGesture(pan(in: geo.size))
+            .gesture(panOrMarquee(in: geo.size))
             .simultaneousGesture(zoom)
             .background(SpaceTheme.canvasBackground)
             .onTapGesture { controller?.dispatch(.tap(id: nil)) }   // background → clear
+            .overlay { marqueeOverlay }
+            .modifier(ShiftKeyTracker(shiftHeld: $shiftHeld))
             .task(id: folderScopeId) {
                 configureController()
                 guard let folderId = folderScopeId else { return }
@@ -68,10 +84,20 @@ struct CanvasSceneView: View {
         }
     }
 
+    @ViewBuilder
+    private var marqueeOverlay: some View {
+        if let rect = marqueeRect {
+            Rectangle()
+                .fill(Color.accentColor.opacity(0.12))
+                .overlay(Rectangle().stroke(Color.accentColor, lineWidth: 1))
+                .frame(width: rect.width, height: rect.height)
+                .position(x: rect.midX, y: rect.midY)
+                .allowsHitTesting(false)
+        }
+    }
+
     // MARK: - Controller
 
-    /// (Re)build the controller for the current scope and wire the renderer's
-    /// intent + drag-suppression hooks to it.
     private func configureController() {
         guard let layoutStore, let itemStore else { return }
         let controller = CanvasInteractionController(
@@ -97,25 +123,83 @@ struct CanvasSceneView: View {
             }
     }
 
-    /// Background drag pans the ortho camera across its plane.
-    private func pan(in size: CGSize) -> some Gesture {
+    /// Drag a card → move it live and persist a single snapped row on release
+    /// (#3084). The controller suppresses store echoes for the dragged id
+    /// mid-drag, so the gesture is never fought.
+    private func nodeDrag(in size: CGSize) -> some Gesture {
+        DragGesture(minimumDistance: 2)
+            .targetedToAnyEntity()
+            .onChanged { value in
+                let id = value.entity.name
+                guard !id.isEmpty else { return }
+                if draggingNodeId == nil {
+                    draggingNodeId = id
+                    let startScene = value.entity.position(relativeTo: nil)
+                    dragStartScene = startScene
+                    dragOriginWorld = Canvas2DProjection.worldPosition(startScene)
+                    controller?.dispatch(.dragBegan(id: id))
+                }
+                guard let start = dragStartScene else { return }
+                let world = draggedWorld(start: start, translation: value.translation, viewHeight: size.height)
+                renderer.liveMove(id: id, toWorld: world)
+                controller?.dispatch(.dragMoved(id: id, position: world))
+            }
+            .onEnded { value in
+                guard let id = draggingNodeId, let start = dragStartScene else { return }
+                let world = draggedWorld(start: start, translation: value.translation, viewHeight: size.height)
+                controller?.dispatch(.dragEnded(id: id, position: world, dropTarget: nil, modifiers: []))
+                if let controller, let origin = dragOriginWorld {
+                    controller.registerMoveUndo(id: id, origin: origin, destination: world, undoManager: undoManager)
+                }
+                draggingNodeId = nil
+                dragStartScene = nil
+                dragOriginWorld = nil
+            }
+    }
+
+    private func draggedWorld(start: SIMD3<Float>, translation: CGSize, viewHeight: CGFloat) -> SIMD3<Double> {
+        let delta = Canvas2DProjection.sceneDelta(
+            screenTranslation: translation,
+            orthoScale: renderer.orthoScale,
+            viewHeight: viewHeight
+        )
+        return Canvas2DProjection.worldPosition(start + delta)
+    }
+
+    /// Background drag: shift-held → rubber-band marquee multi-select; otherwise
+    /// pan the ortho camera across its plane.
+    private func panOrMarquee(in size: CGSize) -> some Gesture {
         DragGesture(minimumDistance: 2)
             .onChanged { value in
-                let delta = CGSize(
-                    width: value.translation.width - panBaseline.width,
-                    height: value.translation.height - panBaseline.height
-                )
-                panBaseline = value.translation
-                // ponytail: world-per-point = visible world height (2·orthoScale)
-                // over the view height. Signs move content WITH the finger. This
-                // is the calibration knob — tune against the built app (#3084 run).
-                let worldPerPoint = (2 * renderer.orthoScale) / Float(max(size.height, 1))
-                renderer.panCamera(worldDelta: SIMD2<Float>(
-                    Float(-delta.width) * worldPerPoint,
-                    Float(delta.height) * worldPerPoint
-                ))
+                if shiftHeld {
+                    marqueeRect = CGRect(
+                        x: min(value.startLocation.x, value.location.x),
+                        y: min(value.startLocation.y, value.location.y),
+                        width: abs(value.location.x - value.startLocation.x),
+                        height: abs(value.location.y - value.startLocation.y)
+                    )
+                } else {
+                    let delta = CGSize(
+                        width: value.translation.width - panBaseline.width,
+                        height: value.translation.height - panBaseline.height
+                    )
+                    panBaseline = value.translation
+                    // ponytail: shares Canvas2DProjection.worldPerPoint with drag +
+                    // marquee — the ONE calibration knob to tune against the built app.
+                    let delta3 = Canvas2DProjection.sceneDelta(
+                        screenTranslation: delta, orthoScale: renderer.orthoScale, viewHeight: size.height
+                    )
+                    // Move content WITH the finger: pan the camera the opposite way.
+                    renderer.panCamera(worldDelta: SIMD2<Float>(-delta3.x, -delta3.y))
+                }
             }
-            .onEnded { _ in panBaseline = .zero }
+            .onEnded { _ in
+                if shiftHeld, let rect = marqueeRect {
+                    controller?.dispatch(.marquee(ids: renderer.placeableIds(inScreenRect: rect, viewSize: size)))
+                }
+                marqueeRect = nil
+                panBaseline = .zero
+            }
     }
 
     /// Pinch zooms the ortho camera: magnify > 1 → zoom IN → smaller ortho scale.
@@ -123,9 +207,26 @@ struct CanvasSceneView: View {
         MagnificationGesture()
             .onChanged { value in
                 if zoomBaseline == 0 { zoomBaseline = renderer.orthoScale }
-                let magnification = Float(max(value, 0.01))
-                renderer.setOrthoScale(zoomBaseline / magnification)
+                renderer.setOrthoScale(zoomBaseline / Float(max(value, 0.01)))
             }
             .onEnded { _ in zoomBaseline = 0 }
+    }
+}
+
+// MARK: - Shift-key tracking (macOS marquee modifier)
+
+/// Tracks whether ⇧ is held so a background drag becomes a marquee. macOS-only
+/// (`onModifierKeysChanged`); a no-op elsewhere.
+private struct ShiftKeyTracker: ViewModifier {
+    @Binding var shiftHeld: Bool
+
+    func body(content: Content) -> some View {
+        #if canImport(AppKit)
+        content.onModifierKeysChanged(mask: .shift) { _, modifiers in
+            shiftHeld = modifiers.contains(.shift)
+        }
+        #else
+        content
+        #endif
     }
 }

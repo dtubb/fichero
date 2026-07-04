@@ -231,6 +231,33 @@ final class CanvasInteractionController {
         )
     }
 
+    // MARK: Move + undo (#3084)
+
+    /// Persist a single item's snapped position — the undo/redo primitive and any
+    /// programmatic move. Reuses the exactly-one-row persist.
+    @discardableResult
+    func moveItem(id: String, to worldPosition: SIMD3<Double>) async -> Bool {
+        await persistSingleRow(id: id, to: snap(worldPosition), rollbackTo: nil)
+    }
+
+    /// Register a drag move with the window `UndoManager` (position before/after,
+    /// #3084). The canonical move pattern: undoing moves back to `from` and
+    /// re-registers the inverse, so redo replays the move — repeatable both ways.
+    func registerMoveUndo(id: String, origin: SIMD3<Double>, destination: SIMD3<Double>, undoManager: UndoManager?) {
+        guard let undoManager, origin != destination else { return }
+        undoManager.registerUndo(withTarget: self) { controller in
+            // UndoManager invokes the handler on the thread that called undo()
+            // (main, for UI), so assume main-actor isolation to reach the
+            // @MainActor controller. Undoing moves back to `origin` and registers
+            // the inverse, so redo replays the move — repeatable both directions.
+            MainActor.assumeIsolated {
+                Task { await controller.moveItem(id: id, to: origin) }
+                controller.registerMoveUndo(id: id, origin: destination, destination: origin, undoManager: undoManager)
+            }
+        }
+        undoManager.setActionName("Move")
+    }
+
     // MARK: Persistence — exactly one row
 
     /// Persist ONE row's position through `saveLayout`: patch the dragged/added
