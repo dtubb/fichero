@@ -1,7 +1,11 @@
 import FicheroAPIClient
 import SwiftUI
 
-/// Notes inspector built as List + detail.
+/// Notes inspector built as List + detail. Mirrors `CitationsInspectorPane` /
+/// `ArtifactsInspectorPane` / `AnnotationsInspectorPane`: a horizontal split with
+/// the `NoteListView` on the left and the `NoteDetailView` on the right that
+/// follows the selection — the detail slides in from the right rather than
+/// bottom-docking and jumping (#2455 sweep — this sibling was missed by 89ecf5eb).
 struct NotesInspectorPane: View {
     let notes: [NoteSelectionItem]
     let selectionResetToken: String
@@ -23,7 +27,7 @@ struct NotesInspectorPane: View {
             if let loadError = noteStore.loadError {
                 errorBox(loadError)
             }
-            PlatformVSplitView {
+            PlatformHSplitView {
                 NoteListView(
                     notes: notes,
                     focused: focused,
