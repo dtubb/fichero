@@ -361,6 +361,123 @@ class TestAppendOpActions:
         assert inverse_audit.action_name == "image.set_operations"
         assert inverse_audit.inverse_of == audit.id
 
+    @pytest.mark.parametrize(
+        (
+            "method",
+            "path_suffix",
+            "payload",
+            "action_name",
+            "expected_last_op",
+            "seed_ops",
+            "emit_type",
+        ),
+        [
+            (
+                "put",
+                "/edits",
+                {"operations": [{"op": "rotate", "params": {"angle": 90.0, "expand": True}, "page": 1}]},
+                "image.set_operations",
+                "rotate",
+                None,
+                "image.edits_changed",
+            ),
+            (
+                "post",
+                "/operations/crop",
+                {"left": 0, "top": 0, "width": 20, "height": 20, "auto_orient": True, "page": 1},
+                "image.crop",
+                "crop",
+                None,
+                "image.edits_changed",
+            ),
+            (
+                "post",
+                "/operations/rotate",
+                {"angle": 90, "expand": True, "page": 1},
+                "image.rotate",
+                "rotate",
+                None,
+                "image.edits_changed",
+            ),
+            (
+                "post",
+                "/operations/enhance",
+                {"brightness": 0.8, "contrast": 1.1, "sharpen": 1.0, "auto_levels": False, "page": 1},
+                "image.enhance",
+                "enhance",
+                None,
+                "image.edits_changed",
+            ),
+            (
+                "post",
+                "/operations/remove-background",
+                {"method": "threshold", "threshold": 5, "page": 1},
+                "image.remove_background",
+                "remove_background",
+                None,
+                "image.edits_changed",
+            ),
+            (
+                "post",
+                "/operations/segment",
+                {"method": "foreground", "threshold": 28, "min_area": 50, "max_segments": 10, "page": 1},
+                "image.segment",
+                "segment",
+                None,
+                "image.segmented",
+            ),
+            (
+                "delete",
+                "/edits",
+                None,
+                "image.clear_operations",
+                None,
+                [{"op": "rotate", "params": {"angle": 90.0, "expand": True}, "page": 1}],
+                "image.edits_changed",
+            ),
+        ],
+    )
+    def test_route_writes_action_audit_and_emits(
+        self,
+        client,
+        db,
+        tmp_path,
+        monkeypatch,
+        method,
+        path_suffix,
+        payload,
+        action_name,
+        expected_last_op,
+        seed_ops,
+        emit_type,
+    ):
+        calls = _spy_emit(monkeypatch)
+        doc_factory = _make_segmentable_doc if action_name == "image.segment" else _make_image_doc
+        doc = doc_factory(db, tmp_path)
+        if seed_ops is not None:
+            registry.invoke(
+                db,
+                "image.set_operations",
+                {"document_id": doc.id, "operations": seed_ops},
+                _ctx(),
+            )
+
+        request_kwargs = {"headers": {"X-Fichero-Library-Path": str(db.path.parent)}}
+        if payload is not None:
+            request_kwargs["json"] = payload
+        response = getattr(client, method)(f"/api/images/{doc.id}{path_suffix}", **request_kwargs)
+
+        assert response.status_code in {200, 204}, response.text
+        audit = db.all(ActionAudit)[-1]
+        assert audit.action_name == action_name
+        assert audit.target_ids == [doc.id]
+        if expected_last_op is None:
+            assert _ops(db, doc.id) == []
+        else:
+            assert _ops(db, doc.id)[-1]["op"] == expected_last_op
+        assert calls[-1][1]["type"] == emit_type
+        assert doc.id in calls[-1][1]["document_ids"]
+
     def test_enhance_appends_and_audits(self, db, tmp_path):
         doc = _make_image_doc(db, tmp_path)
         result = registry.invoke(

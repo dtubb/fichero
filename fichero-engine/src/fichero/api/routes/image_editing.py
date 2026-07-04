@@ -12,12 +12,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 from PIL import Image, ImageChops, ImageEnhance, ImageFilter, ImageOps
 
-from fichero.api.auth import request_actor
-from fichero.api.library_header import optional_library_path
+from fichero.api.auth import action_context
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.models import DocType, Document, ImageEditChain
@@ -643,13 +642,16 @@ async def put_edit_chain(
     document_id: str,
     request: ImageEditChainUpsert,
     db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> ImageEditChainResponse:
-    chain = set_operations_impl(db, document_id, request.operations)
-    return ImageEditChainResponse(
-        document_id=document_id,
-        operations=chain.operations,
-        updated_at=chain.updated_at,
+    result = await asyncio.to_thread(
+        registry.invoke,
+        db,
+        "image.set_operations",
+        {"document_id": document_id, "operations": request.operations},
+        ctx,
     )
+    return ImageEditChainResponse.model_validate(result.result)
 
 
 @router.post("/{document_id}/operations/crop", response_model=ImageEditChainResponse)
@@ -657,15 +659,16 @@ async def crop_image(
     document_id: str,
     request: CropOperationRequest,
     db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> ImageEditChainResponse:
-    # Render off the event loop (crop can be heavy) — same as before, but the
-    # whole render+append now lives in the shared impl the action also drives.
-    chain = await asyncio.to_thread(crop_image_impl, db, document_id, request)
-    return ImageEditChainResponse(
-        document_id=document_id,
-        operations=chain.operations,
-        updated_at=chain.updated_at,
+    result = await asyncio.to_thread(
+        registry.invoke,
+        db,
+        "image.crop",
+        {"document_id": document_id, **request.model_dump(mode="json")},
+        ctx,
     )
+    return ImageEditChainResponse.model_validate(result.result)
 
 
 @router.post("/{document_id}/operations/rotate", response_model=ImageEditChainResponse)
@@ -673,13 +676,16 @@ async def rotate_image(
     document_id: str,
     request: RotateOperationRequest,
     db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> ImageEditChainResponse:
-    chain = rotate_image_impl(db, document_id, request)
-    return ImageEditChainResponse(
-        document_id=document_id,
-        operations=chain.operations,
-        updated_at=chain.updated_at,
+    result = await asyncio.to_thread(
+        registry.invoke,
+        db,
+        "image.rotate",
+        {"document_id": document_id, **request.model_dump(mode="json")},
+        ctx,
     )
+    return ImageEditChainResponse.model_validate(result.result)
 
 
 @router.post("/{document_id}/operations/straighten", response_model=ImageEditChainResponse)
@@ -687,28 +693,16 @@ async def straighten_image(
     document_id: str,
     request: StraightenOperationRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Depends(optional_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> ImageEditChainResponse:
-    result = registry.invoke(
+    result = await asyncio.to_thread(
+        registry.invoke,
         db,
         "image.straighten",
         {"document_id": document_id, **request.model_dump(mode="json")},
-        ActionContext(
-            actor=actor,
-            library_path=x_fichero_library_path,
-            origin_window=x_fichero_origin_window,
-        ),
+        ctx,
     )
-    chain = ImageEditChain.model_validate(result.result)
-    return ImageEditChainResponse(
-        document_id=document_id,
-        operations=chain.operations,
-        updated_at=chain.updated_at,
-    )
+    return ImageEditChainResponse.model_validate(result.result)
 
 
 @router.post("/{document_id}/operations/enhance", response_model=ImageEditChainResponse)
@@ -716,13 +710,16 @@ async def enhance_image(
     document_id: str,
     request: EnhanceOperationRequest,
     db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> ImageEditChainResponse:
-    chain = enhance_image_impl(db, document_id, request)
-    return ImageEditChainResponse(
-        document_id=document_id,
-        operations=chain.operations,
-        updated_at=chain.updated_at,
+    result = await asyncio.to_thread(
+        registry.invoke,
+        db,
+        "image.enhance",
+        {"document_id": document_id, **request.model_dump(mode="json")},
+        ctx,
     )
+    return ImageEditChainResponse.model_validate(result.result)
 
 
 @router.post("/{document_id}/operations/remove-background", response_model=ImageEditChainResponse)
@@ -730,13 +727,16 @@ async def remove_background_image(
     document_id: str,
     request: RemoveBackgroundOperationRequest,
     db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> ImageEditChainResponse:
-    chain = remove_background_image_impl(db, document_id, request)
-    return ImageEditChainResponse(
-        document_id=document_id,
-        operations=chain.operations,
-        updated_at=chain.updated_at,
+    result = await asyncio.to_thread(
+        registry.invoke,
+        db,
+        "image.remove_background",
+        {"document_id": document_id, **request.model_dump(mode="json")},
+        ctx,
     )
+    return ImageEditChainResponse.model_validate(result.result)
 
 
 @router.post("/{document_id}/operations/segment", response_model=ImageEditChainResponse)
@@ -744,20 +744,31 @@ async def segment_image(
     document_id: str,
     request: SegmentOperationRequest,
     db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> ImageEditChainResponse:
-    chain, _child_ids = segment_image_impl(db, document_id, request)
-    return ImageEditChainResponse(
-        document_id=document_id,
-        operations=chain.operations,
-        updated_at=chain.updated_at,
+    result = await asyncio.to_thread(
+        registry.invoke,
+        db,
+        "image.segment",
+        {"document_id": document_id, **request.model_dump(mode="json")},
+        ctx,
     )
+    return ImageEditChainResponse.model_validate(result.result)
 
 
 @router.delete("/{document_id}/edits", status_code=204)
 async def delete_edit_chain(
-    document_id: str, db: Database = Depends(get_library_database_for_write)
+    document_id: str,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> None:
-    clear_operations_impl(db, document_id)
+    await asyncio.to_thread(
+        registry.invoke,
+        db,
+        "image.clear_operations",
+        {"document_id": document_id},
+        ctx,
+    )
 
 
 @router.get("/{document_id}/preview")
