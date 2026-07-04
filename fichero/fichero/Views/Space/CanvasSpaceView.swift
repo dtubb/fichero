@@ -22,6 +22,12 @@ struct CanvasSpaceView: View {
     var layoutStore: CanvasLayoutStore?
     var itemStore: CanvasItemStore?
     var folderScopeId: String?
+    /// Container spatial node ids (folder / workspace) from LibraryView — drives
+    /// drag-onto move-into vs link (#3086).
+    var containerIds: Set<String> = []
+    /// Move a dragged node into a container (→ audited `document.move`), wired by
+    /// LibraryView. `(nodeId, containerNodeId)`.
+    var moveIntoContainer: (String, String) -> Void = { _, _ in }
 
     @Environment(\.undoManager) private var undoManager
 
@@ -98,7 +104,7 @@ struct CanvasSpaceView: View {
             .onTapGesture { controller?.dispatch(.tap(id: nil)) }
             .overlay(alignment: .top) { if isTruncated { truncationBanner } }
             .overlay(alignment: .topTrailing) { canvasToolbar }
-            .modifier(OptionKeyTracker(optionHeld: $optionHeld))
+            .modifier(CanvasModifierTracker(optionHeld: $optionHeld))
             .task(id: folderScopeId) {
                 configureController()
                 guard let folderId = folderScopeId else { return }
@@ -183,7 +189,20 @@ struct CanvasSpaceView: View {
         )
         renderer.onIntent = { controller.dispatch($0) }
         renderer.isDragSuppressed = { controller.isDragging($0) }
+        controller.onMoveInto = { moveIntoContainer($0, $1) }
         self.controller = controller
+    }
+
+    /// Classify a drop target: canvas items are leaves (→ link); a node is a
+    /// container only if LibraryView said so (→ move-into).
+    private func targetKind(_ id: String) -> CanvasTargetKind {
+        if (itemStore?.items(for: scopeKey) ?? []).contains(where: { $0.id == id }) { return .leaf }
+        return containerIds.contains(id) ? .container : .leaf
+    }
+
+    private func dropTarget(near world: SIMD3<Double>, dragged: String) -> CanvasDropTarget? {
+        renderer.dropTargetId(nearWorld: world, excluding: dragged)
+            .map { CanvasDropTarget(id: $0, kind: targetKind($0)) }
     }
 
     // MARK: - Gestures
@@ -214,13 +233,19 @@ struct CanvasSpaceView: View {
                 guard let start = dragStartWorld else { return }
                 let world = start + renderer.worldDragDelta(screenTranslation: value.translation)
                 renderer.liveMove(id: id, toWorld: world)
+                renderer.setHoverTarget(renderer.dropTargetId(nearWorld: world, excluding: id))
                 controller?.dispatch(.dragMoved(id: id, position: world))
             }
             .onEnded { value in
                 guard let id = draggingNodeId, let start = dragStartWorld else { return }
                 let world = start + renderer.worldDragDelta(screenTranslation: value.translation)
-                controller?.dispatch(.dragEnded(id: id, position: world, dropTarget: nil, modifiers: []))
-                controller?.registerMoveUndo(id: id, origin: start, destination: world, undoManager: undoManager)
+                renderer.setHoverTarget(nil)
+                let target = dropTarget(near: world, dragged: id)
+                let modifiers: CanvasDropModifiers = optionHeld ? .forceLink : []
+                controller?.dispatch(.dragEnded(id: id, position: world, dropTarget: target, modifiers: modifiers))
+                if target == nil {
+                    controller?.registerMoveUndo(id: id, origin: start, destination: world, undoManager: undoManager)
+                }
                 draggingNodeId = nil
                 dragStartWorld = nil
             }
@@ -251,23 +276,5 @@ struct CanvasSpaceView: View {
                 renderer.setDistance(zoomBaseline / Float(max(value, 0.01)))
             }
             .onEnded { _ in zoomBaseline = 0 }
-    }
-}
-
-// MARK: - Option-key tracking (orbit vs pan)
-
-/// Tracks ⌥ so a background drag pans instead of orbiting. macOS-only; a no-op
-/// elsewhere.
-private struct OptionKeyTracker: ViewModifier {
-    @Binding var optionHeld: Bool
-
-    func body(content: Content) -> some View {
-        #if canImport(AppKit)
-        content.onModifierKeysChanged(mask: .option) { _, modifiers in
-            optionHeld = modifiers.contains(.option)
-        }
-        #else
-        content
-        #endif
     }
 }

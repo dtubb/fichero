@@ -69,6 +69,13 @@ enum SpatialLibraryProjector {
     /// Spatial node ID for an entity — same stability guarantee.
     static func nodeId(forEntity entityId: String) -> String { "entity:\(entityId)" }
 
+    /// The document id inside a `doc:<id>` spatial node id, or nil for a
+    /// non-document node (entity / canvas item). The inverse of
+    /// `nodeId(forDocument:)`, used by drag-onto to reach `document.move` (#3086).
+    static func documentId(fromNodeId nodeId: String) -> String? {
+        nodeId.hasPrefix("doc:") ? String(nodeId.dropFirst("doc:".count)) : nil
+    }
+
     // MARK: - Pure projection (testable)
 
     /// Build the projection from raw library data. Deterministic: same input →
