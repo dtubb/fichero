@@ -21,6 +21,7 @@ from uuid import uuid4
 
 import duckdb
 
+from fichero.library_paths import nfc_path
 from fichero.path_security import resolve_snapshot_record_path
 from fichero.storage import settings  # settings from core storage module
 
@@ -73,7 +74,10 @@ def _load_known_library_config(library_path: Path):
 
     registry_db = Database(registry_db_path)
     try:
-        matches = registry_db.query(KnownLibrary, path=str(library_path.resolve()))
+        matches = registry_db.query(
+            KnownLibrary,
+            path=nfc_path(str(library_path.resolve())),
+        )
         return matches[0] if matches else None
     finally:
         registry_db.conn.close()
@@ -164,11 +168,11 @@ def snapshot_library(
     """
     from fichero.models import LibrarySnapshot, SnapshotInitiatorType
 
-    library_path_p = Path(library_path)
+    library_path_p = Path(nfc_path(library_path))
     if not library_path_p.exists():
         raise FileNotFoundError(f"Library not found: {library_path}")
 
-    library_name = library_path_p.stem  # "MyLibrary" from "MyLibrary.fichero"
+    library_name = nfc_path(library_path_p.stem)  # "MyLibrary" from "MyLibrary.fichero"
     snapshot_id = str(uuid4())
 
     created_at = datetime.now()
@@ -655,7 +659,7 @@ def run_due_scheduled_snapshots(
     created: list["LibrarySnapshot"] = []
 
     for library in _list_scheduled_libraries():
-        library_path = Path(library.path).expanduser()
+        library_path = Path(nfc_path(library.path)).expanduser()
         if library_path.suffix != ".fichero":
             logger.warning("Skipping scheduled snapshot for non-library path: %s", library_path)
             continue
@@ -666,7 +670,7 @@ def run_due_scheduled_snapshots(
         latest_snapshot = next(
             iter(
                 list_snapshots(
-                    library_name=library_path.stem,
+                    library_name=nfc_path(library_path.stem),
                     include_expired=True,
                 )
             ),

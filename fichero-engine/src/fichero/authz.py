@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from fichero.app_db import get_app_db
+from fichero.library_paths import nfc_path
 from fichero.models import AccountUser, Document
 from fichero.multiuser import multiuser_enabled as _multiuser_enabled
 
@@ -49,7 +50,7 @@ def normalize_library_path(library: str | Path | None) -> str | None:
     """Normalize a library path for ACL key comparisons."""
     if library is None:
         return None
-    return str(Path(library).expanduser().resolve())
+    return str(Path(nfc_path(library)).expanduser().resolve())
 
 
 def resolve_user(user: Any) -> ResolvedUser | None:
