@@ -3,8 +3,6 @@ import Foundation
 
 // MARK: - Response Types
 
-// HealthResponse is defined in Document.swift
-
 struct ErrorResponse: Codable {
     let detail: String
 }
