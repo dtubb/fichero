@@ -41,6 +41,8 @@ extension ChatInspector {
         }
         .padding(.horizontal, 12)
         .frame(height: MiniToolbar<EmptyView, EmptyView>.standardHeight)
-        .background(.bar)
+        // Tahoe glass treatment (#3061 / #2550), matching the document inspector
+        // strips + sidebar bars — replaces the flat `.bar` material.
+        .inspectorGlassStrip()
     }
 }

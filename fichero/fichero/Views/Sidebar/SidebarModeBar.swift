@@ -14,103 +14,23 @@ struct SidebarModeBar: View {
     // Badge counts from environment
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
 
+    /// Fallback icon budget: how many mode icons render inline before the rest
+    /// collapse into the '…' overflow (#3059). Selected + `.library` are always
+    /// kept inline on top of this, so a narrow sidebar never loses context.
+    private let compactInlineLimit = 4
+
     var body: some View {
         // Modern translucent Liquid Glass background, matching SidebarBottomToolbar
         // and the pane mini-toolbars (PaneFilterBar / MiniToolbar) for a consistent
         // glass look across the sidebar chrome (#2550).
+        //
+        // The icon row is wrapped in ViewThatFits (#3059): the full row shows when
+        // it fits; on a narrow sidebar it falls back to a few inline icons + an
+        // '…' overflow menu instead of cramming/clipping all 8 icons.
         GlassEffectContainer {
-            HStack(spacing: 2) {
-                // Content modes (1-4)
-                Group {
-                    SidebarModeIcon(
-                        mode: .library,
-                        isSelected: selectedMode == .library,
-                        badgeCount: badgeCount(for: .library)
-                    ) {
-                        selectMode(.library)
-                    }
-
-                    if featureManager.isSearchEnabled {
-                        SidebarModeIcon(
-                            mode: .search,
-                            isSelected: selectedMode == .search,
-                            badgeCount: badgeCount(for: .search)
-                        ) {
-                            selectMode(.search)
-                        }
-                    }
-
-                    if featureManager.isChatEnabled {
-                        SidebarModeIcon(
-                            mode: .chat,
-                            isSelected: selectedMode == .chat,
-                            badgeCount: badgeCount(for: .chat)
-                        ) {
-                            selectMode(.chat)
-                        }
-                    }
-
-                    if featureManager.isWorkflowsEnabled {
-                        SidebarModeIcon(
-                            mode: .workflows,
-                            isSelected: selectedMode == .workflows,
-                            badgeCount: badgeCount(for: .workflows)
-                        ) {
-                            selectMode(.workflows)
-                        }
-                    }
-
-                    if featureManager.isResearchEnabled {
-                        SidebarModeIcon(
-                            mode: .research,
-                            isSelected: selectedMode == .research,
-                            badgeCount: 0
-                        ) {
-                            selectMode(.research)
-                        }
-                    }
-
-                    if featureManager.isKnowledgeGraphEnabled {
-                        SidebarModeIcon(
-                            mode: .knowledgeGraph,
-                            isSelected: selectedMode == .knowledgeGraph,
-                            badgeCount: 0
-                        ) {
-                            selectMode(.knowledgeGraph)
-                        }
-                    }
-                }
-
-                if featureManager.isAutomationEnabled {
-                    modeSeparator
-                }
-
-                // Automation mode
-                Group {
-                    if featureManager.isAutomationEnabled {
-                        SidebarModeIcon(
-                            mode: .automation,
-                            isSelected: selectedMode == .automation,
-                            badgeCount: badgeCount(for: .automation)
-                        ) {
-                            selectMode(.automation)
-                        }
-                    }
-                }
-
-                if featureManager.isActivityEnabled {
-                    modeSeparator
-
-                    // Monitoring mode (7)
-                    SidebarModeIcon(
-                        mode: .activity,
-                        isSelected: selectedMode == .activity,
-                        badgeCount: badgeCount(for: .activity)
-                    ) {
-                        selectMode(.activity)
-                    }
-                }
-
+            ViewThatFits(in: .horizontal) {
+                fullModeRow
+                compactModeRow
             }
             .padding(.horizontal, 8)
             .frame(maxWidth: .infinity, maxHeight: MiniToolbar<EmptyView, EmptyView>.standardHeight)  // Normalize to 44pt
@@ -118,12 +38,149 @@ struct SidebarModeBar: View {
         }
     }
 
+    // MARK: - Rows
+
+    /// Preferred candidate — every enabled mode icon inline, unchanged (#3059):
+    /// separators, badges, and feature gating exactly as before.
+    private var fullModeRow: some View {
+        HStack(spacing: 2) {
+            // Content modes (1-4)
+            Group {
+                modeIcon(.library)
+
+                if featureManager.isSearchEnabled {
+                    modeIcon(.search)
+                }
+
+                if featureManager.isChatEnabled {
+                    modeIcon(.chat)
+                }
+
+                if featureManager.isWorkflowsEnabled {
+                    modeIcon(.workflows)
+                }
+
+                if featureManager.isResearchEnabled {
+                    modeIcon(.research)
+                }
+
+                if featureManager.isKnowledgeGraphEnabled {
+                    modeIcon(.knowledgeGraph)
+                }
+            }
+
+            if featureManager.isAutomationEnabled {
+                modeSeparator
+                modeIcon(.automation)
+            }
+
+            if featureManager.isActivityEnabled {
+                modeSeparator
+                modeIcon(.activity)
+            }
+        }
+    }
+
+    /// Narrow-sidebar fallback (#3059): the inline partition of enabled modes
+    /// (selected + `.library` always kept) + an '…' menu for the remainder.
+    private var compactModeRow: some View {
+        let split = Self.partition(
+            modes: enabledModes,
+            selected: selectedMode,
+            limit: compactInlineLimit
+        )
+        return HStack(spacing: 2) {
+            ForEach(split.inline, id: \.self) { mode in
+                modeIcon(mode)
+            }
+            if !split.overflow.isEmpty {
+                overflowModeMenu(split.overflow)
+            }
+        }
+    }
+
     // MARK: - Helper Views
+
+    /// One mode icon — the single definition both rows use (badge + selection +
+    /// tap all identical to the original per-mode call sites).
+    @ViewBuilder
+    private func modeIcon(_ mode: SidebarMode) -> some View {
+        SidebarModeIcon(
+            mode: mode,
+            isSelected: selectedMode == mode,
+            badgeCount: badgeCount(for: mode)
+        ) {
+            selectMode(mode)
+        }
+    }
+
+    /// Trailing '…' menu listing the overflowed modes as labelled buttons that
+    /// call the same `selectMode(_:)` (#3059).
+    private func overflowModeMenu(_ modes: [SidebarMode]) -> some View {
+        Menu {
+            ForEach(modes, id: \.self) { mode in
+                Button {
+                    selectMode(mode)
+                } label: {
+                    Label(mode.label, systemImage: mode.icon)
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .frame(
+                    minWidth: MiniToolbar<EmptyView, EmptyView>.touchTargetSide,
+                    minHeight: MiniToolbar<EmptyView, EmptyView>.touchTargetSide
+                )
+        }
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("More modes")
+        .accessibilityLabel("More sidebar modes")
+    }
 
     private var modeSeparator: some View {
         Divider()
             .frame(height: 16)
             .padding(.horizontal, 4)
+    }
+
+    // MARK: - Enabled modes + partition
+
+    /// The enabled modes in display order, gated by the feature manager — the
+    /// same set + order the full row renders.
+    private var enabledModes: [SidebarMode] {
+        var modes: [SidebarMode] = [.library]
+        if featureManager.isSearchEnabled { modes.append(.search) }
+        if featureManager.isChatEnabled { modes.append(.chat) }
+        if featureManager.isWorkflowsEnabled { modes.append(.workflows) }
+        if featureManager.isResearchEnabled { modes.append(.research) }
+        if featureManager.isKnowledgeGraphEnabled { modes.append(.knowledgeGraph) }
+        if featureManager.isAutomationEnabled { modes.append(.automation) }
+        if featureManager.isActivityEnabled { modes.append(.activity) }
+        return modes
+    }
+
+    /// Pure inline/overflow split for the narrow-sidebar fallback (#3059). The
+    /// selected mode and `.library` are ALWAYS inline (never lose context or the
+    /// home affordance); the rest fill inline in order up to `limit`, and any
+    /// remainder overflows. Order is preserved. Unit-tested.
+    static func partition(
+        modes: [SidebarMode],
+        selected: SidebarMode,
+        limit: Int
+    ) -> (inline: [SidebarMode], overflow: [SidebarMode]) {
+        guard limit > 0, modes.count > limit else { return (modes, []) }
+        var inline: [SidebarMode] = []
+        var overflow: [SidebarMode] = []
+        for mode in modes {
+            let mustPin = (mode == .library || mode == selected)
+            if mustPin || inline.count < limit {
+                inline.append(mode)
+            } else {
+                overflow.append(mode)
+            }
+        }
+        return (inline, overflow)
     }
 
     // MARK: - Badge Counts

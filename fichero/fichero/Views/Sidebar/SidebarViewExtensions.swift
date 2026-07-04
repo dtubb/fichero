@@ -48,25 +48,37 @@ struct SidebarBottomToolbar: View {
 
     var body: some View {
         #if os(macOS) || os(visionOS)
-        PaneFilterBar { actionButtons }
+        PaneFilterBar { adaptiveActionRow }
         #else
         VStack(spacing: 0) {
             Divider()
             GlassEffectContainer {
-                HStack(spacing: 6) {
-                    actionButtons
-                }
-                .padding(.horizontal, 8)
-                .frame(minHeight: metrics.standardHeight)
-                .frame(maxWidth: .infinity)
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8))
+                adaptiveActionRow
+                    .padding(.horizontal, 8)
+                    .frame(minHeight: metrics.standardHeight)
+                    .frame(maxWidth: .infinity)
+                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8))
             }
         }
         #endif
     }
 
+    /// The action row on the shared AdaptiveMiniToolbarRow (#3058, parent #2670):
+    /// essential verbs inline, secondary verbs into a trailing '…' menu when the
+    /// sidebar is narrow or on compact width — no more overrun.
+    private var adaptiveActionRow: some View {
+        AdaptiveMiniToolbarRow {
+            essentialButtons
+        } secondary: {
+            secondaryButtons
+        } overflowMenu: {
+            overflowMenu
+        }
+    }
+
+    /// Essential verbs — always inline (#3058): the New-item menu + Delete.
     @ViewBuilder
-    private var actionButtons: some View {
+    private var essentialButtons: some View {
         // New item menu (dropdown)
         Menu {
                 if featureManager.isSearchEnabled {
@@ -143,7 +155,12 @@ struct SidebarBottomToolbar: View {
             .accessibilityLabel("Remove selected item")
 
             Spacer()
+    }
 
+    /// Secondary verbs — inline when they fit, else the '…' overflow (macOS narrow)
+    /// or menu-only (compact iPhone) (#3058): Export, Import menu, New Workflow.
+    @ViewBuilder
+    private var secondaryButtons: some View {
             // Export — no sidebar-level export handler yet; left disabled (#2309)
             // TODO #2309 wire export action when a sidebar-scoped export handler exists
             Button {
@@ -207,6 +224,41 @@ struct SidebarBottomToolbar: View {
                 .help("New Workflow")
                 .accessibilityLabel("New Workflow")
             }
+    }
+
+    /// `Label`-based mirror of the secondary verbs for the overflow '…' menu
+    /// (#3058) — same actions + disabled logic, menu-item presentation.
+    @ViewBuilder
+    private var overflowMenu: some View {
+        // Export — still disabled until a sidebar-scoped handler exists (#2309).
+        Button {} label: {
+            Label("Export", systemImage: "square.and.arrow.up")
+        }
+        .disabled(true)
+
+        // Import submenu (link / copy / move), mirroring the inline Import menu.
+        Menu {
+            Button { importFiles(.link) } label: {
+                Label(IngestMode.link.displayName, systemImage: IngestMode.link.icon)
+            }
+            Button { importFiles(.copy) } label: {
+                Label(IngestMode.copy.displayName, systemImage: IngestMode.copy.icon)
+            }
+            Button { importFiles(.move) } label: {
+                Label(IngestMode.move.displayName, systemImage: IngestMode.move.icon)
+            }
+        } label: {
+            Label("Import Files", systemImage: "square.and.arrow.down")
+        }
+
+        if featureManager.isWorkflowsEnabled {
+            Button {
+                createWorkflow()
+            } label: {
+                Label("New Workflow", systemImage: "bolt")
+            }
+            .disabled(!hasSelection)
+        }
     }
 }
 
