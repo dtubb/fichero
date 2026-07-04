@@ -170,9 +170,10 @@ struct FirstRunWindow: View {
                     FirstRunCardConfig(
                         icon: "cpu",
                         title: "Choose an AI provider",
-                        body: "Run models locally with Ollama or LM Studio, or connect a cloud "
-                            + "provider like OpenAI, Anthropic, Google, or OpenRouter — and pick "
-                            + "your default models. Everything is optional and changeable in Settings.",
+                        body: "Run models on-device for free with Apple Intelligence, Ollama, or "
+                            + "LM Studio, or connect a cloud provider — OpenRouter is an easy default, "
+                            + "and OpenAI, Anthropic, or Google work too. Pick your default models; "
+                            + "everything is optional and changeable in Settings.",
                         primaryTitle: "Choose a Provider",
                         primaryIcon: "plus",
                         primaryAction: { chooseProviderAndFinish() }

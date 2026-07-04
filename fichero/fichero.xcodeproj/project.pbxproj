@@ -63,6 +63,7 @@
 		154 /* ScheduleCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 152 /* ScheduleCreationSheet.swift */; };
 		155 /* TriggerCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 153 /* TriggerCreationSheet.swift */; };
 		15785F4FC901A743D5DE7D09 /* DocumentInspectorInfoTab+Prototype.swift in Sources */ = {isa = PBXBuildFile; fileRef = 715408B079BD7610A53FA99C /* DocumentInspectorInfoTab+Prototype.swift */; };
+		158C918190068A0805613D21 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D817ADFBBCAF433008A6380D /* AboutView.swift */; };
 		17ED8EB9711094AF388E4677 /* LibrarySharingBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DAEF12C9BBE42A6FCA5004A /* LibrarySharingBadge.swift */; };
 		186AB9CF6F951F8878BC81AF /* EntityKindChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 986AE09BC3B5DC9ECD5820A5 /* EntityKindChartView.swift */; };
 		1AA8D13CBE8E1D392BDDD4CF /* DocumentCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80E4C1042F69F06267FA6CCD /* DocumentCanvas.swift */; };
@@ -1089,6 +1090,7 @@
 		D1BE7613380B23C597C463B1 /* RepresentationView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RepresentationView.swift; sourceTree = "<group>"; };
 		D2FF20EF84262D15A268246D /* ShareSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShareSettingsView.swift; sourceTree = "<group>"; };
 		D661A54EFC8800F710E16A23 /* ActivityOverviewView+Cards.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ActivityOverviewView+Cards.swift"; sourceTree = "<group>"; };
+		D817ADFBBCAF433008A6380D /* AboutView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 		D82A9BAC0F995F9199F94B69 /* KGFocusState.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KGFocusState.swift; sourceTree = "<group>"; };
 		DA1EB898A19FAA64EF466CD2 /* UsersStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UsersStore.swift; sourceTree = "<group>"; };
 		DAE9F6E549990F086C442F3B /* BreadcrumbBuilder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BreadcrumbBuilder.swift; sourceTree = "<group>"; };
@@ -1375,6 +1377,7 @@
 				68025F01296FCA9792C2F90D /* AdaptiveAppleShellHost.swift */,
 				2F36040014C242627D8178A4 /* Auth */,
 				95BC14544C9BA8EE83B9DC49 /* ShellLayoutPolicy.swift */,
+				D817ADFBBCAF433008A6380D /* AboutView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -2868,6 +2871,7 @@
 				B5D00BAD78E5646321AD4EAC /* ShellLayoutPolicy.swift in Sources */,
 				55D00714A13BBDC02A88D295 /* PDFPageControllers.swift in Sources */,
 				B384820C8A9FEDA2B98FA1B0 /* MiniToolbarOverflow.swift in Sources */,
+				158C918190068A0805613D21 /* AboutView.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
