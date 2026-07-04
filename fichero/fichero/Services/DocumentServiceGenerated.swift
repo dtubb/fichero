@@ -627,11 +627,16 @@ class DocumentServiceGenerated: ObservableObject {
     func clearError() {
         lastError = nil
     }
+}
 
-    // MARK: - Type Conversion
+// MARK: - Type Conversion
 
+// Split into a same-file extension so the primary class body stays within
+// SwiftLint's type_body_length budget (#3030 added several ops). `private`
+// members remain file-scoped and accessible here.
+private extension DocumentServiceGenerated {
     /// Convert generated Document to local Document
-    private func convertToDocument(_ doc: Components.Schemas.Document) throws -> Document {
+    func convertToDocument(_ doc: Components.Schemas.Document) throws -> Document {
         // Every field that's TYPED on the OpenAPI Document schema decodes
         // into the typed property, NOT additionalProperties. Reading them
         // from extras silently returns nil and corrupts the local cache.
