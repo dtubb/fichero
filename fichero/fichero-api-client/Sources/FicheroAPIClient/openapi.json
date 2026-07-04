@@ -11026,6 +11026,50 @@
         }
       }
     },
+    "/api/registry/unicode-collisions/merge": {
+      "post": {
+        "tags": [
+          "library"
+        ],
+        "summary": "Confirm Unicode Library Merge",
+        "description": "Explicit-confirm merge for a detected Unicode-collision pair.",
+        "operationId": "confirm_unicode_library_merge_api_registry_unicode_collisions_merge_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnicodeLibraryMergeParams"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Confirm Unicode Library Merge Api Registry Unicode Collisions Merge Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/registry/add": {
       "post": {
         "tags": [
@@ -56698,6 +56742,24 @@
         ],
         "title": "UnicodeLibraryCollisionResponse",
         "description": "Response from GET /api/registry/unicode-collisions."
+      },
+      "UnicodeLibraryMergeParams": {
+        "properties": {
+          "left_path": {
+            "type": "string",
+            "title": "Left Path"
+          },
+          "right_path": {
+            "type": "string",
+            "title": "Right Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "left_path",
+          "right_path"
+        ],
+        "title": "UnicodeLibraryMergeParams"
       },
       "UpdateActionRequest": {
         "properties": {

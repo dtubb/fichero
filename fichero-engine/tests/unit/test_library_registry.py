@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import unicodedata
 from datetime import datetime, timedelta
+from pathlib import Path
 from urllib.parse import quote
 
 import pytest
@@ -12,7 +13,7 @@ import pytest
 os.environ.setdefault("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
 
 from fichero.db import Database  # noqa: E402
-from fichero.models import DocType, Document, KnownLibrary  # noqa: E402
+from fichero.models import ActionAudit, DocType, Document, KnownLibrary  # noqa: E402
 
 
 @pytest.fixture
@@ -412,6 +413,52 @@ class TestGlobalRegistryHeaderless:
         assert first.json() == second.json()
         assert [(lib.path, lib.name) for lib in global_db.all(KnownLibrary)] == before_rows
         assert nfc_path.stat().st_mtime == before_mtime
+
+    def test_unicode_collision_prompt_stays_read_only_until_confirm(self, global_client, tmp_path):
+        from fichero.db_manager import db_manager
+
+        left = tmp_path / unicodedata.normalize("NFD", "Chocó.fichero")
+        right = tmp_path / unicodedata.normalize("NFC", "Chocó.fichero")
+        _create_library_fixture(left, "left-doc")
+        _create_library_fixture(right, "right-doc")
+
+        global_db = global_client.app.dependency_overrides[
+            __import__(
+                "fichero.api.routes.library_registry",
+                fromlist=["get_global_database"],
+            ).get_global_database
+        ]()
+        global_db.save(KnownLibrary(path=str(left.resolve()), name=left.name))
+        global_db.save(KnownLibrary(path=str(right.resolve()), name=right.name))
+
+        listed = global_client.get("/api/registry/unicode-collisions")
+        assert listed.status_code == 200, listed.text
+        assert listed.json()["count"] == 1
+        assert left.exists()
+        assert right.exists()
+
+        before = global_client.get("/api/registry")
+        assert before.status_code == 200
+        assert before.json()["count"] == 2
+
+        db_manager.close_database(str(left))
+        db_manager.close_database(str(right))
+        merge = global_client.post(
+            "/api/registry/unicode-collisions/merge",
+            json={"left_path": str(left), "right_path": str(right)},
+        )
+
+        assert merge.status_code == 200, merge.text
+        body = merge.json()
+        assert body["status"] == "merged"
+        assert Path(body["winner_path"]).exists()
+        assert Path(body["loser_renamed_path"]).exists()
+
+        after = global_client.get("/api/registry")
+        assert after.status_code == 200
+        assert after.json()["count"] == 1
+        audits = [row for row in global_db.all(ActionAudit) if row.action_name == "library.unicode_merge"]
+        assert len(audits) == 1
 
     def test_remove_handles_spaces(self, global_client, tmp_path):
         """DELETE /api/registry/{path} works for a path containing spaces."""

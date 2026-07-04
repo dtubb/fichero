@@ -32,7 +32,8 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
-from fichero.actions.registry import ActionContext, ChangeSpec, action
+from fichero.actions.registry import ActionContext, ChangeSpec, action, registry
+from fichero.api.auth import actor_from_request
 from fichero.db import Database
 from fichero.db_manager import db_manager
 from fichero.library_paths import nfc_path
@@ -578,6 +579,25 @@ def list_unicode_library_collisions(
     except Exception as e:
         logger.error("Failed to scan library Unicode collisions: %s", e)
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.post("/registry/unicode-collisions/merge")
+def confirm_unicode_library_merge(
+    request: Request,
+    body: UnicodeLibraryMergeParams,
+    db: Database = Depends(get_global_database),
+) -> dict[str, object]:
+    """Explicit-confirm merge for a detected Unicode-collision pair."""
+    if request.client and request.client.host not in {"127.0.0.1", "::1", "localhost", "testclient", "testserver"}:
+        raise HTTPException(status_code=403, detail="loopback only")
+    params = UnicodeLibraryMergeParams.model_validate(body)
+    result = registry.invoke(
+        db,
+        "library.unicode_merge",
+        params.model_dump(),
+        ActionContext(actor=actor_from_request(request)),
+    )
+    return result.result
 
 
 @router.post("/registry/add", response_model=KnownLibrary)
