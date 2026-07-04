@@ -236,6 +236,13 @@ struct FicheroApp: App {
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
+            #if os(macOS)
+            // Replace the default About item with one that opens the custom
+            // About window (#2557).
+            CommandGroup(replacing: .appInfo) {
+                AboutWindowMenuButton()
+            }
+            #endif
             CommandGroup(after: .appInfo) {
                 #if os(macOS)
                 Button("Check for Updates...") {
@@ -386,6 +393,16 @@ struct FicheroApp: App {
         // selection by default (with a pin toggle to park on one artifact).
         // Read-only — it observes FocusedArtifact.shared's resolved snapshot,
         // so it needs no library-service environment plumbing.
+        #if os(macOS)
+        // Standard About window (#2557), opened from the App menu's About item.
+        // Single-instance `Window`, sized to its content.
+        Window("About Fichero", id: "about") {
+            AboutView()
+        }
+        .windowResizability(.contentSize)
+        .defaultPosition(.center)
+        #endif
+
         WindowGroup("Artifact", id: "artifact-detail") {
             ArtifactDetailWindow()
                 .environment(appExecutionObserver)
