@@ -24,6 +24,7 @@ from fichero.db import (
     SearchResult,
     _build_transcript_excerpts,
     _fold_for_search,
+    _search_result_preview,
     _search_match_terms,
 )
 from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
@@ -322,8 +323,10 @@ def _project_pdf_file_hits_to_pages(
         replacement = SearchResult(
             document_id=best_page.id,
             score=result.score,
-            content_preview=(best_page.page_content or "")[:200]
-            + ("..." if len(best_page.page_content or "") > 200 else ""),
+            content_preview=_search_result_preview(
+                best_page.page_content or "",
+                excerpts,
+            ),
             metadata=page_metadata,
             highlights=result.highlights,
             transcript_excerpts=excerpts,
