@@ -359,10 +359,10 @@ extension AppState {
             smallModel: defaults.smallModel,
             largeProvider: defaults.largeProvider,
             largeModel: defaults.largeModel,
+            primaryLanguage: defaults.primaryLanguage,
             temperature: defaults.temperature,
             maxTokens: defaults.maxTokens,
-            promptPrefix: defaults.promptPrefix,
-            primaryLanguage: defaults.primaryLanguage
+            promptPrefix: defaults.promptPrefix
         )
     }
 }
