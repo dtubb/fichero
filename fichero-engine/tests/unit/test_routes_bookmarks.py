@@ -142,6 +142,30 @@ def test_bookmark_full_route_cycle_create_list_resolve_delete(client, db):
     assert resolve_deleted.json()["detail"] == "Bookmark not found"
 
 
+def test_bookmark_purge_reopens_closed_connection(client, db):
+    target = Document(id="target-reopen", name="Reopen Target", doc_type=DocType.file)
+    db.save(target)
+
+    created = client.post(
+        "/api/bookmarks",
+        json={"target_id": target.id, "name": "Pinned Reopen Target"},
+    )
+    assert created.status_code == 201
+    bookmark_id = created.json()["id"]
+
+    deleted = client.delete(f"/api/documents/{bookmark_id}")
+    assert deleted.status_code == 204
+
+    db.conn.close()
+
+    purged = client.delete(f"/api/documents/{bookmark_id}/purge")
+    assert purged.status_code == 204
+
+    listed = client.get("/api/bookmarks")
+    assert listed.status_code == 200
+    assert listed.json()["count"] == 0
+
+
 def test_create_bookmark_missing_target_returns_404(client):
     response = client.post(
         "/api/bookmarks",

@@ -133,6 +133,18 @@ class TestTranscriptExcerpts:
 
         assert _search_result_preview(content, excerpts) == excerpts[0].text
 
+    def test_preview_skips_fallback_excerpt_without_match_offsets(self) -> None:
+        content = "First line only.\nSecond line mentions Camilo in the actual match."
+        excerpts = _build_transcript_excerpts("doc-1", content, "missing", context_chars=8)
+        matched = _build_transcript_excerpts("doc-1", content, "Camilo", context_chars=8)[0]
+
+        assert _search_result_preview(content, [excerpts[0], matched]) == matched.text
+
+    def test_preview_truncates_raw_content_when_no_match_excerpt_exists(self) -> None:
+        content = "A" * 205
+
+        assert _search_result_preview(content, []) == ("A" * 200) + "..."
+
 
 class TestRRFHybridCombiner:
     """Smoke-test the RRF math via a tiny end-to-end search through
