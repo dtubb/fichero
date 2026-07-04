@@ -367,7 +367,10 @@ class TestChatStructuredDispatch:
         base_model.profile = {"structured_output": True}
         base_model.with_structured_output = MagicMock(return_value=structured_model)
 
-        with patch("fichero.llm.get_langchain_model", return_value=base_model):
+        with patch("fichero.llm.get_langchain_model", return_value=base_model), patch(
+            "fichero.llm._ensure_managed_local_provider_ready",
+            new=AsyncMock(),
+        ):
             await chat_structured(prompt="hi", schema=_Result, config=cfg)
 
         base_model.with_structured_output.assert_called_once_with(

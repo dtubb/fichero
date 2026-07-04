@@ -31,6 +31,9 @@ def test_consistency_audit_batch_routes_have_explicit_response_models() -> None:
     assert _response_schema("post", "/api/workflows/reinstall-defaults")["$ref"].endswith(
         "ReinstallDefaultWorkflowsResponse"
     )
+    assert _response_schema("get", "/api/providers/apple/availability")["$ref"].endswith(
+        "AppleIntelligenceProbeResponse"
+    )
     assert _response_schema("get", "/api/providers/apple-intelligence/probe")["$ref"].endswith(
         "AppleIntelligenceProbeResponse"
     )

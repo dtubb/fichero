@@ -386,6 +386,7 @@
     "/api/projects/{project_id}/items": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/providers": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/providers/apple-intelligence/probe": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
+    "/api/providers/apple/availability": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/providers/catalog": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/providers/catalog/{provider_type}": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/providers/models/{provider_type}": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",

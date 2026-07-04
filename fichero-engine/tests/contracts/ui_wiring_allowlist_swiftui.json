@@ -94,6 +94,7 @@
     "/api/projects/{project_id}/include/{inclusion_id}": "baseline: not yet wired",
     "/api/projects/{project_id}/items": "baseline: not yet wired",
     "/api/providers/apple-intelligence/probe": "baseline: not yet wired",
+    "/api/providers/apple/availability": "baseline: not yet wired",
     "/api/registry/add": "baseline: not yet wired",
     "/api/registry/update-access": "baseline: not yet wired",
     "/api/registry/{library_path}": "baseline: not yet wired",

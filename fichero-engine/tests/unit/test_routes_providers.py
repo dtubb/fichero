@@ -8,7 +8,7 @@ external APIs.
 """
 
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import AsyncMock, patch, MagicMock
 
 from fichero.models import Provider, ProviderType
 from fichero.api.routes.providers import get_app_database
@@ -68,6 +68,29 @@ class TestProviderCatalog:
     def test_catalog_unknown_provider_returns_404(self, client):
         r = client.get("/api/providers/catalog/does-not-exist")
         assert r.status_code == 404
+
+
+class TestAppleAvailability:
+    def test_reports_available_probe(self, client):
+        with patch(
+            "fichero.api.routes.providers.probe_apple_intelligence_bridge",
+            new=AsyncMock(return_value=(True, None)),
+        ):
+            r = client.get("/api/providers/apple/availability")
+        assert r.status_code == 200
+        assert r.json() == {"available": True, "reason": None}
+
+    def test_reports_bridge_failure_reason(self, client):
+        with patch(
+            "fichero.api.routes.providers.probe_apple_intelligence_bridge",
+            new=AsyncMock(return_value=(False, "fm-bridge binary not found")),
+        ):
+            r = client.get("/api/providers/apple/availability")
+        assert r.status_code == 200
+        assert r.json() == {
+            "available": False,
+            "reason": "fm-bridge binary not found",
+        }
 
 
 # ---------------------------------------------------------------------------

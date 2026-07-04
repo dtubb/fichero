@@ -6770,6 +6770,16 @@
       },
       {
         "method": "GET",
+        "path": "/providers/apple/availability",
+        "operation_id": "probe_apple_intelligence_api_providers_apple_availability_get",
+        "summary": "Probe Apple Intelligence",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "AppleIntelligenceProbeResponse"
+      },
+      {
+        "method": "GET",
         "path": "/providers/catalog",
         "operation_id": "list_provider_catalog_api_providers_catalog_get",
         "summary": "List Provider Catalog",

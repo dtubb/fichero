@@ -12653,6 +12653,28 @@
         }
       }
     },
+    "/api/providers/apple/availability": {
+      "get": {
+        "tags": [
+          "providers"
+        ],
+        "summary": "Probe Apple Intelligence",
+        "description": "Quick check: is Apple Intelligence usable on this device?\n\nUsed by the onboarding wizard so the user doesn't pick \"Apple Intelligence\"\nand then hit `kind: unavailable` later when they run a workflow. Runs fm-bridge\nin `--probe` mode (availability check only \u2014 no generation, no model warm-up).",
+        "operationId": "probe_apple_intelligence_api_providers_apple_availability_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppleIntelligenceProbeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/providers/catalog": {
       "get": {
         "tags": [

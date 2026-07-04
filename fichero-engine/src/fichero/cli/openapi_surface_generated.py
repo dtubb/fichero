@@ -9641,6 +9641,17 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("probe-apple-intelligence-providers-apple-availability")
+    def providers_probe_apple_intelligence_providers_apple_availability_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Probe Apple Intelligence (GET /api/providers/apple/availability)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/providers/apple/availability"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("list-catalog")
     def providers_list_catalog_get(
         ctx: typer.Context,

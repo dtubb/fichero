@@ -44,6 +44,7 @@ import inspect
 import json
 import logging
 import os
+from pathlib import Path
 import re
 import threading
 import weakref
@@ -68,6 +69,11 @@ from fichero.llm_embeddings import (  # noqa: F401 (re-exported)
 )
 
 logger = logging.getLogger(__name__)
+
+_FM_BRIDGE_MISSING_MESSAGE = (
+    "fm-bridge binary not found. Build it with "
+    "fichero-engine/bin/fm-bridge/build.sh"
+)
 
 
 # =============================================================================
@@ -1650,30 +1656,14 @@ async def _apple_intelligence_chat(
         swiftc -O -parse-as-library -o fichero-engine/bin/fm-bridge/fm-bridge \\
             fichero-engine/bin/fm-bridge/FmBridge.swift
     """
-    import json as _json
-    from pathlib import Path
     import asyncio
+    import json as _json
 
     user_text, instructions = _collapse_apple_prompt(prompt, system)
 
-    # Locate fm-bridge. Lives in src/fichero/resources/bin/fm-bridge as
-    # part of the Python package — briefcase auto-bundles anything under
-    # src/fichero/. Dev path (repo/fichero-engine/bin/...) is kept as a
-    # fallback for working without the resources copy.
-    here = Path(__file__).resolve()
-    candidates = [
-        here.parent / "resources" / "bin" / "fm-bridge",  # package data (bundled & dev)
-        here.parent / "bin" / "fm-bridge" / "fm-bridge",  # earlier hot-patch path (kept)
-        here.parents[3] / "bin" / "fm-bridge" / "fm-bridge",  # dev: repo/fichero-engine/bin/...
-        Path("fichero-engine/bin/fm-bridge/fm-bridge").resolve(),
-    ]
-    binary: Path | None = next((p for p in candidates if p.is_file() and p.stat().st_mode & 0o111), None)
+    binary = _find_fm_bridge_binary()
     if binary is None:
-        raise RuntimeError(
-            "fm-bridge binary not found. Build with: "
-            "swiftc -O -parse-as-library -o fichero-engine/bin/fm-bridge/fm-bridge "
-            "fichero-engine/bin/fm-bridge/FmBridge.swift"
-        )
+        raise RuntimeError(_FM_BRIDGE_MISSING_MESSAGE)
 
     # Pass temperature + max_tokens through to fm-bridge → Apple's
     # GenerationOptions. Lets callers pin temperature=0.0 for
@@ -3140,6 +3130,50 @@ def _langchain_timeout_budget(config: LLMConfig) -> float:
     return _compute_timeout(config, "langchain")
 
 
+def _fm_bridge_candidates() -> list[Path]:
+    here = Path(__file__).resolve()
+    return [
+        here.parent / "resources" / "bin" / "fm-bridge",
+        here.parent / "bin" / "fm-bridge" / "fm-bridge",
+        here.parents[3] / "bin" / "fm-bridge" / "fm-bridge",
+        Path("fichero-engine/bin/fm-bridge/fm-bridge").resolve(),
+    ]
+
+
+def _find_fm_bridge_binary() -> Path | None:
+    return next(
+        (
+            candidate
+            for candidate in _fm_bridge_candidates()
+            if candidate.is_file() and candidate.stat().st_mode & 0o111
+        ),
+        None,
+    )
+
+
+async def probe_apple_intelligence_bridge() -> tuple[bool, str | None]:
+    binary = _find_fm_bridge_binary()
+    if binary is None:
+        return False, _FM_BRIDGE_MISSING_MESSAGE
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            str(binary),
+            "--probe",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout_bytes, stderr_bytes = await proc.communicate()
+    except Exception as exc:  # noqa: BLE001
+        return False, f"Couldn't run fm-bridge: {exc}"
+
+    try:
+        result = json.loads(stdout_bytes.decode())
+    except json.JSONDecodeError:
+        return False, stderr_bytes.decode().strip() or "fm-bridge probe returned invalid JSON"
+    return bool(result.get("available")), result.get("reason")
+
+
 # Cache + lock for the async locale probe. We can't use lru_cache on a
 # coroutine (it caches the coroutine object, not the resolved value), so
 # we do explicit dict + asyncio.Lock — same effect, async-safe.
@@ -3167,7 +3201,6 @@ async def apple_intelligence_supports_locale(locale: str) -> bool:
     discovering it via mid-generation `unsupportedLanguageOrLocale` error.
     """
     import json as _json
-    from pathlib import Path
 
     if locale in _LOCALE_SUPPORT_CACHE:
         return _LOCALE_SUPPORT_CACHE[locale]
@@ -3182,17 +3215,7 @@ async def apple_intelligence_supports_locale(locale: str) -> bool:
         if locale in _LOCALE_SUPPORT_CACHE:
             return _LOCALE_SUPPORT_CACHE[locale]
 
-        here = Path(__file__).resolve()
-        candidates = [
-            here.parent / "resources" / "bin" / "fm-bridge",
-            here.parent / "bin" / "fm-bridge" / "fm-bridge",
-            here.parents[3] / "bin" / "fm-bridge" / "fm-bridge",
-            Path("fichero-engine/bin/fm-bridge/fm-bridge").resolve(),
-        ]
-        binary = next(
-            (p for p in candidates if p.is_file() and p.stat().st_mode & 0o111),
-            None,
-        )
+        binary = _find_fm_bridge_binary()
         if binary is None:
             logger.debug("fm-bridge not found; assuming locale unsupported")
             _LOCALE_SUPPORT_CACHE[locale] = False
@@ -3402,25 +3425,10 @@ async def _apple_intelligence_structured(
     tokens in the on-device 4K window.
     """
     import json as _json
-    from pathlib import Path
 
-    here = Path(__file__).resolve()
-    candidates = [
-        here.parent / "resources" / "bin" / "fm-bridge",
-        here.parent / "bin" / "fm-bridge" / "fm-bridge",
-        here.parents[3] / "bin" / "fm-bridge" / "fm-bridge",
-        Path("fichero-engine/bin/fm-bridge/fm-bridge").resolve(),
-    ]
-    binary: Path | None = next(
-        (p for p in candidates if p.is_file() and p.stat().st_mode & 0o111),
-        None,
-    )
+    binary = _find_fm_bridge_binary()
     if binary is None:
-        raise RuntimeError(
-            "fm-bridge binary not found; run "
-            "fichero-engine/bin/fm-bridge/build.sh and copy to "
-            "src/fichero/resources/bin/"
-        )
+        raise RuntimeError(_FM_BRIDGE_MISSING_MESSAGE)
 
     apple_schema_dict = _pydantic_to_apple_schema(schema)
     request: dict[str, Any] = {
