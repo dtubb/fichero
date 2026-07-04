@@ -1,7 +1,10 @@
 @testable import Fichero
 import XCTest
 
-final class SpatialScene3DTests: XCTestCase {
+/// Unit tests for the restored RealityKit 3D renderer, `SpaceSceneView` (#3088,
+/// renamed from `SpatialScene3D`). The drag-end snap math is pure (no
+/// RealityKit) so it is exercised directly here.
+final class SpaceSceneViewTests: XCTestCase {
 
     func testPersistedDragEndPositionPrefersTrackedDragPosition() {
         let originalNode = SpatialNode(
@@ -14,7 +17,7 @@ final class SpatialScene3DTests: XCTestCase {
             positionZ: 0
         )
 
-        let position = SpatialScene3D.persistedDragEndPosition(
+        let position = SpaceSceneView.persistedDragEndPosition(
             nodeId: originalNode.id,
             dragPositions: [originalNode.id: SIMD3<Double>(1.13, -0.37, 0.12)],
             nodes: [originalNode]
@@ -36,7 +39,7 @@ final class SpatialScene3DTests: XCTestCase {
             positionZ: 0.13
         )
 
-        let position = SpatialScene3D.persistedDragEndPosition(
+        let position = SpaceSceneView.persistedDragEndPosition(
             nodeId: node.id,
             dragPositions: [:],
             nodes: [node]
@@ -45,5 +48,16 @@ final class SpatialScene3DTests: XCTestCase {
         XCTAssertEqual(position?.x, 0.5)
         XCTAssertEqual(position?.y, -0.5)
         XCTAssertEqual(position?.z, 0.25)
+    }
+
+    /// An unknown node with no tracked drag position has nothing to persist —
+    /// guards the `.onDisappear` flush from writing a phantom row.
+    func testPersistedDragEndPositionUnknownNodeIsNil() {
+        let position = SpaceSceneView.persistedDragEndPosition(
+            nodeId: "missing",
+            dragPositions: [:],
+            nodes: []
+        )
+        XCTAssertNil(position)
     }
 }

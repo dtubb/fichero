@@ -266,11 +266,10 @@ extension ContentView {
                doc.docType == .folder || doc.isWorkspace ||
                (doc.docType == .file && doc.fileType.map { [.pdf, .word, .epub, .presentation].contains($0) } ?? false) {
                 // Canvas (.canvas → Spatial2DCanvas) is the live 2D positioned-node
-                // library view, offered for every folder/pdf/node (#2667/#3081).
-                // The 3D .space view is a defined mode but not offered here yet —
-                // its renderer (P2/P3) is not built, so it stays out of the picker
-                // and any migrated .space value normalizes to an available mode.
-                var modes: [ViewDisplayMode] = [.icon, .list, .table, .canvas]
+                // library view; Space (.space → SpaceSceneView) is the RealityKit
+                // 3D renderer on the SAME shared stores (#3088). Both offered for
+                // every folder/pdf/node (#2667/#3081/#3088).
+                var modes: [ViewDisplayMode] = [.icon, .list, .table, .canvas, .space]
                 if featureManager.isWorkspaceModeEnabled {
                     modes.append(.workspace)
                 }
@@ -279,7 +278,7 @@ extension ContentView {
             if !featureManager.isLibraryAdvancedViewsEnabled {
                 return [.icon]
             }
-            return [.icon, .list, .table, .canvas]
+            return [.icon, .list, .table, .canvas, .space]
         case .search:
             if !featureManager.isSearchAdvancedViewsEnabled {
                 return [.list]
@@ -594,12 +593,7 @@ extension ContentView {
     /// Handles `.onChange(of: viewDisplayMode)`.
     /// Syncs toolbar picker changes to viewSettings.libraryLayout (#1215).
     func handleViewDisplayModeChange(_ newMode: ViewDisplayMode) {
-        let newLayout: LibraryLayout = switch newMode {
-        case .icon: .icons
-        case .list: .list
-        case .table: .table
-        case .canvas, .space, .workspace: .map
-        }
+        let newLayout = newMode.libraryLayout
         if viewSettings.libraryLayout != newLayout {
             viewSettings.libraryLayout = newLayout
         }
@@ -608,22 +602,12 @@ extension ContentView {
     /// Handles `.onChange(of: viewSettings.libraryLayout)`.
     /// Syncs View-menu changes back to the toolbar view mode picker.
     func handleLibraryLayoutChange(_ newLibraryLayout: LibraryLayout) {
-        // Sync View menu changes back to toolbar view mode picker
-        let newDisplayMode = switch newLibraryLayout {
-        case .icons: ViewDisplayMode.icon
-        case .list: ViewDisplayMode.list
-        case .table: ViewDisplayMode.table
-        case .map: ViewDisplayMode.canvas
-        }
+        // Sync View menu changes back to toolbar view mode picker.
+        let newDisplayMode = newLibraryLayout.displayMode
         let effectiveDisplayMode = normalizedViewDisplayMode(newDisplayMode)
 
         if effectiveDisplayMode != newDisplayMode {
-            viewSettings.libraryLayout = switch effectiveDisplayMode {
-            case .icon: .icons
-            case .list: .list
-            case .table: .table
-            case .canvas, .space, .workspace: .map
-            }
+            viewSettings.libraryLayout = effectiveDisplayMode.libraryLayout
         }
 
         if viewDisplayMode != effectiveDisplayMode {
