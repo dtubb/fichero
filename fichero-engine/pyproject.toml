@@ -131,6 +131,12 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+fichero = [
+    "resources/bin/*",
+    "resources/default_workflows/*.json",
+]
+
 # =============================================================================
 # Standard Python Package Configuration
 # =============================================================================

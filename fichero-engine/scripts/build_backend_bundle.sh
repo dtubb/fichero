@@ -6,6 +6,8 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 API_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+FM_BRIDGE_SOURCE="$API_ROOT/bin/fm-bridge/FmBridge.swift"
+FM_BRIDGE_DEST="$API_ROOT/src/fichero/resources/bin/fm-bridge"
 
 echo "🔨 Building Fichero Backend with Briefcase"
 cd "$API_ROOT"
@@ -19,6 +21,15 @@ if [ -d "build/engine" ]; then
   chmod -R u+w build/engine 2>/dev/null || true
   rm -rf build/engine || /bin/rm -rf build/engine
 fi
+
+if ! command -v swiftc >/dev/null 2>&1; then
+  echo "❌ swiftc not found; can't build fm-bridge"
+  exit 1
+fi
+
+mkdir -p "$(dirname "$FM_BRIDGE_DEST")"
+swiftc -O -parse-as-library -o "$FM_BRIDGE_DEST" "$FM_BRIDGE_SOURCE"
+chmod 755 "$FM_BRIDGE_DEST"
 
 SIGNING_IDENTITY=$(security find-identity -v -p codesigning | grep "Apple Development" | head -1 | awk -F'"' '{print $2}')
 if [ -z "$SIGNING_IDENTITY" ]; then

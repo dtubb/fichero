@@ -7690,6 +7690,57 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("get-model-download")
+    def local_inference_get_model_download_get(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+    ) -> None:
+        """Get Local Inference Model Download (GET /api/local-inference/models/downloads/{job_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/local-inference/models/downloads/{job_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("cancel-model-download")
+    def local_inference_cancel_model_download_post(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+    ) -> None:
+        """Cancel Local Inference Model Download (POST /api/local-inference/models/downloads/{job_id}/cancel)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/local-inference/models/downloads/{job_id}/cancel"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("delete-model")
+    def local_inference_delete_model_delete(
+        ctx: typer.Context,
+        model_id: str = typer.Argument(..., help="Path parameter: model_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+    ) -> None:
+        """Delete Local Inference Model (DELETE /api/local-inference/models/{model_id})."""
+        if not yes:
+            typer.confirm("Delete local-inference?", abort=True)
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/local-inference/models/{model_id}"
+            params = None
+            return client.request("DELETE", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("download-model")
+    def local_inference_download_model_post(
+        ctx: typer.Context,
+        model_id: str = typer.Argument(..., help="Path parameter: model_id."),
+    ) -> None:
+        """Download Local Inference Model (POST /api/local-inference/models/{model_id}/download)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/local-inference/models/{model_id}/download"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("list-profiles")
     def local_inference_list_profiles_get(
         ctx: typer.Context,
@@ -9586,6 +9637,17 @@ def register_generated_openapi_commands(
         """Probe Apple Intelligence (GET /api/providers/apple-intelligence/probe)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/providers/apple-intelligence/probe"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("probe-apple-intelligence-providers-apple-availability")
+    def providers_probe_apple_intelligence_providers_apple_availability_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Probe Apple Intelligence (GET /api/providers/apple/availability)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/providers/apple/availability"
             params = None
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)

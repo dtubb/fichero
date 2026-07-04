@@ -125,3 +125,25 @@ async def test_lifespan_does_not_block_on_stale_run_recovery(
         release_recovery.set()
 
     assert entered is True
+
+
+@pytest.mark.asyncio
+async def test_lifespan_shutdown_stops_managed_local_inference(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stopped = False
+
+    async def fake_shutdown_local_inference() -> None:
+        nonlocal stopped
+        stopped = True
+
+    monkeypatch.setattr(api_main, "_seed_builtin_providers", lambda: None)
+    monkeypatch.setattr(api_main, "_collapse_duplicate_providers", lambda: None)
+    monkeypatch.setattr(api_main, "_install_access_log_filter", lambda: None)
+    monkeypatch.setattr(api_main, "_prewarm_embeddings", lambda: None)
+    monkeypatch.setattr(api_main, "shutdown_managed_local_inference_services", fake_shutdown_local_inference)
+
+    async with api_main.lifespan(api_main.app):
+        pass
+
+    assert stopped is True

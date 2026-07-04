@@ -10,6 +10,7 @@ Tests core LLM functionality including:
 import asyncio
 import sys
 import types
+from types import SimpleNamespace
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -28,6 +29,7 @@ from fichero.llm import (
     parse_thinking_response,
     vision_inference_api,
 )
+from fichero.local_inference import LocalProviderStartupPolicy, LocalServiceState
 
 
 class _StructuredResult(BaseModel):
@@ -973,6 +975,117 @@ async def test_apple_chat_model_with_structured_output_delegates(monkeypatch):
     assert structured_mock.await_args.kwargs["system"] == "extract"
 
 
+@pytest.mark.asyncio
+async def test_omlx_chat_starts_managed_profile_before_langchain_call(monkeypatch):
+    from fichero.api.routes import local_inference as routes
+
+    cfg = LLMConfig(provider="omlx", model="mlx-community/Qwen3-VL-8B")
+    profile = routes._configured_omlx_profile().model_copy(
+        update={"startup_policy": LocalProviderStartupPolicy.on_demand}
+    )
+    manager = _omlx_manager()
+    model = _ManagedOmlxModel()
+    monkeypatch.setattr(routes, "_configured_omlx_profile", lambda: profile)
+    monkeypatch.setattr(routes, "_manager_for_profile", lambda _profile_id: manager)
+    monkeypatch.setattr(llm, "get_langchain_model", lambda _cfg: model)
+
+    result = await llm.chat("hello", cfg)
+
+    assert result == "local-ok"
+    assert manager.start_calls == 1
+    assert model.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_omlx_start_failure_raises_unavailable_and_skips_langchain(monkeypatch):
+    from fichero.api.routes import local_inference as routes
+
+    cfg = LLMConfig(provider="omlx", model="mlx-community/Qwen3-VL-8B")
+    manager = _omlx_manager(healthy=False, last_error="stderr excerpt")
+    monkeypatch.setattr(routes, "_manager_for_profile", lambda _profile_id: manager)
+    monkeypatch.setattr(llm, "get_langchain_model", lambda _cfg: (_ for _ in ()).throw(AssertionError("langchain should not run")))
+
+    with pytest.raises(llm.LocalModelUnavailableError, match="stderr excerpt"):
+        await llm.chat("hello", cfg)
+
+
+@pytest.mark.asyncio
+async def test_omlx_runtime_missing_raises_typed_error(monkeypatch):
+    from fichero.api.routes import local_inference as routes
+    from fichero.local_inference import LocalInferenceRuntimeMissingError
+
+    cfg = LLMConfig(provider="omlx", model="mlx-community/Qwen3-VL-8B")
+
+    class _Manager:
+        state = LocalServiceState.stopped
+        restart_count = 0
+        process = SimpleNamespace(is_running=lambda: False)
+
+        async def start(self):
+            raise LocalInferenceRuntimeMissingError("provision runtime")
+
+    monkeypatch.setattr(routes, "_manager_for_profile", lambda _profile_id: _Manager())
+
+    with pytest.raises(llm.LocalModelRuntimeMissingError, match="provision runtime"):
+        await llm.chat("hello", cfg)
+
+
+@pytest.mark.asyncio
+async def test_omlx_manual_policy_never_auto_starts(monkeypatch):
+    from fichero.api.routes import local_inference as routes
+
+    cfg = LLMConfig(provider="omlx", model="mlx-community/Qwen3-VL-8B")
+    profile = routes._configured_omlx_profile().model_copy(
+        update={"startup_policy": LocalProviderStartupPolicy.manual}
+    )
+    manager = _omlx_manager(healthy=False, last_error="not healthy")
+    monkeypatch.setattr(routes, "_configured_omlx_profile", lambda: profile)
+    monkeypatch.setattr(routes, "_manager_for_profile", lambda _profile_id: manager)
+
+    with pytest.raises(llm.LocalModelUnavailableError, match="manual-start only"):
+        await llm.chat("hello", cfg)
+
+    assert manager.start_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_unmanaged_omlx_base_url_bypasses_manager(monkeypatch):
+    from fichero.api.routes import local_inference as routes
+
+    cfg = LLMConfig(
+        provider="omlx",
+        model="local-model",
+        api_base="http://127.0.0.1:9999/v1",
+    )
+    model = _ManagedOmlxModel()
+    monkeypatch.setattr(routes, "_manager_for_profile", lambda _profile_id: (_ for _ in ()).throw(AssertionError("manager should not run")))
+    monkeypatch.setattr(llm, "get_langchain_model", lambda _cfg: model)
+
+    result = await llm.chat("hello", cfg)
+
+    assert result == "local-ok"
+    assert model.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_omlx_restart_cap_stays_failed(monkeypatch):
+    from fichero.api.routes import local_inference as routes
+
+    cfg = LLMConfig(provider="omlx", model="mlx-community/Qwen3-VL-8B")
+    manager = _omlx_manager(
+        healthy=False,
+        last_error="still crashed",
+        state=LocalServiceState.failed,
+        restart_count=llm._MANAGED_OMLX_RESTART_CAP,
+    )
+    monkeypatch.setattr(routes, "_manager_for_profile", lambda _profile_id: manager)
+
+    with pytest.raises(llm.LocalModelUnavailableError, match="still crashed"):
+        await llm.chat("hello", cfg)
+
+    assert manager.restart_calls == 0
+
+
 class _ConcurrencyResponse:
     content = "ok"
     usage_metadata = {}
@@ -1019,7 +1132,48 @@ class _CountingModel:
         await asyncio.sleep(0.01)
         async with self.lock:
             self.current -= 1
-        return _ConcurrencyResponse()
+            return _ConcurrencyResponse()
+
+
+class _ManagedOmlxModel:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def ainvoke(self, _messages):
+        self.calls += 1
+        return SimpleNamespace(content="local-ok", usage_metadata={})
+
+
+def _omlx_manager(*, healthy: bool = True, last_error: str | None = None, state=LocalServiceState.stopped, restart_count: int = 0):
+    status = SimpleNamespace(healthy=healthy, last_error=last_error)
+
+    class _Process:
+        def is_running(self) -> bool:
+            return False
+
+    class _Manager:
+        def __init__(self) -> None:
+            self.state = state
+            self.restart_count = restart_count
+            self.process = _Process()
+            self.start_calls = 0
+            self.restart_calls = 0
+
+        async def start(self):
+            self.start_calls += 1
+            return status
+
+        async def restart_after_crash(self):
+            self.restart_calls += 1
+            return status
+
+        async def health(self):
+            return status
+
+        def status(self):
+            return status
+
+    return _Manager()
 
 
 def _reset_remote_llm_limit(monkeypatch) -> _CountingModel:
@@ -1240,11 +1394,12 @@ async def test_collect_usage_records_structured_usage_metadata() -> None:
     base_model.profile = {"structured_output": True}
     base_model.with_structured_output = MagicMock(return_value=structured_model)
 
-    with patch("fichero.llm.get_langchain_model", return_value=base_model):
-        with collect_usage() as bucket:
-            result = await chat_structured(
-                prompt="hi", schema=_StructuredResult, config=cfg
-            )
+    with patch("fichero.llm._ensure_managed_local_provider_ready", new=AsyncMock()):
+        with patch("fichero.llm.get_langchain_model", return_value=base_model):
+            with collect_usage() as bucket:
+                result = await chat_structured(
+                    prompt="hi", schema=_StructuredResult, config=cfg
+                )
 
     assert result == _StructuredResult(answer="from-dict")
     assert bucket == [
@@ -1277,11 +1432,12 @@ async def test_collect_usage_ignores_missing_structured_usage_metadata() -> None
     base_model = MagicMock()
     base_model.with_structured_output = MagicMock(return_value=structured_model)
 
-    with patch("fichero.llm.get_langchain_model", return_value=base_model):
-        with collect_usage() as bucket:
-            result = await chat_structured(
-                prompt="hi", schema=_StructuredResult, config=cfg
-            )
+    with patch("fichero.llm._ensure_managed_local_provider_ready", new=AsyncMock()):
+        with patch("fichero.llm.get_langchain_model", return_value=base_model):
+            with collect_usage() as bucket:
+                result = await chat_structured(
+                    prompt="hi", schema=_StructuredResult, config=cfg
+                )
 
     assert result == _StructuredResult(answer="local")
     assert bucket == []

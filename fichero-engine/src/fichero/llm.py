@@ -44,6 +44,7 @@ import inspect
 import json
 import logging
 import os
+from pathlib import Path
 import re
 import threading
 import weakref
@@ -68,6 +69,11 @@ from fichero.llm_embeddings import (  # noqa: F401 (re-exported)
 )
 
 logger = logging.getLogger(__name__)
+
+_FM_BRIDGE_MISSING_MESSAGE = (
+    "fm-bridge binary not found. Build it with "
+    "fichero-engine/bin/fm-bridge/build.sh"
+)
 
 
 # =============================================================================
@@ -367,6 +373,18 @@ class AppleUnavailableError(RuntimeError):
     means subclassing this and mapping the bridge `kind` in
     _raise_from_bridge_stderr — no fallback wiring changes needed (#868).
     """
+
+
+class LocalModelUnavailableError(AppleUnavailableError):
+    """Managed local inference failed to become healthy."""
+
+
+class LocalModelRuntimeMissingError(LocalModelUnavailableError):
+    """Managed local inference runtime has not been provisioned."""
+
+
+class LocalModelHardwareError(LocalModelUnavailableError):
+    """Managed local inference cannot run on current hardware."""
 
 
 class GuardrailViolationError(AppleUnavailableError):
@@ -1362,6 +1380,7 @@ async def chat(
         return mock_chat_response(prompt_text)
 
     # Get LangChain model
+    await _ensure_managed_local_provider_ready(config)
     model = get_langchain_model(config)
 
     # Build messages
@@ -1454,6 +1473,7 @@ async def chat_batch(
             for index, result in enumerate(results)
         ]
 
+    await _ensure_managed_local_provider_ready(config)
     model = get_langchain_model(config)
     messages_batch = [
         _normalize_batch_chat_prompt(prompt, system=system)
@@ -1636,30 +1656,14 @@ async def _apple_intelligence_chat(
         swiftc -O -parse-as-library -o fichero-engine/bin/fm-bridge/fm-bridge \\
             fichero-engine/bin/fm-bridge/FmBridge.swift
     """
-    import json as _json
-    from pathlib import Path
     import asyncio
+    import json as _json
 
     user_text, instructions = _collapse_apple_prompt(prompt, system)
 
-    # Locate fm-bridge. Lives in src/fichero/resources/bin/fm-bridge as
-    # part of the Python package — briefcase auto-bundles anything under
-    # src/fichero/. Dev path (repo/fichero-engine/bin/...) is kept as a
-    # fallback for working without the resources copy.
-    here = Path(__file__).resolve()
-    candidates = [
-        here.parent / "resources" / "bin" / "fm-bridge",  # package data (bundled & dev)
-        here.parent / "bin" / "fm-bridge" / "fm-bridge",  # earlier hot-patch path (kept)
-        here.parents[3] / "bin" / "fm-bridge" / "fm-bridge",  # dev: repo/fichero-engine/bin/...
-        Path("fichero-engine/bin/fm-bridge/fm-bridge").resolve(),
-    ]
-    binary: Path | None = next((p for p in candidates if p.is_file() and p.stat().st_mode & 0o111), None)
+    binary = _find_fm_bridge_binary()
     if binary is None:
-        raise RuntimeError(
-            "fm-bridge binary not found. Build with: "
-            "swiftc -O -parse-as-library -o fichero-engine/bin/fm-bridge/fm-bridge "
-            "fichero-engine/bin/fm-bridge/FmBridge.swift"
-        )
+        raise RuntimeError(_FM_BRIDGE_MISSING_MESSAGE)
 
     # Pass temperature + max_tokens through to fm-bridge → Apple's
     # GenerationOptions. Lets callers pin temperature=0.0 for
@@ -2213,6 +2217,7 @@ async def vision(
             return _LLM_RESULT_CACHE[_cache_key]
 
     # Get LangChain model
+    await _ensure_managed_local_provider_ready(config)
     model = get_langchain_model(config)
 
     # Build multimodal message content (LangChain format)
@@ -2292,6 +2297,7 @@ async def vision_batch(
             for index, result in enumerate(results)
         ]
 
+    await _ensure_managed_local_provider_ready(config)
     model = get_langchain_model(config)
     messages_batch = []
     for images in image_lists:
@@ -2560,6 +2566,7 @@ async def chat_with_tools(
     from langchain_core.messages import HumanMessage
 
     # Get LangChain model
+    await _ensure_managed_local_provider_ready(config)
     model = get_langchain_model(config)
 
     # Bind tools to model
@@ -2655,6 +2662,7 @@ async def structured_output(
     from langchain_core.messages import HumanMessage
 
     # Get LangChain model
+    await _ensure_managed_local_provider_ready(config)
     model = get_langchain_model(config)
 
     # Use LangChain's with_structured_output for clean schema binding
@@ -2728,6 +2736,7 @@ async def chat_structured(
 
     from langchain_core.messages import HumanMessage, SystemMessage
 
+    await _ensure_managed_local_provider_ready(config)
     model = get_langchain_model(config)
 
     # Some local OpenAI-compatible servers (omlx/lmstudio/ollama) do
@@ -3121,6 +3130,50 @@ def _langchain_timeout_budget(config: LLMConfig) -> float:
     return _compute_timeout(config, "langchain")
 
 
+def _fm_bridge_candidates() -> list[Path]:
+    here = Path(__file__).resolve()
+    return [
+        here.parent / "resources" / "bin" / "fm-bridge",
+        here.parent / "bin" / "fm-bridge" / "fm-bridge",
+        here.parents[3] / "bin" / "fm-bridge" / "fm-bridge",
+        Path("fichero-engine/bin/fm-bridge/fm-bridge").resolve(),
+    ]
+
+
+def _find_fm_bridge_binary() -> Path | None:
+    return next(
+        (
+            candidate
+            for candidate in _fm_bridge_candidates()
+            if candidate.is_file() and candidate.stat().st_mode & 0o111
+        ),
+        None,
+    )
+
+
+async def probe_apple_intelligence_bridge() -> tuple[bool, str | None]:
+    binary = _find_fm_bridge_binary()
+    if binary is None:
+        return False, _FM_BRIDGE_MISSING_MESSAGE
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            str(binary),
+            "--probe",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout_bytes, stderr_bytes = await proc.communicate()
+    except Exception as exc:  # noqa: BLE001
+        return False, f"Couldn't run fm-bridge: {exc}"
+
+    try:
+        result = json.loads(stdout_bytes.decode())
+    except json.JSONDecodeError:
+        return False, stderr_bytes.decode().strip() or "fm-bridge probe returned invalid JSON"
+    return bool(result.get("available")), result.get("reason")
+
+
 # Cache + lock for the async locale probe. We can't use lru_cache on a
 # coroutine (it caches the coroutine object, not the resolved value), so
 # we do explicit dict + asyncio.Lock — same effect, async-safe.
@@ -3148,7 +3201,6 @@ async def apple_intelligence_supports_locale(locale: str) -> bool:
     discovering it via mid-generation `unsupportedLanguageOrLocale` error.
     """
     import json as _json
-    from pathlib import Path
 
     if locale in _LOCALE_SUPPORT_CACHE:
         return _LOCALE_SUPPORT_CACHE[locale]
@@ -3163,17 +3215,7 @@ async def apple_intelligence_supports_locale(locale: str) -> bool:
         if locale in _LOCALE_SUPPORT_CACHE:
             return _LOCALE_SUPPORT_CACHE[locale]
 
-        here = Path(__file__).resolve()
-        candidates = [
-            here.parent / "resources" / "bin" / "fm-bridge",
-            here.parent / "bin" / "fm-bridge" / "fm-bridge",
-            here.parents[3] / "bin" / "fm-bridge" / "fm-bridge",
-            Path("fichero-engine/bin/fm-bridge/fm-bridge").resolve(),
-        ]
-        binary = next(
-            (p for p in candidates if p.is_file() and p.stat().st_mode & 0o111),
-            None,
-        )
+        binary = _find_fm_bridge_binary()
         if binary is None:
             logger.debug("fm-bridge not found; assuming locale unsupported")
             _LOCALE_SUPPORT_CACHE[locale] = False
@@ -3383,25 +3425,10 @@ async def _apple_intelligence_structured(
     tokens in the on-device 4K window.
     """
     import json as _json
-    from pathlib import Path
 
-    here = Path(__file__).resolve()
-    candidates = [
-        here.parent / "resources" / "bin" / "fm-bridge",
-        here.parent / "bin" / "fm-bridge" / "fm-bridge",
-        here.parents[3] / "bin" / "fm-bridge" / "fm-bridge",
-        Path("fichero-engine/bin/fm-bridge/fm-bridge").resolve(),
-    ]
-    binary: Path | None = next(
-        (p for p in candidates if p.is_file() and p.stat().st_mode & 0o111),
-        None,
-    )
+    binary = _find_fm_bridge_binary()
     if binary is None:
-        raise RuntimeError(
-            "fm-bridge binary not found; run "
-            "fichero-engine/bin/fm-bridge/build.sh and copy to "
-            "src/fichero/resources/bin/"
-        )
+        raise RuntimeError(_FM_BRIDGE_MISSING_MESSAGE)
 
     apple_schema_dict = _pydantic_to_apple_schema(schema)
     request: dict[str, Any] = {
@@ -3492,6 +3519,46 @@ _OPENAI_COMPATIBLE_BASE_URLS: dict[str, str] = {
 # field — the actual auth is unsigned localhost. We pass a placeholder
 # so ChatOpenAI's required-key check doesn't reject empty.
 _KEYLESS_OPENAI_COMPATIBLE: set[str] = {"ollama", "lmstudio", "omlx"}
+_MANAGED_OMLX_RESTART_CAP = 2
+
+
+async def _ensure_managed_local_provider_ready(config: LLMConfig) -> None:
+    if config.provider.lower() != "omlx":
+        return
+    from fichero.api.routes.local_inference import _configured_omlx_profile, _manager_for_profile
+    from fichero.local_inference import (
+        LocalInferenceRuntimeMissingError,
+        LocalModelNotInstalledError,
+        LocalProviderStartupPolicy,
+        LocalServiceState,
+    )
+
+    profile = _configured_omlx_profile()
+    effective_base_url = (config.api_base or _OPENAI_COMPATIBLE_BASE_URLS["omlx"]).rstrip("/")
+    if not profile.managed_by_app or str(profile.base_url).rstrip("/") != effective_base_url:
+        return
+
+    manager = _manager_for_profile(profile.id)
+    try:
+        if profile.startup_policy == LocalProviderStartupPolicy.manual:
+            status = await manager.health() if manager.state != LocalServiceState.stopped else manager.status()
+        elif manager.state != LocalServiceState.stopped and not manager.process.is_running():
+            if manager.restart_count >= _MANAGED_OMLX_RESTART_CAP:
+                status = await manager.health()
+            else:
+                status = await manager.restart_after_crash()
+        else:
+            status = await manager.start()
+    except LocalInferenceRuntimeMissingError as exc:
+        raise LocalModelRuntimeMissingError(str(exc)) from exc
+    except LocalModelNotInstalledError as exc:
+        raise LocalModelUnavailableError(str(exc)) from exc
+
+    if not status.healthy:
+        detail = status.last_error or "local model unavailable"
+        if profile.startup_policy == LocalProviderStartupPolicy.manual:
+            detail = f"Managed local model is manual-start only and not healthy: {detail}"
+        raise LocalModelUnavailableError(detail)
 
 # Sentinel for dict.pop "was-present" detection without colliding on a
 # legitimately-stored None value.

@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from fichero.local_inference import (
     ExternalLocalInferenceProcess,
+    LocalModelNotInstalledError,
     LocalInferenceRuntimeMissingError,
     LocalInferenceServiceManager,
     LocalInferenceServiceStatus,
@@ -20,6 +21,7 @@ from fichero.local_inference import (
     LocalProviderProfile,
     ManagedLocalInferenceProcess,
 )
+from fichero.mlx_model_store import get_mlx_model_store
 from fichero.mlx_runtime import get_mlx_runtime
 
 router = APIRouter(prefix="/local-inference")
@@ -77,6 +79,22 @@ class LocalInferenceRuntimeStatusResponse(BaseModel):
     job: LocalInferenceRuntimeJobResponse | None = None
 
 
+class LocalInferenceModelDownloadJobResponse(BaseModel):
+    job_id: str
+    model_id: str
+    state: str
+    current: int
+    total: int
+    percent: float
+    message: str
+    error: str | None = None
+
+
+class LocalInferenceModelDeleteResponse(BaseModel):
+    status: str
+    freed_bytes: int
+
+
 def _configured_omlx_profile() -> LocalProviderProfile:
     """Build the default app-managed oMLX profile from env/defaults."""
     base_url = (
@@ -110,19 +128,7 @@ def _local_profiles() -> list[LocalProviderProfile]:
 
 
 def _local_catalog_entries() -> list[LocalModelCatalogEntry]:
-    profile = _configured_omlx_profile()
-    return [
-        LocalModelCatalogEntry(
-            provider_type=profile.provider_type,
-            model_id=profile.model_id,
-            display_name=profile.model_id,
-            capabilities=["text", "vision"],
-            installed=False,
-            memory_class="unified-memory",
-            license_label="user-managed",
-            source=LocalModelSource.user_configured,
-        )
-    ]
+    return get_mlx_model_store().list_catalog_entries()
 
 
 def _manager_for_profile(profile_id: str) -> LocalInferenceServiceManager:
@@ -143,6 +149,12 @@ def _manager_for_profile(profile_id: str) -> LocalInferenceServiceManager:
     return manager
 
 
+async def shutdown_managed_local_inference_services() -> None:
+    for manager in list(_MANAGERS.values()):
+        if manager.profile.managed_by_app:
+            await manager.stop()
+
+
 def _profile_by_id(profile_id: str) -> LocalProviderProfile:
     for profile in _local_profiles():
         if profile.id == profile_id:
@@ -161,6 +173,13 @@ def _runtime_status_response() -> LocalInferenceRuntimeStatusResponse:
         runtime_dir=str(payload["runtime_dir"]),
         job=LocalInferenceRuntimeJobResponse(**job) if isinstance(job, dict) else None,
     )
+
+
+def _download_job_response(job_id: str) -> LocalInferenceModelDownloadJobResponse:
+    job = get_mlx_model_store().job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Model download job not found: {job_id}")
+    return LocalInferenceModelDownloadJobResponse(**job.to_dict())
 
 
 @router.get("/profiles", response_model=LocalInferenceProfileListResponse)
@@ -227,6 +246,8 @@ async def start_local_inference_profile(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except LocalInferenceRuntimeMissingError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except LocalModelNotInstalledError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.post(
@@ -262,3 +283,65 @@ async def remove_local_inference_runtime() -> LocalInferenceRuntimeStatusRespons
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return _runtime_status_response()
+
+
+@router.post(
+    "/models/{model_id:path}/download",
+    response_model=LocalInferenceModelDownloadJobResponse,
+)
+async def download_local_inference_model(
+    model_id: Annotated[str, Path(min_length=1)],
+) -> LocalInferenceModelDownloadJobResponse:
+    """Start or reuse a managed MLX model download job."""
+    try:
+        job = await get_mlx_model_store().start_download(model_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return LocalInferenceModelDownloadJobResponse(**job.to_dict())
+
+
+@router.get(
+    "/models/downloads/{job_id}",
+    response_model=LocalInferenceModelDownloadJobResponse,
+)
+async def get_local_inference_model_download(
+    job_id: Annotated[str, Path(min_length=1)],
+) -> LocalInferenceModelDownloadJobResponse:
+    """Return progress for a managed MLX model download job."""
+    return _download_job_response(job_id)
+
+
+@router.post(
+    "/models/downloads/{job_id}/cancel",
+    response_model=LocalInferenceModelDownloadJobResponse,
+)
+async def cancel_local_inference_model_download(
+    job_id: Annotated[str, Path(min_length=1)],
+) -> LocalInferenceModelDownloadJobResponse:
+    """Cancel a managed MLX model download job."""
+    job = get_mlx_model_store().job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Model download job not found: {job_id}")
+    if job.state not in {"queued", "running"}:
+        return LocalInferenceModelDownloadJobResponse(**job.to_dict())
+    await get_mlx_model_store().cancel(job_id)
+    return _download_job_response(job_id)
+
+
+@router.delete(
+    "/models/{model_id:path}",
+    response_model=LocalInferenceModelDeleteResponse,
+)
+def delete_local_inference_model(
+    model_id: Annotated[str, Path(min_length=1)],
+) -> LocalInferenceModelDeleteResponse:
+    """Delete one managed MLX model from the local store."""
+    try:
+        freed = get_mlx_model_store().delete(model_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return LocalInferenceModelDeleteResponse(status="ok", freed_bytes=freed)

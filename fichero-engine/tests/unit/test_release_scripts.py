@@ -28,6 +28,8 @@ NOTARIZE = SCRIPTS_DIR / "notarize.sh"
 CREATE_RELEASE = SCRIPTS_DIR / "create-github-release.sh"
 NIGHTLY_RELEASE = SCRIPTS_DIR / "nightly-release.sh"
 START_BACKEND = REPO_ROOT / "fichero-engine" / "scripts" / "start_backend.sh"
+BUILD_BACKEND_BUNDLE = REPO_ROOT / "fichero-engine" / "scripts" / "build_backend_bundle.sh"
+BUNDLE_PYTHON_BACKEND = REPO_ROOT / "fichero-engine" / "scripts" / "bundle_python_backend.sh"
 
 ALL_SCRIPTS = [BUILD_RELEASE, BUILD_AND_VALIDATE, NOTARIZE, CREATE_RELEASE, NIGHTLY_RELEASE]
 
@@ -193,6 +195,22 @@ def test_start_backend_syncs_bootstrap_token_into_debug_sandbox() -> None:
 
     assert 'FICHERO_DEBUG_APP_BUNDLE_ID="${FICHERO_DEBUG_APP_BUNDLE_ID:-app.fichero.fichero}"' in text
     assert "sync_debug_bootstrap_token" in text
+
+
+def test_backend_bundle_builds_fm_bridge_into_package_resources() -> None:
+    text = _script_text(BUILD_BACKEND_BUNDLE)
+
+    assert "bin/fm-bridge/FmBridge.swift" in text
+    assert "src/fichero/resources/bin/fm-bridge" in text
+    assert "swiftc -O -parse-as-library" in text
+
+
+def test_python_bundle_builds_fm_bridge_into_site_packages() -> None:
+    text = _script_text(BUNDLE_PYTHON_BACKEND)
+
+    assert "bin/fm-bridge/FmBridge.swift" in text
+    assert "site-packages/fichero/resources/bin/fm-bridge" in text
+    assert "swiftc -O -parse-as-library" in text
 
 
 # ---------------------------------------------------------------------------

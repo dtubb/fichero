@@ -68,7 +68,26 @@ def test_list_local_inference_profiles_returns_typed_omlx_profile(client) -> Non
 
 
 def test_local_inference_catalog_exposes_configured_model(client) -> None:
-    response = client.get("/api/local-inference/catalog")
+    class StubStore:
+        def list_catalog_entries(self):
+            return [
+                {
+                    "provider_type": "omlx",
+                    "model_id": routes.DEFAULT_OMLX_MODEL_ID,
+                    "display_name": "Qwen3-VL 8B",
+                    "capabilities": ["text", "vision"],
+                    "installed": True,
+                    "download_size_bytes": 123,
+                    "disk_usage_bytes": 456,
+                    "memory_class": "16gb",
+                    "license_label": "user-managed",
+                    "source": "app_cache",
+                }
+            ]
+
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(routes, "get_mlx_model_store", lambda: StubStore())
+        response = client.get("/api/local-inference/catalog")
 
     assert response.status_code == 200
     data = response.json()
@@ -77,7 +96,7 @@ def test_local_inference_catalog_exposes_configured_model(client) -> None:
     assert entry["provider_type"] == "omlx"
     assert entry["model_id"] == routes.DEFAULT_OMLX_MODEL_ID
     assert entry["capabilities"] == ["text", "vision"]
-    assert entry["installed"] is False
+    assert entry["installed"] is True
 
 
 def test_manager_for_managed_profile_uses_managed_process() -> None:
@@ -204,3 +223,56 @@ def test_runtime_status_provision_and_remove_routes(client, monkeypatch: pytest.
     assert removed.status_code == 200
     assert removed.json()["provisioned"] is False
     assert runtime.removed == 1
+
+
+def test_model_download_and_delete_routes(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    class StubJob:
+        state = "running"
+
+        def to_dict(self) -> dict[str, Any]:
+            return {
+                "job_id": "job-1",
+                "model_id": routes.DEFAULT_OMLX_MODEL_ID,
+                "state": "running",
+                "current": 1,
+                "total": 3,
+                "percent": 33.3,
+                "message": "Downloading",
+                "error": None,
+            }
+
+    class StubStore:
+        def __init__(self) -> None:
+            self.deleted: list[str] = []
+            self.job_value = StubJob()
+
+        async def start_download(self, model_id: str):
+            return self.job_value
+
+        def job(self, job_id: str):
+            return self.job_value if job_id == "job-1" else None
+
+        async def cancel(self, job_id: str):
+            return self.job_value
+
+        def delete(self, model_id: str) -> int:
+            self.deleted.append(model_id)
+            return 123
+
+    store = StubStore()
+    monkeypatch.setattr(routes, "get_mlx_model_store", lambda: store)
+
+    started = client.post(f"/api/local-inference/models/{routes.DEFAULT_OMLX_MODEL_ID}/download")
+    assert started.status_code == 200
+    assert started.json()["job_id"] == "job-1"
+
+    status = client.get("/api/local-inference/models/downloads/job-1")
+    assert status.status_code == 200
+    assert status.json()["model_id"] == routes.DEFAULT_OMLX_MODEL_ID
+
+    cancelled = client.post("/api/local-inference/models/downloads/job-1/cancel")
+    assert cancelled.status_code == 200
+
+    deleted = client.delete(f"/api/local-inference/models/{routes.DEFAULT_OMLX_MODEL_ID}")
+    assert deleted.status_code == 200
+    assert deleted.json()["freed_bytes"] == 123

@@ -111,5 +111,11 @@ def test_mlx_runtime_targets_separate_prefix(tmp_path, monkeypatch):
     assert resolved not in Path(sys.prefix).parents
 
 
+def test_package_data_includes_fm_bridge_binary():
+    data = _pyproject()
+    package_data = data["tool"]["setuptools"]["package-data"]["fichero"]
+    assert "resources/bin/*" in package_data
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
