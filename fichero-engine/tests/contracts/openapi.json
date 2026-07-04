@@ -35044,10 +35044,13 @@
           "final_outputs": {
             "additionalProperties": true,
             "type": "object",
-            "title": "Final Outputs"
+            "title": "Final Outputs",
+            "description": "Free-form JSON outputs produced by the final workflow step. Output shape remains workflow-defined."
           },
           "final_files": {
-            "items": {},
+            "items": {
+              "type": "string"
+            },
             "type": "array",
             "title": "Final Files"
           },
@@ -35070,8 +35073,6 @@
           "chain_id",
           "status",
           "step_results",
-          "final_outputs",
-          "final_files",
           "total_duration_ms",
           "events"
         ],
@@ -35115,8 +35116,7 @@
           },
           "steps": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/ChainStepResponse"
             },
             "type": "array",
             "title": "Steps"
@@ -35129,7 +35129,8 @@
           "initial_inputs": {
             "additionalProperties": true,
             "type": "object",
-            "title": "Initial Inputs"
+            "title": "Initial Inputs",
+            "description": "Free-form JSON inputs for the chain entrypoint. Values are passed through as-is and must match the target workflow contract."
           },
           "created_at": {
             "type": "string",
@@ -35204,7 +35205,8 @@
           "static_inputs": {
             "additionalProperties": true,
             "type": "object",
-            "title": "Static Inputs"
+            "title": "Static Inputs",
+            "description": "Free-form JSON inputs merged into this step at execution time. Values stay workflow-defined and are not coerced."
           },
           "condition": {
             "$ref": "#/components/schemas/ChainStepConditionRequest",
@@ -35228,6 +35230,57 @@
         ],
         "title": "ChainStepRequest",
         "description": "Request model for chain step."
+      },
+      "ChainStepResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "workflow_id": {
+            "type": "string",
+            "title": "Workflow Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "input_mappings": {
+            "items": {
+              "$ref": "#/components/schemas/OutputMappingRequest"
+            },
+            "type": "array",
+            "title": "Input Mappings"
+          },
+          "static_inputs": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Static Inputs",
+            "description": "Free-form JSON inputs merged into this step at execution time. Values stay workflow-defined and are not coerced."
+          },
+          "condition": {
+            "$ref": "#/components/schemas/ChainStepConditionRequest",
+            "nullable": true
+          },
+          "continue_on_error": {
+            "type": "boolean",
+            "title": "Continue On Error",
+            "default": false
+          },
+          "timeout_seconds": {
+            "type": "integer",
+            "title": "Timeout Seconds",
+            "default": 300
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "workflow_id"
+        ],
+        "title": "ChainStepResponse",
+        "description": "Typed response model for a workflow chain step."
       },
       "ChainStepResultInfo": {
         "properties": {
@@ -38018,7 +38071,8 @@
           "initial_inputs": {
             "additionalProperties": true,
             "type": "object",
-            "title": "Initial Inputs"
+            "title": "Initial Inputs",
+            "description": "Free-form JSON inputs for the chain entrypoint. Values are passed through as-is and must match the target workflow contract."
           }
         },
         "type": "object",
@@ -41610,7 +41664,8 @@
           "inputs": {
             "additionalProperties": true,
             "type": "object",
-            "title": "Inputs"
+            "title": "Inputs",
+            "description": "Free-form JSON execution inputs. This remains dynamic because each workflow chain defines its own input contract."
           },
           "input_files": {
             "items": {
@@ -57476,7 +57531,8 @@
             "additionalProperties": true,
             "type": "object",
             "nullable": true,
-            "title": "Initial Inputs"
+            "title": "Initial Inputs",
+            "description": "Free-form JSON inputs for the chain entrypoint. Values are passed through as-is and must match the target workflow contract."
           }
         },
         "type": "object",

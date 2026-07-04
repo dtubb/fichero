@@ -2021,7 +2021,7 @@ def register_generated_openapi_commands(
             }, {
                 "description": {'type': 'string', 'title': 'Description', 'default': '', 'x-cli-required': False},
                 "entry_step": {'type': 'string', 'nullable': True, 'title': 'Entry Step', 'x-cli-required': False},
-                "initial_inputs": {'additionalProperties': True, 'type': 'object', 'title': 'Initial Inputs', 'x-cli-required': False},
+                "initial_inputs": {'additionalProperties': True, 'type': 'object', 'title': 'Initial Inputs', 'description': 'Free-form JSON inputs for the chain entrypoint. Values are passed through as-is and must match the target workflow contract.', 'x-cli-required': False},
                 "name": {'type': 'string', 'minLength': 1, 'title': 'Name', 'x-cli-required': True},
                 "steps": {'items': {'$ref': '#/components/schemas/ChainStepRequest'}, 'type': 'array', 'title': 'Steps', 'x-cli-required': False},
             }, required=True)
@@ -2127,7 +2127,7 @@ def register_generated_openapi_commands(
             }, {
                 "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'x-cli-required': False},
                 "entry_step": {'type': 'string', 'nullable': True, 'title': 'Entry Step', 'x-cli-required': False},
-                "initial_inputs": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Initial Inputs', 'x-cli-required': False},
+                "initial_inputs": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Initial Inputs', 'description': 'Free-form JSON inputs for the chain entrypoint. Values are passed through as-is and must match the target workflow contract.', 'x-cli-required': False},
                 "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
                 "steps": {'items': {'$ref': '#/components/schemas/ChainStepRequest'}, 'type': 'array', 'nullable': True, 'title': 'Steps', 'x-cli-required': False},
             }, required=True)
@@ -2150,7 +2150,7 @@ def register_generated_openapi_commands(
                 "inputs": inputs,
             }, {
                 "input_files": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Input Files', 'x-cli-required': False},
-                "inputs": {'additionalProperties': True, 'type': 'object', 'title': 'Inputs', 'x-cli-required': False},
+                "inputs": {'additionalProperties': True, 'type': 'object', 'title': 'Inputs', 'description': 'Free-form JSON execution inputs. This remains dynamic because each workflow chain defines its own input contract.', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
