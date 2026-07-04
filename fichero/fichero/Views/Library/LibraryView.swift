@@ -246,16 +246,7 @@ struct LibraryView: View {
             case .table:
                 tableView
             case .canvas, .workspace:
-                // Canvas (2D) — the merged 2D positioned-node view (#2667/#3081),
-                // the live 2D positioned-node library view off the shared stores.
-                Spatial2DCanvas(
-                    nodes: libraryProjection.nodes,
-                    connections: [],
-                    selectedNodeId: $spatialSelectedNodeId,
-                    layoutStore: canvasLayoutStore,
-                    itemStore: canvasItemStore,
-                    folderScopeId: folderId ?? wholeLibraryRoomId
-                )
+                canvasModeView
             case .space:
                 // Space (3D) — the RealityKit renderer (#3088), a SECOND renderer
                 // on the SAME shared per-library stores (#3082): a move in the 2D
@@ -269,6 +260,34 @@ struct LibraryView: View {
                     folderScopeId: folderId ?? wholeLibraryRoomId
                 )
             }
+        }
+    }
+
+    /// The 2D Canvas renderer, gated (#3083): the new RealityKit-ortho
+    /// `CanvasSceneView` when the flag is on, else the SwiftUI `Spatial2DCanvas`.
+    /// Both read the SAME shared stores, so switching engines is transparent;
+    /// the SwiftUI canvas is retired only at cutover (#3087). Extracted to keep
+    /// `libraryContent`'s switch within the type-checker budget.
+    @ViewBuilder
+    private var canvasModeView: some View {
+        if featureManager.isCanvasRealityKit2DEnabled {
+            CanvasSceneView(
+                nodes: libraryProjection.nodes,
+                connections: [],
+                selectedNodeId: $spatialSelectedNodeId,
+                layoutStore: canvasLayoutStore,
+                itemStore: canvasItemStore,
+                folderScopeId: folderId ?? wholeLibraryRoomId
+            )
+        } else {
+            Spatial2DCanvas(
+                nodes: libraryProjection.nodes,
+                connections: [],
+                selectedNodeId: $spatialSelectedNodeId,
+                layoutStore: canvasLayoutStore,
+                itemStore: canvasItemStore,
+                folderScopeId: folderId ?? wholeLibraryRoomId
+            )
         }
     }
 

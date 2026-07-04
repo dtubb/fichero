@@ -112,6 +112,11 @@ class FeatureManager: ObservableObject {
     private var workspaceModeEnabledInternal: Bool = false
     @AppStorage("fichero.features.spatial_mode")
     private var spatialModeEnabledInternal: Bool = false
+    /// Route the 2D `.canvas` view mode to the new RealityKit-ortho renderer
+    /// (`CanvasSceneView`, #3083) instead of the SwiftUI `Spatial2DCanvas`. Off
+    /// by default; the SwiftUI canvas is retired only at cutover (#3087).
+    @AppStorage("fichero.features.canvas_realitykit_2d")
+    private var canvasRealityKit2DEnabledInternal: Bool = false
     @AppStorage("fichero.features.research") private var researchEnabledInternal: Bool = true
     @AppStorage("fichero.features.knowledge_graph") private var knowledgeGraphEnabledInternal: Bool = true
     @AppStorage("fichero.first_run.completed") var firstRunCompleted: Bool = false
@@ -186,6 +191,7 @@ class FeatureManager: ObservableObject {
     var isClaimHighlightSyncEnabled: Bool { allFeaturesEnabled || claimHighlightSyncEnabledInternal }
     var isWorkspaceModeEnabled: Bool { allFeaturesEnabled || workspaceModeEnabledInternal }
     var isSpatialModeEnabled: Bool { allFeaturesEnabled || spatialModeEnabledInternal }
+    var isCanvasRealityKit2DEnabled: Bool { allFeaturesEnabled || canvasRealityKit2DEnabledInternal }
     var isResearchEnabled: Bool { allFeaturesEnabled || researchEnabledInternal }
     /// Knowledge Graph / Ontology browser (#498). Defaulted ON — the view is complete.
     var isKnowledgeGraphEnabled: Bool { allFeaturesEnabled || knowledgeGraphEnabledInternal }
@@ -242,6 +248,7 @@ class FeatureManager: ObservableObject {
         workflowRunOnSelectionEnabledInternal = true
         workspaceModeEnabledInternal = false
         spatialModeEnabledInternal = false
+        canvasRealityKit2DEnabledInternal = false
         researchEnabledInternal = true
         knowledgeGraphEnabledInternal = true
         releaseProfileVersionApplied = Self.releaseProfileVersion

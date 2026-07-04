@@ -178,6 +178,7 @@
 		2A7F1839345B56CA811A4941 /* ViewDisplayMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956F66055D569E37A35E0377 /* ViewDisplayMode.swift */; };
 		2C2268FA2E4307AAA02C7EC4 /* APIClient+Types.swift in Sources */ = {isa = PBXBuildFile; fileRef = 300A8405FFC476E5124372AE /* APIClient+Types.swift */; };
 		2C8A895EE1B0F5029E3D00B6 /* WorkspaceItemPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 489A0FBA854FF9A1158996D6 /* WorkspaceItemPicker.swift */; };
+		2D2BD6F65172A039357FB3D2 /* CanvasOrtho2DRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6696D9961E42071EE854350 /* CanvasOrtho2DRenderer.swift */; };
 		2D4468D68538BE7767729108 /* ResearchProjectListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE29C018865C9A1538200D8E /* ResearchProjectListView.swift */; };
 		2E9F1141ED5087B3424E7826 /* CanvasSceneRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F287F61A7D65912EF63D362C /* CanvasSceneRenderer.swift */; };
 		2ED84CCBA91252EA2D0C5D34 /* TriggerEditorPreviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BAA47F1959AD79AA6C2E3EF /* TriggerEditorPreviewPanel.swift */; };
@@ -289,6 +290,7 @@
 		94EAA15C7E791548A7BA4E2E /* CanvasSceneState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9414DAA022DF2D96230B86A7 /* CanvasSceneState.swift */; };
 		950B161A37D121AFE9E26CB3 /* PDFPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DDD2864E374789E10D5B169 /* PDFPageView.swift */; };
 		96DDD5373DEE2458D1D94450 /* BreadcrumbBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAE9F6E549990F086C442F3B /* BreadcrumbBuilder.swift */; };
+		9702C23273B6222FF84B6288 /* CanvasSceneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B6D6698151FC8A29A2BE3BA /* CanvasSceneView.swift */; };
 		98F8518B04D4313542B237D7 /* PDFPageWithToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CC15CD58C235F143320E172 /* PDFPageWithToolbar.swift */; };
 		9A321613F87806CF952668A1 /* PlatformAliases.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68BDC2DC273F8F91B9CA1B3C /* PlatformAliases.swift */; };
 		9A45089C636C56BF221BD7BC /* MiniToolbarComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC02D722B13BC58D4D4B37B7 /* MiniToolbarComponents.swift */; };
@@ -510,6 +512,7 @@
 		C994E1D675749951376E8FEA /* FocusedAnnotation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5004AD7FDB9A8BE0953643C5 /* FocusedAnnotation.swift */; };
 		CA00000000000000000000B1 /* CanvasLayoutStore+ChangeStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA00000000000000000000A1 /* CanvasLayoutStore+ChangeStream.swift */; };
 		CA00000000000000000000B2 /* CanvasItemStore+ChangeStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA00000000000000000000A2 /* CanvasItemStore+ChangeStream.swift */; };
+		CA2079FADD45BDDD971FB694 /* Canvas2DProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24F68955CC563FF070D02897 /* Canvas2DProjection.swift */; };
 		CB8C5EB090F3F95C861D1A2E /* InspectorPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD8FD4EEA01D859C3DB5EADB /* InspectorPresenter.swift */; };
 		CC357CD884EE29BAE8A64F4B /* PlatformPasteboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 772A6A57C4986C2765A174EE /* PlatformPasteboard.swift */; };
 		CC8B35B398A7393E4D687941 /* BookmarkServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3133E93619FB262825F4F55 /* BookmarkServiceGenerated.swift */; };
@@ -751,6 +754,7 @@
 		20D8EE462F4BE285006950A3 /* ActionPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionPickerView.swift; sourceTree = "<group>"; };
 		20D8EE482F4BED4B006950A3 /* ActionRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionRowView.swift; sourceTree = "<group>"; };
 		20D8EE4A2F4BED57006950A3 /* ActionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionDetailView.swift; sourceTree = "<group>"; };
+		24F68955CC563FF070D02897 /* Canvas2DProjection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Canvas2DProjection.swift; sourceTree = "<group>"; };
 		25FA072769256EDC235A5BD6 /* ArtifactDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ArtifactDetailView.swift; sourceTree = "<group>"; };
 		28B629229088E72B485569FC /* LibraryChangeStream.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LibraryChangeStream.swift; sourceTree = "<group>"; };
 		29941DE439073B7364322ECF /* FicheroApp_iOS.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FicheroApp_iOS.swift; sourceTree = "<group>"; };
@@ -893,6 +897,7 @@
 		98C0EC9D283E4FFF816B0460 /* ActivityStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ActivityStore.swift; sourceTree = "<group>"; };
 		98D3260FE78CC39D3C645089 /* StackedRepresentationPanes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StackedRepresentationPanes.swift; sourceTree = "<group>"; };
 		99857D7C99E753A3405778FC /* LibraryToolbarState.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LibraryToolbarState.swift; sourceTree = "<group>"; };
+		9B6D6698151FC8A29A2BE3BA /* CanvasSceneView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CanvasSceneView.swift; sourceTree = "<group>"; };
 		9DDD2864E374789E10D5B169 /* PDFPageView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PDFPageView.swift; sourceTree = "<group>"; };
 		9E04EE1958EB4E23A7E1E328 /* WindowState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowState.swift; sourceTree = "<group>"; };
 		9E852347E800839A52286849 /* DocumentInspectorArtifactsTab+Interpretations.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "DocumentInspectorArtifactsTab+Interpretations.swift"; sourceTree = "<group>"; };
@@ -1093,6 +1098,7 @@
 		C10000110000000000000002 /* AppInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppInstaller.swift; sourceTree = "<group>"; };
 		C1E16D1FB324019CBF50B37D /* CanvasInteractionController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CanvasInteractionController.swift; sourceTree = "<group>"; };
 		C340001100000000PROMPT01 /* PromptPreviewPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptPreviewPanel.swift; sourceTree = "<group>"; };
+		C6696D9961E42071EE854350 /* CanvasOrtho2DRenderer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CanvasOrtho2DRenderer.swift; sourceTree = "<group>"; };
 		C69898938F25CFEA64385A16 /* TriggerDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TriggerDetailView.swift; sourceTree = "<group>"; };
 		C768E2159A6D869E204FC478 /* FileMenuCommands.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FileMenuCommands.swift; sourceTree = "<group>"; };
 		CA00000000000000000000A1 /* CanvasLayoutStore+ChangeStream.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "CanvasLayoutStore+ChangeStream.swift"; sourceTree = "<group>"; };
@@ -1411,6 +1417,7 @@
 				95BC14544C9BA8EE83B9DC49 /* ShellLayoutPolicy.swift */,
 				D817ADFBBCAF433008A6380D /* AboutView.swift */,
 				1F55072D805F4D51D44378D7 /* Space */,
+				8D536EAF7F2C38E1DD16992F /* Canvas */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -1739,6 +1746,17 @@
 				DF5FD0D414191E6FFC18E8BC /* SpatialNodeThumbnail.swift */,
 			);
 			path = Spatial;
+			sourceTree = "<group>";
+		};
+		8D536EAF7F2C38E1DD16992F /* Canvas */ = {
+			isa = PBXGroup;
+			children = (
+				24F68955CC563FF070D02897 /* Canvas2DProjection.swift */,
+				C6696D9961E42071EE854350 /* CanvasOrtho2DRenderer.swift */,
+				9B6D6698151FC8A29A2BE3BA /* CanvasSceneView.swift */,
+			);
+			name = Canvas;
+			path = Canvas;
 			sourceTree = "<group>";
 		};
 		9CD011DB2E5A714A716944F3 /* Platform */ = {
@@ -2934,6 +2952,9 @@
 				3591D3E8CE619A9731DF2242 /* CanvasDetailTier.swift in Sources */,
 				2E9F1141ED5087B3424E7826 /* CanvasSceneRenderer.swift in Sources */,
 				B3742CD0628CC8C97E4788E2 /* CanvasInteractionController.swift in Sources */,
+				CA2079FADD45BDDD971FB694 /* Canvas2DProjection.swift in Sources */,
+				2D2BD6F65172A039357FB3D2 /* CanvasOrtho2DRenderer.swift in Sources */,
+				9702C23273B6222FF84B6288 /* CanvasSceneView.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
