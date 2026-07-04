@@ -93,8 +93,8 @@ extension ContentView {
         } else {
         switch viewMode {
         case .library:
-            // Space (3D RealityKit) retired — .realitykit normalizes to .map
-            // (2D canvas) upstream, so the library path renders LibraryView.
+            // Space (3D) has no renderer yet (#3081) — .space normalizes to an
+            // available mode upstream, so the library path renders LibraryView.
             if viewDisplayMode == .workspace,
                       featureManager.isWorkspaceModeEnabled,
                       let doc = libraryViewDocument {

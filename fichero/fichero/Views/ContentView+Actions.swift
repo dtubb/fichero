@@ -332,7 +332,7 @@ extension ContentView {
         case .icon: .icons
         case .list: .list
         case .table: .table
-        case .map, .realitykit, .spatial, .workspace: .map
+        case .canvas, .space, .workspace: .map
         }
         saveDisplayMode(effectiveMode, for: sidebarSelectionState.selectedItemId)
         // Promote to the global default so a fresh window / new folder

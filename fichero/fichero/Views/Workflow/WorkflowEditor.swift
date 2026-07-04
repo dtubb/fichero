@@ -96,24 +96,9 @@ struct WorkflowEditor: View {
                             snapToGrid: $snapToGrid
                         )
                     }
-                case .map:
-                    // Keep map/table as advanced-mode fallback to avoid adding extra surface in 0.0.1.
-                    WorkflowCanvasView(
-                        workflow: $editingWorkflow,
-                        scale: $scale,
-                        snapToGrid: $snapToGrid
-                    )
-                case .realitykit:
-                    // RealityKit is a Spatial mode, not a workflow-editor surface —
-                    // fall back to the canvas like .map/.table.
-                    WorkflowCanvasView(
-                        workflow: $editingWorkflow,
-                        scale: $scale,
-                        snapToGrid: $snapToGrid
-                    )
-                case .spatial, .workspace:
-                    // Collection-only stubs live at the library routing seam.
-                    // In the workflow editor they fall back to the canvas like .map/.realitykit.
+                case .canvas, .space, .workspace:
+                    // Canvas/Space/Workspace aren't distinct workflow-editor
+                    // surfaces — they fall back to the workflow canvas (#3081).
                     WorkflowCanvasView(
                         workflow: $editingWorkflow,
                         scale: $scale,

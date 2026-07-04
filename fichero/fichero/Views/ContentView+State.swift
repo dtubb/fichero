@@ -265,13 +265,12 @@ extension ContentView {
             if let doc = libraryViewDocument,
                doc.docType == .folder || doc.isWorkspace ||
                (doc.docType == .file && doc.fileType.map { [.pdf, .word, .epub, .presentation].contains($0) } ?? false) {
-                // Canvas (.map → Spatial2DCanvas) is the live spatial library
-                // view, offered for every folder/pdf/node (#2667). The retired
-                // standalone "Spatial (2D)" mode and the 3D "Space" (.realitykit
-                // → RealityKit) Mind Palace render are gone — .map IS the 2D
-                // canvas now, so there is no separate .spatial/.realitykit entry
-                // here to overflow the iPad split path (#2665).
-                var modes: [ViewDisplayMode] = [.icon, .list, .table, .map]
+                // Canvas (.canvas → Spatial2DCanvas) is the live 2D positioned-node
+                // library view, offered for every folder/pdf/node (#2667/#3081).
+                // The 3D .space view is a defined mode but not offered here yet —
+                // its renderer (P2/P3) is not built, so it stays out of the picker
+                // and any migrated .space value normalizes to an available mode.
+                var modes: [ViewDisplayMode] = [.icon, .list, .table, .canvas]
                 if featureManager.isWorkspaceModeEnabled {
                     modes.append(.workspace)
                 }
@@ -280,12 +279,12 @@ extension ContentView {
             if !featureManager.isLibraryAdvancedViewsEnabled {
                 return [.icon]
             }
-            return [.icon, .list, .table, .map]
+            return [.icon, .list, .table, .canvas]
         case .search:
             if !featureManager.isSearchAdvancedViewsEnabled {
                 return [.list]
             }
-            return [.icon, .list, .table, .map]
+            return [.icon, .list, .table, .canvas]
         case .workflows:
             // Keep workflow editor simple by default; only expose table mode
             // when advanced views are explicitly enabled.
@@ -469,12 +468,10 @@ extension ContentView {
 
     /// Normalize a requested display mode against current feature gates.
     func normalizedViewDisplayMode(_ mode: ViewDisplayMode) -> ViewDisplayMode {
-        // Migrate the retired "Spatial (2D)" mode AND the retired 3D "Space"
-        // (.realitykit / Mind Palace) onto Canvas (#2667). A persisted/
-        // @SceneStorage `.spatial` or `.realitykit` value (and per-folder saved
-        // modes) must land on Canvas, not a removed-feeling state, since the 2D
-        // canvas is the live spatial view; the 3D RealityKit renderer is gone.
-        let mode = (mode == .spatial || mode == .realitykit) ? .map : mode
+        // Legacy rawValue migration ("Map"/"Spatial"→.canvas, "RealityKit"→.space)
+        // now happens in ViewDisplayMode.init?(rawValue:) at decode time (#3081),
+        // so here we only fall back when the requested mode isn't available in the
+        // current context (e.g. .space before its renderer is offered, #3081).
         guard availableViewDisplayModes.contains(mode) else {
             if availableViewDisplayModes.contains(.list) {
                 return .list
@@ -601,7 +598,7 @@ extension ContentView {
         case .icon: .icons
         case .list: .list
         case .table: .table
-        case .map, .realitykit, .spatial, .workspace: .map
+        case .canvas, .space, .workspace: .map
         }
         if viewSettings.libraryLayout != newLayout {
             viewSettings.libraryLayout = newLayout
@@ -616,7 +613,7 @@ extension ContentView {
         case .icons: ViewDisplayMode.icon
         case .list: ViewDisplayMode.list
         case .table: ViewDisplayMode.table
-        case .map: ViewDisplayMode.map
+        case .map: ViewDisplayMode.canvas
         }
         let effectiveDisplayMode = normalizedViewDisplayMode(newDisplayMode)
 
@@ -625,7 +622,7 @@ extension ContentView {
             case .icon: .icons
             case .list: .list
             case .table: .table
-            case .map, .realitykit, .spatial, .workspace: .map
+            case .canvas, .space, .workspace: .map
             }
         }
 
@@ -759,7 +756,7 @@ extension ContentView {
         case .icon: .icons
         case .list: .list
         case .table: .table
-        case .map, .realitykit, .spatial, .workspace: .map
+        case .canvas, .space, .workspace: .map
         }
 
         let effectivePreviewMode = normalizedPreviewMode(viewSettings.previewMode)

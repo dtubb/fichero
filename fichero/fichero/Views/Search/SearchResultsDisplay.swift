@@ -62,7 +62,7 @@ struct SearchResultsDisplay: View {
                     listView
                 case .table:
                     tableView
-                case .map, .realitykit, .spatial, .workspace:
+                case .canvas, .space, .workspace:
                     mapView
                 }
             }
