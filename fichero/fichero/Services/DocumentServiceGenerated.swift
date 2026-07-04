@@ -131,6 +131,65 @@ class DocumentServiceGenerated: ObservableObject {
         }
     }
 
+    /// Fetch the geo points (lat / lon / place name) the engine derived for a
+    /// document (#3055 / #2755 remnant). Read-only — routed through the generated,
+    /// tokened client with typed errors (no hand-rolled URLSession). Returns []
+    /// when the document has no geo data.
+    /// - Parameter id: Document ID
+    /// - Returns: The document's geo points
+    func documentGeoPoints(_ id: String) async throws -> [Components.Schemas.DocGeoPoint] {
+        logger.info("Fetching geo points for document: \(id)")
+
+        let response = try await client.api.listDocumentGeoApiDocumentsDocIdGeoGet(.init(
+            path: .init(docId: id),
+        ))
+
+        switch response {
+        case .ok(let ok):
+            return try ok.body.json.points
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
+        default:
+            throw DocumentServiceError.unexpectedResponse
+        }
+    }
+
+    /// Export the library (or a subtree) as an Eleventy (11ty) static site
+    /// (#3055 / #2755 remnant). Routed through the generated, tokened client with
+    /// typed errors (no hand-rolled URLSession).
+    /// - Returns: The export result (output path + document/collection counts + files).
+    func exportEleventySite(
+        outputPath: String,
+        targetId: String? = nil,
+        recursive: Bool = true,
+        overwrite: Bool = false,
+        siteTitle: String? = nil
+    ) async throws -> Components.Schemas.EleventySiteExportResponse {
+        logger.info("Exporting Eleventy static site to: \(outputPath)")
+
+        let request = Components.Schemas.EleventySiteExportRequest(
+            outputPath: outputPath,
+            targetId: targetId,
+            recursive: recursive,
+            overwrite: overwrite,
+            siteTitle: siteTitle
+        )
+        let response = try await client.api.exportEleventySiteRouteApiExportEleventySitePost(
+            .init(body: .json(request))
+        )
+
+        switch response {
+        case .ok(let ok):
+            return try ok.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
+        default:
+            throw DocumentServiceError.unexpectedResponse
+        }
+    }
+
     /// Get children of a document/collection
     /// - Parameter parentId: Parent document ID
     /// - Returns: Array of child documents
