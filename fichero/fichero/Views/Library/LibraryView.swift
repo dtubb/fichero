@@ -248,18 +248,35 @@ struct LibraryView: View {
             case .canvas, .workspace:
                 canvasModeView
             case .space:
-                // Space (3D) — the RealityKit renderer (#3088), a SECOND renderer
-                // on the SAME shared per-library stores (#3082): a move in the 2D
-                // Canvas window updates here live, and vice-versa.
-                SpaceSceneView(
-                    nodes: libraryProjection.nodes,
-                    connections: [],
-                    selectedNodeId: $spatialSelectedNodeId,
-                    layoutStore: canvasLayoutStore,
-                    itemStore: canvasItemStore,
-                    folderScopeId: folderId ?? wholeLibraryRoomId
-                )
+                spaceModeView
             }
+        }
+    }
+
+    /// The 3D Space renderer, gated (#3104): the new contract-based
+    /// `CanvasSpaceView` when the flag is on, else the #3088 `SpaceSceneView`.
+    /// Both read the SAME shared stores; #3088 stays the stepping-stone until
+    /// cutover (#3087). Extracted to keep `libraryContent`'s switch bounded.
+    @ViewBuilder
+    private var spaceModeView: some View {
+        if featureManager.isCanvasRealityKit3DEnabled {
+            CanvasSpaceView(
+                nodes: libraryProjection.nodes,
+                connections: [],
+                selectedNodeId: $spatialSelectedNodeId,
+                layoutStore: canvasLayoutStore,
+                itemStore: canvasItemStore,
+                folderScopeId: folderId ?? wholeLibraryRoomId
+            )
+        } else {
+            SpaceSceneView(
+                nodes: libraryProjection.nodes,
+                connections: [],
+                selectedNodeId: $spatialSelectedNodeId,
+                layoutStore: canvasLayoutStore,
+                itemStore: canvasItemStore,
+                folderScopeId: folderId ?? wholeLibraryRoomId
+            )
         }
     }
 

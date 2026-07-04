@@ -117,6 +117,11 @@ class FeatureManager: ObservableObject {
     /// by default; the SwiftUI canvas is retired only at cutover (#3087).
     @AppStorage("fichero.features.canvas_realitykit_2d")
     private var canvasRealityKit2DEnabledInternal: Bool = false
+    /// Route the 3D `.space` view mode to the new contract-based RealityKit
+    /// renderer (`CanvasSpaceView`, #3104) instead of the #3088 `SpaceSceneView`.
+    /// Off by default; #3088 stays the stepping-stone until cutover (#3087).
+    @AppStorage("fichero.features.canvas_realitykit_3d")
+    private var canvasRealityKit3DEnabledInternal: Bool = false
     @AppStorage("fichero.features.research") private var researchEnabledInternal: Bool = true
     @AppStorage("fichero.features.knowledge_graph") private var knowledgeGraphEnabledInternal: Bool = true
     @AppStorage("fichero.first_run.completed") var firstRunCompleted: Bool = false
@@ -192,6 +197,7 @@ class FeatureManager: ObservableObject {
     var isWorkspaceModeEnabled: Bool { allFeaturesEnabled || workspaceModeEnabledInternal }
     var isSpatialModeEnabled: Bool { allFeaturesEnabled || spatialModeEnabledInternal }
     var isCanvasRealityKit2DEnabled: Bool { allFeaturesEnabled || canvasRealityKit2DEnabledInternal }
+    var isCanvasRealityKit3DEnabled: Bool { allFeaturesEnabled || canvasRealityKit3DEnabledInternal }
     var isResearchEnabled: Bool { allFeaturesEnabled || researchEnabledInternal }
     /// Knowledge Graph / Ontology browser (#498). Defaulted ON — the view is complete.
     var isKnowledgeGraphEnabled: Bool { allFeaturesEnabled || knowledgeGraphEnabledInternal }
@@ -249,6 +255,7 @@ class FeatureManager: ObservableObject {
         workspaceModeEnabledInternal = false
         spatialModeEnabledInternal = false
         canvasRealityKit2DEnabledInternal = false
+        canvasRealityKit3DEnabledInternal = false
         researchEnabledInternal = true
         knowledgeGraphEnabledInternal = true
         releaseProfileVersionApplied = Self.releaseProfileVersion
