@@ -1,5 +1,7 @@
 """Tests for document export routes."""
 
+import json
+
 from fichero.knowledge_models import ClaimType, EntityType
 from fichero.loaders.xlsx_reader import read_xlsx_records
 from fichero.models import Artifact, DocType, Document, FileType
@@ -459,3 +461,138 @@ class TestEleventySiteExport:
         assert '"title": "Pedro"' in search_body
         assert '"url": "../Caja-7/Expediente-12/Carta-Uno/"' in search_body
         assert '"url": "../entities/Pedro/"' in search_body
+
+    def test_publishes_special_character_entity_slug_and_claims_without_provenance(
+        self, client, db, tmp_path
+    ):
+        root = Document(id="site-root-slug", name="Archivo", doc_type=DocType.folder)
+        doc = Document(
+            id="site-doc-slug",
+            name='Carta "Niño"',
+            parent_id=root.id,
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            page_content="Contenido exportado.",
+        )
+        entity = KnowledgeEntity(
+            id="site-entity-slug",
+            canonical_name='Señor / Archivo "A"',
+            entity_type=EntityType.person,
+            source_document_ids=[doc.id],
+        )
+        claim = KnowledgeClaim(
+            id="site-claim-no-source",
+            text="Afirmacion sin fuente.",
+            entity_ids=[entity.id],
+            claim_type=ClaimType.fact,
+        )
+        for row in (root, doc, entity, claim):
+            db.save(row)
+
+        output_path = tmp_path / "site-special-slug"
+        r = client.post(
+            "/api/export/eleventy-site",
+            json={"target_id": root.id, "output_path": str(output_path)},
+        )
+
+        assert r.status_code == 200, r.text
+        entity_files = sorted((output_path / "src" / "entities").glob("*.md"))
+        assert [path.name for path in entity_files] == ["Se-or-Archivo-A.md"]
+        assert '# Señor / Archivo "A"' in entity_files[0].read_text(encoding="utf-8")
+
+        claims_index = output_path / "src" / "claims" / "index.md"
+        assert claims_index.exists()
+        assert "_No claims exported._" in claims_index.read_text(encoding="utf-8")
+
+    def test_publishes_all_claim_provenance_sources_in_knowledge_indexes(
+        self, client, db, tmp_path
+    ):
+        root = Document(id="site-root-chain", name="Archivo", doc_type=DocType.folder)
+        primary = Document(
+            id="site-doc-chain-primary",
+            name="Source Letter",
+            parent_id=root.id,
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            page_content="Primary source.",
+        )
+        secondary = Document(
+            id="site-doc-chain-secondary",
+            name="Later Summary",
+            parent_id=root.id,
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            page_content="Secondary source.",
+        )
+        claim = KnowledgeClaim(
+            id="site-claim-chain",
+            text="Linked across both sources.",
+            source_document_id=primary.id,
+            source_ids=[secondary.id],
+            claim_type=ClaimType.fact,
+        )
+        for row in (root, primary, secondary, claim):
+            db.save(row)
+
+        output_path = tmp_path / "site-chain"
+        r = client.post(
+            "/api/export/eleventy-site",
+            json={"target_id": root.id, "output_path": str(output_path)},
+        )
+
+        assert r.status_code == 200, r.text
+        claims_body = (output_path / "src" / "claims" / "index.md").read_text(
+            encoding="utf-8"
+        )
+        assert "[Source Letter](../Source-Letter/)" in claims_body
+        assert "[Later Summary](../Later-Summary/)" in claims_body
+
+    def test_embeds_static_search_index_with_quotes_unicode_and_no_engine_dependency(
+        self, client, db, tmp_path
+    ):
+        root = Document(id="site-root-search", name="Archivo", doc_type=DocType.folder)
+        doc = Document(
+            id="site-doc-search",
+            name='Carta "Niño"',
+            parent_id=root.id,
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            page_content='Linea con "comillas" y Bogotá.',
+        )
+        entity = KnowledgeEntity(
+            id="site-entity-search",
+            canonical_name="Señora Bogotá",
+            entity_type=EntityType.person,
+            source_document_ids=[doc.id],
+            description="Cita “textual” para buscar.",
+        )
+        for row in (root, doc, entity):
+            db.save(row)
+
+        output_path = tmp_path / "site-search"
+        r = client.post(
+            "/api/export/eleventy-site",
+            json={"target_id": root.id, "output_path": str(output_path)},
+        )
+
+        assert r.status_code == 200, r.text
+        search_body = (output_path / "src" / "search.md").read_text(encoding="utf-8")
+        index_json = search_body.split(
+            '<script type="application/json" id="search-index">\n', 1
+        )[1].split("\n</script>", 1)[0]
+        entries = json.loads(index_json)
+
+        assert {"title": 'Carta "Niño"', "kind": "document"} in [
+            {"title": entry["title"], "kind": entry["kind"]} for entry in entries
+        ]
+        assert {"title": "Señora Bogotá", "kind": "entity"} in [
+            {"title": entry["title"], "kind": entry["kind"]} for entry in entries
+        ]
+        assert 'Linea con "comillas" y Bogotá.' in {entry["text"] for entry in entries}
+        assert "Type to search this export." in search_body
+        assert "render('');" in search_body
+        assert "fetch(" not in search_body
+        assert "XMLHttpRequest" not in search_body
+        assert "WebSocket" not in search_body
+        assert "localhost" not in search_body
+        assert "/api/" not in search_body

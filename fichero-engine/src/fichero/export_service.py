@@ -416,10 +416,10 @@ def _knowledge_scope_records(
     records: list[dict[str, Any]] = []
     seen_scope_ids: set[str] = set()
     for doc_id in source_document_ids:
-        if doc_id not in allowed_doc_ids:
-            continue
         doc = by_id.get(doc_id)
         if doc is None:
+            raise ValueError(f"Knowledge export source document not found: {doc_id}")
+        if doc_id not in allowed_doc_ids:
             continue
         provenance = _document_export_provenance(doc, by_id, root_id)
         provenance["found_in_page_label"] = (
