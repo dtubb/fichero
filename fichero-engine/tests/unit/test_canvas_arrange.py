@@ -20,6 +20,7 @@ from fichero.spatial_arrange import (
     compute_arrangement,
 )
 from fichero.models import DocType, Document
+from fichero.models import ActionAudit
 
 BASE = "/api/mind-palace/folders"
 IDS = ["a", "b", "c", "d", "e"]
@@ -255,3 +256,18 @@ def test_canvas_arrange_action_rejects_empty(db, app_db):
             {"folder_id": "f-empty", "node_ids": [], "strategy": "grid"},
             _ctx(db, app_db),
         )
+
+
+def test_arrange_route_writes_action_audit(client, db):
+    folder = "folder-arrange-audit"
+    _seed_folder_docs(db, folder, ["a", "b"])
+
+    resp = client.post(
+        f"{BASE}/{folder}/arrange",
+        json={"node_ids": ["a", "b"], "strategy": "row", "spacing": 25.0},
+    )
+    assert resp.status_code == 200, resp.text
+
+    audit = db.all(ActionAudit)[-1]
+    assert audit.action_name == "canvas.arrange"
+    assert len(audit.target_ids) == 2

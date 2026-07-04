@@ -6,6 +6,7 @@ without a separate canvas_layout table.
 """
 
 from fichero.models import DocType, Document
+from fichero.models import ActionAudit
 
 BASE = "/api/mind-palace/folders"
 
@@ -119,3 +120,19 @@ def test_document_position_storage_is_idempotent(db):
     fetched = db.get(Document, "i")
     assert fetched is not None
     assert fetched.position_x == 9.0
+
+
+def test_save_canvas_layout_route_writes_action_audit(client, db):
+    folder = "folder-audit"
+    _make_doc(db, folder, "doc-audit")
+
+    resp = client.put(
+        f"{BASE}/{folder}/canvas-layout",
+        json={"items": [{"item_id": "doc-audit", "x": 11.0, "y": 22.0}]},
+    )
+    assert resp.status_code == 200, resp.text
+
+    audit = db.all(ActionAudit)[-1]
+    assert audit.action_name == "canvas.layout.save"
+    assert len(audit.target_ids) == 1
+    assert audit.target_ids[0].endswith(":doc-audit")

@@ -6,7 +6,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from fichero.actions.registry import ActionContext, ChangeSpec, action
+from fichero.actions.registry import ActionContext, ChangeSpec, action, registry
+from fichero.api.auth import action_context
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.models import Document, MindPalaceListResponse
@@ -109,11 +110,10 @@ async def get_canvas_layout(
     return MindPalaceListResponse(items=rows, count=len(rows))
 
 
-@router.put("/folders/{folder_id}/canvas-layout")
-async def save_canvas_layout(
+def save_canvas_layout_impl(
     folder_id: str,
     request: CanvasLayoutSaveRequest,
-    db: Database = Depends(get_library_database_for_write),
+    db: Database,
 ) -> list[CanvasLayout]:
     saved: list[CanvasLayout] = []
     for item in request.items:
@@ -133,6 +133,25 @@ async def save_canvas_layout(
         db.save(doc)
         saved.append(_canvas_layout_row_from_document(folder_id, doc))
     return saved
+
+
+@router.put("/folders/{folder_id}/canvas-layout")
+async def save_canvas_layout(
+    folder_id: str,
+    request: CanvasLayoutSaveRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> list[CanvasLayout]:
+    result = registry.invoke(
+        db,
+        "canvas.layout.save",
+        {
+            "folder_id": folder_id,
+            "items": [item.model_dump(mode="json") for item in request.items],
+        },
+        ctx,
+    )
+    return [CanvasLayout.model_validate(row) for row in result.result]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -183,24 +202,60 @@ async def arrange_folder_canvas(
     folder_id: str,
     request: ArrangeNodesRequest,
     db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
 ) -> MindPalaceListResponse:
     try:
-        rows = arrange_impl(
+        result = registry.invoke(
             db,
-            folder_id,
-            request.node_ids,
-            request.strategy,
-            spacing=request.spacing,
-            columns=request.columns,
-            radius=request.radius,
+            "canvas.arrange",
+            {
+                "folder_id": folder_id,
+                "node_ids": request.node_ids,
+                "strategy": request.strategy,
+                "spacing": request.spacing,
+                "columns": request.columns,
+                "radius": request.radius,
+            },
+            ctx,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    rows = [CanvasLayout.model_validate(row) for row in result.result]
     return MindPalaceListResponse(items=rows, count=len(rows))
 
 
 class CanvasArrangeParams(ArrangeNodesRequest):
     folder_id: str
+
+
+class CanvasLayoutSaveParams(CanvasLayoutSaveRequest):
+    folder_id: str
+
+
+@action("canvas.layout.save", CanvasLayoutSaveParams, domains=["canvas"])
+def _action_save_canvas_layout(
+    db: Database, params: CanvasLayoutSaveParams, ctx: ActionContext
+) -> tuple[list[dict], ChangeSpec]:
+    item_id_set = {item.item_id for item in params.items}
+    before = [
+        _canvas_layout_row_from_document(params.folder_id, doc).model_dump(mode="json")
+        for doc in _folder_canvas_documents(db, params.folder_id)
+        if doc.id in item_id_set
+    ]
+    rows = save_canvas_layout_impl(
+        params.folder_id,
+        CanvasLayoutSaveRequest(items=params.items),
+        db,
+    )
+    after = [row.model_dump(mode="json") for row in rows]
+    spec = ChangeSpec(
+        domains=["canvas"],
+        target_ids=[row.id for row in rows],
+        before={"rows": before},
+        after={"rows": after},
+        emit_type="canvas.layout.saved",
+    )
+    return after, spec
 
 
 @action("canvas.arrange", CanvasArrangeParams, domains=["canvas"])
@@ -312,8 +367,18 @@ async def create_canvas_item(
     folder_id: str,
     request: CanvasItemCreateRequest,
     db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
 ) -> CanvasItem:
-    return create_canvas_item_impl(db, folder_id, request)
+    result = registry.invoke(
+        db,
+        "canvas.item.create",
+        {
+            "folder_id": folder_id,
+            **request.model_dump(mode="json"),
+        },
+        ctx,
+    )
+    return CanvasItem.model_validate(result.result)
 
 
 @router.patch("/folders/{folder_id}/canvas-items/{item_id}", response_model=CanvasItem)
@@ -322,12 +387,22 @@ async def update_canvas_item(
     item_id: str,
     request: CanvasItemUpdateRequest,
     db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
 ) -> CanvasItem:
     try:
-        _, item = update_canvas_item_impl(db, folder_id, item_id, request)
+        result = registry.invoke(
+            db,
+            "canvas.item.update",
+            {
+                "folder_id": folder_id,
+                "item_id": item_id,
+                **request.model_dump(mode="json", exclude_unset=True),
+            },
+            ctx,
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="canvas item not found") from exc
-    return item
+    return CanvasItem.model_validate(result.result)
 
 
 @router.delete(
@@ -338,9 +413,15 @@ async def delete_canvas_item(
     folder_id: str,
     item_id: str,
     db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
 ) -> MindPalaceDeletedResponse:
     try:
-        delete_canvas_item_impl(db, folder_id, item_id)
+        registry.invoke(
+            db,
+            "canvas.item.delete",
+            {"folder_id": folder_id, "item_id": item_id},
+            ctx,
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="canvas item not found") from exc
     return MindPalaceDeletedResponse(status="deleted")

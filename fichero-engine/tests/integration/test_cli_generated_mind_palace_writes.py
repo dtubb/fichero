@@ -76,7 +76,6 @@ def test_generated_mind_palace_folder_write_contracts_current_main(
     summary = cli_live_engine["summary"]
     folder_id = summary["keys"]["collection"]
 
-    # audit assertions pending /api/mind-palace folder canvas writes->registry migration (#3023)
     before = _audit_log(cli_live_engine)
 
     item = _cli_json(
@@ -177,10 +176,13 @@ def test_generated_mind_palace_folder_write_contracts_current_main(
     assert deleted_item["status"] == "deleted"
 
     after = _audit_log(cli_live_engine)
-    assert after["count"] == before["count"]
+    assert after["count"] == before["count"] + 5
+    assert after["items"][0]["action_name"] == "canvas.item.delete"
 
 
-def test_generated_mind_palace_render_no_500_current_main(cli_live_engine) -> None:
+def test_generated_mind_palace_room_render_command_is_gone_current_main(
+    cli_live_engine,
+) -> None:
     missing_room = _cli_result(
         cli_live_engine,
         "mind-palace",
@@ -188,5 +190,5 @@ def test_generated_mind_palace_render_no_500_current_main(cli_live_engine) -> No
         "--room-id",
         "missing-room",
     )
-    assert missing_room.exit_code == 1
-    assert "-> 404:" in missing_room.output
+    assert missing_room.exit_code == 2
+    assert "No such command 'render-scene'" in missing_room.output
