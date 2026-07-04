@@ -91,6 +91,53 @@ def test_pairing_rejects_replay_after_code_is_used(pairing_client, app_db):
 
     assert first.status_code == 200
     assert replay.status_code == 401
+    assert code not in pairing._PAIRING_CODES
+
+
+def test_pairing_rejects_code_at_exact_expiry_boundary(app_db, monkeypatch):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    owner = _create_owner(app_db)
+    now = datetime(2026, 7, 4, 12, 0, 0)
+
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return now
+
+    pairing._PAIRING_CODES["ABCD-EFGH"] = pairing._PairingCode(
+        code="ABCD-EFGH",
+        user_id=owner.id,
+        expires_at=now,
+    )
+    monkeypatch.setattr(pairing, "datetime", FrozenDateTime)
+
+    with pytest.raises(HTTPException, match="invalid or expired pairing code") as exc:
+        pairing.pair_device(
+            _owner_request(None, host="198.51.100.24"),
+            pairing.PairRequest(code="ABCD-EFGH", device_name="Boundary iPad"),
+            app_db,
+        )
+
+    assert exc.value.status_code == 401
+
+
+def test_pairing_code_ttl_is_exactly_sixty_seconds(app_db, monkeypatch):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    owner = _create_owner(app_db)
+    now = datetime(2026, 7, 4, 12, 0, 0)
+
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return now
+
+    monkeypatch.setattr(pairing, "datetime", FrozenDateTime)
+    monkeypatch.setattr(pairing, "_new_pairing_code", lambda: "TTL-0001")
+
+    response = pairing.create_pairing_code(_owner_request(owner), app_db)
+
+    assert response.expires_at == now + timedelta(seconds=60)
+    assert pairing._PAIRING_CODES["TTL-0001"].expires_at == response.expires_at
 
 
 def test_pairing_rejects_code_after_ttl_prune(pairing_client, app_db):
@@ -121,6 +168,49 @@ def test_pairing_rate_limiter_returns_429_on_sixth_attempt(pairing_client):
 
     assert statuses[: pairing.PAIRING_RATE_LIMIT] == [401] * pairing.PAIRING_RATE_LIMIT
     assert statuses[pairing.PAIRING_RATE_LIMIT] == 429
+
+
+def test_pairing_rate_limit_isolated_per_host_and_prunes_window(app_db, monkeypatch):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    now = datetime(2026, 7, 4, 12, 0, 0)
+
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return now
+
+    monkeypatch.setattr(pairing, "datetime", FrozenDateTime)
+    host_a = _owner_request(None, host="198.51.100.10")
+    host_b = _owner_request(None, host="198.51.100.11")
+
+    for _ in range(pairing.PAIRING_RATE_LIMIT):
+        with pytest.raises(HTTPException) as exc:
+            pairing.pair_device(
+                host_a,
+                pairing.PairRequest(code="WRONG-CODE", device_name="Attacker"),
+                app_db,
+            )
+        assert exc.value.status_code == 401
+
+    with pytest.raises(HTTPException) as blocked:
+        pairing.pair_device(
+            host_a,
+            pairing.PairRequest(code="WRONG-CODE", device_name="Attacker"),
+            app_db,
+        )
+    assert blocked.value.status_code == 429
+
+    with pytest.raises(HTTPException) as other_host:
+        pairing.pair_device(
+            host_b,
+            pairing.PairRequest(code="WRONG-CODE", device_name="Attacker"),
+            app_db,
+        )
+    assert other_host.value.status_code == 401
+
+    pairing._PAIRING_ATTEMPTS["stale.example"] = [now - pairing.PAIRING_RATE_WINDOW - timedelta(seconds=1)]
+    pairing._prune_pairing_attempts(now)
+    assert "stale.example" not in pairing._PAIRING_ATTEMPTS
 
 
 def test_pairing_rejects_code_for_deactivated_user(pairing_client, app_db):
@@ -238,6 +328,23 @@ def test_pair_device_rejects_blank_device_name_after_strip_without_consuming_cod
     assert pairing._PAIRING_CODES["ABCD-EFGH"].used is False
 
 
+def test_pairing_validation_errors_scrub_submitted_code(pairing_client, app_db):
+    session_token = _owner_session_token(pairing_client, app_db)
+    secret_code = pairing_client.post("/api/pair/code", headers=_bearer(session_token)).json()["code"]
+
+    missing_field = pairing_client.post("/api/pair", json={"code": secret_code})
+    malformed_json = pairing_client.post(
+        "/api/pair",
+        content=f'{{"code": "{secret_code}",',
+        headers={"Content-Type": "application/json"},
+    )
+
+    for response in (missing_field, malformed_json):
+        assert response.status_code == 422
+        assert response.json() == {"detail": "invalid pairing request"}
+        assert secret_code not in response.text
+
+
 def test_list_devices_returns_revoked_state_and_revoke_missing_device_404(app_db, monkeypatch):
     monkeypatch.setenv("FICHERO_MULTIUSER", "1")
     owner = _create_owner(app_db)
@@ -275,6 +382,24 @@ def test_warn_pairing_single_process_invariant_logs_once(monkeypatch, caplog):
     warnings = [record.message for record in caplog.records if "process-local" in record.message]
     assert len(warnings) == 1
     assert "worker count appears to be 3" in warnings[0]
+
+
+@pytest.mark.parametrize(
+    ("env", "argv", "expected"),
+    [
+        ({"FICHERO_UVICORN_WORKERS": "2"}, ["prog"], 2),
+        ({}, ["prog", "--workers", "4"], 4),
+        ({}, ["prog", "--workers=5"], 5),
+    ],
+)
+def test_detect_configured_worker_count_reads_env_and_argv(monkeypatch, env, argv, expected):
+    for name in ("FICHERO_UVICORN_WORKERS", "UVICORN_WORKERS", "WEB_CONCURRENCY"):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setattr(pairing.sys, "argv", argv)
+
+    assert pairing._detect_configured_worker_count() == expected
 
 
 def _auth_fork_app() -> FastAPI:
