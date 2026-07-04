@@ -1,6 +1,12 @@
 import SwiftUI
 
 extension ChatInspector {
+    /// Document access via the generated client (#3030). A throwaway wrapper is
+    /// fine — it holds no state we observe, only the shared FicheroClient.
+    private var documentService: DocumentServiceGenerated {
+        DocumentServiceGenerated(ficheroClient: apiClient.client)
+    }
+
     func addSuggestedDocumentsToScope() {
         guard !suggestedDocumentIDs.isEmpty else { return }
 
@@ -25,7 +31,7 @@ extension ChatInspector {
         isSearching = true
 
         do {
-            let allDocs: [Document] = try await apiClient.get("/documents", query: ["limit": "100"])
+            let allDocs = try await documentService.listDocuments(limit: 100)
             let filtered = allDocs.filter {
                 $0.name.localizedCaseInsensitiveContains(searchText) &&
                     $0.docType == .file
@@ -74,7 +80,7 @@ extension ChatInspector {
 
         for docId in selectedDocuments {
             do {
-                let doc: Document = try await apiClient.get("/documents/\(docId)")
+                let doc = try await documentService.getDocument(docId)
                 loadedDocs.append(doc)
             } catch {
                 chatInspectorLogger.error("Failed to load doc \(docId): \(error.localizedDescription)")
