@@ -6,9 +6,8 @@ import UIKit
 import FicheroAPIClient
 import Foundation
 import ImageIO
+import OpenAPIRuntime
 import OSLog
-
-// swiftlint:disable nesting
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "ImageEditingServiceGenerated")
 
@@ -113,13 +112,16 @@ struct ImageEditChain {
 
 /// Image-editing service for the `/api/images` router.
 ///
-/// All URL paths are written with the full `/api/images/...` prefix in source
-/// so `scripts/check_ui_wiring.py` can confirm every endpoint is called from
-/// hand-written Swift (the scanner does a regex search over source text).
+/// Chain CRUD (`GET`/`PUT`/`DELETE /edits`) and the six operation POSTs
+/// (crop/rotate/straighten/enhance/remove-background/segment) go through the
+/// generated `FicheroClient` so the library-path header is injected centrally
+/// by `LibraryPathMiddleware` (#3028/#1666) and every call throws on non-`.ok`.
 ///
-    /// The six operation POSTs (crop/rotate/straighten/enhance/remove-background/segment)
-/// use raw `URLSession` so the path strings are visible. Chain CRUD and preview
-/// also use raw `URLSession` — no dependency on the generated typed client.
+/// `loadPreview`/`previewURL` stay on raw pinned `URLSession`: the backend
+/// streams image bytes, but the OpenAPI spec models `/preview` as
+/// `application/json`, so the generated op can't decode the binary body (audit
+/// rule 4 — binary paths stay custom; this file remains grandfathered in
+/// `check_no_raw_urlsession_app.py` for that reason).
 @MainActor
 final class ImageEditingServiceGenerated: ObservableObject {
     @Published var isLoading: Bool = false
@@ -127,31 +129,23 @@ final class ImageEditingServiceGenerated: ObservableObject {
 
     private let libraryPath: String
     private let engineURL: URL
+    private let client: FicheroClient
     private let session = RemoteCertificatePinning.configuredSession()
 
     /// - Parameter engineURL: Engine root without `/api` (e.g. `http://127.0.0.1:8765`).
-    init(libraryPath: String, engineURL: URL = EngineConfig.host) {
+    init(libraryPath: String, engineURL: URL = EngineConfig.host, client: FicheroClient? = nil) {
         self.libraryPath = libraryPath
         self.engineURL = engineURL
+        self.client = client ?? FicheroClient(baseURL: engineURL, libraryPath: libraryPath)
     }
 
     convenience init(apiClient: APIClient) {
-        // Strip /api from apiClient.baseURL to get the engine root so all
-        // path strings can start with /api/... and be scanner-visible.
+        // Strip /api from apiClient.baseURL to get the engine root; the generated
+        // client's operation templates already carry the /api prefix.
         self.init(
             libraryPath: apiClient.currentLibraryPath ?? "",
             engineURL: apiClient.baseURL.deletingLastPathComponent()
         )
-    }
-
-    // MARK: - URL helpers
-
-    /// Build a URL from a full /api/... path string. The path starts with /api/
-    /// so the wiring scanner regex can detect every endpoint in source.
-    private func url(for path: String) -> URL {
-        var comps = URLComponents(url: engineURL, resolvingAgainstBaseURL: false)!
-        comps.path = path
-        return comps.url!
     }
 
     // MARK: - Preview
@@ -198,23 +192,19 @@ final class ImageEditingServiceGenerated: ObservableObject {
     // MARK: - Chain read / replace / clear  (GET /api/images/{id}/edits, PUT, DELETE)
 
     func getChain(documentId: String) async throws -> ImageEditChain {
-        var request = URLRequest(url: url(for: "/api/images/\(documentId)/edits"))
-        request.addEngineAuth(libraryPath: libraryPath)
-        let (data, response) = try await session.data(for: request)
-        try Self.expectOK(response, data: data)
-        return try Self.decodeChain(data, documentId: documentId)
+        let response = try await client.api
+            .getEditChainApiImagesDocumentIdEditsGet(path: .init(documentId: documentId))
+            .ok.body.json
+        return try Self.chain(from: response)
     }
 
     @discardableResult
     func setOperations(documentId: String, operations: [AnyCodable]) async throws -> ImageEditChain {
-        var request = URLRequest(url: url(for: "/api/images/\(documentId)/edits"))
-        request.httpMethod = "PUT"
-        request.addEngineAuth(libraryPath: libraryPath)
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(ChainUpsertDTO(operations: operations))
-        let (data, response) = try await session.data(for: request)
-        try Self.expectOK(response, data: data)
-        return try Self.decodeChain(data, documentId: documentId)
+        let body = Components.Schemas.ImageEditChainUpsert(operations: try Self.generatedOps(operations))
+        let response = try await client.api
+            .putEditChainApiImagesDocumentIdEditsPut(path: .init(documentId: documentId), body: .json(body))
+            .ok.body.json
+        return try Self.chain(from: response)
     }
 
     @discardableResult
@@ -227,11 +217,9 @@ final class ImageEditingServiceGenerated: ObservableObject {
     }
 
     func resetChain(documentId: String) async throws {
-        var request = URLRequest(url: url(for: "/api/images/\(documentId)/edits"))
-        request.httpMethod = "DELETE"
-        request.addEngineAuth(libraryPath: libraryPath)
-        let (data, response) = try await session.data(for: request)
-        try Self.expectOK(response, data: data, allow: [200, 204])
+        _ = try await client.api
+            .deleteEditChainApiImagesDocumentIdEditsDelete(path: .init(documentId: documentId))
+            .noContent
     }
 
     // MARK: - Operations  (POST /api/images/{id}/operations/*)
@@ -239,45 +227,47 @@ final class ImageEditingServiceGenerated: ObservableObject {
     @discardableResult
     func crop(documentId: String, left: Int, top: Int, width: Int, height: Int, page: Int = 1) async throws -> ImageEditChain {
         isLoading = true; defer { isLoading = false }
-        struct Body: Encodable { let left, top, width, height, page: Int }
-        return try await postOp(path: "/api/images/\(documentId)/operations/crop",
-                                body: Body(left: left, top: top, width: width, height: height, page: page),
-                                documentId: documentId)
+        let response = try await client.api
+            .cropImageApiImagesDocumentIdOperationsCropPost(
+                path: .init(documentId: documentId),
+                body: .json(.init(left: left, top: top, width: width, height: height, page: page)))
+            .ok.body.json
+        return try Self.chain(from: response)
     }
 
     @discardableResult
     func rotate(documentId: String, angle: Double, expand: Bool = true, page: Int = 1) async throws -> ImageEditChain {
         isLoading = true; defer { isLoading = false }
-        struct Body: Encodable { let angle: Double; let expand: Bool; let page: Int }
-        return try await postOp(path: "/api/images/\(documentId)/operations/rotate",
-                                body: Body(angle: angle, expand: expand, page: page),
-                                documentId: documentId)
+        let response = try await client.api
+            .rotateImageApiImagesDocumentIdOperationsRotatePost(
+                path: .init(documentId: documentId),
+                body: .json(.init(angle: angle, expand: expand, page: page)))
+            .ok.body.json
+        return try Self.chain(from: response)
     }
 
     @discardableResult
     func straighten(documentId: String, page: Int = 1) async throws -> ImageEditChain {
         isLoading = true; defer { isLoading = false }
-        struct Body: Encodable { let page: Int }
-        return try await postOp(path: "/api/images/\(documentId)/operations/straighten",
-                                body: Body(page: page),
-                                documentId: documentId)
+        let response = try await client.api
+            .straightenImageApiImagesDocumentIdOperationsStraightenPost(
+                path: .init(documentId: documentId),
+                body: .json(.init(page: page)))
+            .ok.body.json
+        return try Self.chain(from: response)
     }
 
     @discardableResult
     func enhance(documentId: String, brightness: Double = 1.0, contrast: Double = 1.0,
                  sharpen: Double = 1.0, autoLevels: Bool = false, page: Int = 1) async throws -> ImageEditChain {
         isLoading = true; defer { isLoading = false }
-        struct Body: Encodable {
-            let brightness, contrast, sharpen: Double; let page: Int; let autoLevels: Bool
-            enum CodingKeys: String, CodingKey {
-                case brightness, contrast, sharpen, page
-                case autoLevels = "auto_levels"
-            }
-        }
-        return try await postOp(path: "/api/images/\(documentId)/operations/enhance",
-                                body: Body(brightness: brightness, contrast: contrast,
-                                           sharpen: sharpen, page: page, autoLevels: autoLevels),
-                                documentId: documentId)
+        let response = try await client.api
+            .enhanceImageApiImagesDocumentIdOperationsEnhancePost(
+                path: .init(documentId: documentId),
+                body: .json(.init(brightness: brightness, contrast: contrast,
+                                  sharpen: sharpen, autoLevels: autoLevels, page: page)))
+            .ok.body.json
+        return try Self.chain(from: response)
     }
 
     @discardableResult
@@ -286,61 +276,49 @@ final class ImageEditingServiceGenerated: ObservableObject {
                           threshold: Int = 28,
                           page: Int = 1) async throws -> ImageEditChain {
         isLoading = true; defer { isLoading = false }
-        struct Body: Encodable { let method: String; let threshold, page: Int }
-        return try await postOp(path: "/api/images/\(documentId)/operations/remove-background",
-                                body: Body(method: method, threshold: threshold, page: page),
-                                documentId: documentId)
+        let response = try await client.api
+            .removeBackgroundImageApiImagesDocumentIdOperationsRemoveBackgroundPost(
+                path: .init(documentId: documentId),
+                body: .json(.init(method: method, threshold: threshold, page: page)))
+            .ok.body.json
+        return try Self.chain(from: response)
     }
 
     @discardableResult
     func segment(documentId: String, method: String = "foreground", threshold: Int = 28,
                  minArea: Int = 100, maxSegments: Int = 20, page: Int = 1) async throws -> ImageEditChain {
         isLoading = true; defer { isLoading = false }
-        struct Body: Encodable {
-            let method: String; let threshold, page, minArea, maxSegments: Int
-            enum CodingKeys: String, CodingKey {
-                case method, threshold, page
-                case minArea = "min_area"
-                case maxSegments = "max_segments"
-            }
-        }
-        return try await postOp(path: "/api/images/\(documentId)/operations/segment",
-                                body: Body(method: method, threshold: threshold, page: page,
-                                           minArea: minArea, maxSegments: maxSegments),
-                                documentId: documentId)
-    }
-
-    // MARK: - Shared POST helper
-
-    private func postOp<T: Encodable>(path: String, body: T, documentId: String) async throws -> ImageEditChain {
-        var req = URLRequest(url: url(for: path))
-        req.httpMethod = "POST"
-        req.addEngineAuth(libraryPath: libraryPath)
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONEncoder().encode(body)
-        let (data, response) = try await session.data(for: req)
-        try Self.expectOK(response, data: data)
-        return try Self.decodeChain(data, documentId: documentId)
+        let response = try await client.api
+            .segmentImageApiImagesDocumentIdOperationsSegmentPost(
+                path: .init(documentId: documentId),
+                body: .json(.init(method: method, threshold: threshold,
+                                  minArea: minArea, maxSegments: maxSegments, page: page)))
+            .ok.body.json
+        return try Self.chain(from: response)
     }
 
     // MARK: - Decoding helpers
 
-    private static func expectOK(_ response: URLResponse, data: Data, allow: Set<Int> = [200]) throws {
-        guard let http = response as? HTTPURLResponse else { throw ImageEditingError.invalidResponse }
-        guard allow.contains(http.statusCode) else {
-            let peek = String(data: data.prefix(200), encoding: .utf8) ?? "<binary>"
-            throw ImageEditingError.unexpectedStatus(status: http.statusCode, bodyPeek: peek)
-        }
+    /// Bridge the generated typed chain response back into the app's free-form
+    /// `AnyCodable` currency. Operations stay schema-less (the backend grows new
+    /// op kinds without a migration), so we round-trip the generated
+    /// `OpenAPIObjectContainer` payloads through JSON rather than hand-map keys.
+    static func chain(from response: Components.Schemas.ImageEditChainResponse) throws -> ImageEditChain {
+        let opsData = try JSONEncoder().encode(response.operations ?? [])
+        let ops = try JSONDecoder().decode([AnyCodable].self, from: opsData)
+        return ImageEditChain(
+            documentId: response.documentId,
+            operations: ops.map { ImageEditOperation(raw: $0) },
+            updatedAt: response.updatedAt
+        )
     }
 
-    private static func decodeChain(_ data: Data, documentId: String) throws -> ImageEditChain {
-        guard !data.isEmpty else {
-            return ImageEditChain(documentId: documentId, operations: [], updatedAt: nil)
-        }
-        let dto = try JSONDecoder().decode(ChainResponseDTO.self, from: data)
-        let ops = dto.operations.map { ImageEditOperation(raw: $0) }
-        let updatedAt = dto.updatedAt.flatMap { ISO8601DateFormatter().date(from: $0) }
-        return ImageEditChain(documentId: dto.documentId ?? documentId, operations: ops, updatedAt: updatedAt)
+    /// Inverse bridge: free-form `AnyCodable` ops → generated upsert payloads.
+    static func generatedOps(_ operations: [AnyCodable]) throws
+        -> [Components.Schemas.ImageEditChainUpsert.OperationsPayloadPayload] {
+        let data = try JSONEncoder().encode(operations)
+        return try JSONDecoder().decode(
+            [Components.Schemas.ImageEditChainUpsert.OperationsPayloadPayload].self, from: data)
     }
 }
 
@@ -349,22 +327,6 @@ final class ImageEditingServiceGenerated: ObservableObject {
 struct PreviewImage {
     let image: PlatformImage
     let pixelSize: CGSize
-}
-
-private struct ChainResponseDTO: Decodable {
-    let documentId: String?
-    let operations: [AnyCodable]
-    let updatedAt: String?
-
-    enum CodingKeys: String, CodingKey {
-        case documentId = "document_id"
-        case operations
-        case updatedAt = "updated_at"
-    }
-}
-
-private struct ChainUpsertDTO: Encodable {
-    let operations: [AnyCodable]
 }
 
 enum ImageEditingError: Error, LocalizedError {
@@ -382,5 +344,3 @@ enum ImageEditingError: Error, LocalizedError {
         }
     }
 }
-
-// swiftlint:enable nesting
