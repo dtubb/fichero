@@ -515,6 +515,39 @@ def test_pairing_valid_code_returns_device_token_that_authenticates(
     assert me.json()["username"] == "owner"
 
 
+def test_pairing_flow_works_with_bootstrap_auth_when_multiuser_disabled(
+    client,
+    app_db,
+    monkeypatch,
+):
+    _disable_multiuser(monkeypatch)
+
+    code_response = client.post("/api/pair/code", headers=_bearer(initialize_token()))
+    assert code_response.status_code == 200
+
+    pair_response = client.post(
+        "/api/pair",
+        json={
+            "code": code_response.json()["code"],
+            "device_name": "Alice iPad",
+        },
+    )
+
+    assert pair_response.status_code == 200
+    device_token = pair_response.json()["device_token"]
+
+    remote_client = TestClient(client.app, client=("192.0.2.10", 5000))
+    remote_response = remote_client.get(
+        "/api/providers",
+        headers=_bearer(device_token),
+    )
+    list_response = client.get("/api/pair/devices", headers=_bearer(initialize_token()))
+
+    assert remote_response.status_code == 200
+    assert list_response.status_code == 200
+    assert list_response.json()["count"] == 1
+
+
 def test_pairing_code_surfaces_optional_tailnet_url(client, app_db, monkeypatch):
     _enable_multiuser(monkeypatch)
     monkeypatch.setenv("FICHERO_TAILNET_URL", "https://fichero-demo.ts.net")

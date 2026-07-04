@@ -76,6 +76,7 @@ _PAIRING_CODES: dict[str, _PairingCode] = {}
 _PAIRING_ATTEMPTS: dict[str, list[datetime]] = {}
 _PAIRING_RENEW_ATTEMPTS: dict[str, list[datetime]] = {}
 _PAIRING_WORKER_WARNING_EMITTED = False
+_SINGLE_USER_PAIRING_OWNER = "__paired_device_owner__"
 
 
 class PairCodeResponse(BaseModel):
@@ -152,6 +153,10 @@ def _to_pair_response(device: Device, raw_token: str) -> PairResponse:
 
 
 def _owner_for_pairing(request: Request, app_db: AppDatabase) -> AccountUser:
+    if not _use_multiuser_auth():
+        if getattr(request.state, "bootstrap_auth", False):
+            return _single_user_pairing_owner(app_db)
+        raise HTTPException(status_code=403, detail="owner access required")
     user = _current_session_user(request)
     if user is not None and user.is_owner:
         return user
@@ -160,6 +165,21 @@ def _owner_for_pairing(request: Request, app_db: AppDatabase) -> AccountUser:
         if len(owners) == 1:
             return owners[0]
     raise HTTPException(status_code=403, detail="owner access required")
+
+
+def _single_user_pairing_owner(app_db: AppDatabase) -> AccountUser:
+    owner = app_db.get_user_by_username(_SINGLE_USER_PAIRING_OWNER)
+    if owner is not None:
+        if not owner.active:
+            owner = app_db.set_active(owner.id, True) or owner
+        return owner
+    return app_db.create_user(
+        username=_SINGLE_USER_PAIRING_OWNER,
+        display_name="Paired Device Owner",
+        password_hash=accounts.hash_password(secrets.token_urlsafe(16)),
+        is_owner=True,
+        active=True,
+    )
 
 
 def _new_pairing_code() -> str:
@@ -309,7 +329,6 @@ def create_pairing_code(
     app_db: AppDatabase = Depends(get_app_database),
 ) -> PairCodeResponse:
     """Mint a short-lived one-time pairing code for an owner."""
-    _multiuser_disabled()
     user = _owner_for_pairing(request, app_db)
     now = datetime.now()
     _prune_pairing_codes(now)
@@ -340,7 +359,6 @@ def pair_device(
     app_db: AppDatabase = Depends(get_app_database),
 ) -> PairResponse:
     """Exchange a valid one-time pairing code for a device token."""
-    _multiuser_disabled()
     now = datetime.now()
     _prune_pairing_codes(now)
     _check_pair_rate_limit(request, now)
@@ -354,16 +372,19 @@ def pair_device(
     if not name:
         raise HTTPException(status_code=422, detail="device_name is required")
 
-    user = app_db.get_user(record.user_id)
-    if user is None or not user.active:
-        record.used = True
-        _PAIRING_CODES.pop(code, None)
-        raise HTTPException(status_code=401, detail="invalid or expired pairing code")
+    user_id = record.user_id
+    if _use_multiuser_auth():
+        user = app_db.get_user(record.user_id)
+        if user is None or not user.active:
+            record.used = True
+            _PAIRING_CODES.pop(code, None)
+            raise HTTPException(status_code=401, detail="invalid or expired pairing code")
+        user_id = user.id
 
     raw_token = accounts.new_session_token()
     device = app_db.create_device(
         name=name,
-        user_id=user.id,
+        user_id=user_id,
         token_hash=accounts.hash_token(raw_token),
     )
     record.used = True
@@ -377,7 +398,6 @@ def list_devices(
     app_db: AppDatabase = Depends(get_app_database),
 ) -> DeviceListResponse:
     """List paired devices for owners."""
-    _multiuser_disabled()
     _owner_for_pairing(request, app_db)
     devices = app_db.list_devices()
     items = [_to_public_device(device) for device in devices]
@@ -390,7 +410,6 @@ def renew_device_token(
     app_db: AppDatabase = Depends(get_app_database),
 ) -> PairResponse:
     """Rotate one valid paired-device token and extend its expiry."""
-    _multiuser_disabled()
     now = datetime.now()
     _check_pair_renew_rate_limit(request, now)
     current = _current_paired_device(request)
@@ -420,7 +439,6 @@ def revoke_device(
     app_db: AppDatabase = Depends(get_app_database),
 ) -> StatusResponse:
     """Revoke one paired device token."""
-    _multiuser_disabled()
     _owner_for_pairing(request, app_db)
     device = app_db.revoke_device(device_id)
     if device is None:
