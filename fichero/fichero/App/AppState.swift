@@ -66,6 +66,7 @@ class AppState: ObservableObject {
     let modelService: ModelServiceGenerated  // Public for @EnvironmentObject injection (HuggingFace browsing)
     let usersStore: UsersStore  // Public for Settings → Users tab
     let sessionStore: SessionStore  // Public for the login gate (#2021/#2022)
+    let localInferenceStore: LocalInferenceStore  // Public for Settings → Local LLM tab (#3120)
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "AppState")
 
     // MARK: - Initialization
@@ -78,6 +79,7 @@ class AppState: ObservableObject {
         self.modelService = ModelServiceGenerated(ficheroClient: ficheroClient)
         self.usersStore = UsersStore(client: ficheroClient)
         self.sessionStore = SessionStore(client: ficheroClient)
+        self.localInferenceStore = LocalInferenceStore(client: ficheroClient)
         logger.info("⏱ AppState.init services ready")
 
         // Re-publish the session's phase changes as AppState changes so the
