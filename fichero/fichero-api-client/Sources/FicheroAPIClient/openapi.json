@@ -29117,6 +29117,182 @@
         }
       }
     },
+    "/api/local-inference/models/{model_id}/download": {
+      "post": {
+        "tags": [
+          "local-inference"
+        ],
+        "summary": "Download Local Inference Model",
+        "description": "Start or reuse a managed MLX model download job.",
+        "operationId": "download_local_inference_model_api_local_inference_models__model_id__download_post",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Model Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalInferenceModelDownloadJobResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/local-inference/models/downloads/{job_id}": {
+      "get": {
+        "tags": [
+          "local-inference"
+        ],
+        "summary": "Get Local Inference Model Download",
+        "description": "Return progress for a managed MLX model download job.",
+        "operationId": "get_local_inference_model_download_api_local_inference_models_downloads__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalInferenceModelDownloadJobResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/local-inference/models/downloads/{job_id}/cancel": {
+      "post": {
+        "tags": [
+          "local-inference"
+        ],
+        "summary": "Cancel Local Inference Model Download",
+        "description": "Cancel a managed MLX model download job.",
+        "operationId": "cancel_local_inference_model_download_api_local_inference_models_downloads__job_id__cancel_post",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalInferenceModelDownloadJobResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/local-inference/models/{model_id}": {
+      "delete": {
+        "tags": [
+          "local-inference"
+        ],
+        "summary": "Delete Local Inference Model",
+        "description": "Delete one managed MLX model from the local store.",
+        "operationId": "delete_local_inference_model_api_local_inference_models__model_id__delete",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Model Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalInferenceModelDeleteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/local-models": {
       "get": {
         "tags": [
@@ -45600,6 +45776,72 @@
         ],
         "title": "LocalInferenceCatalogResponse",
         "description": "Envelope for local model catalog entries."
+      },
+      "LocalInferenceModelDeleteResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "freed_bytes": {
+            "type": "integer",
+            "title": "Freed Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "freed_bytes"
+        ],
+        "title": "LocalInferenceModelDeleteResponse"
+      },
+      "LocalInferenceModelDownloadJobResponse": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "model_id": {
+            "type": "string",
+            "title": "Model Id"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "current": {
+            "type": "integer",
+            "title": "Current"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "percent": {
+            "type": "number",
+            "title": "Percent"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "model_id",
+          "state",
+          "current",
+          "total",
+          "percent",
+          "message"
+        ],
+        "title": "LocalInferenceModelDownloadJobResponse"
       },
       "LocalInferenceProfileListResponse": {
         "properties": {

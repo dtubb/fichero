@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 from collections import deque
 import ipaddress
+import os
 import sys
 import time
 from datetime import UTC, datetime
@@ -29,6 +30,10 @@ class LocalInferenceValidationError(ValueError):
 
 class LocalInferenceRuntimeMissingError(RuntimeError):
     """Raised when the managed local runtime/interpreter is unavailable."""
+
+
+class LocalModelNotInstalledError(RuntimeError):
+    """Raised when a managed local model has not been downloaded yet."""
 
 
 class LocalServiceState(str, Enum):
@@ -294,11 +299,12 @@ class ManagedLocalInferenceProcess:
         if self.is_running():
             return
         python_executable = self._python_executable()
+        model_spec = self._model_spec()
         argv = [
             python_executable,
             *self._command(),
             "--model",
-            self.profile.model_id,
+            model_spec,
             "--host",
             "127.0.0.1",
             "--port",
@@ -312,6 +318,7 @@ class ManagedLocalInferenceProcess:
                 *argv,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                env=self._environment(),
             )
         except FileNotFoundError as exc:
             self._process = None
@@ -391,6 +398,17 @@ class ManagedLocalInferenceProcess:
             self.last_error = str(exc)
             raise LocalInferenceRuntimeMissingError(str(exc)) from exc
 
+    def _model_spec(self) -> str:
+        if self.profile.command:
+            return self.profile.model_id
+        try:
+            from fichero.mlx_model_store import get_mlx_model_store
+
+            return get_mlx_model_store().resolve_model_path(self.profile.model_id)
+        except FileNotFoundError as exc:
+            self.last_error = str(exc)
+            raise LocalModelNotInstalledError(str(exc)) from exc
+
     def _command(self) -> list[str]:
         if self.profile.command:
             return list(self.profile.command)
@@ -403,6 +421,16 @@ class ManagedLocalInferenceProcess:
                 f"Managed local inference base_url must include an explicit port: {self.profile.base_url}"
             )
         return parsed.port
+
+    def _environment(self) -> dict[str, str]:
+        env = os.environ.copy()
+        try:
+            from fichero.mlx_model_store import get_mlx_model_store
+
+            env.update(get_mlx_model_store().env())
+        except Exception:
+            pass
+        return env
 
     def _update_last_error(self) -> None:
         if self._process is None or self._process.returncode in {None, 0}:
@@ -658,6 +686,7 @@ __all__ = [
     "LocalInferenceProcess",
     "LocalInferenceRequest",
     "LocalInferenceResult",
+    "LocalModelNotInstalledError",
     "LocalInferenceRuntimeMissingError",
     "LocalInferenceServiceHealth",
     "LocalInferenceServiceManager",

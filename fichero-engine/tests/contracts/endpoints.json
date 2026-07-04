@@ -5485,6 +5485,54 @@
       },
       {
         "method": "GET",
+        "path": "/local-inference/models/downloads/{job_id}",
+        "operation_id": "get_local_inference_model_download_api_local_inference_models_downloads__job_id__get",
+        "summary": "Get Local Inference Model Download",
+        "path_params": [
+          "job_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "LocalInferenceModelDownloadJobResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/local-inference/models/downloads/{job_id}/cancel",
+        "operation_id": "cancel_local_inference_model_download_api_local_inference_models_downloads__job_id__cancel_post",
+        "summary": "Cancel Local Inference Model Download",
+        "path_params": [
+          "job_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "LocalInferenceModelDownloadJobResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/local-inference/models/{model_id}",
+        "operation_id": "delete_local_inference_model_api_local_inference_models__model_id__delete",
+        "summary": "Delete Local Inference Model",
+        "path_params": [
+          "model_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "LocalInferenceModelDeleteResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/local-inference/models/{model_id}/download",
+        "operation_id": "download_local_inference_model_api_local_inference_models__model_id__download_post",
+        "summary": "Download Local Inference Model",
+        "path_params": [
+          "model_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "LocalInferenceModelDownloadJobResponse"
+      },
+      {
+        "method": "GET",
         "path": "/local-inference/profiles",
         "operation_id": "list_local_inference_profiles_api_local_inference_profiles_get",
         "summary": "List Local Inference Profiles",
