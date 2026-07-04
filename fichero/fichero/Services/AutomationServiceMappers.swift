@@ -9,7 +9,7 @@ import Foundation
 // MARK: - Schedules
 
 extension ScheduleInfo {
-    init(_ response: Components.Schemas.ScheduleResponse) {
+    init(response: Components.Schemas.ScheduleResponse) {
         self.init(
             scheduleId: response.scheduleId,
             name: response.name,
@@ -35,7 +35,7 @@ extension ScheduleInfo {
 }
 
 extension ScheduleRunInfo {
-    init(_ response: Components.Schemas.ScheduleRunResponse) {
+    init(response: Components.Schemas.ScheduleRunResponse) {
         self.init(
             runId: response.runId,
             scheduleId: response.scheduleId,
@@ -66,6 +66,74 @@ extension Components.Schemas.CreateScheduleRequest {
             inputs: .init(additionalProperties: request.inputs),
             useBatch: request.useBatch,
             batchItems: request.batchItems.map { .init(additionalProperties: $0) },
+            maxConcurrent: request.maxConcurrent
+        )
+    }
+}
+
+// MARK: - Triggers
+
+extension TriggerInfo {
+    init(response: Components.Schemas.TriggerResponse) {
+        self.init(
+            triggerId: response.triggerId,
+            name: response.name,
+            workflowId: response.workflowId,
+            watchPath: response.watchPath,
+            recursive: response.recursive,
+            events: response.events,
+            filterMode: response.filterMode,
+            filterPattern: response.filterPattern,
+            filterExtensions: response.filterExtensions,
+            excludePatterns: response.excludePatterns,
+            debounceSeconds: response.debounceSeconds,
+            batchDelaySeconds: response.batchDelaySeconds,
+            inputsTemplate: response.inputsTemplate.additionalProperties,
+            status: response.status,
+            useBatch: response.useBatch,
+            maxConcurrent: response.maxConcurrent,
+            createdAt: response.createdAt,
+            updatedAt: response.updatedAt,
+            lastTriggeredAt: response.lastTriggeredAt,
+            triggerCount: response.triggerCount,
+            errorMessage: response.errorMessage
+        )
+    }
+}
+
+extension TriggerExecutionInfo {
+    init(response: Components.Schemas.TriggerExecutionResponse) {
+        self.init(
+            executionId: response.executionId,
+            triggerId: response.triggerId,
+            triggeredAt: response.triggeredAt,
+            filePaths: response.filePaths,
+            batchId: response.batchId,
+            status: response.status,
+            error: response.error,
+            completedAt: response.completedAt
+        )
+    }
+}
+
+extension Components.Schemas.CreateTriggerRequest {
+    init(app request: CreateTriggerRequest) {
+        self.init(
+            name: request.name,
+            workflowId: request.workflowId,
+            config: .init(
+                watchPath: request.config.watchPath,
+                recursive: request.config.recursive,
+                events: request.config.events,
+                filterMode: request.config.filterMode,
+                filterPattern: request.config.filterPattern,
+                filterExtensions: request.config.filterExtensions,
+                excludePatterns: request.config.excludePatterns,
+                debounceSeconds: request.config.debounceSeconds,
+                batchDelaySeconds: request.config.batchDelaySeconds
+            ),
+            inputsTemplate: .init(additionalProperties: request.inputsTemplate),
+            useBatch: request.useBatch,
             maxConcurrent: request.maxConcurrent
         )
     }

@@ -41,7 +41,7 @@ class AutomationService {
         )
         switch response {
         case .ok(let ok):
-            return ScheduleInfo(try ok.body.json)
+            return ScheduleInfo(response: try ok.body.json)
         case .unprocessableContent(let error):
             throw AutomationServiceError.validationError(
                 (try? error.body.json)?.detail?.description ?? "Validation error"
@@ -62,7 +62,7 @@ class AutomationService {
         )
         switch response {
         case .ok(let ok):
-            return try ok.body.json.items.map(ScheduleInfo.init)
+            return try ok.body.json.items.map { ScheduleInfo(response: $0) }
         case .unprocessableContent(let error):
             throw AutomationServiceError.validationError(
                 (try? error.body.json)?.detail?.description ?? "Validation error"
@@ -80,7 +80,7 @@ class AutomationService {
         )
         switch response {
         case .ok(let ok):
-            return ScheduleInfo(try ok.body.json)
+            return ScheduleInfo(response: try ok.body.json)
         case .unprocessableContent(let error):
             throw AutomationServiceError.validationError(
                 (try? error.body.json)?.detail?.description ?? "Validation error"
@@ -116,7 +116,7 @@ class AutomationService {
         )
         switch response {
         case .ok(let ok):
-            return ScheduleInfo(try ok.body.json)
+            return ScheduleInfo(response: try ok.body.json)
         case .unprocessableContent(let error):
             throw AutomationServiceError.validationError(
                 (try? error.body.json)?.detail?.description ?? "Validation error"
@@ -134,7 +134,7 @@ class AutomationService {
         )
         switch response {
         case .ok(let ok):
-            return ScheduleInfo(try ok.body.json)
+            return ScheduleInfo(response: try ok.body.json)
         case .unprocessableContent(let error):
             throw AutomationServiceError.validationError(
                 (try? error.body.json)?.detail?.description ?? "Validation error"
@@ -152,7 +152,7 @@ class AutomationService {
         )
         switch response {
         case .ok(let ok):
-            return ScheduleRunInfo(try ok.body.json)
+            return ScheduleRunInfo(response: try ok.body.json)
         case .unprocessableContent(let error):
             throw AutomationServiceError.validationError(
                 (try? error.body.json)?.detail?.description ?? "Validation error"
@@ -170,7 +170,7 @@ class AutomationService {
         )
         switch response {
         case .ok(let ok):
-            return try ok.body.json.items.map(ScheduleRunInfo.init)
+            return try ok.body.json.items.map { ScheduleRunInfo(response: $0) }
         case .unprocessableContent(let error):
             throw AutomationServiceError.validationError(
                 (try? error.body.json)?.detail?.description ?? "Validation error"
@@ -184,8 +184,19 @@ class AutomationService {
 
     /// Create a new file trigger
     func createTrigger(request: CreateTriggerRequest) async throws -> TriggerInfo {
-        let response: TriggerInfo = try await apiClient.post("/triggers", body: request)
-        return response
+        let response = try await apiClient.api.createTriggerApiTriggersPost(
+            .init(body: .json(.init(app: request)))
+        )
+        switch response {
+        case .ok(let ok):
+            return TriggerInfo(response: try ok.body.json)
+        case .unprocessableContent(let error):
+            throw AutomationServiceError.validationError(
+                (try? error.body.json)?.detail?.description ?? "Validation error"
+            )
+        default:
+            throw AutomationServiceError.unexpectedResponse
+        }
     }
 
     /// List all triggers
@@ -194,51 +205,108 @@ class AutomationService {
         workflowId: String? = nil,
         limit: Int = 100
     ) async throws -> [TriggerInfo] {
-        var queryParams: [String] = ["limit=\(limit)"]
-        if let status = status {
-            queryParams.append("status=\(status)")
+        let response = try await apiClient.api.listTriggersApiTriggersGet(
+            .init(query: .init(status: status, workflowId: workflowId, limit: limit))
+        )
+        switch response {
+        case .ok(let ok):
+            return try ok.body.json.items.map { TriggerInfo(response: $0) }
+        case .unprocessableContent(let error):
+            throw AutomationServiceError.validationError(
+                (try? error.body.json)?.detail?.description ?? "Validation error"
+            )
+        default:
+            throw AutomationServiceError.unexpectedResponse
         }
-        if let workflowId = workflowId {
-            queryParams.append("workflow_id=\(workflowId)")
-        }
-        let queryString = "?\(queryParams.joined(separator: "&"))"
-        let response: [TriggerInfo] = try await apiClient.get("/triggers\(queryString)")
-        return response
     }
 
     /// Get trigger by ID
     func getTrigger(triggerId: String) async throws -> TriggerInfo {
         try validateId(triggerId)
-        let response: TriggerInfo = try await apiClient.get("/triggers/\(triggerId)")
-        return response
+        let response = try await apiClient.api.getTriggerApiTriggersTriggerIdGet(
+            .init(path: .init(triggerId: triggerId))
+        )
+        switch response {
+        case .ok(let ok):
+            return TriggerInfo(response: try ok.body.json)
+        case .unprocessableContent(let error):
+            throw AutomationServiceError.validationError(
+                (try? error.body.json)?.detail?.description ?? "Validation error"
+            )
+        default:
+            throw AutomationServiceError.unexpectedResponse
+        }
     }
 
     /// Delete a trigger
     func deleteTrigger(triggerId: String) async throws {
         try validateId(triggerId)
-        try await apiClient.delete("/triggers/\(triggerId)")
+        let response = try await apiClient.api.deleteTriggerApiTriggersTriggerIdDelete(
+            .init(path: .init(triggerId: triggerId))
+        )
+        switch response {
+        case .ok:
+            return
+        case .unprocessableContent(let error):
+            throw AutomationServiceError.validationError(
+                (try? error.body.json)?.detail?.description ?? "Validation error"
+            )
+        default:
+            throw AutomationServiceError.unexpectedResponse
+        }
     }
 
     /// Pause a trigger
     func pauseTrigger(triggerId: String) async throws -> TriggerInfo {
         try validateId(triggerId)
-        let response: TriggerInfo = try await apiClient.post("/triggers/\(triggerId)/pause")
-        return response
+        let response = try await apiClient.api.pauseTriggerApiTriggersTriggerIdPausePost(
+            .init(path: .init(triggerId: triggerId))
+        )
+        switch response {
+        case .ok(let ok):
+            return TriggerInfo(response: try ok.body.json)
+        case .unprocessableContent(let error):
+            throw AutomationServiceError.validationError(
+                (try? error.body.json)?.detail?.description ?? "Validation error"
+            )
+        default:
+            throw AutomationServiceError.unexpectedResponse
+        }
     }
 
     /// Resume a trigger
     func resumeTrigger(triggerId: String) async throws -> TriggerInfo {
         try validateId(triggerId)
-        let response: TriggerInfo = try await apiClient.post("/triggers/\(triggerId)/resume")
-        return response
+        let response = try await apiClient.api.resumeTriggerApiTriggersTriggerIdResumePost(
+            .init(path: .init(triggerId: triggerId))
+        )
+        switch response {
+        case .ok(let ok):
+            return TriggerInfo(response: try ok.body.json)
+        case .unprocessableContent(let error):
+            throw AutomationServiceError.validationError(
+                (try? error.body.json)?.detail?.description ?? "Validation error"
+            )
+        default:
+            throw AutomationServiceError.unexpectedResponse
+        }
     }
 
     /// Get trigger execution history
     func getTriggerExecutions(triggerId: String, limit: Int = 50) async throws -> [TriggerExecutionInfo] {
         try validateId(triggerId)
-        let response: [TriggerExecutionInfo] = try await apiClient.get(
-            "/triggers/\(triggerId)/executions?limit=\(limit)"
+        let response = try await apiClient.api.getTriggerExecutionsApiTriggersTriggerIdExecutionsGet(
+            .init(path: .init(triggerId: triggerId), query: .init(limit: limit))
         )
-        return response
+        switch response {
+        case .ok(let ok):
+            return try ok.body.json.items.map { TriggerExecutionInfo(response: $0) }
+        case .unprocessableContent(let error):
+            throw AutomationServiceError.validationError(
+                (try? error.body.json)?.detail?.description ?? "Validation error"
+            )
+        default:
+            throw AutomationServiceError.unexpectedResponse
+        }
     }
 }

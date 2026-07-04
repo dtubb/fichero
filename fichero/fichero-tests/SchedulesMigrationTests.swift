@@ -61,7 +61,7 @@ struct SchedulesMigrationTests {
             Issue.record("expected .ok")
             return
         }
-        let schedules = try okResponse.body.json.items.map(ScheduleInfo.init)
+        let schedules = try okResponse.body.json.items.map { ScheduleInfo(response: $0) }
         #expect(schedules.count == 1)
         let schedule = try #require(schedules.first)
         #expect(schedule.scheduleId == "s1")
