@@ -333,7 +333,7 @@ extension DocumentStore {
     func refreshDocumentsByIds(_ ids: [String]) async {
         for id in ids {
             do {
-                let fresh: Document = try await api.get("/documents/\(id)")
+                let fresh = try await documentService.getDocument(id)
                 refreshLocalContent(fresh)
             } catch {
                 let logger = Logger(subsystem: "app.fichero.fichero", category: "DocumentStore")

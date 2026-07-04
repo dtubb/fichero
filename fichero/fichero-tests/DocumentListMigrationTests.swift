@@ -57,6 +57,23 @@ struct DocumentListMigrationTests {
         #expect(docs.map(\.name) == ["Alpha", "Beta"])
     }
 
+    @Test("listDocuments() with nil limit omits the limit query (sidebar load-all)")
+    func listDocumentsNilLimitOmitsParam() async throws {
+        let service = makeService { request in
+            #expect(request.url?.path == "/api/documents")
+            // loadCollections loads the full tree — no limit cap must be sent.
+            #expect(!(request.url?.query ?? "").contains("limit="))
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data("{\"count\":0,\"items\":[]}".utf8))
+        }
+
+        let docs = try await service.listDocuments()
+        #expect(docs.isEmpty)
+    }
+
     @Test("listDocuments throws on non-.ok instead of returning an empty list")
     func listDocumentsThrowsOnError() async throws {
         let service = makeService { request in
@@ -70,5 +87,57 @@ struct DocumentListMigrationTests {
         await #expect(throws: (any Error).self) {
             _ = try await service.listDocuments(limit: 100)
         }
+    }
+
+    @Test("updateDocument(name:) PUTs to /api/documents/{id} (DocumentStore rename path)")
+    func updateDocumentRenameContract() async throws {
+        let service = makeService { request in
+            #expect(request.httpMethod == "PUT")
+            #expect(request.url?.path == "/api/documents/d1")
+            let json = """
+            {"id":"d1","name":"Renamed","doc_type":"file","expected_thumbnail_path":"t","expected_display_path":"v"}
+            """
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data(json.utf8))
+        }
+
+        let doc = try await service.updateDocument("d1", name: "Renamed")
+        #expect(doc.name == "Renamed")
+    }
+
+    @Test("getParent GETs /api/documents/{id}/parent (KG/source navigation)")
+    func getParentContract() async throws {
+        let service = makeService { request in
+            #expect(request.httpMethod == "GET")
+            #expect(request.url?.path == "/api/documents/child-1/parent")
+            let json = """
+            {"id":"parent-1","name":"Folder","doc_type":"folder","expected_thumbnail_path":"t","expected_display_path":"v"}
+            """
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data(json.utf8))
+        }
+
+        let parent = try await service.getParent("child-1")
+        #expect(parent.id == "parent-1")
+    }
+
+    @Test("deleteDocument DELETEs /api/documents/{id} (DocumentStore delete path)")
+    func deleteDocumentContract() async throws {
+        let service = makeService { request in
+            #expect(request.httpMethod == "DELETE")
+            #expect(request.url?.path == "/api/documents/d9")
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 204, httpVersion: nil, headerFields: [:]
+            )!
+            return (response, Data())
+        }
+
+        try await service.deleteDocument("d9")
     }
 }

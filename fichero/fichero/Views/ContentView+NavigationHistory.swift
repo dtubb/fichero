@@ -54,9 +54,7 @@ extension ContentView {
         } else {
             detailDocument = nil
             Task { @MainActor in
-                let fetched: Document? = try? await documentStore.api.get(
-                    "/documents/\(detailDocumentId)"
-                )
+                let fetched = try? await documentStore.documentService.getDocument(detailDocumentId)
                 isRestoringNavigationHistory = true
                 detailDocument = fetched
                 isRestoringNavigationHistory = false
