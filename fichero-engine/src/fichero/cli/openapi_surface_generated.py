@@ -7779,7 +7779,9 @@ def register_generated_openapi_commands(
         provider_type: str = typer.Option(..., "--provider-type", help="Request field: provider_type."),
         python_executable: Optional[str] = typer.Option(None, "--python-executable", help="Request field: python_executable."),
         startup_policy: Optional[str] = typer.Option(None, "--startup-policy", help="Request field: startup_policy."),
+        supported: Optional[bool] = typer.Option(None, "--supported/--no-supported", help="Request field: supported."),
         timeout_seconds: Optional[float] = typer.Option(None, "--timeout-seconds", help="Request field: timeout_seconds."),
+        unsupported_reason: Optional[str] = typer.Option(None, "--unsupported-reason", help="Request field: unsupported_reason."),
         visible_in_ui: Optional[bool] = typer.Option(None, "--visible-in-ui/--no-visible-in-ui", help="Request field: visible_in_ui."),
     ) -> None:
         """Validate Local Inference Profile (POST /api/local-inference/profiles/validate)."""
@@ -7800,7 +7802,9 @@ def register_generated_openapi_commands(
                 "provider_type": provider_type,
                 "python_executable": python_executable,
                 "startup_policy": startup_policy,
+                "supported": supported,
                 "timeout_seconds": timeout_seconds,
+                "unsupported_reason": unsupported_reason,
                 "visible_in_ui": visible_in_ui,
             }, {
                 "allows_paid_fallbacks": {'type': 'boolean', 'title': 'Allows Paid Fallbacks', 'default': False, 'x-cli-required': False},
@@ -7816,7 +7820,9 @@ def register_generated_openapi_commands(
                 "provider_type": {'type': 'string', 'enum': ['apple', 'mock', 'ollama', 'lmstudio', 'omlx', 'huggingface', 'openrouter', 'openai', 'anthropic', 'google', 'groq', 'together', 'deepseek', 'mistral', 'cohere', 'dashscope', 'xai', 'perplexity', 'fireworks', 'deepl', 'azure', 'bedrock'], 'title': 'ProviderType', 'description': 'Supported LLM provider types.', 'x-cli-required': True},
                 "python_executable": {'type': 'string', 'nullable': True, 'title': 'Python Executable', 'x-cli-required': False},
                 "startup_policy": {'type': 'string', 'enum': ['on_demand', 'eager', 'manual'], 'title': 'LocalProviderStartupPolicy', 'description': 'When the app should start a managed local provider.', 'x-cli-required': False},
+                "supported": {'type': 'boolean', 'title': 'Supported', 'default': True, 'x-cli-required': False},
                 "timeout_seconds": {'type': 'number', 'minimum': 0.0, 'title': 'Timeout Seconds', 'default': 5.0, 'x-cli-required': False},
+                "unsupported_reason": {'type': 'string', 'nullable': True, 'title': 'Unsupported Reason', 'x-cli-required': False},
                 "visible_in_ui": {'type': 'boolean', 'title': 'Visible In Ui', 'default': True, 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)

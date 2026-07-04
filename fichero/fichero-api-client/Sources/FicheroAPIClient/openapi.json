@@ -45813,6 +45813,10 @@
             "type": "boolean",
             "title": "Is Apple Silicon"
           },
+          "subprocess_capable": {
+            "type": "boolean",
+            "title": "Subprocess Capable"
+          },
           "physical_memory_bytes": {
             "type": "integer",
             "nullable": true,
@@ -45828,7 +45832,8 @@
         "required": [
           "system",
           "machine",
-          "is_apple_silicon"
+          "is_apple_silicon",
+          "subprocess_capable"
         ],
         "title": "LocalInferenceCapabilitiesResponse"
       },
@@ -46347,6 +46352,16 @@
             "type": "boolean",
             "title": "Visible In Ui",
             "default": true
+          },
+          "supported": {
+            "type": "boolean",
+            "title": "Supported",
+            "default": true
+          },
+          "unsupported_reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Unsupported Reason"
           },
           "python_executable": {
             "type": "string",

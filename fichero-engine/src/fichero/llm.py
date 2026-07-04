@@ -1661,6 +1661,10 @@ async def _apple_intelligence_chat(
 
     user_text, instructions = _collapse_apple_prompt(prompt, system)
 
+    unavailable_reason = _fm_bridge_unavailable_reason()
+    if unavailable_reason is not None:
+        raise RuntimeError(unavailable_reason)
+
     binary = _find_fm_bridge_binary()
     if binary is None:
         raise RuntimeError(_FM_BRIDGE_MISSING_MESSAGE)
@@ -3151,7 +3155,18 @@ def _find_fm_bridge_binary() -> Path | None:
     )
 
 
+def _fm_bridge_unavailable_reason() -> str | None:
+    from fichero.local_inference import get_local_inference_capabilities
+
+    if not get_local_inference_capabilities().subprocess_capable:
+        return "Apple Intelligence is not available on this device"
+    return None
+
+
 async def probe_apple_intelligence_bridge() -> tuple[bool, str | None]:
+    unavailable_reason = _fm_bridge_unavailable_reason()
+    if unavailable_reason is not None:
+        return False, unavailable_reason
     binary = _find_fm_bridge_binary()
     if binary is None:
         return False, _FM_BRIDGE_MISSING_MESSAGE
@@ -3214,6 +3229,10 @@ async def apple_intelligence_supports_locale(locale: str) -> bool:
         # to compute, but only one actually shells out.
         if locale in _LOCALE_SUPPORT_CACHE:
             return _LOCALE_SUPPORT_CACHE[locale]
+
+        if _fm_bridge_unavailable_reason() is not None:
+            _LOCALE_SUPPORT_CACHE[locale] = False
+            return False
 
         binary = _find_fm_bridge_binary()
         if binary is None:
@@ -3425,6 +3444,10 @@ async def _apple_intelligence_structured(
     tokens in the on-device 4K window.
     """
     import json as _json
+
+    unavailable_reason = _fm_bridge_unavailable_reason()
+    if unavailable_reason is not None:
+        raise RuntimeError(unavailable_reason)
 
     binary = _find_fm_bridge_binary()
     if binary is None:
