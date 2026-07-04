@@ -365,6 +365,7 @@ class TestEleventySiteExport:
         assert "El contenido de la carta." in body
         # Top-level folder is the 11ty collection tag.
         assert "Coleccion-A" in body
+        assert not (output_path / "src" / "entities").exists()
 
     def test_rejects_non_empty_output_without_overwrite(self, client, tmp_path):
         output_path = tmp_path / "site"
@@ -383,3 +384,71 @@ class TestEleventySiteExport:
             json={"target_id": "nope", "output_path": str(tmp_path / "site")},
         )
         assert r.status_code == 404
+
+    def test_publishes_entity_claim_and_provenance_indexes(self, client, db, tmp_path):
+        root = Document(id="site-root-kg", name="Archivo", doc_type=DocType.folder)
+        box = Document(
+            id="site-box-kg",
+            name="Caja 7",
+            parent_id=root.id,
+            doc_type=DocType.folder,
+        )
+        expediente = Document(
+            id="site-exp-kg",
+            name="Expediente 12",
+            parent_id=box.id,
+            doc_type=DocType.folder,
+        )
+        doc = Document(
+            id="site-doc-kg",
+            name="Carta Uno",
+            parent_id=expediente.id,
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            page_label="1r",
+            page_content="Pedro signed the petition.",
+        )
+        entity = KnowledgeEntity(
+            id="site-entity-kg",
+            canonical_name="Pedro",
+            entity_type=EntityType.person,
+            source_document_ids=[doc.id],
+        )
+        claim = KnowledgeClaim(
+            id="site-claim-kg",
+            text="Pedro signed the petition.",
+            source_document_id=doc.id,
+            source_page_label="1r",
+            source_excerpt="Pedro signed",
+            entity_ids=[entity.id],
+            claim_type=ClaimType.fact,
+        )
+        for row in (root, box, expediente, doc, entity, claim):
+            db.save(row)
+
+        output_path = tmp_path / "site-kg"
+        r = client.post(
+            "/api/export/eleventy-site",
+            json={"target_id": root.id, "output_path": str(output_path)},
+        )
+
+        assert r.status_code == 200, r.text
+        entity_page = output_path / "src" / "entities" / "Pedro.md"
+        claims_index = output_path / "src" / "claims" / "index.md"
+        box_index = output_path / "src" / "box-collections" / "Caja-7.md"
+        expediente_index = output_path / "src" / "expedientes" / "Expediente-12.md"
+
+        assert entity_page.exists()
+        assert claims_index.exists()
+        assert box_index.exists()
+        assert expediente_index.exists()
+
+        entity_body = entity_page.read_text(encoding="utf-8")
+        assert "[Carta Uno](../Caja-7/Expediente-12/Carta-Uno.md)" in entity_body
+        assert "Expediente 12" in entity_body
+        assert "Caja 7" in entity_body
+        assert "localhost" not in entity_body
+        assert "/api/" not in entity_body
+
+        claims_body = claims_index.read_text(encoding="utf-8")
+        assert "[Carta Uno](../Caja-7/Expediente-12/Carta-Uno.md)" in claims_body
