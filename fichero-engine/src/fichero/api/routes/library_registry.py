@@ -223,6 +223,15 @@ def _relative_file_path(doc: Document) -> str | None:
     return None
 
 
+def _provenance_original_rel_path(doc: Document) -> str | None:
+    provenance = getattr(doc, "metadata", None) or {}
+    merge_provenance = provenance.get("merge_provenance") or {}
+    original = merge_provenance.get("original_relative_path")
+    if not isinstance(original, str) or not original:
+        return None
+    return nfc_path(original)
+
+
 def _file_checksum(doc: Document, library_path: Path) -> str | None:
     if doc.checksum:
         return str(doc.checksum)
@@ -454,11 +463,16 @@ def _merge_library_documents_and_files(
         winner_docs = winner_db.all(Document)
         loser_docs = loser_db.all(Document)
         winner_docs_by_id = {doc.id: doc for doc in winner_docs}
-        identity_index = {
-            (_file_checksum(doc, winner_path), _relative_file_path(doc)): doc
-            for doc in winner_docs
-            if _relative_file_path(doc) is not None and _file_checksum(doc, winner_path) is not None
-        }
+        identity_index: dict[tuple[str, str], Document] = {}
+        for doc in winner_docs:
+            checksum = _file_checksum(doc, winner_path)
+            rel_path = _relative_file_path(doc)
+            if checksum is None or rel_path is None:
+                continue
+            identity_index[(checksum, rel_path)] = doc
+            original_rel_path = _provenance_original_rel_path(doc)
+            if original_rel_path is not None:
+                identity_index[(checksum, original_rel_path)] = doc
         path_index: dict[str, list[Document]] = defaultdict(list)
         for doc in winner_docs:
             rel_path = _relative_file_path(doc)
@@ -528,6 +542,7 @@ def _merge_library_documents_and_files(
                     "merged_relative_path": target_rel_path,
                 }
                 identity_index[(checksum, target_rel_path)] = copied
+                identity_index[(checksum, rel_path)] = copied
                 path_index[target_rel_path].append(copied)
 
             winner_db.save(copied)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import unicodedata
 from pathlib import Path
 
@@ -162,17 +163,7 @@ def _ctx(library_path: str | None = None) -> ActionContext:
     return ActionContext(actor="ui", library_path=library_path)
 
 
-@pytest.fixture
-def global_db(tmp_path, monkeypatch) -> Database:
-    monkeypatch.setenv("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
-    db = Database(tmp_path / "global.fichero" / "fichero.duckdb")
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-def test_unicode_merge_action_merges_synthetic_pair_and_writes_audit(tmp_path, global_db) -> None:
+def _seed_sidecar_merge_pair(tmp_path: Path, global_db: Database) -> tuple[Path, Path]:
     left = tmp_path / "left" / unicodedata.normalize("NFD", "Chocó.fichero")
     right = tmp_path / "right" / unicodedata.normalize("NFC", "Chocó.fichero")
     _make_library(
@@ -333,19 +324,105 @@ def test_unicode_merge_action_merges_synthetic_pair_and_writes_audit(tmp_path, g
         loser_db.close()
     _register(global_db, left)
     _register(global_db, right)
+    return left, right
 
-    result = registry.invoke(
-        global_db,
-        "library.unicode_merge",
-        {"left_path": str(left), "right_path": str(right)},
-        _ctx(str(right)),
-    )
 
+def _library_tree_fingerprint(root: Path) -> dict[str, str]:
+    fingerprint: dict[str, str] = {}
+    for entry in sorted(path for path in root.rglob("*") if path.is_file()):
+        fingerprint[str(entry.relative_to(root))] = hashlib.sha256(entry.read_bytes()).hexdigest()
+    return fingerprint
+
+
+def _assert_merge_journal_completeness(
+    journal_path: Path,
+    *,
+    folder_doc_disposition: str = "copy_document_only",
+    shared_doc_disposition: str = "keep_both_conflicting_path",
+    carried_only_doc_disposition: str = "copy_with_file",
+    exact_sidecar_dispositions: bool = True,
+) -> None:
+    journal = json.loads(journal_path.read_text(encoding="utf-8"))
+    doc_dispositions = {
+        row["source_document_id"]: row["disposition"]
+        for row in journal["dispositions"]
+        if "source_document_id" in row
+        and "source_entity_id" not in row
+        and "source_note_id" not in row
+        and "source_annotation_id" not in row
+    }
+    entity_dispositions = {
+        row["source_entity_id"]: row["disposition"]
+        for row in journal["dispositions"]
+        if row.get("record_type") == "entity"
+    }
+    note_dispositions = {
+        row["source_note_id"]: row["disposition"]
+        for row in journal["dispositions"]
+        if row.get("record_type") == "note"
+    }
+    annotation_dispositions = {
+        row["source_annotation_id"]: row["disposition"]
+        for row in journal["dispositions"]
+        if row.get("record_type") == "annotation"
+    }
+    assert set(doc_dispositions) == {
+        "loser-folder",
+        "lose-same",
+        "lose-shared",
+        "lose-note-same",
+        "lose-note-shared",
+        "lose-note-only",
+        "lose-only",
+        "lose-entity-only-parent",
+        "lose-entity-only-child",
+    }
+    assert set(entity_dispositions) == {
+        "lose-entity-same",
+        "lose-entity-shared",
+        "lose-entity-only-parent",
+        "lose-entity-only-child",
+    }
+    assert set(note_dispositions) == {"lose-note-same", "lose-note-shared", "lose-note-only"}
+    assert set(annotation_dispositions) == {"lose-ann-same", "lose-ann-shared", "lose-ann-only"}
+    assert doc_dispositions["loser-folder"] == folder_doc_disposition
+    assert doc_dispositions["lose-same"] == "dedupe_identical"
+    assert doc_dispositions["lose-shared"] == shared_doc_disposition
+    assert doc_dispositions["lose-note-same"] == "copy_document_only"
+    assert doc_dispositions["lose-note-shared"] == "copy_document_only"
+    assert doc_dispositions["lose-note-only"] == "copy_document_only"
+    assert doc_dispositions["lose-only"] == carried_only_doc_disposition
+    assert doc_dispositions["lose-entity-only-parent"] == "copy_document_only"
+    assert doc_dispositions["lose-entity-only-child"] == "copy_document_only"
+    if exact_sidecar_dispositions:
+        assert entity_dispositions["lose-entity-same"] == "dedupe_identical"
+        assert entity_dispositions["lose-entity-shared"] == "copy_entity"
+        assert entity_dispositions["lose-entity-only-parent"] == "copy_entity"
+        assert entity_dispositions["lose-entity-only-child"] == "copy_entity"
+        assert note_dispositions["lose-note-same"] == "dedupe_identical"
+        assert note_dispositions["lose-note-shared"] == "copy_note"
+        assert note_dispositions["lose-note-only"] == "copy_note"
+        assert annotation_dispositions["lose-ann-same"] == "dedupe_identical"
+        assert annotation_dispositions["lose-ann-shared"] == "copy_annotation"
+        assert annotation_dispositions["lose-ann-only"] == "copy_annotation"
+    assert len(journal["dispositions"]) == 19
+
+
+def _assert_rich_merged_state(
+    right: Path,
+    global_db: Database,
+    result: object,
+    *,
+    folder_doc_disposition: str = "copy_document_only",
+    shared_doc_disposition: str = "keep_both_conflicting_path",
+    carried_only_doc_disposition: str = "copy_with_file",
+    exact_sidecar_dispositions: bool = True,
+) -> None:
     assert result.result["status"] == "merged"
     assert result.result["winner_path"] == str(right)
     assert Path(result.result["journal_path"]).exists()
-    assert not left.exists()
     assert Path(result.result["loser_renamed_path"]).exists()
+    assert ".premerge-" in Path(result.result["loser_renamed_path"]).name
     assert [row.path for row in global_db.all(KnownLibrary)] == [
         unicodedata.normalize("NFC", str(right.resolve()))
     ]
@@ -399,32 +476,41 @@ def test_unicode_merge_action_merges_synthetic_pair_and_writes_audit(tmp_path, g
     assert audit is not None
     assert audit.action_name == "library.unicode_merge"
     assert audit.after["deferred_follow_up_issue"] == 3094
-    journal = json.loads(Path(result.result["journal_path"]).read_text(encoding="utf-8"))
-    doc_dispositions = {row["source_document_id"]: row["disposition"] for row in journal["dispositions"] if row.get("source_document_id")}
-    entity_dispositions = {row["source_entity_id"]: row["disposition"] for row in journal["dispositions"] if row.get("source_entity_id")}
-    note_dispositions = {row["source_note_id"]: row["disposition"] for row in journal["dispositions"] if row.get("source_note_id")}
-    annotation_dispositions = {row["source_annotation_id"]: row["disposition"] for row in journal["dispositions"] if row.get("source_annotation_id")}
-    assert doc_dispositions["lose-same"] == "dedupe_identical"
-    assert doc_dispositions["lose-shared"] == "keep_both_conflicting_path"
-    assert doc_dispositions["lose-only"] == "copy_with_file"
-    assert entity_dispositions["lose-entity-same"] == "dedupe_identical"
-    assert entity_dispositions["lose-entity-shared"] == "copy_entity"
-    assert entity_dispositions["lose-entity-only-child"] == "copy_entity"
-    assert note_dispositions["lose-note-same"] == "dedupe_identical"
-    assert note_dispositions["lose-note-shared"] == "copy_note"
-    assert note_dispositions["lose-note-only"] == "copy_note"
-    assert annotation_dispositions["lose-ann-same"] == "dedupe_identical"
-    assert annotation_dispositions["lose-ann-shared"] == "copy_annotation"
-    assert annotation_dispositions["lose-ann-only"] == "copy_annotation"
+    _assert_merge_journal_completeness(
+        Path(result.result["journal_path"]),
+        folder_doc_disposition=folder_doc_disposition,
+        shared_doc_disposition=shared_doc_disposition,
+        carried_only_doc_disposition=carried_only_doc_disposition,
+        exact_sidecar_dispositions=exact_sidecar_dispositions,
+    )
 
 
-def test_unicode_merge_action_is_idempotent_on_rerun(tmp_path, global_db) -> None:
-    left = tmp_path / "left" / unicodedata.normalize("NFD", "Chocó.fichero")
-    right = tmp_path / "right" / unicodedata.normalize("NFC", "Chocó.fichero")
-    _make_library(right, [])
-    _make_library(left, [])
-    _register(global_db, left)
-    _register(global_db, right)
+@pytest.fixture
+def global_db(tmp_path, monkeypatch) -> Database:
+    monkeypatch.setenv("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
+    db = Database(tmp_path / "global.fichero" / "fichero.duckdb")
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def test_unicode_merge_action_merges_synthetic_pair_and_writes_audit(tmp_path, global_db) -> None:
+    left, right = _seed_sidecar_merge_pair(tmp_path, global_db)
+
+    result = registry.invoke(
+        global_db,
+        "library.unicode_merge",
+        {"left_path": str(left), "right_path": str(right)},
+        _ctx(str(right)),
+    )
+
+    assert not left.exists()
+    _assert_rich_merged_state(right, global_db, result)
+
+
+def test_unicode_merge_action_double_trigger_only_merges_once(tmp_path, global_db) -> None:
+    left, right = _seed_sidecar_merge_pair(tmp_path, global_db)
 
     first = registry.invoke(
         global_db,
@@ -441,18 +527,19 @@ def test_unicode_merge_action_is_idempotent_on_rerun(tmp_path, global_db) -> Non
 
     assert first.result["status"] == "merged"
     assert second.result["status"] == "noop"
+    renamed = list(left.parent.glob(f"{left.name}.premerge-*"))
+    assert len(renamed) == 1
+    assert renamed[0].exists()
+    _assert_rich_merged_state(right, global_db, first)
 
 
 def test_unicode_merge_action_aborts_on_snapshot_failure(tmp_path, global_db, monkeypatch) -> None:
     from fichero.api.routes import library_registry as registry_routes
 
-    left = tmp_path / "left" / unicodedata.normalize("NFD", "Chocó.fichero")
-    right = tmp_path / "right" / unicodedata.normalize("NFC", "Chocó.fichero")
-    _make_library(right, [])
-    _make_library(left, [])
-    _register(global_db, left)
-    _register(global_db, right)
+    left, right = _seed_sidecar_merge_pair(tmp_path, global_db)
     calls: list[str] = []
+    before_left = _library_tree_fingerprint(left)
+    before_right = _library_tree_fingerprint(right)
 
     real_snapshot = registry_routes.snapshot_library
 
@@ -475,3 +562,54 @@ def test_unicode_merge_action_aborts_on_snapshot_failure(tmp_path, global_db, mo
     assert left.exists()
     assert right.exists()
     assert len(global_db.all(KnownLibrary)) == 2
+    assert _library_tree_fingerprint(left) == before_left
+    assert _library_tree_fingerprint(right) == before_right
+
+
+def test_unicode_merge_action_recovers_cleanly_after_interrupt_before_rename(
+    tmp_path,
+    global_db,
+    monkeypatch,
+) -> None:
+    left, right = _seed_sidecar_merge_pair(tmp_path, global_db)
+    real_replace = os.replace
+    calls = 0
+
+    def replace_then_crash(src: str | os.PathLike[str], dst: str | os.PathLike[str]) -> None:
+        nonlocal calls
+        calls += 1
+        raise RuntimeError("interrupt before loser rename")
+
+    monkeypatch.setattr(library_registry.os, "replace", replace_then_crash)
+
+    with pytest.raises(RuntimeError, match="interrupt before loser rename"):
+        registry.invoke(
+            global_db,
+            "library.unicode_merge",
+            {"left_path": str(left), "right_path": str(right)},
+            _ctx(str(right)),
+        )
+
+    assert calls == 1
+    assert left.exists()
+    assert right.exists()
+    assert len(global_db.all(KnownLibrary)) == 2
+
+    monkeypatch.setattr(library_registry.os, "replace", real_replace)
+    recovered = registry.invoke(
+        global_db,
+        "library.unicode_merge",
+        {"left_path": str(left), "right_path": str(right)},
+        _ctx(str(right)),
+    )
+
+    assert not left.exists()
+    _assert_rich_merged_state(
+        right,
+        global_db,
+        recovered,
+        folder_doc_disposition="dedup_folder",
+        shared_doc_disposition="dedupe_identical",
+        carried_only_doc_disposition="dedupe_identical",
+        exact_sidecar_dispositions=False,
+    )
