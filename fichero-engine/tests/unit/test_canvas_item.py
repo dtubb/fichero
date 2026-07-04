@@ -15,6 +15,7 @@ import pytest
 import fichero.api.routes.mind_palace  # noqa: F401
 from fichero import accounts, authz
 from fichero.actions.registry import ActionContext, registry
+from fichero.models import ActionAudit
 from fichero.spatial_models import CanvasItem, CanvasItemKind
 
 BASE = "/api/mind-palace/folders"
@@ -216,6 +217,28 @@ def test_items_are_folder_scoped(client):
     assert f1["count"] == 1 and f2["count"] == 1
     assert f1["items"][0]["text"] == "one"
     assert f2["items"][0]["text"] == "two"
+
+
+def test_canvas_item_routes_write_action_audit(client, db):
+    folder = "folder-route-audit"
+    created = client.post(
+        f"{BASE}/{folder}/canvas-items",
+        json={"kind": "note", "text": "created"},
+    )
+    assert created.status_code == 200, created.text
+    item_id = created.json()["id"]
+    assert db.all(ActionAudit)[-1].action_name == "canvas.item.create"
+
+    updated = client.patch(
+        f"{BASE}/{folder}/canvas-items/{item_id}",
+        json={"text": "updated"},
+    )
+    assert updated.status_code == 200, updated.text
+    assert db.all(ActionAudit)[-1].action_name == "canvas.item.update"
+
+    deleted = client.delete(f"{BASE}/{folder}/canvas-items/{item_id}")
+    assert deleted.status_code == 200, deleted.text
+    assert db.all(ActionAudit)[-1].action_name == "canvas.item.delete"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
