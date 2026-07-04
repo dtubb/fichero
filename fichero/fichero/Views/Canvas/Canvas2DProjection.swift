@@ -24,6 +24,14 @@ enum Canvas2DProjection {
         SIMD3<Double>(Double(scene.x), Double(-scene.y), 0)
     }
 
+    /// The same inverse but PRESERVING an existing world z (#3090). A 2D drag
+    /// only changes x/y — it must not clobber a z the 3D renderer set into the
+    /// same layout row, or the two projections diverge. The 2D shell passes the
+    /// row's current z so a save round-trips z untouched.
+    static func worldPosition(_ scene: SIMD3<Float>, preservingZ worldZ: Double) -> SIMD3<Double> {
+        SIMD3<Double>(Double(scene.x), Double(-scene.y), worldZ)
+    }
+
     // MARK: - Ortho camera ↔ screen (drag + marquee, #3084)
 
     /// World-units per screen point at a given ortho scale and view height. The

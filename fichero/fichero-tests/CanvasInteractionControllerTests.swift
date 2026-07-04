@@ -226,6 +226,14 @@ struct CanvasInteractionControllerTests {
         #expect(layout.savedItems?.first?.y == -0.25)
     }
 
+    @Test("moveItem persists a z push/pull (3D z-placement round-trips, #3090)")
+    func moveItemPersistsZ() async {
+        let layout = SpyLayoutStore()
+        let controller = makeController(layout: layout, items: SpyItemStore(), selection: Box(nil))
+        await controller.moveItem(id: "x", to: SIMD3<Double>(1, 1, 2.0))
+        #expect(layout.savedItems?.first?.z == 2.0)   // z on the grid, kept end-to-end
+    }
+
     @Test("disappear flush persists the in-flight drag position")
     func flushActiveDrag() async {
         let layout = SpyLayoutStore()

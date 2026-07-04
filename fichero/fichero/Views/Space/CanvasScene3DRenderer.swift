@@ -117,6 +117,10 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
 
     var currentDistance: Float { distance }
 
+    /// The world position at the camera's look-at target — where a newly-added
+    /// item lands so it appears centred in front of the camera (#3090).
+    var focusWorldPosition: SIMD3<Double> { Canvas3DProjection.worldPosition(lookAt) }
+
     /// A screen drag → a world delta in the camera's view plane, for dragging a
     /// card in 3D. ponytail: distance-scaled camera-plane heuristic (depth is the
     /// card's; exact feel is the calibration knob — tune with the flag on).
