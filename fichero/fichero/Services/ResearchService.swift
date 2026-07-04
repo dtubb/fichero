@@ -557,7 +557,7 @@ final class ResearchService: ObservableObject {
         noteType: String? = nil,
         tags: [String]? = nil
     ) async throws -> ResearchNote {
-        let body = Components.Schemas.FicheroApiRoutesResearchNotesNoteUpdateRequest(
+        let body = Components.Schemas.NoteUpdateRequest(
             content: content,
             noteType: researchNoteType(noteType),
             tags: tags
