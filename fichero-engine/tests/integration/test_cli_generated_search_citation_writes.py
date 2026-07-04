@@ -226,7 +226,6 @@ def test_generated_search_citation_bibliography_and_source_contracts_current_mai
     assert exported_bib.exit_code == 0
     assert "@" in exported_bib.output
 
-    # audit assertions pending /api/sources->registry migration (#3044)
     source = _cli_json(
         cli_live_engine,
         "sources",
@@ -238,6 +237,8 @@ def test_generated_search_citation_bibliography_and_source_contracts_current_mai
         "--metadata",
         json.dumps({"kind": "external"}),
     )
+    created_source_audit = _latest_audit(cli_live_engine, "source.upsert", source["id"])
+    assert created_source_audit["undoable"] is True
     fetched_source = _cli_json(cli_live_engine, "sources", "get", source["id"])
     assert fetched_source["title"] == "CLI Source"
     updated_source = _cli_json(
@@ -251,6 +252,8 @@ def test_generated_search_citation_bibliography_and_source_contracts_current_mai
         "/tmp/cli-source-updated.txt",
     )
     assert updated_source["title"] == "CLI Source Updated"
+    updated_source_audit = _latest_audit(cli_live_engine, "source.update", source["id"])
+    assert updated_source_audit["undoable"] is True
     listed_sources = _cli_json(cli_live_engine, "sources", "list")
     assert any(item["id"] == source["id"] for item in listed_sources["items"])
     deleted_source = _cli_json(
@@ -260,6 +263,8 @@ def test_generated_search_citation_bibliography_and_source_contracts_current_mai
         source["id"],
     )
     assert deleted_source is None
+    deleted_source_audit = _latest_audit(cli_live_engine, "source.delete", source["id"])
+    assert deleted_source_audit["undoable"] is True
 
     # audit assertions pending /api/references->registry migration (#3046)
     listed_references = _cli_json(cli_live_engine, "references", "list")
