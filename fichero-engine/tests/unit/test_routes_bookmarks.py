@@ -21,8 +21,6 @@ def test_create_bookmark_creates_alias_document(client, db):
     assert payload["prototype_key"] == "bookmark"
     assert payload["alias_target_id"] == target.id
     assert payload["name"] == "Pinned Target"
-
-
 def test_list_bookmarks_returns_only_bookmark_nodes(client, db):
     target = Document(id="target-2", name="Real Doc", doc_type=DocType.file)
     bookmark = Document(

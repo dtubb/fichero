@@ -152,10 +152,23 @@ def _bookmark_snapshot(bookmark: Document) -> dict:
     return bookmark.model_dump(mode="json")
 
 
+def _invert_bookmark_create(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not after:
+        return None
+    bookmark_id = after.get("id")
+    if not bookmark_id:
+        return None
+    return ("document.delete", {"doc_id": bookmark_id})
+
+
 @action(
     "bookmark.create",
     BookmarkCreate,
     domains=["bookmark", "document"],
+    undoable=True,
+    invert=_invert_bookmark_create,
 )
 def _action_create_bookmark(
     db: Database, params: BookmarkCreate, ctx: ActionContext

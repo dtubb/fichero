@@ -580,7 +580,10 @@ class Database(DatabaseEmbeddingMixin):
     @staticmethod
     def _is_invalidated_error(exc: Exception) -> bool:
         message = str(exc).lower()
-        return "database has been invalidated" in message
+        return (
+            "database has been invalidated" in message
+            or "connection already closed" in message
+        )
 
     @staticmethod
     def _is_write_conflict_error(exc: Exception) -> bool:

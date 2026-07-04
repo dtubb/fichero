@@ -6,8 +6,14 @@ vocabulary from KnowledgeClaimLink. These tests cover the canonical
 /api/library/links CRUD plus the legacy /api/links alias.
 """
 
+import asyncio
+from types import SimpleNamespace
+
 from datetime import datetime
 
+import fichero.api.routes.actions_registry  # noqa: F401
+from fichero.actions.registry import ActionContext
+from fichero.api.routes.actions_registry import undo_action
 from fichero.knowledge_models import (
     ClaimRelationType,
     KnowledgeClaim,
@@ -16,7 +22,7 @@ from fichero.knowledge_models import (
     LibraryItemLink,
     LibraryItemType,
 )
-from fichero.models import Document, DocType, Note
+from fichero.models import ActionAudit, Document, DocType, Note
 
 
 # ---------------------------------------------------------------------------
@@ -53,6 +59,22 @@ def _make_claim(db, doc: Document, text: str = "A claim") -> KnowledgeClaim:
     )
     db.save(claim)
     return claim
+
+
+def _request(base_url="https://engine.local:8765/"):
+    return SimpleNamespace(state=SimpleNamespace(user=None), base_url=base_url)
+
+
+def _undo(db, audit_id: str, library_path: str):
+    return asyncio.run(
+        undo_action(
+            audit_id,
+            db=db,
+            ctx=ActionContext(actor="tester", library_path=library_path),
+            x_fichero_library_path=library_path,
+            x_fichero_origin_window=None,
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -123,6 +145,39 @@ class TestCreateLibraryLink:
             "relation_type": "related_to",
         })
         assert r.status_code == 200, r.text
+
+    def test_create_writes_audit_and_undo_deletes_link(self, client, db, monkeypatch):
+        calls: list[tuple] = []
+        monkeypatch.setattr(
+            "fichero.api.change_stream.emit_change",
+            lambda *a, **k: calls.append((a, k)),
+        )
+        doc = _make_document(db)
+        entity = _make_entity(db)
+
+        r = client.post("/api/library/links", json={
+            "source_id": doc.id,
+            "source_type": "document",
+            "target_id": entity.id,
+            "target_type": "entity",
+            "relation_type": "related_to",
+        })
+
+        assert r.status_code == 200, r.text
+        link_id = r.json()["id"]
+        audit = db.all(ActionAudit)[-1]
+        assert audit.action_name == "library-link.create"
+        assert audit.after == {"link_id": link_id}
+        assert calls[-1][1]["type"] == "library.link.created"
+
+        inverse = _undo(db, audit.id, str(db.path.parent))
+
+        assert db.get(LibraryItemLink, link_id) is None
+        inverse_audit = db.get(ActionAudit, inverse.audit_id)
+        assert inverse_audit is not None
+        assert inverse_audit.action_name == "library-link.delete"
+        assert inverse_audit.inverse_of == audit.id
+        assert calls[-1][1]["type"] == "library.link.deleted"
 
 
 # ---------------------------------------------------------------------------
@@ -247,6 +302,49 @@ class TestUpdateLibraryLink:
         r = client.patch("/api/library/links/missing-link", json={"link_quality": 0.9})
         assert r.status_code == 404
 
+    def test_patch_writes_audit_and_undo_restores_previous_values(
+        self, client, db, monkeypatch
+    ):
+        calls: list[tuple] = []
+        monkeypatch.setattr(
+            "fichero.api.change_stream.emit_change",
+            lambda *a, **k: calls.append((a, k)),
+        )
+        doc = _make_document(db)
+        entity = _make_entity(db)
+        link = LibraryItemLink(
+            source_id=doc.id,
+            source_type=LibraryItemType.document,
+            target_id=entity.id,
+            target_type=LibraryItemType.entity,
+            relation_type=ClaimRelationType.supports,
+            evidence="before",
+        )
+        db.save(link)
+
+        r = client.patch(
+            f"/api/library/links/{link.id}",
+            json={"relation_type": "cites", "evidence": "after"},
+        )
+
+        assert r.status_code == 200, r.text
+        audit = db.all(ActionAudit)[-1]
+        assert audit.action_name == "library-link.update"
+        assert audit.before["relation_type"] == "supports"
+        assert audit.before["evidence"] == "before"
+        assert calls[-1][1]["type"] == "library.link.updated"
+
+        inverse = _undo(db, audit.id, str(db.path.parent))
+
+        restored = db.get(LibraryItemLink, link.id)
+        assert restored is not None
+        assert restored.relation_type == ClaimRelationType.supports
+        assert restored.evidence == "before"
+        inverse_audit = db.get(ActionAudit, inverse.audit_id)
+        assert inverse_audit is not None
+        assert inverse_audit.action_name == "library-link.restore"
+        assert inverse_audit.inverse_of == audit.id
+
 
 # ---------------------------------------------------------------------------
 # DELETE /api/library/links/{link_id}
@@ -274,6 +372,42 @@ class TestDeleteLibraryLink:
     def test_delete_missing_returns_404(self, client):
         r = client.delete("/api/library/links/missing-link")
         assert r.status_code == 404
+
+    def test_delete_writes_audit_and_undo_restores_link(self, client, db, monkeypatch):
+        calls: list[tuple] = []
+        monkeypatch.setattr(
+            "fichero.api.change_stream.emit_change",
+            lambda *a, **k: calls.append((a, k)),
+        )
+        doc = _make_document(db)
+        note = _make_note(db, doc)
+        link = LibraryItemLink(
+            source_id=doc.id,
+            source_type=LibraryItemType.document,
+            target_id=note.id,
+            target_type=LibraryItemType.note,
+            relation_type=ClaimRelationType.cites,
+        )
+        db.save(link)
+
+        r = client.delete(f"/api/library/links/{link.id}")
+
+        assert r.status_code == 200
+        audit = db.all(ActionAudit)[-1]
+        assert audit.action_name == "library-link.delete"
+        assert audit.before["id"] == link.id
+        assert calls[-1][1]["type"] == "library.link.deleted"
+
+        inverse = _undo(db, audit.id, str(db.path.parent))
+
+        restored = db.get(LibraryItemLink, link.id)
+        assert restored is not None
+        assert restored.relation_type == ClaimRelationType.cites
+        inverse_audit = db.get(ActionAudit, inverse.audit_id)
+        assert inverse_audit is not None
+        assert inverse_audit.action_name == "library-link.restore"
+        assert inverse_audit.inverse_of == audit.id
+        assert calls[-1][1]["type"] == "library.link.updated"
 
 
 # ---------------------------------------------------------------------------
