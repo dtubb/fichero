@@ -11,8 +11,6 @@ import VisionKit
 
 @main
 struct FicheroAppIOS: App {
-    private let logger = Logger(subsystem: "app.fichero.fichero", category: "FicheroAppIOS")
-
     @StateObject private var backendService = EmbeddedBackendService()
     @StateObject private var appState = AppState()
     @StateObject private var viewSettings = ViewSettings()
@@ -42,30 +40,9 @@ struct FicheroAppIOS: App {
                 .environmentObject(appState.mcpService)
                 .environmentObject(captureQueue)
                 .environment(kgFocusState)
-                .task {
-                    // One phase owner drives the shared BackendRootGate (#3107).
-                    // Not paired yet (or no host) → first-run pairing; paired but
-                    // unreachable → the diagnostic error, never the pairing prompt.
-                    guard RemoteAccessConfig.hasPairedLibraryPath else {
-                        appState.engine.markSetupNeeded()
-                        return
-                    }
-
-                    await appState.checkBackendHealth()
-                    guard appState.isBackendRunning else {
-                        logger.error(
-                            "External backend is not reachable at \(EngineConfig.host.absoluteString, privacy: .public)"
-                        )
-                        return
-                    }
-                    appState.startBackendHeartbeat()
-                    await KnownLibraryRegistryStore.shared.refresh()
-                    libraryManager.adoptPairedRemoteLibrary()
-                    await libraryManager.backendDidBecomeReady()
-                    await captureQueue.resumePendingUploads(
-                        using: MobileCaptureBackendUploadClient(libraryManager: libraryManager)
-                    )
-                }
+                // Launch connects via the SAME entry point as the Retry button
+                // and pairing (#3108): FicheroSharedPlatformRoot owns the single
+                // `reconnectToConfiguredHost()` task.
         }
 
         // Detached document-detail scene, mirroring the macOS registration so
@@ -87,6 +64,7 @@ private struct IdentifiableURL: Identifiable {
 }
 
 private struct FicheroSharedPlatformRoot: View {
+    private let logger = Logger(subsystem: "app.fichero.fichero", category: "FicheroSharedPlatformRoot")
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var libraryManager: LibraryManager
     @EnvironmentObject private var captureQueue: MobileCaptureQueueStore
@@ -112,7 +90,7 @@ private struct FicheroSharedPlatformRoot: View {
         // prompt (#2864). backendService flows in via @EnvironmentObject.
         BackendRootGate(
             appState: appState,
-            onReconnect: { await reconnectToConfiguredHost() },
+            onRetry: { await reconnectToConfiguredHost() },
             setup: {
                 RemoteConnectionSetupView {
                     await reconnectToConfiguredHost()
@@ -148,13 +126,25 @@ private struct FicheroSharedPlatformRoot: View {
             .environmentObject(libraryManager)
             .environmentObject(captureQueue)
         }
+        // Launch connects through the SAME entry point as the Retry button and
+        // pairing (#3108) — one iOS connect path, no divergent launch task.
+        .task { await reconnectToConfiguredHost() }
     }
 
+    /// The ONE iOS connect entry point (#3108): launch, the connection view's
+    /// Retry, and incoming-pair all call this. Pairing is checked FIRST so a
+    /// fresh, unpaired install shows first-run setup instead of a pointless
+    /// probe-then-unreachable flash.
     private func reconnectToConfiguredHost() async {
-        await appState.checkBackendHealth()
-        guard appState.isBackendRunning else { return }
         guard RemoteAccessConfig.hasPairedLibraryPath else {
             appState.engine.markSetupNeeded()
+            return
+        }
+        await appState.checkBackendHealth()
+        guard appState.isBackendRunning else {
+            logger.error(
+                "External backend is not reachable at \(EngineConfig.host.absoluteString, privacy: .public)"
+            )
             return
         }
         appState.startBackendHeartbeat()

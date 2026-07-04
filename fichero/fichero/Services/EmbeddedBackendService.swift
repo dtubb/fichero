@@ -66,6 +66,18 @@ final class EmbeddedBackendService: ObservableObject {
     /// and flip status to .failed (#2863).
     private var intentionalStop = false
 
+    /// True while a start()/respawn is in flight. Guards against a second
+    /// `retry()` spawning a duplicate engine or racing the first probe (#3108):
+    /// a retry while starting is a no-op. Because `start()` is @MainActor, the
+    /// guard+set at the top run without interleaving up to the first `await`,
+    /// so concurrent retries deterministically see this true and bounce.
+    private(set) var isStarting = false
+
+    /// How many `start()` calls passed the re-entrancy guard — the spawn-attempt
+    /// counter the concurrency-stress test asserts stays at 1 under N rapid
+    /// retries (#3108).
+    private(set) var startAttemptsPassedGuard = 0
+
     /// How the port pre-flight resolved (#2863).
     private enum PortResolution { case spawnOurs, adoptExisting }
 
@@ -73,6 +85,17 @@ final class EmbeddedBackendService: ObservableObject {
 
     /// Start the embedded backend
     func start() async throws {
+        // One spawn per host at a time (#3108): a retry fired while a start is
+        // already in flight is a no-op, so N rapid retries never spawn a second
+        // engine or race the first readiness probe.
+        guard !isStarting else {
+            logger.info("start() ignored — a start/retry is already in flight (#3108)")
+            return
+        }
+        isStarting = true
+        startAttemptsPassedGuard += 1
+        defer { isStarting = false }
+
         if await useExistingBackendIfAvailable() {
             return
         }

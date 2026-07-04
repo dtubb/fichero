@@ -74,7 +74,18 @@ struct DocumentTabView: View {
 
     @ViewBuilder
     private var backendConnectionView: some View {
-        BackendConnectionView(appState: appState, onConnected: completeBackendRetryReadiness)
+        // Render-only connection view (#3108): the Retry button re-probes health
+        // and, on success, runs the post-ready wiring. The window's root gate is
+        // the primary surface for a dead engine; this in-tab fallback is rare.
+        BackendConnectionView(appState: appState, onRetry: retryBackendConnection)
+    }
+
+    @MainActor
+    private func retryBackendConnection() async {
+        appState.engine.markStarting()
+        await appState.checkBackendHealth()
+        guard appState.isBackendRunning else { return }
+        await completeBackendRetryReadiness()
     }
 
     @ViewBuilder

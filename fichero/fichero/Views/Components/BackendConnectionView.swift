@@ -14,28 +14,17 @@ import SwiftUI
 /// generic SF symbol.
 struct BackendConnectionView: View {
     @ObservedObject var appState: AppState
-    var onConnected: (@MainActor () async -> Void)?
+    /// The single retry entry point (#3108), supplied by the root gate. The
+    /// button just calls this; the view never probes health, writes backend
+    /// status, or re-implements `start()` — it is render-only.
+    var onRetry: (@MainActor () async -> Void)?
     @EnvironmentObject var backendService: EmbeddedBackendService
 
-    /// Index into `Self.startupMessages`, advanced by a timer.
+    /// Index into `Self.startupMessages`, advanced by a timer while `.starting`.
     @State private var messageIndex: Int = 0
 
     /// Animation phase for the connecting-dots between app + engine icons.
     @State private var dotPhase: Int = 0
-
-    /// How many consecutive 5-second health-poll intervals have passed without
-    /// the backend coming up. When this hits `maxPollAttempts` the view
-    /// declares failure rather than spinning forever on "Almost ready…".
-    @State private var pollCount: Int = 0
-
-    /// Incremented each time the user taps "Restart Engine". Both `.task`
-    /// blocks are keyed on this value so SwiftUI cancels and re-creates them
-    /// on each restart, resuming the poll loop from scratch.
-    @State private var restartCount: Int = 0
-    @State private var completedConnectionForCurrentAttempt = false
-
-    /// 12 × 5 s = 60 s before we give up and show the error state.
-    private static let maxPollAttempts = 12
 
     private var usesExternalBackendConnection: Bool {
         #if os(iOS) || os(visionOS)
@@ -45,7 +34,7 @@ struct BackendConnectionView: View {
         #endif
     }
 
-    /// Messages cycled while `backendService.status == .starting`.
+    /// Messages cycled while the session is `.starting` (`engine.isChecking`).
     ///
     /// Honest phrasing only: the engine doesn't load models, prepare the
     /// graph, or index the library at startup — it imports Python libraries
@@ -146,15 +135,6 @@ struct BackendConnectionView: View {
         usesExternalBackendConnection ? "Connect to a running Fichero engine to continue." : "This can take a moment."
     }
 
-    @MainActor
-    private func completeSuccessfulConnection() async {
-        guard !completedConnectionForCurrentAttempt else { return }
-        completedConnectionForCurrentAttempt = true
-        backendService.status = .running
-        backendService.errorMessage = nil
-        await onConnected?()
-    }
-
     var body: some View {
         VStack(spacing: 24) {
             // Two icons side-by-side — Fichero (app) on the left, Engine
@@ -229,55 +209,25 @@ struct BackendConnectionView: View {
                 }
             }
 
-            // Shown only after startup failure or timeout — not during normal
-            // booting where the user hasn't done anything wrong. Tapping
-            // "Restart Engine" stops the current (likely stuck) engine
-            // process and re-launches it, resetting the poll counter so
-            // the 60-second window starts fresh.
+            // Shown only after a failure phase — not during normal booting where
+            // the user hasn't done anything wrong. Tapping it runs the single
+            // retry entry point (#3108): macOS respawns the stuck engine, iOS
+            // re-adopts its paired host. The button is absent while `.starting`,
+            // so a retry can never SIGTERM a healthy cold-starting engine.
             if isFailed {
                 HStack(spacing: 12) {
                     Button {
-                        Task {
-                            pollCount = 0
-                            messageIndex = 0
-                            restartCount += 1
-                            completedConnectionForCurrentAttempt = false
-                            // Reset to the starting phase so a fresh spawn (which
-                            // rewrites the token) gets a clean readiness check;
-                            // clears any prior authRejected/failed diagnosis.
-                            appState.engine.markStarting()
-
-                            if usesExternalBackendConnection {
-                                backendService.status = .starting
-                                backendService.errorMessage = nil
-                                await appState.checkBackendHealth()
-                                if !appState.isBackendRunning {
-                                    backendService.status = .failed
-                                    backendService.errorMessage = appState.backendError
-                                } else {
-                                    await completeSuccessfulConnection()
-                                }
-                            } else {
-                                // Reset view state before restarting so the re-keyed
-                                // tasks resume from a clean boot state.
-                                backendService.status = .stopped
-                                backendService.stop()
-                                do {
-                                    try await backendService.start()
-                                    await appState.checkBackendHealth()
-                                    if appState.isBackendRunning {
-                                        await completeSuccessfulConnection()
-                                    }
-                                } catch {
-                                    appState.engine.markFailed(error.localizedDescription)
-                                }
-                            }
-                        }
+                        // Reset the cycling copy, then delegate to the ONE retry
+                        // entry point (#3108). The retry flips the phase back to
+                        // `.starting`, which re-fires the booting UI below — the
+                        // view never probes health or spawns an engine itself.
+                        messageIndex = 0
+                        Task { await onRetry?() }
                     } label: {
                         Label(usesExternalBackendConnection ? "Retry Connection" : "Restart Engine", systemImage: "arrow.clockwise")
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(backendService.status == .starting)
+                    .disabled(backendService.isStarting)
 
                     #if canImport(AppKit)
                     // Show the engine log so a failure has a next step beyond
@@ -298,40 +248,27 @@ struct BackendConnectionView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(platformColor: .windowBackgroundColor))
-        .task(id: restartCount) {
-            // Poll health every 5 s while the engine is booting. After
-            // maxPollAttempts failures we give up and flip status to
-            // .failed so the error UI appears — this prevents the view
-            // from cycling "Almost ready…" forever if the engine hangs.
-            while !appState.isBackendRunning && backendService.status != .failed {
+        .task(id: appState.engine.isChecking) {
+            // Cycle the honest status copy while the session is `.starting`
+            // (#3108). Render-only: readiness is owned by the session's single
+            // poller (fast poll while starting, heartbeat while ready) — this
+            // loop only advances the message index, it never probes or writes
+            // backend state.
+            guard appState.engine.isChecking else { return }
+            while !Task.isCancelled, appState.engine.isChecking {
                 try? await Task.sleep(for: .seconds(5))
                 if Task.isCancelled { return }
-                if backendService.status == .starting {
-                    withAnimation(.easeInOut(duration: 0.4)) {
-                        messageIndex = min(messageIndex + 1, Self.startupMessages.count - 1)
-                    }
-                }
-                await appState.checkBackendHealth()
-                if appState.isBackendRunning {
-                    await completeSuccessfulConnection()
-                    return
-                }
-                if !appState.isBackendRunning && backendService.status != .failed {
-                    pollCount += 1
-                    if pollCount >= Self.maxPollAttempts {
-                        let msg = "Engine did not respond after \(Self.maxPollAttempts * 5) seconds."
-                        backendService.status = .failed
-                        backendService.errorMessage = msg
-                        appState.engine.markFailed(msg)
-                    }
+                withAnimation(.easeInOut(duration: 0.4)) {
+                    messageIndex = min(messageIndex + 1, Self.startupMessages.count - 1)
                 }
             }
         }
-        .task(id: restartCount) {
-            // Dot animation — runs independently at a faster cadence so the
-            // visual stays alive even while the message timer waits.
-            // Stops when the backend is up or when failure is declared.
-            while !appState.isBackendRunning && backendService.status != .failed {
+        .task(id: appState.engine.isChecking) {
+            // Dot animation — faster cadence so the splash stays alive between
+            // message changes. Also purely visual; stops as soon as the session
+            // leaves `.starting`.
+            guard appState.engine.isChecking else { return }
+            while !Task.isCancelled, appState.engine.isChecking {
                 try? await Task.sleep(for: .milliseconds(450))
                 if Task.isCancelled { return }
                 withAnimation(.easeInOut(duration: 0.25)) {

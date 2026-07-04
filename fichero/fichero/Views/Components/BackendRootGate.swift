@@ -21,10 +21,12 @@ import SwiftUI
 /// gate, replacing the divergent hand-rolled iOS session handling.
 struct BackendRootGate<Content: View, Setup: View>: View {
     @ObservedObject var appState: AppState
-    /// Optional reconnect run when the connection view's Retry succeeds (iOS
-    /// re-adopts its paired remote host). macOS restarts the embedded engine
-    /// inside the connection view, so it passes nil.
-    var onReconnect: (@MainActor () async -> Void)?
+    /// The ONE retry entry point (#3108): re-run the platform's connect
+    /// sequence. macOS respawns the embedded engine, iOS re-adopts the paired
+    /// remote host — and the launch task calls the SAME function, so the Retry
+    /// button never re-implements `start()`. Wired to the connection view's
+    /// Retry button; the button is the only writer that triggers it.
+    var onRetry: (@MainActor () async -> Void)?
     @ViewBuilder let setup: () -> Setup
     @ViewBuilder let content: () -> Content
 
@@ -37,7 +39,7 @@ struct BackendRootGate<Content: View, Setup: View>: View {
         case .setupNeeded:
             setup()
         case .starting, .portConflict, .authRejected, .unreachable, .failed:
-            BackendConnectionView(appState: appState, onConnected: onReconnect)
+            BackendConnectionView(appState: appState, onRetry: onRetry)
         }
     }
 }

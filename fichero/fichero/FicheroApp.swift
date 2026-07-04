@@ -130,6 +130,61 @@ struct FicheroApp: App {
         // App auto-activates on URL handling
     }
 
+    /// The ONE macOS connect sequence (#3108): used by the launch task AND the
+    /// connection view's Retry button, so retry never re-implements `start()`.
+    /// `restart` respawns a wedged embedded engine before probing; the launch
+    /// path passes false. `start()`'s own re-entrancy guard makes a retry fired
+    /// while a start is already in flight a no-op.
+    @MainActor
+    private func connectBackend(restart: Bool) async {
+        let usesExternal = EngineConfig.requiresExternalBackendConnection
+        // Back to `.starting` so the connection view shows the booting splash
+        // (and clears any prior failure diagnosis) while we probe.
+        appState.engine.markStarting()
+        backendService.status = .starting
+        backendService.errorMessage = nil
+
+        let backendStart = Date()
+        do {
+            if !usesExternal {
+                // Respawn a stuck engine on an explicit retry; a fresh launch
+                // just starts. The port pre-flight / orphan sweep lives in start().
+                if restart {
+                    backendService.stop()
+                }
+                try await backendService.start()
+                let backendMs = Date().timeIntervalSince(backendStart) * 1000
+                logger.info("⏱ backendService.start: \(backendMs, format: .fixed(precision: 1))ms")
+            }
+
+            // One health probe after the engine is up, so startup state and
+            // window state converge without overlapping probes.
+            await appState.checkBackendHealth()
+            guard appState.isBackendRunning else {
+                backendService.status = .failed
+                backendService.errorMessage = appState.backendError
+                logger.error(
+                    "Backend not reachable at \(EngineConfig.host.absoluteString, privacy: .public)"
+                )
+                return
+            }
+
+            backendService.status = .running
+            backendService.errorMessage = nil
+            // The heartbeat is the single ongoing poller once ready (#3108); its
+            // own guard makes repeated calls idempotent.
+            appState.startBackendHeartbeat()
+            await KnownLibraryRegistryStore.shared.refresh()
+            if usesExternal {
+                libraryManager.adoptPairedRemoteLibrary()
+            }
+            await libraryManager.backendDidBecomeReady()
+        } catch {
+            logger.error("Failed to start backend: \(error.localizedDescription)")
+            await showBackendError(error)
+        }
+    }
+
     @MainActor
     private func showBackendError(_ error: Error) async {
         // Do NOT terminate the app (#3042). The window's BackendRootGate (#2864)
@@ -160,6 +215,10 @@ struct FicheroApp: App {
         // blank window with silent 401s behind the chrome.
         BackendRootGate(
             appState: appState,
+            // The connection view's Retry runs the SAME connect sequence as
+            // launch, respawning a wedged embedded engine (#3108) — the button
+            // no longer re-implements start().
+            onRetry: { await connectBackend(restart: true) },
             setup: {
                 // `.setupNeeded` never occurs on macOS (the engine is embedded,
                 // not paired); render the connection view for symmetry if it does.
@@ -197,50 +256,8 @@ struct FicheroApp: App {
                 }
                 .task {
                     appDelegate.backendService = backendService
-
-                    // Start backend on app launch
-                    let backendStart = Date()
-                    if EngineConfig.requiresExternalBackendConnection {
-                        backendService.status = .starting
-                        await appState.checkBackendHealth()
-                        let backendMs = Date().timeIntervalSince(backendStart) * 1000
-                        logger.info("⏱ remote backend probe: \(backendMs, format: .fixed(precision: 1))ms")
-                        if appState.isBackendRunning {
-                            backendService.status = .running
-                            backendService.errorMessage = nil
-                            appState.startBackendHeartbeat()
-                            await KnownLibraryRegistryStore.shared.refresh()
-                            libraryManager.adoptPairedRemoteLibrary()
-                            await libraryManager.backendDidBecomeReady()
-                        } else {
-                            backendService.status = .failed
-                            backendService.errorMessage = appState.backendError
-                            logger.error(
-                                "Configured backend is not reachable at \(EngineConfig.host.absoluteString, privacy: .public)"
-                            )
-                        }
-                    } else {
-                        do {
-                            try await backendService.start()
-                            let backendMs = Date().timeIntervalSince(backendStart) * 1000
-                            logger.info("⏱ backendService.start: \(backendMs, format: .fixed(precision: 1))ms")
-                            // Serialize the launch health probe after the backend is
-                            // running so startup state and window state converge
-                            // without overlapping probes.
-                            await appState.checkBackendHealth()
-                            guard appState.isBackendRunning else {
-                                backendService.status = .failed
-                                backendService.errorMessage = appState.backendError
-                                throw BackendError.notRunning
-                            }
-                            appState.startBackendHeartbeat()
-                            await KnownLibraryRegistryStore.shared.refresh()
-                            await libraryManager.backendDidBecomeReady()
-                        } catch {
-                            logger.error("Failed to start backend: \(error.localizedDescription)")
-                            await showBackendError(error)
-                        }
-                    }
+                    // Launch and the Retry button share ONE connect sequence (#3108).
+                    await connectBackend(restart: false)
                 }
         }
         .defaultSize(width: 1400, height: 900)
