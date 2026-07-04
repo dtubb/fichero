@@ -165,7 +165,6 @@ def test_generated_search_citation_bibliography_and_source_contracts_current_mai
     deleted_audit = _latest_audit(cli_live_engine, "citation.delete", citation["id"])
     assert deleted_audit["undoable"] is True
 
-    # audit assertions pending /api/bibliography->registry migration (#3045)
     attached = _cli_json(
         cli_live_engine,
         "bibliography",
@@ -184,6 +183,8 @@ def test_generated_search_citation_bibliography_and_source_contracts_current_mai
     )
     assert attached["document_id"] == doc_id
     assert attached["metadata"]["title"] == "Seed Title"
+    attached_audit = _latest_audit(cli_live_engine, "bibliography.attach", doc_id)
+    assert attached_audit["undoable"] is True
     metadata = _cli_json(
         cli_live_engine,
         "bibliography",
@@ -200,6 +201,10 @@ def test_generated_search_citation_bibliography_and_source_contracts_current_mai
         json.dumps({"title": "Patched Title", "author": "Codex"}),
     )
     assert patched_metadata["metadata"]["title"] == "Patched Title"
+    patched_metadata_audit = _latest_audit(
+        cli_live_engine, "bibliography.patch_metadata", doc_id
+    )
+    assert patched_metadata_audit["undoable"] is True
     parsed_bib = _cli_json(
         cli_live_engine,
         "bibliography",
