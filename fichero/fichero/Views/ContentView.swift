@@ -456,9 +456,9 @@ struct ContentView: View {
         .modifier(NavigationSubtitleCompat(
             subtitle: horizontalSizeClass == .compact ? "" : breadcrumbSubtitle
         ))
-        // At compact width, search moves out of the (dropped) principal toolbar
-        // field into the native `.searchable` bar (#2814).
-        .modifier(CompactSearchableModifier(
+        // Native `.searchable` for all widths (#3037) — replaces the hand-rolled
+        // fixed-220 principal search field; the breadcrumb lozenge stays.
+        .modifier(ToolbarSearchableModifier(
             text: $toolbarSearchText,
             isCompact: horizontalSizeClass == .compact,
             onSubmit: { runToolbarSearch(toolbarSearchText) }
@@ -869,14 +869,9 @@ extension ContentView {
                     RoundedRectangle(cornerRadius: 6)
                         .fill(Color.primary.opacity(0.06))
                 )
-
-                TextField("Search \(toolbarTitle)", text: $toolbarSearchText)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 220)
-                    .onSubmit {
-                        runToolbarSearch(toolbarSearchText)
-                    }
-                    .help("Search current content")
+                // Search field removed (#3037) — now the native `.searchable`
+                // bar (ToolbarSearchableModifier). The breadcrumb lozenge above
+                // stays as the principal-zone context chrome.
                 }
             }
         }
@@ -911,23 +906,28 @@ private struct NavigationSubtitleCompat: ViewModifier {
 /// where the Mac-style principal breadcrumb + fixed-width search field are
 /// dropped (#2814). A no-op elsewhere, so macOS/iPad-regular keep the principal
 /// search field.
-private struct CompactSearchableModifier: ViewModifier {
+/// Native toolbar search for every width/platform (#3037), replacing the
+/// hand-rolled fixed-220 principal-zone TextField. `.automatic` placement lets
+/// the system site it: macOS + iPad-regular put it in the toolbar; iPhone/compact
+/// gets the nav-bar search bar for free. Only the compact inline-title tweak is
+/// platform-gated.
+private struct ToolbarSearchableModifier: ViewModifier {
     @Binding var text: String
     let isCompact: Bool
     let onSubmit: () -> Void
 
     func body(content: Content) -> some View {
+        let searchable = content
+            .searchable(text: $text, placement: .automatic, prompt: "Search")
+            .onSubmit(of: .search, onSubmit)
         #if os(iOS)
         if isCompact {
-            content
-                .searchable(text: $text, prompt: "Search")
-                .onSubmit(of: .search, onSubmit)
-                .navigationBarTitleDisplayMode(.inline)
+            searchable.navigationBarTitleDisplayMode(.inline)
         } else {
-            content
+            searchable
         }
         #else
-        content
+        searchable
         #endif
     }
 }
