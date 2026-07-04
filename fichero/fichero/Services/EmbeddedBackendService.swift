@@ -1,6 +1,3 @@
-#if canImport(AppKit)
-import AppKit
-#endif
 import FicheroAPIClient
 import Foundation
 import OSLog
@@ -80,6 +77,44 @@ final class EmbeddedBackendService: ObservableObject {
 
     /// How the port pre-flight resolved (#2863).
     private enum PortResolution { case spawnOurs, adoptExisting }
+
+    /// The user's in-window decision for a foreign :8765 holder (#3111): Stop it
+    /// (SIGTERM + respawn) or Use it (adopt, still gated on the authenticated
+    /// probe). Quit is a pure UI action (user-chosen terminate), so it isn't
+    /// modelled here. Set by the connection view's buttons before a retry;
+    /// `resolvePortConflict` consumes it exactly once. nil → surface the
+    /// portConflict phase instead of a pre-window NSAlert.
+    enum PortConflictResolution { case stopIt, useIt }
+    var pendingPortConflictResolution: PortConflictResolution?
+
+    /// The three port-conflict outcomes (#3111), separated from the lsof/kill
+    /// syscalls so every branch is unit-testable.
+    enum PortConflictAction: Equatable {
+        /// Port is free, or the user chose Stop it (the caller SIGTERMs first).
+        case spawn
+        /// The user chose Use it — adopt the existing engine (still auth-gated).
+        case adopt
+        /// A foreign process holds the port and the user hasn't decided yet —
+        /// surface the in-window `portConflict(pid)` phase.
+        case surfacePhase(pid: Int)
+    }
+
+    /// Pure port-conflict decision (#3111): given the current holder PID (nil =
+    /// free) and the pending user choice, decide spawn / adopt / surface-the-phase.
+    /// The impure `resolvePortConflict` wraps this with the orphan sweep + kill.
+    /// No silent adoption and no silent kill — a foreign holder always needs an
+    /// explicit choice (#2863).
+    static func portConflictAction(
+        holderPID: Int?,
+        pendingChoice: PortConflictResolution?
+    ) -> PortConflictAction {
+        guard let pid = holderPID else { return .spawn }
+        guard let choice = pendingChoice else { return .surfacePhase(pid: pid) }
+        switch choice {
+        case .stopIt: return .spawn
+        case .useIt: return .adopt
+        }
+    }
 
     // MARK: - Lifecycle
 
@@ -197,7 +232,7 @@ final class EmbeddedBackendService: ObservableObject {
         // is STILL held by a process we can't claim, ask the user (Stop it /
         // Use it / Quit) rather than silently adopting an engine that may
         // reject our token and leave a blank window.
-        switch await resolvePortConflict() {
+        switch try resolvePortConflict() {
         case .adoptExisting:
             isExternalBackend = true
             expectedLaunchNonce = nil
@@ -726,57 +761,42 @@ final class EmbeddedBackendService: ObservableObject {
         return first.flatMap { pid_t($0) }
     }
 
-    /// Port pre-flight (#2863). Sweep our own orphans; if the port is then
-    /// STILL held by a process we can't claim, ask the user rather than
-    /// silently adopting or silently killing. Never returns without the port
-    /// being ours (`.spawnOurs`) or the user having chosen to adopt
-    /// (`.adoptExisting`); "Quit" terminates the app.
-    private func resolvePortConflict() async -> PortResolution {
+    /// Port pre-flight (#2863/#3111). Sweep our own orphans; if the port is
+    /// then STILL held by a process we can't claim, the user must choose —
+    /// but the decision now happens IN-WINDOW (`portConflict` phase), not in a
+    /// pre-window `NSAlert`. When no choice has been made yet, throw
+    /// `.portConflict(pid)` so the connection view can render Stop it / Use it /
+    /// Quit; the button sets `pendingPortConflictResolution` and retries, and
+    /// this consumes it exactly once. Never silently adopts or silently kills.
+    private func resolvePortConflict() throws -> PortResolution {
         Self.terminateOrphanEngines()
         Self.waitForPortToClear(8765, timeout: 3.0)
-        guard let pid = Self.pidOnPort(8765) else { return .spawnOurs }
+        let holder = Self.pidOnPort(8765).map(Int.init)
 
-        switch Self.presentPortConflictDecision(pid: pid) {
-        case .stopIt:
-            kill(pid, SIGTERM)
-            Self.waitForPortToClear(8765, timeout: 5.0)
-            if Self.portInUse(8765) {
-                kill(pid, SIGKILL)
-                Self.waitForPortToClear(8765, timeout: 2.0)
-            }
-            return .spawnOurs
-        case .useIt:
+        switch Self.portConflictAction(holderPID: holder, pendingChoice: pendingPortConflictResolution) {
+        case .surfacePhase(let pid):
+            // No decision yet → surface the in-window portConflict phase (#3111);
+            // pendingPortConflictResolution stays nil for the user to set.
+            throw BackendError.portConflict(pid: pid)
+        case .adopt:
+            // Adoption stays gated on the authenticated readiness probe
+            // downstream — an auth-rejecting squatter lands in authRejected,
+            // never ready (#2864/#3111).
+            pendingPortConflictResolution = nil
             return .adoptExisting
-        case .quit:
-            NSApplication.shared.terminate(nil)
-            return .adoptExisting  // unreachable; terminate() ends the process
-        }
-    }
-
-    private enum PortConflictChoice { case stopIt, useIt, quit }
-
-    /// Modal decision when port 8765 is held by a process we didn't spawn.
-    /// Explicit user intent replaces silent adoption (#2863).
-    private static func presentPortConflictDecision(pid: pid_t) -> PortConflictChoice {
-        let alert = NSAlert()
-        alert.messageText = "Port 8765 is already in use"
-        alert.informativeText = """
-            Another process (PID \(pid)) is already listening on port 8765, \
-            where the Fichero engine runs.
-
-            • Stop it — quit that process and start Fichero's own engine.
-            • Use it — connect to the existing engine (only works if it \
-            accepts this app's credentials).
-            • Quit — leave the other process alone and quit Fichero.
-            """
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "Stop it")   // .alertFirstButtonReturn
-        alert.addButton(withTitle: "Use it")    // .alertSecondButtonReturn
-        alert.addButton(withTitle: "Quit")      // .alertThirdButtonReturn
-        switch alert.runModal() {
-        case .alertFirstButtonReturn: return .stopIt
-        case .alertSecondButtonReturn: return .useIt
-        default: return .quit
+        case .spawn:
+            // Stop it: SIGTERM (then SIGKILL) the foreign holder before binding.
+            // Skipped when the port was already free (no pending choice).
+            if pendingPortConflictResolution == .stopIt, let pid = holder.map({ pid_t($0) }) {
+                kill(pid, SIGTERM)
+                Self.waitForPortToClear(8765, timeout: 5.0)
+                if Self.portInUse(8765) {
+                    kill(pid, SIGKILL)
+                    Self.waitForPortToClear(8765, timeout: 2.0)
+                }
+            }
+            pendingPortConflictResolution = nil
+            return .spawnOurs
         }
     }
 
@@ -805,11 +825,19 @@ enum BackendError: LocalizedError {
     case backendAppNotFound
     case launchFailed(Error)
     case timeout
+    /// A process we didn't spawn holds port 8765 (#3111). Carries the holder's
+    /// PID (when known) so the in-window portConflict phase can name it. Handled
+    /// by the launch orchestrator (→ `markPortConflict`), never shown as a raw
+    /// error string.
+    case portConflict(pid: Int?)
 
     var errorDescription: String? {
         switch self {
         case .notRunning:
             return "Backend is not running"
+        case .portConflict(let pid):
+            let who = pid.map(String.init) ?? "unknown"
+            return "Port 8765 is held by another process (PID \(who))."
         case .bundleNotFound:
             return "App bundle resources not found"
         case .backendAppNotFound:

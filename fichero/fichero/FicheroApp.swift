@@ -184,9 +184,26 @@ struct FicheroApp: App {
                 libraryManager.adoptPairedRemoteLibrary()
             }
             await libraryManager.backendDidBecomeReady()
+        } catch BackendError.portConflict(let pid) {
+            // A process we didn't spawn holds :8765 → surface the in-window
+            // decision (#3111): Stop it / Use it / Quit. Never a pre-window
+            // NSAlert, never self-terminate (#3042).
+            logger.info("Port 8765 held by PID \(pid.map(String.init) ?? "unknown") — portConflict phase")
+            appState.engine.markPortConflict(pid: pid)
+            backendService.status = .failed
         } catch {
-            logger.error("Failed to start backend: \(error.localizedDescription)")
-            await showBackendError(error)
+            // An adopted squatter that answers health but rejects our token is
+            // authRejected, not a generic failure — the authenticated probe is
+            // the gate (#2864/#3111).
+            if backendService.lastReadiness == .authRejected {
+                appState.engine.markAuthRejected(
+                    "The engine already on port 8765 rejected this app's credentials."
+                )
+                backendService.status = .failed
+            } else {
+                logger.error("Failed to start backend: \(error.localizedDescription)")
+                await showBackendError(error)
+            }
         }
     }
 
