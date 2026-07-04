@@ -32,6 +32,7 @@ EMBED_MODEL_ENV = "FICHERO_EMBED_MODEL"
 EMBEDDINGS_TABLE = "embeddings"
 KG_ENTITY_EMBEDDINGS_TABLE = "kg_entity_embeddings"
 KG_CLAIM_EMBEDDINGS_TABLE = "kg_claim_embeddings"
+LEGACY_KG_ENTITY_EMBEDDINGS_TABLE = "kg_entities"
 EMBEDDING_MODEL_ID_FIELD = "embedding_model_id"
 EmbeddingRole = Literal["query", "passage"]
 PINNED_FASTEMBED_MODEL_ALIAS = "fichero-pinned/multilingual-e5-large-mean-v1"
@@ -574,6 +575,7 @@ class DatabaseEmbeddingMixin:
             Dict with indexed_count, table_exists
         """
         doc_stats = self._vector_table_stats(EMBEDDINGS_TABLE)
+        self.ensure_canonical_entity_embedding_table()
         entity_stats = self._vector_table_stats(KG_ENTITY_EMBEDDINGS_TABLE)
         claim_stats = self._vector_table_stats(KG_CLAIM_EMBEDDINGS_TABLE)
         return {
@@ -584,6 +586,24 @@ class DatabaseEmbeddingMixin:
             "claim_indexed_count": claim_stats["indexed_count"],
             "claim_table_exists": claim_stats["table_exists"],
         }
+
+    def ensure_canonical_entity_embedding_table(self) -> str | None:
+        """Migrate the legacy entity vector table onto the canonical name."""
+        tables = set(self._lance_tables())
+        if KG_ENTITY_EMBEDDINGS_TABLE in tables:
+            return KG_ENTITY_EMBEDDINGS_TABLE
+        if LEGACY_KG_ENTITY_EMBEDDINGS_TABLE not in tables:
+            return None
+
+        legacy_rows = (
+            self.lance.open_table(LEGACY_KG_ENTITY_EMBEDDINGS_TABLE)
+            .search()
+            .limit(1_000_000)
+            .to_list()
+        )
+        if legacy_rows:
+            self.save_vectors(KG_ENTITY_EMBEDDINGS_TABLE, legacy_rows, replace=True)
+        return KG_ENTITY_EMBEDDINGS_TABLE
 
     def _vector_table_stats(self, table_name: str) -> dict[str, int | bool]:
         """Count rows in one LanceDB vector table if present."""

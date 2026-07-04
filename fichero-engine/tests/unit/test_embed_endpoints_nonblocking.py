@@ -12,7 +12,7 @@ again, the regression is caught here.
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
@@ -97,27 +97,36 @@ async def test_embed_entities_empty_short_circuits():
 
 
 @pytest.mark.asyncio
-async def test_search_entities_semantic_falls_back_to_legacy_table():
-    """Older libraries may have entity vectors only in `kg_entities`."""
-    db = MagicMock()
+async def test_search_entities_semantic_canonicalizes_legacy_table(db):
     entity = _entity("Asprilla")
-    entity.id = "entity-1"
-    db._lance_tables.return_value = ["kg_entities"]
-    db._embed_text.return_value = [0.1, 0.2]
-    db.search_vectors.return_value = [{"id": entity.id, "_score": 0.8}]
-    db.all.return_value = [entity]
-
-    result = await kg_entity_curation.search_entities_semantic(
-        q="Asprilla",
-        entity_type=None,
-        limit=5,
-        db=db,
+    db.schedule_entity_embedding = Mock()
+    db.save(entity)
+    db.save_vectors(
+        "kg_entities",
+        [
+            {
+                "id": entity.id,
+                "text": "Asprilla",
+                "canonical_name": entity.canonical_name,
+                "aliases_text": "",
+                "description": "",
+                "entity_type": entity.entity_type.value,
+                "vector": [1.0, 0.0],
+            }
+        ],
     )
 
-    db.search_vectors.assert_called_once_with("kg_entities", [0.1, 0.2], limit=5)
+    with patch.object(db, "_embed_text", return_value=[1.0, 0.0]):
+        result = await kg_entity_curation.search_entities_semantic(
+            q="Asprilla",
+            entity_type=None,
+            limit=5,
+            db=db,
+        )
+
     assert result.count == 1
     assert result.items[0]["id"] == entity.id
-    assert result.items[0]["similarity_score"] == 0.8
+    assert "kg_entity_embeddings" in db._lance_tables()
 
 
 @pytest.mark.asyncio
@@ -139,6 +148,7 @@ async def test_embed_claims_empty_short_circuits():
 @pytest.mark.asyncio
 async def test_embed_entities_writes_canonical_table_and_searches(db):
     entity = _entity("Asprilla")
+    db.schedule_entity_embedding = Mock()
     db.save(entity)
 
     with patch.object(db, "_embed_texts", return_value=[[1.0, 0.0]]):
@@ -170,6 +180,7 @@ async def test_embed_claims_writes_canonical_table_and_searches(db):
         object_phrase="the mine",
         source_excerpt="Asprilla worked the mine.",
     )
+    db.schedule_claim_embedding = Mock()
     db.save(claim)
 
     with patch.object(db, "_embed_texts", return_value=[[1.0, 0.0]]):
@@ -206,6 +217,8 @@ def test_rebuild_backfills_entities_and_claims_idempotently(db):
         object_phrase="a diary",
         source_excerpt="Marshall kept a diary.",
     )
+    db.schedule_entity_embedding = Mock()
+    db.schedule_claim_embedding = Mock()
     db.save(entity)
     db.save(claim)
 

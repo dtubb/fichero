@@ -36,7 +36,6 @@ from fichero.models import EntityAuditListResponse, KGGraphListResponse
 router = APIRouter(prefix="/kg/entity-curation")
 kg_entities_router = APIRouter(prefix="/kg/entities", tags=["knowledge-graph"])
 
-LEGACY_KG_ENTITY_EMBEDDINGS_TABLE = "kg_entities"
 
 
 class EntityMergeRequest(BaseModel):
@@ -102,19 +101,8 @@ def _vector_similarity(row: dict[str, Any]) -> float:
 
 
 def _entity_embeddings_table_name(db: Database) -> str | None:
-    """Resolve the entity vector table for semantic search.
-
-    `kg_entities` is the long-lived table populated by entity upserts and KG
-    rebuilds. `kg_entity_embeddings` is the newer batch-embed route's table.
-    Keep semantic search readable across both so older libraries with existing
-    vectors do not 503.
-    """
-    tables = set(db._lance_tables())
-    if KG_ENTITY_EMBEDDINGS_TABLE in tables:
-        return KG_ENTITY_EMBEDDINGS_TABLE
-    if LEGACY_KG_ENTITY_EMBEDDINGS_TABLE in tables:
-        return LEGACY_KG_ENTITY_EMBEDDINGS_TABLE
-    return None
+    """Resolve the canonical entity vector table for semantic search."""
+    return db.ensure_canonical_entity_embedding_table()  # type: ignore[attr-defined]
 
 
 def search_entities_semantic_impl(
