@@ -535,17 +535,3 @@ extension Document {
         return false
     }
 }
-
-// MARK: - Health
-
-struct HealthResponse: Codable {
-    let status: String
-    let backendVersion: String
-    let activeLibraries: Int
-
-    enum CodingKeys: String, CodingKey {
-        case status
-        case backendVersion = "backend_version"
-        case activeLibraries = "active_libraries"
-    }
-}

@@ -160,7 +160,7 @@ extension LibraryManager {
     /// Initialize the backend database for a library
     func initializeBackendDatabase(for library: LibraryReference) async {
         do {
-            let _: HealthResponse = try await library.apiClient.get("/health")
+            _ = try await library.apiClient.healthCheck()  // generated health_check op (#3030)
             libraryManagerLogger.info("Initialized backend database for: \(library.displayName)")
         } catch {
             libraryManagerLogger.error("Failed to initialize backend database: \(error.localizedDescription)")
