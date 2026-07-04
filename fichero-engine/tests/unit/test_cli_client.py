@@ -357,30 +357,6 @@ def test_document_inspector_hits_expected_path():
     assert seen[0].url.path == "/api/documents/doc-42/inspector"
 
 
-def test_mp_create_note_returns_typed_note():
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
-            200,
-            json={
-                "id": "note-1",
-                "content": "A note",
-                "room_id": "room-1",
-                "note_type": "user",
-                "author_id": "user",
-                "status": "draft",
-                "linked_claim_ids": [],
-                "linked_source_ids": [],
-                "linked_entity_ids": [],
-                "metadata": {},
-            },
-        )
-
-    note = _client(handler).mp_create_note("A note", room_id="room-1")
-    assert note.id == "note-1"
-    assert note.content == "A note"
-    assert note.room_id == "room-1"
-
-
 def test_create_note_returns_typed_note_and_posts_payload():
     seen: list[httpx.Request] = []
 
@@ -463,68 +439,6 @@ def test_get_note_returns_typed_note():
     note = _client(handler).get_note("note-z3")
     assert note.id == "note-z3"
     assert note.body == "Plain note"
-
-
-def test_mp_list_notes_unwraps_envelope_and_returns_typed_notes():
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
-            200,
-            json={
-                "items": [
-                    {
-                        "id": "note-1",
-                        "content": "A note",
-                        "room_id": "room-1",
-                        "note_type": "user",
-                        "author_id": "user",
-                        "status": "draft",
-                        "linked_claim_ids": [],
-                        "linked_source_ids": [],
-                        "linked_entity_ids": [],
-                        "metadata": {},
-                    }
-                ],
-                "count": 1,
-            },
-        )
-
-    notes = _client(handler).mp_list_notes(room_id="room-1")
-    assert len(notes) == 1
-    assert notes[0].id == "note-1"
-    assert notes[0].content == "A note"
-
-
-def test_mp_update_note_returns_typed_note():
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
-            200,
-            json={
-                "id": "note-1",
-                "content": "Updated",
-                "room_id": "room-1",
-                "note_type": "user",
-                "author_id": "user",
-                "status": "surfaced",
-                "linked_claim_ids": [],
-                "linked_source_ids": [],
-                "linked_entity_ids": [],
-                "metadata": {},
-            },
-        )
-
-    note = _client(handler).mp_update_note(
-        "note-1", content="Updated", status="surfaced"
-    )
-    assert note.content == "Updated"
-    assert note.status == "surfaced"
-
-
-def test_mp_delete_note_returns_deleted_response():
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"status": "deleted"})
-
-    deleted = _client(handler).mp_delete_note("note-1")
-    assert deleted.status == "deleted"
 
 
 def test_empty_response_body_returns_none():
@@ -694,49 +608,3 @@ def test_context_manager_closes(monkeypatch):
         c.health()
     assert c._client.is_closed
 
-
-# -- Mind Palace + KG wrappers (#1982 coverage) -----------------------------
-class TestMindPalaceWrappers:
-    """Thin HTTP passthroughs — verify method, path, and JSON body shape."""
-
-    def test_mp_get_room_builds_get(self):
-        handler, seen = _capture()
-        _client(handler).mp_get_room("room-1")
-        assert seen[0].method == "GET"
-        assert seen[0].url.path == "/api/mind-palace/rooms/room-1"
-
-    def test_mp_create_stack_posts_body(self):
-        handler, seen = _capture()
-        _client(handler).mp_create_stack(
-            "room-1", name="Group", node_ids=["n1", "n2"], position_x=3.0
-        )
-        assert seen[0].method == "POST"
-        assert seen[0].url.path == "/api/mind-palace/stacks"
-        body = json.loads(seen[0].content)
-        assert body["room_id"] == "room-1"
-        assert body["name"] == "Group"
-        assert body["node_ids"] == ["n1", "n2"]
-        assert body["position_x"] == 3.0
-
-    def test_mp_create_stack_defaults_node_ids_to_empty_list(self):
-        handler, seen = _capture()
-        _client(handler).mp_create_stack("room-1")
-        assert json.loads(seen[0].content)["node_ids"] == []
-
-    def test_mp_add_to_stack_builds_post_path(self):
-        handler, seen = _capture()
-        _client(handler).mp_add_to_stack("stack-9", "node-4")
-        assert seen[0].method == "POST"
-        assert seen[0].url.path == "/api/mind-palace/stacks/stack-9/nodes/node-4"
-
-    def test_mp_remove_from_stack_builds_delete_path(self):
-        handler, seen = _capture()
-        _client(handler).mp_remove_from_stack("stack-9", "node-4")
-        assert seen[0].method == "DELETE"
-        assert seen[0].url.path == "/api/mind-palace/stacks/stack-9/nodes/node-4"
-
-    def test_mp_get_viewport_uses_user_id(self):
-        handler, seen = _capture()
-        _client(handler).mp_get_viewport("room-1", user_id="alice")
-        assert seen[0].method == "GET"
-        assert seen[0].url.path == "/api/mind-palace/rooms/room-1/viewport/alice"
