@@ -1,4 +1,4 @@
-"""Mind Palace spatial models for 0.0.2 Layer 6 — visual and text assembly workspace."""
+"""Canvas and retained spatial models."""
 
 from datetime import datetime
 from enum import Enum
@@ -31,42 +31,6 @@ class ConnectionType(str, Enum):
     ontological = "ontological"
     hermeneutic = "hermeneutic"
     user_drawn = "user_drawn"
-
-
-class NoteType(str, Enum):
-    user = "user"
-    ai_workspace = "ai_workspace"
-    ai_hypothesis = "ai_hypothesis"
-    ai_summary = "ai_summary"
-    ai_relation = "ai_relation"
-    shared = "shared"
-
-
-class AuthorType(str, Enum):
-    user = "user"
-    ai = "ai"
-    agent_team = "agent_team"
-
-
-class NoteStatus(str, Enum):
-    draft = "draft"
-    active = "active"
-    surfaced = "surfaced"
-    accepted = "accepted"
-    archived = "archived"
-    discarded = "discarded"
-
-
-class ArrangementType(str, Enum):
-    semantic = "semantic"
-    chronological = "chronological"
-    thematic = "thematic"
-
-
-class CaptureRegion(str, Enum):
-    full = "full"
-    focused = "focused"
-    selection = "selection"
 
 
 class SpatialRoom(BaseModel):
@@ -130,42 +94,6 @@ class SpatialConnection(BaseModel):
     created_by: str = "user"
     metadata: dict = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=datetime.now)
-
-
-class SpatialStack(BaseModel):
-    """Grouped nodes within a room."""
-
-    model_config = ConfigDict(from_attributes=True, extra="allow")
-
-    id: str = Field(default_factory=_new_id)
-    room_id: str
-    name: str = ""
-    node_ids: list[str] = Field(default_factory=list)
-    position_x: float = 0.0
-    position_y: float = 0.0
-    position_z: float = 0.0
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
-
-
-class NativeNote(BaseModel):
-    """First-class text note in Mind Palace workspace."""
-
-    model_config = ConfigDict(from_attributes=True, extra="allow")
-
-    id: str = Field(default_factory=_new_id)
-    room_id: str | None = None
-    content: str = ""
-    note_type: NoteType = NoteType.user
-    author_type: AuthorType = AuthorType.user
-    author_id: str = "user"
-    status: NoteStatus = NoteStatus.draft
-    linked_claim_ids: list[str] = Field(default_factory=list)
-    linked_source_ids: list[str] = Field(default_factory=list)
-    linked_entity_ids: list[str] = Field(default_factory=list)
-    metadata: dict = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
 
 
 class SpatialViewport(BaseModel):

@@ -5,7 +5,7 @@ from fichero.db_migrations import migrate_canvas_layout_table
 from fichero.knowledge.knowledge_models import KnowledgeEntity
 from fichero.models import DocType, Document
 from fichero.models import ActionAudit
-from fichero.spatial_models import CanvasItem, CanvasItemKind, CanvasLayout
+from fichero.canvas_models import CanvasItem, CanvasItemKind, CanvasLayout
 
 BASE = "/api/canvas/folders"
 

@@ -697,14 +697,12 @@ class Database(DatabaseEmbeddingMixin):
             ResearchTask,
             SearchSource,
         )
-        from fichero.spatial_models import (
+        from fichero.canvas_models import (
             CanvasLayout,
             CanvasItem,
-            NativeNote,
             SpatialConnection,
             SpatialNode,
             SpatialRoom,
-            SpatialStack,
             SpatialViewport,
         )
 
@@ -740,7 +738,6 @@ class Database(DatabaseEmbeddingMixin):
             LibraryItemLink,
             Milestone,
             MutationLog,
-            NativeNote,
             PatternInstance,
             Project,
             ProjectInclusion,
@@ -759,7 +756,6 @@ class Database(DatabaseEmbeddingMixin):
             SpatialConnection,
             SpatialNode,
             SpatialRoom,
-            SpatialStack,
             SpatialViewport,
             Trace,
             Workflow,
@@ -1234,7 +1230,7 @@ class Database(DatabaseEmbeddingMixin):
 
     def _legacy_all_spatial_room_rows(self) -> list[BaseModel]:
         """Read legacy SpatialRoom rows without node folding."""
-        from fichero.spatial_models import SpatialRoom
+        from fichero.canvas_models import SpatialRoom
 
         sql_table = self._sql_table_name(SpatialRoom)
         self._ensure_table(SpatialRoom)
@@ -1339,7 +1335,7 @@ class Database(DatabaseEmbeddingMixin):
     @staticmethod
     def _spatial_room_from_document(db: "Database", doc: Any) -> BaseModel:
         """Hydrate a SpatialRoom view-model from its folded room document."""
-        from fichero.spatial_models import RoomType, SpatialRoom
+        from fichero.canvas_models import RoomType, SpatialRoom
 
         if doc.prototype_key != _ROOM_PROTOTYPE_KEY:
             raise ValueError(f"Document {doc.id} is not a room node")
@@ -2825,7 +2821,7 @@ class Database(DatabaseEmbeddingMixin):
         if not hasattr(self.conn, "execute"):
             return
 
-        from fichero.spatial_models import SpatialRoom
+        from fichero.canvas_models import SpatialRoom
 
         table_name = self._table_name(SpatialRoom)
         table_exists = self.execute_fetchone(
