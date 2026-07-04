@@ -83,6 +83,10 @@ final class EmbeddedBackendService: ObservableObject {
 
     // MARK: - Lifecycle
 
+    /// The provisioning strategy the most recent `start()` acted on (#3109),
+    /// so the mode is inspectable rather than re-derived. nil before first start.
+    private(set) var lastProvisioningStrategy: EngineConfig.EngineProvisioningStrategy?
+
     /// Start the embedded backend
     func start() async throws {
         // One spawn per host at a time (#3108): a retry fired while a start is
@@ -96,19 +100,99 @@ final class EmbeddedBackendService: ObservableObject {
         startAttemptsPassedGuard += 1
         defer { isStarting = false }
 
-        if await useExistingBackendIfAvailable() {
-            return
-        }
+        // The provisioning mode is decided ONCE from explicit inputs (#3109) and
+        // consumed here — no scattered #if DEBUG / usesCustomHost / preview
+        // re-derivation. Loopback-only bind + pinned HTTPS are unchanged in every
+        // mode (they live in launchEmbeddedBackend / the readiness probe).
+        let strategy = EngineConfig.engineProvisioningStrategy()
+        lastProvisioningStrategy = strategy
+        logger.info("Engine provisioning strategy: \(String(describing: strategy), privacy: .public) (#3109)")
 
+        switch strategy {
+        case .inert:
+            await adoptInertHostForPreviewOrTest()
+        case .configuredRemote, .iosCompanion:
+            try await adoptConfiguredRemoteHost()
+        #if os(macOS)
+        case .debugExternal:
+            try await adoptDebugExternalEngine()
+        case .releaseEmbedded:
+            try await spawnAndAdoptEmbeddedEngine()
+        #else
+        case .debugExternal, .releaseEmbedded:
+            // iOS never runs a local engine; the strategy never yields these on
+            // iOS, but the switch must stay exhaustive.
+            status = .failed
+            errorMessage = "No remote engine host configured. Set a custom host in Settings."
+            throw BackendError.notRunning
+        #endif
+        }
+    }
+
+    /// `inert`: previews / XCTest host / UI-test. Adopt an external engine if
+    /// one is up, else run with none — NEVER spawn or manage a lifecycle. The
+    /// XCTest harness owns its own disposable engine; the host app must not
+    /// launch the (often unbuilt) bundled engine nor terminate when it's missing.
+    private func adoptInertHostForPreviewOrTest() async {
+        expectedLaunchNonce = nil
+        logger.info("Preview / playground / XCTest host / UI-test — connecting to external if up, else no-op")
+        do {
+            try await waitForBackend(timeout: 1.5)
+            logger.info("Connected to external backend")
+        } catch {
+            logger.info("No external backend; host runs without managing one")
+        }
+        status = .running
+        isExternalBackend = true
+    }
+
+    /// `configuredRemote` / `iosCompanion`: connect to the explicit/paired host,
+    /// never spawn a local engine. Throws on failure so `start()` surfaces the
+    /// diagnosis instead of falling through to a local spawn.
+    private func adoptConfiguredRemoteHost() async throws {
+        expectedLaunchNonce = nil
+        logger.info("Configured remote host: \(EngineConfig.host.absoluteString, privacy: .public)")
+        do {
+            try await waitForBackend(timeout: 5)
+            status = .running
+            isExternalBackend = true
+            logger.info("Connected to configured external backend")
+        } catch {
+            status = .failed
+            errorMessage = error.localizedDescription
+            logger.error("Configured external backend did not respond: \(error.localizedDescription, privacy: .public)")
+            throw error
+        }
+    }
+
+    #if os(macOS)
+    /// `debugExternal`: the engine is deliberately NOT bundled in Debug (the
+    /// embed phase is Release-only, #3042), so we NEVER spawn — adopt a
+    /// developer-run engine on :8765. If nothing is up, fail with the actionable
+    /// start_backend.sh message; the window renders the diagnosis + Retry and the
+    /// app never terminates.
+    private func adoptDebugExternalEngine() async throws {
+        expectedLaunchNonce = nil
+        logger.info("DEBUG mode: adopting external engine on :8765 (engine not bundled in Debug)")
+        do {
+            try await waitForBackend(timeout: 5)
+            status = .running
+            isExternalBackend = true
+            logger.info("Connected to external backend (will not manage lifecycle)")
+        } catch {
+            status = .failed
+            logger.error("No external engine on :8765 in Debug — start it with start_backend.sh")
+            throw BackendError.backendAppNotFound
+        }
+    }
+
+    /// `releaseEmbedded`: spawn the bundled engine, app-authoritative token
+    /// (#2862). The ONLY strategy that spawns and manages a lifecycle.
+    /// Briefcase-bundled engine cold-starts in ~25s on Apple Silicon (heavy ML
+    /// imports + DB init); 90s gives margin on slower I/O and contended startup.
+    private func spawnAndAdoptEmbeddedEngine() async throws {
         logger.info("Starting embedded backend...")
         status = .starting
-
-        // Launch embedded backend (macOS only; DEBUG fallback or RELEASE always).
-        // Briefcase-bundled engine cold-starts in ~25s on Apple Silicon
-        // (heavy ML imports + DB init); 90s gives margin on slower I/O,
-        // first-launch caches, and contended startup.
-        // iOS cannot spawn a local engine — a configured remote host is required.
-        #if os(macOS)
         // Pre-flight the port (#2863). Sweep our own orphans, then if the port
         // is STILL held by a process we can't claim, ask the user (Stop it /
         // Use it / Quit) rather than silently adopting an engine that may
@@ -130,88 +214,8 @@ final class EmbeddedBackendService: ObservableObject {
             status = .running
             logger.info("Embedded backend started successfully")
         }
-        #else
-        status = .failed
-        errorMessage = "No remote engine host configured. Set a custom host in Settings."
-        throw BackendError.notRunning
-        #endif
     }
-
-    private func useExistingBackendIfAvailable() async -> Bool {
-        // Clear any nonce from a prior spawn — an adopted external engine is
-        // not our child, so readiness must not try to match a stale nonce.
-        expectedLaunchNonce = nil
-        // SwiftUI Previews / Xcode canvas: never spawn the embedded engine.
-        // Previews launch the full app to render a view — orphan-cleanup
-        // would SIGTERM the developer's external engine, and the briefcase
-        // cold-start (~25s) blows past the 30s preview launch timeout.
-        // Try a quick connect to a developer-managed external engine; if
-        // one is up, use it; otherwise mark as running (with no backend)
-        // so preview rendering doesn't block. Mocked previews don't hit
-        // the API anyway.
-        let env = ProcessInfo.processInfo.environment
-        let isPreview = env["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
-            || env["XCODE_RUNNING_FOR_PLAYGROUNDS"] == "1"
-        // XCTest host: a test run launches the full app as its host, so this
-        // boot path runs *before* any test code. The integration harness
-        // (EngineHarness) manages its own disposable engine and drives the
-        // services with its own client, so the host app must NEITHER launch
-        // the (often unbuilt) bundled engine NOR fatally terminate when it's
-        // missing — `showBackendError` calls NSApplication.terminate, which
-        // kills the test runner before a single test executes.
-        if isPreview || isRunningXCTests() || isUITesting() {
-            logger.info("Preview / playground / XCTest host / UI-test — connecting to external if up, else no-op")
-            do {
-                try await waitForBackend(timeout: 1.5)
-                status = .running
-                isExternalBackend = true
-                logger.info("Connected to external backend")
-            } catch {
-                logger.info("No external backend; host runs without managing one")
-                status = .running
-                isExternalBackend = true
-            }
-            return true
-        }
-
-        if EngineConfig.usesCustomHost {
-            logger.info("Custom engine host configured: \(EngineConfig.host.absoluteString, privacy: .public)")
-            do {
-                try await waitForBackend(timeout: 5)
-                status = .running
-                isExternalBackend = true
-                logger.info("Connected to configured external backend")
-                return true
-            } catch {
-                status = .failed
-                errorMessage = error.localizedDescription
-                logger.error("Configured external backend did not respond: \(error.localizedDescription, privacy: .public)")
-                return false
-            }
-        }
-
-        #if DEBUG
-        // Development mode: connect to external backend if running, skip
-        // embedded launch. 5s window because a freshly-started external
-        // engine may still be in cold-start when Fichero.app launches in
-        // a paired-debug session — 2s was tight enough to miss it and
-        // fall through to embedded launch (which kills the developer's
-        // engine on the way up).
-        logger.info("DEBUG mode: Checking for external backend on port 8765")
-
-        do {
-            try await waitForBackend(timeout: 5)
-            status = .running
-            isExternalBackend = true
-            logger.info("Connected to external backend (will not manage lifecycle)")
-            return true
-        } catch {
-            logger.info("No external backend found, launching embedded backend...")
-            isExternalBackend = false
-        }
-        #endif
-        return false
-    }
+    #endif
 
     /// Stop the embedded backend
     func stop() {

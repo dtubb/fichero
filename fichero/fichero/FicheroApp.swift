@@ -137,7 +137,12 @@ struct FicheroApp: App {
     /// while a start is already in flight a no-op.
     @MainActor
     private func connectBackend(restart: Bool) async {
-        let usesExternal = EngineConfig.requiresExternalBackendConnection
+        // Consume the single provisioning decision (#3109) instead of
+        // re-deriving the mode here. `connectsToRemoteHost` is the old
+        // `requiresExternalBackendConnection` branch.
+        let strategy = EngineConfig.engineProvisioningStrategy()
+        let usesExternal = strategy.connectsToRemoteHost
+        logger.info("Launch provisioning strategy: \(String(describing: strategy), privacy: .public) (#3109)")
         // Back to `.starting` so the connection view shows the booting splash
         // (and clears any prior failure diagnosis) while we probe.
         appState.engine.markStarting()
