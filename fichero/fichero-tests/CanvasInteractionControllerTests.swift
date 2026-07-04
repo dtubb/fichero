@@ -215,6 +215,17 @@ struct CanvasInteractionControllerTests {
         #expect(items.deletes == ["y"])
     }
 
+    @Test("moveItem persists exactly one snapped row (undo/redo primitive)")
+    func moveItemSnaps() async {
+        let layout = SpyLayoutStore()
+        let controller = makeController(layout: layout, items: SpyItemStore(), selection: Box(nil))
+        await controller.moveItem(id: "x", to: SIMD3<Double>(1.13, -0.37, 0.12))
+        #expect(layout.savedItems?.count == 1)
+        #expect(layout.savedItems?.first?.itemId == "x")
+        #expect(layout.savedItems?.first?.x == 1.25)   // snapped to the 0.25 grid
+        #expect(layout.savedItems?.first?.y == -0.25)
+    }
+
     @Test("disappear flush persists the in-flight drag position")
     func flushActiveDrag() async {
         let layout = SpyLayoutStore()

@@ -114,6 +114,35 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         camera.position += SIMD3<Float>(worldDelta.x, worldDelta.y, 0)
     }
 
+    // MARK: - Drag + marquee (#3084)
+
+    /// Move a card to a world position IN PLACE, no animation and WITHOUT
+    /// touching `placeablesById`/`appliedState` — pure visual feedback while a
+    /// drag is live. The controller persists the snapped row on release, and the
+    /// resulting reconcile settles the card at its final (snapped) spot.
+    func liveMove(id: String, toWorld world: SIMD3<Double>) {
+        placeablesRoot.findEntity(named: id)?.position = Canvas2DProjection.scenePosition(world)
+    }
+
+    /// The placeables whose projected screen point falls inside `rect` — the
+    /// marquee hit-test. Uses the SAME `worldPerPoint` calibration as pan/drag,
+    /// so tuning one tunes all three.
+    func placeableIds(inScreenRect rect: CGRect, viewSize: CGSize) -> Set<String> {
+        var result: Set<String> = []
+        for (id, placeable) in placeablesById {
+            let scene = Canvas2DProjection.scenePosition(placeable.position)
+            let point = Canvas2DProjection.screenPoint(
+                scene: scene,
+                cameraX: camera.position.x,
+                cameraY: camera.position.y,
+                orthoScale: orthoScale,
+                viewSize: viewSize
+            )
+            if rect.contains(point) { result.insert(id) }
+        }
+        return result
+    }
+
     private func applyOrthoScale() {
         var ortho = OrthographicCameraComponent()
         ortho.scale = orthoScale
@@ -128,9 +157,16 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
             placeablesById[placeable.id] = placeable
             placeablesRoot.addChild(makeCard(placeable))
         case .move(let id, let position):
+            // Don't fight a local drag (#3084): a store echo for the id being
+            // dragged is skipped; every other move animates to the new spot so a
+            // cross-window / agent move glides rather than jumps (issue point 3).
             guard isDragSuppressed?(id) != true else { return }
             placeablesById[id]?.position = position
-            placeablesRoot.findEntity(named: id)?.position = Canvas2DProjection.scenePosition(position)
+            if let entity = placeablesRoot.findEntity(named: id) {
+                var transform = entity.transform
+                transform.translation = Canvas2DProjection.scenePosition(position)
+                entity.move(to: transform, relativeTo: entity.parent, duration: 0.18)
+            }
         case .resize(let id, let size):
             placeablesById[id]?.size = size
             reskinCard(id)
