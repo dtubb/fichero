@@ -298,6 +298,7 @@ def test_generated_multiuser_auth_policy_pairing_contracts_current_main(
         "policies",
         "delete-a-rule",
         created_rule["id"],
+        "--yes",
     )
     assert deleted_rule is None
 

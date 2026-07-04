@@ -259,5 +259,7 @@ def test_generated_document_domain_validation_and_snapshot_round_trip_current_ma
     )
     assert all(item["id"] != artifact["id"] for item in listed_after_restore["items"])
 
-    deleted_snapshot = _cli_json(cli_live_engine, "storage", "remove-snapshot", snapshot_id)
+    deleted_snapshot = _cli_json(
+        cli_live_engine, "storage", "remove-snapshot", snapshot_id, "--yes"
+    )
     assert deleted_snapshot == {"deleted": True, "snapshot_id": snapshot_id}

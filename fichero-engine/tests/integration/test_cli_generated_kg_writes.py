@@ -15,7 +15,7 @@ os.environ.setdefault("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
 os.environ.setdefault("FICHERO_DISABLE_AUTH", "1")
 
 from fichero import __main__ as cli  # noqa: E402
-from tests.integration._cli_live import cli_live_engine as _cli_live_engine  # noqa: E402,F401
+from tests.integration._cli_live import cli_live_engine as _cli_live_engine_fixture  # noqa: E402,F401
 
 runner = CliRunner()
 
@@ -112,6 +112,7 @@ def test_generated_kg_write_commands_round_trip_current_main(_cli_live_engine) -
         "delete-claim-rule",
         "--rule-id",
         claim_rule["id"],
+        "--yes",
     )
     assert deleted_claim_rule == {"deleted_rule_id": claim_rule["id"]}
 
@@ -136,6 +137,7 @@ def test_generated_kg_write_commands_round_trip_current_main(_cli_live_engine) -
         "delete-entity-rule",
         "--rule-id",
         entity_rule["id"],
+        "--yes",
     )
     assert deleted_entity_rule == {"deleted_rule_id": entity_rule["id"]}
 

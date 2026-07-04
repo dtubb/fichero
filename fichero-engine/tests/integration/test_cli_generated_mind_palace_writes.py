@@ -172,6 +172,7 @@ def test_generated_mind_palace_folder_write_contracts_current_main(
         "delete-canvas-item",
         folder_id,
         item_id,
+        "--yes",
     )
     assert deleted_item["status"] == "deleted"
 

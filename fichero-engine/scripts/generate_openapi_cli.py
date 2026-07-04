@@ -361,9 +361,9 @@ def _emit_function(op: Operation, command_name: str) -> list[str]:
         )
     lines.append("        def op_call(client: FicheroClient) -> Any:")
     if op.path_params:
-        lines.append(f"            path = f{path_expr}")
+        lines.append(f"            endpoint_path = f{path_expr}")
     else:
-        lines.append(f"            path = {json.dumps(op.path)}")
+        lines.append(f"            endpoint_path = {json.dumps(op.path)}")
     if op.query_params:
         query_lines = []
         for query_param in op.query_params:
@@ -391,7 +391,7 @@ def _emit_function(op: Operation, command_name: str) -> list[str]:
                 f"            payload = _load_json_payload(body, body_file, required={str(op.request_required)})"
             )
         lines.append(
-            f'            return client.request("{op.method}", path, params=params, json=payload)'
+            f'            return client.request("{op.method}", endpoint_path, params=params, json=payload)'
         )
     elif op.request_kind == "multipart":
         lines.append("            files = _build_multipart_payload(field, upload)")
@@ -401,10 +401,12 @@ def _emit_function(op: Operation, command_name: str) -> list[str]:
                 '                raise typer.BadParameter("Provide at least one --field or --upload value.")'
             )
         lines.append(
-            f'            return client.request("{op.method}", path, params=params, files=files)'
+            f'            return client.request("{op.method}", endpoint_path, params=params, files=files)'
         )
     else:
-        lines.append(f'            return client.request("{op.method}", path, params=params)')
+        lines.append(
+            f'            return client.request("{op.method}", endpoint_path, params=params)'
+        )
     lines.append("        invoke(ctx, op_call)")
     return lines
 

@@ -100,7 +100,7 @@ def test_generated_research_note_agent_memory_and_hermeneutics_write_contracts_c
         "updated body",
     )
     assert updated_note["body"] == "updated body"
-    deleted_note = _cli_json(cli_live_engine, "notes", "delete", note["id"])
+    deleted_note = _cli_json(cli_live_engine, "notes", "delete", note["id"], "--yes")
     assert deleted_note is None
 
     note_audit = _audit_log(cli_live_engine)
@@ -146,7 +146,7 @@ def test_generated_research_note_agent_memory_and_hermeneutics_write_contracts_c
     )
     assert updated_agent_note["body"] == "Agent scratchpad updated"
     deleted_agent_note = _cli_json(
-        cli_live_engine, "agent-memory", "delete-note", agent_note["id"]
+        cli_live_engine, "agent-memory", "delete-note", agent_note["id"], "--yes"
     )
     assert deleted_agent_note is None
 
