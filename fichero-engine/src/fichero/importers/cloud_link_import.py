@@ -10,10 +10,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from fichero.db import db_manager
 from fichero.importers.http_client import ImporterHttpClient, ensure_remote_document
 from fichero.ingest import detect_file_type
-from fichero.models import DocType, Document, Status
 
 
 @dataclass(frozen=True)
@@ -24,22 +22,6 @@ class CloudLinkImportSummary:
     imported_links: int = 0
     skipped_rows: int = 0
     errors: list[str] = field(default_factory=list)
-
-
-def import_dropbox_links(
-    *,
-    library_path: Path,
-    manifest_path: Path,
-    reset: bool = False,
-) -> CloudLinkImportSummary:
-    return _import_cloud_links(
-        provider="dropbox",
-        provider_domain="dropbox.com",
-        library_path=library_path,
-        manifest_path=manifest_path,
-        root_name="Dropbox Linked Sources",
-        reset=reset,
-    )
 
 
 def import_dropbox_links_via_http(
@@ -60,22 +42,6 @@ def import_dropbox_links_via_http(
     )
 
 
-def import_box_links(
-    *,
-    library_path: Path,
-    manifest_path: Path,
-    reset: bool = False,
-) -> CloudLinkImportSummary:
-    return _import_cloud_links(
-        provider="box",
-        provider_domain="box.com",
-        library_path=library_path,
-        manifest_path=manifest_path,
-        root_name="Box Linked Sources",
-        reset=reset,
-    )
-
-
 def import_box_links_via_http(
     client: ImporterHttpClient,
     *,
@@ -91,91 +57,6 @@ def import_box_links_via_http(
         manifest_path=manifest_path,
         root_name="Box Linked Sources",
         reset=reset,
-    )
-
-
-def _import_cloud_links(
-    *,
-    provider: str,
-    provider_domain: str,
-    library_path: Path,
-    manifest_path: Path,
-    root_name: str,
-    reset: bool = False,
-) -> CloudLinkImportSummary:
-    library_path = library_path.expanduser().resolve()
-    manifest_path = manifest_path.expanduser().resolve()
-
-    if reset and library_path.exists():
-        shutil.rmtree(library_path)
-    _ensure_library_package(library_path)
-    db = db_manager.get_database(library_path)
-
-    root = Document(
-        name=root_name,
-        path=str(manifest_path),
-        doc_type=DocType.folder,
-        status=Status.completed,
-        metadata={"source_type": f"{provider}_link_import"},
-    )
-    db.save(root)
-
-    imported = 0
-    skipped = 0
-    errors: list[str] = []
-
-    try:
-        rows = _load_manifest_rows(manifest_path)
-    except Exception as exc:
-        return CloudLinkImportSummary(
-            provider=provider,
-            library_path=library_path,
-            root_document_id=root.id,
-            imported_links=0,
-            skipped_rows=0,
-            errors=[f"manifest:{manifest_path}: {exc}"],
-        )
-
-    for idx, row in enumerate(rows, start=1):
-        url = _coalesce(row, "url", "link", "shared_link", "web_url")
-        if not url or provider_domain not in urlparse(url).netloc.lower():
-            skipped += 1
-            continue
-        try:
-            name = _coalesce(row, "name", "filename", "title") or f"{provider}-link-{idx}"
-            external_id = _coalesce(row, "external_id", "id", "file_id")
-            display_path = _coalesce(row, "path_display", "path", "full_path")
-            file_type = detect_file_type(Path(urlparse(url).path or name))
-            doc = Document(
-                name=name,
-                path=url,
-                doc_type=DocType.file,
-                file_type=file_type,
-                parent_id=root.id,
-                status=Status.completed,
-                metadata={
-                    "source_type": f"{provider}_link",
-                    "provider": provider,
-                    "provider_external_id": external_id,
-                    "provider_path_display": display_path,
-                    "provider_manifest_row": idx,
-                    "link_only": True,
-                    "remote_reference": True,
-                    "manifest_row": row,
-                },
-            )
-            db.save(doc)
-            imported += 1
-        except Exception as exc:  # pragma: no cover
-            errors.append(f"row:{idx}: {exc}")
-
-    return CloudLinkImportSummary(
-        provider=provider,
-        library_path=library_path,
-        root_document_id=root.id,
-        imported_links=imported,
-        skipped_rows=skipped,
-        errors=errors,
     )
 
 
@@ -290,35 +171,4 @@ def _coalesce(row: dict[str, Any], *keys: str) -> str | None:
             return text
     return None
 
-
-def _ensure_library_package(library_path: Path) -> None:
-    library_path.mkdir(parents=True, exist_ok=True)
-    (library_path / "files").mkdir(exist_ok=True)
-    (library_path / "lance").mkdir(exist_ok=True)
-    (library_path / "vectors").mkdir(exist_ok=True)
-
 __all__ = [name for name in dir() if not name.startswith("__")]
-
-__all__ = [
-    'Any',
-    'CloudLinkImportSummary',
-    'DocType',
-    'Document',
-    'Path',
-    'Status',
-    '_coalesce',
-    '_ensure_library_package',
-    '_import_cloud_links',
-    '_load_manifest_rows',
-    'annotations',
-    'csv',
-    'dataclass',
-    'db_manager',
-    'detect_file_type',
-    'field',
-    'import_box_links',
-    'import_dropbox_links',
-    'json',
-    'shutil',
-    'urlparse',
-]
