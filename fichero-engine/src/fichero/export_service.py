@@ -7,6 +7,7 @@ import shutil
 import zipfile
 import json
 import os
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -24,6 +25,7 @@ from fichero.models import (
 )
 from fichero.storage import get_display, resolve_source
 
+logger = logging.getLogger(__name__)
 
 IMAGE_SUFFIXES = {
     ".jpg",
@@ -692,7 +694,10 @@ def _eleventy_page_link(
 ) -> str:
     target = page_paths_by_id.get(record["found_in_page_id"])
     if target is None:
-        return record["found_in_document_name"]
+        raise ValueError(
+            "Export page path missing for "
+            f"{record['found_in_page_id']} ({record['found_in_document_name']})"
+        )
     return f"[{record['found_in_document_name']}]({_eleventy_href(page_path, target, src_dir)})"
 
 
@@ -759,7 +764,7 @@ def _eleventy_search_entries(
     for doc in documents:
         page_path = page_paths_by_id.get(doc.id)
         if page_path is None:
-            continue
+            raise ValueError(f"Search export page path missing for document {doc.id} ({doc.name})")
         entries.append(
             {
                 "title": doc.name,
@@ -1355,11 +1360,7 @@ def _copy_document_assets(
     if not _is_image_document(doc):
         return []
 
-    source = get_display(doc, package_path=package_path) or resolve_source(
-        doc, library_root=package_path
-    )
-    if source is None or not source.exists() or not source.is_file():
-        return []
+    source = _require_image_source(doc, package_path)
 
     suffix = source.suffix.lower() or ".jpg"
     filename = _unique_filename(
@@ -1374,12 +1375,21 @@ def _copy_document_assets(
 def _docx_image_source(doc: Document, package_path: Path | None) -> Path | None:
     if not _is_image_document(doc):
         return None
+    return _require_image_source(doc, package_path)
+
+
+def _require_image_source(doc: Document, package_path: Path | None) -> Path:
     source = get_display(doc, package_path=package_path) or resolve_source(
         doc, library_root=package_path
     )
-    if source and source.exists() and source.is_file():
+    if source is not None and source.exists() and source.is_file():
         return source
-    return None
+    message = (
+        f"Export image source missing for document {doc.id} "
+        f"({doc.name}) path={doc.path!r}"
+    )
+    logger.error(message)
+    raise ValueError(message)
 
 
 def _is_image_document(doc: Document) -> bool:
