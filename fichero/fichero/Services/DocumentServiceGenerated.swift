@@ -131,6 +131,30 @@ class DocumentServiceGenerated: ObservableObject {
         }
     }
 
+    /// Fetch the geo points (lat / lon / place name) the engine derived for a
+    /// document (#3055 / #2755 remnant). Read-only — routed through the generated,
+    /// tokened client with typed errors (no hand-rolled URLSession). Returns []
+    /// when the document has no geo data.
+    /// - Parameter id: Document ID
+    /// - Returns: The document's geo points
+    func documentGeoPoints(_ id: String) async throws -> [Components.Schemas.DocGeoPoint] {
+        logger.info("Fetching geo points for document: \(id)")
+
+        let response = try await client.api.listDocumentGeoApiDocumentsDocIdGeoGet(.init(
+            path: .init(docId: id),
+        ))
+
+        switch response {
+        case .ok(let ok):
+            return try ok.body.json.points
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
+        default:
+            throw DocumentServiceError.unexpectedResponse
+        }
+    }
+
     /// Get children of a document/collection
     /// - Parameter parentId: Parent document ID
     /// - Returns: Array of child documents

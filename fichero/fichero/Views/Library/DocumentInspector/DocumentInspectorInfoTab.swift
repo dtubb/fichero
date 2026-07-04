@@ -14,6 +14,8 @@ struct DocumentInspectorInfoTab: View {
     @State var libraryAuthzError: String?
     @State var isLoadingLibraryAuthz = false
     @State private var selectedAttribute: InfoAttribute?
+    /// Geo points the engine derived for this document (#3055) — shown only when present.
+    @State private var geoPoints: [Components.Schemas.DocGeoPoint] = []
 
     var isExcludedFromProcessing: Bool {
         excludeFromProcessingOverride ?? document.excludeFromProcessing
@@ -47,6 +49,12 @@ struct DocumentInspectorInfoTab: View {
                 fileSection
                 contentSection
 
+                if !geoPoints.isEmpty {
+                    infoSection("Locations") {
+                        locationsView
+                    }
+                }
+
                 infoSection("Related Claims") {
                     RelatedClaimsPanel(documentId: document.id)
                 }
@@ -69,6 +77,46 @@ struct DocumentInspectorInfoTab: View {
         .task(id: authzLoadKey) {
             await loadLibraryAuthzSnapshot()
         }
+        .task(id: document.id) {
+            await loadGeoPoints()
+        }
+    }
+
+    // MARK: - Locations (#3055)
+
+    /// Fetch this document's geo points through the generated client wrapper.
+    /// Failures are non-fatal — the section simply stays hidden (empty points).
+    private func loadGeoPoints() async {
+        geoPoints = []
+        guard let service = libraryManager.getLibrary(id: windowState.libraryId)?
+            .documentServiceGenerated else { return }
+        geoPoints = (try? await service.documentGeoPoints(document.id)) ?? []
+    }
+
+    private var locationsView: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(Array(geoPoints.enumerated()), id: \.offset) { _, point in
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "mappin.and.ellipse")
+                        .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 1) {
+                        if let place = point.placeName, !place.isEmpty {
+                            Text(place)
+                                .font(.callout)
+                            Text(String(format: "%.4f, %.4f", point.lat, point.lon))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text(String(format: "%.4f, %.4f", point.lat, point.lon))
+                                .font(.callout)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+                .textSelection(.enabled)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Sections
