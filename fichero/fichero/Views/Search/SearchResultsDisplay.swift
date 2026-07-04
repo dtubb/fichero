@@ -171,11 +171,23 @@ struct SearchResultsDisplay: View {
                         selection = [result.documentId]
                     }
                     .onTapGesture(count: 2) {
-                        onLoadDocument(result.documentId)
+                        activate(result)
                     }
                 }
             }
             .padding()
+        }
+    }
+
+    /// Open a result at its matched page/passage when possible (#1476), falling
+    /// back to loading the whole document. The list rows already route through
+    /// `onOpenExcerpt`; this makes the grid + map cards consistent instead of
+    /// always loading the whole PDF and losing the matched page.
+    private func activate(_ result: SearchResult) {
+        if let onOpenExcerpt {
+            onOpenExcerpt(result)
+        } else {
+            onLoadDocument(result.documentId)
         }
     }
 
@@ -244,7 +256,7 @@ struct SearchResultsDisplay: View {
                             selection = [result.documentId]
                         }
                         .onTapGesture(count: 2) {
-                            onLoadDocument(result.documentId)
+                            activate(result)
                         }
                     }
                 }
