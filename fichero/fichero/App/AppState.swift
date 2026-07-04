@@ -1,3 +1,4 @@
+import Combine
 import FicheroAPIClient
 import Foundation
 import OSLog
@@ -8,26 +9,36 @@ import SwiftUI
 class AppState: ObservableObject {
     // MARK: - Backend State
 
-    @Published var isBackendRunning: Bool = false
-    /// True when the engine answers health checks but REJECTS the app's token
-    /// (HTTP 401/403). Health-200-but-auth-broken is exactly the state that
-    /// used to render content and then 401 every call into a blank window
-    /// (#2864). The window root shows a full-window error for this state.
-    @Published var authBroken: Bool = false
-    /// Human-readable cause for the current unreachable/authBroken/failed
-    /// state (port occupied by PID / auth rejected / probe failed), shown in
-    /// the full-window error.
-    @Published var backendDiagnosis: String?
-    @Published var backendError: String?
+    /// The one backend-usability owner (#3107). The five booleans below are now
+    /// read-only shims over `engine.phase`, kept under their legacy names so the
+    /// ~20 call sites reading `appState.isBackendRunning` (and friends) keep
+    /// working while the source of truth lives in `EngineSession`. AppState
+    /// forwards `engine`'s change notifications (see `init`) so views observing
+    /// these computed properties still re-render.
+    let engine = EngineSession()
+
+    /// Engine is up, authenticated, and usable. Backed by `engine.phase == .ready`.
+    var isBackendRunning: Bool { engine.isReady }
+    /// Engine answers health checks but REJECTS the app's token (HTTP 401/403) —
+    /// the state that used to blank the window with silent 401s (#2864).
+    var authBroken: Bool { engine.isAuthRejected }
+    /// Human-readable cause for the current unreachable/authBroken/failed state
+    /// (port occupied by PID / auth rejected / probe failed), shown full-window.
+    var backendDiagnosis: String? { engine.diagnosis }
+    /// Alias of `backendDiagnosis` — both used to hold the same message; the
+    /// single `engine.diagnosis` now backs them (connection view reads either).
+    var backendError: String? { engine.diagnosis }
     @Published var documentCount: Int = 0  // Note: Now tracks active libraries count in multi-library architecture
     @Published var indexedCount: Int = 0
-    @Published var isCheckingBackend: Bool = true  // True while checking API
+    /// True while starting/probing. Backed by `engine.phase == .starting`.
+    var isCheckingBackend: Bool { engine.isChecking }
     /// Count of consecutive heartbeat failures since the last successful
     /// ping. Used to avoid UI thrash on transient blips — the offline
     /// banner flips only after the count crosses `offlineFlipThreshold`.
     private var heartbeatFailureCount: Int = 0
     private let offlineFlipThreshold: Int = 2
     private var heartbeatTask: Task<Void, Never>?
+    private var cancellables = Set<AnyCancellable>()
 
     // MARK: - Provider Management
 
@@ -68,6 +79,12 @@ class AppState: ObservableObject {
         self.usersStore = UsersStore(client: ficheroClient)
         self.sessionStore = SessionStore(client: ficheroClient)
         logger.info("⏱ AppState.init services ready")
+
+        // Re-publish the session's phase changes as AppState changes so the
+        // computed backend shims above stay observable (#3107).
+        engine.objectWillChange
+            .sink { [weak self] in self?.objectWillChange.send() }
+            .store(in: &cancellables)
     }
 
     deinit {
@@ -104,11 +121,8 @@ class AppState: ObservableObject {
         switch await EngineReadinessProbe(hostURL: EngineConfig.host).probe() {
         case .ready:
             heartbeatFailureCount = 0
-            authBroken = false
             if !isBackendRunning {
-                isBackendRunning = true
-                backendError = nil
-                backendDiagnosis = nil
+                engine.markReady()
                 logger.info("Backend heartbeat: recovered — back online")
                 // Reload providers now that the engine is back so list views
                 // aren't empty until next manual refresh.
@@ -116,10 +130,7 @@ class AppState: ObservableObject {
             }
         case .authRejected:
             heartbeatFailureCount = 0
-            authBroken = true
-            isBackendRunning = false
-            backendDiagnosis = "The engine is running but rejected this app's credentials."
-            backendError = backendDiagnosis
+            engine.markAuthRejected("The engine is running but rejected this app's credentials.")
             logger.warning("Backend heartbeat: auth rejected — flipping authBroken")
         case .notResponding:
             noteHeartbeatFailure(reason: "engine not responding")
@@ -134,25 +145,19 @@ class AppState: ObservableObject {
     private func confirmAuthAndLoad() async {
         switch await EngineReadinessProbe(hostURL: EngineConfig.host).probe() {
         case .ready:
-            isBackendRunning = true
-            authBroken = false
-            backendError = nil
-            backendDiagnosis = nil
+            engine.markReady()
             _ = await AuthTokenMiddleware.waitForToken()
             await loadProviders()
         case .authRejected:
-            isBackendRunning = false
-            authBroken = true
-            backendDiagnosis =
+            engine.markAuthRejected(
                 "The engine is running but rejected this app's credentials. "
                 + "The token the app holds doesn't match the engine's."
-            backendError = backendDiagnosis
+            )
             logger.error("Auth rejected on readiness probe — authBroken")
         case .notResponding, .identityMismatch:
-            isBackendRunning = false
-            authBroken = false
-            backendDiagnosis = "The engine answered health checks but the authenticated readiness probe failed."
-            backendError = backendDiagnosis
+            engine.markUnreachable(
+                "The engine answered health checks but the authenticated readiness probe failed."
+            )
         }
     }
 
@@ -163,14 +168,13 @@ class AppState: ObservableObject {
             logger.warning(
                 "Backend heartbeat: \(self.heartbeatFailureCount) consecutive failures — flipping offline (\(reason))"
             )
-            isBackendRunning = false
-            backendError = """
+            engine.markUnreachable("""
                 Lost connection to the Fichero engine.
 
                 The backend stopped responding mid-session. Restart it with:
 
                 PYTHONPATH=src python -m fichero.api
-                """
+                """)
         }
     }
 
@@ -180,8 +184,9 @@ class AppState: ObservableObject {
     func checkBackendHealth() async {
         reconfigureGeneratedClientsForCurrentHost()
         logger.info("⏱ checkBackendHealth entry")
-        isCheckingBackend = true
-        defer { isCheckingBackend = false }
+        // Enter the checking/starting phase; the outcome below resolves it to
+        // ready / unreachable / authRejected (via confirmAuthAndLoad).
+        engine.markStarting()
 
         logger.info("⏱ checkBackendHealth request-start")
         do {
@@ -201,24 +206,20 @@ class AppState: ObservableObject {
                 await sessionStore.refresh()
 
             default:
-                backendError = "API returned error status"
-                backendDiagnosis = backendError
-                isBackendRunning = false
+                engine.markUnreachable("API returned error status")
             }
 
         } catch let error as URLError where error.code == .cannotConnectToHost {
-            backendError = """
+            engine.markUnreachable("""
                 Cannot connect to API server.
 
                 Please start the API first:
 
                 PYTHONPATH=src python -m fichero.api
-                """
-            isBackendRunning = false
+                """)
             logger.error("Backend not reachable: \(error.localizedDescription)")
         } catch {
-            backendError = "Failed to connect to API: \(error.localizedDescription)"
-            isBackendRunning = false
+            engine.markUnreachable("Failed to connect to API: \(error.localizedDescription)")
             logger.error("Backend health check failed: \(error.localizedDescription)")
         }
     }

@@ -113,7 +113,14 @@ struct BackendConnectionView: View {
     /// hosts set `.failed` immediately, and the embedded poll loop below flips
     /// to `.failed` after the 60 s timeout.
     private var showsFailureState: Bool {
-        backendService.status == .failed || appState.authBroken
+        // Driven by the single phase owner (#3107): any non-ready, non-starting,
+        // non-setup phase is a failure the user can act on.
+        switch appState.engine.phase {
+        case .portConflict, .authRejected, .unreachable, .failed:
+            return true
+        case .setupNeeded, .starting, .ready:
+            return false
+        }
     }
 
     private var titleText: String {
@@ -235,9 +242,10 @@ struct BackendConnectionView: View {
                             messageIndex = 0
                             restartCount += 1
                             completedConnectionForCurrentAttempt = false
-                            // Clear the auth-broken flag so a fresh spawn (which
-                            // rewrites the token) gets a clean readiness check.
-                            appState.authBroken = false
+                            // Reset to the starting phase so a fresh spawn (which
+                            // rewrites the token) gets a clean readiness check;
+                            // clears any prior authRejected/failed diagnosis.
+                            appState.engine.markStarting()
 
                             if usesExternalBackendConnection {
                                 backendService.status = .starting
@@ -261,7 +269,7 @@ struct BackendConnectionView: View {
                                         await completeSuccessfulConnection()
                                     }
                                 } catch {
-                                    appState.backendError = error.localizedDescription
+                                    appState.engine.markFailed(error.localizedDescription)
                                 }
                             }
                         }
@@ -314,7 +322,7 @@ struct BackendConnectionView: View {
                         let msg = "Engine did not respond after \(Self.maxPollAttempts * 5) seconds."
                         backendService.status = .failed
                         backendService.errorMessage = msg
-                        appState.backendError = msg
+                        appState.engine.markFailed(msg)
                     }
                 }
             }
