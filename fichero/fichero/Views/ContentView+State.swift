@@ -721,9 +721,7 @@ extension ContentView {
                 applyDoc(doc)
             } else {
                 Task { @MainActor in
-                    let fetched: Document? = try? await documentStore.api.get(
-                        "/documents/\(docId)"
-                    )
+                    let fetched = try? await documentStore.documentService.getDocument(docId)
                     if let fetched, sidebarSelectionState.selectedItemId == prefixedId {
                         applyDoc(fetched)
                     }

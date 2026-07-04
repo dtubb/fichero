@@ -72,7 +72,7 @@ extension ContentView {
     func navigateToSourcePage(_ sourceDocId: String) async {
         let source: Document
         do {
-            source = try await documentStore.api.get("/documents/\(sourceDocId)")
+            source = try await documentStore.documentService.getDocument(sourceDocId)
         } catch {
             workflowLogger.warning("navigateToSourcePage: couldn't fetch \(sourceDocId): \(error.localizedDescription)")
             return
@@ -86,11 +86,11 @@ extension ContentView {
             // First try: use the parentId field if available
             if let parentId = source.parentId, !parentId.isEmpty {
                 do {
-                    target = try await documentStore.api.get("/documents/\(parentId)")
+                    target = try await documentStore.documentService.getDocument(parentId)
                 } catch {
                     // Fallback: use the new /documents/{id}/parent endpoint
                     do {
-                        target = try await documentStore.api.get("/documents/\(sourceDocId)/parent")
+                        target = try await documentStore.documentService.getParent(sourceDocId)
                     } catch {
                         workflowLogger.warning(
                             "navigateToSourcePage: couldn't resolve parent for \(sourceDocId): \(error.localizedDescription)"
@@ -101,7 +101,7 @@ extension ContentView {
             } else {
                 // No parentId available, use the new endpoint directly
                 do {
-                    target = try await documentStore.api.get("/documents/\(sourceDocId)/parent")
+                    target = try await documentStore.documentService.getParent(sourceDocId)
                 } catch {
                     workflowLogger.warning(
                         "navigateToSourcePage: couldn't fetch parent for \(sourceDocId): \(error.localizedDescription)"
@@ -117,7 +117,7 @@ extension ContentView {
         // target has no parent (top-level), just point sidebar at it.
         if let folderId = target.parentId, !folderId.isEmpty {
             do {
-                let folder: Document = try await documentStore.api.get("/documents/\(folderId)")
+                let folder = try await documentStore.documentService.getDocument(folderId)
                 navigateToDocument(folder)
                 browserSelection = [target.id]
                 detailDocument = target
@@ -136,7 +136,7 @@ extension ContentView {
     func focusKGSourcePreview(_ sourceDocId: String) async {
         let source: Document
         do {
-            source = try await documentStore.api.get("/documents/\(sourceDocId)")
+            source = try await documentStore.documentService.getDocument(sourceDocId)
         } catch {
             workflowLogger.warning("focusKGSourcePreview: couldn't fetch \(sourceDocId): \(error.localizedDescription)")
             return
@@ -145,7 +145,7 @@ extension ContentView {
         let sourceIsPageChild = source.path?.isEmpty ?? true
         if sourceIsPageChild, let parentId = source.parentId, !parentId.isEmpty {
             do {
-                detailDocument = try await documentStore.api.get("/documents/\(parentId)")
+                detailDocument = try await documentStore.documentService.getDocument(parentId)
             } catch {
                 workflowLogger.warning(
                     "focusKGSourcePreview: couldn't fetch parent for \(sourceDocId): \(error.localizedDescription)"

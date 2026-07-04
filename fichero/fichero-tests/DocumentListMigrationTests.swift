@@ -108,6 +108,25 @@ struct DocumentListMigrationTests {
         #expect(doc.name == "Renamed")
     }
 
+    @Test("getParent GETs /api/documents/{id}/parent (KG/source navigation)")
+    func getParentContract() async throws {
+        let service = makeService { request in
+            #expect(request.httpMethod == "GET")
+            #expect(request.url?.path == "/api/documents/child-1/parent")
+            let json = """
+            {"id":"parent-1","name":"Folder","doc_type":"folder","expected_thumbnail_path":"t","expected_display_path":"v"}
+            """
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data(json.utf8))
+        }
+
+        let parent = try await service.getParent("child-1")
+        #expect(parent.id == "parent-1")
+    }
+
     @Test("deleteDocument DELETEs /api/documents/{id} (DocumentStore delete path)")
     func deleteDocumentContract() async throws {
         let service = makeService { request in

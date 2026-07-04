@@ -131,6 +131,27 @@ class DocumentServiceGenerated: ObservableObject {
         }
     }
 
+    /// Fetch a document's parent via the generated `get_document_parent` op.
+    /// Throws on non-`.ok` (#3030). Used by KG/source navigation to bubble a
+    /// page child up to its containing file.
+    func getParent(_ id: String) async throws -> Document {
+        logger.info("Fetching parent of: \(id)")
+
+        let response = try await client.api.getDocumentParentApiDocumentsDocIdParentGet(.init(
+            path: .init(docId: id)
+        ))
+
+        switch response {
+        case .ok(let ok):
+            return try convertToDocument(try ok.body.json)
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
+        default:
+            throw DocumentServiceError.unexpectedResponse
+        }
+    }
+
     /// Fetch the geo points (lat / lon / place name) the engine derived for a
     /// document (#3055 / #2755 remnant). Read-only — routed through the generated,
     /// tokened client with typed errors (no hand-rolled URLSession). Returns []
