@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""AppKit-leak guardrail for the multiplatform SwiftUI app (#3018).
+"""macOS-only-API leak guardrail for the multiplatform SwiftUI app (#3018).
 
 fichero/fichero/** is compiled for macOS AND iOS/iPadOS (and visionOS). AppKit
-is macOS-only, so any AppKit symbol used OUTSIDE a macOS/AppKit `#if` guard
-breaks the iOS build (the class of regression behind "iPad/iPhone not working",
-#2098). This scans for unguarded AppKit and fails on NEW leaks.
+is macOS-only, and a handful of SwiftUI view modifiers (the keyboard-command
+family: onDeleteCommand/onExitCommand/onMoveCommand/onCommand + cut/copy/paste)
+are macOS-only too — so any of them used OUTSIDE a macOS `#if` guard breaks the
+iOS build (the class of regression behind "iPad/iPhone not working", #2098).
+This scans for both and fails on NEW unguarded leaks.
 
 Rule: an AppKit-only symbol (`import AppKit`, `NSApplication`, `NSEvent`,
 `NSWorkspace`, `NSPasteboard`, `NSWindow`, `NSPanel`, `NSMenu`, `NSStatusBar`,
@@ -57,6 +59,25 @@ _APPKIT_TOKENS = [
     r"\bNSSavePanel\b",
 ]
 _APPKIT_RE = re.compile("|".join(_APPKIT_TOKENS))
+
+# macOS-only SwiftUI view modifiers (unavailable on iOS/iPadOS/visionOS). Same
+# rule and same breakage as an AppKit symbol: used OUTSIDE a `#if os(macOS)`
+# guard they fail the iOS build. The keyboard-command family — ⌫ delete, ⎋
+# exit, arrow-key move, ⌘ command, and the cut/copy/paste responder modifiers —
+# is macOS-only in SwiftUI. (Extends #3018 after two ungated leaks — #1928 lane
+# — broke Daniel's iPhone build: onDeleteCommand + onExitCommand.)
+_MACOS_MODIFIER_TOKENS = [
+    r"\.onDeleteCommand\b",
+    r"\.onExitCommand\b",
+    r"\.onMoveCommand\b",
+    r"\.onCommand\b",
+    r"\.onCutCommand\b",
+    r"\.onCopyCommand\b",
+    r"\.onPasteCommand\b",
+]
+
+# The combined macOS-only surface the guard enforces.
+_MACOS_ONLY_RE = re.compile("|".join(_APPKIT_TOKENS + _MACOS_MODIFIER_TOKENS))
 
 # Files that legitimately hold macOS-only AppKit today (sanctioned bridges +
 # macOS-only shell). Grandfathered so the guard only catches NEW leaks. Paths
@@ -112,7 +133,8 @@ def _complement(if_state: str) -> str:
 
 
 def unguarded_hits(source: str) -> list[tuple[int, str]]:
-    """Line numbers + text where an AppKit token is not macOS-guarded."""
+    """Line numbers + text where a macOS-only API (AppKit symbol or macOS-only
+    SwiftUI command modifier) is not macOS-guarded."""
     text = _strip_noise(source)
     hits: list[tuple[int, str]] = []
     # Stack frames: {"state": current-branch state, "if_state": #if positive state}
@@ -135,7 +157,7 @@ def unguarded_hits(source: str) -> list[tuple[int, str]]:
             if stack:
                 stack.pop()
             continue
-        if _APPKIT_RE.search(raw):
+        if _MACOS_ONLY_RE.search(raw):
             guarded = any(f["state"] == "MACOS" for f in stack)
             if not guarded:
                 hits.append((lineno, raw.strip()))
@@ -184,6 +206,19 @@ def _assert_guard_logic() -> None:
     )
     # #Preview blocks are stripped, so AppKit in a preview isn't flagged.
     assert not unguarded_hits("#Preview {\n_ = NSApplication.shared\n}\n")
+
+    # macOS-only SwiftUI command modifiers are enforced like AppKit symbols:
+    # ungated → flagged, macOS-guarded → clean. (The #1928-lane regression that
+    # broke the iPhone build was exactly an ungated .onDeleteCommand.)
+    assert unguarded_hits('Text("x").onDeleteCommand(perform: f)\n')
+    assert unguarded_hits('Text("x").onExitCommand(perform: f)\n')
+    assert not unguarded_hits(
+        '#if os(macOS)\nText("x").onDeleteCommand(perform: f)\n#endif\n'
+    )
+    # A macOS-only modifier in the non-macOS #else branch → still flagged.
+    assert unguarded_hits(
+        '#if os(macOS)\nlet x = 1\n#else\nText("x").onMoveCommand { _ in }\n#endif\n'
+    )
 
 
 def main(argv: list[str]) -> int:
