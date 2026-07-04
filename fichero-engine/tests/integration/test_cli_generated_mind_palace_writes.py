@@ -182,7 +182,7 @@ def test_generated_mind_palace_folder_write_contracts_current_main(
 def test_generated_mind_palace_render_no_500_current_main(cli_live_engine) -> None:
     missing_room = _cli_result(
         cli_live_engine,
-        "mindpalace",
+        "mind-palace",
         "render-scene",
         "--room-id",
         "missing-room",

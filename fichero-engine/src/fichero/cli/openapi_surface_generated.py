@@ -112,6 +112,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for actions endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='actions')
+        existing_apps['actions'] = target_app
 
     @target_app.command("list")
     def actions_list_get(
@@ -497,6 +498,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for activity endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='activity-api')
+        existing_apps['activity'] = target_app
 
     @target_app.command("list-activities")
     def activity_list_activities_get(
@@ -696,6 +698,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for agent-memory endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='agent-memory')
+        existing_apps['agent-memory'] = target_app
 
     @target_app.command("list-notes")
     def agent_memory_list_notes_get(
@@ -809,6 +812,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for agents endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='agents')
+        existing_apps['agents'] = target_app
 
     @target_app.command("submit-an-write-request")
     def agents_submit_an_write_request_post(
@@ -928,6 +932,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for annotations endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='annotations')
+        existing_apps['annotations'] = target_app
 
     @target_app.command("list-filterable-by-document-kind-tag")
     def annotations_list_filterable_by_document_kind_tag_get(
@@ -1180,6 +1185,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for artifacts endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='artifacts')
+        existing_apps['artifacts'] = target_app
 
     @target_app.command("list-all")
     def artifacts_list_all_get(
@@ -1336,6 +1342,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for auth endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='auth')
+        existing_apps['auth'] = target_app
 
     @target_app.command("login")
     def auth_login_post(
@@ -1386,6 +1393,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for authz endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='authz')
+        existing_apps['authz'] = target_app
 
     @target_app.command("get-library-snapshot")
     def authz_get_library_snapshot_get(
@@ -1479,6 +1487,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for batches endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='batches')
+        existing_apps['batches'] = target_app
 
     @target_app.command("list")
     def batches_list_get(
@@ -1627,6 +1636,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for bibliography endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='bibliography')
+        existing_apps['bibliography'] = target_app
 
     @target_app.command("get-a-document-s-bibliographic-metadata")
     def bibliography_get_a_document_s_bibliographic_metadata_get(
@@ -1758,6 +1768,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for bookmarks endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='bookmarks')
+        existing_apps['bookmarks'] = target_app
 
     @target_app.command("list")
     def bookmarks_list_get(
@@ -1812,6 +1823,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for chains endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='chains')
+        existing_apps['chains'] = target_app
 
     @target_app.command("list")
     def chains_list_get(
@@ -1989,6 +2001,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for changes endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='changes')
+        existing_apps['changes'] = target_app
 
     @target_app.command("stream-library")
     def changes_stream_library_get(
@@ -2005,6 +2018,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for chat endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='chat')
+        existing_apps['chat'] = target_app
 
     @target_app.command("chat")
     def chat_chat_post(
@@ -2173,6 +2187,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for citation-usages endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='citation-usages')
+        existing_apps['citation-usages'] = target_app
 
     @target_app.command("list")
     def citation_usages_list_get(
@@ -2198,6 +2213,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for citations endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='citations')
+        existing_apps['citations'] = target_app
 
     @target_app.command("render-a-document-s-in-one-of-the-supported-styles")
     def citations_render_a_document_s_in_one_of_the_supported_styles_get(
@@ -2376,6 +2392,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for claim-links endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='claim-links')
+        existing_apps['claim-links'] = target_app
 
     @target_app.command("delete")
     def claim_links_delete_delete(
@@ -2435,6 +2452,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for claims endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='claim')
+        existing_apps['claims'] = target_app
 
     @target_app.command("list")
     def claims_list_get(
@@ -3090,6 +3108,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for classifications endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='classifications')
+        existing_apps['classifications'] = target_app
 
     @target_app.command("list-values-filter-by-dimension")
     def classifications_list_values_filter_by_dimension_get(
@@ -3195,6 +3214,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for documents endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='docs')
+        existing_apps['documents'] = target_app
 
     @target_app.command("list")
     def documents_list_get(
@@ -3853,6 +3873,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for entities endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='entities')
+        existing_apps['entities'] = target_app
 
     @target_app.command("list")
     def entities_list_get(
@@ -4143,6 +4164,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for export endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='export')
+        existing_apps['export'] = target_app
 
     @target_app.command("eleventy-site-route")
     def export_eleventy_site_route_post(
@@ -4261,6 +4283,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for folders endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='folders')
+        existing_apps['folders'] = target_app
 
     @target_app.command("delete")
     def folders_delete_delete(
@@ -4370,6 +4393,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for hermeneutics endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='hermeneutics')
+        existing_apps['hermeneutics'] = target_app
 
     @target_app.command("list-circle-states")
     def hermeneutics_list_circle_states_get(
@@ -4903,6 +4927,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for iiif endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='iiif')
+        existing_apps['iiif'] = target_app
 
     @target_app.command("direct-image-access")
     def iiif_direct_image_access_get(
@@ -4965,6 +4990,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for images endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='images')
+        existing_apps['images'] = target_app
 
     @target_app.command("delete-edit-chain")
     def images_delete_edit_chain_delete(
@@ -5191,6 +5217,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for ingest endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='ingest')
+        existing_apps['ingest'] = target_app
 
     @target_app.command("file")
     def ingest_file_post(
@@ -5298,6 +5325,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for integrations endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='integrations')
+        existing_apps['integrations'] = target_app
 
     @target_app.command("list")
     def integrations_list_get(
@@ -5562,6 +5590,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for kg endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='kg')
+        existing_apps['kg'] = target_app
 
     @target_app.command("contradictions")
     def kg_contradictions_get(
@@ -7278,10 +7307,11 @@ def register_generated_openapi_commands(
             return client.request("POST", path, params=params)
         invoke(ctx, op_call)
 
-    target_app = existing_apps.get('libraries')
+    target_app = existing_apps.get('library')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for libraries endpoints.', no_args_is_help=True)
-        root_app.add_typer(target_app, name='libraries')
+        root_app.add_typer(target_app, name='library')
+        existing_apps['library'] = target_app
 
     @target_app.command("list-entity-types")
     def libraries_list_entity_types_get(
@@ -7332,6 +7362,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for library endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='library')
+        existing_apps['library'] = target_app
 
     @target_app.command("create")
     def library_create_post(
@@ -7464,6 +7495,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for library-items endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='library-items')
+        existing_apps['library-items'] = target_app
 
     @target_app.command("list-links-for")
     def library_items_list_links_for_get(
@@ -7481,6 +7513,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for local-inference endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='local-inference')
+        existing_apps['local-inference'] = target_app
 
     @target_app.command("list-catalog")
     def local_inference_list_catalog_get(
@@ -7615,6 +7648,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for local-models endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='local-models')
+        existing_apps['local-models'] = target_app
 
     @target_app.command("list")
     def local_models_list_get(
@@ -7674,6 +7708,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for mcp endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='mcp')
+        existing_apps['mcp'] = target_app
 
     @target_app.command("list-knowledge-claims")
     def mcp_list_knowledge_claims_get(
@@ -7866,6 +7901,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for mcp-servers endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='mcp-servers')
+        existing_apps['mcp-servers'] = target_app
 
     @target_app.command("list")
     def mcp_servers_list_get(
@@ -8046,6 +8082,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for migrations endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='migrations')
+        existing_apps['migrations'] = target_app
 
     @target_app.command("list")
     def migrations_list_get(
@@ -8148,6 +8185,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for mind-palace endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='mind-palace')
+        existing_apps['mind-palace'] = target_app
 
     @target_app.command("list-connections")
     def mind_palace_list_connections_get(
@@ -8959,10 +8997,11 @@ def register_generated_openapi_commands(
             return client.request("POST", path, params=params)
         invoke(ctx, op_call)
 
-    target_app = existing_apps.get('mindpalace')
+    target_app = existing_apps.get('mind-palace')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for mindpalace endpoints.', no_args_is_help=True)
-        root_app.add_typer(target_app, name='mindpalace')
+        root_app.add_typer(target_app, name='mind-palace')
+        existing_apps['mind-palace'] = target_app
 
     @target_app.command("render-scene")
     def mindpalace_render_scene_post(
@@ -8997,6 +9036,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for model-comparison endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='model-comparison')
+        existing_apps['model-comparison'] = target_app
 
     @target_app.command("compare-models")
     def model_comparison_compare_models_post(
@@ -9349,6 +9389,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for models endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='models')
+        existing_apps['models'] = target_app
 
     @target_app.command("search-hf")
     def models_search_hf_get(
@@ -9401,6 +9442,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for multilingual endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='multilingual')
+        existing_apps['multilingual'] = target_app
 
     @target_app.command("get-claims-by-language")
     def multilingual_get_claims_by_language_get(
@@ -9527,6 +9569,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for notes endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='notes')
+        existing_apps['notes'] = target_app
 
     @target_app.command("list")
     def notes_list_get(
@@ -9760,6 +9803,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for pair endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='pair')
+        existing_apps['pair'] = target_app
 
     @target_app.command("device")
     def pair_device_post(
@@ -9819,6 +9863,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for policies endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='policies')
+        existing_apps['policies'] = target_app
 
     @target_app.command("list-orchestration-rules")
     def policies_list_orchestration_rules_get(
@@ -9944,6 +9989,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for projects endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='projects')
+        existing_apps['projects'] = target_app
 
     @target_app.command("list")
     def projects_list_get(
@@ -10128,6 +10174,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for providers endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='providers')
+        existing_apps['providers'] = target_app
 
     @target_app.command("list")
     def providers_list_get(
@@ -10453,6 +10500,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for references endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='references')
+        existing_apps['references'] = target_app
 
     @target_app.command("list")
     def references_list_get(
@@ -10587,6 +10635,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for registries endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='registries')
+        existing_apps['registries'] = target_app
 
     @target_app.command("list-claim-kinds-custom-built-in")
     def registries_list_claim_kinds_custom_built_in_get(
@@ -10774,6 +10823,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for registry endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='registry')
+        existing_apps['registry'] = target_app
 
     @target_app.command("list-known-libraries")
     def registry_list_known_libraries_get(
@@ -10835,6 +10885,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for research endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='research')
+        existing_apps['research'] = target_app
 
     @target_app.command("create-checklist")
     def research_create_checklist_post(
@@ -11540,6 +11591,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for schedules endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='schedules')
+        existing_apps['schedules'] = target_app
 
     @target_app.command("list")
     def schedules_list_get(
@@ -11714,6 +11766,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for search endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='search-api')
+        existing_apps['search'] = target_app
 
     @target_app.command("enhanced")
     def search_enhanced_post(
@@ -12082,6 +12135,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for settings endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='settings')
+        existing_apps['settings'] = target_app
 
     @target_app.command("reset-ai-defaults")
     def settings_reset_ai_defaults_delete(
@@ -12339,6 +12393,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for sources endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='sources')
+        existing_apps['sources'] = target_app
 
     @target_app.command("list")
     def sources_list_get(
@@ -12441,6 +12496,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for stats endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='stats')
+        existing_apps['stats'] = target_app
 
     @target_app.command("get")
     def stats_get_get(
@@ -12457,6 +12513,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for storage endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='storage')
+        existing_apps['storage'] = target_app
 
     @target_app.command("get-display-image")
     def storage_get_display_image_get(
@@ -12614,6 +12671,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for tasks endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='tasks')
+        existing_apps['tasks'] = target_app
 
     @target_app.command("list-background")
     def tasks_list_background_get(
@@ -12830,6 +12888,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for triggers endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='triggers')
+        existing_apps['triggers'] = target_app
 
     @target_app.command("list")
     def triggers_list_get(
@@ -12986,6 +13045,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for users endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='users')
+        existing_apps['users'] = target_app
 
     @target_app.command("list")
     def users_list_get(
@@ -13049,6 +13109,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for view endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='view')
+        existing_apps['view'] = target_app
 
     @target_app.command("document")
     def view_document_get(
@@ -13077,6 +13138,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for workflow-execution endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='workflow-execution')
+        existing_apps['workflow-execution'] = target_app
 
     @target_app.command("clear-all-cache")
     def workflow_execution_clear_all_cache_delete(
@@ -13357,6 +13419,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for workflows endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='workflows')
+        existing_apps['workflows'] = target_app
 
     @target_app.command("list")
     def workflows_list_get(

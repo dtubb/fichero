@@ -1622,6 +1622,13 @@ def test_generated_delete_requires_confirmation():
     assert FakeClient.instances == []
 
 
+def test_generated_commands_use_canonical_resource_trees():
+    assert runner.invoke(cli.app, ["library", "--help"]).exit_code == 0
+    assert runner.invoke(cli.app, ["mind-palace", "--help"]).exit_code == 0
+    assert runner.invoke(cli.app, ["libraries", "--help"]).exit_code != 0
+    assert runner.invoke(cli.app, ["mindpalace", "--help"]).exit_code != 0
+
+
 def test_docs_update_passes_fields():
     result = runner.invoke(cli.app, ["docs", "update", "d1", "--name", "New Name"])
     assert result.exit_code == 0

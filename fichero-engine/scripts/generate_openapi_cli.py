@@ -23,7 +23,14 @@ RESOURCE_NAME_OVERRIDES = {
     "claims": "claim",
     "documents": "docs",
     "health": "health-api",
+    "libraries": "library",
+    "mindpalace": "mind-palace",
     "search": "search-api",
+}
+RESOURCE_APP_KEY_OVERRIDES = {
+    "libraries": "library",
+    "mind-palace": "mind-palace",
+    "mindpalace": "mind-palace",
 }
 RESOURCE_HELP_OVERRIDES = {
     "activity": "Generated OpenAPI commands for activity endpoints.",
@@ -522,6 +529,7 @@ def _generate_module(operations: list[Operation]) -> str:
     ]
 
     for resource in sorted(per_resource):
+        app_key = RESOURCE_APP_KEY_OVERRIDES.get(resource, resource)
         root_name = RESOURCE_NAME_OVERRIDES.get(resource, resource)
         help_text = RESOURCE_HELP_OVERRIDES.get(
             resource, f"Generated OpenAPI commands for {resource} endpoints."
@@ -529,10 +537,11 @@ def _generate_module(operations: list[Operation]) -> str:
         lines.extend(
             [
                 "",
-                f"    target_app = existing_apps.get({resource!r})",
+                f"    target_app = existing_apps.get({app_key!r})",
                 "    if target_app is None:",
                 f"        target_app = typer.Typer(help={help_text!r}, no_args_is_help=True)",
                 f"        root_app.add_typer(target_app, name={root_name!r})",
+                f"        existing_apps[{app_key!r}] = target_app",
             ]
         )
         for command_name, op in per_resource[resource]:
