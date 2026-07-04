@@ -255,6 +255,10 @@ extension SidebarItemRow {
                     try? FileManager.default.removeItem(at: tempDir)
                 }
             }
+            // Clear any stale drop-error banner before this import so a prior
+            // failure doesn't linger over a now-successful drop (#2384; matches
+            // the move paths that clear at start).
+            await MainActor.run { sidebarState.dropErrorMessage = nil }
             do {
                 _ = try await importService.importFiles(
                     fileURLs,
@@ -276,6 +280,13 @@ extension SidebarItemRow {
                 await documentStore?.refresh()
             } catch {
                 sidebarRowLogger.error("External drop import failed: \(error.localizedDescription)")
+                // Surface the failure to the user, not just the log — a file drop
+                // that silently fails to import must not look like it was added
+                // (#2384 acceptance: "the UI reports the failure and does not
+                // pretend the file was added"). Uses the same `dropErrorMessage`
+                // sidebar surface as the move-failure paths (#2344), for one
+                // consistent drop-error banner.
+                await MainActor.run { sidebarState.dropErrorMessage = error.localizedDescription }
             }
         }
 
