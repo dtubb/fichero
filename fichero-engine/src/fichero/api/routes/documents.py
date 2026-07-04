@@ -394,11 +394,13 @@ def _normalize_curated_items(items: list[Any] | None) -> list[dict[str, Any]]:
     normalized: list[dict[str, Any]] = []
     for item in items or []:
         if not isinstance(item, dict):
+            logger.warning("workspace curated item is not an object: %r", item)
             continue
         item_id = str(item.get("id") or "").strip()
         target_type = str(item.get("target_type") or "").strip()
         target_id = str(item.get("target_id") or "").strip()
         if not item_id or not target_type or not target_id:
+            logger.warning("workspace curated item missing required fields: %r", item)
             continue
         normalized.append(
             {
@@ -586,26 +588,42 @@ def _points_from_metadata(metadata: dict | None, *, place_default: str | None = 
     if isinstance(raw, list):
         for item in raw:
             if not isinstance(item, dict):
+                logger.warning("document geo_points entry is not an object: %r", item)
                 continue
             lat, lon = item.get("lat"), item.get("lon")
             if lat is None or lon is None:
+                logger.warning("document geo_points entry missing lat/lon: %r", item)
                 continue
-            points.append(
-                DocGeoPoint(
-                    lat=float(lat),
-                    lon=float(lon),
-                    place_name=item.get("place_name") or place_default,
-                    precision_m=item.get("precision_m"),
-                    source="metadata",
+            try:
+                points.append(
+                    DocGeoPoint(
+                        lat=float(lat),
+                        lon=float(lon),
+                        place_name=item.get("place_name") or place_default,
+                        precision_m=item.get("precision_m"),
+                        source="metadata",
+                    )
                 )
-            )
+            except (TypeError, ValueError):
+                logger.warning("document geo_points entry has invalid lat/lon: %r", item)
     # Legacy flat lat/lon (latitude/longitude or lat/lon) — one point per doc.
     lat = metadata.get("latitude", metadata.get("lat"))
     lon = metadata.get("longitude", metadata.get("lon"))
     if lat is not None and lon is not None:
-        points.append(
-            DocGeoPoint(lat=float(lat), lon=float(lon), place_name=place_default, source="metadata")
-        )
+        try:
+            points.append(
+                DocGeoPoint(
+                    lat=float(lat),
+                    lon=float(lon),
+                    place_name=place_default,
+                    source="metadata",
+                )
+            )
+        except (TypeError, ValueError):
+            logger.warning(
+                "document legacy geo metadata has invalid lat/lon: %r",
+                {"latitude": lat, "longitude": lon},
+            )
     return points
 
 
@@ -1300,6 +1318,11 @@ async def related_documents(
         try:
             ids = _json.loads(raw) if isinstance(raw, str) else raw
         except (TypeError, ValueError):
+            logger.warning(
+                "related-documents malformed entity_ids payload for %s: %r",
+                doc_id,
+                raw,
+            )
             continue
         if isinstance(ids, list):
             for eid in ids:

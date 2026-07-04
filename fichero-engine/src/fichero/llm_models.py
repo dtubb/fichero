@@ -44,8 +44,9 @@ def get_model_info(model: str) -> dict[str, Any] | None:
     litellm = _get_litellm()
     try:
         return litellm.get_model_info(model)
-    except Exception:
-        return None
+    except Exception as exc:
+        logger.exception("LiteLLM model info lookup failed for %s", model)
+        raise RuntimeError(f"Could not load model info for {model}") from exc
 
 
 def get_model_cost(model: str) -> dict[str, float] | None:
@@ -62,9 +63,19 @@ def get_model_cost(model: str) -> dict[str, float] | None:
     # Check LiteLLM's cost map
     cost_info = litellm.model_cost.get(model)
     if cost_info:
+        input_cost = cost_info.get("input_cost_per_token")
+        output_cost = cost_info.get("output_cost_per_token")
+        if input_cost is None or output_cost is None:
+            logger.warning(
+                "LiteLLM pricing incomplete for %s: input=%r output=%r",
+                model,
+                input_cost,
+                output_cost,
+            )
+            return None
         return {
-            "input_cost_per_token": cost_info.get("input_cost_per_token", 0),
-            "output_cost_per_token": cost_info.get("output_cost_per_token", 0),
+            "input_cost_per_token": input_cost,
+            "output_cost_per_token": output_cost,
         }
     return None
 
@@ -73,7 +84,7 @@ def estimate_cost(
     model: str,
     input_tokens: int,
     output_tokens: int,
-) -> float:
+) -> float | None:
     """Estimate cost for a completion.
 
     Args:
@@ -82,7 +93,7 @@ def estimate_cost(
         output_tokens: Number of output tokens
 
     Returns:
-        Estimated cost in USD
+        Estimated cost in USD, or None when pricing is unavailable.
     """
     litellm = _get_litellm()
     try:
@@ -92,8 +103,9 @@ def estimate_cost(
             completion_tokens=output_tokens,
         )
         return input_cost + output_cost
-    except Exception:
-        return 0.0
+    except Exception as exc:
+        logger.exception("LiteLLM cost estimate failed for %s", model)
+        return None
 
 
 def list_models_for_provider(provider: str) -> list[dict[str, Any]]:

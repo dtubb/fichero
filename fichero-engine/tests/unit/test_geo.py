@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 from fichero import geo
 from fichero.workflows.tools.geo_extract import _coerce_place_names
+from fichero.api.routes import documents as documents_routes
 from fichero.api.routes.documents import _points_from_metadata
 
 
@@ -69,3 +72,21 @@ def test_points_from_metadata_ignores_garbage():
     assert _points_from_metadata(None) == []
     assert _points_from_metadata({"geo_points": "not-a-list"}) == []
     assert _points_from_metadata({"geo_points": [{"lat": 1}]}) == []  # missing lon
+
+
+def test_points_from_metadata_logs_bad_entries():
+    with patch.object(documents_routes.logger, "warning") as mock_warning:
+        pts = _points_from_metadata(
+            {
+                "geo_points": [
+                    "bad-item",
+                    {"lat": 1},
+                    {"lat": "north", "lon": 2},
+                ],
+                "latitude": "west",
+                "longitude": -3.7,
+            }
+        )
+
+    assert pts == []
+    assert mock_warning.call_count == 4

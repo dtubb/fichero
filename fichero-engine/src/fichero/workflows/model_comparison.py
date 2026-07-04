@@ -270,7 +270,7 @@ def get_models_by_tier() -> dict[str, list[dict]]:
     return result
 
 
-def estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
+def estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float | None:
     """Estimate cost for a model run."""
     pricing = MODEL_PRICING.get(model)
     if not pricing:
@@ -281,7 +281,7 @@ def estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
                 break
 
     if not pricing:
-        return 0.0
+        return None
 
     input_cost = (input_tokens / 1_000_000) * pricing[0]
     output_cost = (output_tokens / 1_000_000) * pricing[1]

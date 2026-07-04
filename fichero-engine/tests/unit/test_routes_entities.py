@@ -6,6 +6,10 @@ management, and entity resolution. Route ordering fix required: static paths
 /alias-map and /resolve/{v} must be registered before /{entity_id}.
 """
 
+import asyncio
+import logging
+from unittest.mock import patch
+
 from fichero.knowledge_models import EntityType, KnowledgeEntity
 
 
@@ -258,6 +262,39 @@ class TestUpsertEntity:
         entities = listing.json()["items"]
         assert all(e["id"] != "no-such-entity-id" for e in entities)
         assert all(e["canonical_name"] != "Ghost" for e in entities)
+
+
+class TestEntityReadLogging:
+    def test_entity_drill_down_logs_excerpt_lookup_failure(self, db, caplog):
+        from fichero.api.routes import entities as entities_routes
+        from fichero.api.routes.entities import entity_drill_down
+
+        entity = _make_entity(db, "Alice")
+        with (
+            patch.object(entities_routes, "get_entity_documents", return_value=[]),
+            patch.object(entities_routes, "get_entity_co_occurrence", return_value=[]),
+            patch.object(db, "knowledge_claim_excerpts_for_entity", side_effect=RuntimeError("boom")),
+            caplog.at_level(logging.WARNING, logger=entities_routes.logger.name),
+        ):
+            response = asyncio.run(entity_drill_down(entity.id, db=db))
+
+        assert response.claim_excerpts == []
+        assert f"entity-drill-down excerpt lookup failed for {entity.id}: boom" in caplog.text
+
+    def test_entity_biography_logs_document_lookup_failure(self, db, caplog):
+        from fichero.api.routes import entities as entities_routes
+        from fichero.api.routes.entities import assemble_entity_biography
+
+        entity = _make_entity(db, "Alice")
+        with (
+            patch.object(db, "entity_document_claim_counts", side_effect=RuntimeError("boom")),
+            caplog.at_level(logging.WARNING, logger=entities_routes.logger.name),
+        ):
+            response = assemble_entity_biography(entity.id, db)
+
+        assert response.documents == []
+        assert f"entity-biography document lookup failed for {entity.id}: boom" in caplog.text
+
 
     def test_upsert_unknown_id_leaves_other_entities_untouched(self, client, db):
         """The failed upsert must not create a substitute row alongside real data."""

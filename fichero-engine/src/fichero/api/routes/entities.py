@@ -818,6 +818,7 @@ async def top_entities(
         try:
             ids = _json.loads(raw) if isinstance(raw, str) else raw
         except (TypeError, ValueError):
+            logger.warning("top-entities: malformed entity_ids payload: %r", raw)
             continue
         if isinstance(ids, list):
             for eid in ids:
@@ -880,6 +881,7 @@ async def entity_claim_counts(
         try:
             ids = _json.loads(raw) if isinstance(raw, str) else raw
         except (TypeError, ValueError):
+            logger.warning("entity-claim-counts: malformed entity_ids payload: %r", raw)
             continue
         if isinstance(ids, list):
             for eid in ids:
@@ -1134,7 +1136,7 @@ async def get_entity_documents(
     try:
         rows = db.entity_document_link_rows(entity_id, limit)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("entity-documents lookup failed: %s", exc)
+        logger.warning("entity-documents lookup failed for %s: %s", entity_id, exc)
         return EntityDocumentListResponse(items=[], count=0)
 
     items = [
@@ -1174,7 +1176,7 @@ async def get_entity_co_occurrence(
     try:
         raw_entity_id_values = db.knowledge_claim_entity_id_values(entity_id=entity_id)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("co-occurrence lookup failed: %s", exc)
+        logger.warning("entity co-occurrence lookup failed for %s: %s", entity_id, exc)
         return EntityCoOccurrenceListResponse(items=[], count=0)
 
     import json as _json
@@ -1187,6 +1189,11 @@ async def get_entity_co_occurrence(
         try:
             ids = _json.loads(raw) if isinstance(raw, str) else raw
         except (TypeError, ValueError):
+            logger.warning(
+                "entity co-occurrence malformed entity_ids payload for %s: %r",
+                entity_id,
+                raw,
+            )
             continue
         if not isinstance(ids, list):
             continue
@@ -1261,7 +1268,7 @@ async def entity_drill_down(
     try:
         excerpts = db.knowledge_claim_excerpts_for_entity(entity_id, excerpts_limit)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("excerpt lookup failed: %s", exc)
+        logger.warning("entity-drill-down excerpt lookup failed for %s: %s", entity_id, exc)
         excerpts = []
 
     return EntityDrillDownResponse(
@@ -1359,7 +1366,7 @@ def assemble_entity_biography(
     try:
         doc_rows = db.entity_document_claim_counts(entity_id, documents_limit)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("biography document lookup failed: %s", exc)
+        logger.warning("entity-biography document lookup failed for %s: %s", entity_id, exc)
         doc_rows = []
 
     from fichero.models import Document as _Document
@@ -1381,7 +1388,11 @@ def assemble_entity_biography(
     try:
         raw_entity_id_values = db.knowledge_claim_entity_id_values(entity_id=entity_id)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("biography co-occurrence lookup failed: %s", exc)
+        logger.warning(
+            "entity-biography co-occurrence lookup failed for %s: %s",
+            entity_id,
+            exc,
+        )
         raw_entity_id_values = []
 
     counter: Counter[str] = Counter()
@@ -1391,6 +1402,11 @@ def assemble_entity_biography(
         try:
             ids = _json.loads(raw) if isinstance(raw, str) else raw
         except (TypeError, ValueError):
+            logger.warning(
+                "entity-biography malformed entity_ids payload for %s: %r",
+                entity_id,
+                raw,
+            )
             continue
         if not isinstance(ids, list):
             continue
