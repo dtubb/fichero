@@ -328,12 +328,7 @@ extension ContentView {
             viewDisplayMode = effectiveMode
         }
 
-        viewSettings.libraryLayout = switch effectiveMode {
-        case .icon: .icons
-        case .list: .list
-        case .table: .table
-        case .canvas, .space, .workspace: .map
-        }
+        viewSettings.libraryLayout = effectiveMode.libraryLayout
         saveDisplayMode(effectiveMode, for: sidebarSelectionState.selectedItemId)
         // Promote to the global default so a fresh window / new folder
         // / new launch all start in this mode. Per-folder overrides

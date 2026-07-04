@@ -235,7 +235,7 @@ struct LibraryLayoutSection: View {
         if mode == .search && !featureManager.isSearchAdvancedViewsEnabled {
             return [.list]
         }
-        return [.icons, .list, .table, .map]
+        return [.icons, .list, .table, .map, .space]
     }
 
     var body: some View {
@@ -289,9 +289,19 @@ struct LibraryLayoutSection: View {
                     }
                 }
 
-                // "Space" (⌘5 / 3D RealityKit) and "Spatial (2D)" both retired
-                // (#2667): the 3D Mind Palace renderer is removed and the 2D
-                // canvas is now "Canvas" (⌘4 / .map), the live spatial view.
+                // "Space" (⌘5) — the RealityKit 3D renderer restored (#3088), a
+                // second renderer on the same shared canvas stores as ⌘4 Canvas.
+                if availableLayouts.contains(.space) {
+                    LibraryLayoutButton(
+                        layout: .space,
+                        label: "as Space",
+                        icon: "cube.transparent",
+                        shortcut: "5",
+                        current: viewSettings.libraryLayout
+                    ) {
+                        viewSettings.libraryLayout = .space
+                    }
+                }
             }
         }
     }

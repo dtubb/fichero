@@ -99,6 +99,10 @@ enum LibraryLayout: String, CaseIterable, Codable {
     case list = "List"
     case table = "Table"
     case map = "Map"
+    /// The RealityKit 3D "Space" view (#3088). Mirrors `ViewDisplayMode.space`
+    /// so the View-menu ⌘5 ↔ toolbar picker bridge stays bijective — without
+    /// this case Space would collapse onto `.map` (Canvas) and revert on select.
+    case space = "Space"
 
     var icon: String {
         switch self {
@@ -106,6 +110,20 @@ enum LibraryLayout: String, CaseIterable, Codable {
         case .list: "list.bullet"
         case .table: "tablecells"
         case .map: "rectangle.3.group"
+        case .space: "cube.transparent"
+        }
+    }
+
+    /// The `ViewDisplayMode` this menu layout maps to — the inverse of
+    /// `ViewDisplayMode.libraryLayout`, the single source of truth for the
+    /// LibraryLayout → ViewDisplayMode bridge (#3088).
+    var displayMode: ViewDisplayMode {
+        switch self {
+        case .icons: .icon
+        case .list: .list
+        case .table: .table
+        case .map: .canvas
+        case .space: .space
         }
     }
 }
