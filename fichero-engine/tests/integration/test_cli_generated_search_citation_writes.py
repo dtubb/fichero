@@ -67,6 +67,14 @@ def _cli_result(live_engine, *args: str):
     )
 
 
+def _latest_audit(live_engine, action_name: str, target_id: str) -> dict:
+    audit = _cli_json(live_engine, "actions", "list-audit-log", "--limit", "20")
+    for item in audit["items"]:
+        if item["action_name"] == action_name and target_id in item["target_ids"]:
+            return item
+    raise AssertionError(f"missing audit row for {action_name} {target_id}")
+
+
 def test_generated_search_citation_bibliography_and_source_contracts_current_main(
     cli_live_engine,
 ) -> None:
@@ -104,7 +112,6 @@ def test_generated_search_citation_bibliography_and_source_contracts_current_mai
     assert "count" in keyword_cloud
     assert "items" in keyword_cloud
 
-    # audit assertions pending /api/citations->registry migration (#3043)
     citation = _cli_json(
         cli_live_engine,
         "citations",
@@ -118,6 +125,8 @@ def test_generated_search_citation_bibliography_and_source_contracts_current_mai
         "--page-label",
         "12",
     )
+    created_audit = _latest_audit(cli_live_engine, "citation.create", citation["id"])
+    assert created_audit["undoable"] is True
     outbound = _cli_json(
         cli_live_engine,
         "citations",
@@ -144,6 +153,8 @@ def test_generated_search_citation_bibliography_and_source_contracts_current_mai
     )
     assert patched_citation["target_citation_text"] == "Updated archive citation"
     assert patched_citation["confidence"] == 0.8
+    patched_audit = _latest_audit(cli_live_engine, "citation.patch", citation["id"])
+    assert patched_audit["undoable"] is True
     deleted_citation = _cli_json(
         cli_live_engine,
         "citations",
@@ -151,6 +162,8 @@ def test_generated_search_citation_bibliography_and_source_contracts_current_mai
         citation["id"],
     )
     assert deleted_citation is None
+    deleted_audit = _latest_audit(cli_live_engine, "citation.delete", citation["id"])
+    assert deleted_audit["undoable"] is True
 
     # audit assertions pending /api/bibliography->registry migration (#3045)
     attached = _cli_json(
