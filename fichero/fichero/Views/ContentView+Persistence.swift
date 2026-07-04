@@ -159,7 +159,7 @@ extension ContentView {
 
         viewMode = restoreViewMode(type: storedViewModeType, itemId: storedViewModeItemId)
         if selectedSidebarItemId == nil {
-            let restoredId = sidebarSelectionId(
+            let restoredId = Self.sidebarSelectionId(
                 for: storedViewModeType,
                 itemId: storedViewModeItemId
             )
@@ -207,13 +207,13 @@ extension ContentView {
         let (type, id) = Self.serializeViewMode(viewMode)
         storedViewModeType = type
         storedViewModeItemId = id
-        selectedSidebarItemId = sidebarSelectionState.selectedItemId ?? sidebarSelectionId(for: type, itemId: id)
+        selectedSidebarItemId = sidebarSelectionState.selectedItemId ?? Self.sidebarSelectionId(for: type, itemId: id)
     }
 
     // MARK: - Sidebar Selection ID Mapping
 
     // swiftlint:disable:next cyclomatic_complexity
-    func sidebarSelectionId(for type: String, itemId: String?) -> String? {
+    static func sidebarSelectionId(for type: String, itemId: String?) -> String? {
         guard let itemId, !itemId.isEmpty else { return nil }
         switch type {
         case "library":
@@ -244,29 +244,29 @@ extension ContentView {
         guard let rawItemId, !rawItemId.isEmpty else { return nil }
         switch type {
         case "library":
-            return stripPrefix(rawItemId, prefix: "doc:")
+            return Self.stripPrefix(rawItemId, prefix: "doc:")
         case "search":
-            return stripPrefix(rawItemId, prefix: "search:")
+            return Self.stripPrefix(rawItemId, prefix: "search:")
         case "chat":
-            return stripPrefix(rawItemId, prefix: "chat:")
+            return Self.stripPrefix(rawItemId, prefix: "chat:")
         case "workflow":
-            return stripPrefix(rawItemId, prefix: "workflow:")
+            return Self.stripPrefix(rawItemId, prefix: "workflow:")
         case "chain":
-            return stripPrefix(rawItemId, prefix: "chain:")
+            return Self.stripPrefix(rawItemId, prefix: "chain:")
         case "schedule":
-            return stripPrefix(rawItemId, prefix: "schedule:")
+            return Self.stripPrefix(rawItemId, prefix: "schedule:")
         case "trigger":
-            return stripPrefix(rawItemId, prefix: "trigger:")
+            return Self.stripPrefix(rawItemId, prefix: "trigger:")
         case "batch":
-            return stripPrefix(rawItemId, prefix: "batch:")
+            return Self.stripPrefix(rawItemId, prefix: "batch:")
         case "activity":
-            return stripPrefix(rawItemId, prefix: "activity:")
+            return Self.stripPrefix(rawItemId, prefix: "activity:")
         default:
             return rawItemId
         }
     }
 
-    private func stripPrefix(_ value: String, prefix: String) -> String {
+    private static func stripPrefix(_ value: String, prefix: String) -> String {
         if value.hasPrefix(prefix) {
             return String(value.dropFirst(prefix.count))
         }

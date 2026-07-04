@@ -166,7 +166,6 @@ struct MainContentModifiers: ViewModifier {
 
     @Binding var sidebarMode: SidebarMode
     @Binding var viewMode: AppViewMode
-    @Binding var selectedSidebarItemId: String?
     @Binding var browserSelection: Set<String>
     @Binding var detailDocument: Document?
     @Binding var columnVisibility: NavigationSplitViewVisibility

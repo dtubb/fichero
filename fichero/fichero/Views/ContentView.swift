@@ -571,7 +571,6 @@ struct ContentView: View {
                     appState: appState,
                     sidebarMode: $sidebarMode,
                     viewMode: $viewMode,
-                    selectedSidebarItemId: $selectedSidebarItemId,
                     browserSelection: $browserSelection,
                     detailDocument: $detailDocument,
                     columnVisibility: $columnVisibility,

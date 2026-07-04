@@ -546,7 +546,7 @@ extension ContentView {
     ) {
         guard oldCollections.isEmpty, !newCollections.isEmpty else { return }
         viewMode = restoreViewMode(type: storedViewModeType, itemId: storedViewModeItemId)
-        let restoredId = sidebarSelectionId(
+        let restoredId = Self.sidebarSelectionId(
             for: storedViewModeType,
             itemId: storedViewModeItemId
         )
@@ -672,7 +672,9 @@ extension ContentView {
         recordNavigationEntry()
     }
 
-    /// Handles `.onChange(of: selectedSidebarItemId)`.
+    /// Handles `.onChange(of: sidebarSelectionState.selectedItemId)` — the single
+    /// runtime source (#3036). @SceneStorage `selectedSidebarItemId` is now purely
+    /// a persistence adapter (restore-once + write-through), not a second source.
     /// Restores per-folder view mode and drives the inspector from sidebar selection.
     func handleSidebarSelectionChange(_ newFolderId: String?) {
         if isRestoringNavigationHistory { return }
