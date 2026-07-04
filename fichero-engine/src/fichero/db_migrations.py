@@ -584,3 +584,93 @@ def migrate_spatial_node_layout_fields(conn) -> None:
         logger.info("spatialnode layout fields migration completed")
     except Exception as e:
         logger.warning("spatialnode layout migration failed: %s", e)
+
+
+def migrate_canvas_layout_table(conn) -> None:
+    """Ensure the real canvas_layout table exists and backfill legacy document positions.
+
+    #3078 retires the document-row-only persistence path. Keep old saved folder
+    layouts by copying any document position/style data into the dedicated table
+    the first time a library sees this migration. Idempotent: create-if-missing
+    plus insert-only-when-absent on the deterministic ``scope_id::item_id`` key.
+    """
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS canvas_layout (
+                id VARCHAR PRIMARY KEY,
+                folder_id VARCHAR NOT NULL,
+                item_id VARCHAR NOT NULL,
+                x DOUBLE DEFAULT 0.0,
+                y DOUBLE DEFAULT 0.0,
+                z DOUBLE DEFAULT 0.0,
+                w DOUBLE,
+                h DOUBLE,
+                d DOUBLE,
+                angle DOUBLE DEFAULT 0.0,
+                z_index INTEGER DEFAULT 0,
+                style VARCHAR,
+                updated_at TIMESTAMP NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_canvas_layout_scope
+            ON canvas_layout(folder_id)
+            """
+        )
+        documents_exists = (
+            conn.execute(
+                """
+                SELECT COUNT(*) FROM information_schema.tables
+                WHERE table_name = 'documents'
+                """
+            ).fetchone()[0]
+            > 0
+        )
+        if not documents_exists:
+            logger.debug("documents table does not exist, skipping canvas_layout backfill")
+            return
+        conn.execute(
+            """
+            INSERT INTO canvas_layout (
+                id, folder_id, item_id, x, y, z, w, h, d, angle, z_index, style, updated_at
+            )
+            SELECT
+                parent_id || '::' || id,
+                parent_id,
+                id,
+                COALESCE(position_x, 0.0),
+                COALESCE(position_y, 0.0),
+                COALESCE(position_z, 0.0),
+                TRY_CAST(json_extract(metadata, '$.canvas_w') AS DOUBLE),
+                TRY_CAST(json_extract(metadata, '$.canvas_h') AS DOUBLE),
+                TRY_CAST(json_extract(metadata, '$.canvas_d') AS DOUBLE),
+                COALESCE(rotation_z, 0.0),
+                COALESCE(z_index, 0),
+                json_extract_string(metadata, '$.canvas_style'),
+                COALESCE(updated_at, CURRENT_TIMESTAMP)
+            FROM documents d
+            WHERE parent_id IS NOT NULL
+              AND (
+                position_x IS NOT NULL
+                OR position_y IS NOT NULL
+                OR position_z IS NOT NULL
+                OR rotation_z IS NOT NULL
+                OR COALESCE(z_index, 0) != 0
+                OR json_extract(metadata, '$.canvas_w') IS NOT NULL
+                OR json_extract(metadata, '$.canvas_h') IS NOT NULL
+                OR json_extract(metadata, '$.canvas_d') IS NOT NULL
+                OR json_extract(metadata, '$.canvas_style') IS NOT NULL
+              )
+              AND NOT EXISTS (
+                SELECT 1
+                FROM canvas_layout c
+                WHERE c.id = parent_id || '::' || d.id
+              )
+            """
+        )
+        logger.info("canvas_layout table migration completed")
+    except Exception as e:
+        logger.warning("canvas_layout migration failed: %s", e)

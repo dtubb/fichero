@@ -5830,7 +5830,7 @@
         ],
         "query_params": [],
         "request_model": "ArrangeNodesRequest",
-        "response_model": "MindPalaceListResponse"
+        "response_model": "CanvasLayoutBatchResponse"
       },
       {
         "method": "GET",
@@ -5910,7 +5910,7 @@
         ],
         "query_params": [],
         "request_model": "CanvasLayoutSaveRequest",
-        "response_model": "[CanvasLayout]"
+        "response_model": "CanvasLayoutBatchResponse"
       }
     ],
     "model-comparison": [

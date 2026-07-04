@@ -546,6 +546,7 @@ class Database(DatabaseEmbeddingMixin):
 
         # Migrate tables if needed
         from fichero.db_migrations import (
+            migrate_canvas_layout_table,
             migrate_document_table,
             migrate_workflow_table,
             migrate_saved_search_table,
@@ -562,6 +563,7 @@ class Database(DatabaseEmbeddingMixin):
         migrate_provider_refs_table(self.conn)
         migrate_known_libraries_table(self.conn)
         migrate_library_entity_types_table(self.conn)
+        migrate_canvas_layout_table(self.conn)
         migrate_spatial_node_layout_fields(self.conn)
         migrate_references_table(self.conn)
         migrate_reference_provenance_table(self.conn)
@@ -696,6 +698,7 @@ class Database(DatabaseEmbeddingMixin):
             SearchSource,
         )
         from fichero.spatial_models import (
+            CanvasLayout,
             CanvasItem,
             NativeNote,
             SpatialConnection,
@@ -711,6 +714,7 @@ class Database(DatabaseEmbeddingMixin):
             Annotation,
             Artifact,
             BookStructureNode,
+            CanvasLayout,
             CanvasItem,
             ClaimMergeAudit,
             ClaimSuppressionRule,
@@ -4166,6 +4170,13 @@ class Database(DatabaseEmbeddingMixin):
 
     def _table_name(self, obj_or_model) -> str:
         """Get table name from model class (lowercase + 's')."""
+        if isinstance(obj_or_model, type) and obj_or_model.__name__ == "CanvasLayout":
+            return "canvas_layout"
+        if (
+            not isinstance(obj_or_model, type)
+            and type(obj_or_model).__name__ == "CanvasLayout"
+        ):
+            return "canvas_layout"
         if isinstance(obj_or_model, type):
             return obj_or_model.__name__.lower() + "s"
         return type(obj_or_model).__name__.lower() + "s"

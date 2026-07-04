@@ -1,9 +1,9 @@
-"""Tests for canvas arrange strategies + the document-position compatibility endpoint (#2297).
+"""Tests for canvas arrange strategies + the layout persistence endpoint (#2297).
 
 Two layers:
   * the pure ``compute_arrangement`` geometry (deterministic, no DB), and
   * the ``POST /folders/{folder_id}/arrange`` route + ``canvas.arrange`` action,
-    which must persist one document-position row per node.
+    which must persist one canvas_layout row per node.
 """
 
 import math
@@ -21,6 +21,7 @@ from fichero.spatial_arrange import (
 )
 from fichero.models import DocType, Document
 from fichero.models import ActionAudit
+from fichero.spatial_models import CanvasLayout
 
 BASE = "/api/mind-palace/folders"
 IDS = ["a", "b", "c", "d", "e"]
@@ -154,11 +155,10 @@ def test_arrange_persists_document_positions(client, db):
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    # Envelope, not a bare array (contract walker — #1147).
     assert body["count"] == 5
     assert len(body["items"]) == 5
+    assert body["skipped"] == []
 
-    # The positions actually landed on document attrs and are loadable.
     loaded = client.get(f"{BASE}/{folder}/canvas-layout").json()
     assert loaded["count"] == 5
     by_id = {r["item_id"]: r for r in loaded["items"]}
@@ -220,6 +220,24 @@ def test_arrange_is_folder_scoped(client, db):
     assert len(f1) == 1 and len(f2) == 1
 
 
+def test_arrange_skips_unknown_ids_but_persists_known_ones(client, db):
+    folder = "folder-partial-arrange"
+    _seed_folder_docs(db, folder, ["known"])
+    resp = client.post(
+        f"{BASE}/{folder}/arrange",
+        json={"node_ids": ["known", "missing"], "strategy": "row", "spacing": 10.0},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["count"] == 1
+    assert body["skipped"] == [
+        {"item_id": "missing", "detail": "unknown canvas item id"}
+    ]
+    loaded = client.get(f"{BASE}/{folder}/canvas-layout").json()["items"]
+    assert len(loaded) == 1
+    assert loaded[0]["item_id"] == "known"
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Action layer: canvas.arrange (agent / chat / App-Intents path) — #1848
 # ─────────────────────────────────────────────────────────────────────────────
@@ -242,10 +260,10 @@ def test_canvas_arrange_action_persists_and_audits(db, app_db):
     assert result.audit_id
     assert "canvas" in result.changed_domains
 
-    rows = [db.get(Document, item_id) for item_id in ["x", "y", "z"]]
+    rows = [db.get(CanvasLayout, CanvasLayout.make_id("f-act", item_id)) for item_id in ["x", "y", "z"]]
     assert all(row is not None for row in rows)
     assert {row.z_index for row in rows if row is not None} == {0, 1, 2}
-    assert all(row.position_x == 0.0 and row.position_y == 0.0 for row in rows if row is not None)
+    assert all(row.x == 0.0 and row.y == 0.0 for row in rows if row is not None)
 
 
 def test_canvas_arrange_action_rejects_empty(db, app_db):

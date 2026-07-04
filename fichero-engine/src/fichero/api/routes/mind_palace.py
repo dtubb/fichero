@@ -1,6 +1,7 @@
 """Mind Palace canvas routes."""
 
 from datetime import datetime
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,10 +12,12 @@ from fichero.api.auth import action_context
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.models import Document, MindPalaceListResponse
+from fichero.knowledge.knowledge_models import KnowledgeClaim, KnowledgeEntity
 from fichero.spatial_arrange import DEFAULT_SPACING, ArrangeStrategy, compute_arrangement
 from fichero.spatial_models import CanvasItem, CanvasItemKind, CanvasLayout
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class MindPalaceDeletedResponse(BaseModel):
@@ -47,11 +50,22 @@ class CanvasLayoutSaveRequest(BaseModel):
     items: list[CanvasLayoutItem]
 
 
-def _canvas_layout_row_from_document(folder_id: str, doc: Document) -> CanvasLayout:
+class CanvasLayoutSkippedItem(BaseModel):
+    item_id: str
+    detail: str
+
+
+class CanvasLayoutBatchResponse(BaseModel):
+    items: list[CanvasLayout]
+    count: int
+    skipped: list[CanvasLayoutSkippedItem] = Field(default_factory=list)
+
+
+def _canvas_layout_row_from_document(scope_id: str, doc: Document) -> CanvasLayout:
     metadata = doc.metadata if isinstance(doc.metadata, dict) else {}
     return CanvasLayout(
-        id=CanvasLayout.make_id(folder_id, doc.id),
-        folder_id=folder_id,
+        id=CanvasLayout.make_id(scope_id, doc.id),
+        folder_id=scope_id,
         item_id=doc.id,
         x=doc.position_x or 0.0,
         y=doc.position_y or 0.0,
@@ -66,8 +80,8 @@ def _canvas_layout_row_from_document(folder_id: str, doc: Document) -> CanvasLay
     )
 
 
-def _folder_canvas_documents(db: Database, folder_id: str) -> list[Document]:
-    rows = db.query(Document, parent_id=folder_id)
+def _legacy_canvas_documents(db: Database, scope_id: str) -> list[Document]:
+    rows = db.query(Document, parent_id=scope_id)
     return [
         doc
         for doc in rows
@@ -86,16 +100,91 @@ def _folder_canvas_documents(db: Database, folder_id: str) -> list[Document]:
     ]
 
 
-def _folder_canvas_document_or_404(db: Database, folder_id: str, item_id: str) -> Document:
-    doc = db.get(Document, item_id)
-    if doc is None:
-        raise HTTPException(status_code=404, detail=f"Document not found: {item_id}")
-    if doc.parent_id != folder_id:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Document {item_id} is not in folder {folder_id}",
+def _load_canvas_layout(db: Database, scope_id: str) -> list[CanvasLayout]:
+    rows = {row.item_id: row for row in db.query(CanvasLayout, folder_id=scope_id)}
+    for doc in _legacy_canvas_documents(db, scope_id):
+        rows.setdefault(doc.id, _canvas_layout_row_from_document(scope_id, doc))
+    return list(rows.values())
+
+
+def _canvas_placeable_exists(db: Database, item_id: str) -> bool:
+    return (
+        db.get(Document, item_id) is not None
+        or db.get(CanvasItem, item_id) is not None
+        or db.get(KnowledgeEntity, item_id) is not None
+        or db.get(KnowledgeClaim, item_id) is not None
+    )
+
+
+def _save_canvas_layout_row(
+    db: Database, scope_id: str, item: CanvasLayoutItem
+) -> CanvasLayout:
+    existing = db.get(CanvasLayout, CanvasLayout.make_id(scope_id, item.item_id))
+    field_set = item.model_fields_set
+    row = CanvasLayout(
+        id=CanvasLayout.make_id(scope_id, item.item_id),
+        folder_id=scope_id,
+        item_id=item.item_id,
+        x=item.x,
+        y=item.y,
+        z=item.z,
+        w=item.w if "w" in field_set else (existing.w if existing else None),
+        h=item.h if "h" in field_set else (existing.h if existing else None),
+        d=item.d if "d" in field_set else (existing.d if existing else None),
+        angle=item.angle,
+        z_index=item.z_index,
+        style=item.style if "style" in field_set else (existing.style if existing else None),
+        updated_at=datetime.now(),
+    )
+    db.save(row)
+    return row
+
+
+def _canvas_skip(item_id: str, detail: str) -> CanvasLayoutSkippedItem:
+    logger.warning("canvas layout skipped %s: %s", item_id, detail)
+    return CanvasLayoutSkippedItem(item_id=item_id, detail=detail)
+
+
+def _canvas_layout_change_spec(
+    *,
+    emit_type: str,
+    scope_id: str,
+    rows: list[CanvasLayout],
+    before: list[dict[str, Any]],
+    skipped: list[CanvasLayoutSkippedItem],
+) -> ChangeSpec:
+    item_ids = [row.item_id for row in rows]
+
+    def _emit(ctx: ActionContext, spec: ChangeSpec) -> None:
+        if not ctx.library_path or not spec.emit_type:
+            return
+        from fichero.api.change_stream import emit_change
+
+        emit_change(
+            ctx.library_path,
+            type=spec.emit_type,
+            entity_ids=item_ids,
+            document_ids=[scope_id],
+            run_id=ctx.run_id,
+            actor=ctx.actor,
+            origin_window=ctx.origin_window,
+            origin_user=ctx.actor,
         )
-    return doc
+
+    return ChangeSpec(
+        domains=["canvas"],
+        target_ids=[row.id for row in rows],
+        before={"scope_id": scope_id, "rows": before},
+        after={
+            "scope_id": scope_id,
+            "rows": [row.model_dump(mode="json") for row in rows],
+            "skipped": [item.model_dump(mode="json") for item in skipped],
+        },
+        emit_type=emit_type,
+        entity_ids=item_ids,
+        document_ids=[scope_id],
+        emit_fn=_emit,
+    )
 
 
 @router.get("/folders/{folder_id}/canvas-layout", response_model=MindPalaceListResponse)
@@ -103,45 +192,32 @@ async def get_canvas_layout(
     folder_id: str,
     db: Database = Depends(get_library_database),
 ) -> MindPalaceListResponse:
-    rows = [
-        _canvas_layout_row_from_document(folder_id, doc)
-        for doc in _folder_canvas_documents(db, folder_id)
-    ]
+    rows = _load_canvas_layout(db, folder_id)
     return MindPalaceListResponse(items=rows, count=len(rows))
 
 
 def save_canvas_layout_impl(
-    folder_id: str,
+    scope_id: str,
     request: CanvasLayoutSaveRequest,
     db: Database,
-) -> list[CanvasLayout]:
+) -> tuple[list[CanvasLayout], list[CanvasLayoutSkippedItem]]:
     saved: list[CanvasLayout] = []
+    skipped: list[CanvasLayoutSkippedItem] = []
     for item in request.items:
-        doc = _folder_canvas_document_or_404(db, folder_id, item.item_id)
-        metadata = dict(doc.metadata) if isinstance(doc.metadata, dict) else {}
-        doc.position_x = item.x
-        doc.position_y = item.y
-        doc.position_z = item.z
-        doc.rotation_z = item.angle
-        doc.z_index = item.z_index
-        metadata["canvas_w"] = item.w
-        metadata["canvas_h"] = item.h
-        metadata["canvas_d"] = item.d
-        metadata["canvas_style"] = item.style
-        doc.metadata = metadata
-        doc.updated_at = datetime.now()
-        db.save(doc)
-        saved.append(_canvas_layout_row_from_document(folder_id, doc))
-    return saved
+        if not _canvas_placeable_exists(db, item.item_id):
+            skipped.append(_canvas_skip(item.item_id, "unknown canvas item id"))
+            continue
+        saved.append(_save_canvas_layout_row(db, scope_id, item))
+    return saved, skipped
 
 
-@router.put("/folders/{folder_id}/canvas-layout")
+@router.put("/folders/{folder_id}/canvas-layout", response_model=CanvasLayoutBatchResponse)
 async def save_canvas_layout(
     folder_id: str,
     request: CanvasLayoutSaveRequest,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
-) -> list[CanvasLayout]:
+) -> CanvasLayoutBatchResponse:
     result = registry.invoke(
         db,
         "canvas.layout.save",
@@ -151,7 +227,12 @@ async def save_canvas_layout(
         },
         ctx,
     )
-    return [CanvasLayout.model_validate(row) for row in result.result]
+    rows = [CanvasLayout.model_validate(row) for row in result.result["items"]]
+    skipped = [
+        CanvasLayoutSkippedItem.model_validate(item)
+        for item in result.result.get("skipped", [])
+    ]
+    return CanvasLayoutBatchResponse(items=rows, count=len(rows), skipped=skipped)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -169,14 +250,14 @@ class ArrangeNodesRequest(BaseModel):
 
 def arrange_impl(
     db: Database,
-    folder_id: str,
+    scope_id: str,
     node_ids: list[str],
     strategy: ArrangeStrategy | str,
     *,
     spacing: float = DEFAULT_SPACING,
     columns: int | None = None,
     radius: float | None = None,
-) -> list[CanvasLayout]:
+) -> tuple[list[CanvasLayout], list[CanvasLayoutSkippedItem]]:
     if not node_ids:
         raise ValueError("node_ids must not be empty")
 
@@ -184,26 +265,34 @@ def arrange_impl(
         node_ids, strategy, spacing=spacing, columns=columns, radius=radius
     )
     saved: list[CanvasLayout] = []
-    now = datetime.now()
+    skipped: list[CanvasLayoutSkippedItem] = []
     for pos in positions:
-        doc = _folder_canvas_document_or_404(db, folder_id, pos["item_id"])
-        doc.position_x = pos["x"]
-        doc.position_y = pos["y"]
-        doc.position_z = pos["z"]
-        doc.z_index = pos["z_index"]
-        doc.updated_at = now
-        db.save(doc)
-        saved.append(_canvas_layout_row_from_document(folder_id, doc))
-    return saved
+        if not _canvas_placeable_exists(db, pos["item_id"]):
+            skipped.append(_canvas_skip(pos["item_id"], "unknown canvas item id"))
+            continue
+        saved.append(
+            _save_canvas_layout_row(
+                db,
+                scope_id,
+                CanvasLayoutItem(
+                    item_id=pos["item_id"],
+                    x=pos["x"],
+                    y=pos["y"],
+                    z=pos["z"],
+                    z_index=pos["z_index"],
+                ),
+            )
+        )
+    return saved, skipped
 
 
-@router.post("/folders/{folder_id}/arrange", response_model=MindPalaceListResponse)
+@router.post("/folders/{folder_id}/arrange", response_model=CanvasLayoutBatchResponse)
 async def arrange_folder_canvas(
     folder_id: str,
     request: ArrangeNodesRequest,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
-) -> MindPalaceListResponse:
+) -> CanvasLayoutBatchResponse:
     try:
         result = registry.invoke(
             db,
@@ -220,8 +309,12 @@ async def arrange_folder_canvas(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    rows = [CanvasLayout.model_validate(row) for row in result.result]
-    return MindPalaceListResponse(items=rows, count=len(rows))
+    rows = [CanvasLayout.model_validate(row) for row in result.result["items"]]
+    skipped = [
+        CanvasLayoutSkippedItem.model_validate(item)
+        for item in result.result.get("skipped", [])
+    ]
+    return CanvasLayoutBatchResponse(items=rows, count=len(rows), skipped=skipped)
 
 
 class CanvasArrangeParams(ArrangeNodesRequest):
@@ -235,40 +328,42 @@ class CanvasLayoutSaveParams(CanvasLayoutSaveRequest):
 @action("canvas.layout.save", CanvasLayoutSaveParams, domains=["canvas"])
 def _action_save_canvas_layout(
     db: Database, params: CanvasLayoutSaveParams, ctx: ActionContext
-) -> tuple[list[dict], ChangeSpec]:
+) -> tuple[dict[str, Any], ChangeSpec]:
     item_id_set = {item.item_id for item in params.items}
     before = [
-        _canvas_layout_row_from_document(params.folder_id, doc).model_dump(mode="json")
-        for doc in _folder_canvas_documents(db, params.folder_id)
-        if doc.id in item_id_set
+        row.model_dump(mode="json")
+        for row in _load_canvas_layout(db, params.folder_id)
+        if row.item_id in item_id_set
     ]
-    rows = save_canvas_layout_impl(
+    rows, skipped = save_canvas_layout_impl(
         params.folder_id,
         CanvasLayoutSaveRequest(items=params.items),
         db,
     )
-    after = [row.model_dump(mode="json") for row in rows]
-    spec = ChangeSpec(
-        domains=["canvas"],
-        target_ids=[row.id for row in rows],
-        before={"rows": before},
-        after={"rows": after},
+    spec = _canvas_layout_change_spec(
         emit_type="canvas.layout.saved",
+        scope_id=params.folder_id,
+        rows=rows,
+        before=before,
+        skipped=skipped,
     )
-    return after, spec
+    return {
+        "items": [row.model_dump(mode="json") for row in rows],
+        "skipped": [item.model_dump(mode="json") for item in skipped],
+    }, spec
 
 
 @action("canvas.arrange", CanvasArrangeParams, domains=["canvas"])
 def _action_arrange_canvas(
     db: Database, params: CanvasArrangeParams, ctx: ActionContext
-) -> tuple[list[dict], ChangeSpec]:
+) -> tuple[dict[str, Any], ChangeSpec]:
     node_id_set = set(params.node_ids)
     before = [
-        _canvas_layout_row_from_document(params.folder_id, doc).model_dump(mode="json")
-        for doc in _folder_canvas_documents(db, params.folder_id)
-        if doc.id in node_id_set
+        row.model_dump(mode="json")
+        for row in _load_canvas_layout(db, params.folder_id)
+        if row.item_id in node_id_set
     ]
-    rows = arrange_impl(
+    rows, skipped = arrange_impl(
         db,
         params.folder_id,
         params.node_ids,
@@ -277,15 +372,17 @@ def _action_arrange_canvas(
         columns=params.columns,
         radius=params.radius,
     )
-    after = [row.model_dump(mode="json") for row in rows]
-    spec = ChangeSpec(
-        domains=["canvas"],
-        target_ids=[row.id for row in rows],
-        before={"rows": before},
-        after={"rows": after},
+    spec = _canvas_layout_change_spec(
         emit_type="canvas.arranged",
+        scope_id=params.folder_id,
+        rows=rows,
+        before=before,
+        skipped=skipped,
     )
-    return after, spec
+    return {
+        "items": [row.model_dump(mode="json") for row in rows],
+        "skipped": [item.model_dump(mode="json") for item in skipped],
+    }, spec
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -1,12 +1,11 @@
-"""Unit tests for folder-scoped canvas layout compatibility persistence.
+"""Unit tests for canvas layout table persistence (#3078)."""
 
-The old canvas-layout endpoint is now a compatibility wrapper over document
-position attributes, so switching view modes still returns the same payload
-without a separate canvas_layout table.
-"""
-
+from fichero.db import Database
+from fichero.db_migrations import migrate_canvas_layout_table
+from fichero.knowledge.knowledge_models import KnowledgeEntity
 from fichero.models import DocType, Document
 from fichero.models import ActionAudit
+from fichero.spatial_models import CanvasItem, CanvasItemKind, CanvasLayout
 
 BASE = "/api/mind-palace/folders"
 
@@ -18,7 +17,7 @@ def _make_doc(db, folder_id: str, doc_id: str) -> Document:
 
 
 def test_round_trip_upsert_then_load(client, db):
-    """Saving a batch then loading returns the same positions."""
+    """Saving a document batch then loading returns the same positions."""
     folder = "folder-A"
     _make_doc(db, folder, "doc-1")
     _make_doc(db, folder, "doc-2")
@@ -33,7 +32,8 @@ def test_round_trip_upsert_then_load(client, db):
     )
     assert resp.status_code == 200, resp.text
     saved = resp.json()
-    assert len(saved) == 2
+    assert saved["count"] == 2
+    assert saved["skipped"] == []
 
     load = client.get(f"{BASE}/{folder}/canvas-layout")
     assert load.status_code == 200
@@ -105,10 +105,65 @@ def test_layout_is_folder_scoped(client, db):
 
 
 def test_load_empty_folder_returns_empty_list(client):
-    """A folder that was never arranged loads as an empty compatibility list."""
+    """A scope that was never arranged loads as an empty list."""
     resp = client.get(f"{BASE}/never-touched/canvas-layout")
     assert resp.status_code == 200
     assert resp.json()["items"] == []
+
+
+def test_mixed_document_canvas_item_entity_batch_and_library_scope_save(client, db):
+    _make_doc(db, "folder-doc", "doc-1")
+    db.save(CanvasItem(id="canvas-1", folder_id="folder-doc", kind=CanvasItemKind.note, text="n"))
+    db.save(KnowledgeEntity(id="entity-1", canonical_name="Entity One"))
+
+    resp = client.put(
+        f"{BASE}/__library__/canvas-layout",
+        json={
+            "items": [
+                {"item_id": "doc-1", "x": 10.0},
+                {"item_id": "canvas-1", "x": 20.0},
+                {"item_id": "entity-1", "x": 30.0},
+            ]
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["count"] == 3
+    assert body["skipped"] == []
+
+    loaded = client.get(f"{BASE}/__library__/canvas-layout").json()["items"]
+    by_id = {row["item_id"]: row for row in loaded}
+    assert by_id["doc-1"]["x"] == 10.0
+    assert by_id["canvas-1"]["x"] == 20.0
+    assert by_id["entity-1"]["x"] == 30.0
+
+
+def test_unknown_item_is_reported_but_other_rows_persist(client, db):
+    _make_doc(db, "folder-partial", "doc-ok")
+
+    resp = client.put(
+        f"{BASE}/folder-partial/canvas-layout",
+        json={
+            "items": [
+                {"item_id": "doc-ok", "x": 10.0},
+                {"item_id": "missing-item", "x": 20.0},
+            ]
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["count"] == 1
+    assert body["skipped"] == [
+        {"item_id": "missing-item", "detail": "unknown canvas item id"}
+    ]
+    loaded = client.get(f"{BASE}/folder-partial/canvas-layout").json()["items"]
+    assert loaded == [body["items"][0]]
+
+
+def test_empty_save_batch_returns_empty_success(client):
+    resp = client.put(f"{BASE}/empty-scope/canvas-layout", json={"items": []})
+    assert resp.status_code == 200
+    assert resp.json() == {"items": [], "count": 0, "skipped": []}
 
 
 def test_document_position_storage_is_idempotent(db):
@@ -135,4 +190,31 @@ def test_save_canvas_layout_route_writes_action_audit(client, db):
     audit = db.all(ActionAudit)[-1]
     assert audit.action_name == "canvas.layout.save"
     assert len(audit.target_ids) == 1
-    assert audit.target_ids[0].endswith(":doc-audit")
+    assert audit.target_ids[0].endswith("::doc-audit")
+
+
+def test_canvas_layout_migration_backfills_legacy_document_positions_and_is_idempotent(tmp_path):
+    db = Database(tmp_path / "canvas-layout.duckdb")
+    db.save(
+        Document(
+            id="legacy-doc",
+            name="legacy-doc",
+            parent_id="legacy-folder",
+            doc_type=DocType.file,
+            position_x=3.0,
+            position_y=4.0,
+            metadata={"canvas_w": 99.0, "canvas_style": "card"},
+        )
+    )
+
+    migrate_canvas_layout_table(db.conn)
+    migrate_canvas_layout_table(db.conn)
+
+    row = db.get(CanvasLayout, CanvasLayout.make_id("legacy-folder", "legacy-doc"))
+    assert row is not None
+    assert row.x == 3.0
+    assert row.y == 4.0
+    assert row.w == 99.0
+    assert row.style == "card"
+    assert len(db.query(CanvasLayout, folder_id="legacy-folder")) == 1
+    db.close()

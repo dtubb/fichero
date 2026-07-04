@@ -25228,11 +25228,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CanvasLayout"
-                  },
-                  "title": "Response Save Canvas Layout Api Mind Palace Folders  Folder Id  Canvas Layout Put"
+                  "$ref": "#/components/schemas/CanvasLayoutBatchResponse"
                 }
               }
             }
@@ -25294,7 +25290,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MindPalaceListResponse"
+                  "$ref": "#/components/schemas/CanvasLayoutBatchResponse"
                 }
               }
             }
@@ -34362,6 +34358,34 @@
         "title": "CanvasLayout",
         "description": "Persisted per-item position on the spatial 2D/3D library canvas.\n\nFOLDER-scoped (not room-scoped): keyed by (folder_id, item_id) so that\nswitching Library view modes preserves where each item was placed. The\nstored ``id`` is the deterministic ``\"{folder_id}::{item_id}\"`` composite,\nwhich makes ``Database.save`` an idempotent upsert on that pair \u2014 saving a\ndrag of the same item overwrites its previous row rather than duplicating."
       },
+      "CanvasLayoutBatchResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasLayout"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasLayoutSkippedItem"
+            },
+            "type": "array",
+            "title": "Skipped"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "CanvasLayoutBatchResponse"
+      },
       "CanvasLayoutItem": {
         "properties": {
           "item_id": {
@@ -34437,6 +34461,24 @@
         ],
         "title": "CanvasLayoutSaveRequest",
         "description": "Batch of item positions to persist for a folder."
+      },
+      "CanvasLayoutSkippedItem": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "title": "Item Id"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id",
+          "detail"
+        ],
+        "title": "CanvasLayoutSkippedItem"
       },
       "CategoryToolsResponse": {
         "properties": {
