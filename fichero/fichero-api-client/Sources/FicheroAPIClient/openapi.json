@@ -45867,6 +45867,18 @@
             "type": "boolean",
             "title": "Visible In Ui",
             "default": true
+          },
+          "python_executable": {
+            "type": "string",
+            "nullable": true,
+            "title": "Python Executable"
+          },
+          "command": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Command"
           }
         },
         "type": "object",
