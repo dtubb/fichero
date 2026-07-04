@@ -15,7 +15,11 @@ struct ChatViewToolbar: View {
     let onNewChat: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
+        // Rebuilt on MiniToolbar (#3038) — standard height + glass chrome, one
+        // shared toolbar language. Controls/actions unchanged; MiniToolbar
+        // supplies the row layout, padding, and material the old plain HStack +
+        // .ultraThinMaterial did by hand.
+        MiniToolbar(content: {
             // Document scope indicator (left side)
             if selectedDocumentsCount == 0 {
                 Label("All documents", systemImage: "doc.on.doc")
@@ -45,10 +49,7 @@ struct ChatViewToolbar: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(.ultraThinMaterial)
+        })
     }
 
     private var modelPicker: some View {
