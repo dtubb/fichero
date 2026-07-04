@@ -136,6 +136,28 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
         placeablesRoot.findEntity(named: id)?.position = Canvas3DProjection.scenePosition(world)
     }
 
+    /// The placeable dropped ONTO at `world` (nearest by world proximity,
+    /// excluding the dragged id) — drag-onto target resolution (#3086), the SAME
+    /// resolver the 2D renderer uses.
+    func dropTargetId(nearWorld world: SIMD3<Double>, excluding: String) -> String? {
+        CanvasDropResolver.nearestId(
+            to: world,
+            among: placeablesById.map { (id: $0.key, position: $0.value.position) },
+            excluding: excluding
+        )
+    }
+
+    private var hoverTargetId: String?
+
+    /// Highlight the current drop target while dragging over it (#3086) — a cheap
+    /// scale bump, cleared on nil (bounded, no ring geometry).
+    func setHoverTarget(_ id: String?) {
+        guard id != hoverTargetId else { return }
+        if let previous = hoverTargetId { placeablesRoot.findEntity(named: previous)?.scale = .one }
+        hoverTargetId = id
+        if let id { placeablesRoot.findEntity(named: id)?.scale = SIMD3<Float>(repeating: 1.12) }
+    }
+
     private var cameraRight: SIMD3<Float> { SIMD3<Float>(cos(yaw), 0, -sin(yaw)) }
     private var cameraUp: SIMD3<Float> {
         SIMD3<Float>(-sin(yaw) * sin(pitch), cos(pitch), -cos(yaw) * sin(pitch))

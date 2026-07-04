@@ -257,6 +257,28 @@ struct LibraryView: View {
     /// `CanvasSpaceView` when the flag is on, else the #3088 `SpaceSceneView`.
     /// Both read the SAME shared stores; #3088 stays the stepping-stone until
     /// cutover (#3087). Extracted to keep `libraryContent`'s switch bounded.
+    /// Spatial node ids of container documents (folder / workspace) — drag-onto
+    /// move-into targets (#3086). Dropping onto one moves the dragged doc inside.
+    private var canvasContainerIds: Set<String> {
+        Set(
+            documentStore.collections
+                .filter { $0.docType == .folder || $0.isWorkspace }
+                .map { SpatialLibraryProjector.nodeId(forDocument: $0.id) }
+        )
+    }
+
+    /// Move a dragged canvas node INTO a container via the audited `document.move`
+    /// action (#3086). Maps spatial node ids → document ids; a non-document drag
+    /// (canvas item) has no `doc:` id and is a safe no-op. The change stream
+    /// reconciles both windows; a failure leaves the row put (never silent-drops).
+    private func moveCanvasNodeIntoContainer(_ nodeId: String, _ containerNodeId: String) {
+        guard let docId = SpatialLibraryProjector.documentId(fromNodeId: nodeId),
+              let parentId = SpatialLibraryProjector.documentId(fromNodeId: containerNodeId) else { return }
+        Task { @MainActor in
+            _ = try? await documentStore.moveDocument(docId, toParent: parentId)
+        }
+    }
+
     @ViewBuilder
     private var spaceModeView: some View {
         if featureManager.isCanvasRealityKit3DEnabled {
@@ -266,7 +288,9 @@ struct LibraryView: View {
                 selectedNodeId: $spatialSelectedNodeId,
                 layoutStore: canvasLayoutStore,
                 itemStore: canvasItemStore,
-                folderScopeId: folderId ?? wholeLibraryRoomId
+                folderScopeId: folderId ?? wholeLibraryRoomId,
+                containerIds: canvasContainerIds,
+                moveIntoContainer: moveCanvasNodeIntoContainer
             )
         } else {
             SpaceSceneView(
@@ -294,7 +318,9 @@ struct LibraryView: View {
                 selectedNodeId: $spatialSelectedNodeId,
                 layoutStore: canvasLayoutStore,
                 itemStore: canvasItemStore,
-                folderScopeId: folderId ?? wholeLibraryRoomId
+                folderScopeId: folderId ?? wholeLibraryRoomId,
+                containerIds: canvasContainerIds,
+                moveIntoContainer: moveCanvasNodeIntoContainer
             )
         } else {
             Spatial2DCanvas(

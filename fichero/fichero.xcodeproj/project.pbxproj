@@ -56,6 +56,7 @@
 		0F10EA9CD30A9CC13ED3E074 /* EntityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F14337BE87CA15E70323ED4 /* EntityDetailView.swift */; };
 		0F17A8BE887BF69F2A84F67B /* OntologyBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F1C81E90821C016E2CE3A60 /* OntologyBrowser.swift */; };
 		0F1CA90D364622756AFC004A /* EntityRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F11A721FF01A4F5A66A4568 /* EntityRowView.swift */; };
+		1008C273C68E049FC8909FE2 /* CanvasDropResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 034BEE1157D9D2C95C1F885A /* CanvasDropResolver.swift */; };
 		122B14F33BEDA95169037201 /* SpeakerComparisonView+Preview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 599CF5FBD9D2B619B9353BC7 /* SpeakerComparisonView+Preview.swift */; };
 		127F8AA713B90A0B24269C98 /* DocumentInspectorAnnotationsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB786740043A3DAB4CDBFD6F /* DocumentInspectorAnnotationsTab.swift */; };
 		1483ED7363DA33932A48F5A5 /* ArtifactDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25FA072769256EDC235A5BD6 /* ArtifactDetailView.swift */; };
@@ -472,6 +473,7 @@
 		B4A0020B0000000000BATCH4 /* DynamicConfigView+FieldRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A0010B0000000000BATCH4 /* DynamicConfigView+FieldRendering.swift */; };
 		B4A0020C0000000000BATCH4 /* DynamicConfigView+SchemaHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A0010C0000000000BATCH4 /* DynamicConfigView+SchemaHelpers.swift */; };
 		B4A0020D0000000000BATCH4 /* DynamicConfigView+StateManagement.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A0010D0000000000BATCH4 /* DynamicConfigView+StateManagement.swift */; };
+		B4F1A71E768A776F8AFB3E3A /* CanvasModifierTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC1CAB23253BF2D09F02A66D /* CanvasModifierTracker.swift */; };
 		B5A0020400000000BATCH5W1 /* WorkflowOutputLog+Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A0010400000000BATCH5W1 /* WorkflowOutputLog+Models.swift */; };
 		B5A0020500000000BATCH5W2 /* WorkflowOutputLog+StatusViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A0010500000000BATCH5W2 /* WorkflowOutputLog+StatusViews.swift */; };
 		B5A0020600000000BATCH5W3 /* WorkflowOutputLog+ErrorCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A0010600000000BATCH5W3 /* WorkflowOutputLog+ErrorCell.swift */; };
@@ -604,6 +606,7 @@
 		015D191B1A9A578C0A4BC6BA /* iOSLibraryPickerMenu.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = iOSLibraryPickerMenu.swift; sourceTree = "<group>"; };
 		032AA7721B1C054A6CD89D4C /* AnnotatableTextView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnnotatableTextView.swift; sourceTree = "<group>"; };
 		034677F6AF68D5DCA5CB3E8C /* SpeakerComparisonView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpeakerComparisonView.swift; sourceTree = "<group>"; };
+		034BEE1157D9D2C95C1F885A /* CanvasDropResolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CanvasDropResolver.swift; sourceTree = "<group>"; };
 		040DF83730009C67C5FF3491 /* LibraryWorkspaceRoot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LibraryWorkspaceRoot.swift; sourceTree = "<group>"; };
 		04DA25B2C1FBB75B0B1CC643 /* DynamicConfigView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DynamicConfigView.swift; sourceTree = "<group>"; };
 		052B352354B208CBDD7F8A1F /* SidebarView+UnifiedLibrarySections.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SidebarView+UnifiedLibrarySections.swift"; sourceTree = "<group>"; };
@@ -1124,6 +1127,7 @@
 		D82A9BAC0F995F9199F94B69 /* KGFocusState.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KGFocusState.swift; sourceTree = "<group>"; };
 		DA1EB898A19FAA64EF466CD2 /* UsersStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UsersStore.swift; sourceTree = "<group>"; };
 		DAE9F6E549990F086C442F3B /* BreadcrumbBuilder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BreadcrumbBuilder.swift; sourceTree = "<group>"; };
+		DC1CAB23253BF2D09F02A66D /* CanvasModifierTracker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CanvasModifierTracker.swift; sourceTree = "<group>"; };
 		DD03402A88F98251F388870F /* DocumentInspectorInfoTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorInfoTab.swift; path = fichero/Views/Library/DocumentInspector/DocumentInspectorInfoTab.swift; sourceTree = SOURCE_ROOT; };
 		DD96D53320D07109835C90BF /* EntityDetailView+Notes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "EntityDetailView+Notes.swift"; sourceTree = "<group>"; };
 		DE5606100E6EBCE163DFA3D7 /* DocumentTextReader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocumentTextReader.swift; sourceTree = "<group>"; };
@@ -1763,6 +1767,7 @@
 				24F68955CC563FF070D02897 /* Canvas2DProjection.swift */,
 				C6696D9961E42071EE854350 /* CanvasOrtho2DRenderer.swift */,
 				9B6D6698151FC8A29A2BE3BA /* CanvasSceneView.swift */,
+				DC1CAB23253BF2D09F02A66D /* CanvasModifierTracker.swift */,
 			);
 			name = Canvas;
 			path = Canvas;
@@ -2085,6 +2090,7 @@
 				80920949B39DD526745B0BF2 /* CanvasDetailTier.swift */,
 				F287F61A7D65912EF63D362C /* CanvasSceneRenderer.swift */,
 				C1E16D1FB324019CBF50B37D /* CanvasInteractionController.swift */,
+				034BEE1157D9D2C95C1F885A /* CanvasDropResolver.swift */,
 			);
 			name = CanvasScene;
 			path = CanvasScene;
@@ -2967,6 +2973,8 @@
 				4F0D8E596D331C45B6A8BC73 /* Canvas3DProjection.swift in Sources */,
 				37B827A97DAB87AADDC8642A /* CanvasScene3DRenderer.swift in Sources */,
 				24B8539890A424B7A35E21AD /* CanvasSpaceView.swift in Sources */,
+				1008C273C68E049FC8909FE2 /* CanvasDropResolver.swift in Sources */,
+				B4F1A71E768A776F8AFB3E3A /* CanvasModifierTracker.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
