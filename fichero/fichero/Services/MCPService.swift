@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 import OSLog
 import SwiftUI
@@ -17,52 +18,149 @@ class MCPService: ObservableObject {
 
     /// List all MCP servers.
     func listServers() async throws -> [MCPServerResponse] {
-        try await api.get("/mcp-servers")
+        let response = try await api.api.listMcpServersApiMcpServersGet()
+        switch response {
+        case .ok(let ok):
+            return try ok.body.json.items.map { MCPServerResponse(response: $0) }
+        default:
+            throw MCPServiceError.unexpectedResponse
+        }
     }
 
     /// Get a specific MCP server by ID.
     func getServer(_ id: String) async throws -> MCPServerResponse {
-        try await api.get("/mcp-servers/\(id)")
+        let response = try await api.api.getMcpServerApiMcpServersServerIdGet(
+            .init(path: .init(serverId: id))
+        )
+        switch response {
+        case .ok(let ok):
+            return MCPServerResponse(response: try ok.body.json)
+        case .unprocessableContent(let error):
+            throw MCPServiceError.validationError(
+                (try? error.body.json)?.detail?.description ?? "Validation error"
+            )
+        default:
+            throw MCPServiceError.unexpectedResponse
+        }
     }
 
     /// Create a new MCP server.
     func createServer(_ request: CreateMCPServerRequest) async throws -> MCPServerResponse {
-        try await api.post("/mcp-servers", body: request)
+        let response = try await api.api.createMcpServerApiMcpServersPost(
+            .init(body: .json(.init(app: request)))
+        )
+        switch response {
+        case .ok(let ok):
+            return MCPServerResponse(response: try ok.body.json)
+        case .unprocessableContent(let error):
+            throw MCPServiceError.validationError(
+                (try? error.body.json)?.detail?.description ?? "Validation error"
+            )
+        default:
+            throw MCPServiceError.unexpectedResponse
+        }
     }
 
     /// Update an existing MCP server.
     func updateServer(_ id: String, request: UpdateMCPServerRequest) async throws -> MCPServerResponse {
-        try await api.put("/mcp-servers/\(id)", body: request)
+        let response = try await api.api.updateMcpServerApiMcpServersServerIdPut(
+            .init(path: .init(serverId: id), body: .json(.init(app: request)))
+        )
+        switch response {
+        case .ok(let ok):
+            return MCPServerResponse(response: try ok.body.json)
+        case .unprocessableContent(let error):
+            throw MCPServiceError.validationError(
+                (try? error.body.json)?.detail?.description ?? "Validation error"
+            )
+        default:
+            throw MCPServiceError.unexpectedResponse
+        }
     }
 
     /// Delete an MCP server.
     func deleteServer(_ id: String) async throws {
-        try await api.delete("/mcp-servers/\(id)")
+        let response = try await api.api.deleteMcpServerApiMcpServersServerIdDelete(
+            .init(path: .init(serverId: id))
+        )
+        switch response {
+        case .ok:
+            return
+        case .unprocessableContent(let error):
+            throw MCPServiceError.validationError(
+                (try? error.body.json)?.detail?.description ?? "Validation error"
+            )
+        default:
+            throw MCPServiceError.unexpectedResponse
+        }
     }
 
     // MARK: - Tool Loading
 
     /// Load tools from a specific server.
     func loadServerTools(_ serverId: String, forceReload: Bool = false) async throws -> LoadToolsResponse {
-        let path = forceReload
-            ? "/mcp-servers/\(serverId)/load-tools?force_reload=true"
-            : "/mcp-servers/\(serverId)/load-tools"
-        return try await api.post(path, body: EmptyRequest())
+        let response = try await api.api.loadServerToolsApiMcpServersServerIdLoadToolsPost(
+            .init(path: .init(serverId: serverId), query: .init(forceReload: forceReload))
+        )
+        switch response {
+        case .ok(let ok):
+            return LoadToolsResponse(response: try ok.body.json)
+        case .unprocessableContent(let error):
+            throw MCPServiceError.validationError(
+                (try? error.body.json)?.detail?.description ?? "Validation error"
+            )
+        default:
+            throw MCPServiceError.unexpectedResponse
+        }
     }
 
     /// Get all tools from all enabled servers.
     func getAllTools() async throws -> AllToolsResponse {
-        try await api.get("/mcp-servers/tools/all")
+        let response = try await api.api.getAllMcpToolsApiMcpServersToolsAllGet()
+        switch response {
+        case .ok(let ok):
+            return AllToolsResponse(response: try ok.body.json)
+        default:
+            throw MCPServiceError.unexpectedResponse
+        }
     }
 
     /// Load all MCP tools into the workflow registry.
     func loadToolsIntoWorkflowRegistry() async throws -> RegistryLoadResponse {
-        try await api.post("/mcp-servers/tools/load-into-workflow-registry", body: EmptyRequest())
+        let response = try await api.api
+            .loadMcpToolsIntoWorkflowRegistryApiMcpServersToolsLoadIntoWorkflowRegistryPost()
+        switch response {
+        case .ok(let ok):
+            return RegistryLoadResponse(response: try ok.body.json)
+        default:
+            throw MCPServiceError.unexpectedResponse
+        }
     }
 
     /// Reload MCP tools in the workflow registry.
     func reloadToolsInWorkflowRegistry() async throws -> RegistryLoadResponse {
-        try await api.post("/mcp-servers/tools/reload-workflow-registry", body: EmptyRequest())
+        let response = try await api.api
+            .reloadMcpToolsInWorkflowRegistryApiMcpServersToolsReloadWorkflowRegistryPost()
+        switch response {
+        case .ok(let ok):
+            return RegistryLoadResponse(response: try ok.body.json)
+        default:
+            throw MCPServiceError.unexpectedResponse
+        }
+    }
+}
+
+enum MCPServiceError: LocalizedError {
+    case validationError(String)
+    case unexpectedResponse
+
+    var errorDescription: String? {
+        switch self {
+        case .validationError(let message):
+            return "Validation error: \(message)"
+        case .unexpectedResponse:
+            return "Unexpected response from the MCP service."
+        }
     }
 }
 
@@ -167,8 +265,6 @@ struct UpdateMCPServerRequest: Codable {
         self.enabled = enabled
     }
 }
-
-struct EmptyRequest: Codable {}
 
 // MARK: - Response Models
 
@@ -292,5 +388,93 @@ struct RegistryLoadResponse: Codable {
     enum CodingKeys: String, CodingKey {
         case toolCount = "tool_count"
         case message
+    }
+}
+
+// MARK: - Generated ↔ App Mappers (#3030)
+// Inline in this (already-in-target) file to avoid a separate pbxproj membership.
+// MCP timestamp fields are plain strings in the schema (no date-time), so no
+// Date↔String conversion is needed here.
+
+extension MCPServerResponse {
+    init(response: Components.Schemas.MCPServerResponse) {
+        self.init(
+            id: response.id,
+            name: response.name,
+            description: response.description,
+            transport: response.transport,
+            command: response.command,
+            args: response.args,
+            env: response.env.additionalProperties,
+            url: response.url,
+            headers: response.headers.additionalProperties,
+            toolNamePrefix: response.toolNamePrefix,
+            enabled: response.enabled,
+            createdAt: response.createdAt,
+            updatedAt: response.updatedAt
+        )
+    }
+}
+
+extension MCPToolInfo {
+    init(response: Components.Schemas.MCPToolInfo) {
+        self.init(name: response.name, description: response.description, serverName: response.serverName)
+    }
+}
+
+extension LoadToolsResponse {
+    init(response: Components.Schemas.MCPServerToolsResponse) {
+        self.init(
+            serverId: response.serverId,
+            serverName: response.serverName,
+            toolCount: response.toolCount,
+            tools: response.tools.map { MCPToolInfo(response: $0) }
+        )
+    }
+}
+
+extension AllToolsResponse {
+    init(response: Components.Schemas.MCPToolListResponse) {
+        self.init(toolCount: response.count, tools: response.items.map { MCPToolInfo(response: $0) })
+    }
+}
+
+extension RegistryLoadResponse {
+    init(response: Components.Schemas.MCPToolRegistryResponse) {
+        self.init(toolCount: response.toolCount, message: response.message)
+    }
+}
+
+extension Components.Schemas.CreateMCPServerRequest {
+    init(app response: CreateMCPServerRequest) {
+        self.init(
+            name: response.name,
+            description: response.description,
+            transport: response.transport,
+            command: response.command,
+            args: response.args,
+            env: .init(additionalProperties: response.env),
+            url: response.url,
+            headers: .init(additionalProperties: response.headers),
+            toolNamePrefix: response.toolNamePrefix,
+            enabled: response.enabled
+        )
+    }
+}
+
+extension Components.Schemas.UpdateMCPServerRequest {
+    init(app response: UpdateMCPServerRequest) {
+        self.init(
+            name: response.name,
+            description: response.description,
+            transport: response.transport,
+            command: response.command,
+            args: response.args,
+            env: response.env.map { .init(additionalProperties: $0) },
+            url: response.url,
+            headers: response.headers.map { .init(additionalProperties: $0) },
+            toolNamePrefix: response.toolNamePrefix,
+            enabled: response.enabled
+        )
     }
 }
