@@ -116,7 +116,19 @@ struct BackendConnectionView: View {
         usesExternalBackendConnection ? "Connect to Fichero" : "Starting Fichero"
     }
 
+    /// The holding PID when the engine is in the `portConflict` phase (#3111),
+    /// else nil. Drives the in-window Stop it / Use it / Quit actions.
+    private var portConflictPID: Int? {
+        if case .portConflict(let pid) = appState.engine.phase { return pid }
+        return nil
+    }
+
     private var failureTitle: String {
+        if portConflictPID != nil {
+            // Foreign holder of :8765 — the in-window replacement for the old
+            // pre-window NSAlert (#3111).
+            return "Port 8765 Is In Use"
+        }
         if appState.authBroken {
             // Health-200-but-auth-broken: the specific state that used to blank
             // the window with silent 401s (#2864).
@@ -133,6 +145,79 @@ struct BackendConnectionView: View {
 
     private var secondaryStatusText: String {
         usesExternalBackendConnection ? "Connect to a running Fichero engine to continue." : "This can take a moment."
+    }
+
+    /// The single retry entry point (#3108) — respawn (macOS) / re-adopt (iOS).
+    @ViewBuilder
+    private var retryButton: some View {
+        Button {
+            // Reset the cycling copy, then delegate to the ONE retry entry
+            // point (#3108). The retry flips the phase back to `.starting`,
+            // which re-fires the booting UI — the view never probes health or
+            // spawns an engine itself.
+            messageIndex = 0
+            Task { await onRetry?() }
+        } label: {
+            Label(usesExternalBackendConnection ? "Retry Connection" : "Restart Engine", systemImage: "arrow.clockwise")
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(backendService.isStarting)
+    }
+
+    /// The in-window replacement for the old pre-window port-conflict NSAlert
+    /// (#3111): Stop it (SIGTERM + respawn) / Use it (adopt, still gated on the
+    /// authenticated probe) / Quit (a user-chosen terminate — allowed; only an
+    /// app-chosen terminate is not, #3042). Each choice records the resolution
+    /// on the service, then runs the one retry path.
+    @ViewBuilder
+    private var portConflictActions: some View {
+        Button {
+            backendService.pendingPortConflictResolution = .stopIt
+            messageIndex = 0
+            Task { await onRetry?() }
+        } label: {
+            Label("Stop It & Start Fichero's Engine", systemImage: "stop.circle")
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(backendService.isStarting)
+
+        Button {
+            backendService.pendingPortConflictResolution = .useIt
+            messageIndex = 0
+            Task { await onRetry?() }
+        } label: {
+            Label("Use the Existing Engine", systemImage: "link")
+        }
+        .buttonStyle(.bordered)
+        .disabled(backendService.isStarting)
+
+        #if canImport(AppKit)
+        Button {
+            // User-chosen quit is fine — only an app-chosen terminate is banned
+            // (#3042).
+            NSApplication.shared.terminate(nil)
+        } label: {
+            Label("Quit Fichero", systemImage: "xmark.circle")
+        }
+        .buttonStyle(.bordered)
+        #endif
+    }
+
+    /// Opens the full engine log so a failure has a next step beyond "try
+    /// again" — the tail already appears inline (#2864). macOS only.
+    @ViewBuilder
+    private var showLogButton: some View {
+        #if canImport(AppKit)
+        Button {
+            let logURL = FileManager.default
+                .urls(for: .libraryDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("Logs/Fichero/engine.log")
+            NSWorkspace.shared.open(logURL)
+        } label: {
+            Label("Show Log", systemImage: "doc.text.magnifyingglass")
+        }
+        .buttonStyle(.bordered)
+        #endif
     }
 
     var body: some View {
@@ -216,33 +301,15 @@ struct BackendConnectionView: View {
             // so a retry can never SIGTERM a healthy cold-starting engine.
             if isFailed {
                 HStack(spacing: 12) {
-                    Button {
-                        // Reset the cycling copy, then delegate to the ONE retry
-                        // entry point (#3108). The retry flips the phase back to
-                        // `.starting`, which re-fires the booting UI below — the
-                        // view never probes health or spawns an engine itself.
-                        messageIndex = 0
-                        Task { await onRetry?() }
-                    } label: {
-                        Label(usesExternalBackendConnection ? "Retry Connection" : "Restart Engine", systemImage: "arrow.clockwise")
+                    // A foreign holder of :8765 gets the three-way in-window
+                    // decision (#3111); every other failure gets the single
+                    // retry entry point (#3108).
+                    if portConflictPID != nil {
+                        portConflictActions
+                    } else {
+                        retryButton
                     }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(backendService.isStarting)
-
-                    #if canImport(AppKit)
-                    // Show the engine log so a failure has a next step beyond
-                    // "try again" — the tail already appears inline, this opens
-                    // the full log (#2864).
-                    Button {
-                        let logURL = FileManager.default
-                            .urls(for: .libraryDirectory, in: .userDomainMask)[0]
-                            .appendingPathComponent("Logs/Fichero/engine.log")
-                        NSWorkspace.shared.open(logURL)
-                    } label: {
-                        Label("Show Log", systemImage: "doc.text.magnifyingglass")
-                    }
-                    .buttonStyle(.bordered)
-                    #endif
+                    showLogButton
                 }
             }
         }
