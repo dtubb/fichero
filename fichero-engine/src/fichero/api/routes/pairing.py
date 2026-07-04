@@ -21,6 +21,7 @@ from fichero.api.auth import _use_multiuser_auth, actor_from_request
 from fichero.api.routes.auth_accounts import _current_session_user
 from fichero.app_db import AppDatabase, get_app_db
 from fichero.models import AccountUser, ActionAudit, Device
+from fichero.remote_access_tls import validate_tailnet_url
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +81,7 @@ _PAIRING_WORKER_WARNING_EMITTED = False
 class PairCodeResponse(BaseModel):
     code: str
     expires_at: datetime
+    tailnet_url: str | None = None
 
 
 class PairRequest(BaseModel):
@@ -318,7 +320,17 @@ def create_pairing_code(
         user_id=user.id,
         expires_at=expires_at,
     )
-    return PairCodeResponse(code=code, expires_at=expires_at)
+    tailnet_url = (os.environ.get("FICHERO_TAILNET_URL") or "").strip()
+    if tailnet_url:
+        try:
+            tailnet_url = validate_tailnet_url(tailnet_url)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return PairCodeResponse(
+        code=code,
+        expires_at=expires_at,
+        tailnet_url=tailnet_url or None,
+    )
 
 
 @router.post("", response_model=PairResponse)

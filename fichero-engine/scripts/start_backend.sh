@@ -43,12 +43,14 @@ done
 
 DEFAULTS_REMOTE_ENABLED=false
 DEFAULTS_PUBLIC_BASE_URL=""
+DEFAULTS_TAILNET_URL=""
 DEFAULTS_BONJOUR_ENABLED=false
 if command -v defaults >/dev/null 2>&1; then
   if [ "$(defaults read app.fichero.fichero fichero.remote_access.enabled 2>/dev/null || echo 0)" = "1" ]; then
     DEFAULTS_REMOTE_ENABLED=true
   fi
   DEFAULTS_PUBLIC_BASE_URL="$(defaults read app.fichero.fichero fichero.remote_access.public_base_url 2>/dev/null || true)"
+  DEFAULTS_TAILNET_URL="$(defaults read app.fichero.fichero fichero.remote_access.tailnet_url 2>/dev/null || true)"
   if [ "$(defaults read app.fichero.fichero fichero.remote_access.bonjour_enabled 2>/dev/null || echo 0)" = "1" ]; then
     DEFAULTS_BONJOUR_ENABLED=true
   fi
@@ -58,6 +60,10 @@ if [ -z "${FICHERO_TLS_CERTFILE:-}" ] && [ -z "${FICHERO_TLS_KEYFILE:-}" ]; then
   # Restore persisted Share/remote-access URL when no env override is set.
   if [ -z "${FICHERO_PUBLIC_BASE_URL:-}" ] && [ "$DEFAULTS_REMOTE_ENABLED" = true ] && [ -n "$DEFAULTS_PUBLIC_BASE_URL" ]; then
     FICHERO_PUBLIC_BASE_URL="$DEFAULTS_PUBLIC_BASE_URL"
+  fi
+  if [ -z "${FICHERO_TAILNET_URL:-}" ] && [ -n "$DEFAULTS_TAILNET_URL" ]; then
+    FICHERO_TAILNET_URL="$DEFAULTS_TAILNET_URL"
+    export FICHERO_TAILNET_URL
   fi
 
   # PHASE 1 (#2603): default to loopback binding. The legacy raw-LAN bind via

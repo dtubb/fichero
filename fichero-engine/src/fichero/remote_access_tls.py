@@ -113,6 +113,18 @@ def _validate_public_base_url(raw: str) -> ParseResult:
     return parsed
 
 
+def validate_tailnet_url(raw: str) -> str:
+    """Return a normalized tailscale-serve URL safe to advertise for pairing."""
+    parsed = _validate_public_base_url(raw)
+    host = (parsed.hostname or "").lower()
+    if not host.endswith(".ts.net"):
+        raise ValueError("tailnet_url must use a .ts.net host")
+    if _is_loopback_host(host):
+        raise ValueError("tailnet_url must not point at localhost")
+    port = f":{parsed.port}" if parsed.port else ""
+    return f"https://{host}{port}"
+
+
 def _is_loopback_host(host: str) -> bool:
     if host.lower() == "localhost":
         return True

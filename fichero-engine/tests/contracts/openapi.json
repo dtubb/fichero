@@ -48876,6 +48876,11 @@
             "type": "string",
             "format": "date-time",
             "title": "Expires At"
+          },
+          "tailnet_url": {
+            "type": "string",
+            "nullable": true,
+            "title": "Tailnet Url"
           }
         },
         "type": "object",

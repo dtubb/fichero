@@ -515,6 +515,55 @@ def test_pairing_valid_code_returns_device_token_that_authenticates(
     assert me.json()["username"] == "owner"
 
 
+def test_pairing_code_surfaces_optional_tailnet_url(client, app_db, monkeypatch):
+    _enable_multiuser(monkeypatch)
+    monkeypatch.setenv("FICHERO_TAILNET_URL", "https://fichero-demo.ts.net")
+    app_db.create_user(
+        username="owner",
+        display_name="Owner",
+        password_hash=accounts.hash_password("password"),
+        is_owner=True,
+    )
+    session_token = client.post(
+        "/api/auth/login",
+        json={"username": "owner", "password": "password"},
+    ).json()["session_token"]
+
+    response = client.post("/api/pair/code", headers=_bearer(session_token))
+
+    assert response.status_code == 200
+    assert response.json()["tailnet_url"] == "https://fichero-demo.ts.net"
+
+
+@pytest.mark.parametrize(
+    ("tailnet_url", "message"),
+    [
+        ("http://fichero-demo.ts.net", "public_base_url must use https"),
+        ("https://127.0.0.1:8765", "tailnet_url must use a .ts.net host"),
+    ],
+)
+def test_pairing_code_rejects_invalid_tailnet_url(
+    client, app_db, monkeypatch, tailnet_url, message
+):
+    _enable_multiuser(monkeypatch)
+    monkeypatch.setenv("FICHERO_TAILNET_URL", tailnet_url)
+    app_db.create_user(
+        username="owner",
+        display_name="Owner",
+        password_hash=accounts.hash_password("password"),
+        is_owner=True,
+    )
+    session_token = client.post(
+        "/api/auth/login",
+        json={"username": "owner", "password": "password"},
+    ).json()["session_token"]
+
+    response = client.post("/api/pair/code", headers=_bearer(session_token))
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == message
+
+
 def test_revoked_device_token_is_rejected(client, app_db, monkeypatch):
     _enable_multiuser(monkeypatch)
     user = app_db.create_user(
