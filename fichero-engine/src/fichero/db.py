@@ -1077,6 +1077,11 @@ class Database(DatabaseEmbeddingMixin):
             self._save_note_document(obj)
         if type(obj).__name__ == "Milestone":
             self._save_milestone_document(obj)
+        if type(obj).__name__ == "KnowledgeEntity":
+            self.schedule_entity_embedding(obj)
+        if type(obj).__name__ == "KnowledgeClaim":
+            # ponytail: one shared post-save hook covers route + workflow claim writes.
+            self.schedule_claim_embedding(obj)
 
         # Auto-embed if requested and has content
         # ponytail: bulk callers (importers / reindex loops) that save many
