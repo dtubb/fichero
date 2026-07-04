@@ -8,6 +8,7 @@ plans contain tasks, tasks contain steps. Routes live at /api/research/...
 import pytest
 from fastapi import HTTPException
 
+from fichero.actions.registry import ActionContext
 from fichero.knowledge_models import ClassificationDimension, ClassificationValue
 from fichero.models import DocType, Document
 from fichero.node_prototypes import PrototypeResolutionError
@@ -21,6 +22,7 @@ from fichero.research_models import (
 
 
 BASE = "/api/research"
+LIB = "/lib/test.fichero"
 
 
 # ---------------------------------------------------------------------------
@@ -42,6 +44,10 @@ def _make_task(task_id: str = "task-1", plan_id: str = "plan-1") -> ResearchTask
 
 def _make_step(step_id: str = "step-1", task_id: str = "task-1") -> ResearchStep:
     return ResearchStep(id=step_id, task_id=task_id, tool=StepTool.web_search, label="Search")
+
+
+def _ctx() -> ActionContext:
+    return ActionContext(actor="ui", library_path=LIB)
 
 
 # ---------------------------------------------------------------------------
@@ -261,6 +267,7 @@ class TestProjectFolderDestinationHandlers:
                 name="With Folder", library_destination_folder_id="folder-abc"
             ),
             db=db,
+            ctx=_ctx(),
         )
         assert project.library_destination_folder_id == "folder-abc"
         # Re-read from the DB to confirm it was actually written.
@@ -282,6 +289,7 @@ class TestProjectFolderDestinationHandlers:
             "p-folder",
             ProjectUpdateRequest(library_destination_folder_id="folder-xyz"),
             db=db,
+            ctx=_ctx(),
         )
         assert updated.library_destination_folder_id == "folder-xyz"
         assert db.get(ResearchProject, "p-folder").library_destination_folder_id == "folder-xyz"
@@ -350,6 +358,7 @@ class TestProjectFolderDestinationHandlers:
                 metadata={"topic": "maps"},
             ),
             db=db,
+            ctx=_ctx(),
         )
 
         workspace = db.get(Document, project.id)
