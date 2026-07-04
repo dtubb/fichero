@@ -253,6 +253,28 @@ class DocumentServiceGenerated: ObservableObject {
         }
     }
 
+    /// List documents (flat) via the generated `list_documents` op, capped at
+    /// `limit`. Used by callers that need a broad set to filter client-side
+    /// (e.g. chat scope search). Throws on non-`.ok` (#3030).
+    /// - Parameter limit: Maximum number of documents to return.
+    /// - Returns: Array of documents.
+    func listDocuments(limit: Int) async throws -> [Document] {
+        logger.info("Listing documents (limit \(limit))")
+
+        let response = try await client.api.listDocumentsApiDocumentsGet(
+            .init(query: .init(limit: limit))
+        )
+
+        switch response {
+        case .ok(let ok):
+            let docs = try ok.body.json
+            logger.info("Found \(docs.items.count) documents")
+            return try docs.items.map { try convertToDocument($0) }
+        default:
+            throw DocumentServiceError.unexpectedResponse
+        }
+    }
+
     /// Get all collections
     /// - Returns: Array of collection documents
     func getCollections() async throws -> [Document] {
