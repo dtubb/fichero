@@ -68,6 +68,30 @@ enum ChatDocumentScope {
     }
 }
 
+// MARK: - Attach Context (#2449 step 2)
+
+/// The attachable context the chat host (e.g. ContentView) offers the composer
+/// paperclip. ChatView deliberately has no library context of its own, so the
+/// host supplies the resolvable targets; each non-empty one becomes a paperclip
+/// menu item that adds its document ids to the chat scope via the same
+/// `attachScopedDocuments` path as drag-drop. Defaults are empty, so hosts
+/// without library context (e.g. ResearchChatPane) simply get the always-present
+/// "Add Documents…" search sheet.
+struct ChatAttachContext {
+    /// The currently-open document (attach → chat with that document).
+    var openDocumentId: String?
+    var openDocumentName: String?
+    /// Documents in the current library view / folder, with a display label.
+    var currentViewLabel: String?
+    var currentViewDocumentIds: [String] = []
+
+    static let empty = ChatAttachContext()
+
+    var hasOpenDocument: Bool { openDocumentId != nil }
+    var hasCurrentView: Bool { !currentViewDocumentIds.isEmpty }
+    var hasHostTargets: Bool { hasOpenDocument || hasCurrentView }
+}
+
 // MARK: - Drop Support
 
 extension ChatView {

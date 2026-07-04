@@ -23,6 +23,19 @@ extension ContentView {
 
     // MARK: - Content View Router (Middle Column)
 
+    /// Attach targets the chat composer paperclip offers (#2449 step 2): the open
+    /// document + the current library view's documents. ChatView has no library
+    /// context of its own, so ContentView resolves these from its live state.
+    var chatAttachContext: ChatAttachContext {
+        let viewDocs = documentStore.currentDocuments
+        return ChatAttachContext(
+            openDocumentId: detailDocument?.id,
+            openDocumentName: detailDocument?.name,
+            currentViewLabel: viewDocs.isEmpty ? nil : "Current View (\(viewDocs.count))",
+            currentViewDocumentIds: viewDocs.map(\.id)
+        )
+    }
+
     @ViewBuilder
     var contentView: some View {
         // Knowledge Graph mode intercepts before normal viewMode routing. (#498)
@@ -133,6 +146,7 @@ extension ContentView {
             ChatView(
                 conversation: conversation,
                 selectedDocuments: $chatSelectedDocuments,
+                attachContext: chatAttachContext,
                 onConversationUpdated: { refreshConversations() }
             )
 

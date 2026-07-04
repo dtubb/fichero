@@ -1,26 +1,31 @@
 import SwiftUI
 
-/// Input area for chat messages
-struct ChatInputView: View {
+/// Input area for chat messages.
+///
+/// The caller supplies a `leading` accessory — the composer paperclip attach
+/// menu (#2449 step 2). It's always present now (was a compact-only button),
+/// so every width can attach context; pass `EmptyView` for no accessory.
+struct ChatInputView<Leading: View>: View {
     @Binding var inputText: String
     let isLoading: Bool
     let onSend: () -> Void
-    /// Compact touch alternative to the side inspector's drag-drop: present the
-    /// document-scope sheet. `nil` hides the button (regular width, where the
-    /// inspector is already visible). (#3015)
-    var onAttach: (() -> Void)?
+    private let leading: Leading
+
+    init(
+        inputText: Binding<String>,
+        isLoading: Bool,
+        onSend: @escaping () -> Void,
+        @ViewBuilder leading: () -> Leading
+    ) {
+        self._inputText = inputText
+        self.isLoading = isLoading
+        self.onSend = onSend
+        self.leading = leading()
+    }
 
     var body: some View {
         HStack(spacing: 12) {
-            if let onAttach {
-                Button(action: onAttach) {
-                    Image(systemName: "paperclip")
-                        .font(.title3)
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
-                .help("Add documents to this chat's scope")
-            }
+            leading
 
             TextField("Ask a question about your documents...", text: $inputText, axis: .vertical)
                 .textFieldStyle(.plain)

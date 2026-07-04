@@ -5,6 +5,9 @@ struct ChatView: View {
     let conversation: Conversation?
     @Binding var selectedDocuments: Set<String>
     var onConversationUpdated: (() -> Void)?
+    /// Host-supplied attach targets for the composer paperclip (#2449 step 2).
+    /// Defaults to empty, so a host without library context still gets the sheet.
+    var attachContext: ChatAttachContext = .empty
 
     @State var currentConversation: Conversation
     // Tracks the backend-confirmed conversation ID. Nil until the first
@@ -16,9 +19,9 @@ struct ChatView: View {
     @State var isLoading: Bool = false
     @State var errorMessage: String?
     @State var isDropTargeted: Bool = false
-    /// Compact document-scope sheet, presented from the composer paperclip (#3015).
+    /// Document-scope sheet, presented from the composer paperclip's "Add
+    /// Documents…" item (#3015 / #2449 step 2).
     @State var showAttachSheet: Bool = false
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     // Provider/Model selection
     @State var providers: [LLMProvider] = []
@@ -34,10 +37,12 @@ struct ChatView: View {
     init(
         conversation: Conversation?,
         selectedDocuments: Binding<Set<String>>,
+        attachContext: ChatAttachContext = .empty,
         onConversationUpdated: (() -> Void)? = nil
     ) {
         self.conversation = conversation
         self._selectedDocuments = selectedDocuments
+        self.attachContext = attachContext
         self.onConversationUpdated = onConversationUpdated
         self._currentConversation = State(initialValue: conversation ?? Conversation())
     }
@@ -73,13 +78,10 @@ struct ChatView: View {
             ChatInputView(
                 inputText: $inputText,
                 isLoading: isLoading,
-                onSend: sendMessage,
-                // Compact has no side inspector to drop onto — surface the same
-                // document-scope surface as a sheet via a composer button (#3015).
-                onAttach: ContentView.shouldUseCompactNavigationFlow(
-                    horizontalSizeClass: horizontalSizeClass
-                ) ? { showAttachSheet = true } : nil
-            )
+                onSend: sendMessage
+            ) {
+                composerAttachMenu
+            }
         }
         .sheet(isPresented: $showAttachSheet) {
             chatAttachSheet
@@ -101,6 +103,49 @@ struct ChatView: View {
             await loadProviders()
             await loadConversations()
         }
+    }
+
+    /// Composer paperclip menu (#2449 step 2): attaches host-supplied context —
+    /// the open document and/or the current library view — to the chat scope, plus
+    /// the always-available "Add Documents…" search sheet. Every target routes
+    /// through the same `attachScopedDocuments` path as drag-drop. Always present
+    /// now (was a compact-only button), so every width can attach context.
+    @ViewBuilder
+    private var composerAttachMenu: some View {
+        Menu {
+            if let docId = attachContext.openDocumentId {
+                Button {
+                    attachScopedDocuments([docId])
+                } label: {
+                    Label(
+                        attachContext.openDocumentName.map { "Open Document — \($0)" } ?? "Open Document",
+                        systemImage: "doc"
+                    )
+                }
+            }
+            if attachContext.hasCurrentView {
+                Button {
+                    attachScopedDocuments(attachContext.currentViewDocumentIds)
+                } label: {
+                    Label(attachContext.currentViewLabel ?? "Current View", systemImage: "folder")
+                }
+            }
+            if attachContext.hasHostTargets {
+                Divider()
+            }
+            Button {
+                showAttachSheet = true
+            } label: {
+                Label("Add Documents…", systemImage: "plus.magnifyingglass")
+            }
+        } label: {
+            Image(systemName: "paperclip")
+                .font(.title3)
+                .foregroundColor(.secondary)
+        }
+        .menuIndicator(.hidden)
+        .help("Attach documents to this chat")
+        .accessibilityLabel("Attach context")
     }
 
     /// The document-scope surface, presented as a sheet on compact width so a
