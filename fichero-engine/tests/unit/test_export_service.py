@@ -1,6 +1,11 @@
 import pytest
 
-from fichero.export_service import export_eleventy_site, iter_export_records
+from fichero.export_service import (
+    export_eleventy_site,
+    export_markdown_folder,
+    export_word_docx,
+    iter_export_records,
+)
 from fichero.knowledge_models import ClaimType, EntityType
 from fichero.models import DocType, Document, FileType, KnowledgeClaim, KnowledgeEntity
 
@@ -247,3 +252,86 @@ def test_iter_export_records_raises_for_missing_claim_provenance_source(db):
 
     with pytest.raises(ValueError, match="deleted-source"):
         list(iter_export_records(db, target_id=root.id, granularity="page"))
+
+
+def test_export_eleventy_site_raises_for_missing_claim_page_path(db, tmp_path):
+    _, _, _, page, _, _, claim = _seed_export_library(db)
+
+    with pytest.raises(ValueError, match=page.id):
+        from fichero.export_service import _render_eleventy_claim_index
+
+        _render_eleventy_claim_index(
+            [
+                {
+                    "record_type": "claim",
+                    "found_in_page_id": page.id,
+                    "found_in_document_name": page.name,
+                    "text": claim.text,
+                }
+            ],
+            page_path=tmp_path / "site" / "src" / "claims" / "index.md",
+            page_paths_by_id={},
+            src_dir=tmp_path / "site" / "src",
+        )
+
+
+def test_export_eleventy_site_raises_for_missing_search_page_path(db, tmp_path):
+    root = Document(id="search-root", name="Archivo", doc_type=DocType.folder)
+    page = Document(
+        id="search-page",
+        name="Folio 1",
+        parent_id=root.id,
+        doc_type=DocType.file,
+        file_type=FileType.text,
+        page_content="Texto.",
+    )
+    db.save(root)
+    db.save(page)
+
+    with pytest.raises(ValueError, match=page.id):
+        from fichero.export_service import _eleventy_search_entries
+
+        _eleventy_search_entries(
+            db=db,
+            documents=[page],
+            page_records=[],
+            page_paths_by_id={},
+            search_page=tmp_path / "site" / "src" / "search.md",
+            src_dir=tmp_path / "site" / "src",
+        )
+
+
+def test_export_markdown_folder_raises_for_missing_declared_image_source(db, tmp_path, caplog):
+    root = Document(id="image-root", name="Archivo", doc_type=DocType.folder)
+    image = Document(
+        id="image-doc",
+        name="Photo One",
+        parent_id=root.id,
+        doc_type=DocType.file,
+        file_type=FileType.image,
+        path="files/missing.jpg",
+    )
+    db.save(root)
+    db.save(image)
+
+    with pytest.raises(ValueError, match=image.id):
+        export_markdown_folder(db, tmp_path / "export", target_id=root.id)
+    assert image.id in caplog.text
+
+
+def test_export_word_docx_raises_for_missing_declared_image_source(db, tmp_path, caplog):
+    root = Document(id="word-root", name="Archivo", doc_type=DocType.folder)
+    image = Document(
+        id="word-image-doc",
+        name="Photo One",
+        parent_id=root.id,
+        doc_type=DocType.file,
+        file_type=FileType.image,
+        path="files/missing.jpg",
+    )
+    db.save(root)
+    db.save(image)
+
+    with pytest.raises(ValueError, match=image.id):
+        export_word_docx(db, tmp_path / "export.docx", target_id=root.id)
+    assert image.id in caplog.text
