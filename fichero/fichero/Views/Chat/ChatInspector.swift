@@ -101,3 +101,18 @@ extension ChatInspector {
     )
         .frame(width: 300, height: 500)
 }
+
+// Compact inspector-as-sheet variant (#3019) — how the chat document-scope
+// surface presents on iPhone via the composer paperclip (#3015): full-width in
+// a NavigationStack, not a docked column.
+#Preview("Sheet — Compact (iPhone)") {
+    NavigationStack {
+        ChatInspector(
+            selectedDocuments: .constant(["doc1"]),
+            suggestedDocumentIDs: []
+        )
+        .navigationTitle("Add Documents")
+    }
+    .environment(\.horizontalSizeClass, .compact)
+    .frame(width: 390, height: 700)
+}
