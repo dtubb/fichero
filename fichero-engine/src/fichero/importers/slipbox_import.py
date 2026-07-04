@@ -20,7 +20,11 @@ from html import unescape
 from pathlib import Path
 from typing import Iterable
 
-from fichero.importers.http_client import ImporterHttpClient, ensure_remote_document
+from fichero.importers.http_client import (
+    ImporterHttpClient,
+    ensure_remote_document,
+    reset_local_library_if_loopback,
+)
 from fichero.ingest import detect_file_type
 from fichero.xml_security import iterparse_xml
 
@@ -100,8 +104,7 @@ def import_slipbox_via_http(
 
     # ponytail: there is no remote reset endpoint yet; keep the old local-path
     # delete when possible instead of inventing cross-host reset semantics here.
-    if reset and library_path.exists():
-        shutil.rmtree(library_path)
+    reset_local_library_if_loopback(client, library_path, reset=reset)
     client.create_library(str(library_path))
 
     root = ensure_remote_document(

@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import os
-import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from fichero.importers.http_client import ImporterHttpClient, ensure_remote_document
+from fichero.importers.http_client import (
+    ImporterHttpClient,
+    ensure_remote_document,
+    reset_local_library_if_loopback,
+)
 
 # Library packages default to the standard macOS Application Support location.
 # Source-corpus locations are user/machine specific and are NOT hardcoded: pass
@@ -215,10 +218,8 @@ def _import_roots_via_http(
     library_path = library_path.expanduser().resolve()
     resolved_roots = {name: path.expanduser().resolve() for name, path in roots.items()}
 
-    # ponytail: same-host reset is still local delete until the backend grows a
-    # real remote library-reset endpoint.
-    if reset and library_path.exists():
-        shutil.rmtree(library_path)
+    # ponytail: only local loopback engines may delete local libraries.
+    reset_local_library_if_loopback(client, library_path, reset=reset)
     client.create_library(str(library_path))
 
     root_doc = ensure_remote_document(

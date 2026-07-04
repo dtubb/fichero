@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from fichero.importers.http_client import ImporterHttpClient, ensure_remote_document
+from fichero.importers.http_client import (
+    ImporterHttpClient,
+    ensure_remote_document,
+    reset_local_library_if_loopback,
+)
 from fichero.ingest import detect_file_type
 from fichero.loaders.xlsx_reader import read_xlsx_records
 
@@ -81,10 +84,8 @@ def import_sergio_corpus_via_http(
     source_root = source_root.expanduser().resolve()
     spreadsheet_path = spreadsheet_path.expanduser().resolve()
 
-    # ponytail: same-host reset is still local delete until the backend grows a
-    # real remote library-reset endpoint.
-    if reset and library_path.exists():
-        shutil.rmtree(library_path)
+    # ponytail: only local loopback engines may delete local libraries.
+    reset_local_library_if_loopback(client, library_path, reset=reset)
     client.create_library(str(library_path))
 
     root = ensure_remote_document(

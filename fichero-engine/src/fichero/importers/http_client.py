@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import ipaddress
+import shutil
 from pathlib import Path
 from typing import Any, Protocol
+from urllib.parse import urlparse
 
 DEFAULT_API_BASE = "http://127.0.0.1:8765/api"
 DEFAULT_TOKEN_FILE = Path(
@@ -16,6 +19,8 @@ class ManifestApiClient(Protocol):
 
 
 class ImporterHttpClient(Protocol):
+    base_url: str
+
     def create_library(self, path: str) -> Any: ...
 
     def import_file(self, path: str | Path, parent_id: str | None = None) -> Any: ...
@@ -98,6 +103,28 @@ def ensure_remote_document(
     return client.request("POST", "/api/documents", json=payload)
 
 
+def reset_local_library_if_loopback(
+    client: ImporterHttpClient, library_path: Path, *, reset: bool
+) -> None:
+    if not reset or not library_path.exists():
+        return
+    if not _client_uses_loopback(client):
+        return
+    shutil.rmtree(library_path)
+
+
+def _client_uses_loopback(client: ImporterHttpClient) -> bool:
+    host = urlparse(getattr(client, "base_url", "")).hostname
+    if not host:
+        return False
+    if host in {"localhost", "::1"}:
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
 __all__ = [
     "DEFAULT_API_BASE",
     "DEFAULT_TOKEN_FILE",
@@ -105,5 +132,6 @@ __all__ = [
     "ImporterHttpClient",
     "ManifestApiClient",
     "ensure_remote_document",
+    "reset_local_library_if_loopback",
     "resolve_http_token",
 ]
