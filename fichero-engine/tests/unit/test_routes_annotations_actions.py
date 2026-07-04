@@ -380,6 +380,33 @@ class TestAnnotationDeleteRestoreActions:
             registry.invoke(db, "annotation.restore", {"snapshot": "not-a-dict"}, _ctx())
 
 
+class TestAnnotationRoutesWriteActionAudit:
+    def test_create_patch_delete_routes_write_action_audit(self, client, db):
+        doc = _mk_doc(db)
+
+        created = client.post(
+            "/api/annotations",
+            json={"document_id": doc.id, "kind": "note", "text": "route"},
+        )
+        assert created.status_code == 200
+        annotation_id = created.json()["id"]
+        assert db.all(ActionAudit)[-1].action_name == "annotation.create"
+        assert db.all(ActionAudit)[-1].target_ids == [annotation_id]
+
+        patched = client.patch(
+            f"/api/annotations/{annotation_id}",
+            json={"text": "updated route"},
+        )
+        assert patched.status_code == 200
+        assert db.all(ActionAudit)[-1].action_name == "annotation.update"
+        assert db.all(ActionAudit)[-1].target_ids == [annotation_id]
+
+        deleted = client.delete(f"/api/annotations/{annotation_id}")
+        assert deleted.status_code == 204
+        assert db.all(ActionAudit)[-1].action_name == "annotation.delete"
+        assert db.all(ActionAudit)[-1].target_ids == [annotation_id]
+
+
 # ===========================================================================
 # annotation.promote_to_claim — audited but NOT undoable
 # ===========================================================================
