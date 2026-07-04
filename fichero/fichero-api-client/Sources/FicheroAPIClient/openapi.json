@@ -3187,7 +3187,6 @@
           "artifacts"
         ],
         "summary": "Create Artifact",
-        "description": "Create a processing artifact for a document.",
         "operationId": "create_artifact_api_artifacts__post",
         "parameters": [
           {

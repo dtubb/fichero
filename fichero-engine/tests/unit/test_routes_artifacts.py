@@ -7,7 +7,7 @@ display processed results alongside source documents.
 
 from datetime import datetime
 
-from fichero.models import Artifact, Document, DocType, FileType, Status
+from fichero.models import ActionAudit, Artifact, Document, DocType, FileType, Status
 
 
 # ---------------------------------------------------------------------------
@@ -84,6 +84,27 @@ class TestCreateArtifact:
             json={"document_id": "missing", "artifact_type": "transcription"},
         )
         assert r.status_code == 404
+
+    def test_create_artifact_writes_action_audit_and_emits(self, client, db, monkeypatch):
+        doc = _make_doc(db)
+        calls: list[tuple] = []
+        monkeypatch.setattr(
+            "fichero.api.change_stream.emit_change",
+            lambda *a, **k: calls.append((a, k)),
+        )
+
+        r = client.post(
+            "/api/artifacts/",
+            json={"document_id": doc.id, "artifact_type": "transcription"},
+        )
+
+        assert r.status_code == 200
+        artifact_id = r.json()["id"]
+        audits = [row for row in db.all(ActionAudit) if row.action_name == "artifact.create"]
+        assert len(audits) == 1
+        assert audits[0].target_ids == [artifact_id]
+        assert calls[-1][1]["type"] == "artifact.created"
+        assert calls[-1][1]["artifact_ids"] == [artifact_id]
 
 
 # ---------------------------------------------------------------------------
@@ -409,6 +430,24 @@ class TestDeleteArtifact:
         r = client.delete("/api/artifacts/no-such-id")
         assert r.status_code == 404
 
+    def test_delete_writes_action_audit_and_emits(self, client, db, monkeypatch):
+        doc = _make_doc(db)
+        artifact = _make_artifact(db, doc.id)
+        calls: list[tuple] = []
+        monkeypatch.setattr(
+            "fichero.api.change_stream.emit_change",
+            lambda *a, **k: calls.append((a, k)),
+        )
+
+        r = client.delete(f"/api/artifacts/{artifact.id}")
+
+        assert r.status_code == 204
+        audits = [row for row in db.all(ActionAudit) if row.action_name == "artifact.delete"]
+        assert len(audits) == 1
+        assert audits[0].target_ids == [artifact.id]
+        assert calls[-1][1]["type"] == "artifact.deleted"
+        assert calls[-1][1]["artifact_ids"] == [artifact.id]
+
 
 # ---------------------------------------------------------------------------
 # include_descendants query (V2 inspector — strict per-document scope)
@@ -526,3 +565,21 @@ class TestUpdateArtifact:
     def test_update_nonexistent_returns_404(self, client):
         r = client.put("/api/artifacts/no-such-id", json={"content": "x"})
         assert r.status_code == 404
+
+    def test_update_writes_action_audit_and_emits(self, client, db, monkeypatch):
+        doc = _make_doc(db)
+        artifact = _make_artifact(db, doc.id, content="before")
+        calls: list[tuple] = []
+        monkeypatch.setattr(
+            "fichero.api.change_stream.emit_change",
+            lambda *a, **k: calls.append((a, k)),
+        )
+
+        r = client.put(f"/api/artifacts/{artifact.id}", json={"content": "after"})
+
+        assert r.status_code == 200
+        audits = [row for row in db.all(ActionAudit) if row.action_name == "artifact.update"]
+        assert len(audits) == 1
+        assert audits[0].target_ids == [artifact.id]
+        assert calls[-1][1]["type"] == "artifact.updated"
+        assert calls[-1][1]["artifact_ids"] == [artifact.id]

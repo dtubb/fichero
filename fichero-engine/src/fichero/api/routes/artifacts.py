@@ -5,12 +5,12 @@ API endpoints for accessing processing artifacts (transcriptions, summaries, ent
 """
 
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fichero.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero.api.library_header import optional_library_path
 from fichero.api.auth import request_actor
-from fichero.api.change_stream import emit_change
 from pydantic import BaseModel
 
 from fichero.api.main import get_library_database, get_library_database_for_write
@@ -69,6 +69,19 @@ class ArtifactCreateRequest(BaseModel):
     reviewed: bool = False
 
 
+class ArtifactUpdateActionParams(BaseModel):
+    artifact_id: str
+    patch: "ArtifactUpdate"
+
+
+class ArtifactDeleteActionParams(BaseModel):
+    artifact_id: str
+
+
+class ArtifactRestoreActionParams(BaseModel):
+    payload: dict[str, Any]
+
+
 def _artifact_response(artifact: Artifact) -> ArtifactResponse:
     return ArtifactResponse(
         id=artifact.id,
@@ -85,21 +98,21 @@ def _artifact_response(artifact: Artifact) -> ArtifactResponse:
     )
 
 
-# Routes
+def _resolve_action_ctx(
+    *,
+    actor: str,
+    library_path: str | None,
+    origin_window: str | None,
+    db: Database,
+) -> ActionContext:
+    return ActionContext(
+        actor=actor,
+        library_path=library_path or str(db.path.parent),
+        origin_window=origin_window,
+    )
 
 
-@router.post("/", response_model=ArtifactResponse)
-async def create_artifact(
-    request: ArtifactCreateRequest,
-    db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Depends(optional_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None,
-        alias="X-Fichero-Origin-Window",
-    ),
-    actor: str = Depends(request_actor),
-) -> ArtifactResponse:
-    """Create a processing artifact for a document."""
+def _create_artifact_impl(db: Database, request: ArtifactCreateRequest) -> Artifact:
     doc = db.get(Document, request.document_id)
     if not doc:
         raise HTTPException(
@@ -125,16 +138,90 @@ async def create_artifact(
         reviewed=request.reviewed,
     )
     db.save(artifact)
-    emit_change(
-        x_fichero_library_path or str(db.path.parent),
-        type="artifact.created",
-        artifact_ids=[artifact.id],
-        document_ids=[artifact.document_id],
+    return artifact
+
+
+def _update_artifact_impl(
+    db: Database, artifact_id: str, update: "ArtifactUpdate"
+) -> tuple[Artifact, dict[str, Any]]:
+    artifact = db.get(Artifact, artifact_id)
+    if not artifact:
+        raise HTTPException(
+            status_code=404, detail=f"Artifact not found: {artifact_id}"
+        )
+    before = artifact.model_dump(mode="json")
+    if update.content is not None:
+        artifact.content = update.content
+    if update.reviewed is not None:
+        artifact.reviewed = update.reviewed
+    db.save(artifact)
+    return artifact, before
+
+
+def _delete_artifact_impl(db: Database, artifact_id: str) -> dict[str, Any]:
+    artifact = db.get(Artifact, artifact_id)
+    if not artifact:
+        raise HTTPException(
+            status_code=404, detail=f"Artifact not found: {artifact_id}"
+        )
+    before = artifact.model_dump(mode="json")
+    db.delete(artifact)
+    logger.info(f"Deleted artifact {artifact_id}")
+    return before
+
+
+def _restore_artifact_impl(db: Database, payload: dict[str, Any]) -> Artifact:
+    artifact = Artifact(**payload)
+    db.save(artifact)
+    return artifact
+
+
+def _invert_artifact_to_restore(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not before:
+        return None
+    return ("artifact.restore", {"payload": before})
+
+
+def _invert_artifact_create(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not after:
+        return None
+    artifact_id = after.get("artifact_id")
+    if not artifact_id:
+        return None
+    return ("artifact.delete", {"artifact_id": artifact_id})
+
+
+# Routes
+
+
+@router.post("/", response_model=ArtifactResponse)
+async def create_artifact(
+    request: ArtifactCreateRequest,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None,
+        alias="X-Fichero-Origin-Window",
+    ),
+    actor: str = Depends(request_actor),
+) -> ArtifactResponse:
+    ctx = _resolve_action_ctx(
         actor=actor,
+        library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
-        origin_user=actor,
+        db=db,
     )
-    return _artifact_response(artifact)
+    result = registry.invoke(
+        db,
+        "artifact.create",
+        request.model_dump(mode="json"),
+        ctx,
+    )
+    return ArtifactResponse.model_validate(result.result)
 
 
 @router.get("/")
@@ -278,6 +365,11 @@ class ArtifactUpdate(BaseModel):
     reviewed: Optional[bool] = None
 
 
+ArtifactUpdateActionParams.model_rebuild(
+    _types_namespace={"ArtifactUpdate": ArtifactUpdate}
+)
+
+
 @router.put("/{artifact_id}")
 async def update_artifact(
     artifact_id: str,
@@ -297,29 +389,19 @@ async def update_artifact(
     artifact stays attached to its original document and keeps its provider/
     model provenance — we just update the text.
     """
-    artifact = db.get(Artifact, artifact_id)
-    if not artifact:
-        raise HTTPException(
-            status_code=404, detail=f"Artifact not found: {artifact_id}"
-        )
-
-    if update.content is not None:
-        artifact.content = update.content
-    if update.reviewed is not None:
-        artifact.reviewed = update.reviewed
-
-    db.save(artifact)
-    emit_change(
-        x_fichero_library_path or str(db.path.parent),
-        type="artifact.updated",
-        artifact_ids=[artifact.id],
-        document_ids=[artifact.document_id],
+    ctx = _resolve_action_ctx(
         actor=actor,
+        library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
-        origin_user=actor,
+        db=db,
     )
-
-    return _artifact_response(artifact)
+    result = registry.invoke(
+        db,
+        "artifact.update",
+        {"artifact_id": artifact_id, "patch": update.model_dump(mode="json")},
+        ctx,
+    )
+    return ArtifactResponse.model_validate(result.result)
 
 
 @router.delete("/{artifact_id}", status_code=204)
@@ -334,21 +416,104 @@ async def delete_artifact(
     actor: str = Depends(request_actor),
 ) -> None:
     """Delete an artifact."""
-    artifact = db.get(Artifact, artifact_id)
-    if not artifact:
-        raise HTTPException(
-            status_code=404, detail=f"Artifact not found: {artifact_id}"
-        )
-    document_id = artifact.document_id
-
-    db.delete(artifact)
-    emit_change(
-        x_fichero_library_path or str(db.path.parent),
-        type="artifact.deleted",
-        artifact_ids=[artifact_id],
-        document_ids=[document_id],
+    ctx = _resolve_action_ctx(
         actor=actor,
+        library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
-        origin_user=actor,
+        db=db,
     )
-    logger.info(f"Deleted artifact {artifact_id}")
+    registry.invoke(
+        db,
+        "artifact.delete",
+        {"artifact_id": artifact_id},
+        ctx,
+    )
+
+
+@action(
+    "artifact.create",
+    ArtifactCreateRequest,
+    domains=["artifact", "document"],
+    undoable=True,
+    invert=_invert_artifact_create,
+)
+def _action_create_artifact(
+    db: Database, params: ArtifactCreateRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    artifact = _create_artifact_impl(db, params)
+    spec = ChangeSpec(
+        domains=["artifact", "document"],
+        target_ids=[artifact.id],
+        after={"artifact_id": artifact.id},
+        emit_type="artifact.created",
+        artifact_ids=[artifact.id],
+        document_ids=[artifact.document_id],
+    )
+    return _artifact_response(artifact).model_dump(mode="json"), spec
+
+
+@action(
+    "artifact.update",
+    ArtifactUpdateActionParams,
+    domains=["artifact", "document"],
+    undoable=True,
+    invert=_invert_artifact_to_restore,
+)
+def _action_update_artifact(
+    db: Database, params: ArtifactUpdateActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    artifact, before = _update_artifact_impl(db, params.artifact_id, params.patch)
+    spec = ChangeSpec(
+        domains=["artifact", "document"],
+        target_ids=[artifact.id],
+        before=before,
+        after=artifact.model_dump(mode="json"),
+        emit_type="artifact.updated",
+        artifact_ids=[artifact.id],
+        document_ids=[artifact.document_id],
+    )
+    return _artifact_response(artifact).model_dump(mode="json"), spec
+
+
+@action(
+    "artifact.delete",
+    ArtifactDeleteActionParams,
+    domains=["artifact", "document"],
+    undoable=True,
+    invert=_invert_artifact_to_restore,
+)
+def _action_delete_artifact(
+    db: Database, params: ArtifactDeleteActionParams, ctx: ActionContext
+) -> tuple[None, ChangeSpec]:
+    before = _delete_artifact_impl(db, params.artifact_id)
+    spec = ChangeSpec(
+        domains=["artifact", "document"],
+        target_ids=[params.artifact_id],
+        before=before,
+        after={"artifact_id": params.artifact_id},
+        emit_type="artifact.deleted",
+        artifact_ids=[params.artifact_id],
+        document_ids=[before["document_id"]],
+    )
+    return None, spec
+
+
+@action(
+    "artifact.restore",
+    ArtifactRestoreActionParams,
+    domains=["artifact", "document"],
+    undoable=False,
+)
+def _action_restore_artifact(
+    db: Database, params: ArtifactRestoreActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    artifact = _restore_artifact_impl(db, params.payload)
+    spec = ChangeSpec(
+        domains=["artifact", "document"],
+        target_ids=[artifact.id],
+        after={"artifact_id": artifact.id},
+        emit_type="artifact.created",
+        artifact_ids=[artifact.id],
+        document_ids=[artifact.document_id],
+    )
+    return _artifact_response(artifact).model_dump(mode="json"), spec
