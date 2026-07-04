@@ -24,6 +24,11 @@ struct AIDefaults: Codable, Equatable {
     var temperature: String = ""
     var maxTokens: String = ""
     var promptPrefix: String = ""
+    /// Forces extraction into this language regardless of the source's own
+    /// language (empty = Auto / detect per source). Honored by the backend's
+    /// default_primary_language (#1764) — this exposes the previously
+    /// unreachable control (#1808).
+    var primaryLanguage: String = ""
 
     enum CodingKeys: String, CodingKey {
         case visionProvider = "vision_provider"
@@ -43,6 +48,7 @@ struct AIDefaults: Codable, Equatable {
         case temperature
         case maxTokens = "max_tokens"
         case promptPrefix = "prompt_prefix"
+        case primaryLanguage = "primary_language"
     }
 
     /// First-launch seed for Apple Intelligence defaults. Only fills empty

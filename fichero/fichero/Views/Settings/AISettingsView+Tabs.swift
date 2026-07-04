@@ -7,6 +7,21 @@ extension AISettingsView {
     @ViewBuilder
     var defaultsTab: some View {
         Form {
+            Section("Language") {
+                Text("Force extraction into one language regardless of the source's own language. Auto detects per source.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Picker("Primary Language", selection: $defaults.primaryLanguage) {
+                    Text("Auto (detect per source)").tag("")
+                    Text("English").tag("en")
+                    Text("Spanish").tag("es")
+                    Text("French").tag("fr")
+                    Text("German").tag("de")
+                    Text("Portuguese").tag("pt")
+                    Text("Italian").tag("it")
+                }
+            }
+
             Section("Text") {
                 Text("Used by Summarize, Extract, and Classify tools.")
                     .font(.caption)

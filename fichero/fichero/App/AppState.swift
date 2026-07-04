@@ -337,7 +337,8 @@ extension AppState {
             largeModel: generated.largeModel ?? "",
             temperature: generated.temperature ?? "",
             maxTokens: generated.maxTokens ?? "",
-            promptPrefix: generated.promptPrefix ?? ""
+            promptPrefix: generated.promptPrefix ?? "",
+            primaryLanguage: generated.primaryLanguage ?? ""
         )
     }
 
@@ -360,7 +361,8 @@ extension AppState {
             largeModel: defaults.largeModel,
             temperature: defaults.temperature,
             maxTokens: defaults.maxTokens,
-            promptPrefix: defaults.promptPrefix
+            promptPrefix: defaults.promptPrefix,
+            primaryLanguage: defaults.primaryLanguage
         )
     }
 }
