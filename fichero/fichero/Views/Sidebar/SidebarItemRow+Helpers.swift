@@ -277,12 +277,20 @@ extension SidebarItemRow {
         let actualItemId = extractActualId(from: itemId)
         sidebarRowLogger.debug(" routeMove: \(itemId) (kind=\(String(describing: kind))) → \(targetFolder.name)")
 
+        // Documents share ONE executor with the compact "Move to Folder" menu
+        // (#3014) — same store call + error surfacing, no divergent path.
+        if kind == .document {
+            await moveDocumentToFolder(
+                documentId: actualItemId,
+                folderId: extractActualId(from: targetFolder.id)
+            )
+            return
+        }
+
         do {
             switch kind {
             case .document:
-                guard let documentStore = documentStore else { return }
-                let actualTargetId = extractActualId(from: targetFolder.id)
-                _ = try await documentStore.moveDocument(actualItemId, toParent: actualTargetId)
+                return  // handled above
             case .savedSearch:
                 guard let service = savedSearchService,
                       case .folder(let folderPath) = targetFolder.itemType else { return }
@@ -305,6 +313,21 @@ extension SidebarItemRow {
             // prefer-raise-over-silent-fallback). Same channel the compact
             // "Move to Folder" menu already uses, so drag-drop moves that fail
             // now show the user feedback rather than appearing to do nothing.
+            sidebarRowLogger.error("Move failed: \(error.localizedDescription)")
+            sidebarState.dropErrorMessage = error.localizedDescription
+        }
+    }
+
+    /// Shared document-move executor (#3014): the store call + error surfacing
+    /// both the drag-drop path (`routeMove`) and the compact "Move to Folder"
+    /// menu use, so document moves have exactly one executor. Ids are raw
+    /// (already un-prefixed).
+    func moveDocumentToFolder(documentId: String, folderId: String) async {
+        guard let documentStore else { return }
+        do {
+            _ = try await documentStore.moveDocument(documentId, toParent: folderId)
+            sidebarRowLogger.debug(" Move successful — UI updates via @Published")
+        } catch {
             sidebarRowLogger.error("Move failed: \(error.localizedDescription)")
             sidebarState.dropErrorMessage = error.localizedDescription
         }
