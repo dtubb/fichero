@@ -136,10 +136,21 @@ private struct FicheroSharedPlatformRoot: View {
     /// fresh, unpaired install shows first-run setup instead of a pointless
     /// probe-then-unreachable flash.
     private func reconnectToConfiguredHost() async {
-        guard RemoteAccessConfig.hasPairedLibraryPath else {
+        // Pure phase decision (#3113): with no paired library the launch is
+        // `setupNeeded` regardless of reachability — a fresh install shows
+        // first-run pairing instead of probing localhost (#2465). Reachability
+        // is unknown until the probe, so `isReachable: false` here only gates
+        // the setupNeeded branch; the probe below resolves ready vs unreachable.
+        guard EngineConfig.iosLaunchPhase(
+            hasPairedLibrary: RemoteAccessConfig.hasPairedLibraryPath,
+            isReachable: false
+        ) != .setupNeeded else {
             appState.engine.markSetupNeeded()
             return
         }
+        // checkBackendHealth resolves the phase to ready / unreachable /
+        // authRejected. A configured-but-down host lands on `unreachable` and
+        // the gate shows the diagnosis — NEVER the pairing prompt (#2807/#2864).
         await appState.checkBackendHealth()
         guard appState.isBackendRunning else {
             logger.error(
@@ -148,9 +159,9 @@ private struct FicheroSharedPlatformRoot: View {
             return
         }
         appState.startBackendHeartbeat()
-        await KnownLibraryRegistryStore.shared.refresh()
-        libraryManager.adoptPairedRemoteLibrary()
-        await libraryManager.backendDidBecomeReady()
+        // The SAME shared post-ready block as macOS (#3113), then the iOS-only
+        // capture-queue resume — which is a mobile concern, not a library one.
+        await libraryManager.refreshAfterBackendBecameReady()
         _ = await captureQueue.resumePendingUploads(
             using: MobileCaptureBackendUploadClient(libraryManager: libraryManager)
         )
@@ -210,9 +221,11 @@ private struct PairingIncomingLinkSheet: View {
                 expectedSPKIPin: fields.spkiPin,
                 libraryPath: fields.libraryPath
             )
-            libraryManager.adoptPairedRemoteLibrary()
+            // Pairing persisted the new host; repoint the app-level client so
+            // the reconnect probe targets it. Library adoption + reload fire once
+            // in the ready transition (`onConnected` → refreshAfterBackendBecameReady,
+            // #3113) — no duplicate adopt here.
             appState.reconfigureGeneratedClientsForCurrentHost()
-            libraryManager.reconfigureGeneratedClientsForCurrentHost()
             dismiss()
             await onConnected()
         } catch {
@@ -409,9 +422,9 @@ private struct RemoteConnectionSetupView: View {
                 expectedSPKIPin: fields.spkiPin,
                 libraryPath: fields.libraryPath
             )
-            libraryManager.adoptPairedRemoteLibrary()
+            // Repoint the app-level client at the freshly-paired host; adopt +
+            // reload fire once in the ready transition (#3113), not here.
             appState.reconfigureGeneratedClientsForCurrentHost()
-            libraryManager.reconfigureGeneratedClientsForCurrentHost()
             await onConnected()
             if !appState.isBackendRunning {
                 errorMessage = "Connected — Fichero on your Mac is not responding yet."

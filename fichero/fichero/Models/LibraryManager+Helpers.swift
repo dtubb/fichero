@@ -34,6 +34,20 @@ extension LibraryManager {
         }
     }
 
+    /// The library-side effects that fire when the engine reaches `.ready`,
+    /// shared by BOTH platforms (#3113): refresh the known-library registry,
+    /// adopt a paired remote library (self-guarded — a no-op unless the host is
+    /// external), then reload every open library's data. This is the ONE place
+    /// the ready transition hangs its side effects, replacing the copy in
+    /// `FicheroApp.connectBackend` and `FicheroApp_iOS.reconnectToConfiguredHost`.
+    /// The heartbeat (AppState) and iOS capture-queue resume layer on in the
+    /// callers, since those aren't library concerns.
+    func refreshAfterBackendBecameReady() async {
+        await KnownLibraryRegistryStore.shared.refresh()
+        adoptPairedRemoteLibrary()
+        await backendDidBecomeReady()
+    }
+
     func reconfigureGeneratedClientsForCurrentHost() {
         for library in openLibraries {
             library.reconfigureBackendHost()

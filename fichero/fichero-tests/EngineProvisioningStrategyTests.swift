@@ -175,3 +175,56 @@ struct EngineProvisioningStrategyTests {
         })
     }
 }
+
+// MARK: - iOS companion launch phase (#3113)
+
+/// The unified iOS launch lifecycle: one gate, one session, pairing as a phase
+/// transition. The pure phase decision maps (paired?, reachable?) to exactly
+/// one of setupNeeded / ready / unreachable — never a blank screen, and the
+/// configured-but-down host NEVER shows the pairing prompt (#2807/#2864).
+@Suite("iOS companion launch phase (#3113)")
+struct IOSLaunchPhaseTests {
+
+    private typealias Phase = EngineConfig.IOSLaunchPhase
+
+    private func phase(hasPairedLibrary: Bool, isReachable: Bool) -> Phase {
+        EngineConfig.iosLaunchPhase(hasPairedLibrary: hasPairedLibrary, isReachable: isReachable)
+    }
+
+    @Test("no paired library → first-run setup (never probes, #2465)")
+    func unpairedIsSetupNeeded() {
+        // Unpaired is setupNeeded regardless of reachability — reachability is
+        // meaningless before there's a host to reach, and iOS never probes
+        // localhost, so a fresh install shows pairing, not an unreachable flash.
+        #expect(phase(hasPairedLibrary: false, isReachable: false) == .setupNeeded)
+        #expect(phase(hasPairedLibrary: false, isReachable: true) == .setupNeeded)
+    }
+
+    @Test("paired + reachable → ready")
+    func pairedReachableIsReady() {
+        #expect(phase(hasPairedLibrary: true, isReachable: true) == .ready)
+    }
+
+    @Test("paired + unreachable → unreachable, NEVER the pairing prompt (#2807/#2864)")
+    func pairedUnreachableShowsDiagnosisNotPairing() {
+        let resolved = phase(hasPairedLibrary: true, isReachable: false)
+        #expect(resolved == .unreachable)
+        // The regression that guards the invariant: a configured-but-down host
+        // must not fall back to first-run pairing.
+        #expect(resolved != .setupNeeded)
+    }
+
+    @Test("exactly one phase per input combination — total, no blank screen")
+    func everyInputResolvesToOnePhase() {
+        for paired in [true, false] {
+            for reachable in [true, false] {
+                let resolved = phase(hasPairedLibrary: paired, isReachable: reachable)
+                #expect([.setupNeeded, .ready, .unreachable].contains(resolved))
+            }
+        }
+        // setupNeeded iff unpaired; the two paired cases split on reachability.
+        #expect(phase(hasPairedLibrary: false, isReachable: true) == .setupNeeded)
+        #expect(phase(hasPairedLibrary: true, isReachable: true) == .ready)
+        #expect(phase(hasPairedLibrary: true, isReachable: false) == .unreachable)
+    }
+}
