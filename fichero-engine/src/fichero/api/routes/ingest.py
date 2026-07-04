@@ -7,7 +7,7 @@ File and folder ingestion endpoints.
 import asyncio
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
@@ -32,6 +32,7 @@ class IngestFileRequest(BaseModel):
     path: str
     parent_id: Optional[str] = None
     copy_mode: bool = False  # Link (default) or copy into library
+    mode: Literal["link", "copy", "move"] | None = None
     extract_text: bool = True
     auto_embed: bool = True
 
@@ -42,6 +43,7 @@ class IngestFolderRequest(BaseModel):
     path: str
     parent_id: Optional[str] = None
     copy_mode: bool = False
+    mode: Literal["link", "copy", "move"] | None = None
     recursive: bool = True
     # Default to True so a freshly-ingested folder is searchable as soon
     # as the documents land — matches the single-file ingest default and
@@ -98,7 +100,9 @@ def import_file_impl(
     if not path.is_file():
         raise HTTPException(status_code=400, detail=f"Not a file: {request.path}")
 
-    mode = IngestMode.COPY if request.copy_mode else IngestMode.LINK
+    mode = IngestMode(request.mode) if request.mode else (
+        IngestMode.COPY if request.copy_mode else IngestMode.LINK
+    )
     try:
         doc = do_ingest(
             path,
@@ -138,7 +142,9 @@ def import_folder_impl(
     if not path.is_dir():
         raise HTTPException(status_code=400, detail=f"Not a directory: {request.path}")
 
-    mode = IngestMode.COPY if request.copy_mode else IngestMode.LINK
+    mode = IngestMode(request.mode) if request.mode else (
+        IngestMode.COPY if request.copy_mode else IngestMode.LINK
+    )
     return do_ingest(
         path,
         mode=mode,
