@@ -16,9 +16,10 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel
 
 from fichero.api.library_header import require_library_path
-from fichero.api.auth import request_actor
+from fichero.api.auth import action_context, request_actor
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database, get_library_database_for_write
+from fichero.actions.registry import registry
 from fichero.db import Database
 from fichero.knowledge_models import (
     Annotation,
@@ -156,22 +157,15 @@ def create_annotation_impl(
 async def create_annotation(
     request: AnnotationCreateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> Annotation:
-    ann = create_annotation_impl(db, request)
-    emit_change(
-        x_fichero_library_path,
-        type="annotation.created",
-        document_ids=_annotation_scope_document_ids(ann),
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
+    result = registry.invoke(
+        db,
+        "annotation.create",
+        request.model_dump(mode="json"),
+        ctx,
     )
-    return ann
+    return Annotation.model_validate(result.result)
 
 
 @router.get(
@@ -277,22 +271,15 @@ async def patch_annotation(
     annotation_id: str,
     request: AnnotationPatchRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> Annotation:
-    ann, _before = patch_annotation_impl(db, annotation_id, request)
-    emit_change(
-        x_fichero_library_path,
-        type="annotation.updated",
-        document_ids=_annotation_scope_document_ids(ann),
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
+    result = registry.invoke(
+        db,
+        "annotation.update",
+        {"annotation_id": annotation_id, "update": request.model_dump(mode="json", exclude_unset=True)},
+        ctx,
     )
-    return ann
+    return Annotation.model_validate(result.result)
 
 
 def delete_annotation_impl(db: Database, annotation_id: str) -> tuple[list[str], dict]:
@@ -328,21 +315,9 @@ def restore_annotation_impl(db: Database, snapshot: dict) -> Annotation:
 async def delete_annotation(
     annotation_id: str,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> None:
-    document_ids, _before = delete_annotation_impl(db, annotation_id)
-    emit_change(
-        x_fichero_library_path,
-        type="annotation.deleted",
-        document_ids=document_ids,
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
-    )
+    registry.invoke(db, "annotation.delete", {"annotation_id": annotation_id}, ctx)
 
 
 def _crop_response(db: Database, ann: Annotation):

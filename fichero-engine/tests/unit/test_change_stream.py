@@ -500,7 +500,7 @@ class TestEntityMutationsEmitChange:
     ):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero.api.routes.claim_links.emit_change",
+            "fichero.api.change_stream.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),
@@ -531,7 +531,7 @@ class TestAnnotationMutationsEmitChange:
     ):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero.api.routes.annotations.emit_change",
+            "fichero.api.change_stream.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),
@@ -555,7 +555,7 @@ class TestAnnotationMutationsEmitChange:
     ):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero.api.routes.annotations.emit_change",
+            "fichero.api.change_stream.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),
@@ -576,7 +576,7 @@ class TestAnnotationMutationsEmitChange:
     ):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero.api.routes.annotations.emit_change",
+            "fichero.api.change_stream.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),
@@ -884,7 +884,7 @@ class TestDocumentMutationsEmitChange:
     def test_update_document_emits_updated(self, client, db, test_package, monkeypatch):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero.api.routes.documents.emit_change",
+            "fichero.api.change_stream.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),
