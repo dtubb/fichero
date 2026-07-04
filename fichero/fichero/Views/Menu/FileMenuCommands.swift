@@ -52,14 +52,16 @@ final class KnownLibraryRegistryStore: ObservableObject {
         do {
             // NFC-normalize path + name (#3076) so the global registry keys this
             // library canonically and never records a second NFD variant.
-            let _: KnownLibraryMenuEntry = try await apiClient.post(
-                "/registry/add",
-                query: [
-                    "path": url.path.nfcNormalized,
-                    "name": (displayName ?? url.lastPathComponent).nfcNormalized
-                ]
+            // Generated add_known_library op via the shared typed client (#3030).
+            let response = try await apiClient.api.addKnownLibraryApiRegistryAddPost(
+                query: .init(
+                    path: url.path.nfcNormalized,
+                    name: (displayName ?? url.lastPathComponent).nfcNormalized
+                )
             )
-            await refresh()
+            if case .ok = response {
+                await refresh()
+            }
         } catch {
             // Best-effort only: menu recents should never block opening/saving a library.
         }
@@ -70,10 +72,17 @@ final class KnownLibraryRegistryStore: ObservableObject {
         // NFC (backend #3071), so normalize the incoming path or an NFD caller
         // would fail to match and silently leave the entry behind.
         let path = path.nfcNormalized
-        let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? path
         do {
-            try await apiClient.delete("/registry/\(encodedPath)")
-            libraries.removeAll { $0.path.nfcNormalized == path }
+            // Generated remove_known_library op (#3030); the runtime percent-encodes
+            // the path param, and the backend decodes it back to the raw path.
+            let response = try await apiClient.api.removeKnownLibraryApiRegistryLibraryPathDelete(
+                path: .init(libraryPath: path)
+            )
+            if case .ok = response {
+                libraries.removeAll { $0.path.nfcNormalized == path }
+            } else {
+                await refresh()
+            }
         } catch {
             await refresh()
         }
@@ -87,7 +96,7 @@ final class KnownLibraryRegistryStore: ObservableObject {
     }
 }
 
-struct KnownLibraryMenuEntry: Decodable, Identifiable, Equatable {
+struct KnownLibraryMenuEntry: Identifiable, Equatable {
     let id: String
     let path: String
     let name: String?
@@ -101,14 +110,6 @@ struct KnownLibraryMenuEntry: Decodable, Identifiable, Equatable {
         }
 
         return URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case id
-        case path
-        case name
-        case addedAt = "added_at"
-        case lastAccessed = "last_accessed"
     }
 }
 
