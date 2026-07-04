@@ -13,7 +13,10 @@ struct ChatViewToolbar: View {
     let conversations: [Conversation]
     let onSelectConversation: (Conversation) -> Void
 
-    // Document scope
+    // Document scope (#2449 hybrid): the implicit current-view label (what the
+    // chat is grounded on by default) + the count of PINNED documents layered on
+    // top via the paperclip.
+    let implicitScopeLabel: String?
     let selectedDocumentsCount: Int
     let onClearDocuments: () -> Void
 
@@ -45,9 +48,10 @@ struct ChatViewToolbar: View {
 
             Spacer(minLength: 8)
 
-            // Trailing: compact scope chip (only when documents are scoped) + model picker.
-            if selectedDocumentsCount > 0 {
-                scopeChip
+            // Trailing: the active grounding — implicit current-view scope +
+            // pinned documents (#2449 hybrid) — then the model picker.
+            if implicitScopeLabel != nil || selectedDocumentsCount > 0 {
+                scopeIndicator
             }
             modelPicker
         })
@@ -85,17 +89,33 @@ struct ChatViewToolbar: View {
         .accessibilityLabel("Conversation history")
     }
 
-    private var scopeChip: some View {
-        HStack(spacing: 4) {
-            Label("\(selectedDocumentsCount)", systemImage: "checkmark.circle.fill")
-                .font(.caption)
-                .foregroundStyle(.green)
-            Button("Clear", action: onClearDocuments)
-                .font(.caption)
-                .buttonStyle(.plain)
-                .foregroundColor(.accentColor)
+    /// The active chat grounding (#2449 hybrid): the implicit current-view scope
+    /// (an eye — follows what you're looking at) plus the pinned documents (a
+    /// pin — kept as you navigate), so the user can always see what the chat is
+    /// grounded on.
+    @ViewBuilder
+    private var scopeIndicator: some View {
+        HStack(spacing: 8) {
+            if let implicitScopeLabel {
+                Label(implicitScopeLabel, systemImage: "eye")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .help("Grounded on your current view: \(implicitScopeLabel)")
+            }
+            if selectedDocumentsCount > 0 {
+                HStack(spacing: 4) {
+                    Label("\(selectedDocumentsCount)", systemImage: "pin.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    Button("Clear", action: onClearDocuments)
+                        .font(.caption)
+                        .buttonStyle(.plain)
+                        .foregroundColor(.accentColor)
+                }
+                .help("\(selectedDocumentsCount) pinned document(s) — kept in scope as you navigate")
+            }
         }
-        .help("\(selectedDocumentsCount) document(s) in chat scope")
     }
 
     private var modelPicker: some View {

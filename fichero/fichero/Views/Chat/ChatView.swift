@@ -54,6 +54,7 @@ struct ChatView: View {
                 conversationTitle: currentConversation.title,
                 conversations: conversations,
                 onSelectConversation: switchConversation,
+                implicitScopeLabel: attachContext.implicitScopeLabel,
                 selectedDocumentsCount: selectedDocuments.count,
                 onClearDocuments: { selectedDocuments.removeAll() },
                 providers: providers,
