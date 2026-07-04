@@ -12,10 +12,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 from PIL import Image, ImageChops, ImageEnhance, ImageFilter, ImageOps
 
+from fichero.api.auth import request_actor
+from fichero.api.library_header import optional_library_path
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.models import DocType, Document, ImageEditChain
@@ -685,8 +687,23 @@ async def straighten_image(
     document_id: str,
     request: StraightenOperationRequest,
     db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
 ) -> ImageEditChainResponse:
-    chain = straighten_image_impl(db, document_id, request)
+    result = registry.invoke(
+        db,
+        "image.straighten",
+        {"document_id": document_id, **request.model_dump(mode="json")},
+        ActionContext(
+            actor=actor,
+            library_path=x_fichero_library_path,
+            origin_window=x_fichero_origin_window,
+        ),
+    )
+    chain = ImageEditChain.model_validate(result.result)
     return ImageEditChainResponse(
         document_id=document_id,
         operations=chain.operations,
@@ -792,7 +809,7 @@ async def preview_image(
 # child chunk Documents, which restoring the chain would NOT delete, so it is
 # undoable=False rather than offering a lying undo.
 
-from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
+from fichero.actions.registry import action, ActionContext, ChangeSpec, registry  # noqa: E402
 
 IMAGE_EDIT_EMIT_TYPE = "image.edits_changed"
 

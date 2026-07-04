@@ -21,13 +21,17 @@ conftest fixtures (a real Database on a temp ``.fichero`` package).
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 from PIL import Image
 from pydantic import ValidationError
 
+import fichero.api.routes.actions_registry  # noqa: F401
 # Importing the route module registers the image.* actions via @action at import.
 import fichero.api.routes.image_editing  # noqa: F401
 from fichero.actions.registry import ActionContext, registry
+from fichero.api.routes.actions_registry import undo_action
 from fichero.models import ActionAudit, DocType, Document, FileType, ImageEditChain
 
 
@@ -77,6 +81,18 @@ def _spy_emit(monkeypatch) -> list[tuple]:
         lambda *a, **k: calls.append((a, k)),
     )
     return calls
+
+
+def _undo(db, audit_id: str, library_path: str):
+    return asyncio.run(
+        undo_action(
+            audit_id,
+            db=db,
+            ctx=ActionContext(actor="ui", library_path=library_path),
+            x_fichero_library_path=library_path,
+            x_fichero_origin_window=None,
+        )
+    )
 
 
 # ===========================================================================
@@ -315,6 +331,36 @@ class TestAppendOpActions:
         assert ops[0]["params"] == {"angle": 90.0, "expand": True}
         assert db.get(ActionAudit, result.audit_id).action_name == "image.rotate"
 
+    def test_straighten_route_writes_audit_and_undo_restores_chain(
+        self, client, db, tmp_path, monkeypatch
+    ):
+        calls = _spy_emit(monkeypatch)
+        doc = _make_image_doc(db, tmp_path, size=(80, 50))
+
+        response = client.post(
+            f"/api/images/{doc.id}/operations/straighten",
+            json={"page": 1},
+            headers={"X-Fichero-Library-Path": str(db.path.parent)},
+        )
+
+        assert response.status_code == 200, response.text
+        ops = _ops(db, doc.id)
+        assert len(ops) == 1
+        assert ops[0]["op"] == "straighten"
+        audit = db.all(ActionAudit)[-1]
+        assert audit.action_name == "image.straighten"
+        assert audit.before == {"document_id": doc.id, "operations": []}
+        assert [o["op"] for o in audit.after["operations"]] == ["straighten"]
+        assert calls[-1][1]["type"] == "image.edits_changed"
+
+        inverse = _undo(db, audit.id, str(db.path.parent))
+
+        assert _ops(db, doc.id) == []
+        inverse_audit = db.get(ActionAudit, inverse.audit_id)
+        assert inverse_audit is not None
+        assert inverse_audit.action_name == "image.set_operations"
+        assert inverse_audit.inverse_of == audit.id
+
     def test_enhance_appends_and_audits(self, db, tmp_path):
         doc = _make_image_doc(db, tmp_path)
         result = registry.invoke(
@@ -432,7 +478,7 @@ class TestImageActionsRegistered:
         names = set(registry.names())
         expected = {
             "image.set_operations", "image.clear_operations", "image.crop",
-            "image.rotate", "image.enhance", "image.remove_background",
+            "image.rotate", "image.straighten", "image.enhance", "image.remove_background",
             "image.segment",
         }
         assert expected <= names
@@ -440,7 +486,7 @@ class TestImageActionsRegistered:
     def test_undoable_flags(self):
         undoable = {
             "image.set_operations", "image.clear_operations", "image.crop",
-            "image.rotate", "image.enhance", "image.remove_background",
+            "image.rotate", "image.straighten", "image.enhance", "image.remove_background",
         }
         for name in undoable:
             assert registry.get(name).undoable is True
