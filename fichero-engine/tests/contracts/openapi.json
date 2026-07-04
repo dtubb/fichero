@@ -29053,6 +29053,70 @@
         }
       }
     },
+    "/api/local-inference/runtime": {
+      "get": {
+        "tags": [
+          "local-inference"
+        ],
+        "summary": "Get Local Inference Runtime Status",
+        "description": "Return MLX runtime provisioning status for the managed oMLX sidecar.",
+        "operationId": "get_local_inference_runtime_status_api_local_inference_runtime_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalInferenceRuntimeStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "local-inference"
+        ],
+        "summary": "Remove Local Inference Runtime",
+        "description": "Remove the dedicated MLX runtime venv when it is not provisioning.",
+        "operationId": "remove_local_inference_runtime_api_local_inference_runtime_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalInferenceRuntimeStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/local-inference/runtime/provision": {
+      "post": {
+        "tags": [
+          "local-inference"
+        ],
+        "summary": "Provision Local Inference Runtime",
+        "description": "Start or reuse the coalesced MLX runtime provisioning job.",
+        "operationId": "provision_local_inference_runtime_api_local_inference_runtime_provision_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalInferenceRuntimeStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/local-models": {
       "get": {
         "tags": [
@@ -45559,6 +45623,87 @@
         "title": "LocalInferenceProfileListResponse",
         "description": "Envelope for app-managed local inference provider profiles."
       },
+      "LocalInferenceRuntimeJobResponse": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "current": {
+            "type": "integer",
+            "title": "Current"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "percent": {
+            "type": "number",
+            "title": "Percent"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "state",
+          "current",
+          "total",
+          "percent",
+          "message"
+        ],
+        "title": "LocalInferenceRuntimeJobResponse"
+      },
+      "LocalInferenceRuntimeStatusResponse": {
+        "properties": {
+          "provisioned": {
+            "type": "boolean",
+            "title": "Provisioned"
+          },
+          "mlx_lm_version": {
+            "type": "string",
+            "nullable": true,
+            "title": "Mlx Lm Version"
+          },
+          "disk_usage_bytes": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Disk Usage Bytes",
+            "default": 0
+          },
+          "python_path": {
+            "type": "string",
+            "nullable": true,
+            "title": "Python Path"
+          },
+          "runtime_dir": {
+            "type": "string",
+            "title": "Runtime Dir"
+          },
+          "job": {
+            "$ref": "#/components/schemas/LocalInferenceRuntimeJobResponse",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "provisioned",
+          "runtime_dir"
+        ],
+        "title": "LocalInferenceRuntimeStatusResponse"
+      },
       "LocalInferenceServiceStatus": {
         "properties": {
           "profile_id": {
@@ -45867,6 +46012,18 @@
             "type": "boolean",
             "title": "Visible In Ui",
             "default": true
+          },
+          "python_executable": {
+            "type": "string",
+            "nullable": true,
+            "title": "Python Executable"
+          },
+          "command": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Command"
           }
         },
         "type": "object",

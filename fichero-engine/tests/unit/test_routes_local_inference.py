@@ -151,3 +151,56 @@ def test_unknown_profile_returns_404(client) -> None:
 
     assert response.status_code == 404
     assert "Local inference profile not found" in response.text
+
+
+def test_runtime_status_provision_and_remove_routes(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    class StubRuntime:
+        def __init__(self) -> None:
+            self.provisioned = False
+            self.started = 0
+            self.removed = 0
+
+        def status(self) -> dict[str, Any]:
+            return {
+                "provisioned": self.provisioned,
+                "mlx_lm_version": "0.31.3" if self.provisioned else None,
+                "disk_usage_bytes": 1024 if self.provisioned else 0,
+                "python_path": "/tmp/mlx-runtime/bin/python" if self.provisioned else None,
+                "runtime_dir": "/tmp/mlx-runtime",
+                "job": {
+                    "job_id": "job-1",
+                    "state": "completed" if self.provisioned else "running",
+                    "current": 3 if self.provisioned else 1,
+                    "total": 3,
+                    "percent": 100.0 if self.provisioned else 33.3,
+                    "message": "ready" if self.provisioned else "creating",
+                    "error": None,
+                },
+            }
+
+        async def start_provision(self) -> dict[str, Any]:
+            self.started += 1
+            self.provisioned = True
+            return self.status()
+
+        def remove(self) -> dict[str, Any]:
+            self.removed += 1
+            self.provisioned = False
+            return self.status()
+
+    runtime = StubRuntime()
+    monkeypatch.setattr(routes, "get_mlx_runtime", lambda: runtime)
+
+    status = client.get("/api/local-inference/runtime")
+    assert status.status_code == 200
+    assert status.json()["provisioned"] is False
+
+    provisioned = client.post("/api/local-inference/runtime/provision")
+    assert provisioned.status_code == 200
+    assert provisioned.json()["provisioned"] is True
+    assert runtime.started == 1
+
+    removed = client.delete("/api/local-inference/runtime")
+    assert removed.status_code == 200
+    assert removed.json()["provisioned"] is False
+    assert runtime.removed == 1

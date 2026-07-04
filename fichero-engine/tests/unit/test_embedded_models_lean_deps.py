@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import tomllib
 from pathlib import Path
+import sys
 
 import pytest
 
@@ -96,6 +97,18 @@ def test_mlx_provider_uses_local_openai_compatible_base_url():
     base = _OPENAI_COMPATIBLE_BASE_URLS["omlx"]
     assert "localhost" in base or "127.0.0.1" in base, base
     assert "omlx" in _KEYLESS_OPENAI_COMPATIBLE
+
+
+def test_mlx_runtime_targets_separate_prefix(tmp_path, monkeypatch):
+    from fichero.mlx_runtime import mlx_runtime_dir
+
+    runtime_dir = tmp_path / "Fichero" / "mlx-runtime"
+    monkeypatch.setenv("FICHERO_MLX_RUNTIME_DIR", str(runtime_dir))
+
+    resolved = mlx_runtime_dir()
+    assert resolved == runtime_dir
+    assert resolved != Path(sys.prefix)
+    assert resolved not in Path(sys.prefix).parents
 
 
 if __name__ == "__main__":

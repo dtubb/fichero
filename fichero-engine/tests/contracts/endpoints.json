@@ -5550,6 +5550,36 @@
         "query_params": [],
         "request_model": null,
         "response_model": "LocalInferenceServiceStatus"
+      },
+      {
+        "method": "DELETE",
+        "path": "/local-inference/runtime",
+        "operation_id": "remove_local_inference_runtime_api_local_inference_runtime_delete",
+        "summary": "Remove Local Inference Runtime",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "LocalInferenceRuntimeStatusResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/local-inference/runtime",
+        "operation_id": "get_local_inference_runtime_status_api_local_inference_runtime_get",
+        "summary": "Get Local Inference Runtime Status",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "LocalInferenceRuntimeStatusResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/local-inference/runtime/provision",
+        "operation_id": "provision_local_inference_runtime_api_local_inference_runtime_provision_post",
+        "summary": "Provision Local Inference Runtime",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "LocalInferenceRuntimeStatusResponse"
       }
     ],
     "local-models": [

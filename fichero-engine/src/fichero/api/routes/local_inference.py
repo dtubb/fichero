@@ -20,6 +20,7 @@ from fichero.local_inference import (
     LocalProviderProfile,
     ManagedLocalInferenceProcess,
 )
+from fichero.mlx_runtime import get_mlx_runtime
 
 router = APIRouter(prefix="/local-inference")
 
@@ -55,6 +56,25 @@ class LocalInferenceValidationResponse(BaseModel):
 
     valid: bool
     profile: LocalProviderProfile
+
+
+class LocalInferenceRuntimeJobResponse(BaseModel):
+    job_id: str
+    state: str
+    current: int
+    total: int
+    percent: float
+    message: str
+    error: str | None = None
+
+
+class LocalInferenceRuntimeStatusResponse(BaseModel):
+    provisioned: bool
+    mlx_lm_version: str | None = None
+    disk_usage_bytes: int = Field(default=0, ge=0)
+    python_path: str | None = None
+    runtime_dir: str
+    job: LocalInferenceRuntimeJobResponse | None = None
 
 
 def _configured_omlx_profile() -> LocalProviderProfile:
@@ -128,6 +148,19 @@ def _profile_by_id(profile_id: str) -> LocalProviderProfile:
         if profile.id == profile_id:
             return profile
     raise HTTPException(status_code=404, detail=f"Local inference profile not found: {profile_id}")
+
+
+def _runtime_status_response() -> LocalInferenceRuntimeStatusResponse:
+    payload = get_mlx_runtime().status()
+    job = payload.get("job")
+    return LocalInferenceRuntimeStatusResponse(
+        provisioned=bool(payload["provisioned"]),
+        mlx_lm_version=payload.get("mlx_lm_version"),
+        disk_usage_bytes=int(payload.get("disk_usage_bytes", 0)),
+        python_path=payload.get("python_path"),
+        runtime_dir=str(payload["runtime_dir"]),
+        job=LocalInferenceRuntimeJobResponse(**job) if isinstance(job, dict) else None,
+    )
 
 
 @router.get("/profiles", response_model=LocalInferenceProfileListResponse)
@@ -206,3 +239,26 @@ async def stop_local_inference_profile(
     """Mark an app-managed local provider stopped."""
     manager = _manager_for_profile(profile_id)
     return await manager.stop()
+
+
+@router.get("/runtime", response_model=LocalInferenceRuntimeStatusResponse)
+async def get_local_inference_runtime_status() -> LocalInferenceRuntimeStatusResponse:
+    """Return MLX runtime provisioning status for the managed oMLX sidecar."""
+    return _runtime_status_response()
+
+
+@router.post("/runtime/provision", response_model=LocalInferenceRuntimeStatusResponse)
+async def provision_local_inference_runtime() -> LocalInferenceRuntimeStatusResponse:
+    """Start or reuse the coalesced MLX runtime provisioning job."""
+    await get_mlx_runtime().start_provision()
+    return _runtime_status_response()
+
+
+@router.delete("/runtime", response_model=LocalInferenceRuntimeStatusResponse)
+async def remove_local_inference_runtime() -> LocalInferenceRuntimeStatusResponse:
+    """Remove the dedicated MLX runtime venv when it is not provisioning."""
+    try:
+        get_mlx_runtime().remove()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return _runtime_status_response()

@@ -7706,6 +7706,7 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         allows_paid_fallbacks: Optional[bool] = typer.Option(None, "--allows-paid-fallbacks/--no-allows-paid-fallbacks", help="Request field: allows_paid_fallbacks."),
         base_url: str = typer.Option(..., "--base-url", help="Request field: base_url."),
+        command: Optional[str] = typer.Option(None, "--command", help="Request field: command."),
         healthcheck_path: Optional[str] = typer.Option(None, "--healthcheck-path", help="Request field: healthcheck_path."),
         id: str = typer.Option(..., "--id", help="Request field: id."),
         local_only: Optional[bool] = typer.Option(None, "--local-only/--no-local-only", help="Request field: local_only."),
@@ -7714,6 +7715,7 @@ def register_generated_openapi_commands(
         model_id: str = typer.Option(..., "--model-id", help="Request field: model_id."),
         name: str = typer.Option(..., "--name", help="Request field: name."),
         provider_type: str = typer.Option(..., "--provider-type", help="Request field: provider_type."),
+        python_executable: Optional[str] = typer.Option(None, "--python-executable", help="Request field: python_executable."),
         startup_policy: Optional[str] = typer.Option(None, "--startup-policy", help="Request field: startup_policy."),
         timeout_seconds: Optional[float] = typer.Option(None, "--timeout-seconds", help="Request field: timeout_seconds."),
         visible_in_ui: Optional[bool] = typer.Option(None, "--visible-in-ui/--no-visible-in-ui", help="Request field: visible_in_ui."),
@@ -7725,6 +7727,7 @@ def register_generated_openapi_commands(
             payload = _build_json_payload({
                 "allows_paid_fallbacks": allows_paid_fallbacks,
                 "base_url": base_url,
+                "command": command,
                 "healthcheck_path": healthcheck_path,
                 "id": id,
                 "local_only": local_only,
@@ -7733,12 +7736,14 @@ def register_generated_openapi_commands(
                 "model_id": model_id,
                 "name": name,
                 "provider_type": provider_type,
+                "python_executable": python_executable,
                 "startup_policy": startup_policy,
                 "timeout_seconds": timeout_seconds,
                 "visible_in_ui": visible_in_ui,
             }, {
                 "allows_paid_fallbacks": {'type': 'boolean', 'title': 'Allows Paid Fallbacks', 'default': False, 'x-cli-required': False},
                 "base_url": {'type': 'string', 'maxLength': 2083, 'minLength': 1, 'format': 'uri', 'title': 'Base Url', 'x-cli-required': True},
+                "command": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Command', 'x-cli-required': False},
                 "healthcheck_path": {'type': 'string', 'title': 'Healthcheck Path', 'default': '/health', 'x-cli-required': False},
                 "id": {'type': 'string', 'title': 'Id', 'x-cli-required': True},
                 "local_only": {'type': 'boolean', 'title': 'Local Only', 'default': True, 'x-cli-required': False},
@@ -7747,6 +7752,7 @@ def register_generated_openapi_commands(
                 "model_id": {'type': 'string', 'title': 'Model Id', 'x-cli-required': True},
                 "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
                 "provider_type": {'type': 'string', 'enum': ['apple', 'mock', 'ollama', 'lmstudio', 'omlx', 'huggingface', 'openrouter', 'openai', 'anthropic', 'google', 'groq', 'together', 'deepseek', 'mistral', 'cohere', 'dashscope', 'xai', 'perplexity', 'fireworks', 'deepl', 'azure', 'bedrock'], 'title': 'ProviderType', 'description': 'Supported LLM provider types.', 'x-cli-required': True},
+                "python_executable": {'type': 'string', 'nullable': True, 'title': 'Python Executable', 'x-cli-required': False},
                 "startup_policy": {'type': 'string', 'enum': ['on_demand', 'eager', 'manual'], 'title': 'LocalProviderStartupPolicy', 'description': 'When the app should start a managed local provider.', 'x-cli-required': False},
                 "timeout_seconds": {'type': 'number', 'minimum': 0.0, 'title': 'Timeout Seconds', 'default': 5.0, 'x-cli-required': False},
                 "visible_in_ui": {'type': 'boolean', 'title': 'Visible In Ui', 'default': True, 'x-cli-required': False},
@@ -7804,6 +7810,42 @@ def register_generated_openapi_commands(
         """Stop Local Inference Profile (POST /api/local-inference/profiles/{profile_id}/stop)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/local-inference/profiles/{profile_id}/stop"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("remove-runtime")
+    def local_inference_remove_runtime_delete(
+        ctx: typer.Context,
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+    ) -> None:
+        """Remove Local Inference Runtime (DELETE /api/local-inference/runtime)."""
+        if not yes:
+            typer.confirm("Delete local-inference?", abort=True)
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/local-inference/runtime"
+            params = None
+            return client.request("DELETE", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-runtime-status")
+    def local_inference_get_runtime_status_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Get Local Inference Runtime Status (GET /api/local-inference/runtime)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/local-inference/runtime"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("provision-runtime")
+    def local_inference_provision_runtime_post(
+        ctx: typer.Context,
+    ) -> None:
+        """Provision Local Inference Runtime (POST /api/local-inference/runtime/provision)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/local-inference/runtime/provision"
             params = None
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
