@@ -449,6 +449,11 @@ struct ContentView: View {
         } detail: {
             detailColumn
         }
+        // Force DISJOINT, side-by-side columns (#3069): the default `.automatic`
+        // style can fall back to an OVERLAID sidebar on macOS that draws on top
+        // of the content/library list and clips its leading edge. `.balanced`
+        // keeps the sidebar as a real column beside the content, fully visible.
+        .navigationSplitViewStyle(.balanced)
         .navigationTitle(toolbarTitle)
         // The breadcrumb subtitle is a desktop window-title affordance; on a
         // compact iPhone nav bar it reads as duplicate path text, so drop it
