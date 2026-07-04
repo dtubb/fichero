@@ -353,12 +353,6 @@ struct ContentView: View {
             // (InspectorPresenter), opened by the explicit Info button — one
             // presentation, not two.
 
-        // Listen for claim selection from inspector and sync to other panes
-        .onReceive(NotificationCenter.default.publisher(for: .claimSelectedInInspector)) { notification in
-            if let claimId = notification.userInfo?["claimId"] as? String {
-                claimFocusState.selectClaim(claimId: claimId)
-            }
-        }
         // Distraction-free full-window reading (#2520). Top-level overlay so it
         // covers sidebar, inspector, and toolbar; ⌥⌘F enters, Esc exits.
         .overlay { immersiveReadingOverlay }

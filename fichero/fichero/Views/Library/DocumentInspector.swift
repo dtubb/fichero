@@ -18,7 +18,7 @@ struct DocumentInspector: View {
     @EnvironmentObject private var artifactService: ArtifactServiceGenerated
     @EnvironmentObject private var kgCurationService: KGCurationServiceGenerated
     @ObservedObject private var featureManager = FeatureManager.shared
-    @ObservedObject private var claimFocusState = ClaimFocusState.shared
+    @EnvironmentObject private var claimFocusState: ClaimFocusState
     /// Cross-view KG focus. When an entity is focused (a lozenge / WebKit-graph
     /// click), the inspector retargets to inspect that entity instead of the
     /// document (#1484). Clearing it returns to the document.
@@ -271,17 +271,17 @@ struct DocumentInspector: View {
                 kgCurationService: kgCurationService,
                 onNavigateToSource: onNavigateToSource,
                 onClaimSelect: { claimId, claimText, sourceDocId, pageLabel, charStart, charEnd in
-                    NotificationCenter.default.post(
-                        name: .claimSelectedInInspector,
-                        object: nil,
-                        userInfo: [
-                            "claimId": claimId,
-                            "claimText": claimText as Any,
-                            "sourceDocumentId": sourceDocId as Any,
-                            "pageLabel": pageLabel as Any,
-                            "charStart": charStart as Any,
-                            "charEnd": charEnd as Any
-                        ]
+                    // Direct observable call — no NotificationCenter round-trip
+                    // (#3034). Passes the full payload the old .claimSelectedInInspector
+                    // bus carried but the ContentView handler dropped (it forwarded
+                    // only claimId), so the other panes now get text/source/range too.
+                    claimFocusState.selectClaim(
+                        claimId: claimId,
+                        claimText: claimText,
+                        sourceDocumentId: sourceDocId,
+                        pageLabel: pageLabel,
+                        charStart: charStart,
+                        charEnd: charEnd
                     )
                 }
             )
@@ -388,6 +388,7 @@ private struct DocumentInspectorImageEditsTab: View {
         .environment(library.entityStore)
         .environment(library.claimStore)
         .environment(KGFocusState.shared)
+        .environmentObject(ClaimFocusState.shared)
         .frame(width: 280, height: 400)
 }
 
@@ -418,6 +419,7 @@ private struct DocumentInspectorImageEditsTab: View {
         .environment(library.entityStore)
         .environment(library.claimStore)
         .environment(KGFocusState.shared)
+        .environmentObject(ClaimFocusState.shared)
         .frame(width: 280, height: 400)
 }
 

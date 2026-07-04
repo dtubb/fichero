@@ -1,12 +1,5 @@
 import SwiftUI
 
-// MARK: - Notification Names
-
-extension Notification.Name {
-    /// Posted when a claim is selected in the inspector
-    static let claimSelectedInInspector = Notification.Name("claimSelectedInInspector")
-}
-
 /// Tab selection for document inspector. Order matters — left-to-right is
 /// content / annotations / notes / entities / knowledge graph / citations /
 /// edits / info, per Daniel's mental model: "the document itself" →
