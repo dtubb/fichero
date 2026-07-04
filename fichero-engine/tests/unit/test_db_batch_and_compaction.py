@@ -176,6 +176,7 @@ def _fragment_count(db: Database, table_name: str) -> int:
 
 def test_compact_vectors_merges_fragments_and_keeps_data(temp_db, monkeypatch):
     """After many micro-appends + explicit compact, fragments drop, data intact."""
+    pytest.importorskip("lance")
     monkeypatch.setenv("FICHERO_VECTOR_COMPACTION_INTERVAL", "0")  # disable auto
     tname = "compaction_probe"
 
@@ -200,6 +201,7 @@ def test_compact_vectors_merges_fragments_and_keeps_data(temp_db, monkeypatch):
 
 def test_auto_compaction_triggers_at_interval(temp_db, monkeypatch):
     """Reaching the append interval compacts automatically and resets the count."""
+    pytest.importorskip("lance")
     monkeypatch.setenv("FICHERO_VECTOR_COMPACTION_INTERVAL", "5")
     tname = "auto_compaction_probe"
 
