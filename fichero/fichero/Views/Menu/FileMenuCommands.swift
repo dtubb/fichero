@@ -197,6 +197,13 @@ struct FileMenuCommands: View {
                     Label("BibTeX (.bib)...", systemImage: "text.quote")
                 }
                 .disabled(currentLibrary == nil)
+
+                Button {
+                    Task { await exportEleventySite() }
+                } label: {
+                    Label("Static Site (11ty)...", systemImage: "globe")
+                }
+                .disabled(currentLibrary == nil)
             } label: {
                 Label("Export", systemImage: "square.and.arrow.up")
             }
@@ -242,6 +249,47 @@ struct FileMenuCommands: View {
         }
         #endif
     }
+
+    /// Export the current library as an Eleventy static site (#3055). Routes
+    /// through the DocumentServiceGenerated wrapper (tokened generated client),
+    /// after the user picks an output folder.
+    private func exportEleventySite() async {
+        #if !os(macOS)
+        logger.info("Static-site export is macOS-only; a folder picker is needed on iOS.")
+        #else
+        guard let library = currentLibrary else { return }
+        guard let outputURL = await presentDirectoryPanel() else { return }
+
+        do {
+            let result = try await library.documentServiceGenerated.exportEleventySite(
+                outputPath: outputURL.path,
+                siteTitle: library.displayName
+            )
+            logger.info(
+                "Exported \(result.documentCount) document(s) to static site at \(result.outputPath)"
+            )
+        } catch {
+            logger.error("Failed to export static site: \(error.localizedDescription)")
+            presentExportError(error)
+        }
+        #endif
+    }
+
+    #if os(macOS)
+    private func presentDirectoryPanel() async -> URL? {
+        await withCheckedContinuation { continuation in
+            let panel = NSOpenPanel()
+            panel.canChooseDirectories = true
+            panel.canChooseFiles = false
+            panel.canCreateDirectories = true
+            panel.prompt = "Export Here"
+            panel.message = "Choose a folder for the generated static site"
+            panel.begin { result in
+                continuation.resume(returning: result == .OK ? panel.url : nil)
+            }
+        }
+    }
+    #endif
 
     private func fetchAllDocumentIDs(using library: LibraryManager.LibraryReference) async throws -> [String] {
         let response = try await library.ficheroClient.api.listDocumentsApiDocumentsGet(.init(query: .init()))
