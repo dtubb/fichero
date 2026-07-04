@@ -8,6 +8,16 @@ import SwiftUI
 /// "literary-carpentry" wording Daniel referenced wasn't present in the legacy
 /// archive when this shipped, so confirm/replace it. Version + build read live
 /// from the bundle (MARKETING_VERSION / CURRENT_PROJECT_VERSION).
+/// Pure formatting for the About window (#2557), factored out of the view so it
+/// is unit-testable without a bundle.
+enum AboutInfo {
+    /// The "Version X (build)" line from the bundle's short version + build
+    /// number, with an em-dash fallback for a missing/absent key.
+    static func versionLine(shortVersion: String?, build: String?) -> String {
+        "Version \(shortVersion ?? "—") (\(build ?? "—"))"
+    }
+}
+
 struct AboutView: View {
     private let appName = "Fichero"
     private let tagline = "A document workbench for researchers — read, organize, "
@@ -15,11 +25,11 @@ struct AboutView: View {
     private let credit = "Created by Daniel Tubb"
     private let copyright = "© 2025 Daniel Tubb · MIT License"
 
-    private var version: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
-    }
-    private var build: String {
-        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"
+    private var versionLine: String {
+        AboutInfo.versionLine(
+            shortVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
+            build: Bundle.main.infoDictionary?["CFBundleVersion"] as? String
+        )
     }
 
     var body: some View {
@@ -31,7 +41,7 @@ struct AboutView: View {
             Text(appName)
                 .font(.title.weight(.semibold))
 
-            Text("Version \(version) (\(build))")
+            Text(versionLine)
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)

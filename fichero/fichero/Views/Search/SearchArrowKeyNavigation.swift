@@ -1,5 +1,17 @@
 import SwiftUI
 
+/// Pure arrow-key index math for the search-result navigator (#1843), factored
+/// out of the macOS-only view modifier so it's unit-testable on any platform.
+enum SearchArrowKeyIndex {
+    /// The next selected index when arrowing by `delta` (±1) through `count`
+    /// items from `current` (-1 = nothing selected yet). Clamped to
+    /// `[0, count - 1]`; returns -1 when there are no items (nothing to select).
+    static func next(from current: Int, delta: Int, count: Int) -> Int {
+        guard count > 0 else { return -1 }
+        return max(0, min(count - 1, current + delta))
+    }
+}
+
 #if os(macOS)
 import AppKit
 
@@ -70,7 +82,8 @@ private struct ArrowKeyResultNavigator: ViewModifier {
 
     private func move(by delta: Int) {
         let current = selection.first.flatMap { itemIds.firstIndex(of: $0) } ?? -1
-        let next = max(0, min(itemIds.count - 1, current + delta))
+        let next = SearchArrowKeyIndex.next(from: current, delta: delta, count: itemIds.count)
+        guard itemIds.indices.contains(next) else { return }
         selection = [itemIds[next]]
     }
 }
