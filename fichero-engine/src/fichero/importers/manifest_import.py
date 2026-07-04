@@ -12,7 +12,7 @@ Design notes
 ------------
 * **Transport-agnostic.** All HTTP goes through a tiny ``ManifestApiClient``
   protocol (``request(method, path, body) -> Any``). The default
-  implementation is a urllib client that talks to a running engine with the
+  implementation reuses the shared ``FicheroClient`` transport with the
   Bearer key from ``~/Library/Application Support/Fichero/.api-key`` and the
   ``X-Fichero-Library-Path`` header. Tests inject a FastAPI ``TestClient``
   adapter so the importer can be exercised end-to-end against the real routes

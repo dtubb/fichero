@@ -24,3 +24,23 @@ def test_python_module_help_imports_cleanly():
 
     assert result.returncode == 0, result.stderr
     assert "Fichero CLI" in result.stdout
+
+
+def test_python_module_entity_help_imports_cleanly():
+    root = Path(__file__).resolve().parents[2]
+    src = root / "src"
+    env = os.environ.copy()
+    existing = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = f"{src}:{existing}" if existing else str(src)
+
+    result = subprocess.run(
+        [sys.executable, "-m", "fichero", "entity", "--help"],
+        cwd=root,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Inspect and curate knowledge entities." in result.stdout
