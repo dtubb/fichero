@@ -21,6 +21,7 @@ from fichero.db import (
     _build_transcript_excerpts,
     _fold_for_search,
     _is_content_marker_only,
+    _search_result_preview,
 )
 from fichero.db_embeddings import _l2_normalize
 from fichero.db_embeddings import _quantize_int8, _dequantize_int8
@@ -125,6 +126,12 @@ class TestTranscriptExcerpts:
         assert excerpts[0].text == "Quibdó"
         assert excerpts[0].match_start == content.index("Quibdó")
         assert excerpts[0].match_end == content.index("Quibdó") + len("Quibdó")
+
+    def test_preview_prefers_matched_excerpt_over_first_line(self) -> None:
+        content = "First line only.\nSecond line mentions Camilo in the actual match."
+        excerpts = _build_transcript_excerpts("doc-1", content, "Camilo", context_chars=8)
+
+        assert _search_result_preview(content, excerpts) == excerpts[0].text
 
 
 class TestRRFHybridCombiner:

@@ -421,6 +421,7 @@ class TestEnhancedSearch:
         assert result["document_id"] == page2.id
         assert result["metadata"]["page_number"] == 2
         assert result["metadata"]["pdf_parent_id"] == parent.id
+        assert result["content_preview"] == result["transcript_excerpts"][0]["text"]
         assert result["transcript_excerpts"]
         anchor = result["transcript_excerpts"][0]["anchor"]
         assert anchor["document_id"] == page2.id

@@ -498,6 +498,19 @@ def _build_transcript_excerpts(
     return excerpts
 
 
+def _search_result_preview(
+    content: str,
+    excerpts: list[SearchExcerpt],
+    *,
+    max_chars: int = 200,
+) -> str:
+    """Prefer the first actual match excerpt over the raw leading content preview."""
+    for excerpt in excerpts:
+        if excerpt.match_start is not None and excerpt.match_end is not None:
+            return excerpt.text
+    return content[:max_chars] + "..." if len(content) > max_chars else content
+
+
 class Database(DatabaseEmbeddingMixin):
     """Simple Pythonic wrapper for DuckDB + LanceDB."""
 
@@ -3886,9 +3899,10 @@ class Database(DatabaseEmbeddingMixin):
                     SearchResult(
                         document_id=result["document_id"],
                         score=result["score"],
-                        content_preview=result["content"][:200] + "..."
-                        if len(result["content"]) > 200
-                        else result["content"],
+                        content_preview=_search_result_preview(
+                            result["content"],
+                            transcript_excerpts,
+                        ),
                         metadata=result["metadata"],
                         highlights=highlights,
                         transcript_excerpts=transcript_excerpts,
