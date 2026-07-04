@@ -181,6 +181,13 @@ def test_start_backend_defaults_to_dev_feature_tier() -> None:
     assert 'export FICHERO_FEATURE_TIER="${FICHERO_FEATURE_TIER:-dev}"' in text
 
 
+def test_start_backend_syncs_bootstrap_token_into_debug_sandbox() -> None:
+    text = _script_text(START_BACKEND)
+
+    assert 'FICHERO_DEBUG_APP_BUNDLE_ID="${FICHERO_DEBUG_APP_BUNDLE_ID:-app.fichero.fichero}"' in text
+    assert "sync_debug_bootstrap_token" in text
+
+
 # ---------------------------------------------------------------------------
 # --help exits 0
 # ---------------------------------------------------------------------------
