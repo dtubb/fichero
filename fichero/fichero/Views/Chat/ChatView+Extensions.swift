@@ -22,6 +22,17 @@ extension ChatView {
         }
     }
 
+    /// Load the recent-conversation list that backs the header title menu
+    /// (#2449 Xcode-style: the title is a menu to jump to earlier conversations).
+    func loadConversations() async {
+        do {
+            let list = try await conversationService.getConversationsForSidebar()
+            await MainActor.run { conversations = list }
+        } catch {
+            logger.error("Failed to load conversations: \(error.localizedDescription)")
+        }
+    }
+
     func loadProviders() async {
         do {
             let fetchedProviders = try await chatService.listProviders()
@@ -99,6 +110,21 @@ extension ChatView {
         logger.info("Started new chat")
     }
 
+    /// Jump to an earlier conversation from the header title menu (#2449). Sets
+    /// `backendConversationId` so the next message CONTINUES this thread (the
+    /// backend 404s on a client-generated id), shows its title immediately, then
+    /// loads its messages.
+    func switchConversation(_ conversation: Conversation) {
+        guard conversation.id != currentConversation.id else { return }
+        currentConversation = conversation
+        backendConversationId = conversation.id
+        selectedDocuments.removeAll()
+        inputText = ""
+        errorMessage = nil
+        logger.info("Switched to conversation \(conversation.id)")
+        Task { await loadConversation(conversation.id) }
+    }
+
     func sendMessage() {
         guard !inputText.isEmpty else { return }
 
@@ -154,6 +180,9 @@ extension ChatView {
                     // Notify that conversation was updated (for sidebar refresh)
                     onConversationUpdated?()
                 }
+                // Refresh the header title menu so a newly-created conversation
+                // (and its backend-assigned title) appears in the jump list (#2449).
+                await loadConversations()
             } catch {
                 logger.error("Error: \(error.localizedDescription)")
                 await MainActor.run {

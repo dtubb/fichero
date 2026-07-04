@@ -25,6 +25,9 @@ struct ChatView: View {
     @State var selectedProvider: String = ""
     @State var selectedModel: String = ""
 
+    /// Recent conversations backing the header title menu (#2449).
+    @State var conversations: [Conversation] = []
+
     @EnvironmentObject var chatService: ChatServiceGenerated
     @EnvironmentObject var conversationService: ConversationServiceGenerated
 
@@ -43,6 +46,9 @@ struct ChatView: View {
         VStack(spacing: 0) {
             // View-specific toolbar at top
             ChatViewToolbar(
+                conversationTitle: currentConversation.title,
+                conversations: conversations,
+                onSelectConversation: switchConversation,
                 selectedDocumentsCount: selectedDocuments.count,
                 onClearDocuments: { selectedDocuments.removeAll() },
                 providers: providers,
@@ -91,8 +97,9 @@ struct ChatView: View {
             if let conv = conversation, conv.messages.isEmpty {
                 await loadConversation(conv.id)
             }
-            // Load providers
+            // Load providers + the recent-conversation list for the title menu (#2449)
             await loadProviders()
+            await loadConversations()
         }
     }
 
