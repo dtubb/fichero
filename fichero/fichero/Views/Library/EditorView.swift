@@ -301,4 +301,16 @@ struct EditorView: View {
     EditorView(document: nil)
         .frame(width: 500, height: 400)
 }
+
+// Compact reader variant (#3019) — how the reader presents on iPhone: pushed
+// full-width inside the library NavigationStack (compactLibraryReaderStack),
+// not in a preview split.
+#Preview("Reader — Compact (iPhone)") {
+    NavigationStack {
+        EditorView(document: nil)
+            .navigationTitle("Reader")
+    }
+    .environment(\.horizontalSizeClass, .compact)
+    .frame(width: 390, height: 780)
+}
 // ZoomableImageView retired in #1402 — all image display now routes through DocumentCanvas.

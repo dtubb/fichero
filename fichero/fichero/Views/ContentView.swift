@@ -944,3 +944,26 @@ private struct CompactSearchableModifier: ViewModifier {
         .environmentObject(AppState())
         .frame(width: 1200, height: 700)
 }
+
+// Size-class variants for the adaptive shell (#3019). The horizontalSizeClass
+// environment override is what the routing policies read
+// (shouldUseCompactNavigationFlow / CompactShellPolicy / shouldUseSplittablePane
+// / InspectorPlacement.adaptiveDefault), so these render the two shells the
+// ShellRoutingMatrixTests assert: regular = split + docked inspector, compact =
+// stack navigation + sheet inspector.
+
+#Preview("Shell — Regular (Mac/iPad)") {
+    ContentView()
+        .environmentObject(ViewSettings())
+        .environmentObject(AppState())
+        .environment(\.horizontalSizeClass, .regular)
+        .frame(width: 1200, height: 700)
+}
+
+#Preview("Shell — Compact (iPhone)") {
+    ContentView()
+        .environmentObject(ViewSettings())
+        .environmentObject(AppState())
+        .environment(\.horizontalSizeClass, .compact)
+        .frame(width: 390, height: 780)
+}

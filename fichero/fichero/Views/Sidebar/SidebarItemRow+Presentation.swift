@@ -70,7 +70,9 @@ extension SidebarItemRow {
                 Menu("Move to Folder") {
                     ForEach(folders, id: \.id) { folder in
                         Button(folder.name) {
-                            moveDocument(doc.id, toParent: folder.id)
+                            // Same executor as drag-drop (#3014) — store call +
+                            // error surfacing shared via moveDocumentToFolder.
+                            Task { await moveDocumentToFolder(documentId: doc.id, folderId: folder.id) }
                         }
                     }
                 }
@@ -95,21 +97,6 @@ extension SidebarItemRow {
                     && SidebarMovePolicy.isValidTarget(sourceId: document.id, targetId: $0.id, documents: all)
             }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-    }
-
-    private func moveDocument(_ documentId: String, toParent parentId: String) {
-        guard let documentStore else { return }
-
-        Task {
-            do {
-                _ = try await documentStore.moveDocument(documentId, toParent: parentId)
-                await documentStore.refresh()
-            } catch {
-                await MainActor.run {
-                    sidebarState.dropErrorMessage = error.localizedDescription
-                }
-            }
-        }
     }
 
     /// Builds a `Run Workflow` submenu where workflows whose `folderPath`

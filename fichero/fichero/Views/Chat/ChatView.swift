@@ -16,6 +16,9 @@ struct ChatView: View {
     @State var isLoading: Bool = false
     @State var errorMessage: String?
     @State var isDropTargeted: Bool = false
+    /// Compact document-scope sheet, presented from the composer paperclip (#3015).
+    @State var showAttachSheet: Bool = false
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     // Provider/Model selection
     @State var providers: [LLMProvider] = []
@@ -64,8 +67,16 @@ struct ChatView: View {
             ChatInputView(
                 inputText: $inputText,
                 isLoading: isLoading,
-                onSend: sendMessage
+                onSend: sendMessage,
+                // Compact has no side inspector to drop onto — surface the same
+                // document-scope surface as a sheet via a composer button (#3015).
+                onAttach: ContentView.shouldUseCompactNavigationFlow(
+                    horizontalSizeClass: horizontalSizeClass
+                ) ? { showAttachSheet = true } : nil
             )
+        }
+        .sheet(isPresented: $showAttachSheet) {
+            chatAttachSheet
         }
         .onDrop(of: [.text, .plainText], isTargeted: $isDropTargeted) { providers in
             handleDrop(providers: providers)
@@ -82,6 +93,32 @@ struct ChatView: View {
             }
             // Load providers
             await loadProviders()
+        }
+    }
+
+    /// The document-scope surface, presented as a sheet on compact width so a
+    /// phone can add documents without the side inspector or drag-drop. Reuses
+    /// the existing `ChatInspector` (search + add) bound to the same
+    /// `selectedDocuments`, so adds route through the same scope — no parallel
+    /// picker (#3015). Suggestions need library context ChatView lacks, so the
+    /// sheet is search-driven (empty suggestions).
+    @ViewBuilder
+    private var chatAttachSheet: some View {
+        NavigationStack {
+            ChatInspector(
+                selectedDocuments: $selectedDocuments,
+                suggestedDocumentIDs: [],
+                onAddSuggestedDocuments: nil
+            )
+            .navigationTitle("Add Documents")
+            #if !os(macOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { showAttachSheet = false }
+                }
+            }
         }
     }
 }

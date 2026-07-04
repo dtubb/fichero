@@ -55,7 +55,7 @@ extension ChatInspector {
                 }
 
                 Task { @MainActor in
-                    selectedDocuments.insert(docId)
+                    selectedDocuments = ChatDocumentScope.attaching([docId], to: selectedDocuments)
                     chatInspectorLogger.info("Added document via drop: \(docId)")
                 }
             }
