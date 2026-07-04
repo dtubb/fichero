@@ -115,6 +115,14 @@ struct SearchView: View {
                 // in the empty-state as clickable pills.
                 Task { await searchStore.loadKeywordCloud(limit: 30) }
             }
+            // Spotlight-standard: ↑/↓ move the result selection while the user
+            // keeps typing in the search field (#1843). macOS-only bridge; no-op
+            // elsewhere.
+            .arrowKeyResultNavigation(
+                itemIds: searchStore.results.map(\.documentId),
+                selection: $selection,
+                onActivate: activateSelectedResult
+            )
             .onChange(of: savedSearch?.id) { _, _ in
                 guard let search = savedSearch else { return }
                 queryText = search.query
