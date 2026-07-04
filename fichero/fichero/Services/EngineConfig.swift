@@ -339,6 +339,38 @@ enum EngineConfig {
         #endif
     }
 
+    // MARK: - iOS companion launch phase (#3113)
+
+    /// The phase an iOS launch/reconnect resolves to. iOS has no local engine,
+    /// so the only three honest outcomes are: first-run pairing, connected, or a
+    /// configured-but-down host — never a blank screen, never localhost (#2465).
+    enum IOSLaunchPhase: Equatable {
+        /// No paired library yet — show `RemoteConnectionSetupView` (first-run).
+        case setupNeeded
+        /// Paired host reachable and authenticated — render the workspace.
+        case ready
+        /// Paired host configured but not answering — show the diagnosis, NEVER
+        /// the pairing prompt (the #2807/#2864 invariant).
+        case unreachable
+    }
+
+    /// Pure iOS launch-phase decision, dependency-injected so every
+    /// (paired?, reachable?) combination is unit-testable without a real probe —
+    /// same shape as `engineProvisioningStrategy`. The live `reconnectToConfiguredHost`
+    /// boundary reads `RemoteAccessConfig.hasPairedLibraryPath` for `hasPairedLibrary`
+    /// and the readiness probe for `isReachable`.
+    ///
+    /// An unpaired install is `setupNeeded` regardless of reachability — iOS
+    /// must NEVER probe localhost (#2465), so a fresh install shows first-run
+    /// setup instead of a pointless probe-then-unreachable flash.
+    static func iosLaunchPhase(
+        hasPairedLibrary: Bool,
+        isReachable: Bool
+    ) -> IOSLaunchPhase {
+        guard hasPairedLibrary else { return .setupNeeded }
+        return isReachable ? .ready : .unreachable
+    }
+
     static func hostConfiguration(from raw: String?) -> HostConfiguration {
         hostConfiguration(
             from: raw,

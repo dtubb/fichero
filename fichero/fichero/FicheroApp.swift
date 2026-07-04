@@ -179,11 +179,9 @@ struct FicheroApp: App {
             // The heartbeat is the single ongoing poller once ready (#3108); its
             // own guard makes repeated calls idempotent.
             appState.startBackendHeartbeat()
-            await KnownLibraryRegistryStore.shared.refresh()
-            if usesExternal {
-                libraryManager.adoptPairedRemoteLibrary()
-            }
-            await libraryManager.backendDidBecomeReady()
+            // The one shared post-ready side-effect block (#3113); adopt is a
+            // no-op on an embedded/local host, so no `usesExternal` branch here.
+            await libraryManager.refreshAfterBackendBecameReady()
         } catch BackendError.portConflict(let pid) {
             // A process we didn't spawn holds :8765 → surface the in-window
             // decision (#3111): Stop it / Use it / Quit. Never a pre-window
