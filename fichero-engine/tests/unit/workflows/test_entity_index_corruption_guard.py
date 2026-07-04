@@ -237,3 +237,31 @@ def test_invalidated_connection_reopens_and_retries_next_query(tmp_path):
         assert not isinstance(db.conn, PoisonedConnection)
     finally:
         db.close()
+
+
+def test_closed_connection_reopens_and_retries_next_query(tmp_path):
+    db = Database(tmp_path / "recover-closed.duckdb")
+    try:
+        entity = KnowledgeEntity(
+            canonical_name="Recovered Closed Entity",
+            entity_type=EntityType.person,
+        )
+        db.save(entity)
+
+        class ClosedConnection:
+            def execute(self, *_args, **_kwargs):
+                raise duckdb.ConnectionException("Connection already closed!")
+
+            def close(self):
+                pass
+
+        db.conn = ClosedConnection()
+        db.duck = db.conn
+
+        loaded = db.get(KnowledgeEntity, entity.id)
+
+        assert loaded is not None
+        assert loaded.id == entity.id
+        assert not isinstance(db.conn, ClosedConnection)
+    finally:
+        db.close()
