@@ -72,7 +72,9 @@ struct ArtifactListView: View {
                 emptyState
             }
         }
+        #if os(macOS)
         .onDeleteCommand(perform: promptDeleteSelection)
+        #endif
         .alert("Delete Artifacts?", isPresented: $showingDeleteConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) {

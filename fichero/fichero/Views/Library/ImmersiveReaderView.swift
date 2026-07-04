@@ -38,7 +38,9 @@ struct ImmersiveReaderView: View {
                 break
             }
         }
+        #if os(macOS)
         .onExitCommand(perform: exit)
+        #endif
     }
 
     private var controlsOverlay: some View {
