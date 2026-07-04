@@ -217,6 +217,22 @@ struct DocumentThumbnailView: View {
     var selectedTint: Color = .accentColor
     var scale: CGFloat = 1.0
 
+    #if os(macOS)
+    @Environment(\.controlActiveState) private var controlActiveState
+    #endif
+
+    /// #1840: de-emphasize the selection tint to gray when the window isn't key
+    /// (matching List/NSTableView), so the user can see which window drives
+    /// keyboard input — HIG: only key-window controls carry color. macOS-only;
+    /// iOS has no key-window concept, so the selection stays tinted.
+    private var effectiveSelectedTint: Color {
+        #if os(macOS)
+        controlActiveState == .key ? selectedTint : .secondary
+        #else
+        selectedTint
+        #endif
+    }
+
     init(
         document: Document,
         isSelected: Bool,
@@ -291,7 +307,7 @@ struct DocumentThumbnailView: View {
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
-                    .stroke(isSelected ? selectedTint : Color.clear, lineWidth: 2)
+                    .stroke(isSelected ? effectiveSelectedTint : Color.clear, lineWidth: 2)
             )
 
             // PDF page children label by page number (prefer extracted
@@ -303,13 +319,13 @@ struct DocumentThumbnailView: View {
                 .lineLimit(2)
                 .truncationMode(.middle)
                 .multilineTextAlignment(.center)
-                .foregroundColor(isSelected ? selectedTint : .primary)
+                .foregroundColor(isSelected ? effectiveSelectedTint : .primary)
         }
         .frame(width: 100 * scale)
         .padding(6)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(isSelected ? selectedTint.opacity(0.1) : Color.clear)
+                .fill(isSelected ? effectiveSelectedTint.opacity(0.1) : Color.clear)
         )
     }
 
@@ -348,6 +364,20 @@ struct EntityThumbnailView: View {
     let kindStyle: EntityThumbnailKindStyle
     var selectedTint: Color = .accentColor
     var scale: CGFloat = 1.0
+
+    #if os(macOS)
+    @Environment(\.controlActiveState) private var controlActiveState
+    #endif
+
+    /// #1840: de-emphasize the selection tint to gray when the window isn't key
+    /// (matching List/NSTableView). macOS-only; iOS keeps the tint.
+    private var effectiveSelectedTint: Color {
+        #if os(macOS)
+        controlActiveState == .key ? selectedTint : .secondary
+        #else
+        selectedTint
+        #endif
+    }
 
     init(
         entity: Components.Schemas.KnowledgeEntity,
@@ -396,7 +426,7 @@ struct EntityThumbnailView: View {
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
-                    .stroke(isSelected ? selectedTint : Color.clear, lineWidth: 2)
+                    .stroke(isSelected ? effectiveSelectedTint : Color.clear, lineWidth: 2)
             )
 
             VStack(spacing: 2) {
@@ -405,7 +435,7 @@ struct EntityThumbnailView: View {
                     .lineLimit(2)
                     .truncationMode(.tail)
                     .multilineTextAlignment(.center)
-                .foregroundColor(isSelected ? selectedTint : .primary)
+                .foregroundColor(isSelected ? effectiveSelectedTint : .primary)
 
                 Text(secondaryText)
                     .font(.caption2)
@@ -418,7 +448,7 @@ struct EntityThumbnailView: View {
         .padding(6)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(isSelected ? selectedTint.opacity(0.1) : Color.clear)
+                .fill(isSelected ? effectiveSelectedTint.opacity(0.1) : Color.clear)
         )
     }
 }
