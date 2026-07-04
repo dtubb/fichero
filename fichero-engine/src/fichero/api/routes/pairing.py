@@ -155,7 +155,12 @@ def _to_pair_response(device: Device, raw_token: str) -> PairResponse:
 def _owner_for_pairing(request: Request, app_db: AppDatabase) -> AccountUser:
     if not _use_multiuser_auth():
         if getattr(request.state, "bootstrap_auth", False):
-            return _single_user_pairing_owner(app_db)
+            owner_accounts = [candidate for candidate in app_db.list_users() if candidate.is_owner]
+            active_owners = [candidate for candidate in owner_accounts if candidate.active]
+            if len(active_owners) == 1:
+                return active_owners[0]
+            if len(owner_accounts) == 0:
+                return _single_user_pairing_owner(app_db)
         raise HTTPException(status_code=403, detail="owner access required")
     user = _current_session_user(request)
     if user is not None and user.is_owner:
