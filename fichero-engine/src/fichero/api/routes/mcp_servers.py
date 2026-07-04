@@ -16,8 +16,6 @@ from fichero.api.routes.auth_accounts import (
 from fichero.app_db import get_app_db
 from fichero.models import MCPServer
 from fichero.mcp_manager import get_mcp_manager, MCPServerConfig
-from fichero.models import MCPServerListResponse
-
 logger = logging.getLogger(__name__)
 router = APIRouter(dependencies=[Depends(_require_authenticated_or_bootstrap)])
 
@@ -112,6 +110,11 @@ class MCPServerToolsResponse(BaseModel):
     tools: list[MCPToolInfo]
 
 
+class MCPServerResponseList(BaseModel):
+    items: list[MCPServerResponse]
+    count: int
+
+
 # =============================================================================
 # Helper Functions
 # =============================================================================
@@ -160,13 +163,16 @@ def _server_to_config(server: MCPServer) -> MCPServerConfig:
 # "tools" as a server_id.
 
 
-@router.get("/mcp-servers", response_model=MCPServerListResponse)
+@router.get("/mcp-servers", response_model=MCPServerResponseList)
 async def list_mcp_servers():
     """List all MCP servers."""
     try:
         app_db = get_app_db()
         servers = app_db.query_mcp_servers()
-        return MCPServerListResponse(items=[_server_to_response(server) for server in servers], count=len(servers))
+        return MCPServerResponseList(
+            items=[_server_to_response(server) for server in servers],
+            count=len(servers),
+        )
     except Exception as e:
         logger.exception(f"Failed to list MCP servers: {e}")
         raise HTTPException(status_code=500, detail=str(e))

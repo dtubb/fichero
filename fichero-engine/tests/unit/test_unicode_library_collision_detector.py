@@ -16,6 +16,7 @@ def _identity(raw_path: str) -> UnicodeLibraryCollisionIdentity:
         name=name,
         name_escaped=name.encode("unicode_escape").decode("ascii"),
         document_count=0,
+        document_count_error=None,
         duckdb_size_bytes=0,
         files_size_bytes=0,
         modified_at=datetime(2026, 7, 4, 12, 0, 0),

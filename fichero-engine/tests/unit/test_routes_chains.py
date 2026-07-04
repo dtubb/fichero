@@ -71,6 +71,23 @@ class TestCreateChain:
         r = client.post("/api/chains", json=payload)
         assert r.status_code == 422
 
+    def test_create_chain_preserves_nested_dynamic_inputs(self, client):
+        payload = _chain_payload("Nested Inputs")
+        payload["initial_inputs"] = {
+            "document_id": "doc-1",
+            "options": {"mode": "full", "retries": 2},
+            "labels": ["alpha", "beta"],
+        }
+        payload["steps"][0]["static_inputs"] = {
+            "threshold": 0.85,
+            "flags": {"strict": True},
+        }
+        r = client.post("/api/chains", json=payload)
+        assert r.status_code == 200
+        data = r.json()
+        assert data["initial_inputs"] == payload["initial_inputs"]
+        assert data["steps"][0]["static_inputs"] == payload["steps"][0]["static_inputs"]
+
 
 class TestGetChain:
     def test_get_existing_chain(self, client):
@@ -199,3 +216,39 @@ class TestExecuteChain:
         cancel = client.delete(f"/api/chains/executions/{execution_id}")
         assert cancel.status_code == 200
         assert cancel.json()["execution_id"] == execution_id
+
+
+class TestChainOpenAPISchema:
+    def test_chain_schema_uses_typed_steps_and_documented_dynamic_inputs(self, client):
+        schema = client.app.openapi()
+        create_request = schema["components"]["schemas"]["CreateChainRequest"]
+        update_request = schema["components"]["schemas"]["UpdateChainRequest"]
+        execute_request = schema["components"]["schemas"]["ExecuteChainRequest"]
+        chain_response = schema["components"]["schemas"]["ChainResponse"]
+        step_request = schema["components"]["schemas"]["ChainStepRequest"]
+        step_response = schema["components"]["schemas"]["ChainStepResponse"]
+        execution_status = schema["components"]["schemas"]["ChainExecutionStatusResponse"]
+
+        assert create_request["properties"]["steps"]["items"]["$ref"].endswith("/ChainStepRequest")
+        assert chain_response["properties"]["steps"]["items"]["$ref"].endswith("/ChainStepResponse")
+        assert (
+            "Free-form JSON inputs for the chain entrypoint"
+            in create_request["properties"]["initial_inputs"]["description"]
+        )
+        assert (
+            "Free-form JSON inputs for the chain entrypoint"
+            in update_request["properties"]["initial_inputs"]["description"]
+        )
+        assert (
+            "workflow chain defines its own input contract"
+            in execute_request["properties"]["inputs"]["description"]
+        )
+        assert (
+            "Values stay workflow-defined and are not coerced."
+            in step_request["properties"]["static_inputs"]["description"]
+        )
+        assert (
+            "Values stay workflow-defined and are not coerced."
+            in step_response["properties"]["static_inputs"]["description"]
+        )
+        assert execution_status["properties"]["final_files"]["items"]["type"] == "string"

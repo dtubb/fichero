@@ -29521,7 +29521,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MCPServerListResponse"
+                  "$ref": "#/components/schemas/MCPServerResponseList"
                 }
               }
             }
@@ -30444,7 +30444,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ScheduleListResponse"
+                  "$ref": "#/components/schemas/ScheduleResponseList"
                 }
               }
             }
@@ -30768,7 +30768,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ScheduleListResponse"
+                  "$ref": "#/components/schemas/ScheduleRunResponseList"
                 }
               }
             }
@@ -30884,7 +30884,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TriggerListResponse"
+                  "$ref": "#/components/schemas/TriggerResponseList"
                 }
               }
             }
@@ -31164,7 +31164,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TriggerListResponse"
+                  "$ref": "#/components/schemas/TriggerExecutionResponseList"
                 }
               }
             }
@@ -35044,10 +35044,13 @@
           "final_outputs": {
             "additionalProperties": true,
             "type": "object",
-            "title": "Final Outputs"
+            "title": "Final Outputs",
+            "description": "Free-form JSON outputs produced by the final workflow step. Output shape remains workflow-defined."
           },
           "final_files": {
-            "items": {},
+            "items": {
+              "type": "string"
+            },
             "type": "array",
             "title": "Final Files"
           },
@@ -35070,8 +35073,6 @@
           "chain_id",
           "status",
           "step_results",
-          "final_outputs",
-          "final_files",
           "total_duration_ms",
           "events"
         ],
@@ -35115,8 +35116,7 @@
           },
           "steps": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/ChainStepResponse"
             },
             "type": "array",
             "title": "Steps"
@@ -35129,7 +35129,8 @@
           "initial_inputs": {
             "additionalProperties": true,
             "type": "object",
-            "title": "Initial Inputs"
+            "title": "Initial Inputs",
+            "description": "Free-form JSON inputs for the chain entrypoint. Values are passed through as-is and must match the target workflow contract."
           },
           "created_at": {
             "type": "string",
@@ -35204,7 +35205,8 @@
           "static_inputs": {
             "additionalProperties": true,
             "type": "object",
-            "title": "Static Inputs"
+            "title": "Static Inputs",
+            "description": "Free-form JSON inputs merged into this step at execution time. Values stay workflow-defined and are not coerced."
           },
           "condition": {
             "$ref": "#/components/schemas/ChainStepConditionRequest",
@@ -35228,6 +35230,57 @@
         ],
         "title": "ChainStepRequest",
         "description": "Request model for chain step."
+      },
+      "ChainStepResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "workflow_id": {
+            "type": "string",
+            "title": "Workflow Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "input_mappings": {
+            "items": {
+              "$ref": "#/components/schemas/OutputMappingRequest"
+            },
+            "type": "array",
+            "title": "Input Mappings"
+          },
+          "static_inputs": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Static Inputs",
+            "description": "Free-form JSON inputs merged into this step at execution time. Values stay workflow-defined and are not coerced."
+          },
+          "condition": {
+            "$ref": "#/components/schemas/ChainStepConditionRequest",
+            "nullable": true
+          },
+          "continue_on_error": {
+            "type": "boolean",
+            "title": "Continue On Error",
+            "default": false
+          },
+          "timeout_seconds": {
+            "type": "integer",
+            "title": "Timeout Seconds",
+            "default": 300
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "workflow_id"
+        ],
+        "title": "ChainStepResponse",
+        "description": "Typed response model for a workflow chain step."
       },
       "ChainStepResultInfo": {
         "properties": {
@@ -38018,7 +38071,8 @@
           "initial_inputs": {
             "additionalProperties": true,
             "type": "object",
-            "title": "Initial Inputs"
+            "title": "Initial Inputs",
+            "description": "Free-form JSON inputs for the chain entrypoint. Values are passed through as-is and must match the target workflow contract."
           }
         },
         "type": "object",
@@ -38254,7 +38308,9 @@
             "description": "Schedule configuration"
           },
           "inputs": {
-            "additionalProperties": true,
+            "additionalProperties": {
+              "type": "string"
+            },
             "type": "object",
             "title": "Inputs",
             "description": "Workflow inputs"
@@ -38267,7 +38323,9 @@
           },
           "batch_items": {
             "items": {
-              "additionalProperties": true,
+              "additionalProperties": {
+                "type": "string"
+              },
               "type": "object"
             },
             "type": "array",
@@ -38334,7 +38392,9 @@
             "description": "Trigger configuration"
           },
           "inputs_template": {
-            "additionalProperties": true,
+            "additionalProperties": {
+              "type": "string"
+            },
             "type": "object",
             "title": "Inputs Template",
             "description": "Template for workflow inputs with placeholders"
@@ -41604,7 +41664,8 @@
           "inputs": {
             "additionalProperties": true,
             "type": "object",
-            "title": "Inputs"
+            "title": "Inputs",
+            "description": "Free-form JSON execution inputs. This remains dynamic because each workflow chain defines its own input contract."
           },
           "input_files": {
             "items": {
@@ -46589,26 +46650,6 @@
         "title": "MCPServerDeletedResponse",
         "description": "Confirmation that an MCP server was deleted."
       },
-      "MCPServerListResponse": {
-        "properties": {
-          "items": {
-            "items": {},
-            "type": "array",
-            "title": "Items"
-          },
-          "count": {
-            "type": "integer",
-            "title": "Count"
-          }
-        },
-        "type": "object",
-        "required": [
-          "items",
-          "count"
-        ],
-        "title": "MCPServerListResponse",
-        "description": "Standardized envelope for GET /api/mcp-servers list endpoints."
-      },
       "MCPServerResponse": {
         "properties": {
           "id": {
@@ -46693,6 +46734,27 @@
         ],
         "title": "MCPServerResponse",
         "description": "Response containing MCP server details."
+      },
+      "MCPServerResponseList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MCPServerResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "MCPServerResponseList"
       },
       "MCPServerToolsResponse": {
         "properties": {
@@ -53344,26 +53406,6 @@
         ],
         "title": "ScheduleDeletedResponse"
       },
-      "ScheduleListResponse": {
-        "properties": {
-          "items": {
-            "items": {},
-            "type": "array",
-            "title": "Items"
-          },
-          "count": {
-            "type": "integer",
-            "title": "Count"
-          }
-        },
-        "type": "object",
-        "required": [
-          "items",
-          "count"
-        ],
-        "title": "ScheduleListResponse",
-        "description": "Standardized envelope for GET /api/schedules list endpoints."
-      },
       "ScheduleResponse": {
         "properties": {
           "schedule_id": {
@@ -53407,7 +53449,9 @@
             "title": "Status"
           },
           "inputs": {
-            "additionalProperties": true,
+            "additionalProperties": {
+              "type": "string"
+            },
             "type": "object",
             "title": "Inputs"
           },
@@ -53417,7 +53461,9 @@
           },
           "batch_items": {
             "items": {
-              "additionalProperties": true,
+              "additionalProperties": {
+                "type": "string"
+              },
               "type": "object"
             },
             "type": "array",
@@ -53484,6 +53530,27 @@
         "title": "ScheduleResponse",
         "description": "Schedule response."
       },
+      "ScheduleResponseList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ScheduleResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "ScheduleResponseList"
+      },
       "ScheduleRunResponse": {
         "properties": {
           "run_id": {
@@ -53532,6 +53599,27 @@
         ],
         "title": "ScheduleRunResponse",
         "description": "Schedule run response."
+      },
+      "ScheduleRunResponseList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ScheduleRunResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "ScheduleRunResponseList"
       },
       "SearchAnchor": {
         "properties": {
@@ -56972,10 +57060,69 @@
         ],
         "title": "TriggerDeletedResponse"
       },
-      "TriggerListResponse": {
+      "TriggerExecutionResponse": {
+        "properties": {
+          "execution_id": {
+            "type": "string",
+            "title": "Execution Id"
+          },
+          "trigger_id": {
+            "type": "string",
+            "title": "Trigger Id"
+          },
+          "triggered_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Triggered At"
+          },
+          "file_paths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "File Paths"
+          },
+          "batch_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Batch Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "title": "Error"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Completed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "execution_id",
+          "trigger_id",
+          "triggered_at",
+          "file_paths",
+          "batch_id",
+          "status",
+          "error",
+          "completed_at"
+        ],
+        "title": "TriggerExecutionResponse",
+        "description": "Trigger execution response."
+      },
+      "TriggerExecutionResponseList": {
         "properties": {
           "items": {
-            "items": {},
+            "items": {
+              "$ref": "#/components/schemas/TriggerExecutionResponse"
+            },
             "type": "array",
             "title": "Items"
           },
@@ -56989,8 +57136,7 @@
           "items",
           "count"
         ],
-        "title": "TriggerListResponse",
-        "description": "Standardized envelope for GET /api/triggers list endpoints."
+        "title": "TriggerExecutionResponseList"
       },
       "TriggerResponse": {
         "properties": {
@@ -57053,7 +57199,9 @@
             "title": "Batch Delay Seconds"
           },
           "inputs_template": {
-            "additionalProperties": true,
+            "additionalProperties": {
+              "type": "string"
+            },
             "type": "object",
             "title": "Inputs Template"
           },
@@ -57121,6 +57269,27 @@
         ],
         "title": "TriggerResponse",
         "description": "Trigger response."
+      },
+      "TriggerResponseList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TriggerResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "TriggerResponseList"
       },
       "UndoResponse": {
         "properties": {
@@ -57198,7 +57367,13 @@
           },
           "document_count": {
             "type": "integer",
+            "nullable": true,
             "title": "Document Count"
+          },
+          "document_count_error": {
+            "type": "string",
+            "nullable": true,
+            "title": "Document Count Error"
           },
           "duckdb_size_bytes": {
             "type": "integer",
@@ -57356,7 +57531,8 @@
             "additionalProperties": true,
             "type": "object",
             "nullable": true,
-            "title": "Initial Inputs"
+            "title": "Initial Inputs",
+            "description": "Free-form JSON inputs for the chain entrypoint. Values are passed through as-is and must match the target workflow contract."
           }
         },
         "type": "object",
@@ -57449,7 +57625,9 @@
             "description": "Schedule configuration"
           },
           "inputs": {
-            "additionalProperties": true,
+            "additionalProperties": {
+              "type": "string"
+            },
             "type": "object",
             "nullable": true,
             "title": "Inputs",
@@ -57463,7 +57641,9 @@
           },
           "batch_items": {
             "items": {
-              "additionalProperties": true,
+              "additionalProperties": {
+                "type": "string"
+              },
               "type": "object"
             },
             "type": "array",
@@ -57502,7 +57682,9 @@
             "description": "Trigger configuration"
           },
           "inputs_template": {
-            "additionalProperties": true,
+            "additionalProperties": {
+              "type": "string"
+            },
             "type": "object",
             "nullable": true,
             "title": "Inputs Template",

@@ -65,7 +65,32 @@ class ChainStepRequest(BaseModel):
     workflow_id: str
     name: str = ""
     input_mappings: list[OutputMappingRequest] = Field(default_factory=list)
-    static_inputs: dict[str, Any] = Field(default_factory=dict)
+    static_inputs: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Free-form JSON inputs merged into this step at execution time. "
+            "Values stay workflow-defined and are not coerced."
+        ),
+    )
+    condition: ChainStepConditionRequest | None = None
+    continue_on_error: bool = False
+    timeout_seconds: int = 300
+
+
+class ChainStepResponse(BaseModel):
+    """Typed response model for a workflow chain step."""
+
+    id: str
+    workflow_id: str
+    name: str = ""
+    input_mappings: list[OutputMappingRequest] = Field(default_factory=list)
+    static_inputs: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Free-form JSON inputs merged into this step at execution time. "
+            "Values stay workflow-defined and are not coerced."
+        ),
+    )
     condition: ChainStepConditionRequest | None = None
     continue_on_error: bool = False
     timeout_seconds: int = 300
@@ -78,7 +103,13 @@ class CreateChainRequest(BaseModel):
     description: str = ""
     steps: list[ChainStepRequest] = Field(default_factory=list)
     entry_step: str | None = None
-    initial_inputs: dict[str, Any] = Field(default_factory=dict)
+    initial_inputs: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Free-form JSON inputs for the chain entrypoint. Values are passed "
+            "through as-is and must match the target workflow contract."
+        ),
+    )
 
 
 class UpdateChainRequest(BaseModel):
@@ -88,13 +119,25 @@ class UpdateChainRequest(BaseModel):
     description: str | None = None
     steps: list[ChainStepRequest] | None = None
     entry_step: str | None = None
-    initial_inputs: dict[str, Any] | None = None
+    initial_inputs: dict[str, Any] | None = Field(
+        default=None,
+        description=(
+            "Free-form JSON inputs for the chain entrypoint. Values are passed "
+            "through as-is and must match the target workflow contract."
+        ),
+    )
 
 
 class ExecuteChainRequest(BaseModel):
     """Request to execute a workflow chain."""
 
-    inputs: dict[str, Any] = Field(default_factory=dict)
+    inputs: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Free-form JSON execution inputs. This remains dynamic because each "
+            "workflow chain defines its own input contract."
+        ),
+    )
     input_files: list[str] = Field(default_factory=list)
 
 
@@ -104,9 +147,14 @@ class ChainResponse(BaseModel):
     id: str
     name: str
     description: str
-    steps: list[dict[str, Any]]
+    steps: list[ChainStepResponse]
     entry_step: str | None
-    initial_inputs: dict[str, Any]
+    initial_inputs: dict[str, Any] = Field(
+        description=(
+            "Free-form JSON inputs for the chain entrypoint. Values are passed "
+            "through as-is and must match the target workflow contract."
+        )
+    )
     created_at: str
     updated_at: str
 
@@ -153,8 +201,14 @@ class ChainExecutionStatusResponse(BaseModel):
     chain_id: str
     status: str
     step_results: list[ChainStepResultInfo]
-    final_outputs: dict
-    final_files: list
+    final_outputs: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Free-form JSON outputs produced by the final workflow step. "
+            "Output shape remains workflow-defined."
+        ),
+    )
+    final_files: list[str] = Field(default_factory=list)
     total_duration_ms: float | None
     events: list[ChainEventInfo]
 
@@ -650,29 +704,29 @@ def _chain_to_response(chain: WorkflowChain) -> ChainResponse:
         name=chain.name,
         description=chain.description,
         steps=[
-            {
-                "id": s.id,
-                "workflow_id": s.workflow_id,
-                "name": s.name,
-                "input_mappings": [
-                    {
-                        "source_path": m.source_path,
-                        "target_key": m.target_key,
-                        "transform": m.transform,
-                    }
+            ChainStepResponse(
+                id=s.id,
+                workflow_id=s.workflow_id,
+                name=s.name,
+                input_mappings=[
+                    OutputMappingRequest(
+                        source_path=m.source_path,
+                        target_key=m.target_key,
+                        transform=m.transform,
+                    )
                     for m in s.input_mappings
                 ],
-                "static_inputs": s.static_inputs,
-                "condition": {
-                    "expression": s.condition.expression,
-                    "true_step": s.condition.true_step,
-                    "false_step": s.condition.false_step,
-                }
+                static_inputs=s.static_inputs,
+                condition=ChainStepConditionRequest(
+                    expression=s.condition.expression,
+                    true_step=s.condition.true_step,
+                    false_step=s.condition.false_step,
+                )
                 if s.condition
                 else None,
-                "continue_on_error": s.continue_on_error,
-                "timeout_seconds": s.timeout_seconds,
-            }
+                continue_on_error=s.continue_on_error,
+                timeout_seconds=s.timeout_seconds,
+            )
             for s in chain.steps
         ],
         entry_step=chain.entry_step,

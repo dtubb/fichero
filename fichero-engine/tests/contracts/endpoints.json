@@ -5840,7 +5840,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "MCPServerListResponse"
+        "response_model": "MCPServerResponseList"
       },
       {
         "method": "POST",
@@ -7650,7 +7650,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "ScheduleListResponse"
+        "response_model": "ScheduleResponseList"
       },
       {
         "method": "POST",
@@ -7738,7 +7738,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "ScheduleListResponse"
+        "response_model": "ScheduleRunResponseList"
       },
       {
         "method": "POST",
@@ -8604,7 +8604,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "TriggerListResponse"
+        "response_model": "TriggerResponseList"
       },
       {
         "method": "POST",
@@ -8668,7 +8668,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "TriggerListResponse"
+        "response_model": "TriggerExecutionResponseList"
       },
       {
         "method": "POST",

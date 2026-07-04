@@ -9,7 +9,7 @@ Provides REST endpoints for workflow scheduling:
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -25,11 +25,12 @@ from fichero.workflows.scheduler import (
     ScheduleRun,
 )
 from fichero.workflows.workflow_store import WorkflowStore
-from fichero.models import ScheduleListResponse
-
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/schedules", tags=["schedules"])
+
+WorkflowInputs = dict[str, str]
+BatchInputItems = list[dict[str, str]]
 
 
 # Request/Response Models
@@ -60,9 +61,9 @@ class CreateScheduleRequest(BaseModel):
     name: str = Field(..., description="Display name for the schedule")
     workflow_id: str = Field(..., description="ID of workflow to execute")
     config: ScheduleConfigRequest = Field(..., description="Schedule configuration")
-    inputs: dict[str, Any] = Field(default_factory=dict, description="Workflow inputs")
+    inputs: WorkflowInputs = Field(default_factory=dict, description="Workflow inputs")
     use_batch: bool = Field(False, description="Use batch execution")
-    batch_items: list[dict[str, Any]] = Field(
+    batch_items: BatchInputItems = Field(
         default_factory=list, description="Batch input items"
     )
     max_concurrent: int = Field(5, description="Max concurrent batch items")
@@ -76,9 +77,9 @@ class UpdateScheduleRequest(BaseModel):
     config: Optional[ScheduleConfigRequest] = Field(
         None, description="Schedule configuration"
     )
-    inputs: Optional[dict[str, Any]] = Field(None, description="Workflow inputs")
+    inputs: Optional[WorkflowInputs] = Field(None, description="Workflow inputs")
     use_batch: Optional[bool] = Field(None, description="Use batch execution")
-    batch_items: Optional[list[dict[str, Any]]] = Field(
+    batch_items: Optional[BatchInputItems] = Field(
         None, description="Batch input items"
     )
     max_concurrent: Optional[int] = Field(
@@ -98,9 +99,9 @@ class ScheduleResponse(BaseModel):
     run_at: Optional[datetime]
     timezone: str
     status: str
-    inputs: dict[str, Any]
+    inputs: WorkflowInputs
     use_batch: bool
-    batch_items: list[dict[str, Any]]
+    batch_items: BatchInputItems
     max_concurrent: int
     created_at: datetime
     updated_at: datetime
@@ -156,6 +157,16 @@ class ScheduleRunResponse(BaseModel):
             batch_id=run.batch_id,
             error=run.error,
         )
+
+
+class ScheduleResponseList(BaseModel):
+    items: list[ScheduleResponse]
+    count: int
+
+
+class ScheduleRunResponseList(BaseModel):
+    items: list[ScheduleRunResponse]
+    count: int
 
 
 # Per-library scheduler instances
@@ -219,14 +230,14 @@ async def create_schedule(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("", response_model=ScheduleListResponse)
+@router.get("", response_model=ScheduleResponseList)
 async def list_schedules(
     status: Optional[str] = None,
     workflow_id: Optional[str] = None,
     limit: int = 100,
     offset: int = 0,
     scheduler: WorkflowScheduler = Depends(get_scheduler),
-) -> list[ScheduleResponse]:
+) -> ScheduleResponseList:
     """List schedules with optional filtering."""
 
     status_enum = ScheduleStatus(status) if status else None
@@ -238,7 +249,10 @@ async def list_schedules(
         offset=offset,
     )
 
-    return ScheduleListResponse(items=[ScheduleResponse.from_schedule(s) for s in schedules], count=len(schedules))
+    return ScheduleResponseList(
+        items=[ScheduleResponse.from_schedule(s) for s in schedules],
+        count=len(schedules),
+    )
 
 
 @router.get("/{schedule_id}", response_model=ScheduleResponse)
@@ -372,12 +386,12 @@ async def trigger_schedule(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/{schedule_id}/runs", response_model=ScheduleListResponse)
+@router.get("/{schedule_id}/runs", response_model=ScheduleRunResponseList)
 async def get_schedule_runs(
     schedule_id: str,
     limit: int = 50,
     scheduler: WorkflowScheduler = Depends(get_scheduler),
-) -> list[ScheduleRunResponse]:
+) -> ScheduleRunResponseList:
     """Get run history for a schedule."""
 
     # Verify schedule exists
@@ -386,4 +400,7 @@ async def get_schedule_runs(
         raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
 
     runs = await scheduler.get_schedule_runs(schedule_id, limit=limit)
-    return ScheduleListResponse(items=[ScheduleRunResponse.from_run(r) for r in runs], count=len(runs))
+    return ScheduleRunResponseList(
+        items=[ScheduleRunResponse.from_run(r) for r in runs],
+        count=len(runs),
+    )
