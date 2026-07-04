@@ -45355,6 +45355,16 @@
             "type": "string",
             "title": "Lance Path"
           },
+          "files_path": {
+            "type": "string",
+            "nullable": true,
+            "title": "Files Path"
+          },
+          "includes_files": {
+            "type": "boolean",
+            "title": "Includes Files",
+            "default": false
+          },
           "offsite_path": {
             "type": "string",
             "nullable": true,
@@ -45373,6 +45383,11 @@
           "lance_size_bytes": {
             "type": "integer",
             "title": "Lance Size Bytes",
+            "default": 0
+          },
+          "files_size_bytes": {
+            "type": "integer",
+            "title": "Files Size Bytes",
             "default": 0
           },
           "is_pinned": {
