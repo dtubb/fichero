@@ -34,6 +34,7 @@ struct SearchResultRowFromAPI: View {
                     HStack(spacing: 6) {
                         Text(parentName)
                             .font(.body)
+                            .foregroundStyle(.secondary)
                             .lineLimit(1)
                         if let pageLabel {
                             Text(pageLabel)
@@ -48,36 +49,18 @@ struct SearchResultRowFromAPI: View {
                 } else if let name = result.metadata["name"]?.value as? String {
                     Text(name)
                         .font(.body)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 } else {
                     Text(result.documentId)
                         .font(.body)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
 
-                // Score badge + match-source pill
-                HStack(spacing: 6) {
-                    // Label the bare percentage so it reads as a relevance
-                    // score, not e.g. a completion percentage (#1476).
-                    Text(String(format: "relevance %.0f%%", result.score * 100))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.accentColor.opacity(0.15))
-                        .cornerRadius(4)
-                        .help("How closely this result matches your search (higher is closer).")
-
-                    if let label = matchSourceLabel {
-                        Text(label)
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.secondary.opacity(0.12))
-                            .cornerRadius(4)
-                    }
-                }
+                // Relevance + match-source badges moved to the row's trailing
+                // edge so the matched snippet leads and the filename recedes
+                // (#1784) — see the trailing VStack below.
 
                 // Content preview or highlights — render `**term**`
                 // markers (added by the backend) as colored highlights.
@@ -123,8 +106,39 @@ struct SearchResultRowFromAPI: View {
             }
 
             Spacer()
+
+            // Relevance to the right (#1784): a trailing, de-emphasized column
+            // so the row reads snippet-first, filename-second, relevance-aside.
+            VStack(alignment: .trailing, spacing: 4) {
+                relevanceBadge
+                matchSourcePill
+            }
         }
         .padding(.vertical, 4)
+    }
+
+    private var relevanceBadge: some View {
+        Text(String(format: "relevance %.0f%%", result.score * 100))
+            .font(.caption)
+            .foregroundColor(.secondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.accentColor.opacity(0.15))
+            .cornerRadius(4)
+            .help("Semantic similarity — how closely this result's meaning matches your search (higher is closer).")
+    }
+
+    @ViewBuilder
+    private var matchSourcePill: some View {
+        if let label = matchSourceLabel {
+            Text(label)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.secondary.opacity(0.12))
+                .cornerRadius(4)
+        }
     }
 
     var preferredExcerptText: String? {
