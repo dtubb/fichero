@@ -25144,21 +25144,21 @@
         }
       }
     },
-    "/api/mind-palace/folders/{folder_id}/canvas-layout": {
+    "/api/canvas/folders/{scope_id}/layout": {
       "get": {
         "tags": [
-          "mind-palace"
+          "canvas"
         ],
         "summary": "Get Canvas Layout",
-        "operationId": "get_canvas_layout_api_mind_palace_folders__folder_id__canvas_layout_get",
+        "operationId": "get_canvas_layout_api_canvas_folders__scope_id__layout_get",
         "parameters": [
           {
-            "name": "folder_id",
+            "name": "scope_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Folder Id"
+              "title": "Scope Id"
             }
           }
         ],
@@ -25168,7 +25168,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MindPalaceListResponse"
+                  "$ref": "#/components/schemas/CanvasListResponse"
                 }
               }
             }
@@ -25187,18 +25187,18 @@
       },
       "put": {
         "tags": [
-          "mind-palace"
+          "canvas"
         ],
         "summary": "Save Canvas Layout",
-        "operationId": "save_canvas_layout_api_mind_palace_folders__folder_id__canvas_layout_put",
+        "operationId": "save_canvas_layout_api_canvas_folders__scope_id__layout_put",
         "parameters": [
           {
-            "name": "folder_id",
+            "name": "scope_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Folder Id"
+              "title": "Scope Id"
             }
           },
           {
@@ -25246,21 +25246,21 @@
         }
       }
     },
-    "/api/mind-palace/folders/{folder_id}/arrange": {
+    "/api/canvas/folders/{scope_id}/arrange": {
       "post": {
         "tags": [
-          "mind-palace"
+          "canvas"
         ],
         "summary": "Arrange Folder Canvas",
-        "operationId": "arrange_folder_canvas_api_mind_palace_folders__folder_id__arrange_post",
+        "operationId": "arrange_folder_canvas_api_canvas_folders__scope_id__arrange_post",
         "parameters": [
           {
-            "name": "folder_id",
+            "name": "scope_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Folder Id"
+              "title": "Scope Id"
             }
           },
           {
@@ -25308,21 +25308,21 @@
         }
       }
     },
-    "/api/mind-palace/folders/{folder_id}/canvas-items": {
+    "/api/canvas/folders/{scope_id}/items": {
       "get": {
         "tags": [
-          "mind-palace"
+          "canvas"
         ],
         "summary": "List Canvas Items",
-        "operationId": "list_canvas_items_api_mind_palace_folders__folder_id__canvas_items_get",
+        "operationId": "list_canvas_items_api_canvas_folders__scope_id__items_get",
         "parameters": [
           {
-            "name": "folder_id",
+            "name": "scope_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Folder Id"
+              "title": "Scope Id"
             }
           },
           {
@@ -25342,7 +25342,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MindPalaceListResponse"
+                  "$ref": "#/components/schemas/CanvasListResponse"
                 }
               }
             }
@@ -25361,18 +25361,18 @@
       },
       "post": {
         "tags": [
-          "mind-palace"
+          "canvas"
         ],
         "summary": "Create Canvas Item",
-        "operationId": "create_canvas_item_api_mind_palace_folders__folder_id__canvas_items_post",
+        "operationId": "create_canvas_item_api_canvas_folders__scope_id__items_post",
         "parameters": [
           {
-            "name": "folder_id",
+            "name": "scope_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Folder Id"
+              "title": "Scope Id"
             }
           },
           {
@@ -25420,21 +25420,21 @@
         }
       }
     },
-    "/api/mind-palace/folders/{folder_id}/canvas-items/{item_id}": {
+    "/api/canvas/folders/{scope_id}/items/{item_id}": {
       "patch": {
         "tags": [
-          "mind-palace"
+          "canvas"
         ],
         "summary": "Update Canvas Item",
-        "operationId": "update_canvas_item_api_mind_palace_folders__folder_id__canvas_items__item_id__patch",
+        "operationId": "update_canvas_item_api_canvas_folders__scope_id__items__item_id__patch",
         "parameters": [
           {
-            "name": "folder_id",
+            "name": "scope_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Folder Id"
+              "title": "Scope Id"
             }
           },
           {
@@ -25492,18 +25492,18 @@
       },
       "delete": {
         "tags": [
-          "mind-palace"
+          "canvas"
         ],
         "summary": "Delete Canvas Item",
-        "operationId": "delete_canvas_item_api_mind_palace_folders__folder_id__canvas_items__item_id__delete",
+        "operationId": "delete_canvas_item_api_canvas_folders__scope_id__items__item_id__delete",
         "parameters": [
           {
-            "name": "folder_id",
+            "name": "scope_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Folder Id"
+              "title": "Scope Id"
             }
           },
           {
@@ -25532,7 +25532,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MindPalaceDeletedResponse"
+                  "$ref": "#/components/schemas/CanvasDeletedResponse"
                 }
               }
             }
@@ -34158,6 +34158,20 @@
         "title": "CancelResponse",
         "description": "Response from POST /threads/{thread_id}/cancel (#1127).\n\n``partial_results_preserved`` is always True for now \u2014 the issue's\ninvariant is that artifacts and entities written before the cancel\nstay in place. Future work could add a soft-rollback option that\ndeletes per-thread writes; for now we surface the contract clearly\nin the response shape."
       },
+      "CanvasDeletedResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "CanvasDeletedResponse",
+        "description": "Standardized success envelope for canvas deletes."
+      },
       "CanvasItem": {
         "properties": {
           "id": {
@@ -34479,6 +34493,26 @@
           "detail"
         ],
         "title": "CanvasLayoutSkippedItem"
+      },
+      "CanvasListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "CanvasListResponse",
+        "description": "Standardized envelope for canvas spatial list endpoints."
       },
       "CategoryToolsResponse": {
         "properties": {
@@ -46637,39 +46671,6 @@
         ],
         "title": "MigrationValidationResponse",
         "description": "Validation result for a migration."
-      },
-      "MindPalaceDeletedResponse": {
-        "properties": {
-          "status": {
-            "type": "string",
-            "title": "Status"
-          }
-        },
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "title": "MindPalaceDeletedResponse"
-      },
-      "MindPalaceListResponse": {
-        "properties": {
-          "items": {
-            "items": {},
-            "type": "array",
-            "title": "Items"
-          },
-          "count": {
-            "type": "integer",
-            "title": "Count"
-          }
-        },
-        "type": "object",
-        "required": [
-          "items",
-          "count"
-        ],
-        "title": "MindPalaceListResponse",
-        "description": "Standardized envelope for mind palace spatial list endpoints."
       },
       "ModelCreate": {
         "properties": {

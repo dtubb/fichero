@@ -1272,7 +1272,7 @@ from fichero.api.routes import (  # noqa: E402
     mcp_tools,
     pairing,
     migrations,
-    mind_palace,
+    canvas,
     model_comparison,
     models,
     multilingual,
@@ -1415,7 +1415,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     #    Output Swift fix landed (adb1603e). ──
     (search_explain.router, "/api", ["search-explanation"]),
     (citation_usages.router, "/api", ["citation-usages"]),
-    (mind_palace.router, "/api/mind-palace", ["mind-palace"]),
+    (canvas.router, "/api/canvas", ["canvas"]),
     (research_agents.router, "/api/research", ["research"]),
     # Action layer registry (EPIC #1848 keystone #2013). Registered BEFORE
     # actions.router so its static /actions/{invoke,registry,audit/...} paths win

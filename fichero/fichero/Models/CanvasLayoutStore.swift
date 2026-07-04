@@ -136,8 +136,8 @@ final class CanvasLayoutStore {
         defer { isLoading = false }
         do {
             let response = try await client.api
-                .getCanvasLayoutApiMindPalaceFoldersFolderIdCanvasLayoutGet(
-                    path: .init(folderId: folderId)
+                .getCanvasLayoutApiCanvasFoldersScopeIdLayoutGet(
+                    path: .init(scopeId: folderId)
                 )
             switch response {
             case .ok(let okResponse):
@@ -169,13 +169,13 @@ final class CanvasLayoutStore {
         let body = Components.Schemas.CanvasLayoutSaveRequest(items: items.map(\.asSaveItem))
         do {
             let response = try await client.api
-                .saveCanvasLayoutApiMindPalaceFoldersFolderIdCanvasLayoutPut(
-                    path: .init(folderId: folderId),
+                .saveCanvasLayoutApiCanvasFoldersScopeIdLayoutPut(
+                    path: .init(scopeId: folderId),
                     body: .json(body)
                 )
             switch response {
             case .ok(let okResponse):
-                layout = try okResponse.body.json.map(CanvasItemLayout.init(schema:))
+                layout = try okResponse.body.json.items.map(CanvasItemLayout.init(schema:))
                 log.info("Saved \(self.layout.count, privacy: .public) canvas items")
                 return true
             case .unprocessableContent(let error):

@@ -25,10 +25,10 @@ _REMOVED_PATHS = {
 }
 
 _CANVAS_PATHS = {
-    "/api/mind-palace/folders/{folder_id}/canvas-layout",
-    "/api/mind-palace/folders/{folder_id}/arrange",
-    "/api/mind-palace/folders/{folder_id}/canvas-items",
-    "/api/mind-palace/folders/{folder_id}/canvas-items/{item_id}",
+    "/api/canvas/folders/{scope_id}/layout",
+    "/api/canvas/folders/{scope_id}/arrange",
+    "/api/canvas/folders/{scope_id}/items",
+    "/api/canvas/folders/{scope_id}/items/{item_id}",
 }
 
 
@@ -40,7 +40,7 @@ def _app_paths() -> set[str]:
     }
 
 
-def test_mind_palace_room_surface_stays_deleted_but_canvas_routes_remain() -> None:
+def test_mind_palace_surface_is_gone_and_canvas_routes_remain() -> None:
     paths = _app_paths()
-    assert not (_REMOVED_PATHS & paths)
+    assert not ({*_REMOVED_PATHS, *{p.replace("/api/canvas", "/api/mind-palace") for p in _CANVAS_PATHS}} & paths)
     assert _CANVAS_PATHS <= paths

@@ -1624,7 +1624,7 @@ def test_generated_delete_requires_confirmation():
 
 def test_generated_commands_use_canonical_resource_trees():
     assert runner.invoke(cli.app, ["library", "--help"]).exit_code == 0
-    assert runner.invoke(cli.app, ["mind-palace", "--help"]).exit_code == 0
+    assert runner.invoke(cli.app, ["canvas", "--help"]).exit_code == 0
     assert runner.invoke(cli.app, ["libraries", "--help"]).exit_code != 0
     assert runner.invoke(cli.app, ["mindpalace", "--help"]).exit_code != 0
 

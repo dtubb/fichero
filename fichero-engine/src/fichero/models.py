@@ -1793,11 +1793,17 @@ class MCPServerListResponse(BaseModel):
     count: int
 
 
-class MindPalaceListResponse(BaseModel):
-    """Standardized envelope for mind palace spatial list endpoints."""
+class CanvasListResponse(BaseModel):
+    """Standardized envelope for canvas spatial list endpoints."""
 
-    items: list[Any]  # Rooms, Nodes, Connections, Stacks, or NativeNote
+    items: list[Any]
     count: int
+
+
+class CanvasDeletedResponse(BaseModel):
+    """Standardized success envelope for canvas deletes."""
+
+    status: str
 
 
 class AgentNoteListResponse(BaseModel):
@@ -2097,7 +2103,8 @@ __all__ = [
     "ContradictionEvidence",
     "ContradictionListResponse",
     "MCPServerListResponse",
-    "MindPalaceListResponse",
+    "CanvasDeletedResponse",
+    "CanvasListResponse",
     "NoteListResponse",
     "ProjectListResponse",
     "ResearchCrudListResponse",
