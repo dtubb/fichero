@@ -1,6 +1,31 @@
 import OSLog
 import SwiftUI
 
+/// Shared, pure move-eligibility decision for moving a document into a folder
+/// (#3014). The drag-drop handler and the compact "Move to Folder" menu both
+/// obey it, so the menu offers exactly the targets a drop would accept — no
+/// divergent second path, and the menu can no longer create a circular move.
+enum SidebarMovePolicy {
+    /// A folder is a valid move target for `sourceId` only when it isn't the
+    /// source itself and isn't a descendant of it. Walks the target's ancestor
+    /// chain over `documents` (all docs + their `parentId`s); if `sourceId`
+    /// appears as an ancestor of the target, the target is inside the source and
+    /// the move would be circular. `guardCount` bounds the walk against a
+    /// malformed (cyclic) parent chain.
+    static func isValidTarget(sourceId: String, targetId: String, documents: [Document]) -> Bool {
+        if sourceId == targetId { return false }
+        let parentById = Dictionary(documents.map { ($0.id, $0.parentId) }, uniquingKeysWith: { first, _ in first })
+        var current: String? = targetId
+        var guardCount = 0
+        while let id = current, guardCount <= documents.count {
+            if id == sourceId { return false }
+            current = parentById[id] ?? nil
+            guardCount += 1
+        }
+        return true
+    }
+}
+
 /// Strip the type-prefix from a sidebar-item or drag-source ID.
 ///
 /// Sidebar items carry typed IDs (`doc:UUID`, `folder:path`, `workflow:wf-42`

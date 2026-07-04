@@ -42,9 +42,31 @@ extension ChatView {
     }
 }
 
+// MARK: - Document Scope
+
+/// Pure chat-scope mutation shared by every attach entry point (drop, and the
+/// compact composer attach button) so they reach scope the same way (#3015).
+enum ChatDocumentScope {
+    /// Union `ids` into `scope`, de-duplicated; blank ids are ignored.
+    static func attaching(_ ids: [String], to scope: Set<String>) -> Set<String> {
+        var next = scope
+        for id in ids where !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            next.insert(id)
+        }
+        return next
+    }
+}
+
 // MARK: - Drop Support
 
 extension ChatView {
+    /// The single scope-attach path. The onDrop closure and the composer attach
+    /// button both route document ids through here — no divergent handler (#3015).
+    func attachScopedDocuments(_ ids: [String]) {
+        selectedDocuments = ChatDocumentScope.attaching(ids, to: selectedDocuments)
+        logger.info("Attached \(ids.count) document(s) to chat scope")
+    }
+
     func handleDrop(providers: [NSItemProvider]) -> Bool {
         for provider in providers {
             guard let typeIdentifier = ChatDocumentDropPayload.firstSupportedTypeIdentifier(in: provider) else {
@@ -57,8 +79,7 @@ extension ChatView {
                 }
 
                 Task { @MainActor in
-                    selectedDocuments.insert(docId)
-                    logger.info("Added document via drop: \(docId)")
+                    attachScopedDocuments([docId])
                 }
             }
         }
