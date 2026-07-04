@@ -156,7 +156,7 @@ struct LibraryView: View {
     /// Observable store backing 2D-canvas item-position persistence (#2293).
     /// Lazily created on first appear (needs the library's client from the
     /// environment); shared across this view's display-mode switches so an
-    /// arranged layout survives switching away from `.spatial` and back.
+    /// arranged layout survives switching away from `.canvas` and back.
     @State private var canvasLayoutStore: CanvasLayoutStore?
 
     /// Observable store backing standalone 2D-canvas item CONTENT (#2294).
@@ -245,13 +245,12 @@ struct LibraryView: View {
                 listView
             case .table:
                 tableView
-            case .map, .workspace, .spatial, .realitykit:
-                // Canvas (2D) — the merged 2D positioned-node view (#2667).
-                // `.map` (Canvas) is the live spatial library view. The retired
-                // `.spatial` and `.realitykit` (3D "Space"/Mind Palace) aliases
-                // both normalize to `.map` upstream and render Spatial2DCanvas
-                // off the shared canvasLayoutStore — the 3D RealityKit renderer
-                // is removed. The old `mapView`/`mapPositions` grid is retired.
+            case .canvas, .space, .workspace:
+                // Canvas (2D) — the merged 2D positioned-node view (#2667/#3081).
+                // `.canvas` is the live 2D positioned-node library view. `.space`
+                // (3D) has no renderer yet (P2/P3), so it falls back to the same
+                // Spatial2DCanvas off the shared canvasLayoutStore until built.
+                // The old `mapView`/`mapPositions` grid is retired.
                 Spatial2DCanvas(
                     nodes: libraryProjection.nodes,
                     connections: [],
@@ -700,7 +699,7 @@ extension LibraryView {
 
 extension LibraryView {
     /// Projects the current documents + entities into spatial nodes/links for
-    /// the `.realitykit` / `.spatial` views. Item positions are persisted
+    /// the `.canvas` (and future `.space`) views. Item positions are persisted
     /// separately via `CanvasLayoutStore` (#2293); this only supplies the
     /// projector's computed defaults.
     var libraryProjection: SpatialLibraryProjection {

@@ -1,35 +1,50 @@
 import SwiftUI
 
-/// View display modes (Icon/List/Table/Map) — universal across content types.
+/// View display modes (Icon/List/Table/Canvas/Space) — universal across content
+/// types.
 ///
 /// Extracted from the retired `MainToolbar.swift` (#3032): the `MainToolbar`
 /// view was orphaned and deleted, but this enum is the shared view-mode model
 /// (used by the toolbar picker, ContentView routing, the View menu, and
 /// persistence), so it lives here alongside the sibling view-mode enums in
 /// `ViewSettings.swift`.
+///
+/// Canvas & Space foundation (#3081): `.canvas` is the 2D positioned-node view
+/// (renamed from the old `.map`); `.space` is the 3D view. Both are
+/// renderer-agnostic here — the enum is the coherent model; the P2/P3 renderers
+/// are wired separately.
 enum ViewDisplayMode: String, CaseIterable, Identifiable {
     case icon = "Icon"
     case list = "List"
     case table = "Table"
-    case map = "Map"
-    // RETIRED 3D "Space" / Mind Palace alias. The RealityKit renderer was
-    // removed (3D rooms superseded by the live 2D spatial library view). The
-    // case is retained ONLY so persisted/@SceneStorage "RealityKit" rawValues
-    // still decode and migrate to .map via normalizedViewDisplayMode(). Hidden
-    // from every picker/menu; never offered by availableViewDisplayModes.
-    case realitykit = "RealityKit"
-    // DEPRECATED legacy alias (#2667). "Spatial (2D)" merged into Canvas (.map):
-    // both now render Spatial2DCanvas off the shared canvasLayoutStore. The case
-    // is retained ONLY so persisted/@SceneStorage "Spatial" rawValues still decode
-    // and can be migrated to .map by normalizedViewDisplayMode(). It is hidden from
-    // every picker/menu and never offered by availableViewDisplayModes.
-    case spatial = "Spatial"
+    case canvas = "Canvas"
+    case space = "Space"
     case workspace = "Workspace"
 
-    /// User-selectable cases (excludes the retired `.spatial` + `.realitykit`
-    /// decode-only aliases, #2667).
+    /// Decode that migrates legacy persisted/`@SceneStorage`/`@AppStorage`
+    /// rawValues (#3081). The old cases are gone, so this init folds their
+    /// stored strings onto the new ones: `"Map"` (old Canvas) and `"Spatial"`
+    /// (old 2D spatial, merged into Canvas) → `.canvas`; `"RealityKit"` (old 3D
+    /// Mind Palace render) → `.space`. Without this, those strings would decode
+    /// to `nil` and silently reset to `.icon`. The synthesized `rawValue` getter
+    /// is unaffected, so values still round-trip to the canonical rawValue.
+    init?(rawValue: String) {
+        switch rawValue {
+        case "Icon": self = .icon
+        case "List": self = .list
+        case "Table": self = .table
+        case "Canvas", "Map", "Spatial": self = .canvas
+        case "Space", "RealityKit": self = .space
+        case "Workspace": self = .workspace
+        default: return nil
+        }
+    }
+
+    /// User-selectable cases: the coherent view-mode set (#3081). `.workspace`
+    /// is offered separately via `availableViewDisplayModes` behind its feature
+    /// gate, so it is not part of the base selectable set.
     static var selectableCases: [ViewDisplayMode] {
-        allCases.filter { $0 != .spatial && $0 != .realitykit }
+        [.icon, .list, .table, .canvas, .space]
     }
 
     var id: String { rawValue }
@@ -39,8 +54,6 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .table: "Columns"
-        case .map: "Canvas"
-        case .realitykit: "Space"
         default: rawValue
         }
     }
@@ -50,9 +63,8 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         case .icon: "square.grid.2x2"
         case .list: "list.bullet"
         case .table: "tablecells"
-        case .map: "map"
-        case .realitykit: "cube.transparent"
-        case .spatial: "square.3.layers.3d"
+        case .canvas: "map"
+        case .space: "cube.transparent"
         case .workspace: "square.stack.3d.up"
         }
     }
@@ -62,9 +74,8 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         case .icon: "Grid of icons"
         case .list: "Linear list"
         case .table: "Column view"
-        case .map: "Canvas / node map"
-        case .realitykit: "3D space view"
-        case .spatial: "Spatial collection view"
+        case .canvas: "Canvas / node map"
+        case .space: "3D space view"
         case .workspace: "Workspace collection view"
         }
     }
