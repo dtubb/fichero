@@ -6,6 +6,18 @@ import Foundation
 // Keeping the app models means the ~20 view/model call sites are untouched; only
 // AutomationService's transport swaps to the generated, typed operations.
 
+// The generated schedule/trigger timestamp fields are `format: date-time` → Swift
+// `Date`, but the app models carry them as ISO8601 `String` (their views parse
+// those strings). Convert Date→String here so behavior is unchanged.
+private let automationISOFormatter: ISO8601DateFormatter = {
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    return formatter
+}()
+
+private func isoString(_ date: Date) -> String { automationISOFormatter.string(from: date) }
+private func isoString(_ date: Date?) -> String? { date.map { automationISOFormatter.string(from: $0) } }
+
 // MARK: - Schedules
 
 extension ScheduleInfo {
@@ -17,17 +29,17 @@ extension ScheduleInfo {
             scheduleType: response.scheduleType,
             cronExpression: response.cronExpression,
             intervalSeconds: response.intervalSeconds,
-            runAt: response.runAt,
+            runAt: isoString(response.runAt),
             timezone: response.timezone,
             status: response.status,
             inputs: response.inputs.additionalProperties,
             useBatch: response.useBatch,
             batchItems: response.batchItems.map { $0.additionalProperties },
             maxConcurrent: response.maxConcurrent,
-            createdAt: response.createdAt,
-            updatedAt: response.updatedAt,
-            lastRunAt: response.lastRunAt,
-            nextRunAt: response.nextRunAt,
+            createdAt: isoString(response.createdAt),
+            updatedAt: isoString(response.updatedAt),
+            lastRunAt: isoString(response.lastRunAt),
+            nextRunAt: isoString(response.nextRunAt),
             runCount: response.runCount,
             errorMessage: response.errorMessage
         )
@@ -39,8 +51,8 @@ extension ScheduleRunInfo {
         self.init(
             runId: response.runId,
             scheduleId: response.scheduleId,
-            startedAt: response.startedAt,
-            completedAt: response.completedAt,
+            startedAt: isoString(response.startedAt),
+            completedAt: isoString(response.completedAt),
             status: response.status,
             batchId: response.batchId,
             error: response.error
@@ -57,10 +69,12 @@ extension Components.Schemas.CreateScheduleRequest {
                 scheduleType: request.config.scheduleType,
                 cronExpression: request.config.cronExpression,
                 intervalSeconds: request.config.intervalSeconds,
-                runAt: request.config.runAt,
+                // Generated run_at/start_date/end_date are `date-time` → Date?;
+                // the app config carries ISO8601 strings. Parse String→Date (#3030).
+                runAt: request.config.runAt.flatMap(parseEngineDate),
                 timezone: request.config.timezone,
-                startDate: request.config.startDate,
-                endDate: request.config.endDate,
+                startDate: request.config.startDate.flatMap(parseEngineDate),
+                endDate: request.config.endDate.flatMap(parseEngineDate),
                 maxRuns: request.config.maxRuns
             ),
             inputs: .init(additionalProperties: request.inputs),
@@ -92,9 +106,9 @@ extension TriggerInfo {
             status: response.status,
             useBatch: response.useBatch,
             maxConcurrent: response.maxConcurrent,
-            createdAt: response.createdAt,
-            updatedAt: response.updatedAt,
-            lastTriggeredAt: response.lastTriggeredAt,
+            createdAt: isoString(response.createdAt),
+            updatedAt: isoString(response.updatedAt),
+            lastTriggeredAt: isoString(response.lastTriggeredAt),
             triggerCount: response.triggerCount,
             errorMessage: response.errorMessage
         )
@@ -106,12 +120,12 @@ extension TriggerExecutionInfo {
         self.init(
             executionId: response.executionId,
             triggerId: response.triggerId,
-            triggeredAt: response.triggeredAt,
+            triggeredAt: isoString(response.triggeredAt),
             filePaths: response.filePaths,
             batchId: response.batchId,
             status: response.status,
             error: response.error,
-            completedAt: response.completedAt
+            completedAt: isoString(response.completedAt)
         )
     }
 }
