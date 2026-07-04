@@ -174,10 +174,12 @@ struct ContentView: View {
     @State var navigationHistory = AppNavigationHistory()
     @State var isRestoringNavigationHistory = false
 
-    // Error service (using singleton pattern)
-    @ObservedObject var errorService = ErrorService.shared
-    @ObservedObject var featureManager = FeatureManager.shared
-    @ObservedObject var workflowRunProviderCache = WorkflowRunProviderCache.shared
+    // Injected from the window host (DocumentTabView) rather than grabbed as
+    // `.shared` here, so ContentView's dependencies are swappable/testable —
+    // prereq for the ContentView+State extractions (#3033). Still the shared
+    // instances at runtime; injection is the seam.
+    @EnvironmentObject var errorService: ErrorService
+    @EnvironmentObject var featureManager: FeatureManager
 
     // Pane focus state for Tab cycling
     @FocusState var focusedPane: PaneFocus?
@@ -351,12 +353,6 @@ struct ContentView: View {
             // (InspectorPresenter), opened by the explicit Info button — one
             // presentation, not two.
 
-        // Listen for claim selection from inspector and sync to other panes
-        .onReceive(NotificationCenter.default.publisher(for: .claimSelectedInInspector)) { notification in
-            if let claimId = notification.userInfo?["claimId"] as? String {
-                ClaimFocusState.shared.selectClaim(claimId: claimId)
-            }
-        }
         // Distraction-free full-window reading (#2520). Top-level overlay so it
         // covers sidebar, inspector, and toolbar; ⌥⌘F enters, Esc exits.
         .overlay { immersiveReadingOverlay }
@@ -942,6 +938,8 @@ private struct CompactSearchableModifier: ViewModifier {
     ContentView()
         .environmentObject(ViewSettings())
         .environmentObject(AppState())
+        .environmentObject(ErrorService.shared)
+        .environmentObject(FeatureManager.shared)
         .frame(width: 1200, height: 700)
 }
 
@@ -956,6 +954,8 @@ private struct CompactSearchableModifier: ViewModifier {
     ContentView()
         .environmentObject(ViewSettings())
         .environmentObject(AppState())
+        .environmentObject(ErrorService.shared)
+        .environmentObject(FeatureManager.shared)
         .environment(\.horizontalSizeClass, .regular)
         .frame(width: 1200, height: 700)
 }
@@ -964,6 +964,8 @@ private struct CompactSearchableModifier: ViewModifier {
     ContentView()
         .environmentObject(ViewSettings())
         .environmentObject(AppState())
+        .environmentObject(ErrorService.shared)
+        .environmentObject(FeatureManager.shared)
         .environment(\.horizontalSizeClass, .compact)
         .frame(width: 390, height: 780)
 }

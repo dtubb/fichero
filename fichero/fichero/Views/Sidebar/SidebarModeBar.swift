@@ -9,7 +9,7 @@ struct SidebarModeBar: View {
     @Binding var selectedMode: SidebarMode
 
     // Feature manager to hide disabled modes
-    @ObservedObject var featureManager = FeatureManager.shared
+    @EnvironmentObject var featureManager: FeatureManager
 
     // Badge counts from environment
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
@@ -155,4 +155,5 @@ struct SidebarModeBar: View {
     }
     .frame(width: 280, height: 400)
     .environment(WorkflowExecutionObserver())
+    .environmentObject(FeatureManager.shared)
 }

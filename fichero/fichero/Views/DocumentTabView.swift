@@ -97,6 +97,11 @@ struct DocumentTabView: View {
                     .environmentObject(documentService)
                     .environmentObject(storageService)
                     .environmentObject(windowState)
+                    // App-wide singletons injected at the ContentView host so
+                    // ContentView reads them via @EnvironmentObject rather than
+                    // grabbing `.shared` — the DI seam for #3033. Shared instances.
+                    .environmentObject(ErrorService.shared)
+                    .environmentObject(FeatureManager.shared)
                     // Forward the @Observable observer so ContentView and its subtree
                     // (DocumentInspector → ArtifactEntityViews) can read it via
                     // @Environment(WorkflowExecutionObserver.self). Without this the

@@ -85,7 +85,6 @@
 		2026749B2F475B4A008EAB5D /* FilesNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2026749A2F475B4A008EAB5D /* FilesNodeConfig.swift */; };
 		2026749D2F475B64008EAB5D /* TranscribeNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2026749C2F475B64008EAB5D /* TranscribeNodeConfig.swift */; };
 		2026749F2F475B7A008EAB5D /* DescribeNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2026749E2F475B7A008EAB5D /* DescribeNodeConfig.swift */; };
-		202674A22F4762E6008EAB5D /* ImageZoomToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674A12F4762E6008EAB5D /* ImageZoomToolbar.swift */; };
 		202674A42F47642A008EAB5D /* SummarizeFileNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674A32F47642A008EAB5D /* SummarizeFileNodeConfig.swift */; };
 		202674A62F476439008EAB5D /* SummarizeFolderNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674A52F476439008EAB5D /* SummarizeFolderNodeConfig.swift */; };
 		202674A82F476447008EAB5D /* SummarizeCollectionNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674A72F476447008EAB5D /* SummarizeCollectionNodeConfig.swift */; };
@@ -175,6 +174,7 @@
 		283826C50E2AE354A7EB5611 /* SpatialNodeThumbnail.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF5FD0D414191E6FFC18E8BC /* SpatialNodeThumbnail.swift */; };
 		28510D794CAA15808E28CB6C /* BackendHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B2292335F30622AB8F0ABE /* BackendHost.swift */; };
 		286700373FC6B54B843E8DA5 /* NodePopover+Comparison.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32F310DFF84C9557A77D4FDA /* NodePopover+Comparison.swift */; };
+		2A7F1839345B56CA811A4941 /* ViewDisplayMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956F66055D569E37A35E0377 /* ViewDisplayMode.swift */; };
 		2C2268FA2E4307AAA02C7EC4 /* APIClient+Types.swift in Sources */ = {isa = PBXBuildFile; fileRef = 300A8405FFC476E5124372AE /* APIClient+Types.swift */; };
 		2C8A895EE1B0F5029E3D00B6 /* WorkspaceItemPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 489A0FBA854FF9A1158996D6 /* WorkspaceItemPicker.swift */; };
 		2D4468D68538BE7767729108 /* ResearchProjectListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE29C018865C9A1538200D8E /* ResearchProjectListView.swift */; };
@@ -380,11 +380,9 @@
 		A1BFB4092F057BAC00EAA55A /* ViewMenuCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4082F057BAC00EAA55A /* ViewMenuCommands.swift */; };
 		A1BFB4502F0AABA600EAA55A /* ItemTypeRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB44E2F0AABA600EAA55A /* ItemTypeRegistry.swift */; };
 		A1BFB4532F0AABBC00EAA55A /* AddItemMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4522F0AABBC00EAA55A /* AddItemMenu.swift */; };
-		A1BFB4552F0AABE200EAA55A /* MainToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4542F0AABE200EAA55A /* MainToolbar.swift */; };
 		A1BFB4572F0AAC1E00EAA55A /* MiniToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4562F0AAC1E00EAA55A /* MiniToolbar.swift */; };
 		A1BFB45C2F0AAC3700EAA55A /* WorkflowToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB45B2F0AAC3700EAA55A /* WorkflowToolbar.swift */; };
 		A1BFB45E2F0AAC3700EAA55A /* ChatViewToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4582F0AAC3700EAA55A /* ChatViewToolbar.swift */; };
-		A1BFB45F2F0AAC3700EAA55A /* SearchViewToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB45A2F0AAC3700EAA55A /* SearchViewToolbar.swift */; };
 		A1BFB4612F0AADC000EAA55A /* LayoutMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4602F0AADC000EAA55A /* LayoutMode.swift */; };
 		A1BFB4F22F30000100EAA55A /* MacPlainTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4F12F30000100EAA55A /* MacPlainTextEditor.swift */; };
 		A1D8BCE82F2CD054006D91D7 /* WorkflowPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D8BCE62F2CD054006D91D7 /* WorkflowPickerSheet.swift */; };
@@ -658,7 +656,6 @@
 		2026749A2F475B4A008EAB5D /* FilesNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesNodeConfig.swift; sourceTree = "<group>"; };
 		2026749C2F475B64008EAB5D /* TranscribeNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscribeNodeConfig.swift; sourceTree = "<group>"; };
 		2026749E2F475B7A008EAB5D /* DescribeNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DescribeNodeConfig.swift; sourceTree = "<group>"; };
-		202674A12F4762E6008EAB5D /* ImageZoomToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageZoomToolbar.swift; sourceTree = "<group>"; };
 		202674A32F47642A008EAB5D /* SummarizeFileNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SummarizeFileNodeConfig.swift; sourceTree = "<group>"; };
 		202674A52F476439008EAB5D /* SummarizeFolderNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SummarizeFolderNodeConfig.swift; sourceTree = "<group>"; };
 		202674A72F476447008EAB5D /* SummarizeCollectionNodeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SummarizeCollectionNodeConfig.swift; sourceTree = "<group>"; };
@@ -869,6 +866,7 @@
 		92773EAEE52587BBA8DEDC9F /* LibraryView+TableMapViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "LibraryView+TableMapViews.swift"; sourceTree = "<group>"; };
 		92961C0FFD09035FB62FB7AF /* CollectionWorkspaceStub.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CollectionWorkspaceStub.swift; sourceTree = "<group>"; };
 		935EF9A7E6549E855A80EA21 /* ArtifactListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ArtifactListView.swift; sourceTree = "<group>"; };
+		956F66055D569E37A35E0377 /* ViewDisplayMode.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ViewDisplayMode.swift; sourceTree = "<group>"; };
 		95706A3222B50B478F15D83D /* ImageEditChainPanel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImageEditChainPanel.swift; sourceTree = "<group>"; };
 		986AE09BC3B5DC9ECD5820A5 /* EntityKindChartView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EntityKindChartView.swift; sourceTree = "<group>"; };
 		98C0EC9D283E4FFF816B0460 /* ActivityStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ActivityStore.swift; sourceTree = "<group>"; };
@@ -972,10 +970,8 @@
 		A1BFB4082F057BAC00EAA55A /* ViewMenuCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewMenuCommands.swift; sourceTree = "<group>"; };
 		A1BFB44E2F0AABA600EAA55A /* ItemTypeRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemTypeRegistry.swift; sourceTree = "<group>"; };
 		A1BFB4522F0AABBC00EAA55A /* AddItemMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddItemMenu.swift; sourceTree = "<group>"; };
-		A1BFB4542F0AABE200EAA55A /* MainToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainToolbar.swift; sourceTree = "<group>"; };
 		A1BFB4562F0AAC1E00EAA55A /* MiniToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniToolbar.swift; sourceTree = "<group>"; };
 		A1BFB4582F0AAC3700EAA55A /* ChatViewToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewToolbar.swift; sourceTree = "<group>"; };
-		A1BFB45A2F0AAC3700EAA55A /* SearchViewToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchViewToolbar.swift; sourceTree = "<group>"; };
 		A1BFB45B2F0AAC3700EAA55A /* WorkflowToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowToolbar.swift; sourceTree = "<group>"; };
 		A1BFB4602F0AADC000EAA55A /* LayoutMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutMode.swift; sourceTree = "<group>"; };
 		A1BFB4F12F30000100EAA55A /* MacPlainTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPlainTextEditor.swift; sourceTree = "<group>"; };
@@ -1250,7 +1246,6 @@
 		202674A02F4762DA008EAB5D /* ImageViewer */ = {
 			isa = PBXGroup;
 			children = (
-				202674A12F4762E6008EAB5D /* ImageZoomToolbar.swift */,
 				202674AF2F4781BA008EAB5D /* TrackingImageView.swift */,
 				202674B12F478206008EAB5D /* ImageWithCursorTracking.swift */,
 			);
@@ -1808,6 +1803,7 @@
 				C10000110000000000000002 /* AppInstaller.swift */,
 				C10000110000000000000001 /* SparkleUpdater.swift */,
 				FBE84D175FC1F5C5644EB914 /* WindowSeed.swift */,
+				956F66055D569E37A35E0377 /* ViewDisplayMode.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -1872,10 +1868,8 @@
 		A1BFB4102F057C4000EAA55A /* Toolbars */ = {
 			isa = PBXGroup;
 			children = (
-				A1BFB4542F0AABE200EAA55A /* MainToolbar.swift */,
 				A1BFB4562F0AAC1E00EAA55A /* MiniToolbar.swift */,
 				A1BFB4582F0AAC3700EAA55A /* ChatViewToolbar.swift */,
-				A1BFB45A2F0AAC3700EAA55A /* SearchViewToolbar.swift */,
 				A1BFB45B2F0AAC3700EAA55A /* WorkflowToolbar.swift */,
 				CC02D722B13BC58D4D4B37B7 /* MiniToolbarComponents.swift */,
 				FAE00C2DC909B57AA030519E /* ReaderToolbar.swift */,
@@ -2333,7 +2327,6 @@
 				A1BFB2DF2F04328300EAA55A /* ImagePreviewMenuCommands.swift in Sources */,
 				20D8ED592F48E2DE006950A3 /* ActivityProgressView+DataLoading.swift in Sources */,
 				A1BFB2F02F043FA100EAA55A /* BackendConnectionView.swift in Sources */,
-				A1BFB4552F0AABE200EAA55A /* MainToolbar.swift in Sources */,
 				A1BFB4012F057B9300EAA55A /* ImageViewerComponents.swift in Sources */,
 				A1BFB4572F0AAC1E00EAA55A /* MiniToolbar.swift in Sources */,
 				A1BFB4022F057B9300EAA55A /* NavigatorMiniMap.swift in Sources */,
@@ -2356,7 +2349,6 @@
 				A13E7C2F2F27E17F00EC9EE1 /* SearchServiceGenerated.swift in Sources */,
 				A13E7C302F27E17F00EC9EE1 /* BatchServiceGenerated.swift in Sources */,
 				A1BFB45E2F0AAC3700EAA55A /* ChatViewToolbar.swift in Sources */,
-				A1BFB45F2F0AAC3700EAA55A /* SearchViewToolbar.swift in Sources */,
 				202674D62F48963F008EAB5D /* SearchResultRowFromAPI.swift in Sources */,
 				A1BFB2E02F04328300EAA55A /* FocusedCommandButtons.swift in Sources */,
 				001 /* FicheroApp.swift in Sources */,
@@ -2524,7 +2516,6 @@
 				A1BFB2C92F042C0500EAA55A /* AppState.swift in Sources */,
 				20D8EDFC2F4BBC1A006950A3 /* WorkflowStreamService+Parsing.swift in Sources */,
 				018 /* ChatView.swift in Sources */,
-				202674A22F4762E6008EAB5D /* ImageZoomToolbar.swift in Sources */,
 				2011E35A2F93ADF700606651 /* ComparisonTypes.swift in Sources */,
 				202674992F475B33008EAB5D /* SearchNodeConfig.swift in Sources */,
 				200BCF2C2F3D501800D7851A /* ContentView+State.swift in Sources */,
@@ -2864,6 +2855,7 @@
 				8F7C131CEB5C672DD1E4813A /* BackendRootGate.swift in Sources */,
 				28510D794CAA15808E28CB6C /* BackendHost.swift in Sources */,
 				17ED8EB9711094AF388E4677 /* LibrarySharingBadge.swift in Sources */,
+				2A7F1839345B56CA811A4941 /* ViewDisplayMode.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {

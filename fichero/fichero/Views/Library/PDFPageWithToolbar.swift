@@ -3,12 +3,11 @@ import SwiftUI
 
 // MARK: - PDFPageWithToolbar
 
-/// PDFPageView previously bundled its own zoom toolbar (#656). The
-/// embedded toolbar duplicated the document inspector's zoom controls
-/// + the LibraryView icon-zoom strip, producing two stacked sets of
-/// magnifier pills (#1010). The toolbar is now removed; PDFKit's
-/// native ⌘+ / ⌘- still work, and the inspector toolbar remains the
-/// canonical zoom surface.
+/// A PDF page plus its page toolbar (title / paging / close). It carries no
+/// zoom controls by design: the standalone zoom toolbars (`PDFPageView`'s old
+/// embedded one, #656/#1010, and `ImageZoomToolbar`, deleted in #3032) were
+/// removed because they duplicated the inspector's zoom surface. Zoom is PDFKit
+/// native (⌘+ / ⌘-) plus the inspector, which stays the canonical zoom surface.
 struct PDFPageWithToolbar: View {
     let documentId: String
     let pageIndex: Int
