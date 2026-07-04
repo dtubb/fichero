@@ -42509,6 +42509,16 @@
             "title": "Copy Mode",
             "default": false
           },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "link",
+              "copy",
+              "move"
+            ],
+            "nullable": true,
+            "title": "Mode"
+          },
           "extract_text": {
             "type": "boolean",
             "title": "Extract Text",
@@ -42542,6 +42552,16 @@
             "type": "boolean",
             "title": "Copy Mode",
             "default": false
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "link",
+              "copy",
+              "move"
+            ],
+            "nullable": true,
+            "title": "Mode"
           },
           "recursive": {
             "type": "boolean",

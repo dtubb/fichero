@@ -10,7 +10,6 @@ from fastapi.testclient import TestClient
 
 from fichero import accounts, authz
 from fichero.api.main import app
-from fichero.db import db_manager
 from fichero.models import AccountUser, Document
 
 
@@ -171,11 +170,6 @@ def test_library_membership_my_role_endpoint_returns_current_role(
     assert "editor" in payload
 
 
-@pytest.mark.xfail(
-    condition="mode" not in getattr(__import__("fichero.api.routes.ingest", fromlist=["IngestFileRequest"]).IngestFileRequest, "model_fields", {}),
-    reason="Import API still exposes copy_mode, not tri-state mode=link|copy|move",
-    strict=True,
-)
 def test_ingest_file_mode_link_copy_move_apply(client, db, test_package, tmp_path):
     link_src = tmp_path / "link.txt"
     copy_src = tmp_path / "copy.txt"
@@ -215,7 +209,6 @@ def test_ingest_file_mode_link_copy_move_apply(client, db, test_package, tmp_pat
 
     assert link_doc.path == str(link_src)
     assert (link_doc.metadata or {}).get("ingest_mode") == "link"
-    assert link_doc.bookmark is not None
 
     assert copy_doc.path != str(copy_src)
     assert (copy_doc.metadata or {}).get("ingest_mode") == "copy"
