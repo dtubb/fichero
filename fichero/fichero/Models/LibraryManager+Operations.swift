@@ -236,11 +236,20 @@ extension LibraryManager {
 
         // Best-effort unregister from the global registry. Failure here is
         // non-fatal — the library is already gone from the app's open set.
-        let encoded = path.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? path
         Task {
             do {
-                try await apiClient.delete("/registry/\(encoded)")
-                libraryManagerLogger.info("Unregistered library from registry: \(path, privacy: .public)")
+                // Generated remove_known_library op (#3030); runtime encodes the
+                // path param, backend decodes it back to the raw filesystem path.
+                let response = try await apiClient.api.removeKnownLibraryApiRegistryLibraryPathDelete(
+                    path: .init(libraryPath: path)
+                )
+                if case .ok = response {
+                    libraryManagerLogger.info("Unregistered library from registry: \(path, privacy: .public)")
+                } else {
+                    libraryManagerLogger.error(
+                        "Failed to unregister library \(path, privacy: .public): unexpected registry response"
+                    )
+                }
             } catch {
                 libraryManagerLogger.error(
                     "Failed to unregister library \(path, privacy: .public): \(error.localizedDescription)"
