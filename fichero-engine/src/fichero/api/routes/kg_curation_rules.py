@@ -7,6 +7,8 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from fichero.actions.registry import ActionContext, ChangeSpec, action, registry
+from fichero.api.auth import action_context
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.knowledge_models import (
@@ -108,6 +110,64 @@ def _claim_rule_response(rule: ClaimSuppressionRule) -> ClaimRuleReadResponse:
     return ClaimRuleReadResponse(**rule.model_dump())
 
 
+def _create_entity_rule_impl(
+    db: Database, request: EntityRuleCreateRequest
+) -> EntityResolutionRule:
+    rule = EntityResolutionRule(**request.model_dump())
+    db.save(rule)
+    return rule
+
+
+def _create_entity_rules_batch_impl(
+    db: Database, request: EntityRuleBatchCreateRequest
+) -> list[EntityResolutionRule]:
+    created: list[EntityResolutionRule] = []
+    for item in request.items:
+        rule = EntityResolutionRule(**item.model_dump())
+        db.save(rule)
+        created.append(rule)
+    return created
+
+
+def _delete_entity_rule_impl(db: Database, rule_id: str) -> None:
+    rule = db.get(EntityResolutionRule, rule_id)
+    if rule is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Entity rule not found: {rule_id}",
+        )
+    db.delete(rule)
+
+
+def _create_claim_rule_impl(
+    db: Database, request: ClaimRuleCreateRequest
+) -> ClaimSuppressionRule:
+    rule = ClaimSuppressionRule(**request.model_dump())
+    db.save(rule)
+    return rule
+
+
+def _create_claim_rules_batch_impl(
+    db: Database, request: ClaimRuleBatchCreateRequest
+) -> list[ClaimSuppressionRule]:
+    created: list[ClaimSuppressionRule] = []
+    for item in request.items:
+        rule = ClaimSuppressionRule(**item.model_dump())
+        db.save(rule)
+        created.append(rule)
+    return created
+
+
+def _delete_claim_rule_impl(db: Database, rule_id: str) -> None:
+    rule = db.get(ClaimSuppressionRule, rule_id)
+    if rule is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Claim rule not found: {rule_id}",
+        )
+    db.delete(rule)
+
+
 @router.get("/entity-rules", response_model=EntityRuleListResponse)
 async def list_entity_rules(
     db: Database = Depends(get_library_database),
@@ -127,41 +187,45 @@ async def list_entity_rules(
 async def create_entity_rule(
     request: EntityRuleCreateRequest,
     db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
 ) -> EntityRuleReadResponse:
-    rule = EntityResolutionRule(**request.model_dump())
-    db.save(rule)
-    return _entity_rule_response(rule)
+    result = registry.invoke(
+        db,
+        "kg.entity_rule.create",
+        request.model_dump(mode="json"),
+        ctx,
+    )
+    return EntityRuleReadResponse.model_validate(result.result)
 
 
 @router.post("/entity-rules/batch", response_model=EntityRuleListResponse)
 async def create_entity_rules_batch(
     request: EntityRuleBatchCreateRequest,
     db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
 ) -> EntityRuleListResponse:
-    created: list[EntityResolutionRule] = []
-    for item in request.items:
-        rule = EntityResolutionRule(**item.model_dump())
-        db.save(rule)
-        created.append(rule)
-    return EntityRuleListResponse(
-        items=[_entity_rule_response(rule) for rule in created],
-        count=len(created),
+    result = registry.invoke(
+        db,
+        "kg.entity_rule.batch_create",
+        request.model_dump(mode="json"),
+        ctx,
     )
+    return EntityRuleListResponse.model_validate(result.result)
 
 
 @router.delete("/entity-rules", response_model=EntityRuleDeleteResponse)
 async def delete_entity_rule(
     request: EntityRuleDeleteRequest,
     db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
 ) -> EntityRuleDeleteResponse:
-    rule = db.get(EntityResolutionRule, request.rule_id)
-    if rule is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Entity rule not found: {request.rule_id}",
-        )
-    db.delete(rule)
-    return EntityRuleDeleteResponse(deleted_rule_id=request.rule_id)
+    result = registry.invoke(
+        db,
+        "kg.entity_rule.delete",
+        request.model_dump(mode="json"),
+        ctx,
+    )
+    return EntityRuleDeleteResponse.model_validate(result.result)
 
 
 @router.get("/claim-rules", response_model=ClaimRuleListResponse)
@@ -183,38 +247,168 @@ async def list_claim_rules(
 async def create_claim_rule(
     request: ClaimRuleCreateRequest,
     db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
 ) -> ClaimRuleReadResponse:
-    rule = ClaimSuppressionRule(**request.model_dump())
-    db.save(rule)
-    return _claim_rule_response(rule)
+    result = registry.invoke(
+        db,
+        "kg.claim_rule.create",
+        request.model_dump(mode="json"),
+        ctx,
+    )
+    return ClaimRuleReadResponse.model_validate(result.result)
 
 
 @router.post("/claim-rules/batch", response_model=ClaimRuleListResponse)
 async def create_claim_rules_batch(
     request: ClaimRuleBatchCreateRequest,
     db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
 ) -> ClaimRuleListResponse:
-    created: list[ClaimSuppressionRule] = []
-    for item in request.items:
-        rule = ClaimSuppressionRule(**item.model_dump())
-        db.save(rule)
-        created.append(rule)
-    return ClaimRuleListResponse(
-        items=[_claim_rule_response(rule) for rule in created],
-        count=len(created),
+    result = registry.invoke(
+        db,
+        "kg.claim_rule.batch_create",
+        request.model_dump(mode="json"),
+        ctx,
     )
+    return ClaimRuleListResponse.model_validate(result.result)
 
 
 @router.delete("/claim-rules", response_model=ClaimRuleDeleteResponse)
 async def delete_claim_rule(
     request: ClaimRuleDeleteRequest,
     db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
 ) -> ClaimRuleDeleteResponse:
-    rule = db.get(ClaimSuppressionRule, request.rule_id)
-    if rule is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Claim rule not found: {request.rule_id}",
-        )
-    db.delete(rule)
-    return ClaimRuleDeleteResponse(deleted_rule_id=request.rule_id)
+    result = registry.invoke(
+        db,
+        "kg.claim_rule.delete",
+        request.model_dump(mode="json"),
+        ctx,
+    )
+    return ClaimRuleDeleteResponse.model_validate(result.result)
+
+
+@action(
+    "kg.entity_rule.create",
+    EntityRuleCreateRequest,
+    domains=["entity"],
+    undoable=False,
+)
+def _action_create_entity_rule(
+    db: Database, params: EntityRuleCreateRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    rule = _create_entity_rule_impl(db, params)
+    spec = ChangeSpec(
+        domains=["entity"],
+        target_ids=[rule.id],
+        after=rule.model_dump(mode="json"),
+        emit_type="entity.updated",
+    )
+    return _entity_rule_response(rule).model_dump(mode="json"), spec
+
+
+@action(
+    "kg.entity_rule.batch_create",
+    EntityRuleBatchCreateRequest,
+    domains=["entity"],
+    undoable=False,
+)
+def _action_create_entity_rules_batch(
+    db: Database, params: EntityRuleBatchCreateRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    created = _create_entity_rules_batch_impl(db, params)
+    spec = ChangeSpec(
+        domains=["entity"],
+        target_ids=[rule.id for rule in created],
+        after={"rule_ids": [rule.id for rule in created]},
+        emit_type="entity.updated" if created else None,
+    )
+    return EntityRuleListResponse(
+        items=[_entity_rule_response(rule) for rule in created],
+        count=len(created),
+    ).model_dump(mode="json"), spec
+
+
+@action(
+    "kg.entity_rule.delete",
+    EntityRuleDeleteRequest,
+    domains=["entity"],
+    undoable=False,
+)
+def _action_delete_entity_rule(
+    db: Database, params: EntityRuleDeleteRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    _delete_entity_rule_impl(db, params.rule_id)
+    spec = ChangeSpec(
+        domains=["entity"],
+        target_ids=[params.rule_id],
+        before={"rule_id": params.rule_id},
+        after={"deleted_rule_id": params.rule_id},
+        emit_type="entity.updated",
+    )
+    return EntityRuleDeleteResponse(deleted_rule_id=params.rule_id).model_dump(
+        mode="json"
+    ), spec
+
+
+@action(
+    "kg.claim_rule.create",
+    ClaimRuleCreateRequest,
+    domains=["claim"],
+    undoable=False,
+)
+def _action_create_claim_rule(
+    db: Database, params: ClaimRuleCreateRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    rule = _create_claim_rule_impl(db, params)
+    spec = ChangeSpec(
+        domains=["claim"],
+        target_ids=[rule.id],
+        after=rule.model_dump(mode="json"),
+        emit_type="claim.updated",
+    )
+    return _claim_rule_response(rule).model_dump(mode="json"), spec
+
+
+@action(
+    "kg.claim_rule.batch_create",
+    ClaimRuleBatchCreateRequest,
+    domains=["claim"],
+    undoable=False,
+)
+def _action_create_claim_rules_batch(
+    db: Database, params: ClaimRuleBatchCreateRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    created = _create_claim_rules_batch_impl(db, params)
+    spec = ChangeSpec(
+        domains=["claim"],
+        target_ids=[rule.id for rule in created],
+        after={"rule_ids": [rule.id for rule in created]},
+        emit_type="claim.updated" if created else None,
+    )
+    return ClaimRuleListResponse(
+        items=[_claim_rule_response(rule) for rule in created],
+        count=len(created),
+    ).model_dump(mode="json"), spec
+
+
+@action(
+    "kg.claim_rule.delete",
+    ClaimRuleDeleteRequest,
+    domains=["claim"],
+    undoable=False,
+)
+def _action_delete_claim_rule(
+    db: Database, params: ClaimRuleDeleteRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    _delete_claim_rule_impl(db, params.rule_id)
+    spec = ChangeSpec(
+        domains=["claim"],
+        target_ids=[params.rule_id],
+        before={"rule_id": params.rule_id},
+        after={"deleted_rule_id": params.rule_id},
+        emit_type="claim.updated",
+    )
+    return ClaimRuleDeleteResponse(deleted_rule_id=params.rule_id).model_dump(
+        mode="json"
+    ), spec

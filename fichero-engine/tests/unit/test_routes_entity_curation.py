@@ -17,7 +17,7 @@ from fichero.knowledge_models import (
     KnowledgeEntity,
     MutationLog,
 )
-from fichero.models import DocType, Document
+from fichero.models import ActionAudit, DocType, Document
 
 
 # ---------------------------------------------------------------------------
@@ -246,6 +246,30 @@ class TestMergeEntities:
         absorber_after = db.get(KnowledgeEntity, absorber.id)
         assert absorber_after.description == "Unified Alice entity"
 
+    def test_merge_writes_action_audit_and_emits(self, client, db, monkeypatch):
+        absorber = _make_entity(db, "Alice")
+        absorbed = _make_entity(db, "Alicia")
+        calls: list[tuple] = []
+        monkeypatch.setattr(
+            "fichero.api.change_stream.emit_change",
+            lambda *a, **k: calls.append((a, k)),
+        )
+
+        r = client.post(
+            "/api/kg/entity-curation/merge",
+            json={
+                "absorbing_entity_id": absorber.id,
+                "absorbed_entity_ids": [absorbed.id],
+            },
+        )
+
+        assert r.status_code == 200
+        audits = [row for row in db.all(ActionAudit) if row.action_name == "entity.merge"]
+        assert len(audits) == 1
+        assert audits[0].target_ids == [absorber.id, absorbed.id]
+        assert calls[-1][1]["type"] == "entity.merged"
+        assert calls[-1][1]["entity_ids"] == [absorber.id, absorbed.id]
+
 
 class TestBatchEntityCuration:
     def test_batch_updates_entities_and_logs_mutations(self, client, db):
@@ -395,3 +419,30 @@ class TestListEntityAudits:
         items = r.json()["items"]
         assert len(items) == 1
         assert items[0]["target_entity_id"] == absorber.id
+
+
+class TestUndoEntityOperation:
+    def test_undo_writes_action_audit_and_emits(self, client, db, monkeypatch):
+        absorber = _make_entity(db, "Alice")
+        absorbed = _make_entity(db, "Alicia")
+        merge = client.post(
+            "/api/kg/entity-curation/merge",
+            json={
+                "absorbing_entity_id": absorber.id,
+                "absorbed_entity_ids": [absorbed.id],
+            },
+        )
+        calls: list[tuple] = []
+        monkeypatch.setattr(
+            "fichero.api.change_stream.emit_change",
+            lambda *a, **k: calls.append((a, k)),
+        )
+
+        r = client.post(f"/api/kg/entity-curation/audit/{merge.json()['id']}/undo")
+
+        assert r.status_code == 200
+        audits = [row for row in db.all(ActionAudit) if row.action_name == "entity.unmerge"]
+        assert len(audits) == 1
+        assert audits[0].target_ids == [absorber.id, absorbed.id]
+        assert calls[-1][1]["type"] == "entity.split"
+        assert calls[-1][1]["entity_ids"] == [absorber.id, absorbed.id]

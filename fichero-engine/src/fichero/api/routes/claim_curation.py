@@ -11,12 +11,10 @@ from copy import deepcopy
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, model_validator
 
-from fichero.api.library_header import require_library_path
-from fichero.api.auth import request_actor
-from fichero.api.change_stream import emit_change
+from fichero.api.auth import action_context
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.kg._common import is_trivial_claim
@@ -917,27 +915,15 @@ async def transition_claim(
     claim_id: str,
     request: ClaimTransitionRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: ActionContext = Depends(action_context),
 ) -> ClaimTransitionResponse:
-    """Transition a claim's curation state."""
-    response = transition_claim_impl(db, claim_id, request)
-
-    # Observable data layer (#1863): broadcast the curation-state change so
-    # every window's ClaimStore refreshes. Best-effort.
-    emit_change(
-        x_fichero_library_path,
-        type="claim.updated",
-        claim_ids=[claim_id],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
+    result = registry.invoke(
+        db,
+        "claim.transition",
+        {"claim_id": claim_id, **request.model_dump(mode="json")},
+        ctx,
     )
-
-    return response
+    return ClaimTransitionResponse.model_validate(result.result)
 
 
 @router.post(
@@ -949,27 +935,15 @@ async def transition_claim(
 async def batch_transition_claims(
     request: BatchClaimTransitionRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: ActionContext = Depends(action_context),
 ) -> BatchClaimTransitionResponse:
-    """Batch transition multiple claims."""
-    response, transitioned_ids = batch_transition_claims_impl(db, request)
-
-    # Observable data layer (#1863): broadcast the curation-state changes so
-    # every window's ClaimStore refreshes. Best-effort.
-    if transitioned_ids:
-        emit_change(
-            x_fichero_library_path,
-            type="claim.updated",
-            claim_ids=transitioned_ids,
-            actor=actor,
-            origin_window=x_fichero_origin_window,
-            origin_user=actor,
-        )
-    return response
+    result = registry.invoke(
+        db,
+        "claim.batch_transition",
+        request.model_dump(mode="json"),
+        ctx,
+    )
+    return BatchClaimTransitionResponse.model_validate(result.result)
 
 
 @kg_claims_router.patch(
@@ -980,26 +954,15 @@ async def batch_transition_claims(
 async def batch_set_claim_curation_state(
     request: BatchClaimCurationRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: ActionContext = Depends(action_context),
 ) -> BatchClaimCurationResponse:
-    response, updated_ids = batch_set_claim_curation_state_impl(db, request)
-
-    # Observable data layer (#1863): broadcast the curation-state changes so
-    # every window's ClaimStore refreshes. Best-effort.
-    if updated_ids:
-        emit_change(
-            x_fichero_library_path,
-            type="claim.updated",
-            claim_ids=updated_ids,
-            actor=actor,
-            origin_window=x_fichero_origin_window,
-            origin_user=actor,
-        )
-    return response
+    result = registry.invoke(
+        db,
+        "claim.batch_curation",
+        request.model_dump(mode="json"),
+        ctx,
+    )
+    return BatchClaimCurationResponse.model_validate(result.result)
 
 
 @kg_claims_router.post(
@@ -1010,25 +973,15 @@ async def batch_set_claim_curation_state(
 async def merge_claims(
     request: ClaimMergeRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: ActionContext = Depends(action_context),
 ) -> ClaimAuditResponse:
-    audit = merge_claims_impl(db, request)
-
-    # Observable data layer (#1863): tell every window the claim set changed so
-    # their ClaimStores refresh (survivor + absorbed). Best-effort.
-    emit_change(
-        x_fichero_library_path,
-        type="claim.merged",
-        claim_ids=[audit.target_claim_id, *audit.source_claim_ids],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
+    result = registry.invoke(
+        db,
+        "claim.merge",
+        request.model_dump(mode="json"),
+        ctx,
     )
-    return _claim_audit_response(audit)
+    return ClaimAuditResponse.model_validate(result.result)
 
 
 @kg_claims_router.post(
@@ -1039,25 +992,15 @@ async def merge_claims(
 async def unmerge_claims(
     request: ClaimUnmergeRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: ActionContext = Depends(action_context),
 ) -> ClaimAuditResponse:
-    undo = unmerge_claims_impl(db, request)
-
-    # Observable data layer (#1863): the reversed merge restored claims, so tell
-    # every window to refresh (survivor + previously-absorbed). Best-effort.
-    emit_change(
-        x_fichero_library_path,
-        type="claim.merged",
-        claim_ids=[undo.target_claim_id, *undo.source_claim_ids],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
+    result = registry.invoke(
+        db,
+        "claim.unmerge",
+        request.model_dump(mode="json"),
+        ctx,
     )
-    return _claim_audit_response(undo)
+    return ClaimAuditResponse.model_validate(result.result)
 
 
 @kg_claims_router.post(
@@ -1068,8 +1011,15 @@ async def unmerge_claims(
 async def prune_trivial_claims(
     request: PruneTrivialClaimsRequest,
     db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
 ) -> PruneTrivialClaimsResponse:
-    return prune_trivial_claims_impl(db, request)
+    result = registry.invoke(
+        db,
+        "claim.prune_trivial",
+        request.model_dump(mode="json"),
+        ctx,
+    )
+    return PruneTrivialClaimsResponse.model_validate(result.result)
 
 
 @router.get(
@@ -1310,7 +1260,7 @@ async def get_rejected_queue(
 # already-an-undo op has no single clean inverse, but each still captures a
 # before-snapshot in the audit for who-changed-what.
 
-from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
+from fichero.actions.registry import action, ActionContext, ChangeSpec, registry  # noqa: E402
 
 
 class ClaimTransitionActionParams(BaseModel):
