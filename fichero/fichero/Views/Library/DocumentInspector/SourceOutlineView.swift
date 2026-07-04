@@ -1,27 +1,14 @@
 import SwiftUI
 
-/// One row of a document's hierarchical outline, as returned by
-/// GET /api/documents/{id}/outline (#1491). The endpoint returns a flat,
-/// depth-first preorder list; `depth` drives the tree nesting.
-struct DocumentOutlineRow: Codable, Identifiable, Hashable {
+/// One row of a document's hierarchical outline. View model built from the
+/// generated `document_outline` response (#1491/#3030). The endpoint returns a
+/// flat, depth-first preorder list; `depth` drives the tree nesting.
+struct DocumentOutlineRow: Identifiable, Hashable {
     let id: String
     let depth: Int
     let kind: String
     let label: String
     let count: Int
-}
-
-/// Envelope for the outline endpoint.
-struct DocumentOutlineResponse: Codable {
-    let documentId: String
-    let rows: [DocumentOutlineRow]
-    let count: Int
-
-    enum CodingKeys: String, CodingKey {
-        case documentId = "document_id"
-        case rows
-        case count
-    }
 }
 
 /// Nested node built from the flat outline rows so SwiftUI's `List(_:children:)`
@@ -128,10 +115,24 @@ struct SourceOutlineView: View {
         loadError = nil
         defer { isLoading = false }
         do {
-            let response: DocumentOutlineResponse = try await apiClient.get(
-                "/documents/\(documentId)/outline"
+            // Generated `document_outline` op via the shared typed client — throws
+            // on non-`.ok` rather than decoding a failure into an empty tree (#3030).
+            let response = try await apiClient.api.documentOutlineApiDocumentsDocumentIdOutlineGet(
+                path: .init(documentId: documentId)
             )
-            nodes = Self.buildTree(response.rows)
+            let rows: [DocumentOutlineRow]
+            switch response {
+            case .ok(let okResponse):
+                rows = try okResponse.body.json.rows.map {
+                    DocumentOutlineRow(id: $0.id, depth: $0.depth, kind: $0.kind, label: $0.label, count: $0.count)
+                }
+            case .unprocessableContent(let error):
+                let detail = try? error.body.json
+                throw APIError.badRequest(detail?.detail?.description ?? "Validation error")
+            case .undocumented(let statusCode, _):
+                throw APIError.httpError(statusCode: statusCode, message: "Unexpected outline response")
+            }
+            nodes = Self.buildTree(rows)
         } catch {
             loadError = error.localizedDescription
         }
