@@ -57198,7 +57198,13 @@
           },
           "document_count": {
             "type": "integer",
+            "nullable": true,
             "title": "Document Count"
+          },
+          "document_count_error": {
+            "type": "string",
+            "nullable": true,
+            "title": "Document Count Error"
           },
           "duckdb_size_bytes": {
             "type": "integer",

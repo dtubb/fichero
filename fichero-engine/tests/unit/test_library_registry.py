@@ -345,6 +345,7 @@ class TestGlobalRegistryHeaderless:
                 .encode("unicode_escape")
                 .decode("ascii"),
                 document_count=1,
+                document_count_error=None,
                 duckdb_size_bytes=(first / "fichero.duckdb").stat().st_size,
                 files_size_bytes=(first / "files" / "left.txt").stat().st_size,
             ),
@@ -356,6 +357,7 @@ class TestGlobalRegistryHeaderless:
                 .encode("unicode_escape")
                 .decode("ascii"),
                 document_count=1,
+                document_count_error=None,
                 duckdb_size_bytes=(second / "fichero.duckdb").stat().st_size,
                 files_size_bytes=(second / "files" / "right.txt").stat().st_size,
             ),
@@ -459,6 +461,41 @@ class TestGlobalRegistryHeaderless:
         assert after.json()["count"] == 1
         audits = [row for row in global_db.all(ActionAudit) if row.action_name == "library.unicode_merge"]
         assert len(audits) == 1
+
+    def test_unicode_collision_report_surfaces_document_count_error(
+        self, global_client, tmp_path, monkeypatch, caplog
+    ):
+        from fichero.api.routes import library_registry as registry_routes
+
+        lib_path = tmp_path / unicodedata.normalize("NFC", "Chocó.fichero")
+        _create_library_fixture(lib_path, "doc-1")
+        global_db = global_client.app.dependency_overrides[
+            __import__(
+                "fichero.api.routes.library_registry",
+                fromlist=["get_global_database"],
+            ).get_global_database
+        ]()
+        global_db.save(KnownLibrary(path=str(lib_path.resolve()), name=lib_path.name))
+        global_db.save(
+            KnownLibrary(
+                path=unicodedata.normalize("NFD", str(lib_path.resolve())),
+                name=unicodedata.normalize("NFD", lib_path.name),
+            )
+        )
+
+        monkeypatch.setattr(
+            registry_routes.db_manager,
+            "get_database",
+            lambda _path: (_ for _ in ()).throw(RuntimeError("boom")),
+        )
+
+        response = global_client.get("/api/registry/unicode-collisions")
+
+        assert response.status_code == 200, response.text
+        collision = response.json()["collisions"][0]
+        assert collision["left"]["document_count"] is None
+        assert "boom" in collision["left"]["document_count_error"]
+        assert str(lib_path.resolve()) in caplog.text
 
     def test_remove_handles_spaces(self, global_client, tmp_path):
         """DELETE /api/registry/{path} works for a path containing spaces."""

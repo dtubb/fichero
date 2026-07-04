@@ -63,26 +63,34 @@ def _dir_size(path: Path) -> int:
     return sum(entry.stat().st_size for entry in path.rglob("*") if entry.is_file())
 
 
-def _document_count(package_path: Path) -> int:
+def _document_count(package_path: Path) -> tuple[int | None, str | None]:
     from fichero.models import Document
 
-    if not (package_path / "fichero.duckdb").exists():
-        return 0
+    db_path = package_path / "fichero.duckdb"
+    if not db_path.exists():
+        message = f"Unicode collision document count unavailable for {package_path}: missing {db_path.name}"
+        logger.warning(message)
+        return None, message
     try:
         db = db_manager.get_database(package_path)
         return sum(
             1
             for doc in db.all(Document)
             if getattr(doc, "deleted_at", None) is None
+        ), None
+    except Exception as exc:
+        message = (
+            f"Unicode collision document count unavailable for {package_path}: {exc}"
         )
-    except Exception:
-        return 0
+        logger.exception(message)
+        return None, message
 
 
 def _identity_report(raw_path: str) -> UnicodeLibraryCollisionIdentity:
     package_path = Path(raw_path).expanduser()
     resolved_name = package_path.name
     modified_at = None
+    document_count, document_count_error = _document_count(package_path)
     try:
         stat = os.stat(package_path)
         modified_at = datetime.fromtimestamp(stat.st_mtime)
@@ -93,7 +101,8 @@ def _identity_report(raw_path: str) -> UnicodeLibraryCollisionIdentity:
         raw_path_escaped=_escape_visible(raw_path),
         name=resolved_name,
         name_escaped=_escape_visible(resolved_name),
-        document_count=_document_count(package_path),
+        document_count=document_count,
+        document_count_error=document_count_error,
         duckdb_size_bytes=(package_path / "fichero.duckdb").stat().st_size
         if (package_path / "fichero.duckdb").exists()
         else 0,
