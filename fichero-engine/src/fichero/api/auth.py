@@ -221,15 +221,19 @@ def _authenticate_device_token(token: str):
     token_hash = accounts.hash_token(token)
     app_db = get_app_db()
     device = app_db.get_device_by_token_hash(token_hash)
-    if device is None or device.revoked or device.expires_at <= datetime.now():
-        return None, device
+    if device is None:
+        return None, None, "missing or invalid Authorization header"
+    now = datetime.now()
+    if device.revoked:
+        return None, device, "missing or invalid Authorization header"
+    if device.expires_at <= now:
+        return None, device, "device token expired"
     user = app_db.get_user(device.user_id)
     if user is None or not user.active:
-        return None, device
-    now = datetime.now()
+        return None, device, "missing or invalid Authorization header"
     if _should_touch_last_seen(device.last_seen, now):
         app_db.touch_device(token_hash, when=now)
-    return user, device
+    return user, device, None
 
 
 def _is_loopback_request(request: Request) -> bool:
@@ -374,10 +378,10 @@ def attach_auth_middleware(
             request.state.bootstrap_auth = False
             return await call_next(request)
 
-        user, device = _authenticate_device_token(raw_token)
+        user, device, detail = _authenticate_device_token(raw_token)
         if user is None or device is None:
             return JSONResponse(
-                {"detail": "missing or invalid Authorization header"},
+                {"detail": detail or "missing or invalid Authorization header"},
                 status_code=401,
             )
 

@@ -1432,6 +1432,29 @@ class AppDatabase:
             self.conn.commit()
         return self.get_device(device_id)
 
+    def renew_device(
+        self,
+        device_id: str,
+        *,
+        token_hash: str,
+        when: datetime | None = None,
+        ttl: timedelta = timedelta(days=90),
+    ) -> Device | None:
+        """Rotate one paired device token and extend its expiry."""
+        now = when or datetime.now()
+        expires_at = now + ttl
+        with self._lock:
+            self.conn.execute(
+                """
+                UPDATE devices
+                SET token_hash = ?, last_seen = ?, expires_at = ?
+                WHERE id = ? AND revoked = FALSE
+                """,
+                [token_hash, now, expires_at, device_id],
+            )
+            self.conn.commit()
+        return self.get_device(device_id)
+
     def delete_model(self, model_id: str):
         """Delete a model."""
         model = self.get_model(model_id)

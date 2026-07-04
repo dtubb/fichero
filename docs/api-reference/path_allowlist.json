@@ -367,6 +367,7 @@
     "/api/pair": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/pair/code": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/pair/devices": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
+    "/api/pair/devices/renew": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/pair/devices/{device_id}/revoke": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/policies/orchestration": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/policies/orchestration/evaluate": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",

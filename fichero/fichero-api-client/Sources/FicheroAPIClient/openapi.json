@@ -1689,6 +1689,29 @@
         }
       }
     },
+    "/api/pair/devices/renew": {
+      "post": {
+        "tags": [
+          "pairing",
+          "pairing"
+        ],
+        "summary": "Renew Device Token",
+        "description": "Rotate one valid paired-device token and extend its expiry.",
+        "operationId": "renew_device_token_api_pair_devices_renew_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pair/devices/{device_id}/revoke": {
       "post": {
         "tags": [
@@ -48891,12 +48914,18 @@
           "device_token": {
             "type": "string",
             "title": "Device Token"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
           }
         },
         "type": "object",
         "required": [
           "device_id",
-          "device_token"
+          "device_token",
+          "expires_at"
         ],
         "title": "PairResponse"
       },
