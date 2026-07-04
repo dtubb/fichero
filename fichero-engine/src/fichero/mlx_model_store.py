@@ -21,6 +21,7 @@ class ManagedModelSpec:
     revision: str
     display_name: str
     download_size_bytes: int
+    min_memory_bytes: int
     memory_class: str
     capabilities: tuple[str, ...]
 
@@ -61,7 +62,8 @@ MANAGED_MLX_MODELS: dict[str, ManagedModelSpec] = {
         revision="defcdea7cc7a4b0858fea563cbbce171d328e457",
         display_name="Qwen3-VL 8B",
         download_size_bytes=6_500_000_000,
-        memory_class="16gb",
+        min_memory_bytes=16 * 1024**3,
+        memory_class="needs 16 GB unified memory",
         capabilities=("text", "vision"),
     ),
     "Nanonets-OCR": ManagedModelSpec(
@@ -70,7 +72,8 @@ MANAGED_MLX_MODELS: dict[str, ManagedModelSpec] = {
         revision="b11e01ab44f434c766b97f7bcec63d7d3e112fe8",
         display_name="Nanonets OCR",
         download_size_bytes=4_800_000_000,
-        memory_class="8gb",
+        min_memory_bytes=8 * 1024**3,
+        memory_class="needs 8 GB unified memory",
         capabilities=("text", "vision"),
     ),
     "Chandra-OCR": ManagedModelSpec(
@@ -79,7 +82,8 @@ MANAGED_MLX_MODELS: dict[str, ManagedModelSpec] = {
         revision="13039308ea7ac53b29559eb2d500e33217cfab06",
         display_name="Chandra OCR",
         download_size_bytes=8_200_000_000,
-        memory_class="16gb",
+        min_memory_bytes=16 * 1024**3,
+        memory_class="needs 16 GB unified memory",
         capabilities=("text", "vision"),
     ),
 }
@@ -108,13 +112,21 @@ class MLXModelStore:
         return env
 
     def list_catalog_entries(self) -> list[Any]:
-        from fichero.local_inference import LocalModelCatalogEntry, LocalModelSource
+        from fichero.local_inference import (
+            LocalModelCatalogEntry,
+            LocalModelSource,
+            check_local_model_hardware,
+        )
 
         entries: list[LocalModelCatalogEntry] = []
         seen_repo_ids: set[str] = set()
         for spec in MANAGED_MLX_MODELS.values():
             snapshot = self.snapshot_path(spec)
             installed = snapshot.exists()
+            supported, unsupported_reason = check_local_model_hardware(
+                display_name=spec.display_name,
+                min_memory_bytes=spec.min_memory_bytes,
+            )
             entries.append(
                 LocalModelCatalogEntry(
                     provider_type=ProviderType.omlx,
@@ -124,7 +136,10 @@ class MLXModelStore:
                     installed=installed,
                     download_size_bytes=spec.download_size_bytes,
                     disk_usage_bytes=self._disk_usage_bytes(snapshot),
+                    min_memory_bytes=spec.min_memory_bytes,
                     memory_class=spec.memory_class,
+                    supported=supported,
+                    unsupported_reason=unsupported_reason,
                     license_label="user-managed",
                     source=LocalModelSource.app_cache if installed else LocalModelSource.remote_catalog,
                 )
@@ -145,7 +160,10 @@ class MLXModelStore:
                     installed=True,
                     download_size_bytes=None,
                     disk_usage_bytes=self._disk_usage_bytes(snapshot),
+                    min_memory_bytes=None,
                     memory_class=None,
+                    supported=True,
+                    unsupported_reason=None,
                     license_label="user-configured",
                     source=LocalModelSource.user_configured,
                 )
@@ -154,6 +172,7 @@ class MLXModelStore:
 
     async def start_download(self, model_id: str) -> ManagedModelDownloadJob:
         spec = self.spec(model_id)
+        self.require_supported(spec)
         existing_id = self._model_jobs.get(model_id)
         if existing_id is not None:
             existing = self._jobs[existing_id]
@@ -228,6 +247,16 @@ class MLXModelStore:
         if model_id not in MANAGED_MLX_MODELS:
             raise KeyError(f"Unknown managed MLX model: {model_id}")
         return MANAGED_MLX_MODELS[model_id]
+
+    def require_supported(self, spec: ManagedModelSpec) -> None:
+        from fichero.local_inference import LocalModelHardwareError, check_local_model_hardware
+
+        supported, unsupported_reason = check_local_model_hardware(
+            display_name=spec.display_name,
+            min_memory_bytes=spec.min_memory_bytes,
+        )
+        if not supported:
+            raise LocalModelHardwareError(unsupported_reason or f"{spec.display_name} is unsupported on this Mac")
 
     def snapshot_path(self, spec: ManagedModelSpec) -> Path:
         return self.cache_dir / f"models--{spec.repo_id.replace('/', '--')}" / "snapshots" / spec.revision

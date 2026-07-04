@@ -79,7 +79,10 @@ def test_local_inference_catalog_exposes_configured_model(client) -> None:
                     "installed": True,
                     "download_size_bytes": 123,
                     "disk_usage_bytes": 456,
-                    "memory_class": "16gb",
+                    "min_memory_bytes": 17179869184,
+                    "memory_class": "needs 16 GB unified memory",
+                    "supported": True,
+                    "unsupported_reason": None,
                     "license_label": "user-managed",
                     "source": "app_cache",
                 }
@@ -97,6 +100,27 @@ def test_local_inference_catalog_exposes_configured_model(client) -> None:
     assert entry["model_id"] == routes.DEFAULT_OMLX_MODEL_ID
     assert entry["capabilities"] == ["text", "vision"]
     assert entry["installed"] is True
+    assert entry["supported"] is True
+
+
+def test_local_inference_capabilities_exposes_machine_probe(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        routes,
+        "get_local_inference_capabilities",
+        lambda: routes.LocalInferenceCapabilities(
+            system="Darwin",
+            machine="arm64",
+            is_apple_silicon=True,
+            physical_memory_bytes=16 * 1024**3,
+            macos_version="26.0",
+        ),
+    )
+
+    response = client.get("/api/local-inference/capabilities")
+
+    assert response.status_code == 200
+    assert response.json()["is_apple_silicon"] is True
+    assert response.json()["physical_memory_bytes"] == 16 * 1024**3
 
 
 def test_manager_for_managed_profile_uses_managed_process() -> None:
@@ -276,3 +300,18 @@ def test_model_download_and_delete_routes(client, monkeypatch: pytest.MonkeyPatc
     deleted = client.delete(f"/api/local-inference/models/{routes.DEFAULT_OMLX_MODEL_ID}")
     assert deleted.status_code == 200
     assert deleted.json()["freed_bytes"] == 123
+
+
+def test_model_download_refuses_unsupported_hardware(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    class StubStore:
+        async def start_download(self, model_id: str):
+            raise routes.LocalModelHardwareError(
+                "Qwen3-VL 8B needs 16 GB unified memory; this Mac has 8 GB"
+            )
+
+    monkeypatch.setattr(routes, "get_mlx_model_store", lambda: StubStore())
+
+    response = client.post(f"/api/local-inference/models/{routes.DEFAULT_OMLX_MODEL_ID}/download")
+
+    assert response.status_code == 409
+    assert "16 GB unified memory" in response.text

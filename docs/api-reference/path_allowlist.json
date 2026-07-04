@@ -283,6 +283,7 @@
     "/api/library/links": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/library/links/{link_id}": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/local-inference/catalog": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
+    "/api/local-inference/capabilities": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/local-inference/profiles": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/local-inference/profiles/validate": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/local-inference/models/{model_id}": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",

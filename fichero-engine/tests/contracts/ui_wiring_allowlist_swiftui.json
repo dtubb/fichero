@@ -51,6 +51,7 @@
     "/api/library/links/{link_id}": "#2636 generic node-relation backend landed first; Swift service/store wiring deferred to follow-up",
     "/api/library-items/{item_id}/links": "#2636 generic node-relation backend landed first; Swift service/store wiring deferred to follow-up",
     "/api/local-inference/catalog": "#1814 backend local-MLX control surface; Mac/SwiftUI wiring deferred to Daniel-led app session",
+    "/api/local-inference/capabilities": "#1814 backend local-MLX control surface; Mac/SwiftUI wiring deferred to Daniel-led app session",
     "/api/local-inference/profiles": "#1814 backend local-MLX control surface; Mac/SwiftUI wiring deferred to Daniel-led app session",
     "/api/local-inference/profiles/validate": "#1814 backend local-MLX control surface; Mac/SwiftUI wiring deferred to Daniel-led app session",
     "/api/local-inference/profiles/{profile_id}/health": "#1814 backend local-MLX control surface; Mac/SwiftUI wiring deferred to Daniel-led app session",

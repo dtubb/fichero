@@ -5475,6 +5475,16 @@
     "local-inference": [
       {
         "method": "GET",
+        "path": "/local-inference/capabilities",
+        "operation_id": "get_local_inference_capabilities_route_api_local_inference_capabilities_get",
+        "summary": "Get Local Inference Capabilities Route",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "LocalInferenceCapabilitiesResponse"
+      },
+      {
+        "method": "GET",
         "path": "/local-inference/catalog",
         "operation_id": "list_local_inference_catalog_api_local_inference_catalog_get",
         "summary": "List Local Inference Catalog",

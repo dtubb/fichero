@@ -5,7 +5,13 @@ from pathlib import Path
 
 import pytest
 
-from fichero.local_inference import LocalModelNotInstalledError, ManagedLocalInferenceProcess, LocalProviderProfile
+from fichero.local_inference import (
+    LocalInferenceCapabilities,
+    LocalModelHardwareError,
+    LocalModelNotInstalledError,
+    ManagedLocalInferenceProcess,
+    LocalProviderProfile,
+)
 from fichero.mlx_model_store import MLXModelStore, MANAGED_MLX_MODELS
 
 
@@ -39,11 +45,23 @@ def test_catalog_install_state_from_store_layout(tmp_path: Path) -> None:
     _write_snapshot(store.root, qwen.repo_id, qwen.revision, size=8)
     _write_snapshot(store.root, "user/custom-model", "abc123", size=5)
 
-    entries = {entry.model_id: entry for entry in store.list_catalog_entries()}
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(
+            "fichero.local_inference.get_local_inference_capabilities",
+            lambda: LocalInferenceCapabilities(
+                system="Darwin",
+                machine="arm64",
+                is_apple_silicon=True,
+                physical_memory_bytes=16 * 1024**3,
+                macos_version="26.0",
+            ),
+        )
+        entries = {entry.model_id: entry for entry in store.list_catalog_entries()}
 
     assert entries["mlx-community/Qwen3-VL-8B"].installed is True
     assert entries["mlx-community/Qwen3-VL-8B"].disk_usage_bytes == 8
     assert entries["mlx-community/Qwen3-VL-8B"].source == "app_cache"
+    assert entries["mlx-community/Qwen3-VL-8B"].supported is True
     assert entries["user/custom-model"].installed is True
     assert entries["user/custom-model"].source == "user_configured"
 
@@ -118,7 +136,75 @@ async def test_download_command_pins_revision(tmp_path: Path, monkeypatch: pytes
 def test_spawn_with_uninstalled_model_raises_typed_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     store = MLXModelStore(tmp_path / "mlx")
     monkeypatch.setattr("fichero.mlx_model_store.get_mlx_model_store", lambda: store)
+    monkeypatch.setattr(
+        "fichero.local_inference.get_local_inference_capabilities",
+        lambda: LocalInferenceCapabilities(
+            system="Darwin",
+            machine="arm64",
+            is_apple_silicon=True,
+            physical_memory_bytes=32 * 1024**3,
+            macos_version="26.0",
+        ),
+    )
     process = ManagedLocalInferenceProcess(_profile())
 
     with pytest.raises(LocalModelNotInstalledError):
         process._model_spec()
+
+
+def test_spawn_refuses_underpowered_mac(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    store = MLXModelStore(tmp_path / "mlx")
+    spec = MANAGED_MLX_MODELS["mlx-community/Qwen3-VL-8B"]
+    _write_snapshot(store.root, spec.repo_id, spec.revision, size=8)
+    monkeypatch.setattr("fichero.mlx_model_store.get_mlx_model_store", lambda: store)
+    monkeypatch.setattr(
+        "fichero.local_inference.get_local_inference_capabilities",
+        lambda: LocalInferenceCapabilities(
+            system="Darwin",
+            machine="arm64",
+            is_apple_silicon=True,
+            physical_memory_bytes=8 * 1024**3,
+            macos_version="26.0",
+        ),
+    )
+    process = ManagedLocalInferenceProcess(_profile())
+
+    with pytest.raises(LocalModelHardwareError, match="16 GB unified memory"):
+        process._model_spec()
+
+
+@pytest.mark.asyncio
+async def test_download_refuses_underpowered_mac(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    store = MLXModelStore(tmp_path / "mlx")
+    monkeypatch.setattr(
+        "fichero.local_inference.get_local_inference_capabilities",
+        lambda: LocalInferenceCapabilities(
+            system="Darwin",
+            machine="arm64",
+            is_apple_silicon=True,
+            physical_memory_bytes=8 * 1024**3,
+            macos_version="26.0",
+        ),
+    )
+
+    with pytest.raises(LocalModelHardwareError, match="needs 16 GB unified memory"):
+        await store.start_download("mlx-community/Qwen3-VL-8B")
+
+
+def test_catalog_marks_unsupported_when_memory_floor_is_missed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    store = MLXModelStore(tmp_path / "mlx")
+    monkeypatch.setattr(
+        "fichero.local_inference.get_local_inference_capabilities",
+        lambda: LocalInferenceCapabilities(
+            system="Darwin",
+            machine="arm64",
+            is_apple_silicon=True,
+            physical_memory_bytes=8 * 1024**3,
+            macos_version="26.0",
+        ),
+    )
+
+    entries = {entry.model_id: entry for entry in store.list_catalog_entries()}
+
+    assert entries["mlx-community/Qwen3-VL-8B"].supported is False
+    assert "16 GB unified memory" in entries["mlx-community/Qwen3-VL-8B"].unsupported_reason

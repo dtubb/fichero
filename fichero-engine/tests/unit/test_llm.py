@@ -1031,6 +1031,27 @@ async def test_omlx_runtime_missing_raises_typed_error(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_omlx_hardware_gate_raises_typed_error(monkeypatch):
+    from fichero.api.routes import local_inference as routes
+    from fichero.local_inference import LocalModelHardwareError as LocalInferenceHardwareError
+
+    cfg = LLMConfig(provider="omlx", model="mlx-community/Qwen3-VL-8B")
+
+    class _Manager:
+        state = LocalServiceState.stopped
+        restart_count = 0
+        process = SimpleNamespace(is_running=lambda: False)
+
+        async def start(self):
+            raise LocalInferenceHardwareError("Qwen3-VL 8B needs 16 GB unified memory; this Mac has 8 GB")
+
+    monkeypatch.setattr(routes, "_manager_for_profile", lambda _profile_id: _Manager())
+
+    with pytest.raises(llm.LocalModelHardwareError, match="16 GB unified memory"):
+        await llm.chat("hello", cfg)
+
+
+@pytest.mark.asyncio
 async def test_omlx_manual_policy_never_auto_starts(monkeypatch):
     from fichero.api.routes import local_inference as routes
 
