@@ -239,6 +239,7 @@
 		63C9659B6755FB880F50C6D5 /* ForceDirectedGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 003E584BBE51001B1E3F6843 /* ForceDirectedGraphView.swift */; };
 		64000200016ACCF0AA1B529A /* UsersStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1EB898A19FAA64EF466CD2 /* UsersStore.swift */; };
 		AA10000000000000000031B0 /* LocalInferenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000031A0 /* LocalInferenceStore.swift */; };
+		AA10000000000000000031B1 /* AppleAvailabilityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000031A1 /* AppleAvailabilityStore.swift */; };
 		AA10000000000000000031B2 /* LocalInferenceSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000031A2 /* LocalInferenceSettingsView.swift */; };
 		64574A29B56CBA1F27542556 /* BackendSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 371A4629B0A6A51DE6D6D872 /* BackendSettingsView.swift */; };
 		64712D1DA458621D00C216F0 /* SpaceSceneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCCA353DE8E2AFD149DADB3A /* SpaceSceneView.swift */; };
@@ -1133,6 +1134,7 @@
 		D82A9BAC0F995F9199F94B69 /* KGFocusState.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KGFocusState.swift; sourceTree = "<group>"; };
 		DA1EB898A19FAA64EF466CD2 /* UsersStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UsersStore.swift; sourceTree = "<group>"; };
 		AA10000000000000000031A0 /* LocalInferenceStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LocalInferenceStore.swift; sourceTree = "<group>"; };
+		AA10000000000000000031A1 /* AppleAvailabilityStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppleAvailabilityStore.swift; sourceTree = "<group>"; };
 		AA10000000000000000031A2 /* LocalInferenceSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LocalInferenceSettingsView.swift; sourceTree = "<group>"; };
 		DAE9F6E549990F086C442F3B /* BreadcrumbBuilder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BreadcrumbBuilder.swift; sourceTree = "<group>"; };
 		DC1CAB23253BF2D09F02A66D /* CanvasModifierTracker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CanvasModifierTracker.swift; sourceTree = "<group>"; };
@@ -1644,6 +1646,7 @@
 				70C062A29951726302108FD2 /* BackupStore.swift */,
 				DA1EB898A19FAA64EF466CD2 /* UsersStore.swift */,
 				AA10000000000000000031A0 /* LocalInferenceStore.swift */,
+				AA10000000000000000031A1 /* AppleAvailabilityStore.swift */,
 				98C0EC9D283E4FFF816B0460 /* ActivityStore.swift */,
 				DAE9F6E549990F086C442F3B /* BreadcrumbBuilder.swift */,
 				669F81AC0106B415218C419D /* WorkflowExecutionStore.swift */,
@@ -2927,6 +2930,7 @@
 				FB55B6D23D3573E8E04CCD50 /* UsersSettingsView.swift in Sources */,
 				64000200016ACCF0AA1B529A /* UsersStore.swift in Sources */,
 				AA10000000000000000031B0 /* LocalInferenceStore.swift in Sources */,
+				AA10000000000000000031B1 /* AppleAvailabilityStore.swift in Sources */,
 				AA10000000000000000031B2 /* LocalInferenceSettingsView.swift in Sources */,
 				EBA0B270972261795158D09B /* CaptureSettingsView.swift in Sources */,
 				568F313267F4F71EE3FD6BEC /* iOSLibraryPickerMenu.swift in Sources */,

@@ -3,7 +3,7 @@ import AppKit
 #endif
 import SwiftUI
 
-// swiftlint:disable type_body_length
+// swiftlint:disable type_body_length file_length
 struct FirstRunWindow: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
@@ -183,12 +183,66 @@ struct FirstRunWindow: View {
                         // Add Provider flow (full catalog + default-model selection),
                         // which pre-selects a local provider on first launch. No single
                         // provider is centered.
-                        Text("Prefer to decide later? Skip — you can add providers anytime in Settings.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 10) {
+                            // #3121 — surface the zero-cloud on-device options with
+                            // their TRUE availability so a fresh user can pick a
+                            // private setup knowingly.
+                            localFirstAIOptions
+                            Text("Prefer to decide later? Skip — you can add providers anytime in Settings.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 )
             }
+        }
+    }
+
+    /// #3121 — the two zero-cloud, on-device options with their true state.
+    /// Apple Intelligence availability comes from the `/providers/apple/availability`
+    /// probe (#3118) so an unavailable machine sees the concrete reason instead of
+    /// discovering it at first call. MLX is always offered (Apple-silicon local
+    /// runtime) with a pointer to its setup pane.
+    private var localFirstAIOptions: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            appleIntelligenceOption
+            localOptionRow(
+                icon: "cpu",
+                title: "MLX on-device models",
+                detail: "Set up in Settings ▸ Local LLM.",
+                detailTint: .secondary
+            )
+        }
+        .task {
+            await appState.appleAvailabilityStore.load()
+        }
+    }
+
+    @ViewBuilder
+    private var appleIntelligenceOption: some View {
+        let status = appState.appleAvailabilityStore.status
+        localOptionRow(
+            icon: "apple.logo",
+            title: "Apple Intelligence",
+            detail: status.map { $0.available ? "Available" : $0.label } ?? "Checking availability…",
+            detailTint: status?.available == false ? .orange : .secondary
+        )
+    }
+
+    private func localOptionRow(icon: String, title: String, detail: String, detailTint: Color) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .frame(width: 18)
+                .foregroundStyle(.secondary)
+            Text(title)
+                .font(.callout)
+            LocalPrivateBadge()
+            Spacer()
+            Text(detail)
+                .font(.caption)
+                .foregroundStyle(detailTint)
+                .textSelection(.enabled)
+                .multilineTextAlignment(.trailing)
         }
     }
 
