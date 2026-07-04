@@ -2,6 +2,7 @@
 #if canImport(AppKit)
 import AppKit
 #endif
+import FicheroAPIClient
 import OSLog
 import SwiftUI
 
@@ -338,9 +339,13 @@ struct LibraryWindow: View {
         savePanel.prompt = "Create"
 
         if savePanel.runModal() == .OK, let url = savePanel.url {
-            let finalURL = url.pathExtension.lowercased() == "fichero"
+            let withExtension = url.pathExtension.lowercased() == "fichero"
                 ? url
                 : url.appendingPathExtension("fichero")
+            // NFC-normalize the new package's name so we never create a
+            // mojibake-variant path on disk (#3076); the user-chosen parent dir
+            // (already on disk) is left untouched.
+            let finalURL = withExtension.nfcNormalizedLastComponent
 
             // Create unsaved library, immediately save to chosen location, then
             // open it in a NEW window (New Library… is distinct from New Window,
@@ -370,9 +375,12 @@ struct LibraryWindow: View {
         savePanel.begin { response in
             guard response == .OK, let url = savePanel.url else { return }
 
+            // NFC-normalize the package name before saving (#3076) so a name
+            // like "Chocó" is never written as an NFD-variant path.
+            let finalURL = url.nfcNormalizedLastComponent
             do {
-                try libraryManager.saveLibrary(windowState.libraryId, to: url)
-                libraryWindowLogger.info("Saved library to: \(url.path)")
+                try libraryManager.saveLibrary(windowState.libraryId, to: finalURL)
+                libraryWindowLogger.info("Saved library to: \(finalURL.path)")
             } catch {
                 libraryWindowLogger.error("Failed to save: \(error.localizedDescription)")
             }

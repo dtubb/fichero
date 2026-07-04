@@ -51,6 +51,21 @@ struct LibraryPathMiddlewareTests {
         #expect(LibraryPathMiddleware.isAppWidePath(path) == true)
     }
 
+    // An NFD library path must leave as an NFC header value (#3076) so the app
+    // never addresses a mojibake-variant of the library. `headerValue` is the
+    // choke-point the middleware's `intercept` uses to build the header.
+    @Test("NFD library path yields an NFC X-Fichero-Library-Path header value")
+    func nfdLibraryPathHeaderIsNFC() {
+        let nfd = "/tmp/\("Chocó".decomposedStringWithCanonicalMapping).fichero"
+        let nfc = "/tmp/\("Chocó".precomposedStringWithCanonicalMapping).fichero"
+        #expect(nfd != nfc, "test string must actually differ by normalization")
+
+        let value = LibraryPathMiddleware.headerValue(forLibraryPath: nfd)
+        #expect(value.removingPercentEncoding == nfc)
+        // ASCII path encodes to itself, unchanged.
+        #expect(LibraryPathMiddleware.headerValue(forLibraryPath: "/tmp/Plain.fichero") == "/tmp/Plain.fichero")
+    }
+
     // The live closure initialiser reflects the current value, not a snapshot.
     @Test("live accessor reflects current library path")
     @MainActor

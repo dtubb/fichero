@@ -56,10 +56,13 @@ extension URLRequest {
             setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         if let libraryPath {
+            // NFC-normalize before encoding (#3076) so raw-URLSession callsites
+            // carry the same canonical bytes as the middleware choke point.
+            let normalized = libraryPath.nfcNormalized
             // Percent-encode non-ASCII paths (#2648) so header transport stays
             // lossless. The engine unquotes on read, and pure-ASCII paths are
             // unchanged, so this is a no-op unless encoding is actually needed.
-            let encoded = libraryPath.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? libraryPath
+            let encoded = normalized.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? normalized
             setValue(encoded, forHTTPHeaderField: "X-Fichero-Library-Path")
         }
     }

@@ -50,11 +50,13 @@ final class KnownLibraryRegistryStore: ObservableObject {
         guard url.pathExtension.lowercased() == "fichero" else { return }
 
         do {
+            // NFC-normalize path + name (#3076) so the global registry keys this
+            // library canonically and never records a second NFD variant.
             let _: KnownLibraryMenuEntry = try await apiClient.post(
                 "/registry/add",
                 query: [
-                    "path": url.path,
-                    "name": displayName ?? url.lastPathComponent
+                    "path": url.path.nfcNormalized,
+                    "name": (displayName ?? url.lastPathComponent).nfcNormalized
                 ]
             )
             await refresh()
@@ -64,10 +66,14 @@ final class KnownLibraryRegistryStore: ObservableObject {
     }
 
     func remove(path: String) async {
+        // Compare/address by NFC (#3076): registry entries from `refresh()` are
+        // NFC (backend #3071), so normalize the incoming path or an NFD caller
+        // would fail to match and silently leave the entry behind.
+        let path = path.nfcNormalized
         let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? path
         do {
             try await apiClient.delete("/registry/\(encodedPath)")
-            libraries.removeAll { $0.path == path }
+            libraries.removeAll { $0.path.nfcNormalized == path }
         } catch {
             await refresh()
         }
