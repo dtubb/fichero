@@ -383,7 +383,13 @@ class ManagedLocalInferenceProcess:
         candidate = (self.profile.python_executable or "").strip()
         if candidate:
             return candidate
-        return sys.executable
+        try:
+            from fichero.mlx_runtime import get_mlx_runtime
+
+            return str(get_mlx_runtime().require_python_path())
+        except RuntimeError as exc:
+            self.last_error = str(exc)
+            raise LocalInferenceRuntimeMissingError(str(exc)) from exc
 
     def _command(self) -> list[str]:
         if self.profile.command:

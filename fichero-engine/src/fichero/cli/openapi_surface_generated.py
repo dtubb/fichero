@@ -7814,6 +7814,42 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("remove-runtime")
+    def local_inference_remove_runtime_delete(
+        ctx: typer.Context,
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+    ) -> None:
+        """Remove Local Inference Runtime (DELETE /api/local-inference/runtime)."""
+        if not yes:
+            typer.confirm("Delete local-inference?", abort=True)
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/local-inference/runtime"
+            params = None
+            return client.request("DELETE", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-runtime-status")
+    def local_inference_get_runtime_status_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Get Local Inference Runtime Status (GET /api/local-inference/runtime)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/local-inference/runtime"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("provision-runtime")
+    def local_inference_provision_runtime_post(
+        ctx: typer.Context,
+    ) -> None:
+        """Provision Local Inference Runtime (POST /api/local-inference/runtime/provision)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/local-inference/runtime/provision"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('local-models')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for local-models endpoints.', no_args_is_help=True)
