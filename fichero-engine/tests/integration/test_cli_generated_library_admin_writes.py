@@ -253,14 +253,15 @@ def test_generated_library_admin_validation_and_current_reality(
         "--dry-run",
     )
     run_id = migration_run["details"]["run_id"]
-    missing_status = _cli_result(
+    migration_status = _cli_json(
         cli_live_engine,
         "migrations",
         "get-status",
         run_id,
     )
-    assert missing_status.exit_code == 1
-    assert "-> 404:" in missing_status.output
+    assert migration_status["migration_name"] == "repair_kg_svo_repr_leak"
+    assert migration_status["status"] == "completed"
+    assert migration_status["details"]["run_id"] == run_id
 
     for args in (
         (
