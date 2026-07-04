@@ -3527,6 +3527,7 @@ async def _ensure_managed_local_provider_ready(config: LLMConfig) -> None:
         return
     from fichero.api.routes.local_inference import _configured_omlx_profile, _manager_for_profile
     from fichero.local_inference import (
+        LocalModelHardwareError as LocalInferenceHardwareError,
         LocalInferenceRuntimeMissingError,
         LocalModelNotInstalledError,
         LocalProviderStartupPolicy,
@@ -3551,6 +3552,8 @@ async def _ensure_managed_local_provider_ready(config: LLMConfig) -> None:
             status = await manager.start()
     except LocalInferenceRuntimeMissingError as exc:
         raise LocalModelRuntimeMissingError(str(exc)) from exc
+    except LocalInferenceHardwareError as exc:
+        raise LocalModelHardwareError(str(exc)) from exc
     except LocalModelNotInstalledError as exc:
         raise LocalModelUnavailableError(str(exc)) from exc
 

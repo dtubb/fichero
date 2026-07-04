@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import asyncio
 from collections import deque
+from functools import lru_cache
 import ipaddress
 import os
+import platform
+import subprocess
 import sys
 import time
 from datetime import UTC, datetime
@@ -34,6 +37,10 @@ class LocalInferenceRuntimeMissingError(RuntimeError):
 
 class LocalModelNotInstalledError(RuntimeError):
     """Raised when a managed local model has not been downloaded yet."""
+
+
+class LocalModelHardwareError(RuntimeError):
+    """Raised when the current machine cannot safely run a managed local model."""
 
 
 class LocalServiceState(str, Enum):
@@ -116,9 +123,80 @@ class LocalModelCatalogEntry(BaseModel):
     installed: bool = False
     download_size_bytes: int | None = Field(default=None, ge=0)
     disk_usage_bytes: int | None = Field(default=None, ge=0)
+    min_memory_bytes: int | None = Field(default=None, ge=0)
     memory_class: str | None = None
+    supported: bool = True
+    unsupported_reason: str | None = None
     license_label: str | None = None
     source: LocalModelSource = LocalModelSource.user_configured
+
+
+class LocalInferenceCapabilities(BaseModel):
+    """Cached facts about the current machine for local-model gating."""
+
+    system: str
+    machine: str
+    is_apple_silicon: bool
+    physical_memory_bytes: int | None = Field(default=None, ge=0)
+    macos_version: str | None = None
+
+
+def _memory_gb_label(memory_bytes: int) -> str:
+    gib = max(1, round(memory_bytes / (1024**3)))
+    return f"{gib} GB"
+
+
+def _required_memory_label(min_memory_bytes: int) -> str:
+    return f"needs {_memory_gb_label(min_memory_bytes)} unified memory"
+
+
+def _sysctl_memory_bytes() -> int | None:
+    try:
+        result = subprocess.run(
+            ["sysctl", "-n", "hw.memsize"],
+            capture_output=True,
+            check=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    raw = result.stdout.strip()
+    return int(raw) if raw.isdigit() else None
+
+
+@lru_cache(maxsize=1)
+def get_local_inference_capabilities() -> LocalInferenceCapabilities:
+    system = platform.system()
+    machine = platform.machine().lower()
+    return LocalInferenceCapabilities(
+        system=system,
+        machine=machine,
+        is_apple_silicon=system == "Darwin" and machine == "arm64",
+        physical_memory_bytes=_sysctl_memory_bytes() if system == "Darwin" else None,
+        macos_version=platform.mac_ver()[0] or None,
+    )
+
+
+def clear_local_inference_capabilities_cache() -> None:
+    get_local_inference_capabilities.cache_clear()
+
+
+def check_local_model_hardware(
+    *,
+    display_name: str,
+    min_memory_bytes: int | None,
+    capabilities: LocalInferenceCapabilities | None = None,
+) -> tuple[bool, str | None]:
+    current = capabilities or get_local_inference_capabilities()
+    if not current.is_apple_silicon:
+        return False, f"{display_name} requires Apple Silicon; this Mac is {current.machine or 'unknown'}"
+    if min_memory_bytes and current.physical_memory_bytes and current.physical_memory_bytes < min_memory_bytes:
+        return (
+            False,
+            f"{display_name} {_required_memory_label(min_memory_bytes)}; this Mac has "
+            f"{_memory_gb_label(current.physical_memory_bytes)}",
+        )
+    return True, None
 
 
 class ToolSpec(BaseModel):
@@ -399,12 +477,22 @@ class ManagedLocalInferenceProcess:
             raise LocalInferenceRuntimeMissingError(str(exc)) from exc
 
     def _model_spec(self) -> str:
-        if self.profile.command:
-            return self.profile.model_id
         try:
             from fichero.mlx_model_store import get_mlx_model_store
 
-            return get_mlx_model_store().resolve_model_path(self.profile.model_id)
+            store = get_mlx_model_store()
+            spec = store.spec(self.profile.model_id)
+            store.require_supported(spec)
+            if self.profile.command:
+                return self.profile.model_id
+            return store.resolve_model_path(self.profile.model_id)
+        except KeyError:
+            if self.profile.command:
+                return self.profile.model_id
+            raise
+        except LocalModelHardwareError as exc:
+            self.last_error = str(exc)
+            raise
         except FileNotFoundError as exc:
             self.last_error = str(exc)
             raise LocalModelNotInstalledError(str(exc)) from exc
@@ -686,7 +774,9 @@ __all__ = [
     "LocalInferenceProcess",
     "LocalInferenceRequest",
     "LocalInferenceResult",
+    "LocalInferenceCapabilities",
     "LocalModelNotInstalledError",
+    "LocalModelHardwareError",
     "LocalInferenceRuntimeMissingError",
     "LocalInferenceServiceHealth",
     "LocalInferenceServiceManager",
@@ -698,10 +788,13 @@ __all__ = [
     "LocalProviderProfile",
     "LocalProviderStartupPolicy",
     "LocalServiceState",
+    "check_local_model_hardware",
+    "clear_local_inference_capabilities_cache",
     "StructuredOutputEnvelope",
     "TokenUsage",
     "ToolCallEnvelope",
     "ToolSpec",
     "enforce_local_provider_profile",
+    "get_local_inference_capabilities",
     "is_loopback_url",
 ]

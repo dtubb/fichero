@@ -14,6 +14,9 @@ def test_actions_routes_have_explicit_response_models() -> None:
 
 
 def test_local_models_routes_have_explicit_response_models() -> None:
+    assert _response_schema("get", "/api/local-inference/capabilities")["$ref"].endswith(
+        "LocalInferenceCapabilitiesResponse"
+    )
     assert _response_schema("get", "/api/local-models")["$ref"].endswith("LocalModelListResponse")
     assert _response_schema("get", "/api/local-models/disk-usage")["$ref"].endswith("DiskUsageResponse")
     assert _response_schema("post", "/api/local-models/download/{model_type}/{model_id}")["$ref"].endswith(

@@ -28846,6 +28846,28 @@
         }
       }
     },
+    "/api/local-inference/capabilities": {
+      "get": {
+        "tags": [
+          "local-inference"
+        ],
+        "summary": "Get Local Inference Capabilities Route",
+        "description": "Return cached machine facts for local-model support gating.",
+        "operationId": "get_local_inference_capabilities_route_api_local_inference_capabilities_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalInferenceCapabilitiesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/local-inference/profiles/validate": {
       "post": {
         "tags": [
@@ -45777,6 +45799,39 @@
         "title": "LibraryStatsResponse",
         "description": "Response from ``GET /api/stats`` for the active library."
       },
+      "LocalInferenceCapabilitiesResponse": {
+        "properties": {
+          "system": {
+            "type": "string",
+            "title": "System"
+          },
+          "machine": {
+            "type": "string",
+            "title": "Machine"
+          },
+          "is_apple_silicon": {
+            "type": "boolean",
+            "title": "Is Apple Silicon"
+          },
+          "physical_memory_bytes": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Physical Memory Bytes"
+          },
+          "macos_version": {
+            "type": "string",
+            "nullable": true,
+            "title": "Macos Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "system",
+          "machine",
+          "is_apple_silicon"
+        ],
+        "title": "LocalInferenceCapabilitiesResponse"
+      },
       "LocalInferenceCatalogResponse": {
         "properties": {
           "items": {
@@ -46109,10 +46164,26 @@
             "nullable": true,
             "title": "Disk Usage Bytes"
           },
+          "min_memory_bytes": {
+            "type": "integer",
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Min Memory Bytes"
+          },
           "memory_class": {
             "type": "string",
             "nullable": true,
             "title": "Memory Class"
+          },
+          "supported": {
+            "type": "boolean",
+            "title": "Supported",
+            "default": true
+          },
+          "unsupported_reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Unsupported Reason"
           },
           "license_label": {
             "type": "string",

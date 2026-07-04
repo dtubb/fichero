@@ -7679,6 +7679,17 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='local-inference')
         existing_apps['local-inference'] = target_app
 
+    @target_app.command("get-capabilities-route")
+    def local_inference_get_capabilities_route_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Get Local Inference Capabilities Route (GET /api/local-inference/capabilities)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/local-inference/capabilities"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("list-catalog")
     def local_inference_list_catalog_get(
         ctx: typer.Context,

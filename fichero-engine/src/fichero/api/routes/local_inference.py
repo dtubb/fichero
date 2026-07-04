@@ -11,6 +11,8 @@ from pydantic import BaseModel, Field
 
 from fichero.local_inference import (
     ExternalLocalInferenceProcess,
+    LocalInferenceCapabilities,
+    LocalModelHardwareError,
     LocalModelNotInstalledError,
     LocalInferenceRuntimeMissingError,
     LocalInferenceServiceManager,
@@ -20,6 +22,7 @@ from fichero.local_inference import (
     LocalModelSource,
     LocalProviderProfile,
     ManagedLocalInferenceProcess,
+    get_local_inference_capabilities,
 )
 from fichero.mlx_model_store import get_mlx_model_store
 from fichero.mlx_runtime import get_mlx_runtime
@@ -77,6 +80,14 @@ class LocalInferenceRuntimeStatusResponse(BaseModel):
     python_path: str | None = None
     runtime_dir: str
     job: LocalInferenceRuntimeJobResponse | None = None
+
+
+class LocalInferenceCapabilitiesResponse(BaseModel):
+    system: str
+    machine: str
+    is_apple_silicon: bool
+    physical_memory_bytes: int | None = None
+    macos_version: str | None = None
 
 
 class LocalInferenceModelDownloadJobResponse(BaseModel):
@@ -182,6 +193,11 @@ def _download_job_response(job_id: str) -> LocalInferenceModelDownloadJobRespons
     return LocalInferenceModelDownloadJobResponse(**job.to_dict())
 
 
+def _capabilities_response() -> LocalInferenceCapabilitiesResponse:
+    payload: LocalInferenceCapabilities = get_local_inference_capabilities()
+    return LocalInferenceCapabilitiesResponse(**payload.model_dump())
+
+
 @router.get("/profiles", response_model=LocalInferenceProfileListResponse)
 async def list_local_inference_profiles() -> LocalInferenceProfileListResponse:
     """List app-managed local inference profiles available to the app."""
@@ -194,6 +210,12 @@ async def list_local_inference_catalog() -> LocalInferenceCatalogResponse:
     """List local inference model catalog entries for configured profiles."""
     entries = _local_catalog_entries()
     return LocalInferenceCatalogResponse(items=entries, count=len(entries))
+
+
+@router.get("/capabilities", response_model=LocalInferenceCapabilitiesResponse)
+async def get_local_inference_capabilities_route() -> LocalInferenceCapabilitiesResponse:
+    """Return cached machine facts for local-model support gating."""
+    return _capabilities_response()
 
 
 @router.post("/profiles/validate", response_model=LocalInferenceValidationResponse)
@@ -246,6 +268,8 @@ async def start_local_inference_profile(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except LocalInferenceRuntimeMissingError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except LocalModelHardwareError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except LocalModelNotInstalledError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -297,6 +321,8 @@ async def download_local_inference_model(
         job = await get_mlx_model_store().start_download(model_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except LocalModelHardwareError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return LocalInferenceModelDownloadJobResponse(**job.to_dict())
