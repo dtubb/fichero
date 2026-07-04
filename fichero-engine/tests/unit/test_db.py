@@ -1986,7 +1986,7 @@ class TestResearchContentFold:
                 "priority": 0,
                 "assigned_to": None,
                 "metadata": {},
-                "completed_at": "2026-06-28T00:00:00",
+                "completed_at": "not-a-datetime",
             },
         )
         temp_db.save(doc)

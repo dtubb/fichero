@@ -5,13 +5,13 @@ import json
 import re
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from fichero.api.library_header import require_library_path
-from fichero.api.auth import request_actor
+from fichero.api.auth import action_context
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database, get_library_database_for_write
+from fichero.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero.db import Database
 from fichero.llm import LLMConfig
 from fichero.research_models import (
@@ -58,15 +58,8 @@ class ProjectUpdateRequest(BaseModel):
     metadata: dict[str, Any] | None = None
 
 
-@router.post("/projects", response_model=ResearchProject)
-async def create_project(
-    request: ProjectCreateRequest,
-    db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+def create_project_impl(
+    db: Database, request: ProjectCreateRequest
 ) -> ResearchProject:
     project = ResearchProject(
         name=request.name,
@@ -76,15 +69,58 @@ async def create_project(
         metadata=request.metadata,
     )
     db.save(project)
-    emit_change(
-        x_fichero_library_path,
-        type="research.created",
-        entity_ids=[project.id],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
-    )
     return project
+
+
+def update_project_impl(
+    db: Database, project_id: str, request: ProjectUpdateRequest
+) -> ResearchProject:
+    project = db.get(ResearchProject, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
+    if request.name is not None:
+        project.name = request.name
+    if request.description is not None:
+        project.description = request.description
+    if request.status is not None:
+        project.status = request.status
+    if request.library_destination_folder_id is not None:
+        project.library_destination_folder_id = request.library_destination_folder_id
+    if request.metadata is not None:
+        project.metadata = request.metadata
+    project.updated_at = datetime.now()
+    db.save(project)
+    return project
+
+
+def delete_project_impl(db: Database, project_id: str) -> dict[str, Any]:
+    project = db.get(ResearchProject, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
+    before = project.model_dump(mode="json")
+    db.delete(project)
+    return before
+
+
+def restore_project_impl(db: Database, snapshot: dict[str, Any]) -> ResearchProject:
+    project = ResearchProject(**snapshot)
+    db.save(project)
+    return project
+
+
+@router.post("/projects", response_model=ResearchProject)
+async def create_project(
+    request: ProjectCreateRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ResearchProject:
+    result = registry.invoke(
+        db,
+        "research.project.create",
+        request.model_dump(mode="json"),
+        ctx,
+    )
+    return ResearchProject.model_validate(result.result)
 
 
 @router.get("/projects", response_model=ResearchCrudListResponse)
@@ -115,60 +151,24 @@ async def update_project(
     project_id: str,
     request: ProjectUpdateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: ActionContext = Depends(action_context),
 ) -> ResearchProject:
-    project = db.get(ResearchProject, project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
-    if request.name is not None:
-        project.name = request.name
-    if request.description is not None:
-        project.description = request.description
-    if request.status is not None:
-        project.status = request.status
-    if request.library_destination_folder_id is not None:
-        project.library_destination_folder_id = request.library_destination_folder_id
-    if request.metadata is not None:
-        project.metadata = request.metadata
-    project.updated_at = datetime.now()
-    db.save(project)
-    emit_change(
-        x_fichero_library_path,
-        type="research.updated",
-        entity_ids=[project.id],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
+    result = registry.invoke(
+        db,
+        "research.project.update",
+        {"project_id": project_id, **request.model_dump(mode="json", exclude_unset=True)},
+        ctx,
     )
-    return project
+    return ResearchProject.model_validate(result.result)
 
 
 @router.delete("/projects/{project_id}")
 async def delete_project(
     project_id: str,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: ActionContext = Depends(action_context),
 ) -> DeletedWithIdResponse:
-    project = db.get(ResearchProject, project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
-    db.delete(project)
-    emit_change(
-        x_fichero_library_path,
-        type="research.deleted",
-        entity_ids=[project_id],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
-    )
+    registry.invoke(db, "research.project.delete", {"project_id": project_id}, ctx)
     return DeletedWithIdResponse(status="deleted", id=project_id)
 
 
@@ -192,6 +192,69 @@ class PlanUpdateRequest(BaseModel):
     status: PlanStatus | None = None
     order_index: int | None = None
     metadata: dict[str, Any] | None = None
+
+
+def create_plan_impl(
+    db: Database,
+    request: PlanCreateRequest,
+    *,
+    planning_payload: dict[str, Any] | None = None,
+) -> ResearchPlan:
+    plan = ResearchPlan(
+        project_id=request.project_id,
+        name=request.name,
+        description=request.description,
+        order_index=request.order_index,
+        metadata={
+            **request.metadata,
+            **(
+                {
+                    "research_term": request.term,
+                    "research_plan": planning_payload,
+                }
+                if planning_payload is not None
+                else {}
+            ),
+        },
+    )
+    db.save(plan)
+    return plan
+
+
+def update_plan_impl(
+    db: Database, plan_id: str, request: PlanUpdateRequest
+) -> ResearchPlan:
+    plan = db.get(ResearchPlan, plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail=f"Plan not found: {plan_id}")
+    if request.name is not None:
+        plan.name = request.name
+    if request.description is not None:
+        plan.description = request.description
+    if request.status is not None:
+        plan.status = request.status
+    if request.order_index is not None:
+        plan.order_index = request.order_index
+    if request.metadata is not None:
+        plan.metadata = request.metadata
+    plan.updated_at = datetime.now()
+    db.save(plan)
+    return plan
+
+
+def delete_plan_impl(db: Database, plan_id: str) -> dict[str, Any]:
+    plan = db.get(ResearchPlan, plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail=f"Plan not found: {plan_id}")
+    before = plan.model_dump(mode="json")
+    db.delete(plan)
+    return before
+
+
+def restore_plan_impl(db: Database, snapshot: dict[str, Any]) -> ResearchPlan:
+    plan = ResearchPlan(**snapshot)
+    db.save(plan)
+    return plan
 
 
 def _extract_json_payload(text: str) -> dict[str, Any] | None:
@@ -303,48 +366,26 @@ async def _build_term_plan(
 async def create_plan(
     request: PlanCreateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: ActionContext = Depends(action_context),
 ) -> ResearchPlan:
-    project = db.get(ResearchProject, request.project_id)
     planning_payload: dict[str, Any] | None = None
     if request.term:
+        project = db.get(ResearchProject, request.project_id)
         planning_payload = await _build_term_plan(
             request.term,
             project_name=project.name if project else None,
             project_description=project.description if project else None,
         )
-
-    plan = ResearchPlan(
-        project_id=request.project_id,
-        name=request.name,
-        description=request.description,
-        order_index=request.order_index,
-        metadata={
-            **request.metadata,
-            **(
-                {
-                    "research_term": request.term,
-                    "research_plan": planning_payload,
-                }
-                if planning_payload is not None
-                else {}
-            ),
+    result = registry.invoke(
+        db,
+        "research.plan.create",
+        {
+            **request.model_dump(mode="json"),
+            "planning_payload": planning_payload,
         },
+        ctx,
     )
-    db.save(plan)
-    emit_change(
-        x_fichero_library_path,
-        type="research.created",
-        entity_ids=[plan.id],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
-    )
-    return plan
+    return ResearchPlan.model_validate(result.result)
 
 
 @router.get("/projects/{project_id}/plans", response_model=ResearchCrudListResponse)
@@ -373,34 +414,15 @@ async def update_plan(
     plan_id: str,
     request: PlanUpdateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: ActionContext = Depends(action_context),
 ) -> ResearchPlan:
-    plan = db.get(ResearchPlan, plan_id)
-    if not plan:
-        raise HTTPException(status_code=404, detail=f"Plan not found: {plan_id}")
-    if request.name is not None:
-        plan.name = request.name
-    if request.description is not None:
-        plan.description = request.description
-    if request.order_index is not None:
-        plan.order_index = request.order_index
-    if request.metadata is not None:
-        plan.metadata = request.metadata
-    plan.updated_at = datetime.now()
-    db.save(plan)
-    emit_change(
-        x_fichero_library_path,
-        type="research.updated",
-        entity_ids=[plan.id],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
+    result = registry.invoke(
+        db,
+        "research.plan.update",
+        {"plan_id": plan_id, **request.model_dump(mode="json", exclude_unset=True)},
+        ctx,
     )
-    return plan
+    return ResearchPlan.model_validate(result.result)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -426,15 +448,8 @@ class TaskUpdateRequest(BaseModel):
     metadata: dict[str, Any] | None = None
 
 
-@router.post("/tasks", response_model=ResearchTask)
-async def create_task(
-    request: TaskCreateRequest,
-    db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+def create_task_impl(
+    db: Database, request: TaskCreateRequest
 ) -> ResearchTask:
     task = ResearchTask(
         plan_id=request.plan_id,
@@ -445,15 +460,62 @@ async def create_task(
         metadata=request.metadata,
     )
     db.save(task)
-    emit_change(
-        x_fichero_library_path,
-        type="research.created",
-        entity_ids=[task.id],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
-    )
     return task
+
+
+def update_task_impl(
+    db: Database, task_id: str, request: TaskUpdateRequest
+) -> ResearchTask:
+    task = db.get(ResearchTask, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
+    if request.name is not None:
+        task.name = request.name
+    if request.description is not None:
+        task.description = request.description
+    if request.status is not None:
+        task.status = request.status
+        if request.status == TaskStatus.completed:
+            task.completed_at = datetime.now()
+    if request.priority is not None:
+        task.priority = request.priority
+    if request.assigned_to is not None:
+        task.assigned_to = request.assigned_to
+    if request.metadata is not None:
+        task.metadata = request.metadata
+    task.updated_at = datetime.now()
+    db.save(task)
+    return task
+
+
+def delete_task_impl(db: Database, task_id: str) -> dict[str, Any]:
+    task = db.get(ResearchTask, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
+    before = task.model_dump(mode="json")
+    db.delete(task)
+    return before
+
+
+def restore_task_impl(db: Database, snapshot: dict[str, Any]) -> ResearchTask:
+    task = ResearchTask(**snapshot)
+    db.save(task)
+    return task
+
+
+@router.post("/tasks", response_model=ResearchTask)
+async def create_task(
+    request: TaskCreateRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ResearchTask:
+    result = registry.invoke(
+        db,
+        "research.task.create",
+        request.model_dump(mode="json"),
+        ctx,
+    )
+    return ResearchTask.model_validate(result.result)
 
 
 @router.get("/plans/{plan_id}/tasks", response_model=ResearchCrudListResponse)
@@ -499,40 +561,15 @@ async def update_task(
     task_id: str,
     request: TaskUpdateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: ActionContext = Depends(action_context),
 ) -> ResearchTask:
-    task = db.get(ResearchTask, task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
-    if request.name is not None:
-        task.name = request.name
-    if request.description is not None:
-        task.description = request.description
-    if request.status is not None:
-        task.status = request.status
-        if request.status == TaskStatus.completed:
-            task.completed_at = datetime.now()
-    if request.priority is not None:
-        task.priority = request.priority
-    if request.assigned_to is not None:
-        task.assigned_to = request.assigned_to
-    if request.metadata is not None:
-        task.metadata = request.metadata
-    task.updated_at = datetime.now()
-    db.save(task)
-    emit_change(
-        x_fichero_library_path,
-        type="research.updated",
-        entity_ids=[task.id],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
+    result = registry.invoke(
+        db,
+        "research.task.update",
+        {"task_id": task_id, **request.model_dump(mode="json", exclude_unset=True)},
+        ctx,
     )
-    return task
+    return ResearchTask.model_validate(result.result)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -558,15 +595,8 @@ class StepUpdateRequest(BaseModel):
     order_index: int | None = None
 
 
-@router.post("/steps", response_model=ResearchStep)
-async def create_step(
-    request: StepCreateRequest,
-    db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+def create_step_impl(
+    db: Database, request: StepCreateRequest
 ) -> ResearchStep:
     step = ResearchStep(
         task_id=request.task_id,
@@ -577,37 +607,11 @@ async def create_step(
         order_index=request.order_index,
     )
     db.save(step)
-    emit_change(
-        x_fichero_library_path,
-        type="research.created",
-        entity_ids=[step.id],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
-    )
     return step
 
 
-@router.get("/tasks/{task_id}/steps", response_model=ResearchCrudListResponse)
-async def list_steps(
-    task_id: str,
-    db: Database = Depends(get_library_database),
-) -> ResearchCrudListResponse:
-    steps = db.query(ResearchStep, task_id=task_id)
-    items = sorted(steps, key=lambda s: s.order_index)
-    return ResearchCrudListResponse(items=items, count=len(items))
-
-
-@router.patch("/steps/{step_id}", response_model=ResearchStep)
-async def update_step(
-    step_id: str,
-    request: StepUpdateRequest,
-    db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+def update_step_impl(
+    db: Database, step_id: str, request: StepUpdateRequest
 ) -> ResearchStep:
     step = db.get(ResearchStep, step_id)
     if not step:
@@ -628,12 +632,330 @@ async def update_step(
         step.order_index = request.order_index
     step.updated_at = datetime.now()
     db.save(step)
-    emit_change(
-        x_fichero_library_path,
-        type="research.updated",
-        entity_ids=[step.id],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
-    )
     return step
+
+
+def delete_step_impl(db: Database, step_id: str) -> dict[str, Any]:
+    step = db.get(ResearchStep, step_id)
+    if not step:
+        raise HTTPException(status_code=404, detail=f"Step not found: {step_id}")
+    before = step.model_dump(mode="json")
+    db.delete(step)
+    return before
+
+
+def restore_step_impl(db: Database, snapshot: dict[str, Any]) -> ResearchStep:
+    step = ResearchStep(**snapshot)
+    db.save(step)
+    return step
+
+
+@router.post("/steps", response_model=ResearchStep)
+async def create_step(
+    request: StepCreateRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ResearchStep:
+    result = registry.invoke(
+        db,
+        "research.step.create",
+        request.model_dump(mode="json"),
+        ctx,
+    )
+    return ResearchStep.model_validate(result.result)
+
+
+@router.get("/tasks/{task_id}/steps", response_model=ResearchCrudListResponse)
+async def list_steps(
+    task_id: str,
+    db: Database = Depends(get_library_database),
+) -> ResearchCrudListResponse:
+    steps = db.query(ResearchStep, task_id=task_id)
+    items = sorted(steps, key=lambda s: s.order_index)
+    return ResearchCrudListResponse(items=items, count=len(items))
+
+
+@router.patch("/steps/{step_id}", response_model=ResearchStep)
+async def update_step(
+    step_id: str,
+    request: StepUpdateRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ResearchStep:
+    result = registry.invoke(
+        db,
+        "research.step.update",
+        {"step_id": step_id, **request.model_dump(mode="json", exclude_unset=True)},
+        ctx,
+    )
+    return ResearchStep.model_validate(result.result)
+
+
+class ResearchProjectDeleteParams(BaseModel):
+    project_id: str
+
+
+class ResearchProjectUpdateParams(ProjectUpdateRequest):
+    project_id: str
+
+
+class ResearchProjectRestoreParams(BaseModel):
+    snapshot: dict[str, Any]
+
+
+class ResearchPlanCreateParams(PlanCreateRequest):
+    planning_payload: dict[str, Any] | None = None
+
+
+class ResearchPlanUpdateParams(PlanUpdateRequest):
+    plan_id: str
+
+
+class ResearchPlanDeleteParams(BaseModel):
+    plan_id: str
+
+
+class ResearchPlanRestoreParams(BaseModel):
+    snapshot: dict[str, Any]
+
+
+class ResearchTaskUpdateParams(TaskUpdateRequest):
+    task_id: str
+
+
+class ResearchTaskDeleteParams(BaseModel):
+    task_id: str
+
+
+class ResearchTaskRestoreParams(BaseModel):
+    snapshot: dict[str, Any]
+
+
+class ResearchStepUpdateParams(StepUpdateRequest):
+    step_id: str
+
+
+class ResearchStepDeleteParams(BaseModel):
+    step_id: str
+
+
+class ResearchStepRestoreParams(BaseModel):
+    snapshot: dict[str, Any]
+
+
+def _research_spec(
+    verb: str,
+    row_id: str,
+    *,
+    before: dict[str, Any] | None = None,
+    after: dict[str, Any] | None = None,
+) -> ChangeSpec:
+    def _emit(ctx: ActionContext, spec: ChangeSpec) -> None:
+        if not ctx.library_path or not spec.emit_type:
+            return
+        emit_change(
+            ctx.library_path,
+            type=spec.emit_type,
+            entity_ids=spec.entity_ids,
+            actor=ctx.actor,
+            origin_window=ctx.origin_window,
+            origin_user=ctx.actor,
+        )
+
+    return ChangeSpec(
+        domains=["research"],
+        target_ids=[row_id],
+        before=before,
+        after=after,
+        emit_type=f"research.{verb}",
+        entity_ids=[row_id],
+        emit_fn=_emit,
+    )
+
+
+def _invert_create_project(before, after, ctx):
+    if not after or not after.get("id"):
+        return None
+    return ("research.project.delete", {"project_id": after["id"]})
+
+
+def _invert_restore_snapshot(before, after, ctx):
+    if not before:
+        return None
+    snapshot = after if after and after.get("id") != before.get("id") else before
+    return None if snapshot is None else ("__restore__", {"snapshot": snapshot})
+
+
+@action("research.project.create", ProjectCreateRequest, domains=["research"], undoable=True, invert=_invert_create_project)
+def _action_create_project(db, params: ProjectCreateRequest, ctx: ActionContext):
+    project = create_project_impl(db, params)
+    return project, _research_spec("created", project.id, after=project.model_dump(mode="json"))
+
+
+def _invert_update_project(before, after, ctx):
+    if not before:
+        return None
+    return ("research.project.restore", {"snapshot": before})
+
+
+@action("research.project.update", ResearchProjectUpdateParams, domains=["research"], undoable=True, invert=_invert_update_project)
+def _action_update_project(db, params: ResearchProjectUpdateParams, ctx: ActionContext):
+    before = db.get(ResearchProject, params.project_id)
+    if before is None:
+        raise HTTPException(status_code=404, detail=f"Project not found: {params.project_id}")
+    updated = update_project_impl(
+        db,
+        params.project_id,
+        ProjectUpdateRequest.model_validate(params.model_dump(exclude={"project_id"})),
+    )
+    return updated, _research_spec(
+        "updated",
+        updated.id,
+        before=before.model_dump(mode="json"),
+        after=updated.model_dump(mode="json"),
+    )
+
+
+def _invert_delete_project(before, after, ctx):
+    return None if not before else ("research.project.restore", {"snapshot": before})
+
+
+@action("research.project.delete", ResearchProjectDeleteParams, domains=["research"], undoable=True, invert=_invert_delete_project)
+def _action_delete_project(db, params: ResearchProjectDeleteParams, ctx: ActionContext):
+    before = delete_project_impl(db, params.project_id)
+    return {"status": "deleted", "id": params.project_id}, _research_spec(
+        "deleted",
+        params.project_id,
+        before=before,
+        after={"id": params.project_id},
+    )
+
+
+@action("research.project.restore", ResearchProjectRestoreParams, domains=["research"], undoable=False)
+def _action_restore_project(db, params: ResearchProjectRestoreParams, ctx: ActionContext):
+    project = restore_project_impl(db, params.snapshot)
+    return project, _research_spec("updated", project.id, after=project.model_dump(mode="json"))
+
+
+def _invert_create_plan(before, after, ctx):
+    if not after or not after.get("id"):
+        return None
+    return ("research.plan.delete", {"plan_id": after["id"]})
+
+
+@action("research.plan.create", ResearchPlanCreateParams, domains=["research"], undoable=True, invert=_invert_create_plan)
+def _action_create_plan(db, params: ResearchPlanCreateParams, ctx: ActionContext):
+    plan = create_plan_impl(
+        db,
+        PlanCreateRequest.model_validate(params.model_dump(exclude={"planning_payload"})),
+        planning_payload=params.planning_payload,
+    )
+    return plan, _research_spec("created", plan.id, after=plan.model_dump(mode="json"))
+
+
+def _invert_update_plan(before, after, ctx):
+    return None if not before else ("research.plan.restore", {"snapshot": before})
+
+
+@action("research.plan.update", ResearchPlanUpdateParams, domains=["research"], undoable=True, invert=_invert_update_plan)
+def _action_update_plan(db, params: ResearchPlanUpdateParams, ctx: ActionContext):
+    before = db.get(ResearchPlan, params.plan_id)
+    if before is None:
+        raise HTTPException(status_code=404, detail=f"Plan not found: {params.plan_id}")
+    updated = update_plan_impl(
+        db,
+        params.plan_id,
+        PlanUpdateRequest.model_validate(params.model_dump(exclude={"plan_id"})),
+    )
+    return updated, _research_spec(
+        "updated",
+        updated.id,
+        before=before.model_dump(mode="json"),
+        after=updated.model_dump(mode="json"),
+    )
+
+
+@action("research.plan.delete", ResearchPlanDeleteParams, domains=["research"], undoable=True, invert=lambda before, after, ctx: None if not before else ("research.plan.restore", {"snapshot": before}))
+def _action_delete_plan(db, params: ResearchPlanDeleteParams, ctx: ActionContext):
+    before = delete_plan_impl(db, params.plan_id)
+    return {"status": "deleted", "id": params.plan_id}, _research_spec("deleted", params.plan_id, before=before, after={"id": params.plan_id})
+
+
+@action("research.plan.restore", ResearchPlanRestoreParams, domains=["research"], undoable=False)
+def _action_restore_plan(db, params: ResearchPlanRestoreParams, ctx: ActionContext):
+    plan = restore_plan_impl(db, params.snapshot)
+    return plan, _research_spec("updated", plan.id, after=plan.model_dump(mode="json"))
+
+
+def _invert_create_task(before, after, ctx):
+    if not after or not after.get("id"):
+        return None
+    return ("research.task.delete", {"task_id": after["id"]})
+
+
+@action("research.task.create", TaskCreateRequest, domains=["research"], undoable=True, invert=_invert_create_task)
+def _action_create_task(db, params: TaskCreateRequest, ctx: ActionContext):
+    task = create_task_impl(db, params)
+    return task, _research_spec("created", task.id, after=task.model_dump(mode="json"))
+
+
+@action("research.task.update", ResearchTaskUpdateParams, domains=["research"], undoable=True, invert=lambda before, after, ctx: None if not before else ("research.task.restore", {"snapshot": before}))
+def _action_update_task(db, params: ResearchTaskUpdateParams, ctx: ActionContext):
+    before = db.get(ResearchTask, params.task_id)
+    if before is None:
+        raise HTTPException(status_code=404, detail=f"Task not found: {params.task_id}")
+    updated = update_task_impl(
+        db,
+        params.task_id,
+        TaskUpdateRequest.model_validate(params.model_dump(exclude={"task_id"})),
+    )
+    return updated, _research_spec("updated", updated.id, before=before.model_dump(mode="json"), after=updated.model_dump(mode="json"))
+
+
+@action("research.task.delete", ResearchTaskDeleteParams, domains=["research"], undoable=True, invert=lambda before, after, ctx: None if not before else ("research.task.restore", {"snapshot": before}))
+def _action_delete_task(db, params: ResearchTaskDeleteParams, ctx: ActionContext):
+    before = delete_task_impl(db, params.task_id)
+    return {"status": "deleted", "id": params.task_id}, _research_spec("deleted", params.task_id, before=before, after={"id": params.task_id})
+
+
+@action("research.task.restore", ResearchTaskRestoreParams, domains=["research"], undoable=False)
+def _action_restore_task(db, params: ResearchTaskRestoreParams, ctx: ActionContext):
+    task = restore_task_impl(db, params.snapshot)
+    return task, _research_spec("updated", task.id, after=task.model_dump(mode="json"))
+
+
+def _invert_create_step(before, after, ctx):
+    if not after or not after.get("id"):
+        return None
+    return ("research.step.delete", {"step_id": after["id"]})
+
+
+@action("research.step.create", StepCreateRequest, domains=["research"], undoable=True, invert=_invert_create_step)
+def _action_create_step(db, params: StepCreateRequest, ctx: ActionContext):
+    step = create_step_impl(db, params)
+    return step, _research_spec("created", step.id, after=step.model_dump(mode="json"))
+
+
+@action("research.step.update", ResearchStepUpdateParams, domains=["research"], undoable=True, invert=lambda before, after, ctx: None if not before else ("research.step.restore", {"snapshot": before}))
+def _action_update_step(db, params: ResearchStepUpdateParams, ctx: ActionContext):
+    before = db.get(ResearchStep, params.step_id)
+    if before is None:
+        raise HTTPException(status_code=404, detail=f"Step not found: {params.step_id}")
+    updated = update_step_impl(
+        db,
+        params.step_id,
+        StepUpdateRequest.model_validate(params.model_dump(exclude={"step_id"})),
+    )
+    return updated, _research_spec("updated", updated.id, before=before.model_dump(mode="json"), after=updated.model_dump(mode="json"))
+
+
+@action("research.step.delete", ResearchStepDeleteParams, domains=["research"], undoable=True, invert=lambda before, after, ctx: None if not before else ("research.step.restore", {"snapshot": before}))
+def _action_delete_step(db, params: ResearchStepDeleteParams, ctx: ActionContext):
+    before = delete_step_impl(db, params.step_id)
+    return {"status": "deleted", "id": params.step_id}, _research_spec("deleted", params.step_id, before=before, after={"id": params.step_id})
+
+
+@action("research.step.restore", ResearchStepRestoreParams, domains=["research"], undoable=False)
+def _action_restore_step(db, params: ResearchStepRestoreParams, ctx: ActionContext):
+    step = restore_step_impl(db, params.snapshot)
+    return step, _research_spec("updated", step.id, after=step.model_dump(mode="json"))
