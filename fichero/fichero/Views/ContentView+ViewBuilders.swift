@@ -297,6 +297,7 @@ extension ContentView {
             .safeAreaInset(edge: .top, spacing: 0) { breadcrumbBar }
     }
 
+    @ViewBuilder
     private var centerContentRouting: some View {
         // COMPACT (iPhone/iOS) — Overcast-style forward navigation (#2551).
         // The library/search LIST is the root of a NavigationStack; tapping a
@@ -847,7 +848,6 @@ extension ContentView {
 
     // MARK: - Breadcrumb
 
-    @ViewBuilder
     /// Clickable Finder/Xcode-style breadcrumb for the content header (#1928):
     /// Library ▸ folder ▸ … ▸ document ▸ page. Hidden unless there's a path
     /// beyond the Library root (so it never shows an empty "Library" strip).
