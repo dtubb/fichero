@@ -42,4 +42,42 @@ final class ChatAttachContextTests: XCTestCase {
         XCTAssertTrue(context.hasCurrentView)
         XCTAssertTrue(context.hasHostTargets)
     }
+
+    // MARK: - Implicit grounding (#2449 hybrid)
+
+    func testImplicitScopeIsOpenDocumentWhenFocused() {
+        let context = ChatAttachContext(
+            openDocumentId: "doc-1",
+            openDocumentName: "Letter",
+            currentViewLabel: "Box 3",
+            currentViewDocumentIds: ["a", "b", "c"]
+        )
+        // A focused document wins — the user is looking at that document.
+        XCTAssertEqual(context.implicitScopeIds, ["doc-1"])
+        XCTAssertEqual(context.implicitScopeLabel, "Letter")
+        XCTAssertTrue(context.hasImplicitScope)
+    }
+
+    func testImplicitScopeFallsBackToCurrentViewWhenNoOpenDocument() {
+        let context = ChatAttachContext(
+            currentViewLabel: "Box 3",
+            currentViewDocumentIds: ["a", "b"]
+        )
+        XCTAssertEqual(context.implicitScopeIds, ["a", "b"])
+        XCTAssertEqual(context.implicitScopeLabel, "Box 3")
+        XCTAssertTrue(context.hasImplicitScope)
+    }
+
+    func testOpenDocumentWithoutNameLabelsGenerically() {
+        let context = ChatAttachContext(openDocumentId: "doc-1")
+        XCTAssertEqual(context.implicitScopeIds, ["doc-1"])
+        XCTAssertEqual(context.implicitScopeLabel, "This document")
+    }
+
+    func testEmptyContextHasNoImplicitScope() {
+        let context = ChatAttachContext.empty
+        XCTAssertTrue(context.implicitScopeIds.isEmpty)
+        XCTAssertNil(context.implicitScopeLabel)
+        XCTAssertFalse(context.hasImplicitScope)
+    }
 }

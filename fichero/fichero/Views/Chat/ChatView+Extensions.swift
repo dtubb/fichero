@@ -90,6 +90,30 @@ struct ChatAttachContext {
     var hasOpenDocument: Bool { openDocumentId != nil }
     var hasCurrentView: Bool { !currentViewDocumentIds.isEmpty }
     var hasHostTargets: Bool { hasOpenDocument || hasCurrentView }
+
+    // MARK: - Implicit grounding (#2449 hybrid)
+
+    /// The document ids the CURRENT VIEW grounds the chat on implicitly, with no
+    /// pin needed (#2449 hybrid): the focused document if one is open, otherwise
+    /// the documents in the current view / folder / search. Empty ⇒ ground on the
+    /// whole library.
+    var implicitScopeIds: [String] {
+        if let openDocumentId {
+            return [openDocumentId]
+        }
+        return currentViewDocumentIds
+    }
+
+    /// A short human label for the implicit current-view scope, shown so the user
+    /// can see what the chat is grounded on. `nil` ⇒ whole library.
+    var implicitScopeLabel: String? {
+        if openDocumentId != nil {
+            return openDocumentName ?? "This document"
+        }
+        return currentViewLabel
+    }
+
+    var hasImplicitScope: Bool { !implicitScopeIds.isEmpty }
 }
 
 // MARK: - Drop Support
@@ -163,13 +187,19 @@ extension ChatView {
             do {
                 logger.info("Sending message: \(query)")
 
+                // Hybrid grounding (#2449): the CURRENT VIEW's implicit scope
+                // (the doc/folder/search you're looking at — no attach needed)
+                // UNION the PINNED documents from the paperclip (which persist
+                // across navigation). Empty ⇒ nil ⇒ ground on the whole library.
+                let groundingIds = Set(attachContext.implicitScopeIds).union(selectedDocuments)
+
                 // Call the RAG API — pass backendConversationId (nil for first
                 // message). The backend creates the conversation on first POST
                 // and returns its ID; passing a client-generated UUID returns 404.
                 let response = try await chatService.chat(
                     message: query,
                     conversationId: backendConversationId,
-                    documentIds: selectedDocuments.isEmpty ? nil : Array(selectedDocuments),
+                    documentIds: groundingIds.isEmpty ? nil : Array(groundingIds),
                     includeSources: true,
                     maxSources: 5,
                     provider: selectedProvider,
