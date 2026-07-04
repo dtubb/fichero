@@ -106,7 +106,7 @@ struct CanvasItemView: View {
 extension Spatial2DCanvas {
     /// The folder's `link`-kind canvas items (drawn as connectors).
     var linkItems: [CanvasItemDisplay] {
-        (itemStore?.items ?? []).filter { $0.kind == .link }
+        (itemStore?.items(for: scopeKey) ?? []).filter { $0.kind == .link }
     }
 
     /// Node edges plus `link`-item connectors, drawn beneath the chips. `layout`
@@ -193,7 +193,7 @@ extension Spatial2DCanvas {
         let projected = projectedPositions(in: size)
         guard let store = layoutStore else { return projected }
         var result = projected
-        for item in store.layout where result[item.itemId] != nil {
+        for item in store.layout(for: scopeKey) where result[item.itemId] != nil {
             result[item.itemId] = CGPoint(x: item.x, y: item.y)
         }
         return result
@@ -205,12 +205,12 @@ extension Spatial2DCanvas {
     func itemPositions(in size: CGSize) -> [String: CGPoint] {
         guard let store = itemStore else { return [:] }
         let rows = Dictionary(
-            (layoutStore?.layout ?? []).map { ($0.itemId, $0) },
+            (layoutStore?.layout(for: scopeKey) ?? []).map { ($0.itemId, $0) },
             uniquingKeysWith: { _, latest in latest }
         )
         var result: [String: CGPoint] = [:]
         var fallback = 0
-        for item in store.items where item.kind != .link {
+        for item in store.items(for: scopeKey) where item.kind != .link {
             if let row = rows[item.id] {
                 result[item.id] = CGPoint(x: row.x, y: row.y)
             } else {
@@ -233,7 +233,7 @@ extension Spatial2DCanvas {
         guard let store = layoutStore, let folderId = folderScopeId else { return }
         let projected = projectedPositions(in: size)
         var rows: [String: CanvasItemLayout] = Dictionary(
-            store.layout.map { ($0.itemId, $0) },
+            store.layout(for: folderId).map { ($0.itemId, $0) },
             uniquingKeysWith: { _, latest in latest }
         )
         for node in nodes where rows[node.id] == nil {
@@ -252,7 +252,7 @@ extension Spatial2DCanvas {
     func persistItemPosition(itemId: String, droppedAt: CGPoint) {
         guard let store = layoutStore, let folderId = folderScopeId else { return }
         var rows: [String: CanvasItemLayout] = Dictionary(
-            store.layout.map { ($0.itemId, $0) },
+            store.layout(for: folderId).map { ($0.itemId, $0) },
             uniquingKeysWith: { _, latest in latest }
         )
         if rows[itemId] != nil {
@@ -270,7 +270,7 @@ extension Spatial2DCanvas {
     func persistItemSize(itemId: String, size: CGSize) {
         guard let store = layoutStore, let folderId = folderScopeId else { return }
         var rows: [String: CanvasItemLayout] = Dictionary(
-            store.layout.map { ($0.itemId, $0) },
+            store.layout(for: folderId).map { ($0.itemId, $0) },
             uniquingKeysWith: { _, latest in latest }
         )
         if rows[itemId] != nil {

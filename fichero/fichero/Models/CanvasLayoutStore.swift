@@ -90,31 +90,52 @@ extension CanvasItemLayout {
     }
 }
 
-/// Observable domain store for per-folder canvas layouts (#2293).
+/// Observable domain store for per-folder canvas layouts (#2293 / #3082).
 ///
 /// The single endpoint accessor for canvas item-position data. A view never
 /// holds raw `@State` position arrays or calls the generated client directly:
-/// it observes `layout`, `isLoading`, `isSaving`, and `loadError`, and
+/// it observes `layout(for:)`, `isLoading`, `isSaving`, and `loadError`, and
 /// dispatches the named actions below. Mirrors `SearchStore` (#1903) — the
 /// `@MainActor @Observable` domain-store shape — and the live untyped-envelope
 /// decode idiom used by the existing OpenAPI service wrappers.
 ///
-/// One instance per library, shared across that library's windows.
+/// **One instance per library** (owned by `LibraryReference`), shared across
+/// that library's windows AND both the 2D and future 3D renderers — so moving
+/// an item in one window moves it in the other. Rows are cached **per
+/// `scopeId`** (`layouts[scopeId]`, the folder id or `wholeLibraryRoomId`) so
+/// two windows on different folders never clobber each other's layout (#3082).
 @MainActor
 @Observable
 final class CanvasLayoutStore {
-    // ─── Published domain state (views read these directly) ───
-    private(set) var layout: [CanvasItemLayout] = []
+    // ─── Published domain state (views read these via `layout(for:)`) ───
+    /// scopeId → its saved layout rows. Not `private(set)`: the change-stream
+    /// extension and tests splice rows in place (mirrors `DocumentStore`'s
+    /// internal collections). Views MUST read through `layout(for:)`.
+    var layouts: [String: [CanvasItemLayout]] = [:]
     private(set) var isLoading = false
     private(set) var isSaving = false
     private(set) var loadError: String?
 
+    /// Scopes with an in-flight load — makes `loadLayout` idempotent per scope
+    /// so a re-appear / resync doesn't stack duplicate fetches (#3082).
+    private var loadingScopes: Set<String> = []
+
+    /// Trailing-reload coalescer for the `ObservableDomainStore` substrate
+    /// (#1995): a burst of `canvas.*` events fires one reload, not one-per-event.
+    let reloadDebouncer = ReloadDebouncer()
+
     // ─── Transport: the EXISTING generated client, unchanged ───
-    private let client: FicheroClient
+    let client: FicheroClient
     private let log = Logger(subsystem: "app.fichero.fichero", category: "CanvasLayoutStore")
 
     init(client: FicheroClient) {
         self.client = client
+    }
+
+    /// The saved layout rows for `scopeId` (empty until loaded). The one read
+    /// path for views — reading `layouts` here makes SwiftUI observe it.
+    func layout(for scopeId: String) -> [CanvasItemLayout] {
+        layouts[scopeId] ?? []
     }
 
     /// JSON decoder mapping backend snake_case keys onto the camelCase
@@ -129,11 +150,17 @@ final class CanvasLayoutStore {
 
     // MARK: - Named actions
 
-    /// Load the saved layout for `folderId` into `layout`.
+    /// Load the saved layout for `folderId` into `layouts[folderId]`. Idempotent
+    /// per scope: a concurrent load of the same scope is skipped.
     func loadLayout(folderId: String) async {
+        guard !loadingScopes.contains(folderId) else { return }
+        loadingScopes.insert(folderId)
         isLoading = true
         loadError = nil
-        defer { isLoading = false }
+        defer {
+            loadingScopes.remove(folderId)
+            isLoading = !loadingScopes.isEmpty
+        }
         do {
             let response = try await client.api
                 .getCanvasLayoutApiMindPalaceFoldersFolderIdCanvasLayoutGet(
@@ -142,25 +169,25 @@ final class CanvasLayoutStore {
             switch response {
             case .ok(let okResponse):
                 let items = try okResponse.body.json.items
-                layout = items.compactMap(Self.decode)
-                log.info("Loaded \(self.layout.count, privacy: .public) canvas items")
+                layouts[folderId] = items.compactMap(Self.decode)
+                log.info("Loaded \(self.layouts[folderId]?.count ?? 0, privacy: .public) canvas items")
             case .unprocessableContent(let error):
                 let detail = try? error.body.json
                 loadError = detail?.detail?.description ?? "Validation error"
-                layout = []
+                layouts[folderId] = []
             case .undocumented(let code, _):
                 loadError = "Unexpected response (\(code))"
-                layout = []
+                layouts[folderId] = []
             }
         } catch {
             loadError = error.localizedDescription
-            layout = []
+            layouts[folderId] = []
             log.error("Canvas layout load failed: \(error.localizedDescription)")
         }
     }
 
-    /// Persist `items` as `folderId`'s layout and refresh `layout` from the
-    /// server's typed response. Returns `true` on success.
+    /// Persist `items` as `folderId`'s layout and refresh `layouts[folderId]`
+    /// from the server's typed response. Returns `true` on success.
     @discardableResult
     func saveLayout(folderId: String, items: [CanvasItemLayout]) async -> Bool {
         isSaving = true
@@ -175,8 +202,8 @@ final class CanvasLayoutStore {
                 )
             switch response {
             case .ok(let okResponse):
-                layout = try okResponse.body.json.map(CanvasItemLayout.init(schema:))
-                log.info("Saved \(self.layout.count, privacy: .public) canvas items")
+                layouts[folderId] = try okResponse.body.json.map(CanvasItemLayout.init(schema:))
+                log.info("Saved \(self.layouts[folderId]?.count ?? 0, privacy: .public) canvas items")
                 return true
             case .unprocessableContent(let error):
                 let detail = try? error.body.json

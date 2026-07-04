@@ -153,15 +153,15 @@ struct LibraryView: View {
     @State var entities: [Components.Schemas.KnowledgeEntity] = []
     @State private var spatialSelectedNodeId: String?
 
-    /// Observable store backing 2D-canvas item-position persistence (#2293).
-    /// Lazily created on first appear (needs the library's client from the
-    /// environment); shared across this view's display-mode switches so an
-    /// arranged layout survives switching away from `.canvas` and back.
-    @State private var canvasLayoutStore: CanvasLayoutStore?
-
-    /// Observable store backing standalone 2D-canvas item CONTENT (#2294).
-    /// Lazily created alongside `canvasLayoutStore`; the 2D canvas observes both.
-    @State private var canvasItemStore: CanvasItemStore?
+    /// Canvas stores are now owned per-library by `LibraryReference` (#3082), NOT
+    /// per-view `@State`: ONE shared instance so a move in one window/renderer is
+    /// visible in every other. These read the shared instances off this view's
+    /// library (falling back to the Global library, matching the other lookups).
+    private var libraryReference: LibraryManager.LibraryReference? {
+        libraryManager.getLibrary(id: windowState.libraryId) ?? libraryManager.globalLibrary
+    }
+    private var canvasLayoutStore: CanvasLayoutStore? { libraryReference?.canvasLayoutStore }
+    private var canvasItemStore: CanvasItemStore? { libraryReference?.canvasItemStore }
 
     @State var isLoadingEntities = false
     @State var entityLoadErrorMessage: String?
@@ -316,11 +316,6 @@ struct LibraryView: View {
                 } : nil
             )
             .onAppear {
-                if canvasLayoutStore == nil || canvasItemStore == nil {
-                    let client = libraryManager.globalLibrary?.ficheroClient ?? FicheroClient(baseURL: EngineConfig.host)
-                    canvasLayoutStore = canvasLayoutStore ?? CanvasLayoutStore(client: client)
-                    canvasItemStore = canvasItemStore ?? CanvasItemStore(client: client)
-                }
                 if outlineModel == nil {
                     outlineModel = LibraryOutlineModel(
                         service: entityService,

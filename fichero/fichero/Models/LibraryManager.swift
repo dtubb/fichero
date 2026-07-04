@@ -182,6 +182,17 @@ class LibraryManager: ObservableObject {
         /// `interpretation.*` change events (#2008).
         lazy var interpretationStore: InterpretationStore = InterpretationStore(entityService: entityService)
 
+        /// Per-library canvas layout store (#2293 / #3082) — ONE instance shared
+        /// across this library's windows and both the 2D and future 3D renderers,
+        /// so moving an item in one window moves it in the others. Scope-keyed by
+        /// folder id; reacts to `canvas.*` change events for cross-device sync.
+        lazy var canvasLayoutStore: CanvasLayoutStore = CanvasLayoutStore(client: ficheroClient)
+
+        /// Per-library canvas item store (#2294 / #3082) — sibling to
+        /// `canvasLayoutStore` owning the standalone item CONTENT. Shared instance,
+        /// scope-keyed, on the `canvas` change domain.
+        lazy var canvasItemStore: CanvasItemStore = CanvasItemStore(client: ficheroClient)
+
         /// One SSE change-stream per library (#1863), fanning events to the
         /// stores above. `start()` is idempotent — each window kicks it from
         /// its `.task`; only the first connects.
@@ -204,6 +215,8 @@ class LibraryManager: ObservableObject {
             stream.register(self.citationStore)
             stream.register(self.referenceStore)
             stream.register(self.interpretationStore)
+            stream.register(self.canvasLayoutStore)
+            stream.register(self.canvasItemStore)
             return stream
         }()
 

@@ -33,6 +33,11 @@ struct Spatial2DCanvas: View {
     /// `wholeLibraryRoomId` ("__library__") for the unscoped whole-library view.
     var folderScopeId: String?
 
+    /// Non-optional scope key for reading the per-scope stores (#3082): the
+    /// folder id, or `wholeLibraryRoomId` when unscoped. The stores cache rows
+    /// per scope so this window never reads another folder's layout.
+    var scopeKey: String { folderScopeId ?? wholeLibraryRoomId }
+
     // Live drag state for the chip currently being moved.
     @State var dragItemId: String?
     @State var dragTranslation: CGSize = .zero
@@ -212,7 +217,7 @@ struct Spatial2DCanvas: View {
 
             // Standalone heterogeneous canvas items (notes / quotes / text)
             // rendered through the single `CanvasItemView`. Links draw above.
-            ForEach(itemStore?.items ?? []) { item in
+            ForEach(itemStore?.items(for: scopeKey) ?? []) { item in
                 if item.kind != .link, let base = itemPoints[item.id], visible.contains(base) {
                     let point = (dragItemId == item.id)
                         ? CGPoint(x: base.x + dragTranslation.width,

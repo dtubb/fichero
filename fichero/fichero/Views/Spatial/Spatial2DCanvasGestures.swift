@@ -6,7 +6,7 @@ extension Spatial2DCanvas {
     /// The card's persisted size — the `CanvasItemLayout` w/h if present, else the
     /// default sticky-note size. View-space (pre-camera-scale) units.
     func persistedItemSize(for item: CanvasItemDisplay) -> CGSize {
-        let row = layoutStore?.layout.first { $0.itemId == item.id }
+        let row = layoutStore?.layout(for: scopeKey).first { $0.itemId == item.id }
         // Flatten the double-optional (row? + w?) before mapping, else the
         // type-checker chokes ("failed to produce diagnostic") inside CGSize.
         let savedW: Double? = row?.w ?? nil

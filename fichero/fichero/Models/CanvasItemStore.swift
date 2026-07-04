@@ -61,30 +61,48 @@ extension CanvasItemDisplay {
     }
 }
 
-/// Observable domain store for a folder's standalone canvas items (#2294).
+/// Observable domain store for a folder's standalone canvas items (#2294 / #3082).
 ///
 /// The single endpoint accessor for canvas item CONTENT. Sibling to
 /// `CanvasLayoutStore` (#2293): that store owns *where* each id sits, this one
 /// owns *what* the standalone ids ARE. The 2D canvas observes both — layout for
 /// positions, items for the heterogeneous note/quote/text/link content. A view
-/// never calls the generated client directly; it observes `items`, `isLoading`,
-/// `loadError` and dispatches the named actions below.
+/// never calls the generated client directly; it observes `items(for:)`,
+/// `isLoading`, `loadError` and dispatches the named actions below.
 ///
-/// One instance per library, shared across that library's windows.
+/// **One instance per library** (owned by `LibraryReference`), shared across
+/// that library's windows and renderers. Items are cached **per `scopeId`**
+/// (`itemsByScope[scopeId]`) so two windows on different folders never clobber
+/// each other's item list (#3082).
 @MainActor
 @Observable
 final class CanvasItemStore {
-    // ─── Published domain state (views read these directly) ───
-    private(set) var items: [CanvasItemDisplay] = []
+    // ─── Published domain state (views read these via `items(for:)`) ───
+    /// scopeId → its standalone canvas items. Not `private(set)`: the
+    /// change-stream extension and tests splice rows in place. Views MUST read
+    /// through `items(for:)`.
+    var itemsByScope: [String: [CanvasItemDisplay]] = [:]
     private(set) var isLoading = false
     private(set) var loadError: String?
 
+    /// Scopes with an in-flight load — makes `loadItems` idempotent per scope.
+    private var loadingScopes: Set<String> = []
+
+    /// Trailing-reload coalescer for the `ObservableDomainStore` substrate (#1995).
+    let reloadDebouncer = ReloadDebouncer()
+
     // ─── Transport: the EXISTING generated client, unchanged ───
-    private let client: FicheroClient
+    let client: FicheroClient
     private let log = Logger(subsystem: "app.fichero.fichero", category: "CanvasItemStore")
 
     init(client: FicheroClient) {
         self.client = client
+    }
+
+    /// The standalone canvas items for `scopeId` (empty until loaded). The one
+    /// read path for views — reading `itemsByScope` here makes SwiftUI observe it.
+    func items(for scopeId: String) -> [CanvasItemDisplay] {
+        itemsByScope[scopeId] ?? []
     }
 
     /// JSON decoder mapping backend snake_case keys onto camelCase properties.
@@ -98,11 +116,17 @@ final class CanvasItemStore {
 
     // MARK: - Named actions
 
-    /// Load the standalone canvas items for `folderId` into `items`.
+    /// Load the standalone canvas items for `folderId` into
+    /// `itemsByScope[folderId]`. Idempotent per scope.
     func loadItems(folderId: String) async {
+        guard !loadingScopes.contains(folderId) else { return }
+        loadingScopes.insert(folderId)
         isLoading = true
         loadError = nil
-        defer { isLoading = false }
+        defer {
+            loadingScopes.remove(folderId)
+            isLoading = !loadingScopes.isEmpty
+        }
         do {
             let response = try await client.api
                 .listCanvasItemsApiMindPalaceFoldersFolderIdCanvasItemsGet(
@@ -111,19 +135,19 @@ final class CanvasItemStore {
             switch response {
             case .ok(let okResponse):
                 let envelope = try okResponse.body.json.items
-                items = envelope.compactMap(Self.decode)
-                log.info("Loaded \(self.items.count, privacy: .public) canvas items")
+                itemsByScope[folderId] = envelope.compactMap(Self.decode)
+                log.info("Loaded \(self.itemsByScope[folderId]?.count ?? 0, privacy: .public) canvas items")
             case .unprocessableContent(let error):
                 let detail = try? error.body.json
                 loadError = detail?.detail?.description ?? "Validation error"
-                items = []
+                itemsByScope[folderId] = []
             case .undocumented(let code, _):
                 loadError = "Unexpected response (\(code))"
-                items = []
+                itemsByScope[folderId] = []
             }
         } catch {
             loadError = error.localizedDescription
-            items = []
+            itemsByScope[folderId] = []
             log.error("Canvas items load failed: \(error.localizedDescription)")
         }
     }
@@ -156,7 +180,7 @@ final class CanvasItemStore {
                     loadError = "Created item missing id"
                     return nil
                 }
-                items.append(created)
+                itemsByScope[folderId, default: []].append(created)
                 return created
             case .unprocessableContent(let error):
                 let detail = try? error.body.json
@@ -199,10 +223,12 @@ final class CanvasItemStore {
             switch response {
             case .ok(let okResponse):
                 guard let updated = CanvasItemDisplay(item: try okResponse.body.json) else { return false }
-                if let index = items.firstIndex(where: { $0.id == updated.id }) {
-                    items[index] = updated
+                // Patch the one row in place (stable identity — no wholesale
+                // re-render), or append if the scope hadn't seen it yet.
+                if let index = itemsByScope[folderId]?.firstIndex(where: { $0.id == updated.id }) {
+                    itemsByScope[folderId]?[index] = updated
                 } else {
-                    items.append(updated)
+                    itemsByScope[folderId, default: []].append(updated)
                 }
                 return true
             case .unprocessableContent(let error):
@@ -230,7 +256,7 @@ final class CanvasItemStore {
                 )
             switch response {
             case .ok:
-                items.removeAll { $0.id == itemId }
+                itemsByScope[folderId]?.removeAll { $0.id == itemId }
                 return true
             case .unprocessableContent(let error):
                 let detail = try? error.body.json
