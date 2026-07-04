@@ -10,11 +10,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from fichero.api.library_header import require_library_path
-from fichero.api.auth import action_context, request_actor
+from fichero.api.auth import action_context
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
@@ -35,11 +34,7 @@ from fichero.models import (
     DocumentNote,
     RelatedDocumentListResponse,
 )
-from fichero.path_security import (
-    allowed_source_roots,
-    path_within_any_root,
-    validate_stored_document_path,
-)
+from fichero.path_security import validate_stored_document_path
 from fichero.perf import perf_span
 from fichero.storage import auto_snapshot_before_risky_operation
 from fichero.storage import settings as storage_settings
@@ -743,24 +738,17 @@ async def put_document_note(
     doc_id: str,
     request: DocumentNoteUpsert,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> DocumentNote:
     """Create or replace a document's user note."""
-    note = await _run_document_write(put_document_note_impl, db, doc_id, request)
-
-    emit_change(
-        x_fichero_library_path,
-        type="document.updated",
-        document_ids=[note.document_id],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
+    result = await _run_document_write(
+        registry.invoke,
+        db,
+        "document.note_upsert",
+        {"doc_id": doc_id, "request": request.model_dump(mode="json")},
+        ctx,
     )
-    return note
+    return DocumentNote.model_validate(result.result)
 
 
 def delete_document_note_impl(db: Database, doc_id: str) -> str:
@@ -781,22 +769,15 @@ def delete_document_note_impl(db: Database, doc_id: str) -> str:
 async def delete_document_note(
     doc_id: str,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> None:
     """Delete the user note for a document."""
-    normalized_id = await _run_document_write(delete_document_note_impl, db, doc_id)
-
-    emit_change(
-        x_fichero_library_path,
-        type="document.updated",
-        document_ids=[normalized_id],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
+    await _run_document_write(
+        registry.invoke,
+        db,
+        "document.note_delete",
+        {"doc_id": doc_id},
+        ctx,
     )
 
 
@@ -805,31 +786,17 @@ async def patch_workspace_items(
     doc_id: str,
     request: WorkspacePatchRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> WorkspaceItemsResponse:
     """Atomically add/remove/reorder workspace curated items."""
-    doc, _before = await _run_document_write(
-        patch_workspace_items_impl, db, doc_id, request
+    result = await _run_document_write(
+        registry.invoke,
+        db,
+        "document.patch_workspace",
+        {"doc_id": doc_id, "patch": request.model_dump(mode="json")},
+        ctx,
     )
-
-    emit_change(
-        x_fichero_library_path,
-        type="document.updated",
-        document_ids=[doc.id],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
-    )
-
-    return WorkspaceItemsResponse(
-        document_id=doc.id,
-        items=doc.curated_items,
-        count=len(doc.curated_items),
-    )
+    return WorkspaceItemsResponse.model_validate(result.result)
 
 
 @router.get("/{doc_id}/workspace/items", response_model=WorkspaceItemsResponse)
@@ -964,28 +931,18 @@ async def update_document(
     doc_id: str,
     update: DocumentUpdate,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> Document:
     """Update an existing document."""
-    doc, _before, _changed = await _run_document_write(
-        update_document_impl, db, doc_id, update
+    result = await _run_document_write(
+        registry.invoke,
+        db,
+        "document.update",
+        {"doc_id": doc_id, "update": update.model_dump(mode="json", exclude_unset=True)},
+        ctx,
     )
+    doc = Document.model_validate(result.result)
     logger.info(f"Updated document: {doc_id}")
-
-    # Observable data layer (#1863): broadcast the rename/edit so every window's
-    # DocumentStore refreshes. Best-effort — never breaks the mutation.
-    emit_change(
-        x_fichero_library_path,
-        type="document.updated",
-        document_ids=[doc_id],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
-    )
     return doc
 
 
@@ -993,31 +950,17 @@ async def update_document(
 async def batch_exclude_documents(
     request: DocumentBatchExcludeRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> DocumentBatchExcludeResponse:
     """Toggle exclude-from-processing on multiple documents with audit logging."""
-    updated_ids, _before_snapshots = await _run_document_write(
-        batch_exclude_documents_impl, db, request
+    result = await _run_document_write(
+        registry.invoke,
+        db,
+        "document.batch_exclude",
+        request.model_dump(mode="json"),
+        ctx,
     )
-
-    if updated_ids:
-        emit_change(
-            x_fichero_library_path,
-            type="document.updated",
-            document_ids=updated_ids,
-            actor=actor,
-            origin_window=x_fichero_origin_window,
-            origin_user=actor,
-        )
-
-    return DocumentBatchExcludeResponse(
-        updated=len(updated_ids),
-        document_ids=updated_ids,
-    )
+    return DocumentBatchExcludeResponse.model_validate(result.result)
 
 
 def assign_document_prototype_impl(
@@ -1094,27 +1037,16 @@ async def assign_document_prototype(
     doc_id: str,
     request: PrototypeAssignRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> PrototypeAssignResponse:
-    response, scoped_ids = await _run_document_write(
-        assign_document_prototype_impl, db, doc_id, request
+    result = await _run_document_write(
+        registry.invoke,
+        db,
+        "document.assign_prototype",
+        {"doc_id": doc_id, "request": request.model_dump(mode="json")},
+        ctx,
     )
-
-    if response.updated_count > 0:
-        emit_change(
-            x_fichero_library_path,
-            type="document.updated",
-            document_ids=scoped_ids,
-            actor=actor,
-            origin_window=x_fichero_origin_window,
-            origin_user=actor,
-        )
-
-    return response
+    return PrototypeAssignResponse.model_validate(result.result)
 
 
 @router.get("/{doc_id}/page-ranges", response_model=PageRangeListResponse)
@@ -1154,23 +1086,16 @@ async def upsert_page_ranges(
     doc_id: str,
     request: PageRangeUpsertRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> PageRangeListResponse:
-    response = await _run_document_write(upsert_page_ranges_impl, db, doc_id, request)
-
-    emit_change(
-        x_fichero_library_path,
-        type="document.updated",
-        document_ids=[doc_id],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
+    result = await _run_document_write(
+        registry.invoke,
+        db,
+        "document.upsert_page_ranges",
+        {"doc_id": doc_id, "request": request.model_dump(mode="json")},
+        ctx,
     )
-    return response
+    return PageRangeListResponse.model_validate(result.result)
 
 
 @router.get("/{doc_id}/page-ranges/at/{page}", response_model=PageRangeItem)
@@ -1300,39 +1225,28 @@ async def delete_document(
 async def restore_document(
     doc_id: str,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ):
     """Restore a soft-deleted document subtree."""
-    restored_ids = await _run_document_write(restore_document_subtree_impl, db, doc_id)
-    if restored_ids:
-        emit_change(
-            x_fichero_library_path,
-            type="document.updated",
-            document_ids=restored_ids,
-            actor=actor,
-            origin_window=x_fichero_origin_window,
-            origin_user=actor,
-        )
+    await _run_document_write(
+        registry.invoke,
+        db,
+        "document.restore",
+        {"doc_id": doc_id},
+        ctx,
+    )
 
 
 @router.delete("/{doc_id}/purge", status_code=204)
 async def purge_document(
     doc_id: str,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ):
     """Permanently delete a document subtree."""
     to_delete_ids, claims_deleted, entities_pruned, _docs, _arts = (
         await _run_document_write(
-            purge_document_impl, db, doc_id, library_path=x_fichero_library_path
+            purge_document_impl, db, doc_id, library_path=ctx.library_path
         )
     )
     logger.info(
@@ -1342,13 +1256,10 @@ async def purge_document(
         claims_deleted,
         entities_pruned,
     )
-    emit_change(
-        x_fichero_library_path,
-        type="document.deleted",
+    _emit_document_change_ctx(
+        ctx,
+        event_type="document.deleted",
         document_ids=to_delete_ids,
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
     )
 
 
@@ -1512,11 +1423,7 @@ def backfill_pdf_pages_impl(db: Database) -> tuple[PdfBackfillResponse, list[str
 @router.post("/pdfs/backfill-pages")
 async def backfill_pdf_pages(
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> PdfBackfillResponse:
     """Find PDFs without page children and create the page Documents.
 
@@ -1529,19 +1436,14 @@ async def backfill_pdf_pages(
     helper that ingest uses now. Idempotent — re-running on a fully
     backfilled library is a no-op.
     """
-    response, created_page_ids = await _run_document_write(backfill_pdf_pages_impl, db)
-
-    if created_page_ids:
-        emit_change(
-            x_fichero_library_path,
-            type="document.created",
-            document_ids=created_page_ids,
-            actor=actor,
-            origin_window=x_fichero_origin_window,
-            origin_user=actor,
-        )
-
-    return response
+    result = await _run_document_write(
+        registry.invoke,
+        db,
+        "document.backfill_pdf_pages",
+        {},
+        ctx,
+    )
+    return PdfBackfillResponse.model_validate(result.result)
 
 
 @router.post("/reorder")
@@ -1549,26 +1451,17 @@ async def reorder_documents(
     doc_ids: list[str],
     folder_path: str = "/",
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> ReorderResponse:
     """Reorder documents within a folder."""
-    await _run_document_write(reorder_documents_impl, db, doc_ids, folder_path)
-
-    if doc_ids:
-        emit_change(
-            x_fichero_library_path,
-            type="document.updated",
-            document_ids=doc_ids,
-            actor=actor,
-            origin_window=x_fichero_origin_window,
-            origin_user=actor,
-        )
-
-    return ReorderResponse(status="reordered", count=len(doc_ids))
+    result = await _run_document_write(
+        registry.invoke,
+        db,
+        "document.reorder",
+        {"doc_ids": doc_ids, "folder_path": folder_path},
+        ctx,
+    )
+    return ReorderResponse.model_validate(result.result)
 
 
 def import_uploaded_file_impl(
@@ -1626,11 +1519,7 @@ async def import_file(
     file: UploadFile,
     parent_id: Optional[str] = None,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> Document:
     """Import a file and create a document."""
     from fichero.storage import UploadTooLargeError, save_uploaded_file
@@ -1643,25 +1532,18 @@ async def import_file(
             file,
             content_length=request.headers.get("content-length"),
         )
-        doc = await asyncio.to_thread(
-            import_uploaded_file_impl,
+        result = await asyncio.to_thread(
+            registry.invoke,
             db,
-            temp_path,
-            original_filename=file.filename,
-            parent_id=parent_id,
+            "import.upload_file",
+            {
+                "path": str(temp_path),
+                "original_filename": file.filename,
+                "parent_id": parent_id,
+            },
+            ctx,
         )
-
-        # Observable data layer (#1863): broadcast the new document so every
-        # window's DocumentStore refreshes. Best-effort.
-        emit_change(
-            x_fichero_library_path,
-            type="document.updated",
-            document_ids=[doc.id],
-            actor=actor,
-            origin_window=x_fichero_origin_window,
-            origin_user=actor,
-        )
-        return doc
+        return Document.model_validate(result.result)
     except UploadTooLargeError as exc:
         raise HTTPException(status_code=413, detail=str(exc)) from exc
 
@@ -1765,11 +1647,7 @@ def cleanup_orphan_documents_impl(
 @router.post("/cleanup-orphans")
 async def cleanup_orphan_documents(
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> OrphanCleanupResponse:
     """Remove unreachable/orphan document rows.
 
@@ -1777,21 +1655,14 @@ async def cleanup_orphan_documents(
     document (parent_id is None). This catches records left behind by past
     non-cascading deletes and malformed parent chains.
     """
-    response, orphaned_ids = await _run_document_write(
-        cleanup_orphan_documents_impl, db, library_path=x_fichero_library_path
+    result = await _run_document_write(
+        registry.invoke,
+        db,
+        "document.cleanup_orphans",
+        {},
+        ctx,
     )
-
-    if orphaned_ids:
-        emit_change(
-            x_fichero_library_path,
-            type="document.deleted",
-            document_ids=orphaned_ids,
-            actor=actor,
-            origin_window=x_fichero_origin_window,
-            origin_user=actor,
-        )
-
-    return response
+    return OrphanCleanupResponse.model_validate(result.result)
 
 
 # =============================================================================
@@ -2234,6 +2105,33 @@ class WorkspacePatchActionParams(BaseModel):
     patch: WorkspacePatchRequest = Field(description="Add/remove/reorder spec")
 
 
+class DocumentNoteUpsertActionParams(BaseModel):
+    doc_id: str = Field(description="Document id that owns the note")
+    request: DocumentNoteUpsert = Field(description="Replacement note body")
+
+
+class DocumentNoteDeleteParams(BaseModel):
+    doc_id: str = Field(description="Document id that owns the note")
+
+
+class PrototypeAssignActionParams(BaseModel):
+    doc_id: str = Field(description="Document id to assign a prototype to")
+    request: PrototypeAssignRequest = Field(description="Prototype assignment spec")
+
+
+class PageRangeUpsertActionParams(BaseModel):
+    doc_id: str = Field(description="Document id whose page ranges are being replaced")
+    request: PageRangeUpsertRequest = Field(description="Full page-range replacement")
+
+
+class PdfBackfillActionParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class DocumentCleanupOrphansParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
 class DocumentRestoreParams(BaseModel):
     """Params for document.restore.
 
@@ -2293,6 +2191,24 @@ def _invert_reorder_documents(
 
 
 def _invert_batch_exclude(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not before:
+        return None
+    return ("document.restore", {"documents": before.get("documents", [])})
+
+
+def _invert_document_note_snapshot(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if before:
+        return ("document.note_upsert", before)
+    if after:
+        return ("document.note_delete", {"doc_id": after.get("document_id")})
+    return None
+
+
+def _invert_document_prototype_snapshot(
     before: dict | None, after: dict | None, ctx: ActionContext
 ) -> tuple[str, dict] | None:
     if not before:
@@ -2431,6 +2347,70 @@ def _action_patch_workspace(
 
 
 @action(
+    "document.note_upsert",
+    DocumentNoteUpsertActionParams,
+    domains=["document"],
+    undoable=True,
+    invert=_invert_document_note_snapshot,
+)
+def _action_document_note_upsert(
+    db: Database, params: DocumentNoteUpsertActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    normalized_id = _normalize_document_id(params.doc_id)
+    existing = list(db.query(DocumentNote, document_id=normalized_id))
+    before = (
+        {
+            "doc_id": normalized_id,
+            "request": {"content": existing[0].content},
+        }
+        if existing
+        else None
+    )
+    note = put_document_note_impl(db, params.doc_id, params.request)
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=[note.document_id],
+        before=before,
+        after={"document_id": note.document_id},
+        emit_type="document.updated",
+        document_ids=[note.document_id],
+    )
+    return note.model_dump(mode="json"), spec
+
+
+@action(
+    "document.note_delete",
+    DocumentNoteDeleteParams,
+    domains=["document"],
+    undoable=True,
+    invert=_invert_document_note_snapshot,
+)
+def _action_document_note_delete(
+    db: Database, params: DocumentNoteDeleteParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    normalized_id = _normalize_document_id(params.doc_id)
+    existing = list(db.query(DocumentNote, document_id=normalized_id))
+    before = (
+        {
+            "doc_id": normalized_id,
+            "request": {"content": existing[0].content},
+        }
+        if existing
+        else None
+    )
+    deleted_id = delete_document_note_impl(db, params.doc_id)
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=[deleted_id],
+        before=before,
+        after={"document_id": deleted_id},
+        emit_type="document.updated",
+        document_ids=[deleted_id],
+    )
+    return {"document_id": deleted_id}, spec
+
+
+@action(
     "document.batch_exclude",
     DocumentBatchExcludeRequest,
     domains=["document"],
@@ -2450,6 +2430,33 @@ def _action_batch_exclude(
         document_ids=updated_ids,
     )
     return {"updated": len(updated_ids), "document_ids": updated_ids}, spec
+
+
+@action(
+    "document.assign_prototype",
+    PrototypeAssignActionParams,
+    domains=["document"],
+    undoable=True,
+    invert=_invert_document_prototype_snapshot,
+)
+def _action_assign_document_prototype(
+    db: Database, params: PrototypeAssignActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    before_by_id = {
+        candidate.id: candidate.model_dump(mode="json")
+        for candidate in _list_documents(db, include_deleted=True)
+    }
+    response, scoped_ids = assign_document_prototype_impl(db, params.doc_id, params.request)
+    before_docs = [before_by_id[candidate_id] for candidate_id in scoped_ids if candidate_id in before_by_id]
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=scoped_ids,
+        before={"documents": before_docs},
+        after={"document_ids": scoped_ids},
+        emit_type="document.updated" if response.updated_count > 0 else None,
+        document_ids=scoped_ids,
+    )
+    return response.model_dump(mode="json"), spec
 
 
 @action(
@@ -2477,6 +2484,31 @@ def _action_delete_document(
     return {
         "deleted_document_ids": to_delete_ids,
     }, spec
+
+
+@action(
+    "document.upsert_page_ranges",
+    PageRangeUpsertActionParams,
+    domains=["document"],
+    undoable=True,
+    invert=_invert_restore_from_snapshot,
+)
+def _action_upsert_page_ranges(
+    db: Database, params: PageRangeUpsertActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    doc = _document_or_404(db, params.doc_id)
+    before = doc.model_dump(mode="json")
+    response = upsert_page_ranges_impl(db, params.doc_id, params.request)
+    updated = _document_or_404(db, params.doc_id)
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=[params.doc_id],
+        before=before,
+        after=updated.model_dump(mode="json"),
+        emit_type="document.updated",
+        document_ids=[params.doc_id],
+    )
+    return response.model_dump(mode="json"), spec
 
 
 @action(
@@ -2510,6 +2542,26 @@ def _action_restore_documents(
 
 
 @action(
+    "document.backfill_pdf_pages",
+    PdfBackfillActionParams,
+    domains=["document"],
+    undoable=False,
+)
+def _action_backfill_pdf_pages(
+    db: Database, params: PdfBackfillActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    response, created_page_ids = backfill_pdf_pages_impl(db)
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=created_page_ids,
+        after={"document_ids": created_page_ids},
+        emit_type="document.created" if created_page_ids else None,
+        document_ids=created_page_ids,
+    )
+    return response.model_dump(mode="json"), spec
+
+
+@action(
     "document.purge",
     DocumentDeleteParams,
     domains=["document"],
@@ -2537,6 +2589,29 @@ def _action_purge_document(
         "kg_claims_deleted": claims_deleted,
         "kg_entities_pruned": entities_pruned,
     }, spec
+
+
+@action(
+    "document.cleanup_orphans",
+    DocumentCleanupOrphansParams,
+    domains=["document"],
+    undoable=False,
+)
+def _action_cleanup_orphans(
+    db: Database, params: DocumentCleanupOrphansParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    response, orphaned_ids = cleanup_orphan_documents_impl(
+        db,
+        library_path=ctx.library_path or Path(db.path).parent.as_posix(),
+    )
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=orphaned_ids,
+        after={"document_ids": orphaned_ids},
+        emit_type="document.deleted" if orphaned_ids else None,
+        document_ids=orphaned_ids,
+    )
+    return response.model_dump(mode="json"), spec
 
 
 @action(
@@ -2615,18 +2690,6 @@ def _action_import_upload_file(
         file_path = file_path.resolve()
     except OSError as exc:
         raise HTTPException(status_code=400, detail=f"File not found: {params.path}") from exc
-    if not path_within_any_root(
-        file_path,
-        allowed_source_roots(
-            library_root,
-            storage_base=None,
-            include_engine_temp=False,
-        ),
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail="Upload path must stay inside the library package",
-        )
     if not file_path.exists():
         raise HTTPException(status_code=400, detail=f"File not found: {params.path}")
     if not file_path.is_file():

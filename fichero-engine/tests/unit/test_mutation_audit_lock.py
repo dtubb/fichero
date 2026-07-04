@@ -192,6 +192,115 @@ def _delete_folder(client, db) -> tuple[object, str, str, str, str, str]:
     return response, doc.id, "document.delete", "document.deleted", "document_ids", doc.id
 
 
+def _update_document(client, db) -> tuple[object, str, str, str, str, str]:
+    doc = Document(name="Before Update")
+    db.save(doc)
+    response = client.put(f"/api/documents/{doc.id}", json={"name": "After Update"})
+    return response, doc.id, "document.update", "document.updated", "document_ids", doc.id
+
+
+def _restore_document(client, db) -> tuple[object, str, str, str, str, str]:
+    doc = Document(name="Restore Me")
+    db.save(doc)
+    delete = client.delete(f"/api/documents/{doc.id}")
+    assert delete.status_code == 204
+    response = client.post(f"/api/documents/{doc.id}/restore")
+    return response, doc.id, "document.restore", "document.updated", "document_ids", doc.id
+
+
+def _reorder_documents(client, db) -> tuple[object, str, str, str, str, str]:
+    a = Document(name="Reorder A")
+    b = Document(name="Reorder B")
+    db.save(a)
+    db.save(b)
+    response = client.post("/api/documents/reorder", json=[b.id, a.id])
+    return response, a.id, "document.reorder", "document.updated", "document_ids", a.id
+
+
+def _batch_exclude_documents(client, db) -> tuple[object, str, str, str, str, str]:
+    doc = Document(name="Exclude Me")
+    db.save(doc)
+    response = client.patch(
+        "/api/documents/batch-exclude",
+        json={"document_ids": [doc.id], "excluded": True},
+    )
+    return (
+        response,
+        doc.id,
+        "document.batch_exclude",
+        "document.updated",
+        "document_ids",
+        doc.id,
+    )
+
+
+def _put_document_note(client, db) -> tuple[object, str, str, str, str, str]:
+    doc = Document(name="Noted")
+    db.save(doc)
+    response = client.put(
+        f"/api/documents/{doc.id}/notes",
+        json={"content": "audit note"},
+    )
+    return (
+        response,
+        doc.id,
+        "document.note_upsert",
+        "document.updated",
+        "document_ids",
+        doc.id,
+    )
+
+
+def _delete_document_note(client, db) -> tuple[object, str, str, str, str, str]:
+    doc = Document(name="Delete Noted")
+    db.save(doc)
+    create = client.put(f"/api/documents/{doc.id}/notes", json={"content": "before"})
+    assert create.status_code == 200
+    response = client.delete(f"/api/documents/{doc.id}/notes")
+    return (
+        response,
+        doc.id,
+        "document.note_delete",
+        "document.updated",
+        "document_ids",
+        doc.id,
+    )
+
+
+def _assign_document_prototype(client, db) -> tuple[object, str, str, str, str, str]:
+    doc = Document(name="Prototype Target")
+    db.save(doc)
+    response = client.put(
+        f"/api/documents/{doc.id}/prototype",
+        json={"prototype_key": "letter"},
+    )
+    return (
+        response,
+        doc.id,
+        "document.assign_prototype",
+        "document.updated",
+        "document_ids",
+        doc.id,
+    )
+
+
+def _upsert_page_ranges(client, db) -> tuple[object, str, str, str, str, str]:
+    pdf = Document(name="Paged", file_type="pdf", doc_type=DocType.file)
+    db.save(pdf)
+    response = client.put(
+        f"/api/documents/{pdf.id}/page-ranges",
+        json={"items": [{"id": "range-1", "name": "Intro", "page_start": 1, "page_end": 2}]},
+    )
+    return (
+        response,
+        pdf.id,
+        "document.upsert_page_ranges",
+        "document.updated",
+        "document_ids",
+        pdf.id,
+    )
+
+
 @pytest.mark.parametrize(
     ("label", "creator"),
     [
@@ -236,13 +345,21 @@ def test_node_model_create_routes_write_audit_and_emit_change(
 @pytest.mark.parametrize(
     ("label", "mutator"),
     [
+        ("document.update", _update_document),
         ("document.move", _move_document),
+        ("document.reorder", _reorder_documents),
+        ("document.batch_exclude", _batch_exclude_documents),
         ("document.delete", _delete_document),
+        ("document.restore", _restore_document),
         ("claim.patch", _patch_claim),
         ("claim.delete", _delete_claim),
         ("entity.upsert", _entity_upsert_update),
         ("entity.patch", _patch_entity),
         ("entity.delete", _delete_entity),
+        ("document.note_upsert", _put_document_note),
+        ("document.note_delete", _delete_document_note),
+        ("document.assign_prototype", _assign_document_prototype),
+        ("document.upsert_page_ranges", _upsert_page_ranges),
         ("note.patch", _patch_note),
         ("note.delete", _delete_note),
         ("folder.delete", _delete_folder),
@@ -267,7 +384,7 @@ def test_node_model_mutation_routes_write_audit_and_emit_change(
     audit = audits[0]
     assert audit.actor == "system"
     assert audit.action_name == action_name
-    assert audit.target_ids == [target_id]
+    assert target_id in audit.target_ids
 
     matches = _matching_emit_calls(
         emit_calls,
@@ -276,4 +393,40 @@ def test_node_model_mutation_routes_write_audit_and_emit_change(
         emit_target=emit_target,
     )
     assert matches, f"{label} expected {emit_type} emit_change call"
+    assert matches[-1]["actor"] == audit.actor
+
+
+def test_document_import_route_writes_action_audit_and_emit_change(
+    client,
+    db,
+    monkeypatch,
+    tmp_path,
+):
+    emit_calls: list[tuple[tuple, dict]] = []
+    _install_emit_recorder(monkeypatch, emit_calls)
+    upload_path = tmp_path / "audit-import.txt"
+    upload_path.write_text("import me", encoding="utf-8")
+
+    with upload_path.open("rb") as handle:
+        response = client.post(
+            "/api/documents/import",
+            files={"file": ("audit-import.txt", handle, "text/plain")},
+        )
+
+    assert response.status_code == 200
+    document_id = response.json()["id"]
+
+    audits = _audits_for_target(db, document_id, action_name="import.upload_file")
+    assert len(audits) == 1
+    audit = audits[0]
+    assert audit.actor == "system"
+    assert audit.target_ids == [document_id]
+
+    matches = _matching_emit_calls(
+        emit_calls,
+        emit_type="document.created",
+        emit_key="document_ids",
+        emit_target=document_id,
+    )
+    assert matches
     assert matches[-1]["actor"] == audit.actor

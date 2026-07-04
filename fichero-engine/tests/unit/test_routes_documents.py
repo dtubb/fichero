@@ -756,12 +756,15 @@ class TestCreateDocument:
         [
             (
                 documents_routes.update_document,
-                None,
+                "document.update",
                 ("doc-1", documents_routes.DocumentUpdate(page_content="updated")),
-                (
-                    Document(id="doc-1", name="Doc", page_content="updated"),
-                    {},
-                    ["page_content"],
+                ActionResult(
+                    ok=True,
+                    result=Document(
+                        id="doc-1", name="Doc", page_content="updated"
+                    ).model_dump(mode="json"),
+                    audit_id="audit-update",
+                    changed_domains=["document"],
                 ),
             ),
             (
@@ -798,16 +801,17 @@ class TestCreateDocument:
         monkeypatch.setattr(documents_routes.asyncio, "to_thread", to_thread)
 
         if route is documents_routes.update_document:
-            kwargs = {
-                "db": db,
-                "x_fichero_library_path": "/tmp/library.fichero",
-                "actor": "tester",
-            }
+            kwargs = {"db": db, "ctx": _ctx()}
             call_args = args
             expected_thread_args = (
-                documents_routes.update_document_impl,
+                documents_routes.registry.invoke,
                 db,
-                *args,
+                action_name,
+                {
+                    "doc_id": args[0],
+                    "update": args[1].model_dump(mode="json", exclude_unset=True),
+                },
+                _ctx(),
             )
         elif route is documents_routes.move_document:
             kwargs = {"db": db, "ctx": _ctx()}
@@ -878,13 +882,17 @@ class TestImportDocument:
 
         temp_path = tmp_path / "fichero_upload_tmp.md"
         temp_path.write_text("# Analysis\n", encoding="utf-8")
-        doc = Document(
-            id="imported-doc",
-            name="analysis-mining-terms.md",
-            doc_type=DocType.file,
+        action_result = ActionResult(
+            ok=True,
+            result=Document(
+                id="imported-doc",
+                name="analysis-mining-terms.md",
+                doc_type=DocType.file,
+            ).model_dump(mode="json"),
+            audit_id="audit-import",
+            changed_domains=["document"],
         )
-        to_thread = AsyncMock(return_value=doc)
-        emitted: list[list[str]] = []
+        to_thread = AsyncMock(return_value=action_result)
 
         async def fake_save_uploaded_file(file, *, content_length=None):
             assert file.filename == "analysis-mining-terms.md"
@@ -893,35 +901,30 @@ class TestImportDocument:
 
         monkeypatch.setattr(storage_module, "save_uploaded_file", fake_save_uploaded_file)
         monkeypatch.setattr(documents_routes.asyncio, "to_thread", to_thread)
-        monkeypatch.setattr(
-            documents_routes,
-            "emit_change",
-            lambda *_args, document_ids, **_kwargs: emitted.append(document_ids),
-        )
-
         result = asyncio.run(
             documents_routes.import_file(
                 request=FakeRequest(),
                 file=FakeUpload(),
                 parent_id="parent-1",
                 db=db,
-                x_fichero_library_path="/tmp/library.fichero",
-                actor="tester",
+                ctx=_ctx(),
             )
         )
 
         to_thread.assert_awaited_once()
         assert to_thread.await_args.args == (
-            documents_routes.import_uploaded_file_impl,
+            documents_routes.registry.invoke,
             db,
-            temp_path,
+            "import.upload_file",
+            {
+                "path": str(temp_path),
+                "original_filename": "analysis-mining-terms.md",
+                "parent_id": "parent-1",
+            },
+            _ctx(),
         )
-        assert to_thread.await_args.kwargs == {
-            "original_filename": "analysis-mining-terms.md",
-            "parent_id": "parent-1",
-        }
-        assert result is doc
-        assert emitted == [[doc.id]]
+        assert to_thread.await_args.kwargs == {}
+        assert result.id == "imported-doc"
         assert not temp_path.exists()
 
     def test_import_rejects_oversized_upload_with_413(self, client, db, monkeypatch):
