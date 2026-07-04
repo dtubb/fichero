@@ -116,47 +116,6 @@ class SpatialNode(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.now)
 
 
-class CanvasNodeSeedItem(BaseModel):
-    """One node to create during first-open seed (#2293)."""
-
-    model_config = ConfigDict(from_attributes=True, extra="allow")
-
-    source_id: str
-    node_type: NodeType
-    label: str = ""
-    position_x: float = 0.0
-    position_y: float = 0.0
-    position_z: float = 0.0
-    scale: float = 1.0
-
-
-class CanvasNodePositionPatch(BaseModel):
-    """Partial position/style update for a canvas node (#2293)."""
-
-    model_config = ConfigDict(from_attributes=True, extra="allow")
-
-    position_x: float | None = None
-    position_y: float | None = None
-    position_z: float | None = None
-    rotation_y: float | None = None
-    scale: float | None = None
-    pos_w: float | None = None
-    pos_h: float | None = None
-    z_index: int | None = None
-    depth: float | None = None
-    angle: float | None = None
-    style_data: dict | None = None
-
-
-class CanvasNodesResponse(BaseModel):
-    """Folder-keyed canvas node list (#2293)."""
-
-    model_config = ConfigDict(from_attributes=True, extra="allow")
-
-    items: list[SpatialNode]
-    count: int
-
-
 class SpatialConnection(BaseModel):
     """Visual link between nodes in a room."""
 
@@ -225,18 +184,6 @@ class SpatialViewport(BaseModel):
     bookmark_name: str | None = None
     metadata: dict = Field(default_factory=dict)
     updated_at: datetime = Field(default_factory=datetime.now)
-
-
-class RoomSceneSummary(BaseModel):
-    """Compact scene state for a room."""
-
-    room_id: str
-    room_name: str
-    node_count: int = 0
-    connection_count: int = 0
-    stack_count: int = 0
-    note_count: int = 0
-    node_types: dict[str, int] = Field(default_factory=dict)  # node_type → count
 
 
 class CanvasLayout(BaseModel):

@@ -1273,7 +1273,6 @@ from fichero.api.routes import (  # noqa: E402
     pairing,
     migrations,
     mind_palace,
-    mindpalace_render,
     model_comparison,
     models,
     multilingual,
@@ -1417,7 +1416,6 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (search_explain.router, "/api", ["search-explanation"]),
     (citation_usages.router, "/api", ["citation-usages"]),
     (mind_palace.router, "/api/mind-palace", ["mind-palace"]),
-    (mindpalace_render.router, "/api", ["mind-palace"]),
     (research_agents.router, "/api/research", ["research"]),
     # Action layer registry (EPIC #1848 keystone #2013). Registered BEFORE
     # actions.router so its static /actions/{invoke,registry,audit/...} paths win
