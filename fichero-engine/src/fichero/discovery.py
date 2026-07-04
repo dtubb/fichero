@@ -16,6 +16,7 @@ from typing import Any
 
 from fichero import __version__
 from fichero.bind_host import resolve_bind_host
+from fichero.remote_access_tls import _validate_public_base_url
 
 SERVICE_TYPE = "_fichero._tcp.local."
 DEFAULT_PORT = 8765
@@ -87,6 +88,8 @@ def build_bonjour_config(
     )
     spki_hash = source.get(SPKI_ENV, "").strip()
     public_url = source.get(PUBLIC_URL_ENV, "").strip()
+    if public_url:
+        _validate_public_base_url(public_url)
     return BonjourConfig(
         enabled=enabled,
         host=resolved_host,
@@ -111,9 +114,9 @@ def _txt_properties(config: BonjourConfig) -> dict[str, str]:
     properties = {
         "version": config.version,
         "api": "1",
-        # Empty means no TLS certificate/SPKI is configured yet; clients must
-        # not treat Bonjour TXT as proof of transport security.
-        "spki": config.spki_hash,
+        # Bonjour TXT is unauthenticated discovery metadata. Never advertise
+        # a trust anchor here; QR / explicit confirmation owns SPKI provenance.
+        "spki": "",
         # When configured, this is the actual private URL clients should pair
         # against (for example a Tailscale URL or other explicitly managed
         # private transport). Bonjour is presence, not transport security.

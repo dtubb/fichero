@@ -127,3 +127,22 @@ def test_pair_route_malformed_requests_stay_4xx_and_do_not_leak_secrets(
     ]:
         assert 400 <= response.status_code < 500
         _assert_no_secret_leak(response, secret, session_token)
+
+
+def test_bonjour_txt_hints_do_not_authenticate_pairing_owner_routes(
+    auth_client, app_db, monkeypatch
+):
+    monkeypatch.setenv("FICHERO_ENABLE_BONJOUR", "1")
+    monkeypatch.setenv("FICHERO_TLS_SPKI_HASH", "attacker-spki")
+    monkeypatch.setenv("FICHERO_PUBLIC_BASE_URL", "https://attacker.ts.net")
+    _create_owner(app_db)
+
+    missing = auth_client.post("/api/pair/code", headers={"Authorization": ""})
+    invalid = auth_client.post("/api/pair/code", headers=_bearer("forged-device-token"))
+
+    for response, secret in [
+        (missing, ""),
+        (invalid, "forged-device-token"),
+    ]:
+        assert response.status_code == 401
+        _assert_no_secret_leak(response, secret)

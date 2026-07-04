@@ -66,12 +66,12 @@ def test_build_service_info_uses_fichero_type_port_and_txt() -> None:
     assert info.properties == {
         "version": "0.1.test",
         "api": "1",
-        "spki": "abc123",
+        "spki": "",
         "public_url": "https://fichero.example.ts.net",
     }
 
 
-def test_empty_spki_txt_means_no_tls_certificate_configured() -> None:
+def test_spki_txt_is_always_redacted_even_when_tls_is_configured() -> None:
     config = discovery.BonjourConfig(
         enabled=True,
         host="127.0.0.1",
@@ -116,7 +116,7 @@ def test_enabled_bonjour_registers_and_stops_without_real_network() -> None:
     assert advertiser is not None
     zc = FakeZeroconf.instances[-1]
     assert zc.registered[0].name == "Fichero Dev._fichero._tcp.local."
-    assert zc.registered[0].properties["spki"] == "hash-value"
+    assert zc.registered[0].properties["spki"] == ""
 
     advertiser.stop()
 
@@ -145,6 +145,24 @@ def test_enabled_bonjour_invalid_config_does_not_start_or_break_startup(caplog) 
             {
                 "FICHERO_ENABLE_BONJOUR": "1",
                 "FICHERO_BONJOUR_PORT": "not-a-port",
+            },
+            zeroconf_cls=FakeZeroconf,
+            service_info_cls=FakeServiceInfo,
+        )
+
+    assert advertiser is None
+    assert FakeZeroconf.instances == []
+    assert "Bonjour discovery disabled by invalid configuration" in caplog.text
+
+
+def test_invalid_public_url_disables_bonjour_fail_closed(caplog) -> None:
+    FakeZeroconf.instances.clear()
+
+    with caplog.at_level(logging.WARNING):
+        advertiser = discovery.start_bonjour_advertiser(
+            {
+                "FICHERO_ENABLE_BONJOUR": "1",
+                "FICHERO_PUBLIC_BASE_URL": "http://attacker.invalid",
             },
             zeroconf_cls=FakeZeroconf,
             service_info_cls=FakeServiceInfo,
