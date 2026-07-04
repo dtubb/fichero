@@ -1552,6 +1552,36 @@ class LibraryRegistryResponse(BaseModel):
     count: int
 
 
+class UnicodeLibraryCollisionIdentity(BaseModel):
+    """One side of a Unicode-equivalent library collision."""
+
+    raw_path: str
+    raw_path_escaped: str
+    name: str
+    name_escaped: str
+    document_count: int
+    duckdb_size_bytes: int
+    files_size_bytes: int
+    modified_at: datetime | None = None
+
+
+class UnicodeLibraryCollision(BaseModel):
+    """Read-only report of two library identities that NFC-collide."""
+
+    left: UnicodeLibraryCollisionIdentity
+    right: UnicodeLibraryCollisionIdentity
+    nfc_path: str
+    nfc_name: str
+    collision_case: str
+
+
+class UnicodeLibraryCollisionResponse(BaseModel):
+    """Response from GET /api/registry/unicode-collisions."""
+
+    collisions: list[UnicodeLibraryCollision]
+    count: int
+
+
 class ActionCategoriesResponse(BaseModel):
     """Response from GET /api/actions/categories."""
 
@@ -2072,6 +2102,9 @@ __all__ = [
     # Known library registry (#1131)
     "KnownLibrary",
     "LibraryRegistryResponse",
+    "UnicodeLibraryCollisionIdentity",
+    "UnicodeLibraryCollision",
+    "UnicodeLibraryCollisionResponse",
     "ActionCategoriesResponse",
     "ActionSuccessResponse",
     "ActionJsonResponse",

@@ -10981,6 +10981,28 @@
         }
       }
     },
+    "/api/registry/unicode-collisions": {
+      "get": {
+        "tags": [
+          "library"
+        ],
+        "summary": "List Unicode Library Collisions",
+        "description": "Report Unicode-normalization collisions across known libraries.",
+        "operationId": "list_unicode_library_collisions_api_registry_unicode_collisions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnicodeLibraryCollisionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/registry/add": {
       "post": {
         "tags": [
@@ -56523,6 +56545,110 @@
           "restored_entity_id"
         ],
         "title": "UndoResponse"
+      },
+      "UnicodeLibraryCollision": {
+        "properties": {
+          "left": {
+            "$ref": "#/components/schemas/UnicodeLibraryCollisionIdentity"
+          },
+          "right": {
+            "$ref": "#/components/schemas/UnicodeLibraryCollisionIdentity"
+          },
+          "nfc_path": {
+            "type": "string",
+            "title": "Nfc Path"
+          },
+          "nfc_name": {
+            "type": "string",
+            "title": "Nfc Name"
+          },
+          "collision_case": {
+            "type": "string",
+            "title": "Collision Case"
+          }
+        },
+        "type": "object",
+        "required": [
+          "left",
+          "right",
+          "nfc_path",
+          "nfc_name",
+          "collision_case"
+        ],
+        "title": "UnicodeLibraryCollision",
+        "description": "Read-only report of two library identities that NFC-collide."
+      },
+      "UnicodeLibraryCollisionIdentity": {
+        "properties": {
+          "raw_path": {
+            "type": "string",
+            "title": "Raw Path"
+          },
+          "raw_path_escaped": {
+            "type": "string",
+            "title": "Raw Path Escaped"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "name_escaped": {
+            "type": "string",
+            "title": "Name Escaped"
+          },
+          "document_count": {
+            "type": "integer",
+            "title": "Document Count"
+          },
+          "duckdb_size_bytes": {
+            "type": "integer",
+            "title": "Duckdb Size Bytes"
+          },
+          "files_size_bytes": {
+            "type": "integer",
+            "title": "Files Size Bytes"
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Modified At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "raw_path",
+          "raw_path_escaped",
+          "name",
+          "name_escaped",
+          "document_count",
+          "duckdb_size_bytes",
+          "files_size_bytes"
+        ],
+        "title": "UnicodeLibraryCollisionIdentity",
+        "description": "One side of a Unicode-equivalent library collision."
+      },
+      "UnicodeLibraryCollisionResponse": {
+        "properties": {
+          "collisions": {
+            "items": {
+              "$ref": "#/components/schemas/UnicodeLibraryCollision"
+            },
+            "type": "array",
+            "title": "Collisions"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "collisions",
+          "count"
+        ],
+        "title": "UnicodeLibraryCollisionResponse",
+        "description": "Response from GET /api/registry/unicode-collisions."
       },
       "UpdateActionRequest": {
         "properties": {

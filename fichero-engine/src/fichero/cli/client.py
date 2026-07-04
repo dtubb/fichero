@@ -1526,6 +1526,13 @@ class FicheroClient:
         raw = self.request("GET", "/api/registry")
         return LibraryRegistryResponse.model_validate(raw)
 
+    def list_unicode_library_collisions(self):
+        """Report Unicode-equivalent library path collisions."""
+        from fichero.models import UnicodeLibraryCollisionResponse
+
+        raw = self.request("GET", "/api/registry/unicode-collisions")
+        return UnicodeLibraryCollisionResponse.model_validate(raw)
+
     def add_known_library(self, path: str, name: str | None = None) -> KnownLibrary:
         """Register an existing library path in the registry.
 

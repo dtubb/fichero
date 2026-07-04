@@ -13,7 +13,14 @@ import pytest
 from typer.testing import CliRunner
 
 from fichero import __main__ as cli
-from fichero.models import KnownLibrary, LibraryRegistryResponse, LibrarySnapshot
+from fichero.models import (
+    KnownLibrary,
+    LibraryRegistryResponse,
+    LibrarySnapshot,
+    UnicodeLibraryCollision,
+    UnicodeLibraryCollisionIdentity,
+    UnicodeLibraryCollisionResponse,
+)
 
 runner = CliRunner()
 
@@ -128,6 +135,33 @@ class RegistryFakeClient:
             "note": "restored",
         }
 
+    def list_unicode_library_collisions(self) -> UnicodeLibraryCollisionResponse:
+        self.calls.append(("list_unicode_library_collisions",))
+        collision = UnicodeLibraryCollision(
+            left=UnicodeLibraryCollisionIdentity(
+                raw_path="/tmp/Choco\u0301.fichero",
+                raw_path_escaped="/tmp/Choco\\u0301.fichero",
+                name="Choco\u0301.fichero",
+                name_escaped="Choco\\u0301.fichero",
+                document_count=1,
+                duckdb_size_bytes=12,
+                files_size_bytes=34,
+            ),
+            right=UnicodeLibraryCollisionIdentity(
+                raw_path="/tmp/Chocó.fichero",
+                raw_path_escaped="/tmp/Choc\\xf3.fichero",
+                name="Chocó.fichero",
+                name_escaped="Choc\\xf3.fichero",
+                document_count=2,
+                duckdb_size_bytes=56,
+                files_size_bytes=78,
+            ),
+            nfc_path="/tmp/Chocó.fichero",
+            nfc_name="Chocó.fichero",
+            collision_case="case_b_distinct_packages",
+        )
+        return UnicodeLibraryCollisionResponse(collisions=[collision], count=1)
+
 
 def _last_client() -> RegistryFakeClient:
     return RegistryFakeClient.instances[-1]
@@ -169,6 +203,12 @@ def test_library_list_json():
     assert result.exit_code == 0
     # Should be a list of KnownLibrary objects rendered as JSON
     assert "Test" in result.output or "fichero" in result.output
+
+
+def test_library_unicode_collisions():
+    result = runner.invoke(cli.app, ["library", "unicode-collisions"])
+    assert result.exit_code == 0
+    assert ("list_unicode_library_collisions",) in _last_client().calls
 
 
 # -- library add --

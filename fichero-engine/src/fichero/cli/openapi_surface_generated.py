@@ -10165,6 +10165,17 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("list-unicode-library-collisions")
+    def registry_list_unicode_library_collisions_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Unicode Library Collisions (GET /api/registry/unicode-collisions)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/registry/unicode-collisions"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("update-library-access")
     def registry_update_library_access_post(
         ctx: typer.Context,

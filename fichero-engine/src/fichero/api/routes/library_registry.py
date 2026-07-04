@@ -19,6 +19,8 @@ Endpoints:
 from __future__ import annotations
 
 import logging
+import os
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import unquote
@@ -28,11 +30,145 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fichero.db import Database
 from fichero.db_manager import db_manager
 from fichero.library_paths import nfc_path
-from fichero.models import KnownLibrary, LibraryRegistryResponse
+from fichero.models import (
+    KnownLibrary,
+    LibraryRegistryResponse,
+    UnicodeLibraryCollision,
+    UnicodeLibraryCollisionIdentity,
+    UnicodeLibraryCollisionResponse,
+)
 from fichero.storage import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _escape_visible(value: str) -> str:
+    return value.encode("unicode_escape").decode("ascii")
+
+
+def _dir_size(path: Path) -> int:
+    if not path.exists():
+        return 0
+    return sum(entry.stat().st_size for entry in path.rglob("*") if entry.is_file())
+
+
+def _document_count(package_path: Path) -> int:
+    from fichero.models import Document
+
+    if not (package_path / "fichero.duckdb").exists():
+        return 0
+    try:
+        db = db_manager.get_database(package_path)
+        return sum(
+            1
+            for doc in db.all(Document)
+            if getattr(doc, "deleted_at", None) is None
+        )
+    except Exception:
+        return 0
+
+
+def _identity_report(raw_path: str) -> UnicodeLibraryCollisionIdentity:
+    package_path = Path(raw_path).expanduser()
+    resolved_name = package_path.name
+    modified_at = None
+    try:
+        stat = os.stat(package_path)
+        modified_at = datetime.fromtimestamp(stat.st_mtime)
+    except OSError:
+        pass
+    return UnicodeLibraryCollisionIdentity(
+        raw_path=raw_path,
+        raw_path_escaped=_escape_visible(raw_path),
+        name=resolved_name,
+        name_escaped=_escape_visible(resolved_name),
+        document_count=_document_count(package_path),
+        duckdb_size_bytes=(package_path / "fichero.duckdb").stat().st_size
+        if (package_path / "fichero.duckdb").exists()
+        else 0,
+        files_size_bytes=_dir_size(package_path / "files"),
+        modified_at=modified_at,
+    )
+
+
+def _same_inode(left: str, right: str) -> bool:
+    try:
+        left_stat = os.stat(Path(left).expanduser())
+        right_stat = os.stat(Path(right).expanduser())
+    except OSError:
+        return False
+    return (
+        left_stat.st_dev == right_stat.st_dev
+        and left_stat.st_ino == right_stat.st_ino
+    )
+
+
+def _build_collision(left: str, right: str) -> UnicodeLibraryCollision:
+    left_identity = _identity_report(left)
+    right_identity = _identity_report(right)
+    left_path = Path(left).expanduser()
+    return UnicodeLibraryCollision(
+        left=left_identity,
+        right=right_identity,
+        nfc_path=nfc_path(left),
+        nfc_name=nfc_path(left_path.name),
+        collision_case="case_a_same_inode"
+        if _same_inode(left, right)
+        else "case_b_distinct_packages",
+    )
+
+
+def _registry_collision_paths(libraries: list[KnownLibrary]) -> list[tuple[str, str]]:
+    grouped: dict[str, list[str]] = defaultdict(list)
+    for library in libraries:
+        grouped[nfc_path(library.path)].append(library.path)
+    pairs: list[tuple[str, str]] = []
+    for paths in grouped.values():
+        unique = sorted({path for path in paths if path})
+        if len(unique) < 2:
+            continue
+        for index, left in enumerate(unique):
+            for right in unique[index + 1 :]:
+                pairs.append((left, right))
+    return pairs
+
+
+def _sibling_collision_paths(libraries: list[KnownLibrary]) -> list[tuple[str, str]]:
+    pairs: list[tuple[str, str]] = []
+    seen_parents: set[Path] = set()
+    for library in libraries:
+        package_path = Path(library.path).expanduser()
+        parent = package_path.parent
+        if parent in seen_parents or not parent.exists():
+            continue
+        seen_parents.add(parent)
+        grouped: dict[str, list[str]] = defaultdict(list)
+        for sibling in parent.glob("*.fichero"):
+            grouped[nfc_path(sibling.name)].append(str(sibling))
+        for siblings in grouped.values():
+            unique = sorted({path for path in siblings if path})
+            if len(unique) < 2:
+                continue
+            for index, left in enumerate(unique):
+                for right in unique[index + 1 :]:
+                    pairs.append((left, right))
+    return pairs
+
+
+def _detect_unicode_library_collisions(libraries: list[KnownLibrary]) -> list[UnicodeLibraryCollision]:
+    collisions: list[UnicodeLibraryCollision] = []
+    seen_pairs: set[tuple[str, str]] = set()
+    for left, right in _registry_collision_paths(libraries) + _sibling_collision_paths(libraries):
+        if left == right or nfc_path(left) != nfc_path(right):
+            continue
+        pair = tuple(sorted((left, right)))
+        if pair in seen_pairs:
+            continue
+        seen_pairs.add(pair)
+        collisions.append(_build_collision(left, right))
+    collisions.sort(key=lambda collision: (collision.nfc_name, collision.left.raw_path))
+    return collisions
 
 
 def get_global_database() -> Database:
@@ -66,6 +202,20 @@ def list_known_libraries(
         return LibraryRegistryResponse(libraries=libraries, count=len(libraries))
     except Exception as e:
         logger.error("Failed to list known libraries: %s", e)
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.get("/registry/unicode-collisions", response_model=UnicodeLibraryCollisionResponse)
+def list_unicode_library_collisions(
+    db: Database = Depends(get_global_database),
+) -> UnicodeLibraryCollisionResponse:
+    """Report Unicode-normalization collisions across known libraries."""
+    try:
+        libraries = db.all(KnownLibrary)
+        collisions = _detect_unicode_library_collisions(libraries)
+        return UnicodeLibraryCollisionResponse(collisions=collisions, count=len(collisions))
+    except Exception as e:
+        logger.error("Failed to scan library Unicode collisions: %s", e)
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
