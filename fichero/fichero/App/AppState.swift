@@ -17,6 +17,12 @@ class AppState: ObservableObject {
     /// these computed properties still re-render.
     let engine = EngineSession()
 
+    /// Every live backend session (#3112) — the loopback engine `engine` plus
+    /// any remote hosts, keyed by host. `engine` is seeded as the default
+    /// session so `sessions.activeSession === engine` today; the registry is
+    /// the seam for connecting to remote Macs at the same time (#2861/#2883).
+    lazy var sessions = EngineSessionRegistry(defaultSession: engine)
+
     /// Engine is up, authenticated, and usable. Backed by `engine.phase == .ready`.
     var isBackendRunning: Bool { engine.isReady }
     /// Engine answers health checks but REJECTS the app's token (HTTP 401/403) —

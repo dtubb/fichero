@@ -229,7 +229,7 @@ class LibraryManager: ObservableObject {
         /// a SPECIFIC remote host (#2866 follow-up) this reads `host` instead —
         /// the seam is `host.isLocal`.
         var locationDescriptor: LibraryLocationDescriptor {
-            LibraryLocationDescriptor.current()
+            LibraryLocationDescriptor.forHost(host)
         }
 
         @MainActor
