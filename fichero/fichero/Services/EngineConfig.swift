@@ -457,9 +457,18 @@ struct LibraryLocationDescriptor: Equatable {
     /// SF Symbol for the badge.
     let systemImage: String
 
-    /// Derives the descriptor from the app-level `EngineConfig` host.
+    /// Derives the descriptor from the app-level `EngineConfig` host — the
+    /// default host every library shared before per-library hosts (#2866).
     static func current() -> LibraryLocationDescriptor {
-        if EngineConfig.engineIsLocal {
+        forHost(.appDefault)
+    }
+
+    /// Derives the descriptor from a SPECIFIC backend host (#3112/#2574). Now
+    /// that each `LibraryReference` carries its own `host`, the sidebar badge
+    /// reads that host rather than the single global — so a remote library
+    /// shows its remote host even while a local library sits beside it.
+    static func forHost(_ host: BackendHost) -> LibraryLocationDescriptor {
+        if host.isLocal {
             #if os(macOS)
             return LibraryLocationDescriptor(
                 isLocal: true,
@@ -474,7 +483,7 @@ struct LibraryLocationDescriptor: Equatable {
             )
             #endif
         }
-        let hostName = EngineConfig.host.host ?? EngineConfig.hostString
+        let hostName = host.url.host ?? host.url.absoluteString
         return LibraryLocationDescriptor(
             isLocal: false,
             label: "On \(hostName)",

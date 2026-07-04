@@ -8,6 +8,7 @@
 //
 
 @testable import Fichero
+@testable import FicheroAPIClient
 import Foundation
 import Testing
 
@@ -122,5 +123,105 @@ struct EngineSessionTests {
         }
         // Exactly one phase renders real content.
         #expect(allPhases.filter { screen(for: $0) == .content } == [.ready])
+    }
+}
+
+// MARK: - Per-host session registry (#3112)
+
+/// The multi-remote seam: one loopback session + N remote sessions, keyed by
+/// host, each with its own phase and its own credential. The three invariants
+/// #3112 must hold — remote failure never touches local, tokens resolve per
+/// host, and the single-host app is byte-identical through the default session.
+@MainActor
+@Suite("EngineSessionRegistry (#3112)")
+struct EngineSessionRegistryTests {
+
+    private let localHost = BackendHost(url: URL(string: "https://127.0.0.1:8765")!)
+    private let remoteHost = BackendHost(url: URL(string: "https://studio.example.com")!)
+    private let otherRemoteHost = BackendHost(url: URL(string: "https://mini.example.com")!)
+
+    // MARK: - Isolation: one host's failure never touches another
+
+    @Test("a remote 401 flips only that session — the local session stays ready")
+    func remoteFailureDoesNotTouchLocal() {
+        let registry = EngineSessionRegistry(defaultSession: EngineSession(host: localHost))
+        let local = registry.activeSession
+        let remote = registry.session(for: remoteHost)
+
+        local.markReady()
+        remote.markAuthRejected("remote rejected this app's token")
+
+        // The remote's rejection is confined to the remote session.
+        #expect(remote.isAuthRejected)
+        #expect(local.isReady)
+        #expect(local.phase == .ready)
+        // …and the reverse: taking the local down leaves the remote untouched.
+        local.markUnreachable("local engine exited")
+        #expect(remote.isAuthRejected)
+    }
+
+    // MARK: - Per-host token resolution (#2866 isolation)
+
+    @Test("each session routes to its own host's token storage — never another host's")
+    func tokenResolutionIsPerSessionHost() {
+        let registry = EngineSessionRegistry(defaultSession: EngineSession(host: localHost))
+        let local = registry.activeSession
+        let remote = registry.session(for: remoteHost)
+
+        // The loopback session authenticates against bootstrap storage; the
+        // remote session against remote storage — keyed on ITS host string, so
+        // a request bound for the remote can never carry the local's token.
+        #expect(AuthTokenMiddleware.tokenStorageKind(hostString: local.host.url.absoluteString) == .bootstrap)
+        #expect(AuthTokenMiddleware.tokenStorageKind(hostString: remote.host.url.absoluteString) == .remote)
+        // Two distinct remotes resolve against distinct keychain accounts.
+        let otherRemote = registry.session(for: otherRemoteHost)
+        #expect(
+            AuthTokenMiddleware.remoteTokenKeychainAccount(hostString: remote.host.url.absoluteString)
+                != AuthTokenMiddleware.remoteTokenKeychainAccount(hostString: otherRemote.host.url.absoluteString)
+        )
+    }
+
+    // MARK: - Regression: single-host behaviour is byte-identical
+
+    @Test("the default session IS the active session (single-host app unchanged)")
+    func defaultSessionIsActive() {
+        let engine = EngineSession(host: localHost)
+        let registry = EngineSessionRegistry(defaultSession: engine)
+        // AppState's `engine` and `sessions.activeSession` are the same object,
+        // so today's heartbeat drives exactly the session the app renders.
+        #expect(registry.activeSession === engine)
+        #expect(registry.activeHost == localHost)
+    }
+
+    @Test("all loopback URLs collapse to the one loopback session")
+    func loopbackCollapsesToOneSession() {
+        let registry = EngineSessionRegistry(defaultSession: EngineSession(host: localHost))
+        let count = registry.sessions.count
+        // Different loopback spellings must not spawn new sessions.
+        let via127 = registry.session(for: BackendHost(url: URL(string: "https://127.0.0.1:8765")!))
+        let viaLocalhost = registry.session(for: BackendHost(url: URL(string: "https://localhost:8765")!))
+        #expect(via127 === viaLocalhost)
+        #expect(registry.sessions.count == count) // no growth — still one loopback
+    }
+
+    @Test("each distinct remote host gets its own session; re-requests are stable")
+    func remoteHostsGetDistinctStableSessions() {
+        let registry = EngineSessionRegistry(defaultSession: EngineSession(host: localHost))
+        let studio = registry.session(for: remoteHost)
+        let mini = registry.session(for: otherRemoteHost)
+        #expect(studio !== mini)
+        // Get-or-create: asking again returns the same instance, not a new one.
+        #expect(registry.session(for: remoteHost) === studio)
+    }
+
+    @Test("activate switches the observed session to a remote host")
+    func activateSwitchesActiveSession() {
+        let registry = EngineSessionRegistry(defaultSession: EngineSession(host: localHost))
+        registry.activate(remoteHost)
+        #expect(registry.activeHost == remoteHost)
+        #expect(registry.activeSession.host == remoteHost)
+        // …and back to local.
+        registry.activate(localHost)
+        #expect(registry.activeSession.host == localHost)
     }
 }

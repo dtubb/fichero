@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 
 // MARK: - The one engine session state machine (#3107)
@@ -43,6 +44,24 @@ final class EngineSession: ObservableObject {
 
     @Published private(set) var phase: Phase = .starting
 
+    /// Which backend this session tracks (#3112). One session per engine root:
+    /// the loopback/embedded engine plus one per remote host. Defaults to the
+    /// app-global host so the single-host app is unchanged — `EngineSession()`
+    /// is still the one loopback session AppState drives.
+    let host: BackendHost
+
+    init(host: BackendHost = .appDefault) {
+        self.host = host
+    }
+
+    /// The credential THIS session authenticates with — resolved for its own
+    /// host, never another's (#2866 per-host isolation). A request bound for
+    /// host A can never carry host B's token because the lookup is keyed on
+    /// this session's host string.
+    func resolveToken() -> String? {
+        AuthTokenMiddleware.readTokenFromDisk(hostString: host.url.absoluteString)
+    }
+
     // MARK: - Derived (the read-only shims AppState re-exports)
 
     /// The one predicate the root gate needs: real content renders iff `ready`.
@@ -84,4 +103,71 @@ final class EngineSession: ObservableObject {
     func markAuthRejected(_ diagnosis: String) { phase = .authRejected(diagnosis: diagnosis) }
     func markUnreachable(_ diagnosis: String) { phase = .unreachable(diagnosis: diagnosis) }
     func markFailed(_ diagnosis: String) { phase = .failed(diagnosis: diagnosis) }
+}
+
+// MARK: - Per-host session registry (#3112)
+
+/// Holds every live `EngineSession` — the multi-remote seam (#2861/#2866).
+///
+/// The app can talk to several backends at once (an iPhone showing local items
+/// plus two Macs), so backend usability is no longer ONE phase but one per
+/// host. This registry keeps at most one loopback session (the embedded engine)
+/// and N remote sessions, keyed so every loopback URL collapses to the same
+/// session while each distinct remote host gets its own. Because sessions are
+/// independent objects, a remote host's 401 flips only THAT session to
+/// `authRejected` — the local session's phase is untouched, and vice versa.
+///
+/// Today `activeSession` is the app-global loopback session, so the single-host
+/// app is byte-identical; the registry just makes room for the remotes to come
+/// (fichero-web/#2883, the library picker) without another rewrite.
+@MainActor
+final class EngineSessionRegistry: ObservableObject {
+    /// Collapses hosts to sessions: all loopback engines share one session,
+    /// each remote host keys on its normalized host string (the same key
+    /// `AuthTokenMiddleware` uses for that host's token — so a session and its
+    /// credential can never disagree on which host they mean).
+    enum Key: Hashable {
+        case loopback
+        case remote(String)
+    }
+
+    @Published private(set) var sessions: [Key: EngineSession]
+    /// The host the app currently renders. Switching it re-points every view
+    /// that observes `activeSession` at a different backend's phase.
+    @Published private(set) var activeHost: BackendHost
+
+    /// Seeds the registry with the app's default session (loopback on macOS, the
+    /// configured host on iOS) so `activeSession` is that exact instance — the
+    /// one AppState's heartbeat already drives.
+    init(defaultSession: EngineSession = EngineSession()) {
+        self.activeHost = defaultSession.host
+        self.sessions = [Self.key(for: defaultSession.host): defaultSession]
+    }
+
+    static func key(for host: BackendHost) -> Key {
+        host.isLocal
+            ? .loopback
+            : .remote(AuthTokenMiddleware.normalizedRemoteHostString(hostString: host.url.absoluteString))
+    }
+
+    /// Get-or-create the session for a host. Remote sessions are adopt-only —
+    /// created lazily on first request for that host.
+    @discardableResult
+    func session(for host: BackendHost) -> EngineSession {
+        let key = Self.key(for: host)
+        if let existing = sessions[key] { return existing }
+        let session = EngineSession(host: host)
+        sessions[key] = session
+        return session
+    }
+
+    /// The session the app observes right now (the active host's).
+    var activeSession: EngineSession { session(for: activeHost) }
+
+    /// Point the app at a different backend. No-op if already active.
+    func activate(_ host: BackendHost) {
+        guard host != activeHost else { return }
+        session(for: host) // ensure it exists before views read activeSession
+        activeHost = host
+    }
 }
