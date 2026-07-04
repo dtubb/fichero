@@ -17,53 +17,11 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
-    // MARK: - DocumentCreateRequest
-
-    func testDocumentCreateRequestSnakeCase() throws {
-        let req = DocumentCreateRequest(
-            name: "report.pdf",
-            parentId: "p-1",
-            docType: .file,
-            fileType: .pdf,
-            path: "/tmp/report.pdf",
-            pageContent: "body",
-            metadata: ["tag": AnyCodable("x")]
-        )
-        let data = try JSONEncoder().encode(req)
-        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        XCTAssertEqual(json?["name"] as? String, "report.pdf")
-        XCTAssertEqual(json?["parent_id"] as? String, "p-1")
-        XCTAssertEqual(json?["doc_type"] as? String, "file")
-        XCTAssertEqual(json?["file_type"] as? String, "pdf")
-        XCTAssertEqual(json?["page_content"] as? String, "body")
-        XCTAssertNotNil(json?["metadata"])
-    }
-
-    func testDocumentCreateRequestDefaultsDocTypeToFile() throws {
-        let req = DocumentCreateRequest(name: "untitled")
-        XCTAssertEqual(req.docType, .file)
-        XCTAssertNil(req.parentId)
-        XCTAssertNil(req.fileType)
-        XCTAssertTrue(req.metadata.isEmpty)
-    }
-
-    // MARK: - DocumentUpdateRequest
-
-    func testDocumentUpdateRequestOmitsNilFields() throws {
-        // Encoded JSON should include only the non-nil fields. Decoder
-        // contract: backend interprets missing as "no change".
-        var req = DocumentUpdateRequest()
-        req.name = "renamed.pdf"
-        let data = try JSONEncoder().encode(req)
-        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        XCTAssertEqual(json?["name"] as? String, "renamed.pdf")
-        XCTAssertNil(json?["parent_id"])
-        XCTAssertNil(json?["doc_type"])
-        XCTAssertNil(json?["file_type"])
-        XCTAssertNil(json?["path"])
-        XCTAssertNil(json?["page_content"])
-        XCTAssertNil(json?["status"])
-    }
+    // Note: DocumentCreateRequest / DocumentUpdateRequest were removed in #3030
+    // (create/update now go through DocumentServiceGenerated →
+    // Components.Schemas.DocumentCreate/DocumentUpdate). Their snake_case
+    // encoding is now the generated client's contract, exercised via the
+    // generated-op request tests in DocumentListMigrationTests.
 
     // MARK: - DocumentHierarchy
 

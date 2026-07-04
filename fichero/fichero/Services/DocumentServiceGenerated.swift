@@ -361,6 +361,62 @@ class DocumentServiceGenerated: ObservableObject {
         }
     }
 
+    /// Mark a folder as a workspace via an empty `workspace` PATCH (#3030). An
+    /// empty body flips `is_workspace` and leaves curated items untouched — the
+    /// generated request omits nil fields, so this serializes to `{}`, matching
+    /// the old hand-rolled EmptyWorkspacePatch. Throws on non-`.ok`.
+    func markAsWorkspace(folderId: String) async throws {
+        logger.info("Marking folder as workspace: \(folderId)")
+
+        let response = try await client.api.patchWorkspaceItemsApiDocumentsDocIdWorkspacePatch(
+            path: .init(docId: folderId),
+            body: .json(.init())
+        )
+
+        switch response {
+        case .ok:
+            return
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
+        default:
+            throw DocumentServiceError.unexpectedResponse
+        }
+    }
+
+    /// Recursively ingest a folder via the generated `ingest_folder` op (#3030).
+    /// Returns the async task descriptor; throws on non-`.ok`.
+    func ingestFolder(
+        path: String,
+        parentId: String? = nil,
+        copyMode: Bool = true,
+        recursive: Bool = true,
+        extractText: Bool = true,
+        autoEmbed: Bool = true
+    ) async throws -> Components.Schemas.IngestTaskResponse {
+        logger.info("Ingesting folder: \(path)")
+
+        let request = Components.Schemas.IngestFolderRequest(
+            path: path,
+            parentId: parentId,
+            copyMode: copyMode,
+            recursive: recursive,
+            extractText: extractText,
+            autoEmbed: autoEmbed
+        )
+        let response = try await client.api.ingestFolderApiIngestFolderPost(.init(body: .json(request)))
+
+        switch response {
+        case .ok(let ok):
+            return try ok.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
+        default:
+            throw DocumentServiceError.unexpectedResponse
+        }
+    }
+
     /// Get resolved curated items for a workspace folder in the active library.
     /// - Parameter folderId: Workspace folder document ID
     /// - Returns: Workspace items response
@@ -571,11 +627,16 @@ class DocumentServiceGenerated: ObservableObject {
     func clearError() {
         lastError = nil
     }
+}
 
-    // MARK: - Type Conversion
+// MARK: - Type Conversion
 
+// Split into a same-file extension so the primary class body stays within
+// SwiftLint's type_body_length budget (#3030 added several ops). `private`
+// members remain file-scoped and accessible here.
+private extension DocumentServiceGenerated {
     /// Convert generated Document to local Document
-    private func convertToDocument(_ doc: Components.Schemas.Document) throws -> Document {
+    func convertToDocument(_ doc: Components.Schemas.Document) throws -> Document {
         // Every field that's TYPED on the OpenAPI Document schema decodes
         // into the typed property, NOT additionalProperties. Reading them
         // from extras silently returns nil and corrupts the local cache.

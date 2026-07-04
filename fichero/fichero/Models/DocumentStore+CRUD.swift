@@ -2,17 +2,6 @@ import FicheroAPIClient
 import Foundation
 import OSLog
 
-/// Empty body for the workspace PATCH — only flips `is_workspace` true,
-/// leaving curated_items untouched (#1617).
-private struct EmptyWorkspacePatch: Encodable {}
-
-/// Minimal decode of the workspace PATCH response (we only need it to type the
-/// call; the refreshed list comes from loadWorkspaces).
-private struct WorkspaceMarkResponse: Decodable {
-    let documentId: String
-    enum CodingKeys: String, CodingKey { case documentId = "document_id" }
-}
-
 // MARK: - CRUD Operations
 
 extension DocumentStore {
@@ -52,9 +41,7 @@ extension DocumentStore {
     @discardableResult
     func createWorkspace(name: String) async throws -> Document {
         let folder = try await createFolder(name: name)
-        let _: WorkspaceMarkResponse = try await api.patch(
-            "/documents/\(folder.id)/workspace", body: EmptyWorkspacePatch()
-        )
+        try await documentService.markAsWorkspace(folderId: folder.id)
         await loadWorkspaces()
         return folder
     }
@@ -138,26 +125,8 @@ extension DocumentStore {
 
     /// Import a folder recursively.
     func importFolder(at url: URL, parentId: String? = nil) async throws {
-        struct IngestFolderRequest: Encodable {
-            let path: String
-            let parentId: String?
-            let copyMode: Bool
-            let recursive: Bool
-            let extractText: Bool
-            let autoEmbed: Bool
-
-            // swiftlint:disable:next nesting
-            enum CodingKeys: String, CodingKey {
-                case path
-                case parentId = "parent_id"
-                case copyMode = "copy_mode"
-                case recursive
-                case extractText = "extract_text"
-                case autoEmbed = "auto_embed"
-            }
-        }
-
-        let request = IngestFolderRequest(
+        // Generated ingest_folder op (returns a task descriptor for async processing).
+        _ = try await documentService.ingestFolder(
             path: url.path,
             parentId: parentId,
             copyMode: true,  // Copy files into library
@@ -165,9 +134,6 @@ extension DocumentStore {
             extractText: true,  // Extract text for search
             autoEmbed: true  // Create embeddings
         )
-
-        // Call the ingest/folder endpoint (returns task_id for async processing)
-        let _: [String: String] = try await api.post("/ingest/folder", body: request)
 
         // Reload collections to show the imported folder
         // The backend processes the folder in the background
