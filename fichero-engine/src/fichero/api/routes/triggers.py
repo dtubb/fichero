@@ -9,7 +9,7 @@ Provides REST endpoints for file system triggers:
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -26,11 +26,11 @@ from fichero.workflows.file_watcher import (
     TriggerExecution,
 )
 from fichero.workflows.workflow_store import WorkflowStore
-from fichero.models import TriggerListResponse
-
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/triggers", tags=["triggers"])
+
+TriggerInputsTemplate = dict[str, str]
 
 
 # Request/Response Models
@@ -65,7 +65,7 @@ class CreateTriggerRequest(BaseModel):
     name: str = Field(..., description="Display name for the trigger")
     workflow_id: str = Field(..., description="ID of workflow to execute")
     config: TriggerConfigRequest = Field(..., description="Trigger configuration")
-    inputs_template: dict[str, Any] = Field(
+    inputs_template: TriggerInputsTemplate = Field(
         default_factory=lambda: {"file_path": "{file_path}"},
         description="Template for workflow inputs with placeholders",
     )
@@ -81,7 +81,7 @@ class UpdateTriggerRequest(BaseModel):
     config: Optional[TriggerConfigRequest] = Field(
         None, description="Trigger configuration"
     )
-    inputs_template: Optional[dict[str, Any]] = Field(
+    inputs_template: Optional[TriggerInputsTemplate] = Field(
         None, description="Template for workflow inputs"
     )
     use_batch: Optional[bool] = Field(None, description="Batch multiple files")
@@ -105,7 +105,7 @@ class TriggerResponse(BaseModel):
     exclude_patterns: list[str]
     debounce_seconds: float
     batch_delay_seconds: float
-    inputs_template: dict[str, Any]
+    inputs_template: TriggerInputsTemplate
     status: str
     use_batch: bool
     max_concurrent: int
@@ -172,6 +172,16 @@ class TriggerExecutionResponse(BaseModel):
         )
 
 
+class TriggerResponseList(BaseModel):
+    items: list[TriggerResponse]
+    count: int
+
+
+class TriggerExecutionResponseList(BaseModel):
+    items: list[TriggerExecutionResponse]
+    count: int
+
+
 # Per-library file watcher instances
 _watchers: dict[str, FileWatcherManager] = {}
 
@@ -233,14 +243,14 @@ async def create_trigger(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("", response_model=TriggerListResponse)
+@router.get("", response_model=TriggerResponseList)
 async def list_triggers(
     status: Optional[str] = None,
     workflow_id: Optional[str] = None,
     limit: int = 100,
     offset: int = 0,
     watcher: FileWatcherManager = Depends(get_file_watcher),
-) -> list[TriggerResponse]:
+) -> TriggerResponseList:
     """List file triggers with optional filtering."""
 
     status_enum = TriggerStatus(status) if status else None
@@ -252,7 +262,10 @@ async def list_triggers(
         offset=offset,
     )
 
-    return TriggerListResponse(items=[TriggerResponse.from_trigger(t) for t in triggers], count=len(triggers))
+    return TriggerResponseList(
+        items=[TriggerResponse.from_trigger(t) for t in triggers],
+        count=len(triggers),
+    )
 
 
 @router.get("/{trigger_id}", response_model=TriggerResponse)
@@ -370,12 +383,12 @@ async def resume_trigger(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/{trigger_id}/executions", response_model=TriggerListResponse)
+@router.get("/{trigger_id}/executions", response_model=TriggerExecutionResponseList)
 async def get_trigger_executions(
     trigger_id: str,
     limit: int = 50,
     watcher: FileWatcherManager = Depends(get_file_watcher),
-) -> list[TriggerExecutionResponse]:
+) -> TriggerExecutionResponseList:
     """Get execution history for a trigger."""
 
     # Verify trigger exists
@@ -384,4 +397,7 @@ async def get_trigger_executions(
         raise HTTPException(status_code=404, detail=f"Trigger {trigger_id} not found")
 
     executions = await watcher.get_trigger_executions(trigger_id, limit=limit)
-    return TriggerListResponse(items=[TriggerExecutionResponse.from_execution(e) for e in executions], count=len(executions))
+    return TriggerExecutionResponseList(
+        items=[TriggerExecutionResponse.from_execution(e) for e in executions],
+        count=len(executions),
+    )
