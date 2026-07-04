@@ -117,4 +117,58 @@ final class BreadcrumbBuilderTests: XCTestCase {
 
         XCTAssertEqual(result, "Library › Document.pdf")
     }
+
+    // MARK: - Clickable segments (#1928)
+
+    func testSegmentsNilDocumentIsRootOnly() {
+        let segments = BreadcrumbBuilder.buildSegments(from: nil, parentLookup: { _ in nil })
+
+        XCTAssertEqual(segments.map(\.name), ["Library"])
+        XCTAssertTrue(segments[0].isRoot)
+        XCTAssertNil(segments[0].documentId)
+        XCTAssertTrue(segments[0].isNavigable)
+    }
+
+    func testSegmentsCarryNavigableDocumentIds() {
+        let root = Document(id: "root", name: "Collection")
+        let subFolder = Document(id: "subfolder", parentId: "root", name: "Box 3")
+        let file = Document(id: "file", parentId: "subfolder", name: "Letter 12")
+        let lookup: BreadcrumbBuilder.DocumentLookup = { id in
+            switch id {
+            case "root": return root
+            case "subfolder": return subFolder
+            default: return nil
+            }
+        }
+
+        let segments = BreadcrumbBuilder.buildSegments(from: file, parentLookup: lookup)
+
+        XCTAssertEqual(segments.map(\.name), ["Library", "Collection", "Box 3", "Letter 12"])
+        XCTAssertEqual(segments.map(\.documentId), [nil, "root", "subfolder", "file"])
+        XCTAssertTrue(segments.allSatisfy(\.isNavigable))
+    }
+
+    func testSegmentsPageLeafIsNonNavigable() {
+        let file = Document(id: "file-1", name: "Document.pdf")
+
+        let segments = BreadcrumbBuilder.buildSegments(
+            from: file,
+            parentLookup: { _ in nil },
+            pageLabel: "p.4"
+        )
+
+        XCTAssertEqual(segments.map(\.name), ["Library", "Document.pdf", "p.4"])
+        let leaf = segments.last!
+        XCTAssertNil(leaf.documentId)
+        XCTAssertFalse(leaf.isRoot)
+        XCTAssertFalse(leaf.isNavigable)
+    }
+
+    func testSegmentsStopAtMissingParent() {
+        let file = Document(id: "file-1", parentId: "missing", name: "File.pdf")
+
+        let segments = BreadcrumbBuilder.buildSegments(from: file, parentLookup: { _ in nil })
+
+        XCTAssertEqual(segments.map(\.name), ["Library", "File.pdf"])
+    }
 }
