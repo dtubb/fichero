@@ -1668,8 +1668,14 @@ class Database(DatabaseEmbeddingMixin):
         if not isinstance(metadata, dict):
             raise ValueError(f"Research task {doc.id} has invalid metadata payload")
         completed_at = attrs.get("completed_at")
-        if completed_at is not None and not hasattr(completed_at, "isoformat"):
-            # Parsed DB datetimes arrive as datetimes; raw malformed payloads fail loud.
+        if isinstance(completed_at, str):
+            try:
+                completed_at = datetime.fromisoformat(completed_at)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Research task {doc.id} has invalid completed_at payload"
+                ) from exc
+        elif completed_at is not None and not hasattr(completed_at, "isoformat"):
             raise ValueError(f"Research task {doc.id} has invalid completed_at payload")
 
         return ResearchTask(
@@ -1727,7 +1733,14 @@ class Database(DatabaseEmbeddingMixin):
         if not isinstance(order_index, int):
             raise ValueError(f"Research step {doc.id} has invalid order_index payload")
         completed_at = attrs.get("completed_at")
-        if completed_at is not None and not hasattr(completed_at, "isoformat"):
+        if isinstance(completed_at, str):
+            try:
+                completed_at = datetime.fromisoformat(completed_at)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Research step {doc.id} has invalid completed_at payload"
+                ) from exc
+        elif completed_at is not None and not hasattr(completed_at, "isoformat"):
             raise ValueError(f"Research step {doc.id} has invalid completed_at payload")
 
         return ResearchStep(
