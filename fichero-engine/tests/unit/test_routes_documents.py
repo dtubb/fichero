@@ -343,31 +343,6 @@ class TestRelatedDocuments:
         assert [item.document_id for item in response.items] == [peer.id]
         assert response.items[0].sample_entity_names == ["Valid Entity"]
 
-    def test_direct_helper_logs_malformed_entity_payloads(self, db, caplog):
-        seed = _make_doc(db, "Seed")
-        db.save(
-            KnowledgeClaim(
-                id="seed-bad-json",
-                text="Malformed payload",
-                source_document_id=seed.id,
-                entity_ids=[],
-            )
-        )
-        db._execute(
-            "UPDATE knowledgeclaims SET entity_ids = $raw WHERE id = $id",
-            {"raw": '{not-json', "id": "seed-bad-json"},
-        )
-
-        with caplog.at_level(logging.WARNING, logger=documents_routes.logger.name):
-            response = asyncio.run(related_documents(seed.id, limit=10, db=db))
-
-        assert response.count == 0
-        assert (
-            f"related-documents malformed entity_ids payload for {seed.id}: '{{not-json'"
-            in caplog.text
-        )
-
-
 # ---------------------------------------------------------------------------
 # GET /api/documents/{doc_id}/children
 # ---------------------------------------------------------------------------

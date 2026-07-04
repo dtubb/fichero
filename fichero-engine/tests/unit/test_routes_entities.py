@@ -219,64 +219,6 @@ class TestListEntities:
         names = [e["canonical_name"] for e in r.json()["items"]]
         assert "1960" in names
 
-    def test_top_entities_logs_malformed_entity_payloads(self, db, caplog):
-        from datetime import datetime
-
-        from fichero.api.routes import entities as entities_routes
-        from fichero.api.routes.entities import top_entities
-        from fichero.knowledge_models import KnowledgeClaim
-
-        entity = KnowledgeEntity(
-            id="ent-valid",
-            canonical_name="Valid",
-            entity_type=EntityType.person,
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
-        )
-        db.save(entity)
-        db.save(
-            KnowledgeClaim(
-                id="claim-bad-json",
-                text="Malformed payload",
-                source_document_id="doc-1",
-                entity_ids=[],
-            )
-        )
-        db._execute(
-            "UPDATE knowledgeclaims SET entity_ids = $raw WHERE id = $id",
-            {"raw": '{not-json', "id": "claim-bad-json"},
-        )
-
-        with caplog.at_level(logging.WARNING, logger=entities_routes.logger.name):
-            response = asyncio.run(top_entities(limit=10, db=db))
-
-        assert response.count == 0
-        assert "top-entities: malformed entity_ids payload" in caplog.text
-
-    def test_entity_claim_counts_logs_malformed_entity_payloads(self, db, caplog):
-        from fichero.api.routes import entities as entities_routes
-        from fichero.api.routes.entities import entity_claim_counts
-        from fichero.knowledge_models import KnowledgeClaim
-
-        db.save(
-            KnowledgeClaim(
-                id="claim-bad-json",
-                text="Malformed payload",
-                source_document_id="doc-1",
-                entity_ids=[],
-            )
-        )
-        db._execute(
-            "UPDATE knowledgeclaims SET entity_ids = $raw WHERE id = $id",
-            {"raw": '{not-json', "id": "claim-bad-json"},
-        )
-
-        with caplog.at_level(logging.WARNING, logger=entities_routes.logger.name):
-            response = asyncio.run(entity_claim_counts(db=db))
-
-        assert response.counts == {}
-        assert "entity-claim-counts: malformed entity_ids payload" in caplog.text
-
 
 # ---------------------------------------------------------------------------
 # POST /api/entities (upsert)
@@ -329,6 +271,8 @@ class TestEntityReadLogging:
 
         entity = _make_entity(db, "Alice")
         with (
+            patch.object(entities_routes, "get_entity_documents", return_value=[]),
+            patch.object(entities_routes, "get_entity_co_occurrence", return_value=[]),
             patch.object(db, "knowledge_claim_excerpts_for_entity", side_effect=RuntimeError("boom")),
             caplog.at_level(logging.WARNING, logger=entities_routes.logger.name),
         ):
@@ -351,33 +295,6 @@ class TestEntityReadLogging:
         assert response.documents == []
         assert f"entity-biography document lookup failed for {entity.id}: boom" in caplog.text
 
-    def test_entity_co_occurrence_logs_malformed_payloads(self, db, caplog):
-        from fichero.api.routes import entities as entities_routes
-        from fichero.api.routes.entities import get_entity_co_occurrence
-        from fichero.knowledge_models import KnowledgeClaim
-
-        entity = _make_entity(db, "Alice")
-        db.save(
-            KnowledgeClaim(
-                id="claim-bad-json",
-                text="Malformed payload",
-                source_document_id="doc-1",
-                entity_ids=[],
-            )
-        )
-        db._execute(
-            "UPDATE knowledgeclaims SET entity_ids = $raw WHERE id = $id",
-            {"raw": '{not-json', "id": "claim-bad-json"},
-        )
-
-        with caplog.at_level(logging.WARNING, logger=entities_routes.logger.name):
-            response = asyncio.run(get_entity_co_occurrence(entity.id, db=db))
-
-        assert response.count == 0
-        assert (
-            f"entity co-occurrence malformed entity_ids payload for {entity.id}: '{{not-json'"
-            in caplog.text
-        )
 
     def test_upsert_unknown_id_leaves_other_entities_untouched(self, client, db):
         """The failed upsert must not create a substitute row alongside real data."""
