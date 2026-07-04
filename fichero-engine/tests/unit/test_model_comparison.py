@@ -93,9 +93,9 @@ class TestEstimateCost:
         assert 0.01 < cost < 0.02  # Expected around $0.0125
 
     def test_estimate_cost_unknown_model(self):
-        """Test cost estimation for unknown model returns 0."""
+        """Test cost estimation for unknown model returns unavailable."""
         cost = estimate_cost("unknown-model-xyz", 1000, 500)
-        assert cost == 0.0
+        assert cost is None
 
     def test_estimate_cost_local_model(self):
         """Test local models are free."""
