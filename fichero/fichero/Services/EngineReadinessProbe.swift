@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 
 // MARK: - The one engine readiness probe (#3106)
