@@ -482,6 +482,12 @@ extension LibraryView {
     }
 
     /// Finder/Xcode-style bottom toolbar acting on the current library selection.
+    ///
+    /// Rewrapped on the shared `AdaptiveMiniToolbarRow` (#3057, parent #2670) so
+    /// the bar no longer "extends and is weird" in a narrow pane: essential verbs
+    /// stay inline, secondary verbs collapse into a trailing `…` menu when they
+    /// don't fit (macOS) or on compact width (iPhone). Every action / `.help` /
+    /// `.accessibilityLabel` is unchanged — iterate, never replace.
     private var libraryBottomActionBar: some View {
         VStack(spacing: 0) {
             Divider()
@@ -490,82 +496,123 @@ extension LibraryView {
             // (SidebarModeBar / SidebarBottomToolbar / PaneFilterBar) for a consistent
             // glass look across the window chrome (#2550).
             GlassEffectContainer {
-                HStack(spacing: 12) {
-                    Button {
-                        handleCreateNewFolder()
-                    } label: {
-                        Image(systemName: "plus")
-                            .accessibilityLabel("New Folder")
-                    }
-                    .buttonStyle(.borderless)
-                    .controlSize(.small)
-                    .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
-                    .contentShape(Rectangle())
-                    .help("Create a new folder")
-
-                    Button {
-                        promptDeleteSelected()
-                    } label: {
-                        Image(systemName: "minus")
-                            .accessibilityLabel("Delete")
-                    }
-                    .buttonStyle(.borderless)
-                    .controlSize(.small)
-                    .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
-                    .contentShape(Rectangle())
-                    .help("Delete selection")
-                    .disabled(isShowingEntitiesCollection || selection.isEmpty)
-
-                    Spacer()
-
-                    if displayMode == .list {
-                        entityFilterMenu
-                    }
-
-                    Button {
-                        Task { await exportSelectedBibtex() }
-                    } label: {
-                        Image(systemName: "square.and.arrow.up")
-                            .accessibilityLabel("Export BibTeX")
-                    }
-                    .buttonStyle(.borderless)
-                    .controlSize(.small)
-                    .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
-                    .contentShape(Rectangle())
-                    .help("Export selection as BibTeX")
-                    .disabled(isShowingEntitiesCollection || selection.isEmpty)
-
-                    Button {
-                        showingFileImporter = true
-                    } label: {
-                        Image(systemName: "square.and.arrow.down")
-                            .accessibilityLabel("Import")
-                    }
-                    .buttonStyle(.borderless)
-                    .controlSize(.small)
-                    .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
-                    .contentShape(Rectangle())
-                    .help("Import files")
-
-                    Button {
-                        selectedDocumentIdsForBatch = Array(selection)
-                        showWorkflowPicker = true
-                    } label: {
-                        Image(systemName: "bolt")
-                            .accessibilityLabel("Run Workflow")
-                    }
-                    .buttonStyle(.borderless)
-                    .controlSize(.small)
-                    .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
-                    .contentShape(Rectangle())
-                    .help("Run workflow on selection")
-                    .disabled(isShowingEntitiesCollection || selection.isEmpty || !featureManager.isWorkflowRunOnSelectionEnabled)
+                AdaptiveMiniToolbarRow {
+                    essentialBarButtons
+                } secondary: {
+                    secondaryBarButtons
+                } overflowMenu: {
+                    bottomBarOverflowMenu
                 }
                 .padding(.horizontal, 10)
                 .frame(height: bottomBarHeight)
                 .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8))
             }
         }
+    }
+
+    /// Essential verbs — always inline (#3057): New Folder, Delete, Import. The
+    /// trailing Spacer keeps them left-aligned with the secondary/overflow on the
+    /// right, preserving the bar's existing Finder-style layout.
+    @ViewBuilder
+    private var essentialBarButtons: some View {
+        Button {
+            handleCreateNewFolder()
+        } label: {
+            Image(systemName: "plus")
+                .accessibilityLabel("New Folder")
+        }
+        .buttonStyle(.borderless)
+        .controlSize(.small)
+        .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
+        .contentShape(Rectangle())
+        .help("Create a new folder")
+
+        Button {
+            promptDeleteSelected()
+        } label: {
+            Image(systemName: "minus")
+                .accessibilityLabel("Delete")
+        }
+        .buttonStyle(.borderless)
+        .controlSize(.small)
+        .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
+        .contentShape(Rectangle())
+        .help("Delete selection")
+        .disabled(isShowingEntitiesCollection || selection.isEmpty)
+
+        Button {
+            showingFileImporter = true
+        } label: {
+            Image(systemName: "square.and.arrow.down")
+                .accessibilityLabel("Import")
+        }
+        .buttonStyle(.borderless)
+        .controlSize(.small)
+        .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
+        .contentShape(Rectangle())
+        .help("Import files")
+
+        Spacer()
+    }
+
+    /// Secondary verbs — inline on Mac when they fit, else the `…` menu; menu-only
+    /// on compact (#3057): entity filter (list mode), Export BibTeX, Run Workflow.
+    @ViewBuilder
+    private var secondaryBarButtons: some View {
+        if displayMode == .list {
+            entityFilterMenu
+        }
+
+        Button {
+            Task { await exportSelectedBibtex() }
+        } label: {
+            Image(systemName: "square.and.arrow.up")
+                .accessibilityLabel("Export BibTeX")
+        }
+        .buttonStyle(.borderless)
+        .controlSize(.small)
+        .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
+        .contentShape(Rectangle())
+        .help("Export selection as BibTeX")
+        .disabled(isShowingEntitiesCollection || selection.isEmpty)
+
+        Button {
+            selectedDocumentIdsForBatch = Array(selection)
+            showWorkflowPicker = true
+        } label: {
+            Image(systemName: "bolt")
+                .accessibilityLabel("Run Workflow")
+        }
+        .buttonStyle(.borderless)
+        .controlSize(.small)
+        .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
+        .contentShape(Rectangle())
+        .help("Run workflow on selection")
+        .disabled(isShowingEntitiesCollection || selection.isEmpty || !featureManager.isWorkflowRunOnSelectionEnabled)
+    }
+
+    /// `Label`-based mirror of the secondary verbs for the overflow `…` menu
+    /// (#3057) — same actions + disabled logic, menu-item presentation.
+    @ViewBuilder
+    private var bottomBarOverflowMenu: some View {
+        if displayMode == .list {
+            entityFilterMenu
+        }
+
+        Button {
+            Task { await exportSelectedBibtex() }
+        } label: {
+            Label("Export BibTeX", systemImage: "square.and.arrow.up")
+        }
+        .disabled(isShowingEntitiesCollection || selection.isEmpty)
+
+        Button {
+            selectedDocumentIdsForBatch = Array(selection)
+            showWorkflowPicker = true
+        } label: {
+            Label("Run Workflow", systemImage: "bolt")
+        }
+        .disabled(isShowingEntitiesCollection || selection.isEmpty || !featureManager.isWorkflowRunOnSelectionEnabled)
     }
 
     private func exportSelectedBibtex() async {

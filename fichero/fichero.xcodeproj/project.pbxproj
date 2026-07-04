@@ -440,6 +440,7 @@
 		B2A0020C00000000BATCH2C5 /* ChainDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010C00000000BATCH2C5 /* ChainDetailSheet.swift */; };
 		B2A0020D00000000BATCH2C6 /* NewChainSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010D00000000BATCH2C6 /* NewChainSheet.swift */; };
 		B30013000000000000000001 /* FirstRunWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30013000000000000000002 /* FirstRunWindow.swift */; };
+		B384820C8A9FEDA2B98FA1B0 /* MiniToolbarOverflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F420C7687D317EE817591121 /* MiniToolbarOverflow.swift */; };
 		B3A002010000000000BATCH3 /* ProvidersView+ModelTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001010000000000BATCH3 /* ProvidersView+ModelTypes.swift */; };
 		B3A002020000000000BATCH3 /* ProvidersView+ProviderDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001020000000000BATCH3 /* ProvidersView+ProviderDetailView.swift */; };
 		B3A002030000000000BATCH3 /* ProvidersView+ProviderSettingsRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001030000000000BATCH3 /* ProvidersView+ProviderSettingsRow.swift */; };
@@ -1118,6 +1119,7 @@
 		F3133E93619FB262825F4F55 /* BookmarkServiceGenerated.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BookmarkServiceGenerated.swift; sourceTree = "<group>"; };
 		F348C1F78D105C8017210F17 /* SourceOutlineView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SourceOutlineView.swift; sourceTree = "<group>"; };
 		F4189C51250E0B39E05CD87B /* AISettingsView+Tabs.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "AISettingsView+Tabs.swift"; sourceTree = "<group>"; };
+		F420C7687D317EE817591121 /* MiniToolbarOverflow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MiniToolbarOverflow.swift; sourceTree = "<group>"; };
 		F42C41E0F485064FDA5EAEB9 /* InterpretationStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InterpretationStore.swift; sourceTree = "<group>"; };
 		FAE00C2DC909B57AA030519E /* ReaderToolbar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReaderToolbar.swift; sourceTree = "<group>"; };
 		FBCBCC9A6B923D6A560F7277 /* ReferenceStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReferenceStore.swift; sourceTree = "<group>"; };
@@ -1878,6 +1880,7 @@
 				A1BFB45B2F0AAC3700EAA55A /* WorkflowToolbar.swift */,
 				CC02D722B13BC58D4D4B37B7 /* MiniToolbarComponents.swift */,
 				FAE00C2DC909B57AA030519E /* ReaderToolbar.swift */,
+				F420C7687D317EE817591121 /* MiniToolbarOverflow.swift */,
 			);
 			path = Toolbars;
 			sourceTree = "<group>";
@@ -2864,6 +2867,7 @@
 				2A7F1839345B56CA811A4941 /* ViewDisplayMode.swift in Sources */,
 				B5D00BAD78E5646321AD4EAC /* ShellLayoutPolicy.swift in Sources */,
 				55D00714A13BBDC02A88D295 /* PDFPageControllers.swift in Sources */,
+				B384820C8A9FEDA2B98FA1B0 /* MiniToolbarOverflow.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
@@ -3064,7 +3068,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.03-beta;
+				MARKETING_VERSION = "2026.07.03-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
 				PRODUCT_NAME = Fichero;
 				REGISTER_APP_GROUPS = YES;
@@ -3134,7 +3138,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.03-beta;
+				MARKETING_VERSION = "2026.07.03-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
 				PRODUCT_NAME = Fichero;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -3169,7 +3173,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.03-beta;
+				MARKETING_VERSION = "2026.07.03-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -3192,7 +3196,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.03-beta;
+				MARKETING_VERSION = "2026.07.03-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -3208,7 +3212,7 @@
 				CURRENT_PROJECT_VERSION = 2026070301;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.03-beta;
+				MARKETING_VERSION = "2026.07.03-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -3224,7 +3228,7 @@
 				CURRENT_PROJECT_VERSION = 2026070301;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.03-beta;
+				MARKETING_VERSION = "2026.07.03-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
