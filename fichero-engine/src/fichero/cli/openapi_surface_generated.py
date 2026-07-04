@@ -407,8 +407,11 @@ def register_generated_openapi_commands(
     def actions_delete_delete(
         ctx: typer.Context,
         action_id: str = typer.Argument(..., help="Path parameter: action_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Action (DELETE /api/actions/{action_id})."""
+        if not yes:
+            typer.confirm("Delete actions?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/actions/{action_id}"
             params = None
@@ -546,8 +549,11 @@ def register_generated_openapi_commands(
     def activity_cleanup_old_activities_delete(
         ctx: typer.Context,
         days: Optional[int] = typer.Option(None, "--days", help="Query parameter: days."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Cleanup Old Activities (DELETE /api/activity/cleanup)."""
+        if not yes:
+            typer.confirm("Delete activity?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = "/api/activity/cleanup"
             params = {
@@ -746,8 +752,11 @@ def register_generated_openapi_commands(
     def agent_memory_delete_note_delete(
         ctx: typer.Context,
         note_id: str = typer.Argument(..., help="Path parameter: note_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Agent Note (DELETE /api/agent-memory/{note_id})."""
+        if not yes:
+            typer.confirm("Delete agent-memory?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/agent-memory/{note_id}"
             params = None
@@ -1057,8 +1066,11 @@ def register_generated_openapi_commands(
     def annotations_delete_delete(
         ctx: typer.Context,
         annotation_id: str = typer.Argument(..., help="Path parameter: annotation_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Annotation (DELETE /api/annotations/{annotation_id})."""
+        if not yes:
+            typer.confirm("Delete annotations?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/annotations/{annotation_id}"
             params = None
@@ -1276,8 +1288,11 @@ def register_generated_openapi_commands(
     def artifacts_delete_delete(
         ctx: typer.Context,
         artifact_id: str = typer.Argument(..., help="Path parameter: artifact_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Artifact (DELETE /api/artifacts/{artifact_id})."""
+        if not yes:
+            typer.confirm("Delete artifacts?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/artifacts/{artifact_id}"
             params = None
@@ -1390,8 +1405,11 @@ def register_generated_openapi_commands(
     def authz_revoke_library_member_role_delete(
         ctx: typer.Context,
         user: str = typer.Option(..., "--user", help="Query parameter: user."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Revoke Library Member Role (DELETE /api/authz/members)."""
+        if not yes:
+            typer.confirm("Delete authz?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = "/api/authz/members"
             params = {
@@ -1507,8 +1525,11 @@ def register_generated_openapi_commands(
     def batches_delete_batch_delete(
         ctx: typer.Context,
         batch_id: str = typer.Argument(..., help="Path parameter: batch_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Batch (DELETE /api/batches/{batch_id})."""
+        if not yes:
+            typer.confirm("Delete batches?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/batches/{batch_id}"
             params = None
@@ -1841,8 +1862,11 @@ def register_generated_openapi_commands(
     def chains_cancel_execution_delete(
         ctx: typer.Context,
         execution_id: str = typer.Argument(..., help="Path parameter: execution_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Cancel Chain Execution (DELETE /api/chains/executions/{execution_id})."""
+        if not yes:
+            typer.confirm("Delete chains?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/chains/executions/{execution_id}"
             params = None
@@ -1887,8 +1911,11 @@ def register_generated_openapi_commands(
     def chains_delete_delete(
         ctx: typer.Context,
         chain_id: str = typer.Argument(..., help="Path parameter: chain_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Chain (DELETE /api/chains/{chain_id})."""
+        if not yes:
+            typer.confirm("Delete chains?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/chains/{chain_id}"
             params = None
@@ -2055,8 +2082,11 @@ def register_generated_openapi_commands(
     def chat_delete_conversation_delete(
         ctx: typer.Context,
         conversation_id: str = typer.Argument(..., help="Path parameter: conversation_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Conversation (DELETE /api/chat/conversations/{conversation_id})."""
+        if not yes:
+            typer.confirm("Delete chat?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/chat/conversations/{conversation_id}"
             params = None
@@ -2298,8 +2328,11 @@ def register_generated_openapi_commands(
     def citations_delete_delete(
         ctx: typer.Context,
         citation_id: str = typer.Argument(..., help="Path parameter: citation_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Citation (DELETE /api/citations/graph/{citation_id})."""
+        if not yes:
+            typer.confirm("Delete citations?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/citations/graph/{citation_id}"
             params = None
@@ -2348,8 +2381,11 @@ def register_generated_openapi_commands(
     def claim_links_delete_delete(
         ctx: typer.Context,
         link_id: str = typer.Argument(..., help="Path parameter: link_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Claim Link (DELETE /api/claim-links/{link_id})."""
+        if not yes:
+            typer.confirm("Delete claim-links?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/claim-links/{link_id}"
             params = None
@@ -2398,7 +2434,7 @@ def register_generated_openapi_commands(
     target_app = existing_apps.get('claims')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for claims endpoints.', no_args_is_help=True)
-        root_app.add_typer(target_app, name='claims')
+        root_app.add_typer(target_app, name='claim')
 
     @target_app.command("list")
     def claims_list_get(
@@ -2781,8 +2817,11 @@ def register_generated_openapi_commands(
     def claims_delete_delete(
         ctx: typer.Context,
         claim_id: str = typer.Argument(..., help="Path parameter: claim_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Claim (DELETE /api/claims/{claim_id})."""
+        if not yes:
+            typer.confirm("Delete claims?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/claims/{claim_id}"
             params = None
@@ -3108,8 +3147,11 @@ def register_generated_openapi_commands(
     def classifications_delete_value_delete(
         ctx: typer.Context,
         value_id: str = typer.Argument(..., help="Path parameter: value_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Value (DELETE /api/classifications/{value_id})."""
+        if not yes:
+            typer.confirm("Delete classifications?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/classifications/{value_id}"
             params = None
@@ -3152,7 +3194,7 @@ def register_generated_openapi_commands(
     target_app = existing_apps.get('documents')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for documents endpoints.', no_args_is_help=True)
-        root_app.add_typer(target_app, name='documents')
+        root_app.add_typer(target_app, name='docs')
 
     @target_app.command("list")
     def documents_list_get(
@@ -3375,8 +3417,11 @@ def register_generated_openapi_commands(
     def documents_delete_delete(
         ctx: typer.Context,
         doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Document (DELETE /api/documents/{doc_id})."""
+        if not yes:
+            typer.confirm("Delete documents?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/documents/{doc_id}"
             params = None
@@ -3528,8 +3573,11 @@ def register_generated_openapi_commands(
     def documents_delete_note_delete(
         ctx: typer.Context,
         doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Document Note (DELETE /api/documents/{doc_id}/notes)."""
+        if not yes:
+            typer.confirm("Delete documents?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/documents/{doc_id}/notes"
             params = None
@@ -3652,8 +3700,11 @@ def register_generated_openapi_commands(
     def documents_purge_delete(
         ctx: typer.Context,
         doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Purge Document (DELETE /api/documents/{doc_id}/purge)."""
+        if not yes:
+            typer.confirm("Delete documents?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/documents/{doc_id}/purge"
             params = None
@@ -3932,8 +3983,11 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
         cascade_claims: Optional[bool] = typer.Option(None, "--cascade-claims/--no-cascade-claims", help="Query parameter: cascade_claims."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Entity (DELETE /api/entities/{entity_id})."""
+        if not yes:
+            typer.confirm("Delete entities?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/entities/{entity_id}"
             params = {
@@ -4214,8 +4268,11 @@ def register_generated_openapi_commands(
         entity_type: str = typer.Argument(..., help="Path parameter: entity_type."),
         delete_contents: Optional[bool] = typer.Option(None, "--delete-contents/--no-delete-contents", help="Query parameter: delete_contents."),
         folder_path: str = typer.Option(..., "--folder-path", help="Query parameter: folder_path."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Folder (DELETE /api/folders/{entity_type}/folders)."""
+        if not yes:
+            typer.confirm("Delete folders?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/folders/{entity_type}/folders"
             params = {
@@ -4472,8 +4529,11 @@ def register_generated_openapi_commands(
     def hermeneutics_delete_framework_delete(
         ctx: typer.Context,
         framework_id: str = typer.Argument(..., help="Path parameter: framework_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Framework (DELETE /api/hermeneutics/frameworks/{framework_id})."""
+        if not yes:
+            typer.confirm("Delete hermeneutics?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/hermeneutics/frameworks/{framework_id}"
             params = None
@@ -4910,8 +4970,11 @@ def register_generated_openapi_commands(
     def images_delete_edit_chain_delete(
         ctx: typer.Context,
         document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Edit Chain (DELETE /api/images/{document_id}/edits)."""
+        if not yes:
+            typer.confirm("Delete images?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/images/{document_id}/edits"
             params = None
@@ -5140,7 +5203,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Ingest File (POST /api/ingest/file)."""
         def op_call(client: FicheroClient) -> Any:
-            request_path = "/api/ingest/file"
+            path = "/api/ingest/file"
             params = None
             payload = _build_json_payload({
                 "auto_embed": auto_embed,
@@ -5155,7 +5218,7 @@ def register_generated_openapi_commands(
                 "parent_id": {'type': 'string', 'nullable': True, 'title': 'Parent Id', 'x-cli-required': False},
                 "path": {'type': 'string', 'title': 'Path', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", request_path, params=params, json=payload)
+            return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("folder")
@@ -5170,7 +5233,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Ingest Folder (POST /api/ingest/folder)."""
         def op_call(client: FicheroClient) -> Any:
-            request_path = "/api/ingest/folder"
+            path = "/api/ingest/folder"
             params = None
             payload = _build_json_payload({
                 "auto_embed": auto_embed,
@@ -5187,7 +5250,7 @@ def register_generated_openapi_commands(
                 "path": {'type': 'string', 'title': 'Path', 'x-cli-required': True},
                 "recursive": {'type': 'boolean', 'title': 'Recursive', 'default': True, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", request_path, params=params, json=payload)
+            return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-status")
@@ -5671,9 +5734,12 @@ def register_generated_openapi_commands(
     @target_app.command("delete-claim-rule")
     def kg_delete_claim_rule_delete(
         ctx: typer.Context,
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
         rule_id: str = typer.Option(..., "--rule-id", help="Request field: rule_id."),
     ) -> None:
         """Delete Claim Rule (DELETE /api/kg/curation-rules/claim-rules)."""
+        if not yes:
+            typer.confirm("Delete kg?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/curation-rules/claim-rules"
             params = None
@@ -5751,9 +5817,12 @@ def register_generated_openapi_commands(
     @target_app.command("delete-entity-rule")
     def kg_delete_entity_rule_delete(
         ctx: typer.Context,
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
         rule_id: str = typer.Option(..., "--rule-id", help="Request field: rule_id."),
     ) -> None:
         """Delete Entity Rule (DELETE /api/kg/curation-rules/entity-rules)."""
+        if not yes:
+            typer.confirm("Delete kg?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/curation-rules/entity-rules"
             params = None
@@ -6382,8 +6451,11 @@ def register_generated_openapi_commands(
     def kg_delete_framework_delete(
         ctx: typer.Context,
         framework_id: str = typer.Argument(..., help="Path parameter: framework_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Framework (DELETE /api/kg/interpretations/frameworks/{framework_id})."""
+        if not yes:
+            typer.confirm("Delete kg?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/kg/interpretations/frameworks/{framework_id}"
             params = None
@@ -6832,8 +6904,11 @@ def register_generated_openapi_commands(
     def kg_delete_a_trained_pykeen_model_delete(
         ctx: typer.Context,
         model_id: str = typer.Argument(..., help="Path parameter: model_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete a trained PyKEEN model (DELETE /api/kg/pykeen/models/{model_id})."""
+        if not yes:
+            typer.confirm("Delete kg?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/kg/pykeen/models/{model_id}"
             params = None
@@ -7242,8 +7317,11 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         lib: str = typer.Argument(..., help="Path parameter: lib."),
         entity_type_key: str = typer.Argument(..., help="Path parameter: entity_type_key."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Remove Library Entity Type (DELETE /api/libraries/{lib}/entity-types/{entity_type_key})."""
+        if not yes:
+            typer.confirm("Delete libraries?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/libraries/{lib}/entity-types/{entity_type_key}"
             params = None
@@ -7332,8 +7410,11 @@ def register_generated_openapi_commands(
     def library_delete_link_delete(
         ctx: typer.Context,
         link_id: str = typer.Argument(..., help="Path parameter: link_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Library Link (DELETE /api/library/links/{link_id})."""
+        if not yes:
+            typer.confirm("Delete library?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/library/links/{link_id}"
             params = None
@@ -7578,8 +7659,11 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         model_type: str = typer.Argument(..., help="Path parameter: model_type."),
         model_id: str = typer.Argument(..., help="Path parameter: model_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Model (DELETE /api/local-models/{model_type}/{model_id})."""
+        if not yes:
+            typer.confirm("Delete local-models?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/local-models/{model_type}/{model_id}"
             params = None
@@ -7673,8 +7757,11 @@ def register_generated_openapi_commands(
     def mcp_delete_knowledge_claim_delete(
         ctx: typer.Context,
         claim_id: str = typer.Argument(..., help="Path parameter: claim_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete knowledge claim (DELETE /api/mcp/tools/knowledge/claims/{claim_id})."""
+        if not yes:
+            typer.confirm("Delete mcp?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/mcp/tools/knowledge/claims/{claim_id}"
             params = None
@@ -7752,8 +7839,11 @@ def register_generated_openapi_commands(
     def mcp_delete_knowledge_entity_delete(
         ctx: typer.Context,
         entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete knowledge entity (DELETE /api/mcp/tools/knowledge/entities/{entity_id})."""
+        if not yes:
+            typer.confirm("Delete mcp?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/mcp/tools/knowledge/entities/{entity_id}"
             params = None
@@ -7869,8 +7959,11 @@ def register_generated_openapi_commands(
     def mcp_servers_delete_delete(
         ctx: typer.Context,
         server_id: str = typer.Argument(..., help="Path parameter: server_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Mcp Server (DELETE /api/mcp-servers/{server_id})."""
+        if not yes:
+            typer.confirm("Delete mcp-servers?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/mcp-servers/{server_id}"
             params = None
@@ -8111,8 +8204,11 @@ def register_generated_openapi_commands(
     def mind_palace_remove_connection_delete(
         ctx: typer.Context,
         connection_id: str = typer.Argument(..., help="Path parameter: connection_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Remove Connection (DELETE /api/mind-palace/connections/{connection_id})."""
+        if not yes:
+            typer.confirm("Delete mind-palace?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/mind-palace/connections/{connection_id}"
             params = None
@@ -8215,8 +8311,11 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
         item_id: str = typer.Argument(..., help="Path parameter: item_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Canvas Item (DELETE /api/mind-palace/folders/{folder_id}/canvas-items/{item_id})."""
+        if not yes:
+            typer.confirm("Delete mind-palace?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/mind-palace/folders/{folder_id}/canvas-items/{item_id}"
             params = None
@@ -8373,8 +8472,11 @@ def register_generated_openapi_commands(
     def mind_palace_remove_node_delete(
         ctx: typer.Context,
         node_id: str = typer.Argument(..., help="Path parameter: node_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Remove Node (DELETE /api/mind-palace/nodes/{node_id})."""
+        if not yes:
+            typer.confirm("Delete mind-palace?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/mind-palace/nodes/{node_id}"
             params = None
@@ -8491,8 +8593,11 @@ def register_generated_openapi_commands(
     def mind_palace_delete_note_delete(
         ctx: typer.Context,
         note_id: str = typer.Argument(..., help="Path parameter: note_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Note (DELETE /api/mind-palace/notes/{note_id})."""
+        if not yes:
+            typer.confirm("Delete mind-palace?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/mind-palace/notes/{note_id}"
             params = None
@@ -8596,8 +8701,11 @@ def register_generated_openapi_commands(
     def mind_palace_delete_room_delete(
         ctx: typer.Context,
         room_id: str = typer.Argument(..., help="Path parameter: room_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Room (DELETE /api/mind-palace/rooms/{room_id})."""
+        if not yes:
+            typer.confirm("Delete mind-palace?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/mind-palace/rooms/{room_id}"
             params = None
@@ -8827,8 +8935,11 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         stack_id: str = typer.Argument(..., help="Path parameter: stack_id."),
         node_id: str = typer.Argument(..., help="Path parameter: node_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Remove From Stack (DELETE /api/mind-palace/stacks/{stack_id}/nodes/{node_id})."""
+        if not yes:
+            typer.confirm("Delete mind-palace?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/mind-palace/stacks/{stack_id}/nodes/{node_id}"
             params = None
@@ -9504,8 +9615,11 @@ def register_generated_openapi_commands(
     def notes_delete_delete(
         ctx: typer.Context,
         note_id: str = typer.Argument(..., help="Path parameter: note_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Note (DELETE /api/notes/{note_id})."""
+        if not yes:
+            typer.confirm("Delete notes?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/notes/{note_id}"
             params = None
@@ -9631,8 +9745,11 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         note_id: str = typer.Argument(..., help="Path parameter: note_id."),
         link_id: str = typer.Argument(..., help="Path parameter: link_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Note Link (DELETE /api/notes/{note_id}/links/{link_id})."""
+        if not yes:
+            typer.confirm("Delete notes?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/notes/{note_id}/links/{link_id}"
             params = None
@@ -9785,8 +9902,11 @@ def register_generated_openapi_commands(
     def policies_delete_a_rule_delete(
         ctx: typer.Context,
         rule_id: str = typer.Argument(..., help="Path parameter: rule_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete a policy rule (DELETE /api/policies/orchestration/{rule_id})."""
+        if not yes:
+            typer.confirm("Delete policies?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/policies/orchestration/{rule_id}"
             params = None
@@ -9890,8 +10010,11 @@ def register_generated_openapi_commands(
     def projects_delete_delete(
         ctx: typer.Context,
         project_id: str = typer.Argument(..., help="Path parameter: project_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Project (DELETE /api/projects/{project_id})."""
+        if not yes:
+            typer.confirm("Delete projects?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/projects/{project_id}"
             params = None
@@ -9975,8 +10098,11 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         project_id: str = typer.Argument(..., help="Path parameter: project_id."),
         inclusion_id: str = typer.Argument(..., help="Path parameter: inclusion_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Remove Inclusion (DELETE /api/projects/{project_id}/include/{inclusion_id})."""
+        if not yes:
+            typer.confirm("Delete projects?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/projects/{project_id}/include/{inclusion_id}"
             params = None
@@ -10125,8 +10251,11 @@ def register_generated_openapi_commands(
     def providers_delete_ref_delete(
         ctx: typer.Context,
         ref_id: str = typer.Argument(..., help="Path parameter: ref_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Provider Ref (DELETE /api/providers/refs/{ref_id})."""
+        if not yes:
+            typer.confirm("Delete providers?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/providers/refs/{ref_id}"
             params = None
@@ -10158,8 +10287,11 @@ def register_generated_openapi_commands(
     def providers_delete_delete(
         ctx: typer.Context,
         provider_id: str = typer.Argument(..., help="Path parameter: provider_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Provider (DELETE /api/providers/{provider_id})."""
+        if not yes:
+            typer.confirm("Delete providers?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/providers/{provider_id}"
             params = None
@@ -10249,8 +10381,11 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         provider_id: str = typer.Argument(..., help="Path parameter: provider_id."),
         model_id: str = typer.Argument(..., help="Path parameter: model_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Remove Model From Provider (DELETE /api/providers/{provider_id}/models/{model_id})."""
+        if not yes:
+            typer.confirm("Delete providers?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/providers/{provider_id}/models/{model_id}"
             params = None
@@ -10261,8 +10396,11 @@ def register_generated_openapi_commands(
     def providers_delete_api_key_delete(
         ctx: typer.Context,
         provider_type: str = typer.Argument(..., help="Path parameter: provider_type."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Provider Api Key (DELETE /api/providers/{provider_type}/api-key)."""
+        if not yes:
+            typer.confirm("Delete providers?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/providers/{provider_type}/api-key"
             params = None
@@ -10350,8 +10488,11 @@ def register_generated_openapi_commands(
     def references_delete_delete(
         ctx: typer.Context,
         reference_id: str = typer.Argument(..., help="Path parameter: reference_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Reference (DELETE /api/references/{reference_id})."""
+        if not yes:
+            typer.confirm("Delete references?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/references/{reference_id}"
             params = None
@@ -10494,8 +10635,11 @@ def register_generated_openapi_commands(
     def registries_delete_claim_kind_delete(
         ctx: typer.Context,
         value_id: str = typer.Argument(..., help="Path parameter: value_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Claim Kind (DELETE /api/registries/claim-kinds/{value_id})."""
+        if not yes:
+            typer.confirm("Delete registries?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/registries/claim-kinds/{value_id}"
             params = None
@@ -10582,8 +10726,11 @@ def register_generated_openapi_commands(
     def registries_delete_epistemic_status_delete(
         ctx: typer.Context,
         value_id: str = typer.Argument(..., help="Path parameter: value_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Epistemic Status (DELETE /api/registries/epistemic-statuses/{value_id})."""
+        if not yes:
+            typer.confirm("Delete registries?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/registries/epistemic-statuses/{value_id}"
             params = None
@@ -10673,8 +10820,11 @@ def register_generated_openapi_commands(
     def registry_remove_known_library_delete(
         ctx: typer.Context,
         library_path: str = typer.Argument(..., help="Path parameter: library_path."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Remove Known Library (DELETE /api/registry/{library_path})."""
+        if not yes:
+            typer.confirm("Delete registry?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/registry/{library_path}"
             params = None
@@ -10965,8 +11115,11 @@ def register_generated_openapi_commands(
     def research_delete_project_delete(
         ctx: typer.Context,
         project_id: str = typer.Argument(..., help="Path parameter: project_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Project (DELETE /api/research/projects/{project_id})."""
+        if not yes:
+            typer.confirm("Delete research?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/research/projects/{project_id}"
             params = None
@@ -11447,8 +11600,11 @@ def register_generated_openapi_commands(
     def schedules_delete_delete(
         ctx: typer.Context,
         schedule_id: str = typer.Argument(..., help="Path parameter: schedule_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Schedule (DELETE /api/schedules/{schedule_id})."""
+        if not yes:
+            typer.confirm("Delete schedules?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/schedules/{schedule_id}"
             params = None
@@ -11783,8 +11939,11 @@ def register_generated_openapi_commands(
     def search_delete_saved_delete(
         ctx: typer.Context,
         search_id: str = typer.Argument(..., help="Path parameter: search_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Saved Search (DELETE /api/search/saved/{search_id})."""
+        if not yes:
+            typer.confirm("Delete search?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/search/saved/{search_id}"
             params = None
@@ -11927,8 +12086,11 @@ def register_generated_openapi_commands(
     @target_app.command("reset-ai-defaults")
     def settings_reset_ai_defaults_delete(
         ctx: typer.Context,
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Reset Ai Defaults (DELETE /api/settings/ai-defaults)."""
+        if not yes:
+            typer.confirm("Delete settings?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = "/api/settings/ai-defaults"
             params = None
@@ -12108,8 +12270,11 @@ def register_generated_openapi_commands(
     def settings_delete_model_profile_delete(
         ctx: typer.Context,
         profile_id: str = typer.Argument(..., help="Path parameter: profile_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Model Profile (DELETE /api/settings/model-profiles/{profile_id})."""
+        if not yes:
+            typer.confirm("Delete settings?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/settings/model-profiles/{profile_id}"
             params = None
@@ -12219,8 +12384,11 @@ def register_generated_openapi_commands(
     def sources_delete_delete(
         ctx: typer.Context,
         source_id: str = typer.Argument(..., help="Path parameter: source_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Source (DELETE /api/sources/{source_id})."""
+        if not yes:
+            typer.confirm("Delete sources?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/sources/{source_id}"
             params = None
@@ -12357,8 +12525,11 @@ def register_generated_openapi_commands(
     def storage_remove_snapshot_delete(
         ctx: typer.Context,
         snapshot_id: str = typer.Argument(..., help="Path parameter: snapshot_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Remove Snapshot (DELETE /api/storage/snapshots/{snapshot_id})."""
+        if not yes:
+            typer.confirm("Delete storage?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/storage/snapshots/{snapshot_id}"
             params = None
@@ -12608,8 +12779,11 @@ def register_generated_openapi_commands(
     def tasks_delete_completed_delete(
         ctx: typer.Context,
         task_id: str = typer.Argument(..., help="Path parameter: task_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete completed task (DELETE /api/tasks/tasks/{task_id})."""
+        if not yes:
+            typer.confirm("Delete tasks?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/tasks/tasks/{task_id}"
             params = None
@@ -12713,8 +12887,11 @@ def register_generated_openapi_commands(
     def triggers_delete_delete(
         ctx: typer.Context,
         trigger_id: str = typer.Argument(..., help="Path parameter: trigger_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Trigger (DELETE /api/triggers/{trigger_id})."""
+        if not yes:
+            typer.confirm("Delete triggers?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/triggers/{trigger_id}"
             params = None
@@ -12904,8 +13081,11 @@ def register_generated_openapi_commands(
     @target_app.command("clear-all-cache")
     def workflow_execution_clear_all_cache_delete(
         ctx: typer.Context,
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Clear All Cache (DELETE /api/workflow-execution/cache)."""
+        if not yes:
+            typer.confirm("Delete workflow-execution?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = "/api/workflow-execution/cache"
             params = None
@@ -12985,8 +13165,11 @@ def register_generated_openapi_commands(
     def workflow_execution_delete_thread_delete(
         ctx: typer.Context,
         thread_id: str = typer.Argument(..., help="Path parameter: thread_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Thread (DELETE /api/workflow-execution/threads/{thread_id})."""
+        if not yes:
+            typer.confirm("Delete workflow-execution?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/workflow-execution/threads/{thread_id}"
             params = None
@@ -13105,8 +13288,11 @@ def register_generated_openapi_commands(
     def workflow_execution_clear_cache_delete(
         ctx: typer.Context,
         workflow_id: str = typer.Argument(..., help="Path parameter: workflow_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Clear Workflow Cache (DELETE /api/workflow-execution/workflows/{workflow_id}/cache)."""
+        if not yes:
+            typer.confirm("Delete workflow-execution?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/workflow-execution/workflows/{workflow_id}/cache"
             params = None
@@ -13376,8 +13562,11 @@ def register_generated_openapi_commands(
     def workflows_delete_delete(
         ctx: typer.Context,
         workflow_id: str = typer.Argument(..., help="Path parameter: workflow_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Workflow (DELETE /api/workflows/{workflow_id})."""
+        if not yes:
+            typer.confirm("Delete workflows?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/workflows/{workflow_id}"
             params = None
@@ -13539,3 +13728,4 @@ def register_generated_openapi_commands(
             params = None
             return client.request("GET", path, params=params)
         invoke(ctx, op_call)
+

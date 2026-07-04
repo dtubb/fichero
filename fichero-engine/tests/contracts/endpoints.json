@@ -3440,6 +3440,71 @@
         "response_model": "MethodTaxonomyResponse"
       }
     ],
+    "iiif": [
+      {
+        "method": "GET",
+        "path": "/iiif/iiif/image/{document_id}",
+        "operation_id": "get_document_image_api_iiif_iiif_image__document_id__get",
+        "summary": "Direct Image Access",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [
+          {
+            "name": "height",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "width",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/iiif/iiif/manifest/{document_id}",
+        "operation_id": "get_iiif_manifest_api_iiif_iiif_manifest__document_id__get",
+        "summary": "IIIF Manifest",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "IIIFManifest"
+      },
+      {
+        "method": "GET",
+        "path": "/iiif/iiif/{identifier}/info.json",
+        "operation_id": "get_image_info_api_iiif_iiif__identifier__info_json_get",
+        "summary": "IIIF Image Information",
+        "path_params": [
+          "identifier"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ImageInfoResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/iiif/iiif/{identifier}/{region}/{size}/{rotation}/{quality}.{format}",
+        "operation_id": "serve_iiif_image_api_iiif_iiif__identifier___region___size___rotation___quality___format__get",
+        "summary": "IIIF Image Request",
+        "path_params": [
+          "identifier",
+          "region",
+          "size",
+          "rotation",
+          "quality}.{format"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      }
+    ],
     "images": [
       {
         "method": "DELETE",

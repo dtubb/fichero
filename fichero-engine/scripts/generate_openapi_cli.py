@@ -311,6 +311,10 @@ def _emit_function(op: Operation, command_name: str) -> list[str]:
             + _option_expr(var_name, query_param)
             + ","
         )
+    if op.method == "DELETE":
+        lines.append(
+            '        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),'
+        )
     if op.request_kind == "json":
         if op.request_fields:
             for request_field in op.request_fields:
@@ -343,6 +347,11 @@ def _emit_function(op: Operation, command_name: str) -> list[str]:
     path_expr = json.dumps(op.path)
     for source_name, var_name in param_map[: len(op.path_params)]:
         path_expr = path_expr.replace("{" + source_name + "}", "{" + var_name + "}")
+    if op.method == "DELETE":
+        lines.append("        if not yes:")
+        lines.append(
+            f'            typer.confirm("Delete {op.resource.replace("_", " ")}?", abort=True)'
+        )
     lines.append("        def op_call(client: FicheroClient) -> Any:")
     if op.path_params:
         lines.append(f"            path = f{path_expr}")
