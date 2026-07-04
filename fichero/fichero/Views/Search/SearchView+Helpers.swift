@@ -168,6 +168,14 @@ extension SearchView {
         }
     }
 
+    /// Open the arrow-selected result at its matched passage — the Return-key
+    /// action for the arrow-through-results navigation (#1843).
+    func activateSelectedResult() {
+        guard let id = selection.first,
+              let result = searchStore.results.first(where: { $0.documentId == id }) else { return }
+        openExcerpt(result)
+    }
+
     func openExcerpt(_ result: SearchResult) {
         guard let info = SearchResultRowFromAPI.navigationUserInfo(for: result) else {
             loadDocument(result.documentId)
