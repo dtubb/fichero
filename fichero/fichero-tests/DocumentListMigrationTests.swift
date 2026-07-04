@@ -57,6 +57,23 @@ struct DocumentListMigrationTests {
         #expect(docs.map(\.name) == ["Alpha", "Beta"])
     }
 
+    @Test("listDocuments() with nil limit omits the limit query (sidebar load-all)")
+    func listDocumentsNilLimitOmitsParam() async throws {
+        let service = makeService { request in
+            #expect(request.url?.path == "/api/documents")
+            // loadCollections loads the full tree — no limit cap must be sent.
+            #expect(!(request.url?.query ?? "").contains("limit="))
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data("{\"count\":0,\"items\":[]}".utf8))
+        }
+
+        let docs = try await service.listDocuments()
+        #expect(docs.isEmpty)
+    }
+
     @Test("listDocuments throws on non-.ok instead of returning an empty list")
     func listDocumentsThrowsOnError() async throws {
         let service = makeService { request in

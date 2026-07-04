@@ -253,13 +253,13 @@ class DocumentServiceGenerated: ObservableObject {
         }
     }
 
-    /// List documents (flat) via the generated `list_documents` op, capped at
-    /// `limit`. Used by callers that need a broad set to filter client-side
-    /// (e.g. chat scope search). Throws on non-`.ok` (#3030).
-    /// - Parameter limit: Maximum number of documents to return.
+    /// List documents (flat) via the generated `list_documents` op. Pass `limit`
+    /// to cap results (e.g. chat scope search); pass nil to load the full tree
+    /// (the backend default, used by the sidebar). Throws on non-`.ok` (#3030).
+    /// - Parameter limit: Maximum documents to return, or nil for the backend default.
     /// - Returns: Array of documents.
-    func listDocuments(limit: Int) async throws -> [Document] {
-        logger.info("Listing documents (limit \(limit))")
+    func listDocuments(limit: Int? = nil) async throws -> [Document] {
+        logger.info("Listing documents (limit \(limit.map(String.init) ?? "default"))")
 
         let response = try await client.api.listDocumentsApiDocumentsGet(
             .init(query: .init(limit: limit))

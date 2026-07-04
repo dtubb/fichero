@@ -86,6 +86,13 @@ final class DocumentStore {
 
     let api: APIClient  // Internal access for LibraryImageView and other components
 
+    /// Typed documents client (#3030). Shares `api`'s FicheroClient, throws on
+    /// non-`.ok`, and maps generated schemas → local `Document` via its own
+    /// converters. Store methods route documents-domain reads/writes through
+    /// this instead of the hand-rolled `api.get/post/delete`.
+    @ObservationIgnored
+    let documentService: DocumentServiceGenerated
+
     /// Publish a document change event.
     func publish(_ change: DocumentChange) {
         documentChanges.send(change)
@@ -151,6 +158,7 @@ final class DocumentStore {
     /// This ensures operations in one window don't affect other windows.
     init(apiClient: APIClient) {
         self.api = apiClient
+        self.documentService = DocumentServiceGenerated(ficheroClient: apiClient.client)
     }
 
     // MARK: - Connection
@@ -175,10 +183,9 @@ final class DocumentStore {
         do {
             logger.info("Loading all documents for tree building...")
             // Load ALL documents so SidebarItemBuilder can construct full hierarchy from parent_id
-            // No limit - load everything for complete tree structure
-            let query = ["offset": "0"]
-            let response: DocumentListResponse = try await api.get("/documents", query: query)
-            collections = applyStatusOverrides(response.items)
+            // No limit - load everything for complete tree structure (#3030: generated list_documents).
+            let items = try await documentService.listDocuments()
+            collections = applyStatusOverrides(items)
             isConnected = true
             logger.info("Loaded \(self.collections.count) documents total")
 
@@ -269,8 +276,7 @@ final class DocumentStore {
         guard !pendingIds.isEmpty else { return }
 
         do {
-            let response: DocumentListResponse = try await api.get("/documents/\(parentId)/children")
-            let fresh = response.items
+            let fresh = try await documentService.getChildren(parentId)
             let freshById = Dictionary(uniqueKeysWithValues: fresh.map { ($0.id, $0) })
 
             // Walk currentDocuments. For each pending row whose status
@@ -305,8 +311,7 @@ final class DocumentStore {
         }
 
         do {
-            let response: DocumentListResponse = try await api.get("/documents/\(documentId)/children")
-            let fresh = response.items
+            let fresh = try await documentService.getChildren(documentId)
             childrenCache[documentId] = applyStatusOverrides(fresh)
             return childrenCache[documentId] ?? []
         } catch {

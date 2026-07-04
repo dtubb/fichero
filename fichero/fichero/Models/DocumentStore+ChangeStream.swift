@@ -75,7 +75,7 @@ extension DocumentStore: ObservableDomainStore {
         for id in ids {
             let fresh: Document
             do {
-                fresh = try await api.get("/documents/\(id)")
+                fresh = try await documentService.getDocument(id)
             } catch {
                 logger.debug(
                     "granular patch fetch failed for \(id, privacy: .public): \(error.localizedDescription, privacy: .public)"

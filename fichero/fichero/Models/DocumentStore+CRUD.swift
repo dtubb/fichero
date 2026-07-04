@@ -43,8 +43,7 @@ extension DocumentStore {
     /// section (#1617).
     func loadWorkspaces() async {
         do {
-            let response: DocumentListResponse = try await api.get("/documents/workspaces")
-            workspaces = response.items
+            workspaces = try await documentService.getWorkspaces()
         } catch {
             logger.error("Failed to load workspaces: \(error.localizedDescription)")
         }
