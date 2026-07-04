@@ -13,12 +13,13 @@ import OSLog
 /// the *same* code path. This is what makes "who changed what" and ⌘Z-undo
 /// uniform across every capability.
 ///
-/// `/api/actions/invoke` is not yet in `openapi.json`, so the generated client
-/// can't reach it. This extension uses the same hand-written `addEngineAuth`
-/// URLRequest seam the other not-yet-generated calls in `EntityServiceGenerated`
-/// use (e.g. the library entity-type registry). When the schema is regenerated
-/// to include the actions-registry routes, this can collapse onto the generated
-/// client like the rest of `/api/actions/*`.
+/// `/api/actions/invoke` (and its undo sibling `/api/actions/audit/{id}/undo`)
+/// are now in `openapi.json`, so these route through the generated
+/// `FicheroClient` like the rest of `/api/actions/*` (#3029). The generated
+/// `LibraryPathMiddleware` injects `X-Fichero-Library-Path` centrally; the
+/// origin-window de-dup header is a typed op header. Params are still typed at
+/// the call site (`Components.Schemas.EntityMergeRequest`, `AclSetParams`, …)
+/// and bridged into the op's free-form `params` container via a JSON round-trip.
 extension ActionLibraryService {
     private var invokeLogger: Logger {
         Logger(subsystem: "app.fichero.fichero", category: "ActionInvoke")
@@ -41,38 +42,35 @@ extension ActionLibraryService {
         params: Params,
         originWindow: String? = nil
     ) async throws -> ActionInvokeResult {
-        let url = client.baseURL.appending(path: "api/actions/invoke")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.addEngineAuth(libraryPath: client.currentLibraryPath)
-        if let originWindow {
-            request.setValue(originWindow, forHTTPHeaderField: "X-Fichero-Origin-Window")
-        }
-
-        let encoder = JSONEncoder()
-        request.httpBody = try encoder.encode(
-            InvokeActionRequest(name: name, params: params, originWindow: originWindow)
+        let request = Components.Schemas.InvokeActionRequest(
+            name: name,
+            params: try Self.paramsPayload(params),
+            originWindow: originWindow
         )
-
-        let session = RemoteCertificatePinning.configuredSession()
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw APIError.invalidResponse
+        let response = try await client.api.invokeActionApiActionsInvokePost(.init(
+            headers: .init(xFicheroOriginWindow: originWindow),
+            body: .json(request)
+        ))
+        switch response {
+        case .ok(let okResponse):
+            let json = try okResponse.body.json
+            let result = ActionInvokeResult(
+                succeeded: json.ok,
+                auditId: json.auditId,
+                changedDomains: json.changedDomains
+            )
+            invokeLogger.info("invokeAction(\(name)) ok — audit \(result.auditId)")
+            return result
+        case .unprocessableContent(let error):
+            // Surface the FastAPI `detail` string, matching the generated
+            // services' validation-error mapping.
+            let message = (try? error.body.json)?.detail?.description ?? "Action failed"
+            invokeLogger.error("invokeAction(\(name)) 422: \(message)")
+            throw APIError.httpError(statusCode: 422, message: message)
+        case .undocumented(let statusCode, _):
+            invokeLogger.error("invokeAction(\(name)) HTTP \(statusCode)")
+            throw APIError.httpError(statusCode: statusCode, message: "Action failed")
         }
-        guard (200..<300).contains(http.statusCode) else {
-            // Surface the FastAPI `detail` string when present, matching the
-            // generated services' validation-error mapping.
-            let detail = (try? JSONDecoder().decode(ErrorResponse.self, from: data))?.detail
-                ?? String(data: data, encoding: .utf8)
-                ?? "Action failed"
-            invokeLogger.error("invokeAction(\(name)) HTTP \(http.statusCode): \(detail)")
-            throw APIError.httpError(statusCode: http.statusCode, message: detail)
-        }
-
-        let result = try JSONDecoder().decode(ActionInvokeResult.self, from: data)
-        invokeLogger.info("invokeAction(\(name)) ok — audit \(result.auditId)")
-        return result
     }
 
     /// Undo a previously invoked action by replaying its recorded inverse —
@@ -92,31 +90,28 @@ extension ActionLibraryService {
         auditId: String,
         originWindow: String? = nil
     ) async throws -> ActionInvokeResult {
-        let url = client.baseURL.appending(path: "api/actions/audit/\(auditId)/undo")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.addEngineAuth(libraryPath: client.currentLibraryPath)
-        if let originWindow {
-            request.setValue(originWindow, forHTTPHeaderField: "X-Fichero-Origin-Window")
+        let response = try await client.api.undoActionApiActionsAuditAuditIdUndoPost(.init(
+            path: .init(auditId: auditId),
+            headers: .init(xFicheroOriginWindow: originWindow)
+        ))
+        switch response {
+        case .ok(let okResponse):
+            let json = try okResponse.body.json
+            let result = ActionInvokeResult(
+                succeeded: json.ok,
+                auditId: json.auditId,
+                changedDomains: json.changedDomains
+            )
+            invokeLogger.info("undoAction(\(auditId)) ok — inverse audit \(result.auditId)")
+            return result
+        case .unprocessableContent(let error):
+            let message = (try? error.body.json)?.detail?.description ?? "Undo failed"
+            invokeLogger.error("undoAction(\(auditId)) 422: \(message)")
+            throw APIError.httpError(statusCode: 422, message: message)
+        case .undocumented(let statusCode, _):
+            invokeLogger.error("undoAction(\(auditId)) HTTP \(statusCode)")
+            throw APIError.httpError(statusCode: statusCode, message: "Undo failed")
         }
-
-        let session = RemoteCertificatePinning.configuredSession()
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw APIError.invalidResponse
-        }
-        guard (200..<300).contains(http.statusCode) else {
-            let detail = (try? JSONDecoder().decode(ErrorResponse.self, from: data))?.detail
-                ?? String(data: data, encoding: .utf8)
-                ?? "Undo failed"
-            invokeLogger.error("undoAction(\(auditId)) HTTP \(http.statusCode): \(detail)")
-            throw APIError.httpError(statusCode: http.statusCode, message: detail)
-        }
-
-        let result = try JSONDecoder().decode(ActionInvokeResult.self, from: data)
-        invokeLogger.info("undoAction(\(auditId)) ok — inverse audit \(result.auditId)")
-        return result
     }
 
     /// Update a user's library role through the audited ACL action.
@@ -141,29 +136,27 @@ extension ActionLibraryService {
     }
 }
 
-// MARK: - Wire models
+// MARK: - Params bridge
 
-/// Request envelope for `POST /api/actions/invoke`. Generic over the typed
-/// params payload so call sites pass an OpenAPI schema (or any `Encodable`),
-/// never a raw `[String: Any]`.
-struct InvokeActionRequest<Params: Encodable>: Encodable {
-    let name: String
-    let params: Params
-    let originWindow: String?
-
-    enum CodingKeys: String, CodingKey {
-        case name
-        case params
-        case originWindow = "origin_window"
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(name, forKey: .name)
-        try container.encode(params, forKey: .params)
-        try container.encodeIfPresent(originWindow, forKey: .originWindow)
+extension ActionLibraryService {
+    /// Bridge a typed `Encodable` params value into the generated op's free-form
+    /// `params` container. Call sites stay typed (`EntityMergeRequest`,
+    /// `AclSetParams`, …) while the wire shape matches the backend's `Raw action
+    /// params` object. A JSON round-trip is the cleanest typed→container
+    /// conversion: `ParamsPayload.init(from:)` slurps object keys into
+    /// `additionalProperties`.
+    static func paramsPayload<Params: Encodable>(
+        _ params: Params
+    ) throws -> Components.Schemas.InvokeActionRequest.ParamsPayload {
+        let data = try JSONEncoder().encode(params)
+        return try JSONDecoder().decode(
+            Components.Schemas.InvokeActionRequest.ParamsPayload.self,
+            from: data
+        )
     }
 }
+
+// MARK: - Wire models
 
 /// Decoded `ActionResult` from the audited choke point. `result` is free-form
 /// (per-action shape) so it is intentionally not decoded here — callers that
