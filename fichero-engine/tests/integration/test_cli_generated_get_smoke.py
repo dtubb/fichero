@@ -18,6 +18,8 @@ os.environ.setdefault("FICHERO_DISABLE_AUTH", "1")
 from fichero import __main__ as cli  # noqa: E402
 from tests.integration._cli_live import cli_live_engine as _cli_live_engine, path_values  # noqa: E402,F401
 
+cli_live_engine = _cli_live_engine
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 _GENERATOR_PATH = REPO_ROOT / "fichero-engine" / "scripts" / "generate_openapi_cli.py"
 _GENERATOR_SPEC = importlib.util.spec_from_file_location("generate_openapi_cli", _GENERATOR_PATH)
@@ -29,6 +31,14 @@ _GENERATOR_SPEC.loader.exec_module(_generator)
 
 runner = CliRunner()
 
+_COMMAND_RESOURCE_OVERRIDES = {
+    "claims": ("claim",),
+    "documents": ("docs",),
+    "entities": ("entity",),
+    "hermeneutics": ("interpretation",),
+    "workflow-execution": ("workflow", "threads"),
+    "workflows": ("workflow",),
+}
 _REQUIRED_QUERY_VALUES = {
     "language": "en",
     "q": "Eugenio",
@@ -43,8 +53,9 @@ _SKIP_PREFIXES = (
     "/api/mcp-servers/",
 )
 _SKIP_PATHS = {
+    "/api/auth/me",
     "/api/chains/presets/paleography",
-    "/api/citations/export",
+    "/api/changes/stream",
     "/api/citations/document/{document_id}",
     "/api/citations/document/{document_id}.bib",
     "/api/documents/{doc_id}/notes",
@@ -54,14 +65,14 @@ _SKIP_PATHS = {
     "/api/kg/claim-search",
     "/api/kg/claim-search/{claim_id}/similar",
     "/api/kg/entity-curation/semantic",
+    "/api/pair/devices",
     "/api/tasks/tasks",
+    "/api/users",
     "/api/workflow-execution/workflows/{workflow_id}/visualization",
     "/api/workflow-execution/workflows/{workflow_id}/visualization.png",
-    "/view/document/{doc_id}",
-    "/view/kg/global",
 }
-_MAX_SKIPPED_GET_COMMANDS = 115
-_MIN_EXECUTABLE_GET_COMMANDS = 160
+_MAX_SKIPPED_GET_COMMANDS = 114
+_MIN_EXECUTABLE_GET_COMMANDS = 194
 _BINARY_IMAGE_PATHS = {
     "/api/images/{document_id}/preview",
     "/api/storage/display/{doc_id}",
@@ -109,15 +120,21 @@ def _args_for(operation, command_name: str, summary: dict, base_url: str, librar
         return None
 
     values = path_values(summary)
+    if operation.path == "/api/documents/{doc_id}/workspace/items":
+        values["doc_id"] = summary["keys"]["collection"]
     if operation.path in _BINARY_IMAGE_PATHS:
         values["doc_id"] = summary["keys"]["doc_photo"]
         values["document_id"] = summary["keys"]["doc_photo"]
+    resource_parts = _COMMAND_RESOURCE_OVERRIDES.get(
+        operation.resource,
+        (_generator.RESOURCE_NAME_OVERRIDES.get(operation.resource, operation.resource),),
+    )
     args = [
         "--base-url",
         base_url,
         "--library",
         str(library_path),
-        _generator.RESOURCE_NAME_OVERRIDES.get(operation.resource, operation.resource),
+        *resource_parts,
         command_name,
     ]
 

@@ -20,6 +20,8 @@ OUTPUT = ROOT / "fichero-engine" / "src" / "fichero" / "cli" / "openapi_surface_
 
 RESOURCE_NAME_OVERRIDES = {
     "activity": "activity-api",
+    "claims": "claim",
+    "documents": "docs",
     "health": "health-api",
     "search": "search-api",
 }
