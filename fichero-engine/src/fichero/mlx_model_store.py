@@ -151,6 +151,10 @@ class MLXModelStore:
             snapshot = self._latest_snapshot_for_repo(repo_id)
             if snapshot is None:
                 continue
+            supported, unsupported_reason = check_local_model_hardware(
+                display_name=repo_id.split("/")[-1],
+                min_memory_bytes=None,
+            )
             entries.append(
                 LocalModelCatalogEntry(
                     provider_type=ProviderType.omlx,
@@ -162,8 +166,8 @@ class MLXModelStore:
                     disk_usage_bytes=self._disk_usage_bytes(snapshot),
                     min_memory_bytes=None,
                     memory_class=None,
-                    supported=True,
-                    unsupported_reason=None,
+                    supported=supported,
+                    unsupported_reason=unsupported_reason,
                     license_label="user-configured",
                     source=LocalModelSource.user_configured,
                 )

@@ -88,6 +88,8 @@ class LocalProviderProfile(BaseModel):
     timeout_seconds: float = Field(default=5.0, ge=0)
     max_concurrency: int = Field(default=1, ge=1)
     visible_in_ui: bool = True
+    supported: bool = True
+    unsupported_reason: str | None = None
     python_executable: str | None = None
     command: list[str] = Field(default_factory=list)
 
@@ -137,6 +139,7 @@ class LocalInferenceCapabilities(BaseModel):
     system: str
     machine: str
     is_apple_silicon: bool
+    subprocess_capable: bool = True
     physical_memory_bytes: int | None = Field(default=None, ge=0)
     macos_version: str | None = None
 
@@ -172,6 +175,8 @@ def get_local_inference_capabilities() -> LocalInferenceCapabilities:
         system=system,
         machine=machine,
         is_apple_silicon=system == "Darwin" and machine == "arm64",
+        subprocess_capable=os.environ.get("FICHERO_SUBPROCESS_CAPABLE", "1").strip().lower()
+        not in {"0", "false", "no"},
         physical_memory_bytes=_sysctl_memory_bytes() if system == "Darwin" else None,
         macos_version=platform.mac_ver()[0] or None,
     )
@@ -188,6 +193,8 @@ def check_local_model_hardware(
     capabilities: LocalInferenceCapabilities | None = None,
 ) -> tuple[bool, str | None]:
     current = capabilities or get_local_inference_capabilities()
+    if not current.subprocess_capable:
+        return False, "not available on this device"
     if not current.is_apple_silicon:
         return False, f"{display_name} requires Apple Silicon; this Mac is {current.machine or 'unknown'}"
     if min_memory_bytes and current.physical_memory_bytes and current.physical_memory_bytes < min_memory_bytes:
@@ -376,8 +383,8 @@ class ManagedLocalInferenceProcess:
     async def start(self) -> None:
         if self.is_running():
             return
-        python_executable = self._python_executable()
         model_spec = self._model_spec()
+        python_executable = self._python_executable()
         argv = [
             python_executable,
             *self._command(),

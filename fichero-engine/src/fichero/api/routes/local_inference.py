@@ -86,6 +86,7 @@ class LocalInferenceCapabilitiesResponse(BaseModel):
     system: str
     machine: str
     is_apple_silicon: bool
+    subprocess_capable: bool
     physical_memory_bytes: int | None = None
     macos_version: str | None = None
 
@@ -108,6 +109,7 @@ class LocalInferenceModelDeleteResponse(BaseModel):
 
 def _configured_omlx_profile() -> LocalProviderProfile:
     """Build the default app-managed oMLX profile from env/defaults."""
+    capabilities = get_local_inference_capabilities()
     base_url = (
         os.environ.get("FICHERO_OMLX_BASE_URL")
         or os.environ.get("FICHERO_OMLX_API_BASE")
@@ -129,6 +131,8 @@ def _configured_omlx_profile() -> LocalProviderProfile:
         timeout_seconds=float(os.environ.get("FICHERO_OMLX_TIMEOUT_SECONDS", "5.0")),
         max_concurrency=int(os.environ.get("FICHERO_OMLX_MAX_CONCURRENCY", "1")),
         visible_in_ui=True,
+        supported=capabilities.subprocess_capable,
+        unsupported_reason=None if capabilities.subprocess_capable else "not available on this device",
         python_executable=os.environ.get("FICHERO_OMLX_PYTHON"),
         command=command,
     )

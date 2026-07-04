@@ -1052,6 +1052,26 @@ async def test_omlx_hardware_gate_raises_typed_error(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_apple_chat_reports_platform_unavailable_before_missing_binary(monkeypatch):
+    from fichero.local_inference import LocalInferenceCapabilities
+
+    monkeypatch.setattr(
+        "fichero.local_inference.get_local_inference_capabilities",
+        lambda: LocalInferenceCapabilities(
+            system="Darwin",
+            machine="arm64",
+            is_apple_silicon=True,
+            subprocess_capable=False,
+            physical_memory_bytes=16 * 1024**3,
+            macos_version="26.0",
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="not available on this device"):
+        await llm.chat("hello", LLMConfig(provider="apple", model="apple-intelligence"))
+
+
+@pytest.mark.asyncio
 async def test_omlx_manual_policy_never_auto_starts(monkeypatch):
     from fichero.api.routes import local_inference as routes
 

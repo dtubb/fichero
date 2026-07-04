@@ -65,6 +65,7 @@ def test_list_local_inference_profiles_returns_typed_omlx_profile(client) -> Non
     assert profile["allows_paid_fallbacks"] is False
     assert profile["managed_by_app"] is True
     assert profile["base_url"].startswith("http://localhost:8000")
+    assert profile["supported"] is True
 
 
 def test_local_inference_catalog_exposes_configured_model(client) -> None:
@@ -111,6 +112,7 @@ def test_local_inference_capabilities_exposes_machine_probe(client, monkeypatch:
             system="Darwin",
             machine="arm64",
             is_apple_silicon=True,
+            subprocess_capable=True,
             physical_memory_bytes=16 * 1024**3,
             macos_version="26.0",
         ),
@@ -120,7 +122,30 @@ def test_local_inference_capabilities_exposes_machine_probe(client, monkeypatch:
 
     assert response.status_code == 200
     assert response.json()["is_apple_silicon"] is True
+    assert response.json()["subprocess_capable"] is True
     assert response.json()["physical_memory_bytes"] == 16 * 1024**3
+
+
+def test_profiles_report_unavailable_when_subprocesses_are_disabled(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        routes,
+        "get_local_inference_capabilities",
+        lambda: routes.LocalInferenceCapabilities(
+            system="Darwin",
+            machine="arm64",
+            is_apple_silicon=True,
+            subprocess_capable=False,
+            physical_memory_bytes=16 * 1024**3,
+            macos_version="26.0",
+        ),
+    )
+
+    response = client.get("/api/local-inference/profiles")
+
+    assert response.status_code == 200
+    profile = response.json()["items"][0]
+    assert profile["supported"] is False
+    assert profile["unsupported_reason"] == "not available on this device"
 
 
 def test_manager_for_managed_profile_uses_managed_process() -> None:
@@ -315,3 +340,25 @@ def test_model_download_refuses_unsupported_hardware(client, monkeypatch: pytest
 
     assert response.status_code == 409
     assert "16 GB unified memory" in response.text
+
+
+def test_start_refuses_when_subprocesses_are_disabled(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "fichero.local_inference.get_local_inference_capabilities",
+        lambda: routes.LocalInferenceCapabilities(
+            system="Darwin",
+            machine="arm64",
+            is_apple_silicon=True,
+            subprocess_capable=False,
+            physical_memory_bytes=16 * 1024**3,
+            macos_version="26.0",
+        ),
+    )
+
+    response = client.post(
+        f"/api/local-inference/profiles/{routes.DEFAULT_OMLX_PROFILE_ID}/start",
+        json={"timeout_seconds": 0.1},
+    )
+
+    assert response.status_code == 409
+    assert "not available on this device" in response.text
