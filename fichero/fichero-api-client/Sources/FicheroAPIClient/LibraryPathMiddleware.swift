@@ -59,6 +59,17 @@ public struct LibraryPathMiddleware: ClientMiddleware {
         path == allowedPath || path.hasPrefix("\(allowedPath)/")
     }
 
+    /// The exact `X-Fichero-Library-Path` value produced for `libraryPath`:
+    /// NFC-normalized (#3076) so the header never carries an NFD mojibake
+    /// variant, then percent-encoded (#2648) so non-ASCII survives the latin-1
+    /// header transport. Extracted so the normalization is unit-testable without
+    /// the HTTP plumbing. `.urlPathAllowed` mirrors `urllib.parse.quote(path,
+    /// safe="/")`; the engine `unquote`s on read (api/library_header.py).
+    public static func headerValue(forLibraryPath libraryPath: String) -> String {
+        let normalized = libraryPath.nfcNormalized
+        return normalized.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? normalized
+    }
+
     public func intercept(
         _ request: HTTPRequest,
         body: HTTPBody?,
@@ -75,12 +86,11 @@ public struct LibraryPathMiddleware: ClientMiddleware {
         if !Self.isAppWidePath(path),
            let libraryPath = currentLibraryPath(),
            !libraryPath.isEmpty {
-            // Percent-encode so non-ASCII paths survive the latin-1 HTTP header
-            // transport (#2648). The engine `unquote`s on read
-            // (api/library_header.py); pure-ASCII paths encode to themselves.
-            // `.urlPathAllowed` mirrors `urllib.parse.quote(path, safe="/")`.
-            let encoded = libraryPath.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? libraryPath
-            request.headerFields[.init("X-Fichero-Library-Path")!] = encoded
+            // Normalize (NFC, #3076) + percent-encode (#2648) via the shared
+            // choke-point helper so every request carries the canonical bytes the
+            // backend expects (#3071) and no duplicate variant is ever addressed.
+            request.headerFields[.init("X-Fichero-Library-Path")!] =
+                Self.headerValue(forLibraryPath: libraryPath)
         }
 
         return try await next(request, body, baseURL)

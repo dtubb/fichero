@@ -5,26 +5,75 @@ import SwiftUI
 // MARK: - Library Persistence
 
 extension LibraryManager {
-    private static let openLibraryPathsKey = "FicheroOpenLibraryPaths"
-    private static let libraryDisplayNamesByPathKey = "FicheroLibraryDisplayNamesByPath"
+    // Not `private`: the NFC migration test (#3076) seeds these keys directly.
+    static let openLibraryPathsKey = "FicheroOpenLibraryPaths"
+    static let libraryDisplayNamesByPathKey = "FicheroLibraryDisplayNamesByPath"
 
     /// Save current open library paths to UserDefaults.
     /// Excludes temporary/untitled libraries — those live in /var/folders/.../T/
     /// and get cleaned up by macOS, so persisting their paths would log
     /// "Saved library not found" warnings on every subsequent launch.
     func saveOpenLibraryPaths() {
+        // NFC-normalize every stored path (#3076) so UserDefaults holds the same
+        // canonical bytes the app sends in the library header and the backend
+        // registry uses — a re-open can never resolve to a duplicate NFD variant.
         let paths = openLibraries
             .filter { !isTemporaryLibrary($0.url) }
-            .map { $0.url.path }
+            .map { $0.url.path.nfcNormalized }
         UserDefaults.standard.set(paths, forKey: Self.openLibraryPathsKey)
         saveLibraryDisplayNames()
         libraryManagerLogger.info("Saved \(paths.count) library paths to UserDefaults")
     }
 
-    /// Save custom display names by library path.
+    /// Save custom display names by library path. Keys are NFC-normalized (#3076)
+    /// so they match the NFC paths written above.
     func saveLibraryDisplayNames() {
-        let namesByPath = Dictionary(uniqueKeysWithValues: openLibraries.map { ($0.url.path, $0.displayName) })
+        let namesByPath = Dictionary(
+            openLibraries.map { ($0.url.path.nfcNormalized, $0.displayName) },
+            uniquingKeysWith: { _, latest in latest }
+        )
         UserDefaults.standard.set(namesByPath, forKey: Self.libraryDisplayNamesByPathKey)
+    }
+
+    /// One-time, idempotent migration re-keying stored library paths/names to
+    /// NFC (#3076). UserDefaults written before this normalization existed may
+    /// hold NFD path strings (from the macOS filesystem); re-key them to NFC so
+    /// they match the paths the app now writes and the backend registry uses.
+    ///
+    /// Merge-preferring-NFC on key collision (an NFD and an NFC entry for the
+    /// same visual path collapse to the NFC key, keeping the value already under
+    /// the NFC key) so a saved library is never dropped. Running twice is a
+    /// no-op — NFC of NFC is itself, so the second pass finds nothing to change.
+    /// `static` + injectable `defaults` so it is testable without the singleton.
+    static func migrateStoredPathsToNFC(defaults: UserDefaults = .standard) {
+        // Open-paths array: normalize, then de-dup preserving order (NFD+NFC of
+        // the same library collapse to one — the library is kept, not lost).
+        if let paths = defaults.stringArray(forKey: openLibraryPathsKey) {
+            var seen = Set<String>()
+            let migrated = paths
+                .map { $0.nfcNormalized }
+                .filter { seen.insert($0).inserted }
+            if migrated != paths {
+                defaults.set(migrated, forKey: openLibraryPathsKey)
+            }
+        }
+
+        // Display-names dict keyed by path: re-key to NFC, values preserved.
+        if let names = defaults.dictionary(forKey: libraryDisplayNamesByPathKey) as? [String: String] {
+            var migrated: [String: String] = [:]
+            // Pass 1: entries already NFC win the key outright.
+            for (path, name) in names where path == path.nfcNormalized {
+                migrated[path] = name
+            }
+            // Pass 2: NFD-origin entries only fill a key an NFC entry didn't claim.
+            for (path, name) in names where path != path.nfcNormalized {
+                let key = path.nfcNormalized
+                if migrated[key] == nil { migrated[key] = name }
+            }
+            if migrated != names {
+                defaults.set(migrated, forKey: libraryDisplayNamesByPathKey)
+            }
+        }
     }
 
     /// Get custom display names by library path.
@@ -39,6 +88,9 @@ extension LibraryManager {
 
     /// Restore libraries from saved paths
     func restoreSavedLibraries() {
+        // Canonicalize any legacy NFD-keyed defaults before reading them (#3076);
+        // idempotent, so running on every launch is harmless.
+        Self.migrateStoredPathsToNFC()
         let paths = getSavedLibraryPaths()
         libraryManagerLogger.info("⏱ Restoring \(paths.count) saved libraries")
         let overallStart = Date()
