@@ -1,8 +1,8 @@
 """
-MCP Tool definitions for Knowledge Graph, Hermeneutics, and Mind Palace.
+MCP Tool definitions for Knowledge Graph and Hermeneutics.
 
 Covers: claims, entities, semantic search, predictions, hermeneutic circle
-navigation, interpretive frameworks, and spatial mind-palace workspaces.
+navigation, and interpretive frameworks.
 """
 
 from __future__ import annotations

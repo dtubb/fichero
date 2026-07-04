@@ -19,7 +19,7 @@ from fichero import mcp_server
 from fichero.cli import FicheroClient, FicheroError
 
 # Every tool the server is expected to expose. Each wraps one FicheroClient
-# call — the read/drive surface plus the Mind Palace arrangement tools (#1269).
+# call — the read/drive surface only.
 EXPECTED_TOOLS = {
     # core read / drive
     "fichero_health",
@@ -42,33 +42,6 @@ EXPECTED_TOOLS = {
     "fichero_artifact_get",
     "fichero_search",
     "fichero_activity",
-    # mind palace — arrangement (#1269)
-    "fichero_mp_list_rooms",
-    "fichero_mp_get_room",
-    "fichero_mp_create_room",
-    "fichero_mp_scene_summary",
-    "fichero_mp_create_note",
-    "fichero_mp_list_notes",
-    "fichero_mp_get_note",
-    "fichero_mp_update_note",
-    "fichero_mp_delete_note",
-    "fichero_mp_list_nodes",
-    "fichero_mp_get_node",
-    "fichero_mp_place_node",
-    "fichero_mp_move_node",
-    "fichero_mp_remove_node",
-    "fichero_mp_list_connections",
-    "fichero_mp_create_connection",
-    "fichero_mp_remove_connection",
-    "fichero_mp_list_stacks",
-    "fichero_mp_get_stack",
-    "fichero_mp_create_stack",
-    "fichero_mp_add_to_stack",
-    "fichero_mp_remove_from_stack",
-    "fichero_mp_get_viewport",
-    "fichero_mp_save_viewport",
-    "fichero_mp_focus",
-    "fichero_mp_suggest_arrangement",
 }
 
 
@@ -320,110 +293,6 @@ def test_list_and_get_notes_are_typed(monkeypatch):
     assert note.id == "note-z2"
 
 
-def test_mp_create_note_hits_note_endpoint(monkeypatch):
-    note_body = {
-        "id": "note-1",
-        "content": "A note",
-        "room_id": "room-1",
-        "note_type": "user",
-        "author_id": "user",
-        "status": "draft",
-        "linked_claim_ids": [],
-        "linked_source_ids": [],
-        "linked_entity_ids": [],
-        "metadata": {},
-    }
-    with _mock_client(monkeypatch, body=note_body) as seen:
-        note = mcp_server.fichero_mp_create_note(
-            "A note",
-            room_id="room-1",
-            linked_entity_ids=["entity-1"],
-        )
-    assert seen[0].url.path == "/api/mind-palace/notes"
-    assert json.loads(seen[0].content) == {
-        "room_id": "room-1",
-        "content": "A note",
-        "note_type": "user",
-        "author_id": "user",
-        "linked_claim_ids": [],
-        "linked_source_ids": [],
-        "linked_entity_ids": ["entity-1"],
-        "metadata": {},
-    }
-    assert note.id == "note-1"
-
-
-def test_mp_list_notes_passes_filters(monkeypatch):
-    note_body = {
-        "id": "note-2",
-        "content": "A note",
-        "room_id": "room-1",
-        "note_type": "ai_workspace",
-        "author_id": "ai",
-        "status": "draft",
-        "linked_claim_ids": [],
-        "linked_source_ids": [],
-        "linked_entity_ids": [],
-        "metadata": {},
-    }
-    with _mock_client(monkeypatch, body={"items": [note_body], "count": 1}) as seen:
-        notes = mcp_server.fichero_mp_list_notes(
-            room_id="room-1",
-            note_type="ai_workspace",
-            author_id="ai",
-        )
-    assert dict(seen[0].url.params) == {
-        "room_id": "room-1",
-        "note_type": "ai_workspace",
-        "author_id": "ai",
-    }
-    assert len(notes) == 1
-    assert notes[0].id == "note-2"
-
-
-def test_mp_get_update_delete_note_hit_expected_paths(monkeypatch):
-    note_body = {
-        "id": "note-3",
-        "content": "Old content",
-        "room_id": "room-1",
-        "note_type": "user",
-        "author_id": "user",
-        "status": "draft",
-        "linked_claim_ids": [],
-        "linked_source_ids": [],
-        "linked_entity_ids": [],
-        "metadata": {},
-    }
-
-    seen: list[httpx.Request] = []
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        seen.append(request)
-        if request.method == "PATCH":
-            return httpx.Response(200, json={**note_body, "content": "Updated"})
-        if request.method == "DELETE":
-            return httpx.Response(200, json={"status": "deleted"})
-        return httpx.Response(200, json=note_body)
-
-    with _mock_client(monkeypatch, handler=handler):
-        got = mcp_server.fichero_mp_get_note("note-3")
-        updated = mcp_server.fichero_mp_update_note(
-            "note-3", content="Updated", status="surfaced"
-        )
-        deleted = mcp_server.fichero_mp_delete_note("note-3")
-
-    assert [req.method for req in seen] == ["GET", "PATCH", "DELETE"]
-    assert seen[0].url.path == "/api/mind-palace/notes/note-3"
-    assert json.loads(seen[1].content) == {
-        "content": "Updated",
-        "status": "surfaced",
-    }
-    assert seen[2].url.path == "/api/mind-palace/notes/note-3"
-    assert got.id == "note-3"
-    assert updated.content == "Updated"
-    assert deleted.status == "deleted"
-
-
 # A handler that records each httpx.Request (so URL/path/body can be asserted)
 # and replies with a caller-supplied body. Needed because _mock_client only
 # records requests for its *default* handler, not a custom one.
@@ -476,108 +345,6 @@ def test_artifact_get_builds_path(monkeypatch):
     with _mock_client(monkeypatch, body=body) as seen:
         mcp_server.fichero_artifact_get("art-9")
     assert seen[0].url.path == "/api/artifacts/art-9"
-
-
-# -- mind palace tools (#1269) ---------------------------------------------
-def test_mp_list_rooms_hits_rooms_endpoint(monkeypatch):
-    with _mock_client(monkeypatch, body={"items": [], "count": 0}) as seen:
-        mcp_server.fichero_mp_list_rooms(room_type="research")
-    assert seen[0].method == "GET"
-    assert seen[0].url.path == "/api/mind-palace/rooms"
-    assert dict(seen[0].url.params)["room_type"] == "research"
-
-
-def test_mp_create_room_builds_post_body(monkeypatch):
-    reqs: list[httpx.Request] = []
-    with _mock_client(monkeypatch, handler=_recording(reqs, {"id": "room-1"})):
-        mcp_server.fichero_mp_create_room("Ideas", room_type="synthesis")
-    assert reqs[0].url.path == "/api/mind-palace/rooms"
-    sent = json.loads(reqs[0].content)
-    assert sent["name"] == "Ideas"
-    assert sent["room_type"] == "synthesis"
-    assert sent["owner_id"] == "user"
-
-
-def test_mp_place_node_builds_post_body(monkeypatch):
-    reqs: list[httpx.Request] = []
-    with _mock_client(monkeypatch, handler=_recording(reqs, {"id": "node-1"})):
-        mcp_server.fichero_mp_place_node(
-            "room-1", "claim", source_id="claim-9", position_x=1.5, position_z=-2.0
-        )
-    assert reqs[0].url.path == "/api/mind-palace/nodes"
-    sent = json.loads(reqs[0].content)
-    assert sent["room_id"] == "room-1"
-    assert sent["node_type"] == "claim"
-    assert sent["source_id"] == "claim-9"
-    assert sent["position_x"] == 1.5
-    assert sent["position_z"] == -2.0
-    assert sent["created_by"] == "agent"
-
-
-def test_mp_move_node_patches_with_position(monkeypatch):
-    reqs: list[httpx.Request] = []
-    with _mock_client(monkeypatch, handler=_recording(reqs, {"id": "node-1"})):
-        mcp_server.fichero_mp_move_node("node-1", 3.0, 4.0, 0.0, scale=2.0)
-    assert reqs[0].method == "PATCH"
-    assert reqs[0].url.path == "/api/mind-palace/nodes/node-1"
-    assert json.loads(reqs[0].content) == {
-        "position_x": 3.0,
-        "position_y": 4.0,
-        "position_z": 0.0,
-        "scale": 2.0,
-    }
-
-
-def test_mp_move_node_omits_scale_when_none(monkeypatch):
-    reqs: list[httpx.Request] = []
-    with _mock_client(monkeypatch, handler=_recording(reqs, {"id": "node-1"})):
-        mcp_server.fichero_mp_move_node("node-1", 1.0, 2.0, 3.0)
-    assert "scale" not in json.loads(reqs[0].content)
-
-
-def test_mp_add_to_stack_builds_nested_path(monkeypatch):
-    with _mock_client(monkeypatch, body={"id": "stack-1", "node_ids": ["n1"]}) as seen:
-        mcp_server.fichero_mp_add_to_stack("stack-1", "n1")
-    assert seen[0].method == "POST"
-    assert seen[0].url.path == "/api/mind-palace/stacks/stack-1/nodes/n1"
-
-
-def test_mp_focus_uses_query_params(monkeypatch):
-    body = {"room_id": "room-1", "user_id": "user", "focus_node_id": "n5"}
-    with _mock_client(monkeypatch, body=body) as seen:
-        mcp_server.fichero_mp_focus("room-1", "n5")
-    assert seen[0].method == "POST"
-    assert seen[0].url.path == "/api/mind-palace/rooms/room-1/focus"
-    params = dict(seen[0].url.params)
-    assert params["node_id"] == "n5"
-    assert params["user_id"] == "user"
-
-
-def test_mp_suggest_arrangement_builds_body(monkeypatch):
-    reqs: list[httpx.Request] = []
-    with _mock_client(monkeypatch, handler=_recording(reqs, {"items": [], "count": 0})):
-        mcp_server.fichero_mp_suggest_arrangement(
-            "room-1", ["n1", "n2"], arrangement_type="chronological"
-        )
-    assert reqs[0].url.path == "/api/mind-palace/rooms/room-1/suggest-arrangement"
-    assert json.loads(reqs[0].content) == {
-        "node_ids": ["n1", "n2"],
-        "arrangement_type": "chronological",
-    }
-
-
-def test_mp_save_viewport_builds_path_and_body(monkeypatch):
-    reqs: list[httpx.Request] = []
-    with _mock_client(
-        monkeypatch, handler=_recording(reqs, {"room_id": "room-1", "user_id": "user"})
-    ):
-        mcp_server.fichero_mp_save_viewport(
-            "room-1", camera_z=5.0, bookmark_name="overview"
-        )
-    assert reqs[0].url.path == "/api/mind-palace/rooms/room-1/viewport/user"
-    sent = json.loads(reqs[0].content)
-    assert sent["camera_z"] == 5.0
-    assert sent["bookmark_name"] == "overview"
 
 
 # -- error propagation -----------------------------------------------------
