@@ -140,13 +140,13 @@ struct CanvasSceneView: View {
                     controller?.dispatch(.dragBegan(id: id))
                 }
                 guard let start = dragStartScene else { return }
-                let world = draggedWorld(start: start, translation: value.translation, viewHeight: size.height)
+                let world = draggedWorld(start: start, translation: value.translation, viewHeight: size.height, id: id)
                 renderer.liveMove(id: id, toWorld: world)
                 controller?.dispatch(.dragMoved(id: id, position: world))
             }
             .onEnded { value in
                 guard let id = draggingNodeId, let start = dragStartScene else { return }
-                let world = draggedWorld(start: start, translation: value.translation, viewHeight: size.height)
+                let world = draggedWorld(start: start, translation: value.translation, viewHeight: size.height, id: id)
                 controller?.dispatch(.dragEnded(id: id, position: world, dropTarget: nil, modifiers: []))
                 if let controller, let origin = dragOriginWorld {
                     controller.registerMoveUndo(id: id, origin: origin, destination: world, undoManager: undoManager)
@@ -157,13 +157,16 @@ struct CanvasSceneView: View {
             }
     }
 
-    private func draggedWorld(start: SIMD3<Float>, translation: CGSize, viewHeight: CGFloat) -> SIMD3<Double> {
+    private func draggedWorld(start: SIMD3<Float>, translation: CGSize, viewHeight: CGFloat, id: String) -> SIMD3<Double> {
         let delta = Canvas2DProjection.sceneDelta(
             screenTranslation: translation,
             orthoScale: renderer.orthoScale,
             viewHeight: viewHeight
         )
-        return Canvas2DProjection.worldPosition(start + delta)
+        // Preserve the row's existing z (#3090): a 2D move never touches z, so a
+        // z the 3D renderer set survives a 2D save — one row, two projections.
+        let existingZ = layoutStore?.layout(for: scopeKey).first { $0.itemId == id }?.z ?? 0
+        return Canvas2DProjection.worldPosition(start + delta, preservingZ: existingZ)
     }
 
     /// Background drag: shift-held → rubber-band marquee multi-select; otherwise

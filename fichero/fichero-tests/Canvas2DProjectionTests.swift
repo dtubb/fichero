@@ -27,6 +27,13 @@ struct Canvas2DProjectionTests {
         #expect(Canvas2DProjection.worldPosition(Canvas2DProjection.scenePosition(world)) == world)
     }
 
+    @Test("worldPosition(preservingZ:) keeps an existing z so 2D never clobbers it (#3090)")
+    func preservesZ() {
+        // Scene has z 0 (2D plane), but the row's real z must survive the round-trip.
+        let world = Canvas2DProjection.worldPosition(SIMD3<Float>(3, -4, 0), preservingZ: 2.5)
+        #expect(world == SIMD3<Double>(3, 4, 2.5))
+    }
+
     // MARK: - Camera ↔ screen (#3084)
 
     @Test("worldPerPoint = 2·orthoScale / viewHeight")

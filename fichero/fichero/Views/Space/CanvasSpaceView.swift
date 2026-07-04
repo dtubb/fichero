@@ -97,6 +97,7 @@ struct CanvasSpaceView: View {
             .background(SpaceTheme.canvasBackground)
             .onTapGesture { controller?.dispatch(.tap(id: nil)) }
             .overlay(alignment: .top) { if isTruncated { truncationBanner } }
+            .overlay(alignment: .topTrailing) { canvasToolbar }
             .modifier(OptionKeyTracker(optionHeld: $optionHeld))
             .task(id: folderScopeId) {
                 configureController()
@@ -105,6 +106,60 @@ struct CanvasSpaceView: View {
                 await itemStore?.loadItems(folderId: folderId)
             }
         }
+    }
+
+    // MARK: - CRUD + z toolbar (#3090)
+
+    private var selectedIsItem: Bool {
+        guard let id = selectedNodeId else { return false }
+        return (itemStore?.items(for: scopeKey) ?? []).contains { $0.id == id }
+    }
+
+    /// Add note/quote/text, push/pull the selected item along z, and delete —
+    /// ALL through the shared `CanvasInteractionController`, so 3D CRUD behaves
+    /// identically to 2D (it IS the same controller).
+    private var canvasToolbar: some View {
+        HStack(spacing: 6) {
+            Menu {
+                Button("Note") { addItem(.note) }
+                Button("Quote") { addItem(.quote) }
+                Button("Text") { addItem(.text) }
+            } label: {
+                Image(systemName: "plus")
+            }
+            .fixedSize()
+            .help("Add a canvas item at the camera focus")
+
+            if let id = selectedNodeId {
+                Button { adjustZ(of: id, by: 0.25) } label: { Image(systemName: "arrow.up.forward") }
+                    .help("Push away (−z toward the camera axis)")
+                Button { adjustZ(of: id, by: -0.25) } label: { Image(systemName: "arrow.down.backward") }
+                    .help("Pull forward along z")
+            }
+            if selectedIsItem, let id = selectedNodeId {
+                Button(role: .destructive) { controller?.dispatch(.deleteItem(id: id)) } label: {
+                    Image(systemName: "trash")
+                }
+                .help("Delete this canvas item")
+            }
+        }
+        .buttonStyle(.borderless)
+        .padding(8)
+        .background(.regularMaterial, in: Capsule())
+        .padding(8)
+    }
+
+    private func addItem(_ kind: Components.Schemas.CanvasItemKind) {
+        controller?.dispatch(.addItem(kind: kind, position: renderer.focusWorldPosition))
+    }
+
+    /// Push/pull the selected placeable along z, persisting through the shared
+    /// controller (the 2D canvas ignores z, so this stays two projections of one
+    /// row). Reads the resolved current position so it works with or without a row.
+    private func adjustZ(of id: String, by delta: Double) {
+        guard let current = resolvedState.placeables.first(where: { $0.id == id })?.position else { return }
+        let moved = SIMD3<Double>(current.x, current.y, current.z + delta)
+        Task { await controller?.moveItem(id: id, to: moved) }
     }
 
     private var truncationBanner: some View {
