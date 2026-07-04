@@ -3,13 +3,12 @@
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from fichero.api.library_header import optional_library_path
 from fichero.api.main import get_library_database, get_library_database_for_write
-from fichero.api.auth import request_actor
-from fichero.api.change_stream import emit_change
+from fichero.api.auth import action_context
+from fichero.actions.registry import registry
 from fichero.db import Database
 from fichero.hermeneutics_models import (
     CircleNavigationDirection,
@@ -188,22 +187,15 @@ def create_framework_impl(
 async def create_framework(
     request: FrameworkCreateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Depends(optional_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> InterpretiveFramework:
-    framework = create_framework_impl(db, request)
-    emit_change(
-        x_fichero_library_path or str(db.path.parent),
-        type="interpretation.created",
-        interpretation_ids=[framework.id],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
+    result = registry.invoke(
+        db,
+        "framework.create",
+        request.model_dump(mode="json"),
+        ctx,
     )
-    return framework
+    return InterpretiveFramework.model_validate(result.result)
 
 
 @router.get("/frameworks", response_model=HermeneuticsListResponse)
@@ -256,22 +248,15 @@ async def update_framework(
     framework_id: str,
     request: FrameworkUpdateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Depends(optional_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> InterpretiveFramework:
-    framework = update_framework_impl(db, framework_id, request)
-    emit_change(
-        x_fichero_library_path or str(db.path.parent),
-        type="interpretation.updated",
-        interpretation_ids=[framework.id],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
+    result = registry.invoke(
+        db,
+        "framework.update",
+        {"framework_id": framework_id, **request.model_dump(mode="json", exclude_unset=True)},
+        ctx,
     )
-    return framework
+    return InterpretiveFramework.model_validate(result.result)
 
 
 def delete_framework_impl(db: Database, framework_id: str) -> InterpretiveFramework:
@@ -296,21 +281,9 @@ def delete_framework_impl(db: Database, framework_id: str) -> InterpretiveFramew
 async def delete_framework(
     framework_id: str,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Depends(optional_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> FrameworkDeactivatedResponse:
-    framework = delete_framework_impl(db, framework_id)
-    emit_change(
-        x_fichero_library_path or str(db.path.parent),
-        type="interpretation.deleted",
-        interpretation_ids=[framework.id],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
-    )
+    registry.invoke(db, "framework.delete", {"framework_id": framework_id}, ctx)
     return FrameworkDeactivatedResponse(status="deactivated")
 
 
@@ -374,24 +347,15 @@ def create_interpretation_impl(
 async def create_interpretation(
     request: InterpretationCreateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Depends(optional_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> Interpretation:
-    interpretation = create_interpretation_impl(db, request)
-    emit_change(
-        x_fichero_library_path or str(db.path.parent),
-        type="interpretation.created",
-        interpretation_ids=[interpretation.id],
-        document_ids=[interpretation.document_id] if interpretation.document_id else [],
-        claim_ids=[interpretation.claim_id] if interpretation.claim_id else [],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
+    result = registry.invoke(
+        db,
+        "interpretation.create",
+        request.model_dump(mode="json"),
+        ctx,
     )
-    return interpretation
+    return Interpretation.model_validate(result.result)
 
 
 @router.get("/interpretations", response_model=HermeneuticsListResponse)
@@ -459,24 +423,18 @@ async def update_interpretation(
     interpretation_id: str,
     request: InterpretationUpdateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Depends(optional_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> Interpretation:
-    interpretation = update_interpretation_impl(db, interpretation_id, request)
-    emit_change(
-        x_fichero_library_path or str(db.path.parent),
-        type="interpretation.updated",
-        interpretation_ids=[interpretation.id],
-        document_ids=[interpretation.document_id] if interpretation.document_id else [],
-        claim_ids=[interpretation.claim_id] if interpretation.claim_id else [],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
+    result = registry.invoke(
+        db,
+        "interpretation.update",
+        {
+            "interpretation_id": interpretation_id,
+            **request.model_dump(mode="json", exclude_unset=True),
+        },
+        ctx,
     )
-    return interpretation
+    return Interpretation.model_validate(result.result)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -510,22 +468,15 @@ def create_pattern_impl(db: Database, request: PatternCreateRequest) -> PatternI
 async def create_pattern(
     request: PatternCreateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Depends(optional_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> PatternInstance:
-    pattern = create_pattern_impl(db, request)
-    emit_change(
-        x_fichero_library_path or str(db.path.parent),
-        type="interpretation.created",
-        interpretation_ids=[pattern.id],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
+    result = registry.invoke(
+        db,
+        "pattern.create",
+        request.model_dump(mode="json"),
+        ctx,
     )
-    return pattern
+    return PatternInstance.model_validate(result.result)
 
 
 @router.get("/patterns", response_model=HermeneuticsListResponse)
@@ -577,22 +528,15 @@ async def update_pattern(
     pattern_id: str,
     request: PatternUpdateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Depends(optional_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> PatternInstance:
-    pattern = update_pattern_impl(db, pattern_id, request)
-    emit_change(
-        x_fichero_library_path or str(db.path.parent),
-        type="interpretation.updated",
-        interpretation_ids=[pattern.id],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
+    result = registry.invoke(
+        db,
+        "pattern.update",
+        {"pattern_id": pattern_id, **request.model_dump(mode="json", exclude_unset=True)},
+        ctx,
     )
-    return pattern
+    return PatternInstance.model_validate(result.result)
 
 
 def add_claim_to_pattern_impl(
@@ -620,24 +564,15 @@ async def add_claim_to_pattern(
     pattern_id: str,
     claim_id: str,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Depends(optional_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> PatternInstance:
-    pattern, changed = add_claim_to_pattern_impl(db, pattern_id, claim_id)
-    if changed:
-        emit_change(
-            x_fichero_library_path or str(db.path.parent),
-            type="interpretation.updated",
-            interpretation_ids=[pattern.id],
-            claim_ids=[claim_id],
-            actor=actor,
-            origin_window=x_fichero_origin_window,
-            origin_user=actor,
-        )
-    return pattern
+    result = registry.invoke(
+        db,
+        "pattern.add_claim",
+        {"pattern_id": pattern_id, "claim_id": claim_id},
+        ctx,
+    )
+    return PatternInstance.model_validate(result.result)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -645,15 +580,8 @@ async def add_claim_to_pattern(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-@router.post("/circle-state", response_model=HermeneuticCircleState)
-async def create_circle_state(
-    request: CircleStateCreateRequest,
-    db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Depends(optional_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+def create_circle_state_impl(
+    db: Database, request: CircleStateCreateRequest
 ) -> HermeneuticCircleState:
     now = datetime.now()
     state = HermeneuticCircleState(
@@ -669,16 +597,22 @@ async def create_circle_state(
         updated_at=now,
     )
     db.save(state)
-    emit_change(
-        x_fichero_library_path or str(db.path.parent),
-        type="interpretation.created",
-        interpretation_ids=[state.id],
-        claim_ids=[state.claim_id] if state.claim_id else [],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
-    )
     return state
+
+
+@router.post("/circle-state", response_model=HermeneuticCircleState)
+async def create_circle_state(
+    request: CircleStateCreateRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
+) -> HermeneuticCircleState:
+    result = registry.invoke(
+        db,
+        "circle_state.create",
+        request.model_dump(mode="json"),
+        ctx,
+    )
+    return HermeneuticCircleState.model_validate(result.result)
 
 
 @router.get("/circle-state", response_model=HermeneuticsListResponse)
@@ -705,16 +639,8 @@ async def get_circle_state(
     return state
 
 
-@router.post("/circle-state/{state_id}/navigate", response_model=HermeneuticCircleState)
-async def navigate_circle(
-    state_id: str,
-    request: CircleStateNavigateRequest,
-    db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Depends(optional_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+def navigate_circle_impl(
+    db: Database, state_id: str, request: CircleStateNavigateRequest
 ) -> HermeneuticCircleState:
     state = db.get(HermeneuticCircleState, state_id)
     if not state:
@@ -722,10 +648,8 @@ async def navigate_circle(
             status_code=404, detail=f"Circle state not found: {state_id}"
         )
 
-    # Record prior state for backtracking
     prior_focus = state.focus_label
     state.prior_state_id = state_id
-    # Navigate TO whole or part — direction tells us the destination
     state.current_focus = (
         "part"
         if request.direction == CircleNavigationDirection.whole_to_part
@@ -740,30 +664,26 @@ async def navigate_circle(
     ]
     state.updated_at = datetime.now()
     db.save(state)
-    emit_change(
-        x_fichero_library_path or str(db.path.parent),
-        type="interpretation.updated",
-        interpretation_ids=[state.id],
-        claim_ids=[state.claim_id] if state.claim_id else [],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
-    )
     return state
 
 
-@router.post(
-    "/circle-state/{state_id}/backtrack", response_model=HermeneuticCircleState
-)
-async def backtrack_circle(
+@router.post("/circle-state/{state_id}/navigate", response_model=HermeneuticCircleState)
+async def navigate_circle(
     state_id: str,
+    request: CircleStateNavigateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Depends(optional_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> HermeneuticCircleState:
+    result = registry.invoke(
+        db,
+        "circle_state.navigate",
+        {"state_id": state_id, **request.model_dump(mode="json")},
+        ctx,
+    )
+    return HermeneuticCircleState.model_validate(result.result)
+
+
+def backtrack_circle_impl(db: Database, state_id: str) -> HermeneuticCircleState:
     state = db.get(HermeneuticCircleState, state_id)
     if not state:
         raise HTTPException(
@@ -780,16 +700,24 @@ async def backtrack_circle(
         ]
         state.updated_at = datetime.now()
         db.save(state)
-        emit_change(
-            x_fichero_library_path or str(db.path.parent),
-            type="interpretation.updated",
-            interpretation_ids=[state.id],
-            claim_ids=[state.claim_id] if state.claim_id else [],
-            actor=actor,
-            origin_window=x_fichero_origin_window,
-            origin_user=actor,
-        )
     return state
+
+
+@router.post(
+    "/circle-state/{state_id}/backtrack", response_model=HermeneuticCircleState
+)
+async def backtrack_circle(
+    state_id: str,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
+) -> HermeneuticCircleState:
+    result = registry.invoke(
+        db,
+        "circle_state.backtrack",
+        {"state_id": state_id},
+        ctx,
+    )
+    return HermeneuticCircleState.model_validate(result.result)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -959,6 +887,14 @@ class PatternUpdateParams(PatternUpdateRequest):
 class PatternAddClaimParams(BaseModel):
     pattern_id: str
     claim_id: str
+
+
+class CircleStateNavigateParams(CircleStateNavigateRequest):
+    state_id: str
+
+
+class CircleStateBacktrackParams(BaseModel):
+    state_id: str
 
 
 # -- frameworks --------------------------------------------------------------
@@ -1225,5 +1161,95 @@ def _action_add_claim_to_pattern(
         emit_type="interpretation.updated" if changed else None,
         interpretation_ids=[pattern.id] if changed else [],
         claim_ids=[params.claim_id] if changed else [],
+    )
+    return after, spec
+
+
+# -- hermeneutic circle -----------------------------------------------------
+
+
+@action(
+    "circle_state.create",
+    CircleStateCreateRequest,
+    domains=["interpretation"],
+    undoable=False,
+)
+def _action_create_circle_state(
+    db: Database, params: CircleStateCreateRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    state = create_circle_state_impl(db, params)
+    after = state.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["interpretation"],
+        target_ids=[state.id],
+        before=None,
+        after=after,
+        emit_type="interpretation.created",
+        interpretation_ids=[state.id],
+        claim_ids=[state.claim_id] if state.claim_id else [],
+    )
+    return after, spec
+
+
+@action(
+    "circle_state.navigate",
+    CircleStateNavigateParams,
+    domains=["interpretation"],
+    undoable=False,
+)
+def _action_navigate_circle_state(
+    db: Database, params: CircleStateNavigateParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    existing = db.get(HermeneuticCircleState, params.state_id)
+    if not existing:
+        raise HTTPException(
+            status_code=404, detail=f"Circle state not found: {params.state_id}"
+        )
+    before = existing.model_dump(mode="json")
+    state = navigate_circle_impl(
+        db,
+        params.state_id,
+        CircleStateNavigateRequest(
+            **params.model_dump(exclude={"state_id"}, exclude_unset=True)
+        ),
+    )
+    after = state.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["interpretation"],
+        target_ids=[state.id],
+        before=before,
+        after=after,
+        emit_type="interpretation.updated",
+        interpretation_ids=[state.id],
+        claim_ids=[state.claim_id] if state.claim_id else [],
+    )
+    return after, spec
+
+
+@action(
+    "circle_state.backtrack",
+    CircleStateBacktrackParams,
+    domains=["interpretation"],
+    undoable=False,
+)
+def _action_backtrack_circle_state(
+    db: Database, params: CircleStateBacktrackParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    existing = db.get(HermeneuticCircleState, params.state_id)
+    if not existing:
+        raise HTTPException(
+            status_code=404, detail=f"Circle state not found: {params.state_id}"
+        )
+    before = existing.model_dump(mode="json")
+    state = backtrack_circle_impl(db, params.state_id)
+    after = state.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["interpretation"],
+        target_ids=[state.id],
+        before=before,
+        after=after,
+        emit_type="interpretation.updated",
+        interpretation_ids=[state.id],
+        claim_ids=[state.claim_id] if state.claim_id else [],
     )
     return after, spec

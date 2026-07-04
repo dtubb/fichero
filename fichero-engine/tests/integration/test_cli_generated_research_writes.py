@@ -261,7 +261,7 @@ def test_generated_research_note_agent_memory_and_hermeneutics_write_contracts_c
     )
     assert toggled_checklist["items"][0]["checked"] is True
 
-    # audit assertions pending /api/hermeneutics->registry migration (#3025)
+    hermeneutics_audit_before = _audit_log(cli_live_engine)
     framework = _cli_json(
         cli_live_engine,
         "interpretation",
@@ -388,6 +388,9 @@ def test_generated_research_note_agent_memory_and_hermeneutics_write_contracts_c
     )
     assert backtracked_circle["focus_id"] == summary["keys"]["doc_letter"]
     assert backtracked_circle["circle_level"] == 0
+    hermeneutics_audit_after = _audit_log(cli_live_engine)
+    assert hermeneutics_audit_after["count"] == hermeneutics_audit_before["count"] + 10
+    assert hermeneutics_audit_after["items"][0]["action_name"] == "circle_state.backtrack"
 
 
 def test_generated_research_validation_and_ai_no_500_bar_current_main(
