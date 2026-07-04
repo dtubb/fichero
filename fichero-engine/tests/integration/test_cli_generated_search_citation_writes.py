@@ -160,6 +160,7 @@ def test_generated_search_citation_bibliography_and_source_contracts_current_mai
         "citations",
         "delete",
         citation["id"],
+        "--yes",
     )
     assert deleted_citation is None
     deleted_audit = _latest_audit(cli_live_engine, "citation.delete", citation["id"])
@@ -266,6 +267,7 @@ def test_generated_search_citation_bibliography_and_source_contracts_current_mai
         "sources",
         "delete",
         source["id"],
+        "--yes",
     )
     assert deleted_source is None
     deleted_source_audit = _latest_audit(cli_live_engine, "source.delete", source["id"])

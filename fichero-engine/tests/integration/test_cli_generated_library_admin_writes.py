@@ -101,6 +101,7 @@ def test_generated_library_admin_write_contracts_current_main(
         "search",
         "--folder-path",
         "/CLI Folder Renamed",
+        "--yes",
     )
     assert deleted_folder["parent_path"] == "/"
 
@@ -150,9 +151,10 @@ def test_generated_library_admin_write_contracts_current_main(
         "remove-inclusion",
         project_id,
         inclusion["id"],
+        "--yes",
     )
     assert removed_inclusion is None
-    deleted_project = _cli_json(cli_live_engine, "projects", "delete", project_id)
+    deleted_project = _cli_json(cli_live_engine, "projects", "delete", project_id, "--yes")
     assert deleted_project is None
 
     updated_defaults = _cli_json(

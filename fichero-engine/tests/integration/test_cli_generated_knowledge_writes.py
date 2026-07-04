@@ -180,7 +180,7 @@ def test_generated_knowledge_write_contracts_current_main(cli_live_engine) -> No
         "0.95",
     )
     assert updated_link["relation_type"] == "corroborates"
-    deleted_link = _cli_json(cli_live_engine, "claim-links", "delete", link_id)
+    deleted_link = _cli_json(cli_live_engine, "claim-links", "delete", link_id, "--yes")
     assert deleted_link["operation"] == "deleted"
     after_link = _audit_log(cli_live_engine)
     assert after_link["count"] == before_link["count"]
@@ -226,7 +226,9 @@ def test_generated_knowledge_write_contracts_current_main(cli_live_engine) -> No
     assert patched_annotation["tags"] == ["primary", "w3c"]
     fetched_annotation = _cli_json(cli_live_engine, "annotations", "get", annotation_id)
     assert fetched_annotation["text"] == "Hello world"
-    deleted_annotation = _cli_result(cli_live_engine, "annotations", "delete", annotation_id)
+    deleted_annotation = _cli_result(
+        cli_live_engine, "annotations", "delete", annotation_id, "--yes"
+    )
     assert deleted_annotation.exit_code == 0, deleted_annotation.output
     after_annotation = _audit_log(cli_live_engine)
     assert after_annotation["count"] == before_annotation["count"]
@@ -271,6 +273,7 @@ def test_generated_knowledge_write_contracts_current_main(cli_live_engine) -> No
         "classifications",
         "delete-value",
         value_id,
+        "--yes",
     )
     assert deleted_value.exit_code == 0, deleted_value.output
     after_classification = _audit_log(cli_live_engine)

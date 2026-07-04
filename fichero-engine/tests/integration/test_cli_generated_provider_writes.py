@@ -126,6 +126,7 @@ def test_generated_provider_settings_and_mcp_write_contracts_current_main(
         "settings",
         "delete-model-profile",
         profile["id"],
+        "--yes",
     )
     assert deleted_profile["status"] == "ok"
 
@@ -181,6 +182,7 @@ def test_generated_provider_settings_and_mcp_write_contracts_current_main(
         "remove-model-from",
         provider["id"],
         model["id"],
+        "--yes",
     )
     assert removed_model["status"] == "deleted"
     deleted_provider = _cli_json(
@@ -227,6 +229,7 @@ def test_generated_provider_settings_and_mcp_write_contracts_current_main(
         "mcp-servers",
         "delete",
         server["id"],
+        "--yes",
     )
     assert deleted_server is not None
     missing_server = _cli_result(
@@ -269,7 +272,7 @@ def test_generated_provider_and_integration_no_500_bar_current_main(
     assert "-> 422:" in bad_profile.output
 
     for args in (
-        ("providers", "delete-api-key", "openai"),
+        ("providers", "delete-api-key", "openai", "--yes"),
         ("providers", "test-connection", "openai"),
         ("integrations", "list-devonthink-databases"),
         ("integrations", "list-bookends-libraries"),

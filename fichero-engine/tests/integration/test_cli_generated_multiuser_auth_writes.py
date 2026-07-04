@@ -298,6 +298,7 @@ def test_generated_multiuser_auth_policy_pairing_contracts_current_main(
         "policies",
         "delete-a-rule",
         created_rule["id"],
+        "--yes",
     )
     assert deleted_rule is None
 
@@ -374,6 +375,7 @@ def test_generated_multiuser_fail_closed_contracts_current_main(
         "revoke-library-member-role",
         "--user",
         viewer["username"],
+        "--yes",
     )
     revoked_snapshot = _cli_json(
         cli_multiuser_engine,

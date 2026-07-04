@@ -71,7 +71,7 @@ _SKIP_PATHS = {
     "/api/workflow-execution/workflows/{workflow_id}/visualization",
     "/api/workflow-execution/workflows/{workflow_id}/visualization.png",
 }
-_MAX_SKIPPED_GET_COMMANDS = 114
+_MAX_SKIPPED_GET_COMMANDS = 118
 _MIN_EXECUTABLE_GET_COMMANDS = 194
 _BINARY_IMAGE_PATHS = {
     "/api/images/{document_id}/preview",

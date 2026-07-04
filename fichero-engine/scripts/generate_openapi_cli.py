@@ -23,7 +23,14 @@ RESOURCE_NAME_OVERRIDES = {
     "claims": "claim",
     "documents": "docs",
     "health": "health-api",
+    "libraries": "library",
+    "mindpalace": "mind-palace",
     "search": "search-api",
+}
+RESOURCE_APP_KEY_OVERRIDES = {
+    "libraries": "library",
+    "mind-palace": "mind-palace",
+    "mindpalace": "mind-palace",
 }
 RESOURCE_HELP_OVERRIDES = {
     "activity": "Generated OpenAPI commands for activity endpoints.",
@@ -311,6 +318,10 @@ def _emit_function(op: Operation, command_name: str) -> list[str]:
             + _option_expr(var_name, query_param)
             + ","
         )
+    if op.method == "DELETE":
+        lines.append(
+            '        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),'
+        )
     if op.request_kind == "json":
         if op.request_fields:
             for request_field in op.request_fields:
@@ -343,11 +354,16 @@ def _emit_function(op: Operation, command_name: str) -> list[str]:
     path_expr = json.dumps(op.path)
     for source_name, var_name in param_map[: len(op.path_params)]:
         path_expr = path_expr.replace("{" + source_name + "}", "{" + var_name + "}")
+    if op.method == "DELETE":
+        lines.append("        if not yes:")
+        lines.append(
+            f'            typer.confirm("Delete {op.resource.replace("_", " ")}?", abort=True)'
+        )
     lines.append("        def op_call(client: FicheroClient) -> Any:")
     if op.path_params:
-        lines.append(f"            path = f{path_expr}")
+        lines.append(f"            endpoint_path = f{path_expr}")
     else:
-        lines.append(f"            path = {json.dumps(op.path)}")
+        lines.append(f"            endpoint_path = {json.dumps(op.path)}")
     if op.query_params:
         query_lines = []
         for query_param in op.query_params:
@@ -375,7 +391,7 @@ def _emit_function(op: Operation, command_name: str) -> list[str]:
                 f"            payload = _load_json_payload(body, body_file, required={str(op.request_required)})"
             )
         lines.append(
-            f'            return client.request("{op.method}", path, params=params, json=payload)'
+            f'            return client.request("{op.method}", endpoint_path, params=params, json=payload)'
         )
     elif op.request_kind == "multipart":
         lines.append("            files = _build_multipart_payload(field, upload)")
@@ -385,10 +401,12 @@ def _emit_function(op: Operation, command_name: str) -> list[str]:
                 '                raise typer.BadParameter("Provide at least one --field or --upload value.")'
             )
         lines.append(
-            f'            return client.request("{op.method}", path, params=params, files=files)'
+            f'            return client.request("{op.method}", endpoint_path, params=params, files=files)'
         )
     else:
-        lines.append(f'            return client.request("{op.method}", path, params=params)')
+        lines.append(
+            f'            return client.request("{op.method}", endpoint_path, params=params)'
+        )
     lines.append("        invoke(ctx, op_call)")
     return lines
 
@@ -513,6 +531,7 @@ def _generate_module(operations: list[Operation]) -> str:
     ]
 
     for resource in sorted(per_resource):
+        app_key = RESOURCE_APP_KEY_OVERRIDES.get(resource, resource)
         root_name = RESOURCE_NAME_OVERRIDES.get(resource, resource)
         help_text = RESOURCE_HELP_OVERRIDES.get(
             resource, f"Generated OpenAPI commands for {resource} endpoints."
@@ -520,10 +539,11 @@ def _generate_module(operations: list[Operation]) -> str:
         lines.extend(
             [
                 "",
-                f"    target_app = existing_apps.get({resource!r})",
+                f"    target_app = existing_apps.get({app_key!r})",
                 "    if target_app is None:",
                 f"        target_app = typer.Typer(help={help_text!r}, no_args_is_help=True)",
                 f"        root_app.add_typer(target_app, name={root_name!r})",
+                f"        existing_apps[{app_key!r}] = target_app",
             ]
         )
         for command_name, op in per_resource[resource]:

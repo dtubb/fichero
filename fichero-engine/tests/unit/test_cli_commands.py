@@ -1616,6 +1616,19 @@ def test_docs_delete_yes_flag():
     assert ("delete_document", "d1") in _last_client().calls
 
 
+def test_generated_delete_requires_confirmation():
+    result = runner.invoke(cli.app, ["actions", "delete", "act-1"], input="n\n")
+    assert result.exit_code != 0
+    assert FakeClient.instances == []
+
+
+def test_generated_commands_use_canonical_resource_trees():
+    assert runner.invoke(cli.app, ["library", "--help"]).exit_code == 0
+    assert runner.invoke(cli.app, ["mind-palace", "--help"]).exit_code == 0
+    assert runner.invoke(cli.app, ["libraries", "--help"]).exit_code != 0
+    assert runner.invoke(cli.app, ["mindpalace", "--help"]).exit_code != 0
+
+
 def test_docs_update_passes_fields():
     result = runner.invoke(cli.app, ["docs", "update", "d1", "--name", "New Name"])
     assert result.exit_code == 0

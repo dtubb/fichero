@@ -112,6 +112,7 @@ def register_generated_openapi_commands(
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for actions endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='actions')
+        existing_apps['actions'] = target_app
 
     @target_app.command("list")
     def actions_list_get(
@@ -119,9 +120,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Actions (GET /api/actions)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/actions"
+            endpoint_path = "/api/actions"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create")
@@ -139,7 +140,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Action (POST /api/actions)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/actions"
+            endpoint_path = "/api/actions"
             params = None
             payload = _build_json_payload({
                 "author": author,
@@ -162,7 +163,7 @@ def register_generated_openapi_commands(
                 "nodes": {'items': {'additionalProperties': True, 'type': 'object'}, 'type': 'array', 'title': 'Nodes', 'default': [], 'x-cli-required': False},
                 "tags": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Tags', 'default': [], 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-audit-log")
@@ -172,11 +173,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Audit Log (GET /api/actions/audit)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/actions/audit"
+            endpoint_path = "/api/actions/audit"
             params = {
                 "limit": limit,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("undo")
@@ -186,9 +187,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Undo Action (POST /api/actions/audit/{audit_id}/undo)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/actions/audit/{audit_id}/undo"
+            endpoint_path = f"/api/actions/audit/{audit_id}/undo"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-builtin")
@@ -197,9 +198,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Builtin Actions (GET /api/actions/builtin)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/actions/builtin"
+            endpoint_path = "/api/actions/builtin"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-categories")
@@ -208,9 +209,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Categories (GET /api/actions/categories)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/actions/categories"
+            endpoint_path = "/api/actions/categories"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-by-category")
@@ -220,9 +221,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Actions By Category (GET /api/actions/category/{category})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/actions/category/{category}"
+            endpoint_path = f"/api/actions/category/{category}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-composite")
@@ -237,7 +238,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Composite Action (POST /api/actions/composite)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/actions/composite"
+            endpoint_path = "/api/actions/composite"
             params = None
             payload = _build_json_payload({
                 "category": category,
@@ -254,7 +255,7 @@ def register_generated_openapi_commands(
                 "nodes": {'items': {'additionalProperties': True, 'type': 'object'}, 'type': 'array', 'title': 'Nodes', 'x-cli-required': True},
                 "tags": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Tags', 'default': [], 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-custom")
@@ -263,9 +264,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Custom Actions (GET /api/actions/custom)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/actions/custom"
+            endpoint_path = "/api/actions/custom"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-from-node")
@@ -279,7 +280,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Action From Node (POST /api/actions/from-node)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/actions/from-node"
+            endpoint_path = "/api/actions/from-node"
             params = None
             payload = _build_json_payload({
                 "category": category,
@@ -294,7 +295,7 @@ def register_generated_openapi_commands(
                 "node": {'additionalProperties': True, 'type': 'object', 'title': 'Node', 'x-cli-required': True},
                 "tags": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Tags', 'default': [], 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("import")
@@ -305,7 +306,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Import Action (POST /api/actions/import)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/actions/import"
+            endpoint_path = "/api/actions/import"
             params = None
             payload = _build_json_payload({
                 "json_data": json_data,
@@ -314,7 +315,7 @@ def register_generated_openapi_commands(
                 "json_data": {'type': 'string', 'title': 'Json Data', 'x-cli-required': True},
                 "new_id": {'type': 'boolean', 'title': 'New Id', 'default': True, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("invoke")
@@ -328,7 +329,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Invoke Action (POST /api/actions/invoke)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/actions/invoke"
+            endpoint_path = "/api/actions/invoke"
             params = None
             payload = _build_json_payload({
                 "actor": actor,
@@ -343,7 +344,7 @@ def register_generated_openapi_commands(
                 "params": {'additionalProperties': True, 'type': 'object', 'title': 'Params', 'description': 'Raw action params', 'x-cli-required': False},
                 "run_id": {'type': 'string', 'nullable': True, 'title': 'Run Id', 'description': 'AI run id, if any (#1832)', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-popular")
@@ -353,11 +354,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Popular Actions (GET /api/actions/popular)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/actions/popular"
+            endpoint_path = "/api/actions/popular"
             params = {
                 "limit": limit,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-recent")
@@ -367,11 +368,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Recent Actions (GET /api/actions/recent)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/actions/recent"
+            endpoint_path = "/api/actions/recent"
             params = {
                 "limit": limit,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-registered")
@@ -380,9 +381,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Registered Actions (GET /api/actions/registry)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/actions/registry"
+            endpoint_path = "/api/actions/registry"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("search")
@@ -394,25 +395,28 @@ def register_generated_openapi_commands(
     ) -> None:
         """Search Actions (GET /api/actions/search)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/actions/search"
+            endpoint_path = "/api/actions/search"
             params = {
                 "category": category,
                 "query": query,
                 "tags": tags,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("delete")
     def actions_delete_delete(
         ctx: typer.Context,
         action_id: str = typer.Argument(..., help="Path parameter: action_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Action (DELETE /api/actions/{action_id})."""
+        if not yes:
+            typer.confirm("Delete actions?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/actions/{action_id}"
+            endpoint_path = f"/api/actions/{action_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get")
@@ -422,9 +426,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Action (GET /api/actions/{action_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/actions/{action_id}"
+            endpoint_path = f"/api/actions/{action_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update")
@@ -442,7 +446,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Action (PUT /api/actions/{action_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/actions/{action_id}"
+            endpoint_path = f"/api/actions/{action_id}"
             params = None
             payload = _build_json_payload({
                 "category": category,
@@ -463,7 +467,7 @@ def register_generated_openapi_commands(
                 "nodes": {'items': {'additionalProperties': True, 'type': 'object'}, 'type': 'array', 'nullable': True, 'title': 'Nodes', 'x-cli-required': False},
                 "tags": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Tags', 'x-cli-required': False},
             }, required=True)
-            return client.request("PUT", path, params=params, json=payload)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("export")
@@ -473,9 +477,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Export Action (GET /api/actions/{action_id}/export)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/actions/{action_id}/export"
+            endpoint_path = f"/api/actions/{action_id}/export"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("record-use")
@@ -485,15 +489,16 @@ def register_generated_openapi_commands(
     ) -> None:
         """Record Action Use (POST /api/actions/{action_id}/use)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/actions/{action_id}/use"
+            endpoint_path = f"/api/actions/{action_id}/use"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('activity')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for activity endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='activity-api')
+        existing_apps['activity'] = target_app
 
     @target_app.command("list-activities")
     def activity_list_activities_get(
@@ -511,7 +516,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Activities (GET /api/activity)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/activity"
+            endpoint_path = "/api/activity"
             params = {
                 "batch_id": batch_id,
                 "levels": levels,
@@ -524,7 +529,7 @@ def register_generated_openapi_commands(
                 "until": until,
                 "workflow_id": workflow_id,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-batch")
@@ -535,25 +540,28 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Batch Activity (GET /api/activity/batch/{batch_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/activity/batch/{batch_id}"
+            endpoint_path = f"/api/activity/batch/{batch_id}"
             params = {
                 "limit": limit,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("cleanup-old-activities")
     def activity_cleanup_old_activities_delete(
         ctx: typer.Context,
         days: Optional[int] = typer.Option(None, "--days", help="Query parameter: days."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Cleanup Old Activities (DELETE /api/activity/cleanup)."""
+        if not yes:
+            typer.confirm("Delete activity?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/activity/cleanup"
+            endpoint_path = "/api/activity/cleanup"
             params = {
                 "days": days,
             }
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-entity-types")
@@ -562,9 +570,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Entity Types (GET /api/activity/entity-types)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/activity/entity-types"
+            endpoint_path = "/api/activity/entity-types"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-feed")
@@ -582,7 +590,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Activity Feed (GET /api/activity/feed)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/activity/feed"
+            endpoint_path = "/api/activity/feed"
             params = {
                 "entity_id": entity_id,
                 "entity_type": entity_type,
@@ -594,7 +602,7 @@ def register_generated_openapi_commands(
                 "types": types,
                 "until": until,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-metrics-summary")
@@ -604,11 +612,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Activity Metrics Summary (GET /api/activity/metrics/summary)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/activity/metrics/summary"
+            endpoint_path = "/api/activity/metrics/summary"
             params = {
                 "hours": hours,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-recent-activities")
@@ -618,11 +626,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Recent Activities (GET /api/activity/recent)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/activity/recent"
+            endpoint_path = "/api/activity/recent"
             params = {
                 "limit": limit,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-stats")
@@ -632,11 +640,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Activity Stats (GET /api/activity/stats)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/activity/stats"
+            endpoint_path = "/api/activity/stats"
             params = {
                 "hours": hours,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-top-entities")
@@ -647,12 +655,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Top Entities (GET /api/activity/top)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/activity/top"
+            endpoint_path = "/api/activity/top"
             params = {
                 "hours": hours,
                 "limit": limit,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-trends")
@@ -663,12 +671,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Activity Trends (GET /api/activity/trends)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/activity/trends"
+            endpoint_path = "/api/activity/trends"
             params = {
                 "hours": hours,
                 "period": period,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-workflow")
@@ -679,17 +687,18 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Workflow Activity (GET /api/activity/workflow/{workflow_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/activity/workflow/{workflow_id}"
+            endpoint_path = f"/api/activity/workflow/{workflow_id}"
             params = {
                 "limit": limit,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('agent-memory')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for agent-memory endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='agent-memory')
+        existing_apps['agent-memory'] = target_app
 
     @target_app.command("list-notes")
     def agent_memory_list_notes_get(
@@ -702,7 +711,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Agent Notes (GET /api/agent-memory)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/agent-memory"
+            endpoint_path = "/api/agent-memory"
             params = {
                 "actor_id": actor_id,
                 "expediente": expediente,
@@ -710,7 +719,7 @@ def register_generated_openapi_commands(
                 "page_id": page_id,
                 "source_document_id": source_document_id,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-note")
@@ -724,7 +733,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Agent Note (POST /api/agent-memory)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/agent-memory"
+            endpoint_path = "/api/agent-memory"
             params = None
             payload = _build_json_payload({
                 "actor": actor,
@@ -739,19 +748,22 @@ def register_generated_openapi_commands(
                 "source_anchor": {'properties': {'document_id': {'type': 'string', 'nullable': True, 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'expediente': {'type': 'string', 'nullable': True, 'title': 'Expediente'}, 'page_label': {'type': 'string', 'nullable': True, 'title': 'Page Label'}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}}, 'type': 'object', 'title': 'AgentNoteSourceAnchor', 'description': 'User-visible provenance anchor for AI working-memory notes (#2152).', 'x-cli-required': True},
                 "tags": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Tags', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete-note")
     def agent_memory_delete_note_delete(
         ctx: typer.Context,
         note_id: str = typer.Argument(..., help="Path parameter: note_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Agent Note (DELETE /api/agent-memory/{note_id})."""
+        if not yes:
+            typer.confirm("Delete agent-memory?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/agent-memory/{note_id}"
+            endpoint_path = f"/api/agent-memory/{note_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-note")
@@ -761,9 +773,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Agent Note (GET /api/agent-memory/{note_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/agent-memory/{note_id}"
+            endpoint_path = f"/api/agent-memory/{note_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("patch-note")
@@ -778,7 +790,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Patch Agent Note (PATCH /api/agent-memory/{note_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/agent-memory/{note_id}"
+            endpoint_path = f"/api/agent-memory/{note_id}"
             params = None
             payload = _build_json_payload({
                 "actor": actor,
@@ -793,13 +805,14 @@ def register_generated_openapi_commands(
                 "source_anchor": {'properties': {'document_id': {'type': 'string', 'nullable': True, 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'expediente': {'type': 'string', 'nullable': True, 'title': 'Expediente'}, 'page_label': {'type': 'string', 'nullable': True, 'title': 'Page Label'}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}}, 'type': 'object', 'title': 'AgentNoteSourceAnchor', 'description': 'User-visible provenance anchor for AI working-memory notes (#2152).', 'x-cli-required': False},
                 "tags": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Tags', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('agents')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for agents endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='agents')
+        existing_apps['agents'] = target_app
 
     @target_app.command("submit-an-write-request")
     def agents_submit_an_write_request_post(
@@ -819,7 +832,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Submit an agent write request (POST /api/agents/write)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/agents/write"
+            endpoint_path = "/api/agents/write"
             params = None
             payload = _build_json_payload({
                 "agent_id": agent_id,
@@ -848,7 +861,7 @@ def register_generated_openapi_commands(
                 "payload": {'additionalProperties': True, 'type': 'object', 'title': 'Payload', 'x-cli-required': False},
                 "sources": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Sources', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("approve-or-reject-a-pending-write-request")
@@ -861,7 +874,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Approve or reject a pending write request (POST /api/agents/write/approve)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/agents/write/approve"
+            endpoint_path = "/api/agents/write/approve"
             params = {
                 "record_id": record_id,
             }
@@ -874,7 +887,7 @@ def register_generated_openapi_commands(
                 "approved_by": {'type': 'string', 'title': 'Approved By', 'x-cli-required': True},
                 "reason": {'type': 'string', 'title': 'Reason', 'default': '', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-write-audit-history")
@@ -890,7 +903,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get agent write audit history (GET /api/agents/write/audit)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/agents/write/audit"
+            endpoint_path = "/api/agents/write/audit"
             params = {
                 "agent_id": agent_id,
                 "artifact_id": artifact_id,
@@ -900,7 +913,7 @@ def register_generated_openapi_commands(
                 "offset": offset,
                 "state": state,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-a-specific-write-record")
@@ -910,15 +923,16 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get a specific write record (GET /api/agents/write/audit/{record_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/agents/write/audit/{record_id}"
+            endpoint_path = f"/api/agents/write/audit/{record_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('annotations')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for annotations endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='annotations')
+        existing_apps['annotations'] = target_app
 
     @target_app.command("list-filterable-by-document-kind-tag")
     def annotations_list_filterable_by_document_kind_tag_get(
@@ -932,7 +946,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """List annotations, filterable by document / kind / tag (GET /api/annotations)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/annotations"
+            endpoint_path = "/api/annotations"
             params = {
                 "document_id": document_id,
                 "folder_id": folder_id,
@@ -941,7 +955,7 @@ def register_generated_openapi_commands(
                 "page_id": page_id,
                 "tag": tag,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-an")
@@ -969,7 +983,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create an annotation (POST /api/annotations)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/annotations"
+            endpoint_path = "/api/annotations"
             params = None
             payload = _build_json_payload({
                 "anchor_kind": anchor_kind,
@@ -1012,7 +1026,7 @@ def register_generated_openapi_commands(
                 "tags": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Tags', 'default': [], 'x-cli-required': False},
                 "text": {'type': 'string', 'nullable': True, 'title': 'Text', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("ephemeral-crop-for-an-unsaved-region-no-persisted")
@@ -1029,7 +1043,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Ephemeral crop for an unsaved region (no annotation persisted) (POST /api/annotations/crop)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/annotations/crop"
+            endpoint_path = "/api/annotations/crop"
             params = None
             payload = _build_json_payload({
                 "bbox": bbox,
@@ -1050,19 +1064,22 @@ def register_generated_openapi_commands(
                 "page_label": {'type': 'string', 'nullable': True, 'title': 'Page Label', 'x-cli-required': False},
                 "text": {'type': 'string', 'nullable': True, 'title': 'Text', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete")
     def annotations_delete_delete(
         ctx: typer.Context,
         annotation_id: str = typer.Argument(..., help="Path parameter: annotation_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Annotation (DELETE /api/annotations/{annotation_id})."""
+        if not yes:
+            typer.confirm("Delete annotations?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/annotations/{annotation_id}"
+            endpoint_path = f"/api/annotations/{annotation_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get")
@@ -1072,9 +1089,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Annotation (GET /api/annotations/{annotation_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/annotations/{annotation_id}"
+            endpoint_path = f"/api/annotations/{annotation_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("patch")
@@ -1100,7 +1117,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Patch Annotation (PATCH /api/annotations/{annotation_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/annotations/{annotation_id}"
+            endpoint_path = f"/api/annotations/{annotation_id}"
             params = None
             payload = _build_json_payload({
                 "anchor_kind": anchor_kind,
@@ -1137,7 +1154,7 @@ def register_generated_openapi_commands(
                 "tags": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Tags', 'x-cli-required': False},
                 "text": {'type': 'string', 'nullable': True, 'title': 'Text', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("cropped-content-for-this-text-body-or-image-bytes")
@@ -1147,9 +1164,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Cropped content for this annotation (text body or image bytes) (GET /api/annotations/{annotation_id}/crop)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/annotations/{annotation_id}/crop"
+            endpoint_path = f"/api/annotations/{annotation_id}/crop"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("turn-a-highlight-or-note-into-a-knowledgeclaim")
@@ -1159,15 +1176,16 @@ def register_generated_openapi_commands(
     ) -> None:
         """Turn a highlight or note into a KnowledgeClaim (POST /api/annotations/{annotation_id}/promote-to-claim)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/annotations/{annotation_id}/promote-to-claim"
+            endpoint_path = f"/api/annotations/{annotation_id}/promote-to-claim"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('artifacts')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for artifacts endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='artifacts')
+        existing_apps['artifacts'] = target_app
 
     @target_app.command("list-all")
     def artifacts_list_all_get(
@@ -1178,13 +1196,13 @@ def register_generated_openapi_commands(
     ) -> None:
         """List All Artifacts (GET /api/artifacts/)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/artifacts/"
+            endpoint_path = "/api/artifacts/"
             params = {
                 "artifact_type": artifact_type,
                 "limit": limit,
                 "offset": offset,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create")
@@ -1206,7 +1224,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Artifact (POST /api/artifacts/)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/artifacts/"
+            endpoint_path = "/api/artifacts/"
             params = None
             payload = _build_json_payload({
                 "artifact_type": artifact_type,
@@ -1237,7 +1255,7 @@ def register_generated_openapi_commands(
                 "step_name": {'type': 'string', 'nullable': True, 'title': 'Step Name', 'x-cli-required': False},
                 "version": {'type': 'integer', 'title': 'Version', 'default': 1, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-document")
@@ -1251,14 +1269,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Document Artifacts (GET /api/artifacts/document/{doc_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/artifacts/document/{doc_id}"
+            endpoint_path = f"/api/artifacts/document/{doc_id}"
             params = {
                 "artifact_type": artifact_type,
                 "include_descendants": include_descendants,
                 "limit": limit,
                 "offset": offset,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-types")
@@ -1267,21 +1285,24 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Artifact Types (GET /api/artifacts/types)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/artifacts/types"
+            endpoint_path = "/api/artifacts/types"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("delete")
     def artifacts_delete_delete(
         ctx: typer.Context,
         artifact_id: str = typer.Argument(..., help="Path parameter: artifact_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Artifact (DELETE /api/artifacts/{artifact_id})."""
+        if not yes:
+            typer.confirm("Delete artifacts?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/artifacts/{artifact_id}"
+            endpoint_path = f"/api/artifacts/{artifact_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get")
@@ -1291,9 +1312,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Artifact (GET /api/artifacts/{artifact_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/artifacts/{artifact_id}"
+            endpoint_path = f"/api/artifacts/{artifact_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update")
@@ -1305,7 +1326,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Artifact (PUT /api/artifacts/{artifact_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/artifacts/{artifact_id}"
+            endpoint_path = f"/api/artifacts/{artifact_id}"
             params = None
             payload = _build_json_payload({
                 "content": content,
@@ -1314,13 +1335,14 @@ def register_generated_openapi_commands(
                 "content": {'type': 'string', 'nullable': True, 'title': 'Content', 'x-cli-required': False},
                 "reviewed": {'type': 'boolean', 'nullable': True, 'title': 'Reviewed', 'x-cli-required': False},
             }, required=True)
-            return client.request("PUT", path, params=params, json=payload)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('auth')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for auth endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='auth')
+        existing_apps['auth'] = target_app
 
     @target_app.command("login")
     def auth_login_post(
@@ -1331,7 +1353,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Login (POST /api/auth/login)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/auth/login"
+            endpoint_path = "/api/auth/login"
             params = None
             payload = _build_json_payload({
                 "device_label": device_label,
@@ -1342,7 +1364,7 @@ def register_generated_openapi_commands(
                 "password": {'type': 'string', 'minLength': 1, 'title': 'Password', 'x-cli-required': True},
                 "username": {'type': 'string', 'minLength': 1, 'title': 'Username', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("logout")
@@ -1351,9 +1373,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Logout (POST /api/auth/logout)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/auth/logout"
+            endpoint_path = "/api/auth/logout"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("me")
@@ -1362,15 +1384,16 @@ def register_generated_openapi_commands(
     ) -> None:
         """Me (GET /api/auth/me)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/auth/me"
+            endpoint_path = "/api/auth/me"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('authz')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for authz endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='authz')
+        existing_apps['authz'] = target_app
 
     @target_app.command("get-library-snapshot")
     def authz_get_library_snapshot_get(
@@ -1379,25 +1402,28 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Library Authz Snapshot (GET /api/authz/library)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/authz/library"
+            endpoint_path = "/api/authz/library"
             params = {
                 "target_id": target_id,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("revoke-library-member-role")
     def authz_revoke_library_member_role_delete(
         ctx: typer.Context,
         user: str = typer.Option(..., "--user", help="Query parameter: user."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Revoke Library Member Role (DELETE /api/authz/members)."""
+        if not yes:
+            typer.confirm("Delete authz?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/authz/members"
+            endpoint_path = "/api/authz/members"
             params = {
                 "user": user,
             }
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-library-members")
@@ -1406,9 +1432,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Library Members (GET /api/authz/members)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/authz/members"
+            endpoint_path = "/api/authz/members"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("set-library-member-role")
@@ -1419,7 +1445,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Set Library Member Role (PUT /api/authz/members)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/authz/members"
+            endpoint_path = "/api/authz/members"
             params = None
             payload = _build_json_payload({
                 "role": role,
@@ -1428,7 +1454,7 @@ def register_generated_openapi_commands(
                 "role": {'type': 'string', 'title': 'Role', 'description': 'owner/editor/viewer', 'x-cli-required': True},
                 "user": {'type': 'string', 'title': 'User', 'description': 'Target user id or username', 'x-cli-required': True},
             }, required=True)
-            return client.request("PUT", path, params=params, json=payload)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("share-library-object")
@@ -1441,7 +1467,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Share Library Object (POST /api/authz/share)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/authz/share"
+            endpoint_path = "/api/authz/share"
             params = None
             payload = _build_json_payload({
                 "object_id": object_id,
@@ -1454,13 +1480,14 @@ def register_generated_openapi_commands(
                 "role": {'type': 'string', 'title': 'Role', 'description': 'Role to grant: owner/editor/viewer', 'default': 'viewer', 'x-cli-required': False},
                 "user": {'type': 'string', 'title': 'User', 'description': 'Recipient user id or username', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('batches')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for batches endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='batches')
+        existing_apps['batches'] = target_app
 
     @target_app.command("list")
     def batches_list_get(
@@ -1471,13 +1498,13 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Batches (GET /api/batches)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/batches"
+            endpoint_path = "/api/batches"
             params = {
                 "limit": limit,
                 "offset": offset,
                 "status": status,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-batch")
@@ -1489,7 +1516,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Batch (POST /api/batches)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/batches"
+            endpoint_path = "/api/batches"
             params = None
             payload = _build_json_payload({
                 "items": items,
@@ -1500,19 +1527,22 @@ def register_generated_openapi_commands(
                 "max_concurrent": {'type': 'integer', 'maximum': 50.0, 'minimum': 1.0, 'title': 'Max Concurrent', 'description': 'Maximum concurrent executions', 'default': 5, 'x-cli-required': False},
                 "workflow_id": {'type': 'string', 'title': 'Workflow Id', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete-batch")
     def batches_delete_batch_delete(
         ctx: typer.Context,
         batch_id: str = typer.Argument(..., help="Path parameter: batch_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Batch (DELETE /api/batches/{batch_id})."""
+        if not yes:
+            typer.confirm("Delete batches?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/batches/{batch_id}"
+            endpoint_path = f"/api/batches/{batch_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-batch")
@@ -1523,11 +1553,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Batch (GET /api/batches/{batch_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/batches/{batch_id}"
+            endpoint_path = f"/api/batches/{batch_id}"
             params = {
                 "include_items": include_items,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("cancel-batch")
@@ -1537,9 +1567,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Cancel Batch (POST /api/batches/{batch_id}/cancel)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/batches/{batch_id}/cancel"
+            endpoint_path = f"/api/batches/{batch_id}/cancel"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("execute-batch")
@@ -1549,9 +1579,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Execute Batch (POST /api/batches/{batch_id}/execute)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/batches/{batch_id}/execute"
+            endpoint_path = f"/api/batches/{batch_id}/execute"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("pause-batch")
@@ -1561,9 +1591,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Pause Batch (POST /api/batches/{batch_id}/pause)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/batches/{batch_id}/pause"
+            endpoint_path = f"/api/batches/{batch_id}/pause"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-batch-progress")
@@ -1573,9 +1603,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Batch Progress (GET /api/batches/{batch_id}/progress)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/batches/{batch_id}/progress"
+            endpoint_path = f"/api/batches/{batch_id}/progress"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("resume-batch")
@@ -1585,9 +1615,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Resume Batch (POST /api/batches/{batch_id}/resume)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/batches/{batch_id}/resume"
+            endpoint_path = f"/api/batches/{batch_id}/resume"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("retry-batch")
@@ -1597,15 +1627,16 @@ def register_generated_openapi_commands(
     ) -> None:
         """Retry Batch (POST /api/batches/{batch_id}/retry)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/batches/{batch_id}/retry"
+            endpoint_path = f"/api/batches/{batch_id}/retry"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('bibliography')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for bibliography endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='bibliography')
+        existing_apps['bibliography'] = target_app
 
     @target_app.command("get-a-document-s-bibliographic-metadata")
     def bibliography_get_a_document_s_bibliographic_metadata_get(
@@ -1614,9 +1645,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get a document's bibliographic metadata (GET /api/bibliography/document/{document_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/bibliography/document/{document_id}"
+            endpoint_path = f"/api/bibliography/document/{document_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("set-or-update-a-document-s-bibliographic-metadata")
@@ -1627,14 +1658,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """Set or update a document's bibliographic metadata (PATCH /api/bibliography/document/{document_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/bibliography/document/{document_id}"
+            endpoint_path = f"/api/bibliography/document/{document_id}"
             params = None
             payload = _build_json_payload({
                 "metadata": metadata,
             }, {
                 "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': True},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("attach-a-bibtex-ris-csl-json-record-to-a-document")
@@ -1646,7 +1677,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Attach a BibTeX / RIS / CSL-JSON record to a document (POST /api/bibliography/document/{document_id}/attach)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/bibliography/document/{document_id}/attach"
+            endpoint_path = f"/api/bibliography/document/{document_id}/attach"
             params = None
             payload = _build_json_payload({
                 "format": format,
@@ -1655,7 +1686,7 @@ def register_generated_openapi_commands(
                 "format": {'type': 'string', 'nullable': True, 'title': 'Format', 'x-cli-required': False},
                 "text": {'type': 'string', 'title': 'Text', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("run-the-bibliographic-extractor-on-a-document")
@@ -1666,11 +1697,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Run the bibliographic extractor on a document (POST /api/bibliography/document/{document_id}/extract)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/bibliography/document/{document_id}/extract"
+            endpoint_path = f"/api/bibliography/document/{document_id}/extract"
             params = {
                 "use_llm": use_llm,
             }
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("bulk-export-multiple-documents-as-bibtex")
@@ -1680,14 +1711,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """Bulk export multiple documents as BibTeX (POST /api/bibliography/export.bib)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/bibliography/export.bib"
+            endpoint_path = "/api/bibliography/export.bib"
             params = None
             payload = _build_json_payload({
                 "document_ids": document_ids,
             }, {
                 "document_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Document Ids', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("parse-bibtex-ris-csl-json-into-sourcemetadata-dicts-909")
@@ -1698,7 +1729,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Parse BibTeX / RIS / CSL JSON into SourceMetadata dicts (#909) (POST /api/bibliography/import)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/bibliography/import"
+            endpoint_path = "/api/bibliography/import"
             params = None
             payload = _build_json_payload({
                 "format": format,
@@ -1707,7 +1738,7 @@ def register_generated_openapi_commands(
                 "format": {'type': 'string', 'nullable': True, 'title': 'Format', 'x-cli-required': False},
                 "text": {'type': 'string', 'title': 'Text', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("resolve-a-doi-or-isbn-via-crossref-open-library-910")
@@ -1719,7 +1750,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Resolve a DOI or ISBN via Crossref / Open Library (#910) (POST /api/bibliography/resolve)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/bibliography/resolve"
+            endpoint_path = "/api/bibliography/resolve"
             params = {
                 "document_id": document_id,
             }
@@ -1730,13 +1761,14 @@ def register_generated_openapi_commands(
                 "doi": {'type': 'string', 'nullable': True, 'title': 'Doi', 'x-cli-required': False},
                 "isbn": {'type': 'string', 'nullable': True, 'title': 'Isbn', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('bookmarks')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for bookmarks endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='bookmarks')
+        existing_apps['bookmarks'] = target_app
 
     @target_app.command("list")
     def bookmarks_list_get(
@@ -1745,11 +1777,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Bookmarks (GET /api/bookmarks)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/bookmarks"
+            endpoint_path = "/api/bookmarks"
             params = {
                 "parent_id": parent_id,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create")
@@ -1761,7 +1793,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Bookmark (POST /api/bookmarks)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/bookmarks"
+            endpoint_path = "/api/bookmarks"
             params = None
             payload = _build_json_payload({
                 "name": name,
@@ -1772,7 +1804,7 @@ def register_generated_openapi_commands(
                 "parent_id": {'type': 'string', 'nullable': True, 'title': 'Parent Id', 'x-cli-required': False},
                 "target_id": {'type': 'string', 'title': 'Target Id', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("resolve")
@@ -1782,15 +1814,16 @@ def register_generated_openapi_commands(
     ) -> None:
         """Resolve Bookmark (GET /api/bookmarks/{bookmark_id}/resolve)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/bookmarks/{bookmark_id}/resolve"
+            endpoint_path = f"/api/bookmarks/{bookmark_id}/resolve"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('chains')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for chains endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='chains')
+        existing_apps['chains'] = target_app
 
     @target_app.command("list")
     def chains_list_get(
@@ -1800,12 +1833,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Chains (GET /api/chains)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/chains"
+            endpoint_path = "/api/chains"
             params = {
                 "limit": limit,
                 "offset": offset,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create")
@@ -1819,7 +1852,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Chain (POST /api/chains)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/chains"
+            endpoint_path = "/api/chains"
             params = None
             payload = _build_json_payload({
                 "description": description,
@@ -1834,19 +1867,22 @@ def register_generated_openapi_commands(
                 "name": {'type': 'string', 'minLength': 1, 'title': 'Name', 'x-cli-required': True},
                 "steps": {'items': {'$ref': '#/components/schemas/ChainStepRequest'}, 'type': 'array', 'title': 'Steps', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("cancel-execution")
     def chains_cancel_execution_delete(
         ctx: typer.Context,
         execution_id: str = typer.Argument(..., help="Path parameter: execution_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Cancel Chain Execution (DELETE /api/chains/executions/{execution_id})."""
+        if not yes:
+            typer.confirm("Delete chains?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/chains/executions/{execution_id}"
+            endpoint_path = f"/api/chains/executions/{execution_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-execution")
@@ -1856,9 +1892,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Chain Execution (GET /api/chains/executions/{execution_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/chains/executions/{execution_id}"
+            endpoint_path = f"/api/chains/executions/{execution_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("paleography-preset-preview")
@@ -1867,9 +1903,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Paleography Preset Preview (GET /api/chains/presets/paleography)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/chains/presets/paleography"
+            endpoint_path = "/api/chains/presets/paleography"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("paleography-preset-create")
@@ -1878,21 +1914,24 @@ def register_generated_openapi_commands(
     ) -> None:
         """Paleography Preset Create (POST /api/chains/presets/paleography)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/chains/presets/paleography"
+            endpoint_path = "/api/chains/presets/paleography"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("delete")
     def chains_delete_delete(
         ctx: typer.Context,
         chain_id: str = typer.Argument(..., help="Path parameter: chain_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Chain (DELETE /api/chains/{chain_id})."""
+        if not yes:
+            typer.confirm("Delete chains?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/chains/{chain_id}"
+            endpoint_path = f"/api/chains/{chain_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get")
@@ -1902,9 +1941,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Chain (GET /api/chains/{chain_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/chains/{chain_id}"
+            endpoint_path = f"/api/chains/{chain_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update")
@@ -1919,7 +1958,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Chain (PUT /api/chains/{chain_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/chains/{chain_id}"
+            endpoint_path = f"/api/chains/{chain_id}"
             params = None
             payload = _build_json_payload({
                 "description": description,
@@ -1934,7 +1973,7 @@ def register_generated_openapi_commands(
                 "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
                 "steps": {'items': {'$ref': '#/components/schemas/ChainStepRequest'}, 'type': 'array', 'nullable': True, 'title': 'Steps', 'x-cli-required': False},
             }, required=True)
-            return client.request("PUT", path, params=params, json=payload)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("execute")
@@ -1946,7 +1985,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Execute Chain (POST /api/chains/{chain_id}/execute)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/chains/{chain_id}/execute"
+            endpoint_path = f"/api/chains/{chain_id}/execute"
             params = None
             payload = _build_json_payload({
                 "input_files": input_files,
@@ -1955,13 +1994,14 @@ def register_generated_openapi_commands(
                 "input_files": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Input Files', 'x-cli-required': False},
                 "inputs": {'additionalProperties': True, 'type': 'object', 'title': 'Inputs', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('changes')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for changes endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='changes')
+        existing_apps['changes'] = target_app
 
     @target_app.command("stream-library")
     def changes_stream_library_get(
@@ -1969,15 +2009,16 @@ def register_generated_openapi_commands(
     ) -> None:
         """Stream Library Changes (GET /api/changes/stream)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/changes/stream"
+            endpoint_path = "/api/changes/stream"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('chat')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for chat endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='chat')
+        existing_apps['chat'] = target_app
 
     @target_app.command("chat")
     def chat_chat_post(
@@ -1994,7 +2035,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Chat (POST /api/chat)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/chat"
+            endpoint_path = "/api/chat"
             params = None
             payload = _build_json_payload({
                 "conversation_id": conversation_id,
@@ -2017,7 +2058,7 @@ def register_generated_openapi_commands(
                 "model": {'type': 'string', 'nullable': True, 'title': 'Model', 'x-cli-required': False},
                 "provider": {'type': 'string', 'nullable': True, 'title': 'Provider', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-conversations")
@@ -2027,11 +2068,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Conversations (GET /api/chat/conversations)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/chat/conversations"
+            endpoint_path = "/api/chat/conversations"
             params = {
                 "folder_path": folder_path,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("reorder-conversations")
@@ -2043,24 +2084,27 @@ def register_generated_openapi_commands(
     ) -> None:
         """Reorder Conversations (POST /api/chat/conversations/reorder)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/chat/conversations/reorder"
+            endpoint_path = "/api/chat/conversations/reorder"
             params = {
                 "folder_path": folder_path,
             }
             payload = _load_json_payload(body, body_file, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete-conversation")
     def chat_delete_conversation_delete(
         ctx: typer.Context,
         conversation_id: str = typer.Argument(..., help="Path parameter: conversation_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Conversation (DELETE /api/chat/conversations/{conversation_id})."""
+        if not yes:
+            typer.confirm("Delete chat?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/chat/conversations/{conversation_id}"
+            endpoint_path = f"/api/chat/conversations/{conversation_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-conversation")
@@ -2070,9 +2114,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Conversation (GET /api/chat/conversations/{conversation_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/chat/conversations/{conversation_id}"
+            endpoint_path = f"/api/chat/conversations/{conversation_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update-conversation")
@@ -2084,7 +2128,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Conversation (PUT /api/chat/conversations/{conversation_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/chat/conversations/{conversation_id}"
+            endpoint_path = f"/api/chat/conversations/{conversation_id}"
             params = None
             payload = _build_json_payload({
                 "folder_path": folder_path,
@@ -2093,7 +2137,7 @@ def register_generated_openapi_commands(
                 "folder_path": {'type': 'string', 'nullable': True, 'title': 'Folder Path', 'x-cli-required': False},
                 "title": {'type': 'string', 'nullable': True, 'title': 'Title', 'x-cli-required': False},
             }, required=True)
-            return client.request("PUT", path, params=params, json=payload)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("duplicate-conversation")
@@ -2103,9 +2147,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Duplicate Conversation (POST /api/chat/conversations/{conversation_id}/duplicate)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/chat/conversations/{conversation_id}/duplicate"
+            endpoint_path = f"/api/chat/conversations/{conversation_id}/duplicate"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("extract-text")
@@ -2116,7 +2160,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Extract Text (POST /api/chat/extract-text)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/chat/extract-text"
+            endpoint_path = "/api/chat/extract-text"
             params = None
             payload = _build_json_payload({
                 "document_ids": document_ids,
@@ -2125,7 +2169,7 @@ def register_generated_openapi_commands(
                 "document_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Document Ids', 'x-cli-required': False},
                 "force": {'type': 'boolean', 'title': 'Force', 'default': False, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-providers")
@@ -2134,15 +2178,16 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Providers (GET /api/chat/providers)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/chat/providers"
+            endpoint_path = "/api/chat/providers"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('citation-usages')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for citation-usages endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='citation-usages')
+        existing_apps['citation-usages'] = target_app
 
     @target_app.command("list")
     def citation_usages_list_get(
@@ -2154,20 +2199,21 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Citation Usages (GET /api/citation-usages)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/citation-usages"
+            endpoint_path = "/api/citation-usages"
             params = {
                 "reference_id": reference_id,
                 "source_document_id": source_document_id,
                 "stance": stance,
                 "target_document_id": target_document_id,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('citations')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for citations endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='citations')
+        existing_apps['citations'] = target_app
 
     @target_app.command("render-a-document-s-in-one-of-the-supported-styles")
     def citations_render_a_document_s_in_one_of_the_supported_styles_get(
@@ -2177,11 +2223,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Render a document's citation in one of the supported styles (GET /api/citations/document/{document_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/citations/document/{document_id}"
+            endpoint_path = f"/api/citations/document/{document_id}"
             params = {
                 "style": style,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("download-a-single-document-s-bibtex-entry-as-text")
@@ -2190,9 +2236,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Download a single document's BibTeX entry as text (GET /api/citations/document/{document_id}.bib)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/citations/document/{document_id}.bib"
+            endpoint_path = "/api/citations/document/{document_id}.bib"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("bulk-export-bibtex-for-a-list-of-documents")
@@ -2202,11 +2248,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Bulk export — BibTeX for a list of documents (GET /api/citations/export)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/citations/export"
+            endpoint_path = "/api/citations/export"
             params = {
                 "document_ids": document_ids,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-filter-by-source-target-detector")
@@ -2219,14 +2265,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """List citations (filter by source/target/detector) (GET /api/citations/graph)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/citations/graph"
+            endpoint_path = "/api/citations/graph"
             params = {
                 "detector": detector,
                 "min_confidence": min_confidence,
                 "source_document_id": source_document_id,
                 "target_document_id": target_document_id,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("record-a-from-one-document-to-another")
@@ -2244,7 +2290,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Record a citation from one document to another (POST /api/citations/graph)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/citations/graph"
+            endpoint_path = "/api/citations/graph"
             params = None
             payload = _build_json_payload({
                 "char_end": char_end,
@@ -2267,7 +2313,7 @@ def register_generated_openapi_commands(
                 "target_citation_text": {'type': 'string', 'title': 'Target Citation Text', 'x-cli-required': True},
                 "target_document_id": {'type': 'string', 'nullable': True, 'title': 'Target Document Id', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("to-this-document-what-cites-it")
@@ -2277,9 +2323,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Citations TO this document — what cites it (GET /api/citations/graph/document/{document_id}/inbound)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/citations/graph/document/{document_id}/inbound"
+            endpoint_path = f"/api/citations/graph/document/{document_id}/inbound"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("from-this-document-what-it-cites")
@@ -2289,21 +2335,24 @@ def register_generated_openapi_commands(
     ) -> None:
         """Citations FROM this document — what it cites (GET /api/citations/graph/document/{document_id}/outbound)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/citations/graph/document/{document_id}/outbound"
+            endpoint_path = f"/api/citations/graph/document/{document_id}/outbound"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("delete")
     def citations_delete_delete(
         ctx: typer.Context,
         citation_id: str = typer.Argument(..., help="Path parameter: citation_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Citation (DELETE /api/citations/graph/{citation_id})."""
+        if not yes:
+            typer.confirm("Delete citations?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/citations/graph/{citation_id}"
+            endpoint_path = f"/api/citations/graph/{citation_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("patch")
@@ -2319,7 +2368,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Patch Citation (PATCH /api/citations/graph/{citation_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/citations/graph/{citation_id}"
+            endpoint_path = f"/api/citations/graph/{citation_id}"
             params = None
             payload = _build_json_payload({
                 "char_end": char_end,
@@ -2336,24 +2385,28 @@ def register_generated_openapi_commands(
                 "target_citation_text": {'type': 'string', 'nullable': True, 'title': 'Target Citation Text', 'x-cli-required': False},
                 "target_document_id": {'type': 'string', 'nullable': True, 'title': 'Target Document Id', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('claim-links')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for claim-links endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='claim-links')
+        existing_apps['claim-links'] = target_app
 
     @target_app.command("delete")
     def claim_links_delete_delete(
         ctx: typer.Context,
         link_id: str = typer.Argument(..., help="Path parameter: link_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Claim Link (DELETE /api/claim-links/{link_id})."""
+        if not yes:
+            typer.confirm("Delete claim-links?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/claim-links/{link_id}"
+            endpoint_path = f"/api/claim-links/{link_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get")
@@ -2363,9 +2416,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Claim Link (GET /api/claim-links/{link_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/claim-links/{link_id}"
+            endpoint_path = f"/api/claim-links/{link_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update")
@@ -2379,7 +2432,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Claim Link (PATCH /api/claim-links/{link_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/claim-links/{link_id}"
+            endpoint_path = f"/api/claim-links/{link_id}"
             params = None
             payload = _build_json_payload({
                 "evidence": evidence,
@@ -2392,13 +2445,14 @@ def register_generated_openapi_commands(
                 "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
                 "relation_type": {'type': 'string', 'enum': ['supports', 'contradicts', 'refines', 'duplicate_of', 'corroborates', 'derives_from', 'cites', 'follows', 'caused_by', 'related_to'], 'title': 'ClaimRelationType', 'description': "Typed relationship kinds for KnowledgeClaimLink (#1123 Phase B).\n\nOriginally four kinds (supports / contradicts / refines / duplicate_of).\n#1123 extends with five new dimensions plus ``related_to`` (the generic\nfallback used by ``kg_predictions._record_predictions`` when a model\nsurfaces a relation outside the curated set):\n\n- ``corroborates`` — independent evidence agreeing with the source\n  claim. Distinct from ``supports`` (which just reinforces with\n  additional evidence drawn from the same line of reasoning).\n- ``derives_from`` — claim B is inferred from / built on claim A;\n  removing A invalidates B. Stronger than ``cites``.\n- ``cites`` — B references A as a source. Bibliographic / citation\n  graph use.\n- ``follows`` — temporal sequence (A then B). Doesn't imply\n  causation; ``caused_by`` is the explicit causal claim.\n- ``caused_by`` — A is the cause of B. Strong claim; reviewers\n  should treat with corroboration.\n- ``related_to`` — generic fallback when the typed kinds don't\n  fit. Closes the latent crash in\n  ``kg_predictions.py:269`` where the relation_map fallback\n  referenced this value before it existed.\n\nNote: ``contests`` was considered as a synonym for ``contradicts``\nbut excluded — same semantic, different word, doesn't earn a\nseparate enum slot. Writers should keep using ``contradicts``.", 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('claims')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for claims endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='claim')
+        existing_apps['claims'] = target_app
 
     @target_app.command("list")
     def claims_list_get(
@@ -2418,7 +2472,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Claims (GET /api/claims)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/claims"
+            endpoint_path = "/api/claims"
             params = {
                 "claim_type": claim_type,
                 "curated_only": curated_only,
@@ -2433,7 +2487,7 @@ def register_generated_openapi_commands(
                 "source_language": source_language,
                 "source_type": source_type,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create")
@@ -2483,7 +2537,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Claim (POST /api/claims)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/claims"
+            endpoint_path = "/api/claims"
             params = None
             payload = _build_json_payload({
                 "audience": audience,
@@ -2570,7 +2624,7 @@ def register_generated_openapi_commands(
                 "text": {'type': 'string', 'minLength': 1, 'title': 'Text', 'x-cli-required': True},
                 "translation_chain": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Translation Chain', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("assign-time-period")
@@ -2587,7 +2641,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Assign Time Period (POST /api/claims/assign-time-period)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/claims/assign-time-period"
+            endpoint_path = "/api/claims/assign-time-period"
             params = None
             payload = _build_json_payload({
                 "include_descendants": include_descendants,
@@ -2608,7 +2662,7 @@ def register_generated_openapi_commands(
                 "time_precision": {'type': 'string', 'nullable': True, 'title': 'Time Precision', 'x-cli-required': False},
                 "time_start": {'type': 'string', 'title': 'Time Start', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("assign-time-period-from-metadata")
@@ -2620,7 +2674,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Assign Time Period From Metadata (POST /api/claims/assign-time-period-from-metadata)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/claims/assign-time-period-from-metadata"
+            endpoint_path = "/api/claims/assign-time-period-from-metadata"
             params = None
             payload = _build_json_payload({
                 "include_descendants": include_descendants,
@@ -2631,7 +2685,7 @@ def register_generated_openapi_commands(
                 "overwrite_existing": {'type': 'boolean', 'title': 'Overwrite Existing', 'default': True, 'x-cli-required': False},
                 "source_document_id": {'type': 'string', 'title': 'Source Document Id', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("batch-transition")
@@ -2644,7 +2698,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Batch transition claims (POST /api/claims/batch/transition)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/claims/batch/transition"
+            endpoint_path = "/api/claims/batch/transition"
             params = None
             payload = _build_json_payload({
                 "claim_ids": claim_ids,
@@ -2657,7 +2711,7 @@ def register_generated_openapi_commands(
                 "reviewed_by": {'type': 'string', 'title': 'Reviewed By', 'description': 'Who performed the review', 'default': 'human', 'x-cli-required': False},
                 "to_state": {'type': 'string', 'title': 'To State', 'description': 'Target curation state', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-curated-queue")
@@ -2671,7 +2725,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get curated claims queue (GET /api/claims/queues/curated)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/claims/queues/curated"
+            endpoint_path = "/api/claims/queues/curated"
             params = {
                 "limit": limit,
                 "offset": offset,
@@ -2679,7 +2733,7 @@ def register_generated_openapi_commands(
                 "question": question,
                 "topic": topic,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-rejected-queue")
@@ -2693,7 +2747,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get rejected claims queue (GET /api/claims/queues/rejected)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/claims/queues/rejected"
+            endpoint_path = "/api/claims/queues/rejected"
             params = {
                 "limit": limit,
                 "offset": offset,
@@ -2701,7 +2755,7 @@ def register_generated_openapi_commands(
                 "question": question,
                 "topic": topic,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-shortlisted-queue")
@@ -2715,7 +2769,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get shortlisted claims queue (GET /api/claims/queues/shortlisted)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/claims/queues/shortlisted"
+            endpoint_path = "/api/claims/queues/shortlisted"
             params = {
                 "limit": limit,
                 "offset": offset,
@@ -2723,7 +2777,7 @@ def register_generated_openapi_commands(
                 "question": question,
                 "topic": topic,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-unreviewed-queue")
@@ -2737,7 +2791,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get unreviewed claims queue (GET /api/claims/queues/unreviewed)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/claims/queues/unreviewed"
+            endpoint_path = "/api/claims/queues/unreviewed"
             params = {
                 "limit": limit,
                 "offset": offset,
@@ -2745,7 +2799,7 @@ def register_generated_openapi_commands(
                 "question": question,
                 "topic": topic,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("resolve-source")
@@ -2759,7 +2813,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Resolve Claim Source (POST /api/claims/resolve-source)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/claims/resolve-source"
+            endpoint_path = "/api/claims/resolve-source"
             params = None
             payload = _build_json_payload({
                 "claim_id": claim_id,
@@ -2774,19 +2828,22 @@ def register_generated_openapi_commands(
                 "source_document_id": {'type': 'string', 'nullable': True, 'title': 'Source Document Id', 'x-cli-required': False},
                 "subject_canonical": {'type': 'string', 'nullable': True, 'title': 'Subject Canonical', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete")
     def claims_delete_delete(
         ctx: typer.Context,
         claim_id: str = typer.Argument(..., help="Path parameter: claim_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Claim (DELETE /api/claims/{claim_id})."""
+        if not yes:
+            typer.confirm("Delete claims?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/claims/{claim_id}"
+            endpoint_path = f"/api/claims/{claim_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get")
@@ -2796,9 +2853,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Claim (GET /api/claims/{claim_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/claims/{claim_id}"
+            endpoint_path = f"/api/claims/{claim_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("patch")
@@ -2858,7 +2915,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Patch Claim (PATCH /api/claims/{claim_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/claims/{claim_id}"
+            endpoint_path = f"/api/claims/{claim_id}"
             params = None
             payload = _build_json_payload({
                 "audience": audience,
@@ -2963,7 +3020,7 @@ def register_generated_openapi_commands(
                 "time_start": {'type': 'string', 'nullable': True, 'title': 'Time Start', 'x-cli-required': False},
                 "translation_chain": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Translation Chain', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-links")
@@ -2973,9 +3030,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Claim Links (GET /api/claims/{claim_id}/links)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/claims/{claim_id}/links"
+            endpoint_path = f"/api/claims/{claim_id}/links"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-link")
@@ -2990,7 +3047,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Claim Link (POST /api/claims/{claim_id}/links)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/claims/{claim_id}/links"
+            endpoint_path = f"/api/claims/{claim_id}/links"
             params = None
             payload = _build_json_payload({
                 "evidence": evidence,
@@ -3005,7 +3062,7 @@ def register_generated_openapi_commands(
                 "related_claim_id": {'type': 'string', 'title': 'Related Claim Id', 'x-cli-required': True},
                 "relation_type": {'type': 'string', 'enum': ['supports', 'contradicts', 'refines', 'duplicate_of', 'corroborates', 'derives_from', 'cites', 'follows', 'caused_by', 'related_to'], 'title': 'ClaimRelationType', 'description': "Typed relationship kinds for KnowledgeClaimLink (#1123 Phase B).\n\nOriginally four kinds (supports / contradicts / refines / duplicate_of).\n#1123 extends with five new dimensions plus ``related_to`` (the generic\nfallback used by ``kg_predictions._record_predictions`` when a model\nsurfaces a relation outside the curated set):\n\n- ``corroborates`` — independent evidence agreeing with the source\n  claim. Distinct from ``supports`` (which just reinforces with\n  additional evidence drawn from the same line of reasoning).\n- ``derives_from`` — claim B is inferred from / built on claim A;\n  removing A invalidates B. Stronger than ``cites``.\n- ``cites`` — B references A as a source. Bibliographic / citation\n  graph use.\n- ``follows`` — temporal sequence (A then B). Doesn't imply\n  causation; ``caused_by`` is the explicit causal claim.\n- ``caused_by`` — A is the cause of B. Strong claim; reviewers\n  should treat with corroboration.\n- ``related_to`` — generic fallback when the typed kinds don't\n  fit. Closes the latent crash in\n  ``kg_predictions.py:269`` where the relation_map fallback\n  referenced this value before it existed.\n\nNote: ``contests`` was considered as a synonym for ``contradicts``\nbut excluded — same semantic, different word, doesn't earn a\nseparate enum slot. Writers should keep using ``contradicts``.", 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-related")
@@ -3016,11 +3073,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Related Claims (GET /api/claims/{claim_id}/related)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/claims/{claim_id}/related"
+            endpoint_path = f"/api/claims/{claim_id}/related"
             params = {
                 "relation_type": relation_type,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("transition-curation-state")
@@ -3033,7 +3090,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Transition claim curation state (PATCH /api/claims/{claim_id}/transition)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/claims/{claim_id}/transition"
+            endpoint_path = f"/api/claims/{claim_id}/transition"
             params = None
             payload = _build_json_payload({
                 "reason": reason,
@@ -3044,13 +3101,14 @@ def register_generated_openapi_commands(
                 "reviewed_by": {'type': 'string', 'title': 'Reviewed By', 'description': 'Who performed the review', 'default': 'human', 'x-cli-required': False},
                 "to_state": {'type': 'string', 'title': 'To State', 'description': 'Target curation state: unreviewed, shortlisted, curated, rejected', 'x-cli-required': True},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('classifications')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for classifications endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='classifications')
+        existing_apps['classifications'] = target_app
 
     @target_app.command("list-values-filter-by-dimension")
     def classifications_list_values_filter_by_dimension_get(
@@ -3059,11 +3117,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """List classification values (filter by dimension) (GET /api/classifications)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/classifications"
+            endpoint_path = "/api/classifications"
             params = {
                 "dimension": dimension,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("add-a-custom-value")
@@ -3080,7 +3138,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Add a custom classification value (POST /api/classifications)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/classifications"
+            endpoint_path = "/api/classifications"
             params = None
             payload = _build_json_payload({
                 "color": color,
@@ -3101,19 +3159,22 @@ def register_generated_openapi_commands(
                 "parent_key": {'type': 'string', 'nullable': True, 'title': 'Parent Key', 'x-cli-required': False},
                 "sort_order": {'type': 'integer', 'title': 'Sort Order', 'default': 0, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete-value")
     def classifications_delete_value_delete(
         ctx: typer.Context,
         value_id: str = typer.Argument(..., help="Path parameter: value_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Value (DELETE /api/classifications/{value_id})."""
+        if not yes:
+            typer.confirm("Delete classifications?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/classifications/{value_id}"
+            endpoint_path = f"/api/classifications/{value_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("edit-a-value-s-label-color-order")
@@ -3129,7 +3190,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Edit a classification value's label / color / order (PATCH /api/classifications/{value_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/classifications/{value_id}"
+            endpoint_path = f"/api/classifications/{value_id}"
             params = None
             payload = _build_json_payload({
                 "color": color,
@@ -3146,13 +3207,14 @@ def register_generated_openapi_commands(
                 "parent_key": {'type': 'string', 'nullable': True, 'title': 'Parent Key', 'x-cli-required': False},
                 "sort_order": {'type': 'integer', 'nullable': True, 'title': 'Sort Order', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('documents')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for documents endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='docs')
+        existing_apps['documents'] = target_app
 
     @target_app.command("list")
     def documents_list_get(
@@ -3168,7 +3230,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Documents (GET /api/documents)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/documents"
+            endpoint_path = "/api/documents"
             params = {
                 "doc_type": doc_type,
                 "file_type": file_type,
@@ -3179,7 +3241,7 @@ def register_generated_openapi_commands(
                 "parent_id": parent_id,
                 "status": status,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create")
@@ -3203,7 +3265,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Document (POST /api/documents)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/documents"
+            endpoint_path = "/api/documents"
             params = None
             payload = _build_json_payload({
                 "doc_type": doc_type,
@@ -3238,7 +3300,7 @@ def register_generated_openapi_commands(
                 "scale": {'type': 'number', 'nullable': True, 'title': 'Scale', 'x-cli-required': False},
                 "z_index": {'type': 'integer', 'nullable': True, 'title': 'Z Index', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("batch-exclude")
@@ -3250,7 +3312,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Batch Exclude Documents (PATCH /api/documents/batch-exclude)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/documents/batch-exclude"
+            endpoint_path = "/api/documents/batch-exclude"
             params = None
             payload = _build_json_payload({
                 "document_ids": document_ids,
@@ -3261,7 +3323,7 @@ def register_generated_openapi_commands(
                 "excluded": {'type': 'boolean', 'title': 'Excluded', 'x-cli-required': True},
                 "reason": {'type': 'string', 'nullable': True, 'title': 'Reason', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("cleanup-orphan")
@@ -3270,9 +3332,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Cleanup Orphan Documents (POST /api/documents/cleanup-orphans)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/documents/cleanup-orphans"
+            endpoint_path = "/api/documents/cleanup-orphans"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-collections")
@@ -3281,9 +3343,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Collections (GET /api/documents/collections)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/documents/collections"
+            endpoint_path = "/api/documents/collections"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("import-file")
@@ -3295,14 +3357,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """Import File (POST /api/documents/import)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/documents/import"
+            endpoint_path = "/api/documents/import"
             params = {
                 "parent_id": parent_id,
             }
             files = _build_multipart_payload(field, upload)
             if files is None:
                 raise typer.BadParameter("Provide at least one --field or --upload value.")
-            return client.request("POST", path, params=params, files=files)
+            return client.request("POST", endpoint_path, params=params, files=files)
         invoke(ctx, op_call)
 
     @target_app.command("backfill-pdf-pages")
@@ -3311,9 +3373,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Backfill Pdf Pages (POST /api/documents/pdfs/backfill-pages)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/documents/pdfs/backfill-pages"
+            endpoint_path = "/api/documents/pdfs/backfill-pages"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("reorder")
@@ -3325,12 +3387,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """Reorder Documents (POST /api/documents/reorder)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/documents/reorder"
+            endpoint_path = "/api/documents/reorder"
             params = {
                 "folder_path": folder_path,
             }
             payload = _load_json_payload(body, body_file, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-roots")
@@ -3339,9 +3401,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Roots (GET /api/documents/roots)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/documents/roots"
+            endpoint_path = "/api/documents/roots"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-deleted")
@@ -3352,12 +3414,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Deleted Documents (GET /api/documents/trash)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/documents/trash"
+            endpoint_path = "/api/documents/trash"
             params = {
                 "limit": limit,
                 "offset": offset,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-workspaces")
@@ -3366,21 +3428,24 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Workspaces (GET /api/documents/workspaces)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/documents/workspaces"
+            endpoint_path = "/api/documents/workspaces"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("delete")
     def documents_delete_delete(
         ctx: typer.Context,
         doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Document (DELETE /api/documents/{doc_id})."""
+        if not yes:
+            typer.confirm("Delete documents?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/documents/{doc_id}"
+            endpoint_path = f"/api/documents/{doc_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get")
@@ -3390,9 +3455,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Document (GET /api/documents/{doc_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/documents/{doc_id}"
+            endpoint_path = f"/api/documents/{doc_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update")
@@ -3422,7 +3487,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Document (PUT /api/documents/{doc_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/documents/{doc_id}"
+            endpoint_path = f"/api/documents/{doc_id}"
             params = None
             payload = _build_json_payload({
                 "doc_type": doc_type,
@@ -3467,7 +3532,7 @@ def register_generated_openapi_commands(
                 "status": {'type': 'string', 'enum': ['pending', 'processing', 'active', 'completed', 'failed'], 'title': 'Status', 'description': 'Processing status.', 'x-cli-required': False},
                 "z_index": {'type': 'integer', 'nullable': True, 'title': 'Z Index', 'x-cli-required': False},
             }, required=True)
-            return client.request("PUT", path, params=params, json=payload)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-ancestors")
@@ -3477,9 +3542,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Ancestors (GET /api/documents/{doc_id}/ancestors)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/documents/{doc_id}/ancestors"
+            endpoint_path = f"/api/documents/{doc_id}/ancestors"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-children")
@@ -3490,11 +3555,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Children (GET /api/documents/{doc_id}/children)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/documents/{doc_id}/children"
+            endpoint_path = f"/api/documents/{doc_id}/children"
             params = {
                 "limit": limit,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-geocoded-points-for-a")
@@ -3504,9 +3569,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List geocoded points for a document (GET /api/documents/{doc_id}/geo)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/documents/{doc_id}/geo"
+            endpoint_path = f"/api/documents/{doc_id}/geo"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("move")
@@ -3517,23 +3582,26 @@ def register_generated_openapi_commands(
     ) -> None:
         """Move Document (PUT /api/documents/{doc_id}/move)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/documents/{doc_id}/move"
+            endpoint_path = f"/api/documents/{doc_id}/move"
             params = {
                 "parent_id": parent_id,
             }
-            return client.request("PUT", path, params=params)
+            return client.request("PUT", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("delete-note")
     def documents_delete_note_delete(
         ctx: typer.Context,
         doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Document Note (DELETE /api/documents/{doc_id}/notes)."""
+        if not yes:
+            typer.confirm("Delete documents?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/documents/{doc_id}/notes"
+            endpoint_path = f"/api/documents/{doc_id}/notes"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-note")
@@ -3543,9 +3611,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Document Note (GET /api/documents/{doc_id}/notes)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/documents/{doc_id}/notes"
+            endpoint_path = f"/api/documents/{doc_id}/notes"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("put-note")
@@ -3556,14 +3624,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """Put Document Note (PUT /api/documents/{doc_id}/notes)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/documents/{doc_id}/notes"
+            endpoint_path = f"/api/documents/{doc_id}/notes"
             params = None
             payload = _build_json_payload({
                 "content": content,
             }, {
                 "content": {'type': 'string', 'title': 'Content', 'x-cli-required': True},
             }, required=True)
-            return client.request("PUT", path, params=params, json=payload)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-page-ranges")
@@ -3573,9 +3641,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Page Ranges (GET /api/documents/{doc_id}/page-ranges)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/documents/{doc_id}/page-ranges"
+            endpoint_path = f"/api/documents/{doc_id}/page-ranges"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("upsert-page-ranges")
@@ -3586,14 +3654,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """Upsert Page Ranges (PUT /api/documents/{doc_id}/page-ranges)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/documents/{doc_id}/page-ranges"
+            endpoint_path = f"/api/documents/{doc_id}/page-ranges"
             params = None
             payload = _build_json_payload({
                 "items": items,
             }, {
                 "items": {'items': {'$ref': '#/components/schemas/PageRangeItem'}, 'type': 'array', 'title': 'Items', 'x-cli-required': True},
             }, required=True)
-            return client.request("PUT", path, params=params, json=payload)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("page-range-for-page")
@@ -3604,9 +3672,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Page Range For Page (GET /api/documents/{doc_id}/page-ranges/at/{page})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/documents/{doc_id}/page-ranges/at/{page}"
+            endpoint_path = f"/api/documents/{doc_id}/page-ranges/at/{page}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-parent")
@@ -3616,9 +3684,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Document Parent (GET /api/documents/{doc_id}/parent)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/documents/{doc_id}/parent"
+            endpoint_path = f"/api/documents/{doc_id}/parent"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("assign-prototype")
@@ -3632,7 +3700,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Assign Document Prototype (PUT /api/documents/{doc_id}/prototype)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/documents/{doc_id}/prototype"
+            endpoint_path = f"/api/documents/{doc_id}/prototype"
             params = None
             payload = _build_json_payload({
                 "include_descendants": include_descendants,
@@ -3645,19 +3713,22 @@ def register_generated_openapi_commands(
                 "page_start": {'type': 'integer', 'nullable': True, 'title': 'Page Start', 'x-cli-required': False},
                 "prototype_key": {'type': 'string', 'title': 'Prototype Key', 'x-cli-required': True},
             }, required=True)
-            return client.request("PUT", path, params=params, json=payload)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("purge")
     def documents_purge_delete(
         ctx: typer.Context,
         doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Purge Document (DELETE /api/documents/{doc_id}/purge)."""
+        if not yes:
+            typer.confirm("Delete documents?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/documents/{doc_id}/purge"
+            endpoint_path = f"/api/documents/{doc_id}/purge"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("related")
@@ -3668,11 +3739,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Related Documents (GET /api/documents/{doc_id}/related)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/documents/{doc_id}/related"
+            endpoint_path = f"/api/documents/{doc_id}/related"
             params = {
                 "limit": limit,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("restore")
@@ -3682,9 +3753,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Restore Document (POST /api/documents/{doc_id}/restore)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/documents/{doc_id}/restore"
+            endpoint_path = f"/api/documents/{doc_id}/restore"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-workflow-provenance-for-a")
@@ -3694,9 +3765,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get workflow provenance for a document (GET /api/documents/{doc_id}/workflow-runs)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/documents/{doc_id}/workflow-runs"
+            endpoint_path = f"/api/documents/{doc_id}/workflow-runs"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("patch-workspace-items")
@@ -3709,7 +3780,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Patch Workspace Items (PATCH /api/documents/{doc_id}/workspace)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/documents/{doc_id}/workspace"
+            endpoint_path = f"/api/documents/{doc_id}/workspace"
             params = None
             payload = _build_json_payload({
                 "add": add,
@@ -3720,7 +3791,7 @@ def register_generated_openapi_commands(
                 "remove_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Remove Ids', 'default': [], 'x-cli-required': False},
                 "reorder_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Reorder Ids', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-workspace-items")
@@ -3730,9 +3801,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Workspace Items (GET /api/documents/{doc_id}/workspace/items)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/documents/{doc_id}/workspace/items"
+            endpoint_path = f"/api/documents/{doc_id}/workspace/items"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-citations")
@@ -3742,9 +3813,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Document Citations (GET /api/documents/{document_id}/citations)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/documents/{document_id}/citations"
+            endpoint_path = f"/api/documents/{document_id}/citations"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("one-call-aggregate-of-every-kg-row-attached-to-this")
@@ -3754,9 +3825,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """One-call aggregate of every KG row attached to this document (GET /api/documents/{document_id}/inspector)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/documents/{document_id}/inspector"
+            endpoint_path = f"/api/documents/{document_id}/inspector"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("canonical-kg-grouping-for-a-deduped-merge-resolved")
@@ -3767,11 +3838,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Canonical KG grouping for a document — deduped, merge-resolved (GET /api/documents/{document_id}/knowledge-graph)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/documents/{document_id}/knowledge-graph"
+            endpoint_path = f"/api/documents/{document_id}/knowledge-graph"
             params = {
                 "include_children": include_children,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("hierarchical-source-outline-for-drill-down")
@@ -3781,9 +3852,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Hierarchical source outline for document drill-down (GET /api/documents/{document_id}/outline)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/documents/{document_id}/outline"
+            endpoint_path = f"/api/documents/{document_id}/outline"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("cheap-per-type-child-counts-for-a-collapsed-library-outline-row")
@@ -3793,15 +3864,16 @@ def register_generated_openapi_commands(
     ) -> None:
         """Cheap per-type child counts for a collapsed library outline row (GET /api/documents/{document_id}/rollup)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/documents/{document_id}/rollup"
+            endpoint_path = f"/api/documents/{document_id}/rollup"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('entities')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for entities endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='entities')
+        existing_apps['entities'] = target_app
 
     @target_app.command("list")
     def entities_list_get(
@@ -3813,14 +3885,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Entities (GET /api/entities)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/entities"
+            endpoint_path = "/api/entities"
             params = {
                 "document_id": document_id,
                 "entity_type": entity_type,
                 "limit": limit,
                 "q": q,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("upsert")
@@ -3837,7 +3909,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Upsert Entity (POST /api/entities)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/entities"
+            endpoint_path = "/api/entities"
             params = None
             payload = _build_json_payload({
                 "aliases": aliases,
@@ -3858,7 +3930,7 @@ def register_generated_openapi_commands(
                 "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
                 "source_document_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Source Document Ids', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-alias-map")
@@ -3867,9 +3939,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Entity Alias Map (GET /api/entities/alias-map)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/entities/alias-map"
+            endpoint_path = "/api/entities/alias-map"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("claim-counts")
@@ -3878,9 +3950,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Entity Claim Counts (GET /api/entities/claim-counts)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/entities/claim-counts"
+            endpoint_path = "/api/entities/claim-counts"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("digest")
@@ -3891,12 +3963,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """Entity Digest (GET /api/entities/digest)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/entities/digest"
+            endpoint_path = "/api/entities/digest"
             params = {
                 "format": format,
                 "library_path": library_path,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("resolve")
@@ -3906,9 +3978,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Resolve Entity (GET /api/entities/resolve/{value})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/entities/resolve/{value}"
+            endpoint_path = f"/api/entities/resolve/{value}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("top")
@@ -3919,12 +3991,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """Top Entities (GET /api/entities/top)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/entities/top"
+            endpoint_path = "/api/entities/top"
             params = {
                 "entity_type": entity_type,
                 "limit": limit,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("delete")
@@ -3932,14 +4004,17 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
         cascade_claims: Optional[bool] = typer.Option(None, "--cascade-claims/--no-cascade-claims", help="Query parameter: cascade_claims."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Entity (DELETE /api/entities/{entity_id})."""
+        if not yes:
+            typer.confirm("Delete entities?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/entities/{entity_id}"
+            endpoint_path = f"/api/entities/{entity_id}"
             params = {
                 "cascade_claims": cascade_claims,
             }
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get")
@@ -3949,9 +4024,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Entity (GET /api/entities/{entity_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/entities/{entity_id}"
+            endpoint_path = f"/api/entities/{entity_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("patch")
@@ -3967,7 +4042,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Patch Entity (PATCH /api/entities/{entity_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/entities/{entity_id}"
+            endpoint_path = f"/api/entities/{entity_id}"
             params = None
             payload = _build_json_payload({
                 "aliases": aliases,
@@ -3984,7 +4059,7 @@ def register_generated_openapi_commands(
                 "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
                 "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("add-aliases")
@@ -3995,14 +4070,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """Add Entity Aliases (POST /api/entities/{entity_id}/aliases)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/entities/{entity_id}/aliases"
+            endpoint_path = f"/api/entities/{entity_id}/aliases"
             params = None
             payload = _build_json_payload({
                 "aliases": aliases,
             }, {
                 "aliases": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Aliases', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-biography")
@@ -4015,13 +4090,13 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Entity Biography (GET /api/entities/{entity_id}/biography)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/entities/{entity_id}/biography"
+            endpoint_path = f"/api/entities/{entity_id}/biography"
             params = {
                 "claims_limit": claims_limit,
                 "co_occurrence_limit": co_occurrence_limit,
                 "documents_limit": documents_limit,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-co-occurrence")
@@ -4032,11 +4107,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Entity Co Occurrence (GET /api/entities/{entity_id}/co-occurrence)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/entities/{entity_id}/co-occurrence"
+            endpoint_path = f"/api/entities/{entity_id}/co-occurrence"
             params = {
                 "limit": limit,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-documents")
@@ -4047,11 +4122,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Entity Documents (GET /api/entities/{entity_id}/documents)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/entities/{entity_id}/documents"
+            endpoint_path = f"/api/entities/{entity_id}/documents"
             params = {
                 "limit": limit,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("drill-down")
@@ -4064,13 +4139,13 @@ def register_generated_openapi_commands(
     ) -> None:
         """Entity Drill Down (GET /api/entities/{entity_id}/drill-down)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/entities/{entity_id}/drill-down"
+            endpoint_path = f"/api/entities/{entity_id}/drill-down"
             params = {
                 "co_occurrence_limit": co_occurrence_limit,
                 "documents_limit": documents_limit,
                 "excerpts_limit": excerpts_limit,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("one-call-aggregate-of-every-kg-row-attached-to-this")
@@ -4080,15 +4155,16 @@ def register_generated_openapi_commands(
     ) -> None:
         """One-call aggregate of every KG row attached to this entity (GET /api/entities/{entity_id}/inspector)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/entities/{entity_id}/inspector"
+            endpoint_path = f"/api/entities/{entity_id}/inspector"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('export')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for export endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='export')
+        existing_apps['export'] = target_app
 
     @target_app.command("eleventy-site-route")
     def export_eleventy_site_route_post(
@@ -4101,7 +4177,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Export Eleventy Site Route (POST /api/export/eleventy-site)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/export/eleventy-site"
+            endpoint_path = "/api/export/eleventy-site"
             params = None
             payload = _build_json_payload({
                 "output_path": output_path,
@@ -4116,7 +4192,7 @@ def register_generated_openapi_commands(
                 "site_title": {'type': 'string', 'nullable': True, 'title': 'Site Title', 'description': 'Site title (defaults to the root folder name)', 'x-cli-required': False},
                 "target_id": {'type': 'string', 'nullable': True, 'title': 'Target Id', 'description': 'Optional folder id to publish; omitted exports the library', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("excel-route")
@@ -4129,7 +4205,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Export Excel Route (POST /api/export/excel)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/export/excel"
+            endpoint_path = "/api/export/excel"
             params = None
             payload = _build_json_payload({
                 "output_path": output_path,
@@ -4142,7 +4218,7 @@ def register_generated_openapi_commands(
                 "recursive": {'type': 'boolean', 'title': 'Recursive', 'description': 'Include descendants of folders', 'default': True, 'x-cli-required': False},
                 "target_id": {'type': 'string', 'nullable': True, 'title': 'Target Id', 'description': 'Optional document/folder id to export; omitted exports library', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("markdown-folder-route")
@@ -4156,7 +4232,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Export Markdown Folder Route (POST /api/export/markdown-folder)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/export/markdown-folder"
+            endpoint_path = "/api/export/markdown-folder"
             params = None
             payload = _build_json_payload({
                 "include_assets": include_assets,
@@ -4171,7 +4247,7 @@ def register_generated_openapi_commands(
                 "recursive": {'type': 'boolean', 'title': 'Recursive', 'description': 'Include descendants of folders', 'default': True, 'x-cli-required': False},
                 "target_id": {'type': 'string', 'nullable': True, 'title': 'Target Id', 'description': 'Optional document/folder id to export; omitted exports library', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("word-route")
@@ -4185,7 +4261,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Export Word Route (POST /api/export/word)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/export/word"
+            endpoint_path = "/api/export/word"
             params = None
             payload = _build_json_payload({
                 "include_knowledge_graph": include_knowledge_graph,
@@ -4200,13 +4276,14 @@ def register_generated_openapi_commands(
                 "recursive": {'type': 'boolean', 'title': 'Recursive', 'description': 'Include descendants of folders', 'default': True, 'x-cli-required': False},
                 "target_id": {'type': 'string', 'nullable': True, 'title': 'Target Id', 'description': 'Optional document/folder id to export; omitted exports library', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('folders')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for folders endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='folders')
+        existing_apps['folders'] = target_app
 
     @target_app.command("delete")
     def folders_delete_delete(
@@ -4214,15 +4291,18 @@ def register_generated_openapi_commands(
         entity_type: str = typer.Argument(..., help="Path parameter: entity_type."),
         delete_contents: Optional[bool] = typer.Option(None, "--delete-contents/--no-delete-contents", help="Query parameter: delete_contents."),
         folder_path: str = typer.Option(..., "--folder-path", help="Query parameter: folder_path."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Folder (DELETE /api/folders/{entity_type}/folders)."""
+        if not yes:
+            typer.confirm("Delete folders?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/folders/{entity_type}/folders"
+            endpoint_path = f"/api/folders/{entity_type}/folders"
             params = {
                 "delete_contents": delete_contents,
                 "folder_path": folder_path,
             }
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list")
@@ -4233,11 +4313,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Folders (GET /api/folders/{entity_type}/folders)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/folders/{entity_type}/folders"
+            endpoint_path = f"/api/folders/{entity_type}/folders"
             params = {
                 "parent_path": parent_path,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create")
@@ -4248,11 +4328,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Folder (POST /api/folders/{entity_type}/folders)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/folders/{entity_type}/folders"
+            endpoint_path = f"/api/folders/{entity_type}/folders"
             params = {
                 "folder_path": folder_path,
             }
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("rename")
@@ -4264,7 +4344,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Rename Folder (PUT /api/folders/{entity_type}/folders)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/folders/{entity_type}/folders"
+            endpoint_path = f"/api/folders/{entity_type}/folders"
             params = None
             payload = _build_json_payload({
                 "new_path": new_path,
@@ -4273,7 +4353,7 @@ def register_generated_openapi_commands(
                 "new_path": {'type': 'string', 'title': 'New Path', 'x-cli-required': True},
                 "old_path": {'type': 'string', 'title': 'Old Path', 'x-cli-required': True},
             }, required=True)
-            return client.request("PUT", path, params=params, json=payload)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("move-items")
@@ -4285,7 +4365,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Move Items (PUT /api/folders/{entity_type}/move)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/folders/{entity_type}/move"
+            endpoint_path = f"/api/folders/{entity_type}/move"
             params = None
             payload = _build_json_payload({
                 "folder_path": folder_path,
@@ -4294,7 +4374,7 @@ def register_generated_openapi_commands(
                 "folder_path": {'type': 'string', 'title': 'Folder Path', 'x-cli-required': True},
                 "item_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Item Ids', 'x-cli-required': True},
             }, required=True)
-            return client.request("PUT", path, params=params, json=payload)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-views")
@@ -4304,15 +4384,16 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Folder Views (GET /api/folders/{folder_id}/views)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/folders/{folder_id}/views"
+            endpoint_path = f"/api/folders/{folder_id}/views"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('hermeneutics')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for hermeneutics endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='hermeneutics')
+        existing_apps['hermeneutics'] = target_app
 
     @target_app.command("list-circle-states")
     def hermeneutics_list_circle_states_get(
@@ -4321,11 +4402,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Circle States (GET /api/hermeneutics/circle-state)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/hermeneutics/circle-state"
+            endpoint_path = "/api/hermeneutics/circle-state"
             params = {
                 "claim_id": claim_id,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-circle-state")
@@ -4340,7 +4421,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Circle State (POST /api/hermeneutics/circle-state)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/hermeneutics/circle-state"
+            endpoint_path = "/api/hermeneutics/circle-state"
             params = None
             payload = _build_json_payload({
                 "claim_id": claim_id,
@@ -4357,7 +4438,7 @@ def register_generated_openapi_commands(
                 "focus_label": {'type': 'string', 'title': 'Focus Label', 'x-cli-required': True},
                 "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-circle-state")
@@ -4367,9 +4448,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Circle State (GET /api/hermeneutics/circle-state/{state_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/hermeneutics/circle-state/{state_id}"
+            endpoint_path = f"/api/hermeneutics/circle-state/{state_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("backtrack-circle")
@@ -4379,9 +4460,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Backtrack Circle (POST /api/hermeneutics/circle-state/{state_id}/backtrack)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/hermeneutics/circle-state/{state_id}/backtrack"
+            endpoint_path = f"/api/hermeneutics/circle-state/{state_id}/backtrack"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("navigate-circle")
@@ -4394,7 +4475,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Navigate Circle (POST /api/hermeneutics/circle-state/{state_id}/navigate)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/hermeneutics/circle-state/{state_id}/navigate"
+            endpoint_path = f"/api/hermeneutics/circle-state/{state_id}/navigate"
             params = None
             payload = _build_json_payload({
                 "direction": direction,
@@ -4405,7 +4486,7 @@ def register_generated_openapi_commands(
                 "focus_id": {'type': 'string', 'title': 'Focus Id', 'x-cli-required': True},
                 "focus_label": {'type': 'string', 'title': 'Focus Label', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-frameworks")
@@ -4416,12 +4497,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Frameworks (GET /api/hermeneutics/frameworks)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/hermeneutics/frameworks"
+            endpoint_path = "/api/hermeneutics/frameworks"
             params = {
                 "framework_type": framework_type,
                 "is_active": is_active,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-framework")
@@ -4440,7 +4521,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Framework (POST /api/hermeneutics/frameworks)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/hermeneutics/frameworks"
+            endpoint_path = "/api/hermeneutics/frameworks"
             params = None
             payload = _build_json_payload({
                 "core_questions": core_questions,
@@ -4465,19 +4546,22 @@ def register_generated_openapi_commands(
                 "origin": {'type': 'string', 'nullable': True, 'title': 'Origin', 'x-cli-required': False},
                 "typical_applications": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Typical Applications', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete-framework")
     def hermeneutics_delete_framework_delete(
         ctx: typer.Context,
         framework_id: str = typer.Argument(..., help="Path parameter: framework_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Framework (DELETE /api/hermeneutics/frameworks/{framework_id})."""
+        if not yes:
+            typer.confirm("Delete hermeneutics?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/hermeneutics/frameworks/{framework_id}"
+            endpoint_path = f"/api/hermeneutics/frameworks/{framework_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-framework")
@@ -4487,9 +4571,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Framework (GET /api/hermeneutics/frameworks/{framework_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/hermeneutics/frameworks/{framework_id}"
+            endpoint_path = f"/api/hermeneutics/frameworks/{framework_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update-framework")
@@ -4510,7 +4594,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Framework (PATCH /api/hermeneutics/frameworks/{framework_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/hermeneutics/frameworks/{framework_id}"
+            endpoint_path = f"/api/hermeneutics/frameworks/{framework_id}"
             params = None
             payload = _build_json_payload({
                 "core_questions": core_questions,
@@ -4537,7 +4621,7 @@ def register_generated_openapi_commands(
                 "origin": {'type': 'string', 'nullable': True, 'title': 'Origin', 'x-cli-required': False},
                 "typical_applications": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Typical Applications', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-interpretations")
@@ -4550,14 +4634,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Interpretations (GET /api/hermeneutics/interpretations)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/hermeneutics/interpretations"
+            endpoint_path = "/api/hermeneutics/interpretations"
             params = {
                 "act": act,
                 "claim_id": claim_id,
                 "document_id": document_id,
                 "framework_id": framework_id,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-interpretation")
@@ -4579,7 +4663,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Interpretation (POST /api/hermeneutics/interpretations)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/hermeneutics/interpretations"
+            endpoint_path = "/api/hermeneutics/interpretations"
             params = None
             payload = _build_json_payload({
                 "act": act,
@@ -4610,7 +4694,7 @@ def register_generated_openapi_commands(
                 "predicate": {'type': 'string', 'nullable': True, 'title': 'Predicate', 'x-cli-required': False},
                 "tensions": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Tensions', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-interpretation")
@@ -4620,9 +4704,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Interpretation (GET /api/hermeneutics/interpretations/{interpretation_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/hermeneutics/interpretations/{interpretation_id}"
+            endpoint_path = f"/api/hermeneutics/interpretations/{interpretation_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update-interpretation")
@@ -4640,7 +4724,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Interpretation (PATCH /api/hermeneutics/interpretations/{interpretation_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/hermeneutics/interpretations/{interpretation_id}"
+            endpoint_path = f"/api/hermeneutics/interpretations/{interpretation_id}"
             params = None
             payload = _build_json_payload({
                 "act": act,
@@ -4661,7 +4745,7 @@ def register_generated_openapi_commands(
                 "predicate": {'type': 'string', 'nullable': True, 'title': 'Predicate', 'x-cli-required': False},
                 "tensions": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Tensions', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-patterns")
@@ -4673,13 +4757,13 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Patterns (GET /api/hermeneutics/patterns)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/hermeneutics/patterns"
+            endpoint_path = "/api/hermeneutics/patterns"
             params = {
                 "framework_id": framework_id,
                 "pattern_type": pattern_type,
                 "status": status,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-pattern")
@@ -4699,7 +4783,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Pattern (POST /api/hermeneutics/patterns)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/hermeneutics/patterns"
+            endpoint_path = "/api/hermeneutics/patterns"
             params = None
             payload = _build_json_payload({
                 "claim_ids": claim_ids,
@@ -4726,7 +4810,7 @@ def register_generated_openapi_commands(
                 "status": {'type': 'string', 'enum': ['tentative', 'confirmed', 'superseded'], 'title': 'PatternStatus', 'description': 'Lifecycle state of a recognized pattern.', 'x-cli-required': False},
                 "supporting_passages": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Supporting Passages', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-pattern")
@@ -4736,9 +4820,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Pattern (GET /api/hermeneutics/patterns/{pattern_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/hermeneutics/patterns/{pattern_id}"
+            endpoint_path = f"/api/hermeneutics/patterns/{pattern_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update-pattern")
@@ -4759,7 +4843,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Pattern (PATCH /api/hermeneutics/patterns/{pattern_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/hermeneutics/patterns/{pattern_id}"
+            endpoint_path = f"/api/hermeneutics/patterns/{pattern_id}"
             params = None
             payload = _build_json_payload({
                 "claim_ids": claim_ids,
@@ -4786,7 +4870,7 @@ def register_generated_openapi_commands(
                 "status": {'type': 'string', 'enum': ['tentative', 'confirmed', 'superseded'], 'title': 'PatternStatus', 'description': 'Lifecycle state of a recognized pattern.', 'x-cli-required': False},
                 "supporting_passages": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Supporting Passages', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("add-claim-to-pattern")
@@ -4797,9 +4881,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Add Claim To Pattern (POST /api/hermeneutics/patterns/{pattern_id}/claims/{claim_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/hermeneutics/patterns/{pattern_id}/claims/{claim_id}"
+            endpoint_path = f"/api/hermeneutics/patterns/{pattern_id}/claims/{claim_id}"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("suggest-interpretations")
@@ -4812,7 +4896,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Suggest Interpretations (POST /api/hermeneutics/suggestions)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/hermeneutics/suggestions"
+            endpoint_path = "/api/hermeneutics/suggestions"
             params = None
             payload = _build_json_payload({
                 "claim_ids": claim_ids,
@@ -4825,7 +4909,7 @@ def register_generated_openapi_commands(
                 "framework_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Framework Ids', 'x-cli-required': False},
                 "num_suggestions": {'type': 'integer', 'maximum': 10.0, 'minimum': 1.0, 'title': 'Num Suggestions', 'default': 3, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("picker-values-for-interpretation-editor-acts-framework-types")
@@ -4834,15 +4918,16 @@ def register_generated_openapi_commands(
     ) -> None:
         """Picker values for interpretation editor (acts + framework types) (GET /api/hermeneutics/taxonomy/methods)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/hermeneutics/taxonomy/methods"
+            endpoint_path = "/api/hermeneutics/taxonomy/methods"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('iiif')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for iiif endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='iiif')
+        existing_apps['iiif'] = target_app
 
     @target_app.command("direct-image-access")
     def iiif_direct_image_access_get(
@@ -4853,12 +4938,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """Direct Image Access (GET /api/iiif/iiif/image/{document_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/iiif/iiif/image/{document_id}"
+            endpoint_path = f"/api/iiif/iiif/image/{document_id}"
             params = {
                 "height": height,
                 "width": width,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("manifest")
@@ -4868,9 +4953,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """IIIF Manifest (GET /api/iiif/iiif/manifest/{document_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/iiif/iiif/manifest/{document_id}"
+            endpoint_path = f"/api/iiif/iiif/manifest/{document_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("image-information")
@@ -4880,9 +4965,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """IIIF Image Information (GET /api/iiif/iiif/{identifier}/info.json)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/iiif/iiif/{identifier}/info.json"
+            endpoint_path = f"/api/iiif/iiif/{identifier}/info.json"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("image-request")
@@ -4896,26 +4981,30 @@ def register_generated_openapi_commands(
     ) -> None:
         """IIIF Image Request (GET /api/iiif/iiif/{identifier}/{region}/{size}/{rotation}/{quality}.{format})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/iiif/iiif/{identifier}/{region}/{size}/{rotation}/{quality_format}"
+            endpoint_path = f"/api/iiif/iiif/{identifier}/{region}/{size}/{rotation}/{quality_format}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('images')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for images endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='images')
+        existing_apps['images'] = target_app
 
     @target_app.command("delete-edit-chain")
     def images_delete_edit_chain_delete(
         ctx: typer.Context,
         document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Edit Chain (DELETE /api/images/{document_id}/edits)."""
+        if not yes:
+            typer.confirm("Delete images?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/images/{document_id}/edits"
+            endpoint_path = f"/api/images/{document_id}/edits"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-edit-chain")
@@ -4925,9 +5014,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Edit Chain (GET /api/images/{document_id}/edits)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/images/{document_id}/edits"
+            endpoint_path = f"/api/images/{document_id}/edits"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("put-edit-chain")
@@ -4938,14 +5027,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """Put Edit Chain (PUT /api/images/{document_id}/edits)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/images/{document_id}/edits"
+            endpoint_path = f"/api/images/{document_id}/edits"
             params = None
             payload = _build_json_payload({
                 "operations": operations,
             }, {
                 "operations": {'items': {'additionalProperties': True, 'type': 'object'}, 'type': 'array', 'title': 'Operations', 'x-cli-required': False},
             }, required=True)
-            return client.request("PUT", path, params=params, json=payload)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("crop")
@@ -4961,7 +5050,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Crop Image (POST /api/images/{document_id}/operations/crop)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/images/{document_id}/operations/crop"
+            endpoint_path = f"/api/images/{document_id}/operations/crop"
             params = None
             payload = _build_json_payload({
                 "auto_orient": auto_orient,
@@ -4978,7 +5067,7 @@ def register_generated_openapi_commands(
                 "top": {'type': 'integer', 'title': 'Top', 'x-cli-required': True},
                 "width": {'type': 'integer', 'title': 'Width', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("enhance")
@@ -4993,7 +5082,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Enhance Image (POST /api/images/{document_id}/operations/enhance)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/images/{document_id}/operations/enhance"
+            endpoint_path = f"/api/images/{document_id}/operations/enhance"
             params = None
             payload = _build_json_payload({
                 "auto_levels": auto_levels,
@@ -5008,7 +5097,7 @@ def register_generated_openapi_commands(
                 "page": {'type': 'integer', 'minimum': 1.0, 'title': 'Page', 'default': 1, 'x-cli-required': False},
                 "sharpen": {'type': 'number', 'minimum': 0.0, 'title': 'Sharpen', 'default': 1.0, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("remove-background")
@@ -5021,7 +5110,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Remove Background Image (POST /api/images/{document_id}/operations/remove-background)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/images/{document_id}/operations/remove-background"
+            endpoint_path = f"/api/images/{document_id}/operations/remove-background"
             params = None
             payload = _build_json_payload({
                 "method": method,
@@ -5032,7 +5121,7 @@ def register_generated_openapi_commands(
                 "page": {'type': 'integer', 'minimum': 1.0, 'title': 'Page', 'default': 1, 'x-cli-required': False},
                 "threshold": {'type': 'integer', 'maximum': 255.0, 'minimum': 0.0, 'title': 'Threshold', 'default': 28, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("rotate")
@@ -5045,7 +5134,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Rotate Image (POST /api/images/{document_id}/operations/rotate)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/images/{document_id}/operations/rotate"
+            endpoint_path = f"/api/images/{document_id}/operations/rotate"
             params = None
             payload = _build_json_payload({
                 "angle": angle,
@@ -5056,7 +5145,7 @@ def register_generated_openapi_commands(
                 "expand": {'type': 'boolean', 'title': 'Expand', 'default': True, 'x-cli-required': False},
                 "page": {'type': 'integer', 'title': 'Page', 'default': 1, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("segment")
@@ -5071,7 +5160,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Segment Image (POST /api/images/{document_id}/operations/segment)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/images/{document_id}/operations/segment"
+            endpoint_path = f"/api/images/{document_id}/operations/segment"
             params = None
             payload = _build_json_payload({
                 "max_segments": max_segments,
@@ -5086,7 +5175,7 @@ def register_generated_openapi_commands(
                 "page": {'type': 'integer', 'minimum': 1.0, 'title': 'Page', 'default': 1, 'x-cli-required': False},
                 "threshold": {'type': 'integer', 'maximum': 255.0, 'minimum': 0.0, 'title': 'Threshold', 'default': 28, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("straighten")
@@ -5097,14 +5186,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """Straighten Image (POST /api/images/{document_id}/operations/straighten)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/images/{document_id}/operations/straighten"
+            endpoint_path = f"/api/images/{document_id}/operations/straighten"
             params = None
             payload = _build_json_payload({
                 "page": page,
             }, {
                 "page": {'type': 'integer', 'minimum': 1.0, 'title': 'Page', 'default': 1, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("preview")
@@ -5116,18 +5205,19 @@ def register_generated_openapi_commands(
     ) -> None:
         """Preview Image (GET /api/images/{document_id}/preview)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/images/{document_id}/preview"
+            endpoint_path = f"/api/images/{document_id}/preview"
             params = {
                 "apply_edits": apply_edits,
                 "page": page,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('ingest')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for ingest endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='ingest')
+        existing_apps['ingest'] = target_app
 
     @target_app.command("file")
     def ingest_file_post(
@@ -5140,7 +5230,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Ingest File (POST /api/ingest/file)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/ingest/file"
+            endpoint_path = "/api/ingest/file"
             params = None
             payload = _build_json_payload({
                 "auto_embed": auto_embed,
@@ -5155,7 +5245,7 @@ def register_generated_openapi_commands(
                 "parent_id": {'type': 'string', 'nullable': True, 'title': 'Parent Id', 'x-cli-required': False},
                 "path": {'type': 'string', 'title': 'Path', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("folder")
@@ -5170,7 +5260,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Ingest Folder (POST /api/ingest/folder)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/ingest/folder"
+            endpoint_path = "/api/ingest/folder"
             params = None
             payload = _build_json_payload({
                 "auto_embed": auto_embed,
@@ -5187,7 +5277,7 @@ def register_generated_openapi_commands(
                 "path": {'type': 'string', 'title': 'Path', 'x-cli-required': True},
                 "recursive": {'type': 'boolean', 'title': 'Recursive', 'default': True, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-status")
@@ -5197,9 +5287,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Ingest Status (GET /api/ingest/status/{task_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/ingest/status/{task_id}"
+            endpoint_path = f"/api/ingest/status/{task_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("xlsx")
@@ -5213,7 +5303,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Ingest Xlsx (POST /api/ingest/xlsx)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/ingest/xlsx"
+            endpoint_path = "/api/ingest/xlsx"
             params = None
             payload = _build_json_payload({
                 "column_map": column_map,
@@ -5228,13 +5318,14 @@ def register_generated_openapi_commands(
                 "path": {'type': 'string', 'title': 'Path', 'x-cli-required': True},
                 "sheet_index": {'type': 'integer', 'title': 'Sheet Index', 'default': 0, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('integrations')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for integrations endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='integrations')
+        existing_apps['integrations'] = target_app
 
     @target_app.command("list")
     def integrations_list_get(
@@ -5242,9 +5333,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Integrations (GET /api/integrations)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/integrations"
+            endpoint_path = "/api/integrations"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-available")
@@ -5253,9 +5344,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Available Integrations (GET /api/integrations/available)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/integrations/available"
+            endpoint_path = "/api/integrations/available"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-bookends-citation")
@@ -5266,11 +5357,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Bookends Citation (GET /api/integrations/bookends/citation/{external_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/integrations/bookends/citation/{external_id}"
+            endpoint_path = f"/api/integrations/bookends/citation/{external_id}"
             params = {
                 "style": style,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-bookends-libraries")
@@ -5279,9 +5370,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Bookends Libraries (GET /api/integrations/bookends/libraries)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/integrations/bookends/libraries"
+            endpoint_path = "/api/integrations/bookends/libraries"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-devonthink-databases")
@@ -5290,9 +5381,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Devonthink Databases (GET /api/integrations/devonthink/databases)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/integrations/devonthink/databases"
+            endpoint_path = "/api/integrations/devonthink/databases"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-tinderbox-documents")
@@ -5301,9 +5392,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Tinderbox Documents (GET /api/integrations/tinderbox/documents)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/integrations/tinderbox/documents"
+            endpoint_path = "/api/integrations/tinderbox/documents"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-tinderbox-note")
@@ -5317,7 +5408,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Tinderbox Note (POST /api/integrations/tinderbox/notes)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/integrations/tinderbox/notes"
+            endpoint_path = "/api/integrations/tinderbox/notes"
             params = None
             payload = _build_json_payload({
                 "attributes": attributes,
@@ -5332,7 +5423,7 @@ def register_generated_openapi_commands(
                 "prototype": {'type': 'string', 'nullable': True, 'title': 'Prototype', 'x-cli-required': False},
                 "text": {'type': 'string', 'title': 'Text', 'default': '', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-tinderbox-attributes")
@@ -5343,11 +5434,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Tinderbox Attributes (GET /api/integrations/tinderbox/notes/{external_id}/attributes)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/integrations/tinderbox/notes/{external_id}/attributes"
+            endpoint_path = f"/api/integrations/tinderbox/notes/{external_id}/attributes"
             params = {
                 "attributes": attributes,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("set-tinderbox-attributes")
@@ -5358,14 +5449,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """Set Tinderbox Attributes (PUT /api/integrations/tinderbox/notes/{external_id}/attributes)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/integrations/tinderbox/notes/{external_id}/attributes"
+            endpoint_path = f"/api/integrations/tinderbox/notes/{external_id}/attributes"
             params = None
             payload = _build_json_payload({
                 "attributes": attributes,
             }, {
                 "attributes": {'additionalProperties': True, 'type': 'object', 'title': 'Attributes', 'x-cli-required': True},
             }, required=True)
-            return client.request("PUT", path, params=params, json=payload)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get")
@@ -5375,9 +5466,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Integration (GET /api/integrations/{app_name})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/integrations/{app_name}"
+            endpoint_path = f"/api/integrations/{app_name}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("export-item")
@@ -5393,7 +5484,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Export Item (POST /api/integrations/{app_name}/export)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/integrations/{app_name}/export"
+            endpoint_path = f"/api/integrations/{app_name}/export"
             params = None
             payload = _build_json_payload({
                 "container": container,
@@ -5410,7 +5501,7 @@ def register_generated_openapi_commands(
                 "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
                 "prototype": {'type': 'string', 'nullable': True, 'title': 'Prototype', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("import-item")
@@ -5422,7 +5513,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Import Item (POST /api/integrations/{app_name}/import)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/integrations/{app_name}/import"
+            endpoint_path = f"/api/integrations/{app_name}/import"
             params = None
             payload = _build_json_payload({
                 "external_id": external_id,
@@ -5431,7 +5522,7 @@ def register_generated_openapi_commands(
                 "external_id": {'type': 'string', 'title': 'External Id', 'x-cli-required': True},
                 "target_path": {'type': 'string', 'nullable': True, 'title': 'Target Path', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-items")
@@ -5446,7 +5537,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Items (GET /api/integrations/{app_name}/items)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/integrations/{app_name}/items"
+            endpoint_path = f"/api/integrations/{app_name}/items"
             params = {
                 "container": container,
                 "database": database,
@@ -5454,7 +5545,7 @@ def register_generated_openapi_commands(
                 "limit": limit,
                 "search": search,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-item")
@@ -5465,9 +5556,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Item (GET /api/integrations/{app_name}/items/{external_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/integrations/{app_name}/items/{external_id}"
+            endpoint_path = f"/api/integrations/{app_name}/items/{external_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("open-item")
@@ -5478,9 +5569,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Open Item (POST /api/integrations/{app_name}/open/{external_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/integrations/{app_name}/open/{external_id}"
+            endpoint_path = f"/api/integrations/{app_name}/open/{external_id}"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("refresh")
@@ -5490,15 +5581,16 @@ def register_generated_openapi_commands(
     ) -> None:
         """Refresh Integration (POST /api/integrations/{app_name}/refresh)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/integrations/{app_name}/refresh"
+            endpoint_path = f"/api/integrations/{app_name}/refresh"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('kg')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for kg endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='kg')
+        existing_apps['kg'] = target_app
 
     @target_app.command("contradictions")
     def kg_contradictions_get(
@@ -5508,11 +5600,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Contradictions (GET /api/kg/claim-analysis/{claim_id}/contradictions)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/claim-analysis/{claim_id}/contradictions"
+            endpoint_path = f"/api/kg/claim-analysis/{claim_id}/contradictions"
             params = {
                 "min_link_quality": min_link_quality,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("evidence-chain")
@@ -5523,11 +5615,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Evidence Chain (GET /api/kg/claim-analysis/{claim_id}/evidence-chain)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/claim-analysis/{claim_id}/evidence-chain"
+            endpoint_path = f"/api/kg/claim-analysis/{claim_id}/evidence-chain"
             params = {
                 "max_depth": max_depth,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("search-claims-semantic")
@@ -5540,14 +5632,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """Search Claims Semantic (GET /api/kg/claim-search)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/claim-search"
+            endpoint_path = "/api/kg/claim-search"
             params = {
                 "claim_type": claim_type,
                 "curation_state": curation_state,
                 "limit": limit,
                 "q": q,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("embed-claims")
@@ -5557,14 +5649,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """Embed Claims (POST /api/kg/claim-search/embed)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/claim-search/embed"
+            endpoint_path = "/api/kg/claim-search/embed"
             params = None
             payload = _build_json_payload({
                 "claim_ids": claim_ids,
             }, {
                 "claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Claim Ids', 'x-cli-required': False},
             }, required=False)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("find-similar-claims")
@@ -5575,11 +5667,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Find Similar Claims (GET /api/kg/claim-search/{claim_id}/similar)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/claim-search/{claim_id}/similar"
+            endpoint_path = f"/api/kg/claim-search/{claim_id}/similar"
             params = {
                 "limit": limit,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("batch-set-claim-curation-state")
@@ -5590,7 +5682,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Batch set claim curation state (PATCH /api/kg/claims/batch-curation)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/claims/batch-curation"
+            endpoint_path = "/api/kg/claims/batch-curation"
             params = None
             payload = _build_json_payload({
                 "claim_ids": claim_ids,
@@ -5599,7 +5691,7 @@ def register_generated_openapi_commands(
                 "claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Claim Ids', 'description': 'Claim IDs to update.', 'x-cli-required': True},
                 "curation_state": {'type': 'string', 'enum': ['unreviewed', 'shortlisted', 'curated', 'rejected'], 'title': 'ClaimCurationState', 'x-cli-required': True},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("merge-duplicate-claims-into-a-surviving-claim")
@@ -5610,7 +5702,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Merge duplicate claims into a surviving claim (POST /api/kg/claims/merge)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/claims/merge"
+            endpoint_path = "/api/kg/claims/merge"
             params = None
             payload = _build_json_payload({
                 "absorbed_claim_ids": absorbed_claim_ids,
@@ -5619,7 +5711,7 @@ def register_generated_openapi_commands(
                 "absorbed_claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Absorbed Claim Ids', 'description': 'Duplicate claims absorbed into the survivor.', 'x-cli-required': True},
                 "surviving_claim_id": {'type': 'string', 'title': 'Surviving Claim Id', 'description': 'Claim that remains canonical after the merge.', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("prune-trivially-true-claims")
@@ -5633,7 +5725,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Prune trivially-true claims (POST /api/kg/claims/prune-trivial)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/claims/prune-trivial"
+            endpoint_path = "/api/kg/claims/prune-trivial"
             params = None
             payload = _build_json_payload({
                 "created_by": created_by,
@@ -5648,7 +5740,7 @@ def register_generated_openapi_commands(
                 "library_wide": {'type': 'boolean', 'title': 'Library Wide', 'description': 'When true, scan the whole library and persist a global trivial-copula suppression rule.', 'default': False, 'x-cli-required': False},
                 "reason": {'type': 'string', 'title': 'Reason', 'description': 'Audit note stored on any generated suppression rule.', 'default': 'Prune trivial is-a copula claims', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("reverse-a-recorded-claim-merge")
@@ -5658,31 +5750,34 @@ def register_generated_openapi_commands(
     ) -> None:
         """Reverse a recorded claim merge (POST /api/kg/claims/unmerge)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/claims/unmerge"
+            endpoint_path = "/api/kg/claims/unmerge"
             params = None
             payload = _build_json_payload({
                 "audit_id": audit_id,
             }, {
                 "audit_id": {'type': 'string', 'title': 'Audit Id', 'description': 'ClaimMergeAudit.id from the merge being reversed.', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete-claim-rule")
     def kg_delete_claim_rule_delete(
         ctx: typer.Context,
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
         rule_id: str = typer.Option(..., "--rule-id", help="Request field: rule_id."),
     ) -> None:
         """Delete Claim Rule (DELETE /api/kg/curation-rules/claim-rules)."""
+        if not yes:
+            typer.confirm("Delete kg?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/curation-rules/claim-rules"
+            endpoint_path = "/api/kg/curation-rules/claim-rules"
             params = None
             payload = _build_json_payload({
                 "rule_id": rule_id,
             }, {
                 "rule_id": {'type': 'string', 'title': 'Rule Id', 'x-cli-required': True},
             }, required=True)
-            return client.request("DELETE", path, params=params, json=payload)
+            return client.request("DELETE", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-claim-rules")
@@ -5691,9 +5786,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Claim Rules (GET /api/kg/curation-rules/claim-rules)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/curation-rules/claim-rules"
+            endpoint_path = "/api/kg/curation-rules/claim-rules"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-claim-rule")
@@ -5709,7 +5804,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Claim Rule (POST /api/kg/curation-rules/claim-rules)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/curation-rules/claim-rules"
+            endpoint_path = "/api/kg/curation-rules/claim-rules"
             params = None
             payload = _build_json_payload({
                 "action": action,
@@ -5728,7 +5823,7 @@ def register_generated_openapi_commands(
                 "reason": {'type': 'string', 'title': 'Reason', 'x-cli-required': True},
                 "suppress_is_a_copulas": {'type': 'boolean', 'title': 'Suppress Is A Copulas', 'default': False, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("create-claim-rules-batch")
@@ -5738,31 +5833,34 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Claim Rules Batch (POST /api/kg/curation-rules/claim-rules/batch)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/curation-rules/claim-rules/batch"
+            endpoint_path = "/api/kg/curation-rules/claim-rules/batch"
             params = None
             payload = _build_json_payload({
                 "items": items,
             }, {
                 "items": {'items': {'$ref': '#/components/schemas/ClaimRuleCreateRequest'}, 'type': 'array', 'title': 'Items', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete-entity-rule")
     def kg_delete_entity_rule_delete(
         ctx: typer.Context,
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
         rule_id: str = typer.Option(..., "--rule-id", help="Request field: rule_id."),
     ) -> None:
         """Delete Entity Rule (DELETE /api/kg/curation-rules/entity-rules)."""
+        if not yes:
+            typer.confirm("Delete kg?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/curation-rules/entity-rules"
+            endpoint_path = "/api/kg/curation-rules/entity-rules"
             params = None
             payload = _build_json_payload({
                 "rule_id": rule_id,
             }, {
                 "rule_id": {'type': 'string', 'title': 'Rule Id', 'x-cli-required': True},
             }, required=True)
-            return client.request("DELETE", path, params=params, json=payload)
+            return client.request("DELETE", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-entity-rules")
@@ -5771,9 +5869,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Entity Rules (GET /api/kg/curation-rules/entity-rules)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/curation-rules/entity-rules"
+            endpoint_path = "/api/kg/curation-rules/entity-rules"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-entity-rule")
@@ -5789,7 +5887,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Entity Rule (POST /api/kg/curation-rules/entity-rules)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/curation-rules/entity-rules"
+            endpoint_path = "/api/kg/curation-rules/entity-rules"
             params = None
             payload = _build_json_payload({
                 "created_by": created_by,
@@ -5808,7 +5906,7 @@ def register_generated_openapi_commands(
                 "target_canonical_name": {'type': 'string', 'nullable': True, 'title': 'Target Canonical Name', 'x-cli-required': False},
                 "target_entity_type": {'type': 'string', 'enum': ['person', 'location', 'organization', 'event', 'concept', 'citation', 'other'], 'title': 'EntityType', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("create-entity-rules-batch")
@@ -5818,14 +5916,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Entity Rules Batch (POST /api/kg/curation-rules/entity-rules/batch)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/curation-rules/entity-rules/batch"
+            endpoint_path = "/api/kg/curation-rules/entity-rules/batch"
             params = None
             payload = _build_json_payload({
                 "items": items,
             }, {
                 "items": {'items': {'$ref': '#/components/schemas/EntityRuleCreateRequest'}, 'type': 'array', 'title': 'Items', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("batch-set-entity-curation-state")
@@ -5836,7 +5934,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Batch set entity curation state (PATCH /api/kg/entities/batch-curation)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/entities/batch-curation"
+            endpoint_path = "/api/kg/entities/batch-curation"
             params = None
             payload = _build_json_payload({
                 "curation_state": curation_state,
@@ -5845,7 +5943,7 @@ def register_generated_openapi_commands(
                 "curation_state": {'type': 'string', 'enum': ['unreviewed', 'verified', 'rejected', 'merged'], 'title': 'EntityCurationState', 'x-cli-required': True},
                 "entity_ids": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Entity Ids', 'description': 'Entity IDs to update.', 'x-cli-required': True},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("generate-llm-biography-for-a-knowledge-entity")
@@ -5855,9 +5953,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Generate LLM biography for a knowledge entity (POST /api/kg/entities/{entity_id}/bio)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/entities/{entity_id}/bio"
+            endpoint_path = f"/api/kg/entities/{entity_id}/bio"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-entity-audits")
@@ -5868,12 +5966,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Entity Audits (GET /api/kg/entity-curation/audit)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/entity-curation/audit"
+            endpoint_path = "/api/kg/entity-curation/audit"
             params = {
                 "entity_id": entity_id,
                 "limit": limit,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("undo-entity-operation")
@@ -5883,9 +5981,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Undo Entity Operation (POST /api/kg/entity-curation/audit/{audit_id}/undo)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/entity-curation/audit/{audit_id}/undo"
+            endpoint_path = f"/api/kg/entity-curation/audit/{audit_id}/undo"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("graph-context-merge-candidates-jaccard-over-co-occurrence-neighborhoods")
@@ -5897,13 +5995,13 @@ def register_generated_openapi_commands(
     ) -> None:
         """Graph-context merge candidates (Jaccard over co-occurrence neighborhoods) (GET /api/kg/entity-curation/candidates)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/entity-curation/candidates"
+            endpoint_path = "/api/kg/entity-curation/candidates"
             params = {
                 "min_jaccard": min_jaccard,
                 "same_type_only": same_type_only,
                 "top_k": top_k,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("merge-entities")
@@ -5916,7 +6014,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Merge Entities (POST /api/kg/entity-curation/merge)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/entity-curation/merge"
+            endpoint_path = "/api/kg/entity-curation/merge"
             params = None
             payload = _build_json_payload({
                 "absorbed_entity_ids": absorbed_entity_ids,
@@ -5929,7 +6027,7 @@ def register_generated_openapi_commands(
                 "merged_aliases": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Merged Aliases', 'x-cli-required': False},
                 "merged_description": {'type': 'string', 'nullable': True, 'title': 'Merged Description', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("search-entities-semantic")
@@ -5941,13 +6039,13 @@ def register_generated_openapi_commands(
     ) -> None:
         """Search Entities Semantic (GET /api/kg/entity-curation/semantic)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/entity-curation/semantic"
+            endpoint_path = "/api/kg/entity-curation/semantic"
             params = {
                 "entity_type": entity_type,
                 "limit": limit,
                 "q": q,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("embed-entities")
@@ -5957,14 +6055,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """Embed Entities (POST /api/kg/entity-curation/semantic/embed)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/entity-curation/semantic/embed"
+            endpoint_path = "/api/kg/entity-curation/semantic/embed"
             params = None
             payload = _build_json_payload({
                 "entity_ids": entity_ids,
             }, {
                 "entity_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Entity Ids', 'x-cli-required': False},
             }, required=False)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("split-entity")
@@ -5976,7 +6074,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Split Entity (POST /api/kg/entity-curation/split)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/entity-curation/split"
+            endpoint_path = "/api/kg/entity-curation/split"
             params = None
             payload = _build_json_payload({
                 "aliases_to_move": aliases_to_move,
@@ -5987,7 +6085,7 @@ def register_generated_openapi_commands(
                 "primary_entity_id": {'type': 'string', 'title': 'Primary Entity Id', 'x-cli-required': True},
                 "split_off_entity_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Split Off Entity Ids', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("export-the-library-knowledge-graph-as-rdf")
@@ -5997,11 +6095,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Export the library knowledge graph as RDF (GET /api/kg/export/rdf)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/export/rdf"
+            endpoint_path = "/api/kg/export/rdf"
             params = {
                 "format": format,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("top-k-entities-by-composite-centrality")
@@ -6012,12 +6110,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """Top-k entities by composite centrality (GET /api/kg/graph/centrality)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/graph/centrality"
+            endpoint_path = "/api/kg/graph/centrality"
             params = {
                 "entity_type": entity_type,
                 "top_k": top_k,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("clustering-coefficient-per-entity")
@@ -6027,11 +6125,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Clustering coefficient per entity (GET /api/kg/graph/clustering)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/graph/clustering"
+            endpoint_path = "/api/kg/graph/clustering"
             params = {
                 "top_k": top_k,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("cluster-entities-into-communities-louvain-label-propagation")
@@ -6041,11 +6139,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Cluster entities into communities (Louvain / label propagation) (GET /api/kg/graph/communities)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/graph/communities"
+            endpoint_path = "/api/kg/graph/communities"
             params = {
                 "method": method,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("connected-components-of-the-entity-graph")
@@ -6054,9 +6152,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Connected components of the entity graph (GET /api/kg/graph/components)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/graph/components"
+            endpoint_path = "/api/kg/graph/components"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("co-occurrence-neighbours-of-an-entity")
@@ -6066,9 +6164,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Co-occurrence neighbours of an entity (GET /api/kg/graph/cooccurrence/{entity_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/graph/cooccurrence/{entity_id}"
+            endpoint_path = f"/api/kg/graph/cooccurrence/{entity_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("library-wide-metrics-counts-averages")
@@ -6077,9 +6175,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Library-wide KG metrics (counts + averages) (GET /api/kg/graph/metrics)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/graph/metrics"
+            endpoint_path = "/api/kg/graph/metrics"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("focus-entity-k-hop-neighbors-svo-edges")
@@ -6092,13 +6190,13 @@ def register_generated_openapi_commands(
     ) -> None:
         """Focus entity + k-hop neighbors + SVO edges (GET /api/kg/graph/neighborhood/{entity_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/graph/neighborhood/{entity_id}"
+            endpoint_path = f"/api/kg/graph/neighborhood/{entity_id}"
             params = {
                 "hops": hops,
                 "limit": limit,
                 "rank": rank,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("top-k-entities-by-pagerank")
@@ -6109,12 +6207,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """Top-k entities by PageRank (GET /api/kg/graph/pagerank)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/graph/pagerank"
+            endpoint_path = "/api/kg/graph/pagerank"
             params = {
                 "entity_type": entity_type,
                 "top_k": top_k,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("shortest-path-between-two-entities")
@@ -6125,12 +6223,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """Shortest path between two entities (GET /api/kg/graph/path)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/graph/path"
+            endpoint_path = "/api/kg/graph/path"
             params = {
                 "source": source,
                 "target": target,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("structurally-similar-entities-jaccard-adamic-adar-preferential-attachment")
@@ -6142,12 +6240,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """Structurally-similar entities (Jaccard / Adamic-Adar / preferential attachment) (GET /api/kg/graph/similar/{entity_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/graph/similar/{entity_id}"
+            endpoint_path = f"/api/kg/graph/similar/{entity_id}"
             params = {
                 "method": method,
                 "top_k": top_k,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("bfs-traversal-entity-neighbourhood")
@@ -6159,12 +6257,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """BFS traversal — entity neighbourhood (GET /api/kg/graph/traverse/{entity_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/graph/traverse/{entity_id}"
+            endpoint_path = f"/api/kg/graph/traverse/{entity_id}"
             params = {
                 "include_claims": include_claims,
                 "max_depth": max_depth,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("triangle-count-for-an-entity")
@@ -6174,9 +6272,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Triangle count for an entity (GET /api/kg/graph/triangles/{entity_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/graph/triangles/{entity_id}"
+            endpoint_path = f"/api/kg/graph/triangles/{entity_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-inclusion")
@@ -6187,12 +6285,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Inclusion (GET /api/kg/inclusion)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/inclusion"
+            endpoint_path = "/api/kg/inclusion"
             params = {
                 "scope_type": scope_type,
                 "target_id": target_id,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("upsert-inclusion")
@@ -6206,7 +6304,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Upsert Inclusion (POST /api/kg/inclusion)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/inclusion"
+            endpoint_path = "/api/kg/inclusion"
             params = None
             payload = _build_json_payload({
                 "included": included,
@@ -6221,7 +6319,7 @@ def register_generated_openapi_commands(
                 "target_id": {'type': 'string', 'title': 'Target Id', 'x-cli-required': True},
                 "updated_by": {'type': 'string', 'title': 'Updated By', 'default': 'human', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-circle-states")
@@ -6231,11 +6329,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Circle States (GET /api/kg/interpretations/circle-state)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/interpretations/circle-state"
+            endpoint_path = "/api/kg/interpretations/circle-state"
             params = {
                 "claim_id": claim_id,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-circle-state")
@@ -6250,7 +6348,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Circle State (POST /api/kg/interpretations/circle-state)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/interpretations/circle-state"
+            endpoint_path = "/api/kg/interpretations/circle-state"
             params = None
             payload = _build_json_payload({
                 "claim_id": claim_id,
@@ -6267,7 +6365,7 @@ def register_generated_openapi_commands(
                 "focus_label": {'type': 'string', 'title': 'Focus Label', 'x-cli-required': True},
                 "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-circle-state")
@@ -6277,9 +6375,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Circle State (GET /api/kg/interpretations/circle-state/{state_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/interpretations/circle-state/{state_id}"
+            endpoint_path = f"/api/kg/interpretations/circle-state/{state_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("backtrack-circle")
@@ -6289,9 +6387,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Backtrack Circle (POST /api/kg/interpretations/circle-state/{state_id}/backtrack)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/interpretations/circle-state/{state_id}/backtrack"
+            endpoint_path = f"/api/kg/interpretations/circle-state/{state_id}/backtrack"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("navigate-circle")
@@ -6304,7 +6402,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Navigate Circle (POST /api/kg/interpretations/circle-state/{state_id}/navigate)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/interpretations/circle-state/{state_id}/navigate"
+            endpoint_path = f"/api/kg/interpretations/circle-state/{state_id}/navigate"
             params = None
             payload = _build_json_payload({
                 "direction": direction,
@@ -6315,7 +6413,7 @@ def register_generated_openapi_commands(
                 "focus_id": {'type': 'string', 'title': 'Focus Id', 'x-cli-required': True},
                 "focus_label": {'type': 'string', 'title': 'Focus Label', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-frameworks")
@@ -6326,12 +6424,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Frameworks (GET /api/kg/interpretations/frameworks)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/interpretations/frameworks"
+            endpoint_path = "/api/kg/interpretations/frameworks"
             params = {
                 "framework_type": framework_type,
                 "is_active": is_active,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-framework")
@@ -6350,7 +6448,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Framework (POST /api/kg/interpretations/frameworks)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/interpretations/frameworks"
+            endpoint_path = "/api/kg/interpretations/frameworks"
             params = None
             payload = _build_json_payload({
                 "core_questions": core_questions,
@@ -6375,19 +6473,22 @@ def register_generated_openapi_commands(
                 "origin": {'type': 'string', 'nullable': True, 'title': 'Origin', 'x-cli-required': False},
                 "typical_applications": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Typical Applications', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete-framework")
     def kg_delete_framework_delete(
         ctx: typer.Context,
         framework_id: str = typer.Argument(..., help="Path parameter: framework_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Framework (DELETE /api/kg/interpretations/frameworks/{framework_id})."""
+        if not yes:
+            typer.confirm("Delete kg?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/interpretations/frameworks/{framework_id}"
+            endpoint_path = f"/api/kg/interpretations/frameworks/{framework_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-framework")
@@ -6397,9 +6498,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Framework (GET /api/kg/interpretations/frameworks/{framework_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/interpretations/frameworks/{framework_id}"
+            endpoint_path = f"/api/kg/interpretations/frameworks/{framework_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update-framework")
@@ -6420,7 +6521,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Framework (PATCH /api/kg/interpretations/frameworks/{framework_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/interpretations/frameworks/{framework_id}"
+            endpoint_path = f"/api/kg/interpretations/frameworks/{framework_id}"
             params = None
             payload = _build_json_payload({
                 "core_questions": core_questions,
@@ -6447,7 +6548,7 @@ def register_generated_openapi_commands(
                 "origin": {'type': 'string', 'nullable': True, 'title': 'Origin', 'x-cli-required': False},
                 "typical_applications": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Typical Applications', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-interpretations")
@@ -6460,14 +6561,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Interpretations (GET /api/kg/interpretations/interpretations)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/interpretations/interpretations"
+            endpoint_path = "/api/kg/interpretations/interpretations"
             params = {
                 "act": act,
                 "claim_id": claim_id,
                 "document_id": document_id,
                 "framework_id": framework_id,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-interpretation")
@@ -6489,7 +6590,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Interpretation (POST /api/kg/interpretations/interpretations)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/interpretations/interpretations"
+            endpoint_path = "/api/kg/interpretations/interpretations"
             params = None
             payload = _build_json_payload({
                 "act": act,
@@ -6520,7 +6621,7 @@ def register_generated_openapi_commands(
                 "predicate": {'type': 'string', 'nullable': True, 'title': 'Predicate', 'x-cli-required': False},
                 "tensions": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Tensions', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-interpretation")
@@ -6530,9 +6631,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Interpretation (GET /api/kg/interpretations/interpretations/{interpretation_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/interpretations/interpretations/{interpretation_id}"
+            endpoint_path = f"/api/kg/interpretations/interpretations/{interpretation_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update-interpretation")
@@ -6550,7 +6651,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Interpretation (PATCH /api/kg/interpretations/interpretations/{interpretation_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/interpretations/interpretations/{interpretation_id}"
+            endpoint_path = f"/api/kg/interpretations/interpretations/{interpretation_id}"
             params = None
             payload = _build_json_payload({
                 "act": act,
@@ -6571,7 +6672,7 @@ def register_generated_openapi_commands(
                 "predicate": {'type': 'string', 'nullable': True, 'title': 'Predicate', 'x-cli-required': False},
                 "tensions": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Tensions', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-patterns")
@@ -6583,13 +6684,13 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Patterns (GET /api/kg/interpretations/patterns)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/interpretations/patterns"
+            endpoint_path = "/api/kg/interpretations/patterns"
             params = {
                 "framework_id": framework_id,
                 "pattern_type": pattern_type,
                 "status": status,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-pattern")
@@ -6609,7 +6710,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Pattern (POST /api/kg/interpretations/patterns)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/interpretations/patterns"
+            endpoint_path = "/api/kg/interpretations/patterns"
             params = None
             payload = _build_json_payload({
                 "claim_ids": claim_ids,
@@ -6636,7 +6737,7 @@ def register_generated_openapi_commands(
                 "status": {'type': 'string', 'enum': ['tentative', 'confirmed', 'superseded'], 'title': 'PatternStatus', 'description': 'Lifecycle state of a recognized pattern.', 'x-cli-required': False},
                 "supporting_passages": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Supporting Passages', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-pattern")
@@ -6646,9 +6747,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Pattern (GET /api/kg/interpretations/patterns/{pattern_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/interpretations/patterns/{pattern_id}"
+            endpoint_path = f"/api/kg/interpretations/patterns/{pattern_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update-pattern")
@@ -6669,7 +6770,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Pattern (PATCH /api/kg/interpretations/patterns/{pattern_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/interpretations/patterns/{pattern_id}"
+            endpoint_path = f"/api/kg/interpretations/patterns/{pattern_id}"
             params = None
             payload = _build_json_payload({
                 "claim_ids": claim_ids,
@@ -6696,7 +6797,7 @@ def register_generated_openapi_commands(
                 "status": {'type': 'string', 'enum': ['tentative', 'confirmed', 'superseded'], 'title': 'PatternStatus', 'description': 'Lifecycle state of a recognized pattern.', 'x-cli-required': False},
                 "supporting_passages": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Supporting Passages', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("add-claim-to-pattern")
@@ -6707,9 +6808,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Add Claim To Pattern (POST /api/kg/interpretations/patterns/{pattern_id}/claims/{claim_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/interpretations/patterns/{pattern_id}/claims/{claim_id}"
+            endpoint_path = f"/api/kg/interpretations/patterns/{pattern_id}/claims/{claim_id}"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("suggest-interpretations")
@@ -6722,7 +6823,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Suggest Interpretations (POST /api/kg/interpretations/suggestions)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/interpretations/suggestions"
+            endpoint_path = "/api/kg/interpretations/suggestions"
             params = None
             payload = _build_json_payload({
                 "claim_ids": claim_ids,
@@ -6735,7 +6836,7 @@ def register_generated_openapi_commands(
                 "framework_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Framework Ids', 'x-cli-required': False},
                 "num_suggestions": {'type': 'integer', 'maximum': 10.0, 'minimum': 1.0, 'title': 'Num Suggestions', 'default': 3, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("picker-values-for-interpretation-editor-acts-framework-types")
@@ -6744,9 +6845,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Picker values for interpretation editor (acts + framework types) (GET /api/kg/interpretations/taxonomy/methods)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/interpretations/taxonomy/methods"
+            endpoint_path = "/api/kg/interpretations/taxonomy/methods"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-recent-mutations-newest-first")
@@ -6756,11 +6857,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """List recent KG mutations (newest first) (GET /api/kg/mutations)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/mutations"
+            endpoint_path = "/api/kg/mutations"
             params = {
                 "limit": limit,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("reverse-a-previous-mutation")
@@ -6770,9 +6871,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Reverse a previous KG mutation (POST /api/kg/mutations/{mutation_id}/undo)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/mutations/{mutation_id}/undo"
+            endpoint_path = f"/api/kg/mutations/{mutation_id}/undo"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-prediction-runs")
@@ -6783,12 +6884,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Prediction Runs (GET /api/kg/predictions)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/predictions"
+            endpoint_path = "/api/kg/predictions"
             params = {
                 "limit": limit,
                 "status": status,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("generate-heuristic-predictions")
@@ -6799,7 +6900,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Generate Heuristic Predictions (POST /api/kg/predictions/heuristic)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/predictions/heuristic"
+            endpoint_path = "/api/kg/predictions/heuristic"
             params = None
             payload = _build_json_payload({
                 "entity_id": entity_id,
@@ -6808,7 +6909,7 @@ def register_generated_openapi_commands(
                 "entity_id": {'type': 'string', 'nullable': True, 'title': 'Entity Id', 'x-cli-required': False},
                 "top_k": {'type': 'integer', 'maximum': 100.0, 'minimum': 1.0, 'title': 'Top K', 'default': 10, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("apply-prediction-run")
@@ -6820,24 +6921,27 @@ def register_generated_openapi_commands(
     ) -> None:
         """Apply Prediction Run (POST /api/kg/predictions/{run_id}/apply)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/predictions/{run_id}/apply"
+            endpoint_path = f"/api/kg/predictions/{run_id}/apply"
             params = {
                 "max_links": max_links,
                 "min_confidence": min_confidence,
             }
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("delete-a-trained-pykeen-model")
     def kg_delete_a_trained_pykeen_model_delete(
         ctx: typer.Context,
         model_id: str = typer.Argument(..., help="Path parameter: model_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete a trained PyKEEN model (DELETE /api/kg/pykeen/models/{model_id})."""
+        if not yes:
+            typer.confirm("Delete kg?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/pykeen/models/{model_id}"
+            endpoint_path = f"/api/kg/pykeen/models/{model_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("top-k-predicted-facts-for-one-entity")
@@ -6848,11 +6952,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Top-k predicted facts for one entity (GET /api/kg/pykeen/predict/{entity_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/pykeen/predict/{entity_id}"
+            endpoint_path = f"/api/kg/pykeen/predict/{entity_id}"
             params = {
                 "top_k": top_k,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-stored-predictions")
@@ -6863,12 +6967,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """List stored predictions (GET /api/kg/pykeen/stored)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/pykeen/stored"
+            endpoint_path = "/api/kg/pykeen/stored"
             params = {
                 "model_id": model_id,
                 "verified": verified,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-a-specific-stored-prediction")
@@ -6878,9 +6982,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get a specific stored prediction (GET /api/kg/pykeen/stored/{prediction_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/pykeen/stored/{prediction_id}"
+            endpoint_path = f"/api/kg/pykeen/stored/{prediction_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("verify-or-refute-a-stored-prediction")
@@ -6892,7 +6996,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Verify or refute a stored prediction (PATCH /api/kg/pykeen/stored/{prediction_id}/verify)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/pykeen/stored/{prediction_id}/verify"
+            endpoint_path = f"/api/kg/pykeen/stored/{prediction_id}/verify"
             params = None
             payload = _build_json_payload({
                 "notes": notes,
@@ -6901,7 +7005,7 @@ def register_generated_openapi_commands(
                 "notes": {'type': 'string', 'nullable': True, 'title': 'Notes', 'x-cli-required': False},
                 "verified": {'type': 'boolean', 'title': 'Verified', 'x-cli-required': True},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("train-a-pykeen-link-prediction-model-on-the-library-s-claims")
@@ -6913,13 +7017,13 @@ def register_generated_openapi_commands(
     ) -> None:
         """Train a PyKEEN link-prediction model on the library's claims (POST /api/kg/pykeen/train)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/pykeen/train"
+            endpoint_path = "/api/kg/pykeen/train"
             params = {
                 "embedding_dim": embedding_dim,
                 "model": model,
                 "num_epochs": num_epochs,
             }
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-all-pykeen-training-jobs")
@@ -6928,9 +7032,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List all PyKEEN training jobs (GET /api/kg/pykeen/training-jobs)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/pykeen/training-jobs"
+            endpoint_path = "/api/kg/pykeen/training-jobs"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-a-specific-pykeen-training-job")
@@ -6940,9 +7044,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get a specific PyKEEN training job (GET /api/kg/pykeen/training-jobs/{model_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/pykeen/training-jobs/{model_id}"
+            endpoint_path = f"/api/kg/pykeen/training-jobs/{model_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-example-queries")
@@ -6951,9 +7055,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List example KG queries (GET /api/kg/query/examples)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/query/examples"
+            endpoint_path = "/api/kg/query/examples"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("run-a-sparql-query-against-the-library-s-rdf-graph")
@@ -6964,7 +7068,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Run a SPARQL query against the library's RDF graph (POST /api/kg/query/sparql)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/query/sparql"
+            endpoint_path = "/api/kg/query/sparql"
             params = None
             payload = _build_json_payload({
                 "limit": limit,
@@ -6973,7 +7077,7 @@ def register_generated_openapi_commands(
                 "limit": {'type': 'integer', 'maximum': 10000.0, 'minimum': 1.0, 'title': 'Limit', 'description': 'Cap on result rows. Defaults to 1000.', 'default': 1000, 'x-cli-required': False},
                 "query": {'type': 'string', 'title': 'Query', 'description': 'SPARQL 1.1 query. Read-only: SELECT / ASK / CONSTRUCT / DESCRIBE only — INSERT/DELETE/DROP/CLEAR/LOAD/CREATE rejected.', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("backfill-derived-stores")
@@ -6984,7 +7088,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Backfill KG derived stores (POST /api/kg/rebuild)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/rebuild"
+            endpoint_path = "/api/kg/rebuild"
             params = None
             payload = _build_json_payload({
                 "triples": triples,
@@ -6993,7 +7097,7 @@ def register_generated_openapi_commands(
                 "triples": {'type': 'boolean', 'title': 'Triples', 'default': True, 'x-cli-required': False},
                 "vectors": {'type': 'boolean', 'title': 'Vectors', 'default': True, 'x-cli-required': False},
             }, required=False)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("render-a-deterministic-paragraph")
@@ -7004,7 +7108,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Render a deterministic KG paragraph (POST /api/kg/render/paragraph)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/render/paragraph"
+            endpoint_path = "/api/kg/render/paragraph"
             params = None
             payload = _build_json_payload({
                 "claim_ids": claim_ids,
@@ -7013,7 +7117,7 @@ def register_generated_openapi_commands(
                 "claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Claim Ids', 'x-cli-required': True},
                 "style": {'type': 'string', 'enum': ['narrative', 'list', 'footnoted'], 'title': 'ParagraphStyle', 'description': 'Supported paragraph render styles.', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("wipe-all-rows-so-extraction-can-run-fresh")
@@ -7022,9 +7126,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Wipe all KG rows so extraction can run fresh (POST /api/kg/reset)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/reset"
+            endpoint_path = "/api/kg/reset"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("propose-entity-merge-candidates-from-co-occurrence-overlap")
@@ -7036,13 +7140,13 @@ def register_generated_openapi_commands(
     ) -> None:
         """Propose entity-merge candidates from co-occurrence overlap (GET /api/kg/review/graph-candidates)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/review/graph-candidates"
+            endpoint_path = "/api/kg/review/graph-candidates"
             params = {
                 "limit": limit,
                 "min_shared": min_shared,
                 "threshold": threshold,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("accumulated-human-labelled-pairs-for-splink-pykeen-training")
@@ -7051,9 +7155,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Accumulated human-labelled pairs for splink / PyKEEN training (GET /api/kg/review/labels)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/review/labels"
+            endpoint_path = "/api/kg/review/labels"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-pending-entity-match-pairs")
@@ -7063,11 +7167,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """List pending entity-match pairs (GET /api/kg/review/pairs)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/review/pairs"
+            endpoint_path = "/api/kg/review/pairs"
             params = {
                 "limit": limit,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("manually-queue-an-entity-pair-for-review")
@@ -7079,7 +7183,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Manually queue an entity pair for review (POST /api/kg/review/pairs)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/review/pairs"
+            endpoint_path = "/api/kg/review/pairs"
             params = None
             payload = _build_json_payload({
                 "candidate_entity_id": candidate_entity_id,
@@ -7090,7 +7194,7 @@ def register_generated_openapi_commands(
                 "reason": {'type': 'string', 'nullable': True, 'title': 'Reason', 'x-cli-required': False},
                 "survivor_entity_id": {'type': 'string', 'title': 'Survivor Entity Id', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("merge-candidate-into-survivor-accept-the-suggested-match")
@@ -7100,9 +7204,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Merge candidate into survivor — accept the suggested match (POST /api/kg/review/pairs/{pair_id}/accept)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/review/pairs/{pair_id}/accept"
+            endpoint_path = f"/api/kg/review/pairs/{pair_id}/accept"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("keep-distinct-labels-this-pair-as-definitely-different")
@@ -7112,9 +7216,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Keep distinct — labels this pair as definitely-different (POST /api/kg/review/pairs/{pair_id}/reject)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/review/pairs/{pair_id}/reject"
+            endpoint_path = f"/api/kg/review/pairs/{pair_id}/reject"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("review-queue-summary-for-badge-counts")
@@ -7123,9 +7227,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Review queue summary for badge counts (GET /api/kg/review/summary)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/review/summary"
+            endpoint_path = "/api/kg/review/summary"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("mixed-type-search-one-call-hits-across-entities-claims-notes-annotations")
@@ -7137,13 +7241,13 @@ def register_generated_openapi_commands(
     ) -> None:
         """Mixed-type KG search — one call, hits across entities + claims + notes + annotations (GET /api/kg/search)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/search"
+            endpoint_path = "/api/kg/search"
             params = {
                 "limit": limit,
                 "q": q,
                 "types": types,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("run-a-sparql-query-against-the-library-s-rdf-graph-legacy-path")
@@ -7154,7 +7258,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Run a SPARQL query against the library's RDF graph (legacy path) (POST /api/kg/sparql)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/sparql"
+            endpoint_path = "/api/kg/sparql"
             params = None
             payload = _build_json_payload({
                 "limit": limit,
@@ -7163,7 +7267,7 @@ def register_generated_openapi_commands(
                 "limit": {'type': 'integer', 'maximum': 10000.0, 'minimum': 1.0, 'title': 'Limit', 'description': 'Cap on result rows. Defaults to 1000.', 'default': 1000, 'x-cli-required': False},
                 "query": {'type': 'string', 'title': 'Query', 'description': 'SPARQL 1.1 query. Read-only: SELECT / ASK / CONSTRUCT / DESCRIBE only — INSERT/DELETE/DROP/CLEAR/LOAD/CREATE rejected.', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("triangulated-facts-across-the-library")
@@ -7173,11 +7277,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Triangulated facts across the library (GET /api/kg/triangulation)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/triangulation"
+            endpoint_path = "/api/kg/triangulation"
             params = {
                 "threshold": threshold,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("triangulated-triples-for-one-entity")
@@ -7187,9 +7291,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Triangulated triples for one entity (GET /api/kg/triangulation/entity/{entity_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/kg/triangulation/entity/{entity_id}"
+            endpoint_path = f"/api/kg/triangulation/entity/{entity_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("persist-global-support-counts-onto-claims")
@@ -7198,15 +7302,16 @@ def register_generated_openapi_commands(
     ) -> None:
         """Persist global support counts onto claims (POST /api/kg/triangulation/recompute)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/kg/triangulation/recompute"
+            endpoint_path = "/api/kg/triangulation/recompute"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    target_app = existing_apps.get('libraries')
+    target_app = existing_apps.get('library')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for libraries endpoints.', no_args_is_help=True)
-        root_app.add_typer(target_app, name='libraries')
+        root_app.add_typer(target_app, name='library')
+        existing_apps['library'] = target_app
 
     @target_app.command("list-entity-types")
     def libraries_list_entity_types_get(
@@ -7215,9 +7320,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Library Entity Types (GET /api/libraries/{lib}/entity-types)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/libraries/{lib}/entity-types"
+            endpoint_path = f"/api/libraries/{lib}/entity-types"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("add-entity-type")
@@ -7229,12 +7334,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """Add Library Entity Type (POST /api/libraries/{lib}/entity-types)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/libraries/{lib}/entity-types"
+            endpoint_path = f"/api/libraries/{lib}/entity-types"
             params = {
                 "enabled": enabled,
                 "entity_type_key": entity_type_key,
             }
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("remove-entity-type")
@@ -7242,18 +7347,22 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         lib: str = typer.Argument(..., help="Path parameter: lib."),
         entity_type_key: str = typer.Argument(..., help="Path parameter: entity_type_key."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Remove Library Entity Type (DELETE /api/libraries/{lib}/entity-types/{entity_type_key})."""
+        if not yes:
+            typer.confirm("Delete libraries?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/libraries/{lib}/entity-types/{entity_type_key}"
+            endpoint_path = f"/api/libraries/{lib}/entity-types/{entity_type_key}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('library')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for library endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='library')
+        existing_apps['library'] = target_app
 
     @target_app.command("create")
     def library_create_post(
@@ -7262,14 +7371,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Library (POST /api/library)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/library"
+            endpoint_path = "/api/library"
             params = None
             payload = _build_json_payload({
                 "path": path,
             }, {
                 "path": {'type': 'string', 'title': 'Path', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-links")
@@ -7281,13 +7390,13 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Library Links (GET /api/library/links)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/library/links"
+            endpoint_path = "/api/library/links"
             params = {
                 "relation_type": relation_type,
                 "source_id": source_id,
                 "target_id": target_id,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-link")
@@ -7304,7 +7413,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Library Link (POST /api/library/links)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/library/links"
+            endpoint_path = "/api/library/links"
             params = None
             payload = _build_json_payload({
                 "evidence": evidence,
@@ -7325,19 +7434,22 @@ def register_generated_openapi_commands(
                 "target_id": {'type': 'string', 'title': 'Target Id', 'x-cli-required': True},
                 "target_type": {'type': 'string', 'enum': ['document', 'note', 'entity', 'claim'], 'title': 'LibraryItemType', 'description': 'Node kinds that can participate in a general library link.', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete-link")
     def library_delete_link_delete(
         ctx: typer.Context,
         link_id: str = typer.Argument(..., help="Path parameter: link_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Library Link (DELETE /api/library/links/{link_id})."""
+        if not yes:
+            typer.confirm("Delete library?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/library/links/{link_id}"
+            endpoint_path = f"/api/library/links/{link_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-link")
@@ -7347,9 +7459,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Library Link (GET /api/library/links/{link_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/library/links/{link_id}"
+            endpoint_path = f"/api/library/links/{link_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update-link")
@@ -7363,7 +7475,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Library Link (PATCH /api/library/links/{link_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/library/links/{link_id}"
+            endpoint_path = f"/api/library/links/{link_id}"
             params = None
             payload = _build_json_payload({
                 "evidence": evidence,
@@ -7376,13 +7488,14 @@ def register_generated_openapi_commands(
                 "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
                 "relation_type": {'type': 'string', 'enum': ['supports', 'contradicts', 'refines', 'duplicate_of', 'corroborates', 'derives_from', 'cites', 'follows', 'caused_by', 'related_to'], 'title': 'ClaimRelationType', 'description': "Typed relationship kinds for KnowledgeClaimLink (#1123 Phase B).\n\nOriginally four kinds (supports / contradicts / refines / duplicate_of).\n#1123 extends with five new dimensions plus ``related_to`` (the generic\nfallback used by ``kg_predictions._record_predictions`` when a model\nsurfaces a relation outside the curated set):\n\n- ``corroborates`` — independent evidence agreeing with the source\n  claim. Distinct from ``supports`` (which just reinforces with\n  additional evidence drawn from the same line of reasoning).\n- ``derives_from`` — claim B is inferred from / built on claim A;\n  removing A invalidates B. Stronger than ``cites``.\n- ``cites`` — B references A as a source. Bibliographic / citation\n  graph use.\n- ``follows`` — temporal sequence (A then B). Doesn't imply\n  causation; ``caused_by`` is the explicit causal claim.\n- ``caused_by`` — A is the cause of B. Strong claim; reviewers\n  should treat with corroboration.\n- ``related_to`` — generic fallback when the typed kinds don't\n  fit. Closes the latent crash in\n  ``kg_predictions.py:269`` where the relation_map fallback\n  referenced this value before it existed.\n\nNote: ``contests`` was considered as a synonym for ``contradicts``\nbut excluded — same semantic, different word, doesn't earn a\nseparate enum slot. Writers should keep using ``contradicts``.", 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('library-items')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for library-items endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='library-items')
+        existing_apps['library-items'] = target_app
 
     @target_app.command("list-links-for")
     def library_items_list_links_for_get(
@@ -7391,15 +7504,16 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Links For Item (GET /api/library-items/{item_id}/links)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/library-items/{item_id}/links"
+            endpoint_path = f"/api/library-items/{item_id}/links"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('local-inference')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for local-inference endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='local-inference')
+        existing_apps['local-inference'] = target_app
 
     @target_app.command("list-catalog")
     def local_inference_list_catalog_get(
@@ -7407,9 +7521,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Local Inference Catalog (GET /api/local-inference/catalog)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/local-inference/catalog"
+            endpoint_path = "/api/local-inference/catalog"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-profiles")
@@ -7418,9 +7532,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Local Inference Profiles (GET /api/local-inference/profiles)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/local-inference/profiles"
+            endpoint_path = "/api/local-inference/profiles"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("validate-profile")
@@ -7442,7 +7556,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Validate Local Inference Profile (POST /api/local-inference/profiles/validate)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/local-inference/profiles/validate"
+            endpoint_path = "/api/local-inference/profiles/validate"
             params = None
             payload = _build_json_payload({
                 "allows_paid_fallbacks": allows_paid_fallbacks,
@@ -7473,7 +7587,7 @@ def register_generated_openapi_commands(
                 "timeout_seconds": {'type': 'number', 'minimum': 0.0, 'title': 'Timeout Seconds', 'default': 5.0, 'x-cli-required': False},
                 "visible_in_ui": {'type': 'boolean', 'title': 'Visible In Ui', 'default': True, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("check-health")
@@ -7483,9 +7597,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Check Local Inference Health (POST /api/local-inference/profiles/{profile_id}/health)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/local-inference/profiles/{profile_id}/health"
+            endpoint_path = f"/api/local-inference/profiles/{profile_id}/health"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("start-profile")
@@ -7496,14 +7610,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """Start Local Inference Profile (POST /api/local-inference/profiles/{profile_id}/start)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/local-inference/profiles/{profile_id}/start"
+            endpoint_path = f"/api/local-inference/profiles/{profile_id}/start"
             params = None
             payload = _build_json_payload({
                 "timeout_seconds": timeout_seconds,
             }, {
                 "timeout_seconds": {'type': 'number', 'minimum': 0.0, 'nullable': True, 'title': 'Timeout Seconds', 'x-cli-required': False},
             }, required=False)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-status")
@@ -7513,9 +7627,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Local Inference Status (GET /api/local-inference/profiles/{profile_id}/status)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/local-inference/profiles/{profile_id}/status"
+            endpoint_path = f"/api/local-inference/profiles/{profile_id}/status"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("stop-profile")
@@ -7525,15 +7639,16 @@ def register_generated_openapi_commands(
     ) -> None:
         """Stop Local Inference Profile (POST /api/local-inference/profiles/{profile_id}/stop)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/local-inference/profiles/{profile_id}/stop"
+            endpoint_path = f"/api/local-inference/profiles/{profile_id}/stop"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('local-models')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for local-models endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='local-models')
+        existing_apps['local-models'] = target_app
 
     @target_app.command("list")
     def local_models_list_get(
@@ -7542,11 +7657,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Local Models (GET /api/local-models)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/local-models"
+            endpoint_path = "/api/local-models"
             params = {
                 "model_type": model_type,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("disk-usage")
@@ -7555,9 +7670,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Disk Usage (GET /api/local-models/disk-usage)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/local-models/disk-usage"
+            endpoint_path = "/api/local-models/disk-usage"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("download")
@@ -7568,9 +7683,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Download Model (POST /api/local-models/download/{model_type}/{model_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/local-models/download/{model_type}/{model_id}"
+            endpoint_path = f"/api/local-models/download/{model_type}/{model_id}"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("delete")
@@ -7578,18 +7693,22 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         model_type: str = typer.Argument(..., help="Path parameter: model_type."),
         model_id: str = typer.Argument(..., help="Path parameter: model_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Model (DELETE /api/local-models/{model_type}/{model_id})."""
+        if not yes:
+            typer.confirm("Delete local-models?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/local-models/{model_type}/{model_id}"
+            endpoint_path = f"/api/local-models/{model_type}/{model_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('mcp')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for mcp endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='mcp')
+        existing_apps['mcp'] = target_app
 
     @target_app.command("list-knowledge-claims")
     def mcp_list_knowledge_claims_get(
@@ -7602,7 +7721,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """List knowledge claims (GET /api/mcp/tools/knowledge/claims)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/mcp/tools/knowledge/claims"
+            endpoint_path = "/api/mcp/tools/knowledge/claims"
             params = {
                 "claim_type": claim_type,
                 "entity_id": entity_id,
@@ -7610,7 +7729,7 @@ def register_generated_openapi_commands(
                 "offset": offset,
                 "q": q,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-knowledge-claim")
@@ -7633,7 +7752,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create knowledge claim (POST /api/mcp/tools/knowledge/claims/create)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/mcp/tools/knowledge/claims/create"
+            endpoint_path = "/api/mcp/tools/knowledge/claims/create"
             params = None
             payload = _build_json_payload({
                 "claim_type": claim_type,
@@ -7666,19 +7785,22 @@ def register_generated_openapi_commands(
                 "source_type": {'type': 'string', 'maxLength': 64, 'minLength': 1, 'title': 'Source Type', 'description': 'Source type: document, claim, multiple, synthesis', 'default': 'document', 'x-cli-required': False},
                 "text": {'type': 'string', 'maxLength': 10000, 'minLength': 1, 'title': 'Text', 'description': 'Claim text content', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete-knowledge-claim")
     def mcp_delete_knowledge_claim_delete(
         ctx: typer.Context,
         claim_id: str = typer.Argument(..., help="Path parameter: claim_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete knowledge claim (DELETE /api/mcp/tools/knowledge/claims/{claim_id})."""
+        if not yes:
+            typer.confirm("Delete mcp?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mcp/tools/knowledge/claims/{claim_id}"
+            endpoint_path = f"/api/mcp/tools/knowledge/claims/{claim_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-knowledge-claim")
@@ -7688,9 +7810,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get knowledge claim (GET /api/mcp/tools/knowledge/claims/{claim_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mcp/tools/knowledge/claims/{claim_id}"
+            endpoint_path = f"/api/mcp/tools/knowledge/claims/{claim_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-knowledge-entities")
@@ -7703,14 +7825,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """List knowledge entities (GET /api/mcp/tools/knowledge/entities)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/mcp/tools/knowledge/entities"
+            endpoint_path = "/api/mcp/tools/knowledge/entities"
             params = {
                 "entity_type": entity_type,
                 "limit": limit,
                 "offset": offset,
                 "q": q,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("upsert-knowledge-entity")
@@ -7726,7 +7848,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Upsert knowledge entity (POST /api/mcp/tools/knowledge/entities/upsert)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/mcp/tools/knowledge/entities/upsert"
+            endpoint_path = "/api/mcp/tools/knowledge/entities/upsert"
             params = None
             payload = _build_json_payload({
                 "aliases": aliases,
@@ -7745,19 +7867,22 @@ def register_generated_openapi_commands(
                 "language": {'type': 'string', 'maxLength': 16, 'minLength': 2, 'nullable': True, 'title': 'Language', 'description': 'ISO 639-1 language code', 'x-cli-required': False},
                 "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'description': 'Custom metadata', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete-knowledge-entity")
     def mcp_delete_knowledge_entity_delete(
         ctx: typer.Context,
         entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete knowledge entity (DELETE /api/mcp/tools/knowledge/entities/{entity_id})."""
+        if not yes:
+            typer.confirm("Delete mcp?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mcp/tools/knowledge/entities/{entity_id}"
+            endpoint_path = f"/api/mcp/tools/knowledge/entities/{entity_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-knowledge-entity")
@@ -7767,15 +7892,16 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get knowledge entity (GET /api/mcp/tools/knowledge/entities/{entity_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mcp/tools/knowledge/entities/{entity_id}"
+            endpoint_path = f"/api/mcp/tools/knowledge/entities/{entity_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('mcp-servers')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for mcp-servers endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='mcp-servers')
+        existing_apps['mcp-servers'] = target_app
 
     @target_app.command("list")
     def mcp_servers_list_get(
@@ -7783,9 +7909,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Mcp Servers (GET /api/mcp-servers)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/mcp-servers"
+            endpoint_path = "/api/mcp-servers"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create")
@@ -7804,7 +7930,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Mcp Server (POST /api/mcp-servers)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/mcp-servers"
+            endpoint_path = "/api/mcp-servers"
             params = None
             payload = _build_json_payload({
                 "args": args,
@@ -7829,7 +7955,7 @@ def register_generated_openapi_commands(
                 "transport": {'type': 'string', 'title': 'Transport', 'x-cli-required': True},
                 "url": {'type': 'string', 'nullable': True, 'title': 'Url', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-all-tools")
@@ -7838,9 +7964,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get All Mcp Tools (GET /api/mcp-servers/tools/all)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/mcp-servers/tools/all"
+            endpoint_path = "/api/mcp-servers/tools/all"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("load-tools-into-workflow-registry")
@@ -7849,9 +7975,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Load Mcp Tools Into Workflow Registry (POST /api/mcp-servers/tools/load-into-workflow-registry)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/mcp-servers/tools/load-into-workflow-registry"
+            endpoint_path = "/api/mcp-servers/tools/load-into-workflow-registry"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("reload-tools-in-workflow-registry")
@@ -7860,21 +7986,24 @@ def register_generated_openapi_commands(
     ) -> None:
         """Reload Mcp Tools In Workflow Registry (POST /api/mcp-servers/tools/reload-workflow-registry)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/mcp-servers/tools/reload-workflow-registry"
+            endpoint_path = "/api/mcp-servers/tools/reload-workflow-registry"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("delete")
     def mcp_servers_delete_delete(
         ctx: typer.Context,
         server_id: str = typer.Argument(..., help="Path parameter: server_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Mcp Server (DELETE /api/mcp-servers/{server_id})."""
+        if not yes:
+            typer.confirm("Delete mcp-servers?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mcp-servers/{server_id}"
+            endpoint_path = f"/api/mcp-servers/{server_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get")
@@ -7884,9 +8013,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Mcp Server (GET /api/mcp-servers/{server_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mcp-servers/{server_id}"
+            endpoint_path = f"/api/mcp-servers/{server_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update")
@@ -7906,7 +8035,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Mcp Server (PUT /api/mcp-servers/{server_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mcp-servers/{server_id}"
+            endpoint_path = f"/api/mcp-servers/{server_id}"
             params = None
             payload = _build_json_payload({
                 "args": args,
@@ -7931,7 +8060,7 @@ def register_generated_openapi_commands(
                 "transport": {'type': 'string', 'nullable': True, 'title': 'Transport', 'x-cli-required': False},
                 "url": {'type': 'string', 'nullable': True, 'title': 'Url', 'x-cli-required': False},
             }, required=True)
-            return client.request("PUT", path, params=params, json=payload)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("load-tools")
@@ -7942,17 +8071,18 @@ def register_generated_openapi_commands(
     ) -> None:
         """Load Server Tools (POST /api/mcp-servers/{server_id}/load-tools)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mcp-servers/{server_id}/load-tools"
+            endpoint_path = f"/api/mcp-servers/{server_id}/load-tools"
             params = {
                 "force_reload": force_reload,
             }
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('migrations')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for migrations endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='migrations')
+        existing_apps['migrations'] = target_app
 
     @target_app.command("list")
     def migrations_list_get(
@@ -7960,9 +8090,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Migrations (GET /api/migrations/migrations)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/migrations/migrations"
+            endpoint_path = "/api/migrations/migrations"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("data-integrity-check")
@@ -7971,9 +8101,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Data Integrity Check (GET /api/migrations/migrations/integrity-check)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/migrations/migrations/integrity-check"
+            endpoint_path = "/api/migrations/migrations/integrity-check"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("rollback")
@@ -7983,14 +8113,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """Rollback Migration (POST /api/migrations/migrations/rollback)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/migrations/migrations/rollback"
+            endpoint_path = "/api/migrations/migrations/rollback"
             params = None
             payload = _build_json_payload({
                 "run_id": run_id,
             }, {
                 "run_id": {'type': 'string', 'title': 'Run Id', 'description': 'Migration run ID to rollback', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("run")
@@ -8003,7 +8133,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Run Migration (POST /api/migrations/migrations/run)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/migrations/migrations/run"
+            endpoint_path = "/api/migrations/migrations/run"
             params = None
             payload = _build_json_payload({
                 "batch_size": batch_size,
@@ -8016,7 +8146,7 @@ def register_generated_openapi_commands(
                 "dry_run": {'type': 'boolean', 'title': 'Dry Run', 'description': 'Validate without making changes', 'default': False, 'x-cli-required': False},
                 "limit": {'type': 'integer', 'minimum': 1.0, 'nullable': True, 'title': 'Limit', 'description': 'Maximum items to process', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-status")
@@ -8026,9 +8156,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Migration Status (GET /api/migrations/migrations/status/{run_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/migrations/migrations/status/{run_id}"
+            endpoint_path = f"/api/migrations/migrations/status/{run_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("validate")
@@ -8039,7 +8169,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Validate Migration (POST /api/migrations/migrations/validate)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/migrations/migrations/validate"
+            endpoint_path = "/api/migrations/migrations/validate"
             params = None
             payload = _build_json_payload({
                 "command": command,
@@ -8048,13 +8178,14 @@ def register_generated_openapi_commands(
                 "command": {'type': 'string', 'enum': ['migrate_claims_to_multi_source', 'backfill_claim_source_metadata', 'repair_orphaned_claim_links', 'repair_kg_svo_repr_leak'], 'title': 'MigrationCommand', 'description': 'Available migration commands.', 'x-cli-required': True},
                 "sample_size": {'type': 'integer', 'maximum': 1000.0, 'minimum': 1.0, 'title': 'Sample Size', 'default': 100, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('mind-palace')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for mind-palace endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='mind-palace')
+        existing_apps['mind-palace'] = target_app
 
     @target_app.command("list-connections")
     def mind_palace_list_connections_get(
@@ -8064,12 +8195,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Connections (GET /api/mind-palace/connections)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/mind-palace/connections"
+            endpoint_path = "/api/mind-palace/connections"
             params = {
                 "connection_type": connection_type,
                 "room_id": room_id,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-connection")
@@ -8085,7 +8216,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Connection (POST /api/mind-palace/connections)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/mind-palace/connections"
+            endpoint_path = "/api/mind-palace/connections"
             params = None
             payload = _build_json_payload({
                 "connection_type": connection_type,
@@ -8104,19 +8235,22 @@ def register_generated_openapi_commands(
                 "source_node_id": {'type': 'string', 'title': 'Source Node Id', 'x-cli-required': True},
                 "target_node_id": {'type': 'string', 'title': 'Target Node Id', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("remove-connection")
     def mind_palace_remove_connection_delete(
         ctx: typer.Context,
         connection_id: str = typer.Argument(..., help="Path parameter: connection_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Remove Connection (DELETE /api/mind-palace/connections/{connection_id})."""
+        if not yes:
+            typer.confirm("Delete mind-palace?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mind-palace/connections/{connection_id}"
+            endpoint_path = f"/api/mind-palace/connections/{connection_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("export-to-tinderbox")
@@ -8127,12 +8261,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """Export To Tinderbox (POST /api/mind-palace/export/tinderbox)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/mind-palace/export/tinderbox"
+            endpoint_path = "/api/mind-palace/export/tinderbox"
             params = {
                 "room_id": room_id,
                 "tinderbox_note_id": tinderbox_note_id,
             }
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("arrange-folder-canvas")
@@ -8147,7 +8281,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Arrange Folder Canvas (POST /api/mind-palace/folders/{folder_id}/arrange)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mind-palace/folders/{folder_id}/arrange"
+            endpoint_path = f"/api/mind-palace/folders/{folder_id}/arrange"
             params = None
             payload = _build_json_payload({
                 "columns": columns,
@@ -8162,7 +8296,7 @@ def register_generated_openapi_commands(
                 "spacing": {'type': 'number', 'title': 'Spacing', 'default': 160.0, 'x-cli-required': False},
                 "strategy": {'type': 'string', 'enum': ['grid', 'row', 'column', 'circle', 'stack'], 'title': 'ArrangeStrategy', 'description': 'The geometric arrangement strategies supported by ``compute_arrangement``.', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-canvas-items")
@@ -8173,11 +8307,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Canvas Items (GET /api/mind-palace/folders/{folder_id}/canvas-items)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mind-palace/folders/{folder_id}/canvas-items"
+            endpoint_path = f"/api/mind-palace/folders/{folder_id}/canvas-items"
             params = {
                 "kind": kind,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-canvas-item")
@@ -8192,7 +8326,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Canvas Item (POST /api/mind-palace/folders/{folder_id}/canvas-items)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mind-palace/folders/{folder_id}/canvas-items"
+            endpoint_path = f"/api/mind-palace/folders/{folder_id}/canvas-items"
             params = None
             payload = _build_json_payload({
                 "kind": kind,
@@ -8207,7 +8341,7 @@ def register_generated_openapi_commands(
                 "target_item_id": {'type': 'string', 'nullable': True, 'title': 'Target Item Id', 'x-cli-required': False},
                 "text": {'type': 'string', 'title': 'Text', 'default': '', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete-canvas-item")
@@ -8215,12 +8349,15 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
         item_id: str = typer.Argument(..., help="Path parameter: item_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Canvas Item (DELETE /api/mind-palace/folders/{folder_id}/canvas-items/{item_id})."""
+        if not yes:
+            typer.confirm("Delete mind-palace?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mind-palace/folders/{folder_id}/canvas-items/{item_id}"
+            endpoint_path = f"/api/mind-palace/folders/{folder_id}/canvas-items/{item_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update-canvas-item")
@@ -8236,7 +8373,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Canvas Item (PATCH /api/mind-palace/folders/{folder_id}/canvas-items/{item_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mind-palace/folders/{folder_id}/canvas-items/{item_id}"
+            endpoint_path = f"/api/mind-palace/folders/{folder_id}/canvas-items/{item_id}"
             params = None
             payload = _build_json_payload({
                 "kind": kind,
@@ -8251,7 +8388,7 @@ def register_generated_openapi_commands(
                 "target_item_id": {'type': 'string', 'nullable': True, 'title': 'Target Item Id', 'x-cli-required': False},
                 "text": {'type': 'string', 'nullable': True, 'title': 'Text', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-canvas-layout")
@@ -8261,9 +8398,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Canvas Layout (GET /api/mind-palace/folders/{folder_id}/canvas-layout)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mind-palace/folders/{folder_id}/canvas-layout"
+            endpoint_path = f"/api/mind-palace/folders/{folder_id}/canvas-layout"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("save-canvas-layout")
@@ -8274,14 +8411,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """Save Canvas Layout (PUT /api/mind-palace/folders/{folder_id}/canvas-layout)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mind-palace/folders/{folder_id}/canvas-layout"
+            endpoint_path = f"/api/mind-palace/folders/{folder_id}/canvas-layout"
             params = None
             payload = _build_json_payload({
                 "items": items,
             }, {
                 "items": {'items': {'$ref': '#/components/schemas/CanvasLayoutItem'}, 'type': 'array', 'title': 'Items', 'x-cli-required': True},
             }, required=True)
-            return client.request("PUT", path, params=params, json=payload)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("import-from-tinderbox")
@@ -8292,12 +8429,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """Import From Tinderbox (POST /api/mind-palace/import/tinderbox)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/mind-palace/import/tinderbox"
+            endpoint_path = "/api/mind-palace/import/tinderbox"
             params = {
                 "room_id": room_id,
                 "tinderbox_note_id": tinderbox_note_id,
             }
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-nodes")
@@ -8308,12 +8445,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Nodes (GET /api/mind-palace/nodes)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/mind-palace/nodes"
+            endpoint_path = "/api/mind-palace/nodes"
             params = {
                 "node_type": node_type,
                 "room_id": room_id,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("place-node")
@@ -8335,7 +8472,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Place Node (POST /api/mind-palace/nodes)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/mind-palace/nodes"
+            endpoint_path = "/api/mind-palace/nodes"
             params = None
             payload = _build_json_payload({
                 "created_by": created_by,
@@ -8366,19 +8503,22 @@ def register_generated_openapi_commands(
                 "scale": {'type': 'number', 'title': 'Scale', 'default': 1.0, 'x-cli-required': False},
                 "source_id": {'type': 'string', 'nullable': True, 'title': 'Source Id', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("remove-node")
     def mind_palace_remove_node_delete(
         ctx: typer.Context,
         node_id: str = typer.Argument(..., help="Path parameter: node_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Remove Node (DELETE /api/mind-palace/nodes/{node_id})."""
+        if not yes:
+            typer.confirm("Delete mind-palace?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mind-palace/nodes/{node_id}"
+            endpoint_path = f"/api/mind-palace/nodes/{node_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-node")
@@ -8388,9 +8528,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Node (GET /api/mind-palace/nodes/{node_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mind-palace/nodes/{node_id}"
+            endpoint_path = f"/api/mind-palace/nodes/{node_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("move-node")
@@ -8407,7 +8547,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Move Node (PATCH /api/mind-palace/nodes/{node_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mind-palace/nodes/{node_id}"
+            endpoint_path = f"/api/mind-palace/nodes/{node_id}"
             params = None
             payload = _build_json_payload({
                 "position_x": position_x,
@@ -8426,7 +8566,7 @@ def register_generated_openapi_commands(
                 "rotation_z": {'type': 'number', 'nullable': True, 'title': 'Rotation Z', 'x-cli-required': False},
                 "scale": {'type': 'number', 'nullable': True, 'title': 'Scale', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-notes")
@@ -8439,14 +8579,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Notes (GET /api/mind-palace/notes)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/mind-palace/notes"
+            endpoint_path = "/api/mind-palace/notes"
             params = {
                 "author_id": author_id,
                 "note_type": note_type,
                 "room_id": room_id,
                 "status": status,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-note")
@@ -8463,7 +8603,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Note (POST /api/mind-palace/notes)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/mind-palace/notes"
+            endpoint_path = "/api/mind-palace/notes"
             params = None
             payload = _build_json_payload({
                 "author_id": author_id,
@@ -8484,19 +8624,22 @@ def register_generated_openapi_commands(
                 "note_type": {'type': 'string', 'enum': ['user', 'ai_workspace', 'ai_hypothesis', 'ai_summary', 'ai_relation', 'shared'], 'title': 'NoteType', 'x-cli-required': False},
                 "room_id": {'type': 'string', 'nullable': True, 'title': 'Room Id', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete-note")
     def mind_palace_delete_note_delete(
         ctx: typer.Context,
         note_id: str = typer.Argument(..., help="Path parameter: note_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Note (DELETE /api/mind-palace/notes/{note_id})."""
+        if not yes:
+            typer.confirm("Delete mind-palace?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mind-palace/notes/{note_id}"
+            endpoint_path = f"/api/mind-palace/notes/{note_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-note")
@@ -8506,9 +8649,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Note (GET /api/mind-palace/notes/{note_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mind-palace/notes/{note_id}"
+            endpoint_path = f"/api/mind-palace/notes/{note_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update-note")
@@ -8525,7 +8668,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Note (PATCH /api/mind-palace/notes/{note_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mind-palace/notes/{note_id}"
+            endpoint_path = f"/api/mind-palace/notes/{note_id}"
             params = None
             payload = _build_json_payload({
                 "content": content,
@@ -8544,7 +8687,7 @@ def register_generated_openapi_commands(
                 "note_type": {'type': 'string', 'enum': ['user', 'ai_workspace', 'ai_hypothesis', 'ai_summary', 'ai_relation', 'shared'], 'title': 'NoteType', 'x-cli-required': False},
                 "status": {'type': 'string', 'enum': ['draft', 'active', 'surfaced', 'accepted', 'archived', 'discarded'], 'title': 'NoteStatus', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-rooms")
@@ -8555,12 +8698,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Rooms (GET /api/mind-palace/rooms)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/mind-palace/rooms"
+            endpoint_path = "/api/mind-palace/rooms"
             params = {
                 "owner_id": owner_id,
                 "room_type": room_type,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-room")
@@ -8574,7 +8717,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Room (POST /api/mind-palace/rooms)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/mind-palace/rooms"
+            endpoint_path = "/api/mind-palace/rooms"
             params = None
             payload = _build_json_payload({
                 "description": description,
@@ -8589,19 +8732,22 @@ def register_generated_openapi_commands(
                 "owner_id": {'type': 'string', 'title': 'Owner Id', 'default': 'user', 'x-cli-required': False},
                 "room_type": {'type': 'string', 'enum': ['research', 'synthesis', 'presentation'], 'title': 'RoomType', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete-room")
     def mind_palace_delete_room_delete(
         ctx: typer.Context,
         room_id: str = typer.Argument(..., help="Path parameter: room_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Room (DELETE /api/mind-palace/rooms/{room_id})."""
+        if not yes:
+            typer.confirm("Delete mind-palace?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mind-palace/rooms/{room_id}"
+            endpoint_path = f"/api/mind-palace/rooms/{room_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-room")
@@ -8611,9 +8757,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Room (GET /api/mind-palace/rooms/{room_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mind-palace/rooms/{room_id}"
+            endpoint_path = f"/api/mind-palace/rooms/{room_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update-room")
@@ -8627,7 +8773,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Room (PATCH /api/mind-palace/rooms/{room_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mind-palace/rooms/{room_id}"
+            endpoint_path = f"/api/mind-palace/rooms/{room_id}"
             params = None
             payload = _build_json_payload({
                 "description": description,
@@ -8640,7 +8786,7 @@ def register_generated_openapi_commands(
                 "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
                 "room_type": {'type': 'string', 'enum': ['research', 'synthesis', 'presentation'], 'title': 'RoomType', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("capture-viewport")
@@ -8652,7 +8798,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Capture Viewport (POST /api/mind-palace/rooms/{room_id}/capture)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mind-palace/rooms/{room_id}/capture"
+            endpoint_path = f"/api/mind-palace/rooms/{room_id}/capture"
             params = None
             payload = _build_json_payload({
                 "region": region,
@@ -8661,7 +8807,7 @@ def register_generated_openapi_commands(
                 "region": {'type': 'string', 'enum': ['full', 'focused', 'selection'], 'title': 'CaptureRegion', 'x-cli-required': False},
                 "selection_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Selection Ids', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("focus-node")
@@ -8673,12 +8819,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """Focus Node (POST /api/mind-palace/rooms/{room_id}/focus)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mind-palace/rooms/{room_id}/focus"
+            endpoint_path = f"/api/mind-palace/rooms/{room_id}/focus"
             params = {
                 "node_id": node_id,
                 "user_id": user_id,
             }
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-scene-summary")
@@ -8688,9 +8834,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Scene Summary (GET /api/mind-palace/rooms/{room_id}/scene)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mind-palace/rooms/{room_id}/scene"
+            endpoint_path = f"/api/mind-palace/rooms/{room_id}/scene"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("suggest-arrangement")
@@ -8702,7 +8848,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Suggest Arrangement (POST /api/mind-palace/rooms/{room_id}/suggest-arrangement)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mind-palace/rooms/{room_id}/suggest-arrangement"
+            endpoint_path = f"/api/mind-palace/rooms/{room_id}/suggest-arrangement"
             params = None
             payload = _build_json_payload({
                 "arrangement_type": arrangement_type,
@@ -8711,7 +8857,7 @@ def register_generated_openapi_commands(
                 "arrangement_type": {'type': 'string', 'enum': ['semantic', 'chronological', 'thematic'], 'title': 'ArrangementType', 'x-cli-required': False},
                 "node_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Node Ids', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-viewport")
@@ -8722,9 +8868,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Viewport (GET /api/mind-palace/rooms/{room_id}/viewport/{user_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mind-palace/rooms/{room_id}/viewport/{user_id}"
+            endpoint_path = f"/api/mind-palace/rooms/{room_id}/viewport/{user_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("save-viewport")
@@ -8742,7 +8888,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Save Viewport (POST /api/mind-palace/rooms/{room_id}/viewport/{user_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mind-palace/rooms/{room_id}/viewport/{user_id}"
+            endpoint_path = f"/api/mind-palace/rooms/{room_id}/viewport/{user_id}"
             params = None
             payload = _build_json_payload({
                 "bookmark_name": bookmark_name,
@@ -8761,7 +8907,7 @@ def register_generated_openapi_commands(
                 "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
                 "zoom_level": {'type': 'number', 'title': 'Zoom Level', 'default': 1.0, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-stacks")
@@ -8771,11 +8917,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Stacks (GET /api/mind-palace/stacks)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/mind-palace/stacks"
+            endpoint_path = "/api/mind-palace/stacks"
             params = {
                 "room_id": room_id,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-stack")
@@ -8790,7 +8936,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Stack (POST /api/mind-palace/stacks)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/mind-palace/stacks"
+            endpoint_path = "/api/mind-palace/stacks"
             params = None
             payload = _build_json_payload({
                 "name": name,
@@ -8807,7 +8953,7 @@ def register_generated_openapi_commands(
                 "position_z": {'type': 'number', 'title': 'Position Z', 'default': 0.0, 'x-cli-required': False},
                 "room_id": {'type': 'string', 'title': 'Room Id', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-stack")
@@ -8817,9 +8963,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Stack (GET /api/mind-palace/stacks/{stack_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mind-palace/stacks/{stack_id}"
+            endpoint_path = f"/api/mind-palace/stacks/{stack_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("remove-from-stack")
@@ -8827,12 +8973,15 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         stack_id: str = typer.Argument(..., help="Path parameter: stack_id."),
         node_id: str = typer.Argument(..., help="Path parameter: node_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Remove From Stack (DELETE /api/mind-palace/stacks/{stack_id}/nodes/{node_id})."""
+        if not yes:
+            typer.confirm("Delete mind-palace?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mind-palace/stacks/{stack_id}/nodes/{node_id}"
+            endpoint_path = f"/api/mind-palace/stacks/{stack_id}/nodes/{node_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("add-to-stack")
@@ -8843,15 +8992,16 @@ def register_generated_openapi_commands(
     ) -> None:
         """Add To Stack (POST /api/mind-palace/stacks/{stack_id}/nodes/{node_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/mind-palace/stacks/{stack_id}/nodes/{node_id}"
+            endpoint_path = f"/api/mind-palace/stacks/{stack_id}/nodes/{node_id}"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    target_app = existing_apps.get('mindpalace')
+    target_app = existing_apps.get('mind-palace')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for mindpalace endpoints.', no_args_is_help=True)
-        root_app.add_typer(target_app, name='mindpalace')
+        root_app.add_typer(target_app, name='mind-palace')
+        existing_apps['mind-palace'] = target_app
 
     @target_app.command("render-scene")
     def mindpalace_render_scene_post(
@@ -8864,7 +9014,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Render Scene (POST /api/mindpalace/render)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/mindpalace/render"
+            endpoint_path = "/api/mindpalace/render"
             params = None
             payload = _build_json_payload({
                 "duration_seconds": duration_seconds,
@@ -8879,13 +9029,14 @@ def register_generated_openapi_commands(
                 "room_id": {'type': 'string', 'title': 'Room Id', 'x-cli-required': True},
                 "width": {'type': 'integer', 'maximum': 4096.0, 'minimum': 320.0, 'title': 'Width', 'default': 1280, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('model-comparison')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for model-comparison endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='model-comparison')
+        existing_apps['model-comparison'] = target_app
 
     @target_app.command("compare-models")
     def model_comparison_compare_models_post(
@@ -8899,7 +9050,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Compare Models (POST /api/model-comparison/compare)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/model-comparison/compare"
+            endpoint_path = "/api/model-comparison/compare"
             params = None
             payload = _build_json_payload({
                 "expect_json": expect_json,
@@ -8916,7 +9067,7 @@ def register_generated_openapi_commands(
                 "system_prompt": {'type': 'string', 'nullable': True, 'title': 'System Prompt', 'description': 'Optional system prompt', 'x-cli-required': False},
                 "timeout_seconds": {'type': 'integer', 'title': 'Timeout Seconds', 'description': 'Timeout per model', 'default': 60, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("compare-workflow-node")
@@ -8935,7 +9086,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Compare Workflow Node (POST /api/model-comparison/compare-node)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/model-comparison/compare-node"
+            endpoint_path = "/api/model-comparison/compare-node"
             params = None
             payload = _build_json_payload({
                 "input_files": input_files,
@@ -8960,7 +9111,7 @@ def register_generated_openapi_commands(
                 "workflow_config": {'additionalProperties': True, 'type': 'object', 'title': 'Workflow Config', 'x-cli-required': False},
                 "workflow_id": {'type': 'string', 'nullable': True, 'title': 'Workflow Id', 'description': 'Saved workflow ID when workflow is not supplied', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("apply-to-workflow-node")
@@ -8973,7 +9124,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Apply Model To Workflow Node (POST /api/model-comparison/compare-node/apply)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/model-comparison/compare-node/apply"
+            endpoint_path = "/api/model-comparison/compare-node/apply"
             params = None
             payload = _build_json_payload({
                 "model_name": model_name,
@@ -8986,7 +9137,7 @@ def register_generated_openapi_commands(
                 "provider_name": {'type': 'string', 'title': 'Provider Name', 'x-cli-required': True},
                 "workflow_id": {'type': 'string', 'title': 'Workflow Id', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("compare-tool-across-models")
@@ -9000,7 +9151,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Compare Tool Across Models (POST /api/model-comparison/compare-tool)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/model-comparison/compare-tool"
+            endpoint_path = "/api/model-comparison/compare-tool"
             params = None
             payload = _build_json_payload({
                 "inputs": inputs,
@@ -9015,7 +9166,7 @@ def register_generated_openapi_commands(
                 "tool_config": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Tool Config', 'description': 'Optional tool configuration overrides', 'x-cli-required': False},
                 "tool_name": {'type': 'string', 'title': 'Tool Name', 'description': 'Name of the workflow tool (describe, summarize, classify, etc.)', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("compare-vision-models")
@@ -9030,7 +9181,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Compare Vision Models (POST /api/model-comparison/compare-vision)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/model-comparison/compare-vision"
+            endpoint_path = "/api/model-comparison/compare-vision"
             params = None
             payload = _build_json_payload({
                 "detail": detail,
@@ -9047,7 +9198,7 @@ def register_generated_openapi_commands(
                 "prompt": {'type': 'string', 'title': 'Prompt', 'description': 'Prompt for vision analysis', 'default': 'Describe this image in detail', 'x-cli-required': False},
                 "timeout_seconds": {'type': 'integer', 'title': 'Timeout Seconds', 'description': 'Timeout per model', 'default': 120, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("compare-workflow-across-models")
@@ -9062,7 +9213,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Compare Workflow Across Models (POST /api/model-comparison/compare-workflow)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/model-comparison/compare-workflow"
+            endpoint_path = "/api/model-comparison/compare-workflow"
             params = None
             payload = _build_json_payload({
                 "doc_id": doc_id,
@@ -9079,7 +9230,7 @@ def register_generated_openapi_commands(
                 "workflow": {'properties': {'id': {'type': 'string', 'title': 'Id', 'description': 'Unique workflow identifier'}, 'name': {'type': 'string', 'title': 'Name', 'description': 'Display name'}, 'description': {'type': 'string', 'title': 'Description', 'default': ''}, 'nodes': {'items': {'$ref': '#/components/schemas/NodeDef-Input'}, 'type': 'array', 'title': 'Nodes'}, 'edges': {'items': {'$ref': '#/components/schemas/EdgeDef'}, 'type': 'array', 'title': 'Edges'}, 'provider': {'type': 'string', 'title': 'Provider', 'default': 'openai'}, 'model': {'type': 'string', 'title': 'Model', 'default': 'gpt-4o'}, 'input_source': {'type': 'string', 'enum': ['collection', 'current_selection'], 'title': 'Input Source', 'default': 'collection'}, 'timeout_seconds': {'type': 'integer', 'title': 'Timeout Seconds', 'default': 300}, 'max_retries': {'type': 'integer', 'title': 'Max Retries', 'default': 3}, 'version': {'type': 'string', 'title': 'Version', 'default': '1.0'}, 'created_at': {'type': 'string', 'nullable': True, 'title': 'Created At'}, 'updated_at': {'type': 'string', 'nullable': True, 'title': 'Updated At'}, 'folder_path': {'type': 'string', 'title': 'Folder Path', 'default': '/'}, 'sort_order': {'type': 'integer', 'title': 'Sort Order', 'default': 0}}, 'type': 'object', 'required': ['name'], 'title': 'WorkflowDef', 'description': 'Complete workflow definition.\n\nThis is the JSON-serializable representation of a workflow\nthat can be saved, loaded, and executed.', 'x-cli-required': False},
                 "workflow_id": {'type': 'string', 'nullable': True, 'title': 'Workflow Id', 'description': 'Saved workflow ID when workflow is not supplied', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get")
@@ -9089,9 +9240,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Comparison (GET /api/model-comparison/comparison/{comparison_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/model-comparison/comparison/{comparison_id}"
+            endpoint_path = f"/api/model-comparison/comparison/{comparison_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("estimate-cost")
@@ -9106,7 +9257,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Estimate Comparison Cost (POST /api/model-comparison/estimate-cost)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/model-comparison/estimate-cost"
+            endpoint_path = "/api/model-comparison/estimate-cost"
             params = None
             payload = _build_json_payload({
                 "expect_json": expect_json,
@@ -9123,7 +9274,7 @@ def register_generated_openapi_commands(
                 "system_prompt": {'type': 'string', 'nullable': True, 'title': 'System Prompt', 'description': 'Optional system prompt', 'x-cli-required': False},
                 "timeout_seconds": {'type': 'integer', 'title': 'Timeout Seconds', 'description': 'Timeout per model', 'default': 60, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-history")
@@ -9133,11 +9284,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Comparison History (GET /api/model-comparison/history)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/model-comparison/history"
+            endpoint_path = "/api/model-comparison/history"
             params = {
                 "limit": limit,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-language-fit")
@@ -9149,13 +9300,13 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Language Fit (GET /api/model-comparison/language-fit)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/model-comparison/language-fit"
+            endpoint_path = "/api/model-comparison/language-fit"
             params = {
                 "language": language,
                 "model": model,
                 "provider": provider,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-available-models")
@@ -9164,9 +9315,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Available Models (GET /api/model-comparison/models)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/model-comparison/models"
+            endpoint_path = "/api/model-comparison/models"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-models-grouped-by-tier")
@@ -9175,9 +9326,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Models Grouped By Tier (GET /api/model-comparison/models-by-tier)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/model-comparison/models-by-tier"
+            endpoint_path = "/api/model-comparison/models-by-tier"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-presets")
@@ -9186,9 +9337,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Comparison Presets (GET /api/model-comparison/presets)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/model-comparison/presets"
+            endpoint_path = "/api/model-comparison/presets"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("recommend-models-for-picker")
@@ -9203,7 +9354,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Recommend Models For Picker (POST /api/model-comparison/recommend-models)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/model-comparison/recommend-models"
+            endpoint_path = "/api/model-comparison/recommend-models"
             params = None
             payload = _build_json_payload({
                 "candidates": candidates,
@@ -9220,7 +9371,7 @@ def register_generated_openapi_commands(
                 "private": {'type': 'boolean', 'title': 'Private', 'description': 'Refuse cloud providers when the task is private.', 'default': False, 'x-cli-required': False},
                 "task": {'type': 'string', 'nullable': True, 'title': 'Task', 'description': 'Human-readable task label for recommendation reasons.', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-available-tools")
@@ -9229,15 +9380,16 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Available Tools (GET /api/model-comparison/tools)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/model-comparison/tools"
+            endpoint_path = "/api/model-comparison/tools"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('models')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for models endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='models')
+        existing_apps['models'] = target_app
 
     @target_app.command("search-hf")
     def models_search_hf_get(
@@ -9251,7 +9403,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Search Hf Models (GET /api/models/huggingface)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/models/huggingface"
+            endpoint_path = "/api/models/huggingface"
             params = {
                 "library": library,
                 "limit": limit,
@@ -9260,7 +9412,7 @@ def register_generated_openapi_commands(
                 "sort": sort,
                 "task": task,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-hf-tasks")
@@ -9269,9 +9421,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Hf Tasks (GET /api/models/huggingface/tasks)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/models/huggingface/tasks"
+            endpoint_path = "/api/models/huggingface/tasks"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-hf")
@@ -9281,15 +9433,16 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Hf Model (GET /api/models/huggingface/{model_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/models/huggingface/{model_id}"
+            endpoint_path = f"/api/models/huggingface/{model_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('multilingual')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for multilingual endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='multilingual')
+        existing_apps['multilingual'] = target_app
 
     @target_app.command("get-claims-by-language")
     def multilingual_get_claims_by_language_get(
@@ -9300,13 +9453,13 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get claims by language (GET /api/multilingual/claims)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/multilingual/claims"
+            endpoint_path = "/api/multilingual/claims"
             params = {
                 "limit": limit,
                 "offset": offset,
                 "source_language": source_language,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("detect-language")
@@ -9316,14 +9469,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """Detect language (POST /api/multilingual/detect)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/multilingual/detect"
+            endpoint_path = "/api/multilingual/detect"
             params = None
             payload = _build_json_payload({
                 "text": text,
             }, {
                 "text": {'type': 'string', 'minLength': 1, 'title': 'Text', 'description': 'Text to analyze', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-entities-by-language")
@@ -9336,14 +9489,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get entities by language (GET /api/multilingual/entities)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/multilingual/entities"
+            endpoint_path = "/api/multilingual/entities"
             params = {
                 "entity_type": entity_type,
                 "language": language,
                 "limit": limit,
                 "offset": offset,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("cross-language-entity-search")
@@ -9355,7 +9508,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Cross-language entity search (POST /api/multilingual/entities/search)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/multilingual/entities/search"
+            endpoint_path = "/api/multilingual/entities/search"
             params = None
             payload = _build_json_payload({
                 "entity_type": entity_type,
@@ -9366,7 +9519,7 @@ def register_generated_openapi_commands(
                 "limit": {'type': 'integer', 'maximum': 100.0, 'minimum': 1.0, 'title': 'Limit', 'default': 20, 'x-cli-required': False},
                 "query": {'type': 'string', 'minLength': 1, 'title': 'Query', 'description': 'Search query', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("normalize-text")
@@ -9378,7 +9531,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Normalize text (POST /api/multilingual/normalize)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/multilingual/normalize"
+            endpoint_path = "/api/multilingual/normalize"
             params = None
             payload = _build_json_payload({
                 "language": language,
@@ -9389,7 +9542,7 @@ def register_generated_openapi_commands(
                 "stemming": {'type': 'boolean', 'title': 'Stemming', 'default': False, 'x-cli-required': False},
                 "text": {'type': 'string', 'title': 'Text', 'default': '', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-transliteration-variants")
@@ -9400,7 +9553,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get transliteration variants (POST /api/multilingual/transliterate)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/multilingual/transliterate"
+            endpoint_path = "/api/multilingual/transliterate"
             params = None
             payload = _build_json_payload({
                 "language": language,
@@ -9409,13 +9562,14 @@ def register_generated_openapi_commands(
                 "language": {'type': 'string', 'title': 'Language', 'description': 'Source language (ISO 639-1)', 'x-cli-required': True},
                 "text": {'type': 'string', 'title': 'Text', 'description': 'Text to transliterate', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('notes')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for notes endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='notes')
+        existing_apps['notes'] = target_app
 
     @target_app.command("list")
     def notes_list_get(
@@ -9432,7 +9586,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Notes (GET /api/notes)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/notes"
+            endpoint_path = "/api/notes"
             params = {
                 "folder_id": folder_id,
                 "kind": kind,
@@ -9444,7 +9598,7 @@ def register_generated_openapi_commands(
                 "q": q,
                 "tag": tag,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create")
@@ -9466,7 +9620,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Note (POST /api/notes)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/notes"
+            endpoint_path = "/api/notes"
             params = None
             payload = _build_json_payload({
                 "address": address,
@@ -9497,19 +9651,22 @@ def register_generated_openapi_commands(
                 "tags": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Tags', 'default': [], 'x-cli-required': False},
                 "title": {'type': 'string', 'nullable': True, 'title': 'Title', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete")
     def notes_delete_delete(
         ctx: typer.Context,
         note_id: str = typer.Argument(..., help="Path parameter: note_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Note (DELETE /api/notes/{note_id})."""
+        if not yes:
+            typer.confirm("Delete notes?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/notes/{note_id}"
+            endpoint_path = f"/api/notes/{note_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get")
@@ -9519,9 +9676,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Note (GET /api/notes/{note_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/notes/{note_id}"
+            endpoint_path = f"/api/notes/{note_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("patch")
@@ -9544,7 +9701,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Patch Note (PATCH /api/notes/{note_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/notes/{note_id}"
+            endpoint_path = f"/api/notes/{note_id}"
             params = None
             payload = _build_json_payload({
                 "address": address,
@@ -9575,7 +9732,7 @@ def register_generated_openapi_commands(
                 "tags": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Tags', 'x-cli-required': False},
                 "title": {'type': 'string', 'nullable': True, 'title': 'Title', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("every-that-links-to-this-one")
@@ -9585,9 +9742,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Every note that links to this one (GET /api/notes/{note_id}/backlinks)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/notes/{note_id}/backlinks"
+            endpoint_path = f"/api/notes/{note_id}/backlinks"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("every-this-one-links-to")
@@ -9597,9 +9754,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Every note this one links to (GET /api/notes/{note_id}/forward-links)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/notes/{note_id}/forward-links"
+            endpoint_path = f"/api/notes/{note_id}/forward-links"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-a-bidirectional-link-between-two")
@@ -9612,7 +9769,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create a bidirectional link between two notes (POST /api/notes/{note_id}/links)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/notes/{note_id}/links"
+            endpoint_path = f"/api/notes/{note_id}/links"
             params = None
             payload = _build_json_payload({
                 "annotation": annotation,
@@ -9623,7 +9780,7 @@ def register_generated_openapi_commands(
                 "link_type": {'type': 'string', 'title': 'Link Type', 'default': 'free', 'x-cli-required': False},
                 "target_note_id": {'type': 'string', 'title': 'Target Note Id', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete-link")
@@ -9631,18 +9788,22 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         note_id: str = typer.Argument(..., help="Path parameter: note_id."),
         link_id: str = typer.Argument(..., help="Path parameter: link_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Note Link (DELETE /api/notes/{note_id}/links/{link_id})."""
+        if not yes:
+            typer.confirm("Delete notes?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/notes/{note_id}/links/{link_id}"
+            endpoint_path = f"/api/notes/{note_id}/links/{link_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('pair')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for pair endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='pair')
+        existing_apps['pair'] = target_app
 
     @target_app.command("device")
     def pair_device_post(
@@ -9652,7 +9813,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Pair Device (POST /api/pair)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/pair"
+            endpoint_path = "/api/pair"
             params = None
             payload = _build_json_payload({
                 "code": code,
@@ -9661,7 +9822,7 @@ def register_generated_openapi_commands(
                 "code": {'type': 'string', 'minLength': 1, 'title': 'Code', 'x-cli-required': True},
                 "device_name": {'type': 'string', 'minLength': 1, 'title': 'Device Name', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("create-pairing-code")
@@ -9670,9 +9831,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Pairing Code (POST /api/pair/code)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/pair/code"
+            endpoint_path = "/api/pair/code"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-devices")
@@ -9681,9 +9842,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Devices (GET /api/pair/devices)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/pair/devices"
+            endpoint_path = "/api/pair/devices"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("revoke-device")
@@ -9693,15 +9854,16 @@ def register_generated_openapi_commands(
     ) -> None:
         """Revoke Device (POST /api/pair/devices/{device_id}/revoke)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/pair/devices/{device_id}/revoke"
+            endpoint_path = f"/api/pair/devices/{device_id}/revoke"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('policies')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for policies endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='policies')
+        existing_apps['policies'] = target_app
 
     @target_app.command("list-orchestration-rules")
     def policies_list_orchestration_rules_get(
@@ -9710,11 +9872,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """List orchestration policy rules (GET /api/policies/orchestration)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/policies/orchestration"
+            endpoint_path = "/api/policies/orchestration"
             params = {
                 "active_only": active_only,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-a-new-rule")
@@ -9731,7 +9893,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create a new policy rule (POST /api/policies/orchestration)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/policies/orchestration"
+            endpoint_path = "/api/policies/orchestration"
             params = None
             payload = _build_json_payload({
                 "action": action,
@@ -9752,7 +9914,7 @@ def register_generated_openapi_commands(
                 "priority": {'type': 'integer', 'maximum': 1000.0, 'minimum': 1.0, 'title': 'Priority', 'default': 100, 'x-cli-required': False},
                 "requires_source": {'type': 'boolean', 'title': 'Requires Source', 'default': False, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("evaluate-a-hypothetical-write-against")
@@ -9765,7 +9927,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Evaluate a hypothetical write against policies (POST /api/policies/orchestration/evaluate)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/policies/orchestration/evaluate"
+            endpoint_path = "/api/policies/orchestration/evaluate"
             params = None
             payload = _build_json_payload({
                 "confidence": confidence,
@@ -9778,19 +9940,22 @@ def register_generated_openapi_commands(
                 "evidence_count": {'type': 'integer', 'minimum': 0.0, 'title': 'Evidence Count', 'default': 0, 'x-cli-required': False},
                 "has_source": {'type': 'boolean', 'title': 'Has Source', 'default': False, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete-a-rule")
     def policies_delete_a_rule_delete(
         ctx: typer.Context,
         rule_id: str = typer.Argument(..., help="Path parameter: rule_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete a policy rule (DELETE /api/policies/orchestration/{rule_id})."""
+        if not yes:
+            typer.confirm("Delete policies?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/policies/orchestration/{rule_id}"
+            endpoint_path = f"/api/policies/orchestration/{rule_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-a-specific-rule")
@@ -9800,9 +9965,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get a specific policy rule (GET /api/policies/orchestration/{rule_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/policies/orchestration/{rule_id}"
+            endpoint_path = f"/api/policies/orchestration/{rule_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update-a-rule")
@@ -9814,16 +9979,17 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update a policy rule (PATCH /api/policies/orchestration/{rule_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/policies/orchestration/{rule_id}"
+            endpoint_path = f"/api/policies/orchestration/{rule_id}"
             params = None
             payload = _load_json_payload(body, body_file, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('projects')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for projects endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='projects')
+        existing_apps['projects'] = target_app
 
     @target_app.command("list")
     def projects_list_get(
@@ -9832,11 +9998,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Projects (GET /api/projects)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/projects"
+            endpoint_path = "/api/projects"
             params = {
                 "status": status,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create")
@@ -9851,7 +10017,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Project (POST /api/projects)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/projects"
+            endpoint_path = "/api/projects"
             params = None
             payload = _build_json_payload({
                 "color": color,
@@ -9868,7 +10034,7 @@ def register_generated_openapi_commands(
                 "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
                 "status": {'type': 'string', 'enum': ['active', 'archived', 'shipped'], 'title': 'ProjectStatus', 'description': 'Lifecycle of a research workspace (#918).', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("which-include-this-kg-row")
@@ -9879,23 +10045,26 @@ def register_generated_openapi_commands(
     ) -> None:
         """Which projects include this KG row? (GET /api/projects/membership/{target_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/projects/membership/{target_id}"
+            endpoint_path = f"/api/projects/membership/{target_id}"
             params = {
                 "target_type": target_type,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("delete")
     def projects_delete_delete(
         ctx: typer.Context,
         project_id: str = typer.Argument(..., help="Path parameter: project_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Project (DELETE /api/projects/{project_id})."""
+        if not yes:
+            typer.confirm("Delete projects?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/projects/{project_id}"
+            endpoint_path = f"/api/projects/{project_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get")
@@ -9905,9 +10074,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Project (GET /api/projects/{project_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/projects/{project_id}"
+            endpoint_path = f"/api/projects/{project_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("patch")
@@ -9923,7 +10092,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Patch Project (PATCH /api/projects/{project_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/projects/{project_id}"
+            endpoint_path = f"/api/projects/{project_id}"
             params = None
             payload = _build_json_payload({
                 "color": color,
@@ -9940,7 +10109,7 @@ def register_generated_openapi_commands(
                 "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
                 "status": {'type': 'string', 'enum': ['active', 'archived', 'shipped'], 'title': 'ProjectStatus', 'description': 'Lifecycle of a research workspace (#918).', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("add-a-kg-item-document-entity-claim-note-interpretation-annotation-to-a")
@@ -9954,7 +10123,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Add a KG item (document / entity / claim / note / interpretation / annotation) to a project (POST /api/projects/{project_id}/include)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/projects/{project_id}/include"
+            endpoint_path = f"/api/projects/{project_id}/include"
             params = None
             payload = _build_json_payload({
                 "notes": notes,
@@ -9967,7 +10136,7 @@ def register_generated_openapi_commands(
                 "target_id": {'type': 'string', 'title': 'Target Id', 'x-cli-required': True},
                 "target_type": {'type': 'string', 'title': 'Target Type', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("remove-inclusion")
@@ -9975,12 +10144,15 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         project_id: str = typer.Argument(..., help="Path parameter: project_id."),
         inclusion_id: str = typer.Argument(..., help="Path parameter: inclusion_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Remove Inclusion (DELETE /api/projects/{project_id}/include/{inclusion_id})."""
+        if not yes:
+            typer.confirm("Delete projects?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/projects/{project_id}/include/{inclusion_id}"
+            endpoint_path = f"/api/projects/{project_id}/include/{inclusion_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-every-item-included-in-a-optionally-filtered-by-type")
@@ -9991,17 +10163,18 @@ def register_generated_openapi_commands(
     ) -> None:
         """List every item included in a project, optionally filtered by type (GET /api/projects/{project_id}/items)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/projects/{project_id}/items"
+            endpoint_path = f"/api/projects/{project_id}/items"
             params = {
                 "target_type": target_type,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('providers')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for providers endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='providers')
+        existing_apps['providers'] = target_app
 
     @target_app.command("list")
     def providers_list_get(
@@ -10009,9 +10182,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Providers (GET /api/providers)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/providers"
+            endpoint_path = "/api/providers"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create")
@@ -10024,7 +10197,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Provider (POST /api/providers)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/providers"
+            endpoint_path = "/api/providers"
             params = None
             payload = _build_json_payload({
                 "api_base": api_base,
@@ -10037,7 +10210,7 @@ def register_generated_openapi_commands(
                 "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
                 "provider_type": {'type': 'string', 'title': 'Provider Type', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("probe-apple-intelligence")
@@ -10046,9 +10219,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Probe Apple Intelligence (GET /api/providers/apple-intelligence/probe)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/providers/apple-intelligence/probe"
+            endpoint_path = "/api/providers/apple-intelligence/probe"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-catalog")
@@ -10057,9 +10230,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Provider Catalog (GET /api/providers/catalog)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/providers/catalog"
+            endpoint_path = "/api/providers/catalog"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-catalog")
@@ -10069,9 +10242,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Catalog Provider (GET /api/providers/catalog/{provider_type})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/providers/catalog/{provider_type}"
+            endpoint_path = f"/api/providers/catalog/{provider_type}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-models-for")
@@ -10084,13 +10257,13 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Models For Provider (GET /api/providers/models/{provider_type})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/providers/models/{provider_type}"
+            endpoint_path = f"/api/providers/models/{provider_type}"
             params = {
                 "search": search,
                 "sort_by": sort_by,
                 "vision_only": vision_only,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-library-refs")
@@ -10099,9 +10272,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Library Provider Refs (GET /api/providers/refs)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/providers/refs"
+            endpoint_path = "/api/providers/refs"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("add-ref")
@@ -10111,26 +10284,29 @@ def register_generated_openapi_commands(
     ) -> None:
         """Add Provider Ref (POST /api/providers/refs)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/providers/refs"
+            endpoint_path = "/api/providers/refs"
             params = None
             payload = _build_json_payload({
                 "provider_id": provider_id,
             }, {
                 "provider_id": {'type': 'string', 'title': 'Provider Id', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete-ref")
     def providers_delete_ref_delete(
         ctx: typer.Context,
         ref_id: str = typer.Argument(..., help="Path parameter: ref_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Provider Ref (DELETE /api/providers/refs/{ref_id})."""
+        if not yes:
+            typer.confirm("Delete providers?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/providers/refs/{ref_id}"
+            endpoint_path = f"/api/providers/refs/{ref_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update-ref")
@@ -10142,7 +10318,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Provider Ref (PATCH /api/providers/refs/{ref_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/providers/refs/{ref_id}"
+            endpoint_path = f"/api/providers/refs/{ref_id}"
             params = None
             payload = _build_json_payload({
                 "enabled": enabled,
@@ -10151,19 +10327,22 @@ def register_generated_openapi_commands(
                 "enabled": {'type': 'boolean', 'nullable': True, 'title': 'Enabled', 'x-cli-required': False},
                 "sort_order": {'type': 'integer', 'nullable': True, 'title': 'Sort Order', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete")
     def providers_delete_delete(
         ctx: typer.Context,
         provider_id: str = typer.Argument(..., help="Path parameter: provider_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Provider (DELETE /api/providers/{provider_id})."""
+        if not yes:
+            typer.confirm("Delete providers?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/providers/{provider_id}"
+            endpoint_path = f"/api/providers/{provider_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get")
@@ -10173,9 +10352,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Provider (GET /api/providers/{provider_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/providers/{provider_id}"
+            endpoint_path = f"/api/providers/{provider_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update")
@@ -10189,7 +10368,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Provider (PATCH /api/providers/{provider_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/providers/{provider_id}"
+            endpoint_path = f"/api/providers/{provider_id}"
             params = None
             payload = _build_json_payload({
                 "api_base": api_base,
@@ -10202,7 +10381,7 @@ def register_generated_openapi_commands(
                 "enabled": {'type': 'boolean', 'nullable': True, 'title': 'Enabled', 'x-cli-required': False},
                 "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-models")
@@ -10212,9 +10391,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Provider Models (GET /api/providers/{provider_id}/models)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/providers/{provider_id}/models"
+            endpoint_path = f"/api/providers/{provider_id}/models"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("add-model-to")
@@ -10228,7 +10407,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Add Model To Provider (POST /api/providers/{provider_id}/models)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/providers/{provider_id}/models"
+            endpoint_path = f"/api/providers/{provider_id}/models"
             params = None
             payload = _build_json_payload({
                 "is_default": is_default,
@@ -10241,7 +10420,7 @@ def register_generated_openapi_commands(
                 "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
                 "provider_id": {'type': 'string', 'title': 'Provider Id', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("remove-model-from")
@@ -10249,24 +10428,30 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         provider_id: str = typer.Argument(..., help="Path parameter: provider_id."),
         model_id: str = typer.Argument(..., help="Path parameter: model_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Remove Model From Provider (DELETE /api/providers/{provider_id}/models/{model_id})."""
+        if not yes:
+            typer.confirm("Delete providers?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/providers/{provider_id}/models/{model_id}"
+            endpoint_path = f"/api/providers/{provider_id}/models/{model_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("delete-api-key")
     def providers_delete_api_key_delete(
         ctx: typer.Context,
         provider_type: str = typer.Argument(..., help="Path parameter: provider_type."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Provider Api Key (DELETE /api/providers/{provider_type}/api-key)."""
+        if not yes:
+            typer.confirm("Delete providers?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/providers/{provider_type}/api-key"
+            endpoint_path = f"/api/providers/{provider_type}/api-key"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("set-api-key")
@@ -10277,14 +10462,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """Set Provider Api Key (POST /api/providers/{provider_type}/api-key)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/providers/{provider_type}/api-key"
+            endpoint_path = f"/api/providers/{provider_type}/api-key"
             params = None
             payload = _build_json_payload({
                 "api_key": api_key,
             }, {
                 "api_key": {'type': 'string', 'title': 'Api Key', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("check-api-key-status")
@@ -10294,9 +10479,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Check Api Key Status (GET /api/providers/{provider_type}/api-key/status)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/providers/{provider_type}/api-key/status"
+            endpoint_path = f"/api/providers/{provider_type}/api-key/status"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("test-connection")
@@ -10306,15 +10491,16 @@ def register_generated_openapi_commands(
     ) -> None:
         """Test Provider Connection (POST /api/providers/{provider_type}/test)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/providers/{provider_type}/test"
+            endpoint_path = f"/api/providers/{provider_type}/test"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('references')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for references endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='references')
+        existing_apps['references'] = target_app
 
     @target_app.command("list")
     def references_list_get(
@@ -10331,7 +10517,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """List References (GET /api/references)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/references"
+            endpoint_path = "/api/references"
             params = {
                 "kind": kind,
                 "limit": limit,
@@ -10343,19 +10529,22 @@ def register_generated_openapi_commands(
                 "year_from": year_from,
                 "year_to": year_to,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("delete")
     def references_delete_delete(
         ctx: typer.Context,
         reference_id: str = typer.Argument(..., help="Path parameter: reference_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Reference (DELETE /api/references/{reference_id})."""
+        if not yes:
+            typer.confirm("Delete references?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/references/{reference_id}"
+            endpoint_path = f"/api/references/{reference_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get")
@@ -10365,9 +10554,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Reference (GET /api/references/{reference_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/references/{reference_id}"
+            endpoint_path = f"/api/references/{reference_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("patch")
@@ -10396,7 +10585,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Patch Reference (PATCH /api/references/{reference_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/references/{reference_id}"
+            endpoint_path = f"/api/references/{reference_id}"
             params = None
             payload = _build_json_payload({
                 "authors": authors,
@@ -10439,13 +10628,14 @@ def register_generated_openapi_commands(
                 "verified_at": {'type': 'string', 'format': 'date-time', 'nullable': True, 'title': 'Verified At', 'x-cli-required': False},
                 "year": {'type': 'integer', 'nullable': True, 'title': 'Year', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('registries')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for registries endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='registries')
+        existing_apps['registries'] = target_app
 
     @target_app.command("list-claim-kinds-custom-built-in")
     def registries_list_claim_kinds_custom_built_in_get(
@@ -10453,9 +10643,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List claim kinds (custom + built-in) (GET /api/registries/claim-kinds)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/registries/claim-kinds"
+            endpoint_path = "/api/registries/claim-kinds"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("add-a-custom-claim-kind")
@@ -10470,7 +10660,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Add a custom claim kind (POST /api/registries/claim-kinds)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/registries/claim-kinds"
+            endpoint_path = "/api/registries/claim-kinds"
             params = None
             payload = _build_json_payload({
                 "color": color,
@@ -10487,19 +10677,22 @@ def register_generated_openapi_commands(
                 "label": {'type': 'string', 'title': 'Label', 'description': 'Human-readable display label', 'x-cli-required': True},
                 "parent_key": {'type': 'string', 'nullable': True, 'title': 'Parent Key', 'description': 'Optional parent for hierarchical vocabularies', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete-claim-kind")
     def registries_delete_claim_kind_delete(
         ctx: typer.Context,
         value_id: str = typer.Argument(..., help="Path parameter: value_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Claim Kind (DELETE /api/registries/claim-kinds/{value_id})."""
+        if not yes:
+            typer.confirm("Delete registries?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/registries/claim-kinds/{value_id}"
+            endpoint_path = f"/api/registries/claim-kinds/{value_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update-a-claim-kind")
@@ -10515,7 +10708,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update a claim kind (PATCH /api/registries/claim-kinds/{value_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/registries/claim-kinds/{value_id}"
+            endpoint_path = f"/api/registries/claim-kinds/{value_id}"
             params = None
             payload = _build_json_payload({
                 "color": color,
@@ -10532,7 +10725,7 @@ def register_generated_openapi_commands(
                 "label": {'type': 'string', 'nullable': True, 'title': 'Label', 'x-cli-required': False},
                 "parent_key": {'type': 'string', 'nullable': True, 'title': 'Parent Key', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-epistemic-statuses-custom-built-in")
@@ -10541,9 +10734,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List epistemic statuses (custom + built-in) (GET /api/registries/epistemic-statuses)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/registries/epistemic-statuses"
+            endpoint_path = "/api/registries/epistemic-statuses"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("add-a-custom-epistemic-status")
@@ -10558,7 +10751,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Add a custom epistemic status (POST /api/registries/epistemic-statuses)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/registries/epistemic-statuses"
+            endpoint_path = "/api/registries/epistemic-statuses"
             params = None
             payload = _build_json_payload({
                 "color": color,
@@ -10575,19 +10768,22 @@ def register_generated_openapi_commands(
                 "label": {'type': 'string', 'title': 'Label', 'description': 'Human-readable display label', 'x-cli-required': True},
                 "parent_key": {'type': 'string', 'nullable': True, 'title': 'Parent Key', 'description': 'Optional parent for hierarchical vocabularies', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete-epistemic-status")
     def registries_delete_epistemic_status_delete(
         ctx: typer.Context,
         value_id: str = typer.Argument(..., help="Path parameter: value_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Epistemic Status (DELETE /api/registries/epistemic-statuses/{value_id})."""
+        if not yes:
+            typer.confirm("Delete registries?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/registries/epistemic-statuses/{value_id}"
+            endpoint_path = f"/api/registries/epistemic-statuses/{value_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update-an-epistemic-status")
@@ -10603,7 +10799,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update an epistemic status (PATCH /api/registries/epistemic-statuses/{value_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/registries/epistemic-statuses/{value_id}"
+            endpoint_path = f"/api/registries/epistemic-statuses/{value_id}"
             params = None
             payload = _build_json_payload({
                 "color": color,
@@ -10620,13 +10816,14 @@ def register_generated_openapi_commands(
                 "label": {'type': 'string', 'nullable': True, 'title': 'Label', 'x-cli-required': False},
                 "parent_key": {'type': 'string', 'nullable': True, 'title': 'Parent Key', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('registry')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for registry endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='registry')
+        existing_apps['registry'] = target_app
 
     @target_app.command("list-known-libraries")
     def registry_list_known_libraries_get(
@@ -10634,9 +10831,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Known Libraries (GET /api/registry)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/registry"
+            endpoint_path = "/api/registry"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("add-known-library")
@@ -10647,12 +10844,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """Add Known Library (POST /api/registry/add)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/registry/add"
+            endpoint_path = "/api/registry/add"
             params = {
                 "name": name,
                 "path": path,
             }
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update-library-access")
@@ -10662,29 +10859,33 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Library Access (POST /api/registry/update-access)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/registry/update-access"
+            endpoint_path = "/api/registry/update-access"
             params = {
                 "path": path,
             }
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("remove-known-library")
     def registry_remove_known_library_delete(
         ctx: typer.Context,
         library_path: str = typer.Argument(..., help="Path parameter: library_path."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Remove Known Library (DELETE /api/registry/{library_path})."""
+        if not yes:
+            typer.confirm("Delete registry?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/registry/{library_path}"
+            endpoint_path = f"/api/registry/{library_path}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('research')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for research endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='research')
+        existing_apps['research'] = target_app
 
     @target_app.command("create-checklist")
     def research_create_checklist_post(
@@ -10699,7 +10900,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Checklist (POST /api/research/checklists)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/research/checklists"
+            endpoint_path = "/api/research/checklists"
             params = None
             payload = _build_json_payload({
                 "created_by": created_by,
@@ -10718,7 +10919,7 @@ def register_generated_openapi_commands(
                 "task_id": {'type': 'string', 'nullable': True, 'title': 'Task Id', 'x-cli-required': False},
                 "title": {'type': 'string', 'title': 'Title', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("toggle-checklist-item")
@@ -10731,7 +10932,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Toggle Checklist Item (PATCH /api/research/checklists/{checklist_id}/items/{item_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/research/checklists/{checklist_id}/items/{item_id}"
+            endpoint_path = f"/api/research/checklists/{checklist_id}/items/{item_id}"
             params = None
             payload = _build_json_payload({
                 "checked": checked,
@@ -10740,7 +10941,7 @@ def register_generated_openapi_commands(
                 "checked": {'type': 'boolean', 'title': 'Checked', 'x-cli-required': True},
                 "notes": {'type': 'string', 'title': 'Notes', 'default': '', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("create-note")
@@ -10759,7 +10960,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Note (POST /api/research/notes)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/research/notes"
+            endpoint_path = "/api/research/notes"
             params = None
             payload = _build_json_payload({
                 "content": content,
@@ -10784,7 +10985,7 @@ def register_generated_openapi_commands(
                 "tags": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Tags', 'x-cli-required': False},
                 "task_id": {'type': 'string', 'nullable': True, 'title': 'Task Id', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-note")
@@ -10794,9 +10995,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Note (GET /api/research/notes/{note_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/research/notes/{note_id}"
+            endpoint_path = f"/api/research/notes/{note_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update-note")
@@ -10812,7 +11013,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Note (PATCH /api/research/notes/{note_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/research/notes/{note_id}"
+            endpoint_path = f"/api/research/notes/{note_id}"
             params = None
             payload = _build_json_payload({
                 "content": content,
@@ -10829,7 +11030,7 @@ def register_generated_openapi_commands(
                 "note_type": {'type': 'string', 'enum': ['observation', 'finding', 'question', 'hypothesis', 'synthesis'], 'title': 'ResearchNoteType', 'x-cli-required': False},
                 "tags": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Tags', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("create-plan")
@@ -10844,7 +11045,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Plan (POST /api/research/plans)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/research/plans"
+            endpoint_path = "/api/research/plans"
             params = None
             payload = _build_json_payload({
                 "description": description,
@@ -10861,7 +11062,7 @@ def register_generated_openapi_commands(
                 "project_id": {'type': 'string', 'title': 'Project Id', 'x-cli-required': True},
                 "term": {'type': 'string', 'nullable': True, 'title': 'Term', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-plan")
@@ -10871,9 +11072,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Plan (GET /api/research/plans/{plan_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/research/plans/{plan_id}"
+            endpoint_path = f"/api/research/plans/{plan_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update-plan")
@@ -10888,7 +11089,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Plan (PATCH /api/research/plans/{plan_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/research/plans/{plan_id}"
+            endpoint_path = f"/api/research/plans/{plan_id}"
             params = None
             payload = _build_json_payload({
                 "description": description,
@@ -10903,7 +11104,7 @@ def register_generated_openapi_commands(
                 "order_index": {'type': 'integer', 'nullable': True, 'title': 'Order Index', 'x-cli-required': False},
                 "status": {'type': 'string', 'enum': ['draft', 'active', 'completed', 'cancelled'], 'title': 'PlanStatus', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-tasks")
@@ -10913,9 +11114,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Tasks (GET /api/research/plans/{plan_id}/tasks)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/research/plans/{plan_id}/tasks"
+            endpoint_path = f"/api/research/plans/{plan_id}/tasks"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-projects")
@@ -10925,11 +11126,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Projects (GET /api/research/projects)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/research/projects"
+            endpoint_path = "/api/research/projects"
             params = {
                 "status": status,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-project")
@@ -10943,7 +11144,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Project (POST /api/research/projects)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/research/projects"
+            endpoint_path = "/api/research/projects"
             params = None
             payload = _build_json_payload({
                 "created_by": created_by,
@@ -10958,19 +11159,22 @@ def register_generated_openapi_commands(
                 "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
                 "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete-project")
     def research_delete_project_delete(
         ctx: typer.Context,
         project_id: str = typer.Argument(..., help="Path parameter: project_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Project (DELETE /api/research/projects/{project_id})."""
+        if not yes:
+            typer.confirm("Delete research?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/research/projects/{project_id}"
+            endpoint_path = f"/api/research/projects/{project_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-project")
@@ -10980,9 +11184,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Project (GET /api/research/projects/{project_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/research/projects/{project_id}"
+            endpoint_path = f"/api/research/projects/{project_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update-project")
@@ -10997,7 +11201,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Project (PATCH /api/research/projects/{project_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/research/projects/{project_id}"
+            endpoint_path = f"/api/research/projects/{project_id}"
             params = None
             payload = _build_json_payload({
                 "description": description,
@@ -11012,7 +11216,7 @@ def register_generated_openapi_commands(
                 "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
                 "status": {'type': 'string', 'enum': ['active', 'paused', 'completed', 'archived'], 'title': 'ProjectStatus', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-checklists")
@@ -11022,9 +11226,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Checklists (GET /api/research/projects/{project_id}/checklists)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/research/projects/{project_id}/checklists"
+            endpoint_path = f"/api/research/projects/{project_id}/checklists"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-notes")
@@ -11035,11 +11239,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Notes (GET /api/research/projects/{project_id}/notes)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/research/projects/{project_id}/notes"
+            endpoint_path = f"/api/research/projects/{project_id}/notes"
             params = {
                 "task_id": task_id,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-plans")
@@ -11049,9 +11253,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Plans (GET /api/research/projects/{project_id}/plans)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/research/projects/{project_id}/plans"
+            endpoint_path = f"/api/research/projects/{project_id}/plans"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-search-sources")
@@ -11061,9 +11265,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Search Sources (GET /api/research/projects/{project_id}/sources)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/research/projects/{project_id}/sources"
+            endpoint_path = f"/api/research/projects/{project_id}/sources"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-project-tasks")
@@ -11073,9 +11277,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Project Tasks (GET /api/research/projects/{project_id}/tasks)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/research/projects/{project_id}/tasks"
+            endpoint_path = f"/api/research/projects/{project_id}/tasks"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-search-source")
@@ -11093,7 +11297,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Search Source (POST /api/research/sources)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/research/sources"
+            endpoint_path = "/api/research/sources"
             params = None
             payload = _build_json_payload({
                 "access_status": access_status,
@@ -11116,7 +11320,7 @@ def register_generated_openapi_commands(
                 "source_type": {'type': 'string', 'enum': ['url', 'folder', 'database', 'api'], 'title': 'SearchSourceType', 'x-cli-required': True},
                 "url": {'type': 'string', 'nullable': True, 'title': 'Url', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("create-step")
@@ -11131,7 +11335,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Step (POST /api/research/steps)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/research/steps"
+            endpoint_path = "/api/research/steps"
             params = None
             payload = _build_json_payload({
                 "config": config,
@@ -11148,7 +11352,7 @@ def register_generated_openapi_commands(
                 "task_id": {'type': 'string', 'title': 'Task Id', 'x-cli-required': True},
                 "tool": {'type': 'string', 'enum': ['web_search', 'browser_navigate', 'document_fetch', 'local_search'], 'title': 'StepTool', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("update-step")
@@ -11164,7 +11368,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Step (PATCH /api/research/steps/{step_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/research/steps/{step_id}"
+            endpoint_path = f"/api/research/steps/{step_id}"
             params = None
             payload = _build_json_payload({
                 "description": description,
@@ -11181,7 +11385,7 @@ def register_generated_openapi_commands(
                 "result": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Result', 'x-cli-required': False},
                 "status": {'type': 'string', 'enum': ['pending', 'completed', 'failed', 'skipped'], 'title': 'StepStatus', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("create-task")
@@ -11196,7 +11400,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Task (POST /api/research/tasks)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/research/tasks"
+            endpoint_path = "/api/research/tasks"
             params = None
             payload = _build_json_payload({
                 "assigned_to": assigned_to,
@@ -11213,7 +11417,7 @@ def register_generated_openapi_commands(
                 "plan_id": {'type': 'string', 'title': 'Plan Id', 'x-cli-required': True},
                 "priority": {'type': 'integer', 'title': 'Priority', 'default': 0, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-task")
@@ -11223,9 +11427,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Task (GET /api/research/tasks/{task_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/research/tasks/{task_id}"
+            endpoint_path = f"/api/research/tasks/{task_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update-task")
@@ -11241,7 +11445,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Task (PATCH /api/research/tasks/{task_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/research/tasks/{task_id}"
+            endpoint_path = f"/api/research/tasks/{task_id}"
             params = None
             payload = _build_json_payload({
                 "assigned_to": assigned_to,
@@ -11258,7 +11462,7 @@ def register_generated_openapi_commands(
                 "priority": {'type': 'integer', 'nullable': True, 'title': 'Priority', 'x-cli-required': False},
                 "status": {'type': 'string', 'enum': ['pending', 'in_progress', 'completed', 'blocked', 'cancelled'], 'title': 'TaskStatus', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-steps")
@@ -11268,9 +11472,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Steps (GET /api/research/tasks/{task_id}/steps)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/research/tasks/{task_id}/steps"
+            endpoint_path = f"/api/research/tasks/{task_id}/steps"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("execute-browser-navigate")
@@ -11283,7 +11487,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Execute Browser Navigate (POST /api/research/tools/browser-navigate)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/research/tools/browser-navigate"
+            endpoint_path = "/api/research/tools/browser-navigate"
             params = None
             payload = _build_json_payload({
                 "screenshot": screenshot,
@@ -11296,7 +11500,7 @@ def register_generated_openapi_commands(
                 "url": {'type': 'string', 'title': 'Url', 'x-cli-required': True},
                 "wait_for_selectors": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Wait For Selectors', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("browser-save")
@@ -11310,7 +11514,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Browser Save (POST /api/research/tools/browser-save)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/research/tools/browser-save"
+            endpoint_path = "/api/research/tools/browser-save"
             params = None
             payload = _build_json_payload({
                 "metadata": metadata,
@@ -11325,7 +11529,7 @@ def register_generated_openapi_commands(
                 "suggested_name": {'type': 'string', 'nullable': True, 'title': 'Suggested Name', 'x-cli-required': False},
                 "url": {'type': 'string', 'title': 'Url', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("execute-document-fetch")
@@ -11338,7 +11542,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Execute Document Fetch (POST /api/research/tools/document-fetch)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/research/tools/document-fetch"
+            endpoint_path = "/api/research/tools/document-fetch"
             params = None
             payload = _build_json_payload({
                 "create_as_source": create_as_source,
@@ -11351,7 +11555,7 @@ def register_generated_openapi_commands(
                 "project_id": {'type': 'string', 'title': 'Project Id', 'x-cli-required': True},
                 "url": {'type': 'string', 'title': 'Url', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("execute-web-search")
@@ -11365,7 +11569,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Execute Web Search (POST /api/research/tools/web-search)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/research/tools/web-search"
+            endpoint_path = "/api/research/tools/web-search"
             params = None
             payload = _build_json_payload({
                 "language": language,
@@ -11380,13 +11584,14 @@ def register_generated_openapi_commands(
                 "source_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Source Ids', 'x-cli-required': False},
                 "timeout_seconds": {'type': 'integer', 'maximum': 120.0, 'minimum': 5.0, 'title': 'Timeout Seconds', 'default': 30, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('schedules')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for schedules endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='schedules')
+        existing_apps['schedules'] = target_app
 
     @target_app.command("list")
     def schedules_list_get(
@@ -11398,14 +11603,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Schedules (GET /api/schedules)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/schedules"
+            endpoint_path = "/api/schedules"
             params = {
                 "limit": limit,
                 "offset": offset,
                 "status": status,
                 "workflow_id": workflow_id,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create")
@@ -11421,7 +11626,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Schedule (POST /api/schedules)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/schedules"
+            endpoint_path = "/api/schedules"
             params = None
             payload = _build_json_payload({
                 "batch_items": batch_items,
@@ -11440,19 +11645,22 @@ def register_generated_openapi_commands(
                 "use_batch": {'type': 'boolean', 'title': 'Use Batch', 'description': 'Use batch execution', 'default': False, 'x-cli-required': False},
                 "workflow_id": {'type': 'string', 'title': 'Workflow Id', 'description': 'ID of workflow to execute', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete")
     def schedules_delete_delete(
         ctx: typer.Context,
         schedule_id: str = typer.Argument(..., help="Path parameter: schedule_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Schedule (DELETE /api/schedules/{schedule_id})."""
+        if not yes:
+            typer.confirm("Delete schedules?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/schedules/{schedule_id}"
+            endpoint_path = f"/api/schedules/{schedule_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get")
@@ -11462,9 +11670,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Schedule (GET /api/schedules/{schedule_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/schedules/{schedule_id}"
+            endpoint_path = f"/api/schedules/{schedule_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update")
@@ -11481,7 +11689,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Schedule (PUT /api/schedules/{schedule_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/schedules/{schedule_id}"
+            endpoint_path = f"/api/schedules/{schedule_id}"
             params = None
             payload = _build_json_payload({
                 "batch_items": batch_items,
@@ -11500,7 +11708,7 @@ def register_generated_openapi_commands(
                 "use_batch": {'type': 'boolean', 'nullable': True, 'title': 'Use Batch', 'description': 'Use batch execution', 'x-cli-required': False},
                 "workflow_id": {'type': 'string', 'nullable': True, 'title': 'Workflow Id', 'description': 'ID of workflow to execute', 'x-cli-required': False},
             }, required=True)
-            return client.request("PUT", path, params=params, json=payload)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("pause")
@@ -11510,9 +11718,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Pause Schedule (POST /api/schedules/{schedule_id}/pause)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/schedules/{schedule_id}/pause"
+            endpoint_path = f"/api/schedules/{schedule_id}/pause"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("resume")
@@ -11522,9 +11730,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Resume Schedule (POST /api/schedules/{schedule_id}/resume)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/schedules/{schedule_id}/resume"
+            endpoint_path = f"/api/schedules/{schedule_id}/resume"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-runs")
@@ -11535,11 +11743,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Schedule Runs (GET /api/schedules/{schedule_id}/runs)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/schedules/{schedule_id}/runs"
+            endpoint_path = f"/api/schedules/{schedule_id}/runs"
             params = {
                 "limit": limit,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("trigger")
@@ -11549,15 +11757,16 @@ def register_generated_openapi_commands(
     ) -> None:
         """Trigger Schedule (POST /api/schedules/{schedule_id}/trigger)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/schedules/{schedule_id}/trigger"
+            endpoint_path = f"/api/schedules/{schedule_id}/trigger"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('search')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for search endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='search-api')
+        existing_apps['search'] = target_app
 
     @target_app.command("enhanced")
     def search_enhanced_post(
@@ -11576,7 +11785,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Enhanced Search (POST /api/search)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/search"
+            endpoint_path = "/api/search"
             params = None
             payload = _build_json_payload({
                 "filters": filters,
@@ -11603,7 +11812,7 @@ def register_generated_openapi_commands(
                 "sort_direction": {'type': 'string', 'title': 'Sort Direction', 'default': 'desc', 'x-cli-required': False},
                 "use_fuzzy_match": {'type': 'boolean', 'title': 'Use Fuzzy Match', 'default': False, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("embed-document")
@@ -11613,9 +11822,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Embed Document (POST /api/search/embed/{doc_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/search/embed/{doc_id}"
+            endpoint_path = f"/api/search/embed/{doc_id}"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("explain-a-query")
@@ -11629,7 +11838,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Explain a search query (POST /api/search/explain)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/search/explain"
+            endpoint_path = "/api/search/explain"
             params = None
             payload = _build_json_payload({
                 "limit": limit,
@@ -11644,7 +11853,7 @@ def register_generated_openapi_commands(
                 "search_type": {'type': 'string', 'enum': ['semantic', 'fulltext', 'hybrid'], 'title': 'SearchType', 'description': 'Types of search performed.', 'x-cli-required': False},
                 "show_scores": {'type': 'boolean', 'title': 'Show Scores', 'description': 'Include relevance scores', 'default': True, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("explain-by-path")
@@ -11657,13 +11866,13 @@ def register_generated_openapi_commands(
     ) -> None:
         """Explain search by path (GET /api/search/explain/{query})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/search/explain/{query}"
+            endpoint_path = f"/api/search/explain/{query}"
             params = {
                 "limit": limit,
                 "rag_mode": rag_mode,
                 "search_type": search_type,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("keyword-cloud")
@@ -11673,11 +11882,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Keyword Cloud (GET /api/search/keywords)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/search/keywords"
+            endpoint_path = "/api/search/keywords"
             params = {
                 "limit": limit,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-metrics")
@@ -11686,9 +11895,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get search metrics (GET /api/search/metrics)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/search/metrics"
+            endpoint_path = "/api/search/metrics"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-rag-modes")
@@ -11697,9 +11906,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List RAG modes (GET /api/search/modes)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/search/modes"
+            endpoint_path = "/api/search/modes"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("reindex-all")
@@ -11708,9 +11917,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Reindex All (POST /api/search/reindex)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/search/reindex"
+            endpoint_path = "/api/search/reindex"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-saved-searches")
@@ -11719,9 +11928,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Saved Searches (GET /api/search/saved)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/search/saved"
+            endpoint_path = "/api/search/saved"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("save")
@@ -11738,7 +11947,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Save Search (POST /api/search/saved)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/search/saved"
+            endpoint_path = "/api/search/saved"
             params = None
             payload = _build_json_payload({
                 "filters": filters,
@@ -11759,7 +11968,7 @@ def register_generated_openapi_commands(
                 "sort_direction": {'type': 'string', 'title': 'Sort Direction', 'default': 'desc', 'x-cli-required': False},
                 "sort_order": {'type': 'integer', 'title': 'Sort Order', 'default': 0, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("reorder-saved-searches")
@@ -11771,24 +11980,27 @@ def register_generated_openapi_commands(
     ) -> None:
         """Reorder Saved Searches (POST /api/search/saved/reorder)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/search/saved/reorder"
+            endpoint_path = "/api/search/saved/reorder"
             params = {
                 "folder_path": folder_path,
             }
             payload = _load_json_payload(body, body_file, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete-saved")
     def search_delete_saved_delete(
         ctx: typer.Context,
         search_id: str = typer.Argument(..., help="Path parameter: search_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Saved Search (DELETE /api/search/saved/{search_id})."""
+        if not yes:
+            typer.confirm("Delete search?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/search/saved/{search_id}"
+            endpoint_path = f"/api/search/saved/{search_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update-saved")
@@ -11805,7 +12017,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Saved Search (PUT /api/search/saved/{search_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/search/saved/{search_id}"
+            endpoint_path = f"/api/search/saved/{search_id}"
             params = None
             payload = _build_json_payload({
                 "filters": filters,
@@ -11824,7 +12036,7 @@ def register_generated_openapi_commands(
                 "sort_by": {'type': 'string', 'nullable': True, 'title': 'Sort By', 'x-cli-required': False},
                 "sort_direction": {'type': 'string', 'nullable': True, 'title': 'Sort Direction', 'x-cli-required': False},
             }, required=True)
-            return client.request("PUT", path, params=params, json=payload)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("duplicate-saved")
@@ -11834,9 +12046,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Duplicate Saved Search (POST /api/search/saved/{search_id}/duplicate)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/search/saved/{search_id}/duplicate"
+            endpoint_path = f"/api/search/saved/{search_id}/duplicate"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("stats")
@@ -11845,9 +12057,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Search Stats (GET /api/search/stats)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/search/stats"
+            endpoint_path = "/api/search/stats"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-views")
@@ -11856,9 +12068,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Search Views (GET /api/search/views)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/search/views"
+            endpoint_path = "/api/search/views"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-grid-view-data")
@@ -11870,13 +12082,13 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Grid View Data (GET /api/search/views/grid)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/search/views/grid"
+            endpoint_path = "/api/search/views/grid"
             params = {
                 "page": page,
                 "page_size": page_size,
                 "query": query,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-map-view-data")
@@ -11888,13 +12100,13 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Map View Data (GET /api/search/views/map)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/search/views/map"
+            endpoint_path = "/api/search/views/map"
             params = {
                 "bounds": bounds,
                 "limit": limit,
                 "query": query,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-table-view-data")
@@ -11908,7 +12120,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Table View Data (GET /api/search/views/table)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/search/views/table"
+            endpoint_path = "/api/search/views/table"
             params = {
                 "page": page,
                 "page_size": page_size,
@@ -11916,23 +12128,27 @@ def register_generated_openapi_commands(
                 "sort_by": sort_by,
                 "sort_direction": sort_direction,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('settings')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for settings endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='settings')
+        existing_apps['settings'] = target_app
 
     @target_app.command("reset-ai-defaults")
     def settings_reset_ai_defaults_delete(
         ctx: typer.Context,
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Reset Ai Defaults (DELETE /api/settings/ai-defaults)."""
+        if not yes:
+            typer.confirm("Delete settings?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/settings/ai-defaults"
+            endpoint_path = "/api/settings/ai-defaults"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-ai-defaults")
@@ -11941,9 +12157,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Ai Defaults (GET /api/settings/ai-defaults)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/settings/ai-defaults"
+            endpoint_path = "/api/settings/ai-defaults"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("set-ai-defaults")
@@ -11978,7 +12194,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Set Ai Defaults (PUT /api/settings/ai-defaults)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/settings/ai-defaults"
+            endpoint_path = "/api/settings/ai-defaults"
             params = None
             payload = _build_json_payload({
                 "audio_model": audio_model,
@@ -12035,7 +12251,7 @@ def register_generated_openapi_commands(
                 "vision_small_model": {'type': 'string', 'nullable': True, 'title': 'Vision Small Model', 'x-cli-required': False},
                 "vision_small_provider": {'type': 'string', 'nullable': True, 'title': 'Vision Small Provider', 'x-cli-required': False},
             }, required=True)
-            return client.request("PUT", path, params=params, json=payload)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("repair-ai-defaults")
@@ -12044,9 +12260,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Repair Ai Defaults (POST /api/settings/ai-defaults/repair)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/settings/ai-defaults/repair"
+            endpoint_path = "/api/settings/ai-defaults/repair"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-model-profiles")
@@ -12055,9 +12271,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Model Profiles (GET /api/settings/model-profiles)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/settings/model-profiles"
+            endpoint_path = "/api/settings/model-profiles"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-model-profile")
@@ -12076,7 +12292,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Model Profile (POST /api/settings/model-profiles)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/settings/model-profiles"
+            endpoint_path = "/api/settings/model-profiles"
             params = None
             payload = _build_json_payload({
                 "api_base": api_base,
@@ -12101,19 +12317,22 @@ def register_generated_openapi_commands(
                 "provider": {'type': 'string', 'title': 'Provider', 'x-cli-required': True},
                 "role": {'type': 'string', 'enum': ['general', 'text', 'vision', 'audio', 'video', 'embeddings'], 'title': 'ModelProfileRole', 'description': 'Intended use/capability for a named model profile.', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete-model-profile")
     def settings_delete_model_profile_delete(
         ctx: typer.Context,
         profile_id: str = typer.Argument(..., help="Path parameter: profile_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Model Profile (DELETE /api/settings/model-profiles/{profile_id})."""
+        if not yes:
+            typer.confirm("Delete settings?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/settings/model-profiles/{profile_id}"
+            endpoint_path = f"/api/settings/model-profiles/{profile_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-model-profile")
@@ -12123,9 +12342,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Model Profile (GET /api/settings/model-profiles/{profile_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/settings/model-profiles/{profile_id}"
+            endpoint_path = f"/api/settings/model-profiles/{profile_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update-model-profile")
@@ -12144,7 +12363,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Model Profile (PUT /api/settings/model-profiles/{profile_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/settings/model-profiles/{profile_id}"
+            endpoint_path = f"/api/settings/model-profiles/{profile_id}"
             params = None
             payload = _build_json_payload({
                 "api_base": api_base,
@@ -12167,13 +12386,14 @@ def register_generated_openapi_commands(
                 "provider": {'type': 'string', 'nullable': True, 'title': 'Provider', 'x-cli-required': False},
                 "role": {'type': 'string', 'enum': ['general', 'text', 'vision', 'audio', 'video', 'embeddings'], 'title': 'ModelProfileRole', 'description': 'Intended use/capability for a named model profile.', 'x-cli-required': False},
             }, required=True)
-            return client.request("PUT", path, params=params, json=payload)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('sources')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for sources endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='sources')
+        existing_apps['sources'] = target_app
 
     @target_app.command("list")
     def sources_list_get(
@@ -12181,9 +12401,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Sources (GET /api/sources)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/sources"
+            endpoint_path = "/api/sources"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("upsert")
@@ -12197,7 +12417,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Upsert Source (POST /api/sources)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/sources"
+            endpoint_path = "/api/sources"
             params = None
             payload = _build_json_payload({
                 "document_type": document_type,
@@ -12212,19 +12432,22 @@ def register_generated_openapi_commands(
                 "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
                 "title": {'type': 'string', 'title': 'Title', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete")
     def sources_delete_delete(
         ctx: typer.Context,
         source_id: str = typer.Argument(..., help="Path parameter: source_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Source (DELETE /api/sources/{source_id})."""
+        if not yes:
+            typer.confirm("Delete sources?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/sources/{source_id}"
+            endpoint_path = f"/api/sources/{source_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get")
@@ -12234,9 +12457,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Source (GET /api/sources/{source_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/sources/{source_id}"
+            endpoint_path = f"/api/sources/{source_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update")
@@ -12251,7 +12474,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Source (PUT /api/sources/{source_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/sources/{source_id}"
+            endpoint_path = f"/api/sources/{source_id}"
             params = None
             payload = _build_json_payload({
                 "document_type": document_type,
@@ -12266,13 +12489,14 @@ def register_generated_openapi_commands(
                 "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
                 "title": {'type': 'string', 'title': 'Title', 'x-cli-required': True},
             }, required=True)
-            return client.request("PUT", path, params=params, json=payload)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('stats')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for stats endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='stats')
+        existing_apps['stats'] = target_app
 
     @target_app.command("get")
     def stats_get_get(
@@ -12280,15 +12504,16 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Stats (GET /api/stats)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/stats"
+            endpoint_path = "/api/stats"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('storage')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for storage endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='storage')
+        existing_apps['storage'] = target_app
 
     @target_app.command("get-display-image")
     def storage_get_display_image_get(
@@ -12297,9 +12522,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Display Image (GET /api/storage/display/{doc_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/storage/display/{doc_id}"
+            endpoint_path = f"/api/storage/display/{doc_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("regenerate-missing-thumbnails")
@@ -12308,9 +12533,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Regenerate Missing Thumbnails (POST /api/storage/regenerate-missing)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/storage/regenerate-missing"
+            endpoint_path = "/api/storage/regenerate-missing"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-snapshots")
@@ -12321,12 +12546,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Snapshots (GET /api/storage/snapshots)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/storage/snapshots"
+            endpoint_path = "/api/storage/snapshots"
             params = {
                 "include_expired": include_expired,
                 "library_name": library_name,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-snapshot")
@@ -12341,7 +12566,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Snapshot (POST /api/storage/snapshots)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/storage/snapshots"
+            endpoint_path = "/api/storage/snapshots"
             params = {
                 "auto_expire_days": auto_expire_days,
                 "initiator": initiator,
@@ -12350,19 +12575,22 @@ def register_generated_openapi_commands(
                 "reason": reason,
                 "run_id": run_id,
             }
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("remove-snapshot")
     def storage_remove_snapshot_delete(
         ctx: typer.Context,
         snapshot_id: str = typer.Argument(..., help="Path parameter: snapshot_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Remove Snapshot (DELETE /api/storage/snapshots/{snapshot_id})."""
+        if not yes:
+            typer.confirm("Delete storage?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/storage/snapshots/{snapshot_id}"
+            endpoint_path = f"/api/storage/snapshots/{snapshot_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-snapshot")
@@ -12372,9 +12600,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Snapshot (GET /api/storage/snapshots/{snapshot_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/storage/snapshots/{snapshot_id}"
+            endpoint_path = f"/api/storage/snapshots/{snapshot_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("pin-snapshot")
@@ -12385,11 +12613,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Pin Snapshot (PATCH /api/storage/snapshots/{snapshot_id}/pin)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/storage/snapshots/{snapshot_id}/pin"
+            endpoint_path = f"/api/storage/snapshots/{snapshot_id}/pin"
             params = {
                 "pinned": pinned,
             }
-            return client.request("PATCH", path, params=params)
+            return client.request("PATCH", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("restore-library-snapshot")
@@ -12399,9 +12627,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Restore Library Snapshot (POST /api/storage/snapshots/{snapshot_id}/restore)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/storage/snapshots/{snapshot_id}/restore"
+            endpoint_path = f"/api/storage/snapshots/{snapshot_id}/restore"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-source-file")
@@ -12411,9 +12639,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Source File (GET /api/storage/source/{doc_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/storage/source/{doc_id}"
+            endpoint_path = f"/api/storage/source/{doc_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("stats")
@@ -12422,9 +12650,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Storage Stats (GET /api/storage/stats)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/storage/stats"
+            endpoint_path = "/api/storage/stats"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-thumbnail")
@@ -12434,15 +12662,16 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Thumbnail (GET /api/storage/thumbnail/{doc_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/storage/thumbnail/{doc_id}"
+            endpoint_path = f"/api/storage/thumbnail/{doc_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('tasks')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for tasks endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='tasks')
+        existing_apps['tasks'] = target_app
 
     @target_app.command("list-background")
     def tasks_list_background_get(
@@ -12454,14 +12683,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """List background tasks (GET /api/tasks/tasks)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/tasks/tasks"
+            endpoint_path = "/api/tasks/tasks"
             params = {
                 "limit": limit,
                 "offset": offset,
                 "status": status,
                 "task_type": task_type,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-knowledge-graph-metrics-job")
@@ -12473,7 +12702,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create knowledge graph metrics job (POST /api/tasks/tasks/kg-metrics)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/tasks/tasks/kg-metrics"
+            endpoint_path = "/api/tasks/tasks/kg-metrics"
             params = None
             payload = _build_json_payload({
                 "name": name,
@@ -12484,7 +12713,7 @@ def register_generated_openapi_commands(
                 "options": {'additionalProperties': True, 'type': 'object', 'title': 'Options', 'description': 'Task-specific options', 'x-cli-required': False},
                 "priority": {'type': 'integer', 'maximum': 100.0, 'minimum': 0.0, 'title': 'Priority', 'description': 'Priority (lower = higher priority)', 'default': 0, 'x-cli-required': False},
             }, required=False)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-kg-metrics-data")
@@ -12494,9 +12723,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get KG metrics data (GET /api/tasks/tasks/kg-metrics/{task_id}/data)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/tasks/tasks/kg-metrics/{task_id}/data"
+            endpoint_path = f"/api/tasks/tasks/kg-metrics/{task_id}/data"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("trigger-metrics-recomputation")
@@ -12508,7 +12737,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Trigger metrics recomputation (POST /api/tasks/tasks/metrics)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/tasks/tasks/metrics"
+            endpoint_path = "/api/tasks/tasks/metrics"
             params = None
             payload = _build_json_payload({
                 "name": name,
@@ -12519,7 +12748,7 @@ def register_generated_openapi_commands(
                 "options": {'additionalProperties': True, 'type': 'object', 'title': 'Options', 'description': 'Task-specific options', 'x-cli-required': False},
                 "priority": {'type': 'integer', 'maximum': 100.0, 'minimum': 0.0, 'title': 'Priority', 'description': 'Priority (lower = higher priority)', 'default': 0, 'x-cli-required': False},
             }, required=False)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-metrics-data")
@@ -12529,9 +12758,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get metrics data (GET /api/tasks/tasks/metrics/{task_id}/data)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/tasks/tasks/metrics/{task_id}/data"
+            endpoint_path = f"/api/tasks/tasks/metrics/{task_id}/data"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-reindex-job")
@@ -12543,7 +12772,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create reindex job (POST /api/tasks/tasks/reindex)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/tasks/tasks/reindex"
+            endpoint_path = "/api/tasks/tasks/reindex"
             params = None
             payload = _build_json_payload({
                 "name": name,
@@ -12554,7 +12783,7 @@ def register_generated_openapi_commands(
                 "options": {'additionalProperties': True, 'type': 'object', 'title': 'Options', 'description': 'Task-specific options', 'x-cli-required': False},
                 "priority": {'type': 'integer', 'maximum': 100.0, 'minimum': 0.0, 'title': 'Priority', 'description': 'Priority (lower = higher priority)', 'default': 0, 'x-cli-required': False},
             }, required=False)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-reindex-progress")
@@ -12564,9 +12793,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get reindex progress (GET /api/tasks/tasks/reindex/{task_id}/progress)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/tasks/tasks/reindex/{task_id}/progress"
+            endpoint_path = f"/api/tasks/tasks/reindex/{task_id}/progress"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-vector-repair-job")
@@ -12578,7 +12807,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create vector repair job (POST /api/tasks/tasks/vector-repair)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/tasks/tasks/vector-repair"
+            endpoint_path = "/api/tasks/tasks/vector-repair"
             params = None
             payload = _build_json_payload({
                 "name": name,
@@ -12589,7 +12818,7 @@ def register_generated_openapi_commands(
                 "options": {'additionalProperties': True, 'type': 'object', 'title': 'Options', 'description': 'Task-specific options', 'x-cli-required': False},
                 "priority": {'type': 'integer', 'maximum': 100.0, 'minimum': 0.0, 'title': 'Priority', 'description': 'Priority (lower = higher priority)', 'default': 0, 'x-cli-required': False},
             }, required=False)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-vector-repair-progress")
@@ -12599,21 +12828,24 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get vector repair progress (GET /api/tasks/tasks/vector-repair/{task_id}/progress)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/tasks/tasks/vector-repair/{task_id}/progress"
+            endpoint_path = f"/api/tasks/tasks/vector-repair/{task_id}/progress"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("delete-completed")
     def tasks_delete_completed_delete(
         ctx: typer.Context,
         task_id: str = typer.Argument(..., help="Path parameter: task_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete completed task (DELETE /api/tasks/tasks/{task_id})."""
+        if not yes:
+            typer.confirm("Delete tasks?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/tasks/tasks/{task_id}"
+            endpoint_path = f"/api/tasks/tasks/{task_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-status")
@@ -12623,9 +12855,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get task status (GET /api/tasks/tasks/{task_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/tasks/tasks/{task_id}"
+            endpoint_path = f"/api/tasks/tasks/{task_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("cancel-pending")
@@ -12635,9 +12867,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Cancel pending task (POST /api/tasks/tasks/{task_id}/cancel)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/tasks/tasks/{task_id}/cancel"
+            endpoint_path = f"/api/tasks/tasks/{task_id}/cancel"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-result")
@@ -12647,15 +12879,16 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get task result (GET /api/tasks/tasks/{task_id}/result)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/tasks/tasks/{task_id}/result"
+            endpoint_path = f"/api/tasks/tasks/{task_id}/result"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('triggers')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for triggers endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='triggers')
+        existing_apps['triggers'] = target_app
 
     @target_app.command("list")
     def triggers_list_get(
@@ -12667,14 +12900,14 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Triggers (GET /api/triggers)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/triggers"
+            endpoint_path = "/api/triggers"
             params = {
                 "limit": limit,
                 "offset": offset,
                 "status": status,
                 "workflow_id": workflow_id,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create")
@@ -12689,7 +12922,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Trigger (POST /api/triggers)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/triggers"
+            endpoint_path = "/api/triggers"
             params = None
             payload = _build_json_payload({
                 "config": config,
@@ -12706,19 +12939,22 @@ def register_generated_openapi_commands(
                 "use_batch": {'type': 'boolean', 'title': 'Use Batch', 'description': 'Batch multiple files', 'default': True, 'x-cli-required': False},
                 "workflow_id": {'type': 'string', 'title': 'Workflow Id', 'description': 'ID of workflow to execute', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete")
     def triggers_delete_delete(
         ctx: typer.Context,
         trigger_id: str = typer.Argument(..., help="Path parameter: trigger_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Trigger (DELETE /api/triggers/{trigger_id})."""
+        if not yes:
+            typer.confirm("Delete triggers?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/triggers/{trigger_id}"
+            endpoint_path = f"/api/triggers/{trigger_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get")
@@ -12728,9 +12964,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Trigger (GET /api/triggers/{trigger_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/triggers/{trigger_id}"
+            endpoint_path = f"/api/triggers/{trigger_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("update")
@@ -12746,7 +12982,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Trigger (PUT /api/triggers/{trigger_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/triggers/{trigger_id}"
+            endpoint_path = f"/api/triggers/{trigger_id}"
             params = None
             payload = _build_json_payload({
                 "config": config,
@@ -12763,7 +12999,7 @@ def register_generated_openapi_commands(
                 "use_batch": {'type': 'boolean', 'nullable': True, 'title': 'Use Batch', 'description': 'Batch multiple files', 'x-cli-required': False},
                 "workflow_id": {'type': 'string', 'nullable': True, 'title': 'Workflow Id', 'description': 'ID of workflow to execute', 'x-cli-required': False},
             }, required=True)
-            return client.request("PUT", path, params=params, json=payload)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-executions")
@@ -12774,11 +13010,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Trigger Executions (GET /api/triggers/{trigger_id}/executions)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/triggers/{trigger_id}/executions"
+            endpoint_path = f"/api/triggers/{trigger_id}/executions"
             params = {
                 "limit": limit,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("pause")
@@ -12788,9 +13024,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Pause Trigger (POST /api/triggers/{trigger_id}/pause)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/triggers/{trigger_id}/pause"
+            endpoint_path = f"/api/triggers/{trigger_id}/pause"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("resume")
@@ -12800,15 +13036,16 @@ def register_generated_openapi_commands(
     ) -> None:
         """Resume Trigger (POST /api/triggers/{trigger_id}/resume)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/triggers/{trigger_id}/resume"
+            endpoint_path = f"/api/triggers/{trigger_id}/resume"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('users')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for users endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='users')
+        existing_apps['users'] = target_app
 
     @target_app.command("list")
     def users_list_get(
@@ -12816,9 +13053,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Users (GET /api/users)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/users"
+            endpoint_path = "/api/users"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create")
@@ -12831,7 +13068,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create User (POST /api/users)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/users"
+            endpoint_path = "/api/users"
             params = None
             payload = _build_json_payload({
                 "display_name": display_name,
@@ -12844,7 +13081,7 @@ def register_generated_openapi_commands(
                 "password": {'type': 'string', 'minLength': 1, 'title': 'Password', 'x-cli-required': True},
                 "username": {'type': 'string', 'minLength': 1, 'title': 'Username', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("update")
@@ -12856,7 +13093,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update User (PATCH /api/users/{user_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/users/{user_id}"
+            endpoint_path = f"/api/users/{user_id}"
             params = None
             payload = _build_json_payload({
                 "active": active,
@@ -12865,13 +13102,14 @@ def register_generated_openapi_commands(
                 "active": {'type': 'boolean', 'nullable': True, 'title': 'Active', 'x-cli-required': False},
                 "password": {'type': 'string', 'minLength': 1, 'nullable': True, 'title': 'Password', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('view')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for view endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='view')
+        existing_apps['view'] = target_app
 
     @target_app.command("document")
     def view_document_get(
@@ -12880,9 +13118,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Document View (GET /view/document/{doc_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/view/document/{doc_id}"
+            endpoint_path = f"/view/document/{doc_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("global-kg")
@@ -12891,25 +13129,29 @@ def register_generated_openapi_commands(
     ) -> None:
         """Global Kg View (GET /view/kg/global)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/view/kg/global"
+            endpoint_path = "/view/kg/global"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('workflow-execution')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for workflow-execution endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='workflow-execution')
+        existing_apps['workflow-execution'] = target_app
 
     @target_app.command("clear-all-cache")
     def workflow_execution_clear_all_cache_delete(
         ctx: typer.Context,
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Clear All Cache (DELETE /api/workflow-execution/cache)."""
+        if not yes:
+            typer.confirm("Delete workflow-execution?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/workflow-execution/cache"
+            endpoint_path = "/api/workflow-execution/cache"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-all-cache-stats")
@@ -12918,9 +13160,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get All Cache Stats (GET /api/workflow-execution/cache/stats)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/workflow-execution/cache/stats"
+            endpoint_path = "/api/workflow-execution/cache/stats"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("execute")
@@ -12939,7 +13181,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Execute Workflow (POST /api/workflow-execution/execute)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/workflow-execution/execute"
+            endpoint_path = "/api/workflow-execution/execute"
             params = None
             payload = _build_json_payload({
                 "checkpoint_ns": checkpoint_ns,
@@ -12964,7 +13206,7 @@ def register_generated_openapi_commands(
                 "thread_id": {'type': 'string', 'nullable': True, 'title': 'Thread Id', 'x-cli-required': False},
                 "workflow_id": {'type': 'string', 'title': 'Workflow Id', 'x-cli-required': True},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-threads")
@@ -12974,23 +13216,26 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Threads (GET /api/workflow-execution/threads)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/workflow-execution/threads"
+            endpoint_path = "/api/workflow-execution/threads"
             params = {
                 "limit": limit,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("delete-thread")
     def workflow_execution_delete_thread_delete(
         ctx: typer.Context,
         thread_id: str = typer.Argument(..., help="Path parameter: thread_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Thread (DELETE /api/workflow-execution/threads/{thread_id})."""
+        if not yes:
+            typer.confirm("Delete workflow-execution?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/workflow-execution/threads/{thread_id}"
+            endpoint_path = f"/api/workflow-execution/threads/{thread_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("cancel")
@@ -13000,9 +13245,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Cancel Workflow (POST /api/workflow-execution/threads/{thread_id}/cancel)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/workflow-execution/threads/{thread_id}/cancel"
+            endpoint_path = f"/api/workflow-execution/threads/{thread_id}/cancel"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-thread-diagram-png")
@@ -13012,9 +13257,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Thread Diagram Png (GET /api/workflow-execution/threads/{thread_id}/diagram.png)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/workflow-execution/threads/{thread_id}/diagram.png"
+            endpoint_path = f"/api/workflow-execution/threads/{thread_id}/diagram.png"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-thread-diagram-svg")
@@ -13024,9 +13269,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Thread Diagram Svg (GET /api/workflow-execution/threads/{thread_id}/diagram.svg)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/workflow-execution/threads/{thread_id}/diagram.svg"
+            endpoint_path = f"/api/workflow-execution/threads/{thread_id}/diagram.svg"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-thread-history")
@@ -13037,11 +13282,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Thread History (GET /api/workflow-execution/threads/{thread_id}/history)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/workflow-execution/threads/{thread_id}/history"
+            endpoint_path = f"/api/workflow-execution/threads/{thread_id}/history"
             params = {
                 "limit": limit,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("pause")
@@ -13051,9 +13296,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Pause Workflow (POST /api/workflow-execution/threads/{thread_id}/pause)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/workflow-execution/threads/{thread_id}/pause"
+            endpoint_path = f"/api/workflow-execution/threads/{thread_id}/pause"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("resume")
@@ -13065,7 +13310,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Resume Workflow (POST /api/workflow-execution/threads/{thread_id}/resume)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/workflow-execution/threads/{thread_id}/resume"
+            endpoint_path = f"/api/workflow-execution/threads/{thread_id}/resume"
             params = None
             payload = _build_json_payload({
                 "answer": answer,
@@ -13074,7 +13319,7 @@ def register_generated_openapi_commands(
                 "answer": {'nullable': True, 'title': 'Answer', 'x-cli-required': False},
                 "inputs": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Inputs', 'x-cli-required': False},
             }, required=False)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-run")
@@ -13084,9 +13329,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Workflow Run (GET /api/workflow-execution/threads/{thread_id}/run)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/workflow-execution/threads/{thread_id}/run"
+            endpoint_path = f"/api/workflow-execution/threads/{thread_id}/run"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-thread-status")
@@ -13096,21 +13341,24 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Thread Status (GET /api/workflow-execution/threads/{thread_id}/status)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/workflow-execution/threads/{thread_id}/status"
+            endpoint_path = f"/api/workflow-execution/threads/{thread_id}/status"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("clear-cache")
     def workflow_execution_clear_cache_delete(
         ctx: typer.Context,
         workflow_id: str = typer.Argument(..., help="Path parameter: workflow_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Clear Workflow Cache (DELETE /api/workflow-execution/workflows/{workflow_id}/cache)."""
+        if not yes:
+            typer.confirm("Delete workflow-execution?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/workflow-execution/workflows/{workflow_id}/cache"
+            endpoint_path = f"/api/workflow-execution/workflows/{workflow_id}/cache"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-cache-stats")
@@ -13120,9 +13368,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Workflow Cache Stats (GET /api/workflow-execution/workflows/{workflow_id}/cache/stats)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/workflow-execution/workflows/{workflow_id}/cache/stats"
+            endpoint_path = f"/api/workflow-execution/workflows/{workflow_id}/cache/stats"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-code")
@@ -13132,9 +13380,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Workflow Code (GET /api/workflow-execution/workflows/{workflow_id}/code)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/workflow-execution/workflows/{workflow_id}/code"
+            endpoint_path = f"/api/workflow-execution/workflows/{workflow_id}/code"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-visualization")
@@ -13145,11 +13393,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Workflow Visualization (GET /api/workflow-execution/workflows/{workflow_id}/visualization)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/workflow-execution/workflows/{workflow_id}/visualization"
+            endpoint_path = f"/api/workflow-execution/workflows/{workflow_id}/visualization"
             params = {
                 "xray": xray,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-visualization-png")
@@ -13160,17 +13408,18 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Workflow Visualization Png (GET /api/workflow-execution/workflows/{workflow_id}/visualization.png)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/workflow-execution/workflows/{workflow_id}/visualization.png"
+            endpoint_path = f"/api/workflow-execution/workflows/{workflow_id}/visualization.png"
             params = {
                 "xray": xray,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('workflows')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for workflows endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='workflows')
+        existing_apps['workflows'] = target_app
 
     @target_app.command("list")
     def workflows_list_get(
@@ -13179,11 +13428,11 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Workflows (GET /api/workflows)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/workflows"
+            endpoint_path = "/api/workflows"
             params = {
                 "folder_path": folder_path,
             }
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create")
@@ -13207,7 +13456,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Workflow (POST /api/workflows)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/workflows"
+            endpoint_path = "/api/workflows"
             params = None
             payload = _build_json_payload({
                 "created_at": created_at,
@@ -13242,7 +13491,7 @@ def register_generated_openapi_commands(
                 "updated_at": {'type': 'string', 'nullable': True, 'title': 'Updated At', 'x-cli-required': False},
                 "version": {'type': 'string', 'title': 'Version', 'default': '1.0', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("import")
@@ -13255,13 +13504,13 @@ def register_generated_openapi_commands(
     ) -> None:
         """Import Workflow (POST /api/workflows/import)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/workflows/import"
+            endpoint_path = "/api/workflows/import"
             params = {
                 "description": description,
                 "name": name,
             }
             payload = _load_json_payload(body, body_file, required=False)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-modes")
@@ -13270,9 +13519,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Workflow Modes (GET /api/workflows/modes)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/workflows/modes"
+            endpoint_path = "/api/workflows/modes"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("reinstall-default")
@@ -13281,9 +13530,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Reinstall Default Workflows (POST /api/workflows/reinstall-defaults)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/workflows/reinstall-defaults"
+            endpoint_path = "/api/workflows/reinstall-defaults"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("reorder")
@@ -13295,12 +13544,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """Reorder Workflows (POST /api/workflows/reorder)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/workflows/reorder"
+            endpoint_path = "/api/workflows/reorder"
             params = {
                 "folder_path": folder_path,
             }
             payload = _load_json_payload(body, body_file, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-tools")
@@ -13309,9 +13558,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Workflow Tools (GET /api/workflows/tools)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/workflows/tools"
+            endpoint_path = "/api/workflows/tools"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-tools-grouped")
@@ -13320,9 +13569,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """List Tools Grouped (GET /api/workflows/tools/grouped)."""
         def op_call(client: FicheroClient) -> Any:
-            path = "/api/workflows/tools/grouped"
+            endpoint_path = "/api/workflows/tools/grouped"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-tool")
@@ -13332,9 +13581,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Tool (GET /api/workflows/tools/{tool_name})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/workflows/tools/{tool_name}"
+            endpoint_path = f"/api/workflows/tools/{tool_name}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("create-node")
@@ -13346,12 +13595,12 @@ def register_generated_openapi_commands(
     ) -> None:
         """Create Node (POST /api/workflows/tools/{tool_name}/create-node)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/workflows/tools/{tool_name}/create-node"
+            endpoint_path = f"/api/workflows/tools/{tool_name}/create-node"
             params = {
                 "position_x": position_x,
                 "position_y": position_y,
             }
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-tool-prompt")
@@ -13362,26 +13611,29 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Tool Prompt (POST /api/workflows/tools/{tool_name}/prompt)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/workflows/tools/{tool_name}/prompt"
+            endpoint_path = f"/api/workflows/tools/{tool_name}/prompt"
             params = None
             payload = _build_json_payload({
                 "config": config,
             }, {
                 "config": {'additionalProperties': True, 'type': 'object', 'title': 'Config', 'default': {}, 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete")
     def workflows_delete_delete(
         ctx: typer.Context,
         workflow_id: str = typer.Argument(..., help="Path parameter: workflow_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Workflow (DELETE /api/workflows/{workflow_id})."""
+        if not yes:
+            typer.confirm("Delete workflows?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/workflows/{workflow_id}"
+            endpoint_path = f"/api/workflows/{workflow_id}"
             params = None
-            return client.request("DELETE", path, params=params)
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get")
@@ -13391,9 +13643,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Get Workflow (GET /api/workflows/{workflow_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/workflows/{workflow_id}"
+            endpoint_path = f"/api/workflows/{workflow_id}"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("patch")
@@ -13408,7 +13660,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Patch Workflow (PATCH /api/workflows/{workflow_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/workflows/{workflow_id}"
+            endpoint_path = f"/api/workflows/{workflow_id}"
             params = None
             payload = _build_json_payload({
                 "description": description,
@@ -13423,7 +13675,7 @@ def register_generated_openapi_commands(
                 "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
                 "sort_order": {'type': 'integer', 'nullable': True, 'title': 'Sort Order', 'x-cli-required': False},
             }, required=True)
-            return client.request("PATCH", path, params=params, json=payload)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("update")
@@ -13448,7 +13700,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Update Workflow (PUT /api/workflows/{workflow_id})."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/workflows/{workflow_id}"
+            endpoint_path = f"/api/workflows/{workflow_id}"
             params = None
             payload = _build_json_payload({
                 "created_at": created_at,
@@ -13483,7 +13735,7 @@ def register_generated_openapi_commands(
                 "updated_at": {'type': 'string', 'nullable': True, 'title': 'Updated At', 'x-cli-required': False},
                 "version": {'type': 'string', 'title': 'Version', 'default': '1.0', 'x-cli-required': False},
             }, required=True)
-            return client.request("PUT", path, params=params, json=payload)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("duplicate")
@@ -13493,9 +13745,9 @@ def register_generated_openapi_commands(
     ) -> None:
         """Duplicate Workflow (POST /api/workflows/{workflow_id}/duplicate)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/workflows/{workflow_id}/duplicate"
+            endpoint_path = f"/api/workflows/{workflow_id}/duplicate"
             params = None
-            return client.request("POST", path, params=params)
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("estimate-cost")
@@ -13510,7 +13762,7 @@ def register_generated_openapi_commands(
     ) -> None:
         """Estimate Workflow Cost (POST /api/workflows/{workflow_id}/estimate-cost)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/workflows/{workflow_id}/estimate-cost"
+            endpoint_path = f"/api/workflows/{workflow_id}/estimate-cost"
             params = None
             payload = _build_json_payload({
                 "estimated_input_tokens_per_file": estimated_input_tokens_per_file,
@@ -13525,7 +13777,7 @@ def register_generated_openapi_commands(
                 "model": {'type': 'string', 'nullable': True, 'title': 'Model', 'x-cli-required': False},
                 "provider": {'type': 'string', 'nullable': True, 'title': 'Provider', 'x-cli-required': False},
             }, required=True)
-            return client.request("POST", path, params=params, json=payload)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("export")
@@ -13535,8 +13787,8 @@ def register_generated_openapi_commands(
     ) -> None:
         """Export Workflow (GET /api/workflows/{workflow_id}/export)."""
         def op_call(client: FicheroClient) -> Any:
-            path = f"/api/workflows/{workflow_id}/export"
+            endpoint_path = f"/api/workflows/{workflow_id}/export"
             params = None
-            return client.request("GET", path, params=params)
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
