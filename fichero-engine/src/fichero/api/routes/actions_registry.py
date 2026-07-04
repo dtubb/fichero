@@ -32,6 +32,7 @@ from fichero.api.library_header import optional_library_path, require_library_pa
 from fichero import authz
 from fichero.actions import ActionContext, ActionNotFoundError, ChangeSpec, action, registry
 from fichero.api.auth import action_context
+from fichero.app_db import get_app_db
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.models import ActionAudit
@@ -299,9 +300,34 @@ class AclSetParams(BaseModel):
     )
 
 
-@action("acl.set", AclSetParams, domains=["authz"], undoable=False)
+def _invert_acl_set(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not before or (after and "override" in after):
+        return None
+    role_before = before.get("role")
+    user_id = before.get("user_id")
+    if not user_id:
+        return None
+    if role_before is None:
+        return ("acl.set", {"user": user_id, "remove": True})
+    return ("acl.set", {"user": user_id, "role": role_before})
+
+
+@action("acl.set", AclSetParams, domains=["authz"], undoable=True, invert=_invert_acl_set)
 def _acl_set(_db: Database, params: AclSetParams, ctx: ActionContext):
     """Owner-only ACL mutation through the shared registry write path."""
+    resolved = authz.resolve_user(params.user)
+    if resolved is None:
+        raise ValueError("unknown user or library")
+    library_path = authz.normalize_library_path(ctx.library_path)
+    if library_path is None:
+        raise ValueError("unknown user or library")
+    existing_role = get_app_db().get_library_role(resolved.id, library_path)
+    before = {
+        "user_id": resolved.id,
+        "role": existing_role.role if existing_role is not None else None,
+    }
     changes: dict[str, Any] = {"user": params.user}
     target_ids: list[str] = []
 
@@ -320,6 +346,7 @@ def _acl_set(_db: Database, params: AclSetParams, ctx: ActionContext):
             ChangeSpec(
                 domains=["authz"],
                 target_ids=target_ids,
+                before=before,
                 after=changes,
                 emit_type="authz.changed",
             ),
@@ -355,6 +382,7 @@ def _acl_set(_db: Database, params: AclSetParams, ctx: ActionContext):
         ChangeSpec(
             domains=["authz"],
             target_ids=target_ids,
+            before=before,
             after=changes,
             emit_type="authz.changed",
         ),
