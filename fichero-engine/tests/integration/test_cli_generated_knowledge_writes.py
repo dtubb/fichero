@@ -150,7 +150,6 @@ def test_generated_knowledge_write_contracts_current_main(cli_live_engine) -> No
     assert after_claim_patch["count"] == after_claim_create["count"] + 1
     assert after_claim_patch["items"][0]["action_name"] == "claim.patch"
 
-    # audit assertions pending /api/claim-links->registry migration (#3020)
     before_link = _audit_log(cli_live_engine)
     link = _cli_json(
         cli_live_engine,
@@ -183,9 +182,9 @@ def test_generated_knowledge_write_contracts_current_main(cli_live_engine) -> No
     deleted_link = _cli_json(cli_live_engine, "claim-links", "delete", link_id, "--yes")
     assert deleted_link["operation"] == "deleted"
     after_link = _audit_log(cli_live_engine)
-    assert after_link["count"] == before_link["count"]
+    assert after_link["count"] == before_link["count"] + 3
+    assert after_link["items"][0]["action_name"] == "claim.delete_link"
 
-    # audit assertions pending /api/annotations->registry migration (#3021)
     before_annotation = _audit_log(cli_live_engine)
     annotation = _cli_json(
         cli_live_engine,
@@ -231,9 +230,9 @@ def test_generated_knowledge_write_contracts_current_main(cli_live_engine) -> No
     )
     assert deleted_annotation.exit_code == 0, deleted_annotation.output
     after_annotation = _audit_log(cli_live_engine)
-    assert after_annotation["count"] == before_annotation["count"]
+    assert after_annotation["count"] == before_annotation["count"] + 3
+    assert after_annotation["items"][0]["action_name"] == "annotation.delete"
 
-    # audit assertions pending /api/classifications->registry migration (#3022)
     before_classification = _audit_log(cli_live_engine)
     value = _cli_json(
         cli_live_engine,
@@ -277,7 +276,8 @@ def test_generated_knowledge_write_contracts_current_main(cli_live_engine) -> No
     )
     assert deleted_value.exit_code == 0, deleted_value.output
     after_classification = _audit_log(cli_live_engine)
-    assert after_classification["count"] == before_classification["count"]
+    assert after_classification["count"] == before_classification["count"] + 3
+    assert after_classification["items"][0]["action_name"] == "classification.delete"
 
     deleted_claim = _cli_result(cli_live_engine, "claim", "delete", claim_id, "--yes")
     assert deleted_claim.exit_code == 0, deleted_claim.output
