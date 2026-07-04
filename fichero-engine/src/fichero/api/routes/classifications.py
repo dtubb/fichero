@@ -14,7 +14,9 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from fichero.api.auth import action_context
 from fichero.api.main import get_library_database, get_library_database_for_write
+from fichero.actions.registry import registry
 from fichero.db import Database
 from fichero.knowledge_models import (
     ClassificationDimension,
@@ -132,8 +134,15 @@ def create_value_impl(
 async def create_value(
     request: ClassificationCreateRequest,
     db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> ClassificationValue:
-    return create_value_impl(db, request)
+    result = registry.invoke(
+        db,
+        "classification.create",
+        request.model_dump(mode="json"),
+        ctx,
+    )
+    return ClassificationValue.model_validate(result.result)
 
 
 class ClassificationPatchRequest(BaseModel):
@@ -172,8 +181,18 @@ async def patch_value(
     value_id: str,
     request: ClassificationPatchRequest,
     db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> ClassificationValue:
-    return patch_value_impl(db, value_id, request)
+    result = registry.invoke(
+        db,
+        "classification.patch",
+        {
+            "value_id": value_id,
+            **request.model_dump(mode="json", exclude_unset=True),
+        },
+        ctx,
+    )
+    return ClassificationValue.model_validate(result.result)
 
 
 def delete_value_impl(db: Database, value_id: str) -> ClassificationValue:
@@ -198,8 +217,9 @@ def delete_value_impl(db: Database, value_id: str) -> ClassificationValue:
 async def delete_value(
     value_id: str,
     db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
 ) -> None:
-    delete_value_impl(db, value_id)
+    registry.invoke(db, "classification.delete", {"value_id": value_id}, ctx)
 
 
 # ---------------------------------------------------------------------------

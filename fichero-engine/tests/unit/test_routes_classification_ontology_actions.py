@@ -261,6 +261,36 @@ class TestClassificationActions:
         assert db.get(ClassificationValue, vid) is None
 
 
+class TestClassificationRoutesWriteActionAudit:
+    def test_create_patch_delete_routes_write_action_audit(self, client, db):
+        created = client.post(
+            "/api/classifications",
+            json={
+                "dimension": "node_class",
+                "key": "route-audit",
+                "label": "Route Audit",
+                "color": "#123456",
+            },
+        )
+        assert created.status_code == 200
+        value_id = created.json()["id"]
+        assert db.all(ActionAudit)[-1].action_name == "classification.create"
+        assert db.all(ActionAudit)[-1].target_ids == [value_id]
+
+        patched = client.patch(
+            f"/api/classifications/{value_id}",
+            json={"label": "Route Audit Updated", "sort_order": 3},
+        )
+        assert patched.status_code == 200
+        assert db.all(ActionAudit)[-1].action_name == "classification.patch"
+        assert db.all(ActionAudit)[-1].target_ids == [value_id]
+
+        deleted = client.delete(f"/api/classifications/{value_id}")
+        assert deleted.status_code == 204
+        assert db.all(ActionAudit)[-1].action_name == "classification.delete"
+        assert db.all(ActionAudit)[-1].target_ids == [value_id]
+
+
 # ===========================================================================
 # Interpretive-framework / interpretation / pattern actions (ontology)
 # ===========================================================================
