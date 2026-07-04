@@ -31,6 +31,17 @@ def temp_library_path(tmp_path):
     return lib_path
 
 
+def _create_library_fixture(path, doc_id: str) -> None:
+    path.mkdir(parents=True, exist_ok=True)
+    db = Database(path=path / "fichero.duckdb")
+    try:
+        db.save(Document(id=doc_id, name=f"{doc_id}.txt", page_content="fixture"))
+    finally:
+        db.conn.close()
+    (path / "files").mkdir(exist_ok=True)
+    (path / "files" / f"{doc_id}.txt").write_text("fixture", encoding="utf-8")
+
+
 class TestKnownLibraryModel:
     """Test the KnownLibrary Pydantic model."""
 
@@ -286,6 +297,121 @@ class TestGlobalRegistryHeaderless:
             assert matches == [normalized]
         finally:
             db_manager.close_database(str(lib_path))
+
+    def test_unicode_collision_report_case_a_same_inode(self, global_client, tmp_path):
+        nfc_path = tmp_path / unicodedata.normalize("NFC", "Chocó.fichero")
+        _create_library_fixture(nfc_path, "case-a")
+        nfd_path = unicodedata.normalize("NFD", str(nfc_path))
+
+        global_client.post("/api/registry/add", params={"path": str(nfc_path)})
+        global_db = global_client.app.dependency_overrides[
+            __import__(
+                "fichero.api.routes.library_registry",
+                fromlist=["get_global_database"],
+            ).get_global_database
+        ]()
+        global_db.save(
+            KnownLibrary(
+                path=nfd_path,
+                name=unicodedata.normalize("NFD", nfc_path.name),
+            )
+        )
+
+        response = global_client.get("/api/registry/unicode-collisions")
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["count"] == 1
+        collision = body["collisions"][0]
+        assert collision["collision_case"] == "case_a_same_inode"
+        assert collision["nfc_name"] == unicodedata.normalize("NFC", nfc_path.name)
+
+    def test_unicode_collision_report_case_b_distinct_packages(self, monkeypatch, tmp_path):
+        from fichero.api.routes import library_registry as registry_routes
+
+        first = tmp_path / "one" / "Alpha.fichero"
+        second = tmp_path / "two" / "Beta.fichero"
+        _create_library_fixture(first, "left")
+        _create_library_fixture(second, "right")
+        left_raw = str(tmp_path / unicodedata.normalize("NFD", "Chocó.fichero"))
+        right_raw = str(tmp_path / unicodedata.normalize("NFC", "Chocó.fichero"))
+
+        identities = {
+            left_raw: registry_routes.UnicodeLibraryCollisionIdentity(
+                raw_path=left_raw,
+                raw_path_escaped=left_raw.encode("unicode_escape").decode("ascii"),
+                name=unicodedata.normalize("NFD", "Chocó.fichero"),
+                name_escaped=unicodedata.normalize("NFD", "Chocó.fichero")
+                .encode("unicode_escape")
+                .decode("ascii"),
+                document_count=1,
+                duckdb_size_bytes=(first / "fichero.duckdb").stat().st_size,
+                files_size_bytes=(first / "files" / "left.txt").stat().st_size,
+            ),
+            right_raw: registry_routes.UnicodeLibraryCollisionIdentity(
+                raw_path=right_raw,
+                raw_path_escaped=right_raw.encode("unicode_escape").decode("ascii"),
+                name=unicodedata.normalize("NFC", "Chocó.fichero"),
+                name_escaped=unicodedata.normalize("NFC", "Chocó.fichero")
+                .encode("unicode_escape")
+                .decode("ascii"),
+                document_count=1,
+                duckdb_size_bytes=(second / "fichero.duckdb").stat().st_size,
+                files_size_bytes=(second / "files" / "right.txt").stat().st_size,
+            ),
+        }
+
+        monkeypatch.setattr(
+            registry_routes,
+            "_registry_collision_paths",
+            lambda _libraries: [(left_raw, right_raw)],
+        )
+        monkeypatch.setattr(registry_routes, "_sibling_collision_paths", lambda _libraries: [])
+        monkeypatch.setattr(registry_routes, "_identity_report", lambda raw_path: identities[raw_path])
+        monkeypatch.setattr(registry_routes, "_same_inode", lambda *_args: False)
+
+        collisions = registry_routes._detect_unicode_library_collisions([])
+        assert len(collisions) == 1
+        assert collisions[0].collision_case == "case_b_distinct_packages"
+
+    def test_unicode_collision_report_ignores_plain_ascii_vs_accent(self, monkeypatch):
+        from fichero.api.routes import library_registry as registry_routes
+
+        monkeypatch.setattr(
+            registry_routes,
+            "_registry_collision_paths",
+            lambda _libraries: [("/tmp/Choco.fichero", "/tmp/Chocó.fichero")],
+        )
+        monkeypatch.setattr(registry_routes, "_sibling_collision_paths", lambda _libraries: [])
+
+        assert registry_routes._detect_unicode_library_collisions([]) == []
+
+    def test_unicode_collision_report_is_idempotent_and_read_only(self, global_client, tmp_path):
+        nfc_path = tmp_path / unicodedata.normalize("NFC", "Chocó.fichero")
+        _create_library_fixture(nfc_path, "stable")
+        nfd_path = unicodedata.normalize("NFD", str(nfc_path))
+
+        global_client.post("/api/registry/add", params={"path": str(nfc_path)})
+        global_db = global_client.app.dependency_overrides[
+            __import__(
+                "fichero.api.routes.library_registry",
+                fromlist=["get_global_database"],
+            ).get_global_database
+        ]()
+        global_db.save(
+            KnownLibrary(
+                path=nfd_path,
+                name=unicodedata.normalize("NFD", nfc_path.name),
+            )
+        )
+        before_rows = [(lib.path, lib.name) for lib in global_db.all(KnownLibrary)]
+        before_mtime = nfc_path.stat().st_mtime
+
+        first = global_client.get("/api/registry/unicode-collisions")
+        second = global_client.get("/api/registry/unicode-collisions")
+
+        assert first.json() == second.json()
+        assert [(lib.path, lib.name) for lib in global_db.all(KnownLibrary)] == before_rows
+        assert nfc_path.stat().st_mtime == before_mtime
 
     def test_remove_handles_spaces(self, global_client, tmp_path):
         """DELETE /api/registry/{path} works for a path containing spaces."""

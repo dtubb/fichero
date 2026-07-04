@@ -2415,6 +2415,19 @@ def library_list(ctx: typer.Context) -> None:
     _invoke(ctx, op)
 
 
+@library_app.command("unicode-collisions")
+def library_unicode_collisions(ctx: typer.Context) -> None:
+    """Report Unicode-equivalent collisions in the known library set."""
+
+    def op(c: FicheroClient) -> Any:
+        response = c.list_unicode_library_collisions()
+        if not response.collisions:
+            return "(no collisions)"
+        return response.collisions
+
+    _invoke(ctx, op)
+
+
 @library_app.command("add")
 def library_add(
     ctx: typer.Context,

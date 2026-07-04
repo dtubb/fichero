@@ -7113,6 +7113,16 @@
         "response_model": "KnownLibrary"
       },
       {
+        "method": "GET",
+        "path": "/registry/unicode-collisions",
+        "operation_id": "list_unicode_library_collisions_api_registry_unicode_collisions_get",
+        "summary": "List Unicode Library Collisions",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "UnicodeLibraryCollisionResponse"
+      },
+      {
         "method": "POST",
         "path": "/registry/update-access",
         "operation_id": "update_library_access_api_registry_update_access_post",
