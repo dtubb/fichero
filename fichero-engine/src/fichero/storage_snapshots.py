@@ -144,6 +144,7 @@ def snapshot_library(
     auto_expire_days: int | None = None,
     max_snapshots: int = DEFAULT_RETAINED_SNAPSHOTS,
     offsite_dir: str | Path | None = None,
+    include_files: bool = False,
 ) -> "LibrarySnapshot":
     """Create a point-in-time snapshot of a library.
 
@@ -183,6 +184,7 @@ def snapshot_library(
     duckdb_file_dir = snapshot_root / "duckdb_file"
     vectors_copy_dir = snapshot_root / "vectors_copy"
     lance_copy_dir = snapshot_root / "lance_copy"
+    files_copy_dir = snapshot_root / "files_copy"
 
     snapshot_root.mkdir(parents=True, exist_ok=True)
     duckdb_export_dir.mkdir(parents=True, exist_ok=True)
@@ -243,6 +245,16 @@ def snapshot_library(
         vectors_copy_dir.mkdir(parents=True, exist_ok=True)
         primary_lance_path = str(vectors_copy_dir.relative_to(settings.snapshots_dir))
 
+    files_size = 0
+    files_path = None
+    if include_files:
+        originals_dir = library_path_p / "files"
+        files_copy_dir.mkdir(parents=True, exist_ok=True)
+        if originals_dir.exists():
+            shutil.copytree(originals_dir, files_copy_dir, dirs_exist_ok=True)
+        files_size = _dir_size(files_copy_dir)
+        files_path = str(files_copy_dir.relative_to(settings.snapshots_dir))
+
     # Count files
     file_count = sum(1 for _ in snapshot_root.rglob("*") if _.is_file())
 
@@ -262,10 +274,13 @@ def snapshot_library(
         snapshot_path=str(snapshot_root),
         duckdb_path=str(duckdb_file_dir.relative_to(settings.snapshots_dir)),
         lance_path=primary_lance_path,
+        files_path=files_path,
+        includes_files=include_files,
         offsite_path=None,
         file_count=file_count,
         duckdb_size_bytes=duckdb_size,
         lance_size_bytes=lance_size,
+        files_size_bytes=files_size,
         created_at=created_at,
         expires_at=expires_at,
     )
@@ -283,13 +298,16 @@ def snapshot_library(
             "duckdb": snapshot.duckdb_path,
             "duckdb_export": str(duckdb_export_dir.relative_to(settings.snapshots_dir)),
             "embeddings": copied_embeddings,
+            "files": files_path,
             "offsite": None,
         },
         "sizes": {
             "duckdb_size_bytes": duckdb_size,
             "lance_size_bytes": lance_size,
-            "total_size_bytes": duckdb_size + lance_size,
+            "files_size_bytes": files_size,
+            "total_size_bytes": duckdb_size + lance_size + files_size,
         },
+        "includes_files": include_files,
         "file_count": file_count,
     }
     _write_manifest(snapshot_root, manifest)
@@ -421,6 +439,32 @@ def restore_snapshot(snapshot_id: str) -> dict:
             shutil.rmtree(tmp_lance_path)
         shutil.copytree(lance_src, tmp_lance_path)
 
+    restored_files_path = None
+    files_backup_path = None
+    files_backup_candidate = None
+    tmp_files_path = None
+    current_files_path = lib_path / "files"
+    if snapshot.includes_files:
+        if not snapshot.files_path:
+            raise FileNotFoundError(
+                f"Snapshot {snapshot_id} does not include a files/ copy"
+            )
+        try:
+            files_src = resolve_snapshot_record_path(
+                settings.snapshots_dir, snapshot.files_path
+            )
+        except ValueError as exc:
+            raise FileNotFoundError(str(exc)) from exc
+        if not files_src.exists():
+            raise FileNotFoundError(
+                f"Snapshot {snapshot_id} is missing files/ data at {files_src}"
+            )
+        tmp_files_path = lib_path / f".files.restore-{ts}.tmp"
+        files_backup_candidate = lib_path / f"files.pre-restore-{ts}"
+        if tmp_files_path.exists():
+            shutil.rmtree(tmp_files_path)
+        shutil.copytree(files_src, tmp_files_path)
+
     try:
         if tmp_db_path is not None:
             assert db_backup_candidate is not None
@@ -443,11 +487,24 @@ def restore_snapshot(snapshot_id: str) -> dict:
             logger.info(
                 "Restored LanceDB snapshot %s to %s", snapshot_id, current_lance_path
             )
+
+        if tmp_files_path is not None:
+            assert files_backup_candidate is not None
+            if current_files_path.exists():
+                os.replace(current_files_path, files_backup_candidate)
+                files_backup_path = files_backup_candidate
+            os.replace(tmp_files_path, current_files_path)
+            restored_files_path = current_files_path
+            logger.info(
+                "Restored files snapshot %s to %s", snapshot_id, current_files_path
+            )
     except Exception:
         if tmp_db_path is not None and tmp_db_path.exists():
             tmp_db_path.unlink()
         if tmp_lance_path is not None and tmp_lance_path.exists():
             shutil.rmtree(tmp_lance_path)
+        if tmp_files_path is not None and tmp_files_path.exists():
+            shutil.rmtree(tmp_files_path)
         if db_backup_path is not None and db_backup_path.exists() and current_db_path.exists():
             current_db_path.unlink()
         if db_backup_path is not None and db_backup_path.exists():
@@ -460,6 +517,14 @@ def restore_snapshot(snapshot_id: str) -> dict:
             shutil.rmtree(current_lance_path)
         if lance_backup_path is not None and lance_backup_path.exists():
             os.replace(lance_backup_path, current_lance_path)
+        if (
+            files_backup_path is not None
+            and files_backup_path.exists()
+            and current_files_path.exists()
+        ):
+            shutil.rmtree(current_files_path)
+        if files_backup_path is not None and files_backup_path.exists():
+            os.replace(files_backup_path, current_files_path)
         raise
 
     return {
@@ -471,6 +536,8 @@ def restore_snapshot(snapshot_id: str) -> dict:
         else None,
         "duckdb_backup_path": str(db_backup_path) if db_backup_path else None,
         "lance_backup_path": str(lance_backup_path) if lance_backup_path else None,
+        "files_restored_path": str(restored_files_path) if restored_files_path else None,
+        "files_backup_path": str(files_backup_path) if files_backup_path else None,
         "note": "Restored snapshot into the library package. Pre-restore files were kept with .pre-restore suffixes.",
     }
 
@@ -623,6 +690,7 @@ def auto_snapshot_before_risky_operation(
     *,
     reason: str,
     initiator: str = "system",
+    include_files: bool = False,
 ) -> "LibrarySnapshot | None":
     """Best-effort helper for callers to run before destructive operations."""
     try:
@@ -631,6 +699,7 @@ def auto_snapshot_before_risky_operation(
             reason=reason,
             initiator=initiator,
             auto_expire_days=14,
+            include_files=include_files,
         )
     except Exception as exc:
         logger.warning(

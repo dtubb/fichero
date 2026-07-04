@@ -1323,10 +1323,13 @@ class LibrarySnapshot(BaseModel):
     snapshot_path: str  # Absolute path to snapshot directory
     duckdb_path: str  # Relative path to .duckdb.export Parquet files
     lance_path: str  # Relative path to LanceDB copy
+    files_path: str | None = None  # Relative path to copied originals
+    includes_files: bool = False  # Whether files/ was captured
     offsite_path: str | None = None  # Absolute path to offsite snapshot copy
     file_count: int = 0  # Number of files in snapshot
     duckdb_size_bytes: int = 0  # Size of DuckDB Parquet export
     lance_size_bytes: int = 0  # Size of LanceDB vector copy
+    files_size_bytes: int = 0  # Size of copied originals
 
     # Retention
     is_pinned: bool = False  # Pinned snapshots are not auto-deleted

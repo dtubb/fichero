@@ -32,6 +32,13 @@ def _create_library_with_document(library_path: Path, doc_id: str = "doc-1") -> 
     db.conn.close()
 
 
+def _write_original_files(library_path: Path, files: dict[str, str]) -> None:
+    originals = library_path / "files"
+    originals.mkdir(parents=True, exist_ok=True)
+    for name, content in files.items():
+        (originals / name).write_text(content, encoding="utf-8")
+
+
 def _register_known_library(library_path: Path, **kwargs) -> KnownLibrary:
     registry_db = Database(storage_snapshots.settings.global_library_path / "fichero.duckdb")
     try:
@@ -135,6 +142,42 @@ def test_snapshot_manifest_records_reason_paths_and_sizes(
     assert manifest["sizes"]["lance_size_bytes"] > 0
 
 
+def test_snapshot_include_files_copies_originals_and_records_sizes(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _use_snapshot_state(monkeypatch, tmp_path)
+    library_path = tmp_path / "FilesIncluded.fichero"
+    _create_library_with_document(library_path)
+    originals = {
+        "one.txt": "alpha",
+        "two.txt": "beta",
+        "résumé.txt": "gamma",
+    }
+    _write_original_files(library_path, originals)
+
+    snapshot = storage_snapshots.snapshot_library(
+        str(library_path),
+        reason="include originals",
+        include_files=True,
+    )
+
+    files_copy = Path(snapshot.snapshot_path) / "files_copy"
+    assert snapshot.includes_files is True
+    assert snapshot.files_path is not None
+    assert files_copy.exists()
+    assert snapshot.files_size_bytes == sum(
+        len(content.encode("utf-8")) for content in originals.values()
+    )
+    for name, content in originals.items():
+        assert (files_copy / name).read_text(encoding="utf-8") == content
+
+    manifest = json.loads((Path(snapshot.snapshot_path) / "manifest.json").read_text())
+    assert manifest["includes_files"] is True
+    assert manifest["paths"]["files"] == snapshot.files_path
+    assert manifest["sizes"]["files_size_bytes"] == snapshot.files_size_bytes
+
+
 def test_snapshot_normalizes_unicode_library_name_to_nfc(
     tmp_path: Path,
     monkeypatch,
@@ -150,6 +193,76 @@ def test_snapshot_normalizes_unicode_library_name_to_nfc(
 
     assert snapshot.library_name == unicodedata.normalize("NFC", "Chocó")
     assert Path(snapshot.snapshot_path).parts[-2] == unicodedata.normalize("NFC", "Chocó")
+
+
+def test_snapshot_restore_round_trips_original_files_when_included(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _use_snapshot_state(monkeypatch, tmp_path)
+    library_path = tmp_path / "RestoreFiles.fichero"
+    _create_library_with_document(library_path)
+    _write_original_files(
+        library_path,
+        {
+            "keep.txt": "before",
+            "résumé.txt": "accented",
+            "three.txt": "third",
+        },
+    )
+
+    snapshot = storage_snapshots.snapshot_library(
+        str(library_path),
+        reason="before file mutation",
+        include_files=True,
+    )
+    originals_dir = library_path / "files"
+    (originals_dir / "keep.txt").write_text("after", encoding="utf-8")
+    (originals_dir / "résumé.txt").unlink()
+    (originals_dir / "new.txt").write_text("new", encoding="utf-8")
+
+    result = storage_snapshots.restore_snapshot(snapshot.id)
+
+    assert result["files_restored_path"] == str(originals_dir)
+    assert Path(result["files_backup_path"]).exists()
+    assert (originals_dir / "keep.txt").read_text(encoding="utf-8") == "before"
+    assert (originals_dir / "résumé.txt").read_text(encoding="utf-8") == "accented"
+    assert not (originals_dir / "new.txt").exists()
+
+    backup_dir = Path(result["files_backup_path"])
+    assert (backup_dir / "keep.txt").read_text(encoding="utf-8") == "after"
+    assert (backup_dir / "new.txt").read_text(encoding="utf-8") == "new"
+
+
+def test_auto_snapshot_before_risky_operation_passes_include_files(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _use_snapshot_state(monkeypatch, tmp_path)
+    calls: list[dict[str, object]] = []
+
+    def snapshot_spy(library_path: str, **kwargs):
+        calls.append({"library_path": library_path, **kwargs})
+        return "snapshot"
+
+    monkeypatch.setattr(storage_snapshots, "snapshot_library", snapshot_spy)
+
+    result = storage_snapshots.auto_snapshot_before_risky_operation(
+        tmp_path / "AutoFiles.fichero",
+        reason="before merge",
+        include_files=True,
+    )
+
+    assert result == "snapshot"
+    assert calls == [
+        {
+            "library_path": str(tmp_path / "AutoFiles.fichero"),
+            "reason": "before merge",
+            "initiator": "system",
+            "auto_expire_days": 14,
+            "include_files": True,
+        }
+    ]
 
 
 def test_snapshot_quiesces_database_manager_before_copy(
