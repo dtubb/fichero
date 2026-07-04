@@ -3768,6 +3768,16 @@
               "type": "string",
               "title": "Document Id"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "requestBody": {
@@ -3862,6 +3872,16 @@
             "schema": {
               "type": "string",
               "title": "Document Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
             }
           }
         ],
@@ -14294,27 +14314,6 @@
       }
     },
     "/api/sources": {
-      "get": {
-        "tags": [
-          "sources",
-          "sources"
-        ],
-        "summary": "List Sources",
-        "description": "List all source documents.",
-        "operationId": "list_sources_api_sources_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SourceListResponse"
-                }
-              }
-            }
-          }
-        }
-      },
       "post": {
         "tags": [
           "sources",
@@ -14323,15 +14322,27 @@
         "summary": "Upsert Source",
         "description": "Create or update a source (stored as a Document).",
         "operationId": "upsert_source_api_sources_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/SourceUpsertRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -14350,6 +14361,27 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "sources",
+          "sources"
+        ],
+        "summary": "List Sources",
+        "description": "List all source documents.",
+        "operationId": "list_sources_api_sources_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceListResponse"
                 }
               }
             }
@@ -14417,6 +14449,16 @@
               "type": "string",
               "title": "Source Id"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "requestBody": {
@@ -14468,6 +14510,16 @@
             "schema": {
               "type": "string",
               "title": "Source Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
             }
           }
         ],
@@ -32067,6 +32119,247 @@
           }
         }
       }
+    },
+    "/api/iiif/iiif/{identifier}/info.json": {
+      "get": {
+        "tags": [
+          "iiif",
+          "iiif"
+        ],
+        "summary": "IIIF Image Information",
+        "description": "Returns IIIF Image API information (info.json).",
+        "operationId": "get_image_info_api_iiif_iiif__identifier__info_json_get",
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identifier"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageInfoResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/iiif/iiif/{identifier}/{region}/{size}/{rotation}/{quality}.{format}": {
+      "get": {
+        "tags": [
+          "iiif",
+          "iiif"
+        ],
+        "summary": "IIIF Image Request",
+        "description": "Serve image region via IIIF Image API. Reference: https://iiif.io/api/image/2.1/",
+        "operationId": "serve_iiif_image_api_iiif_iiif__identifier___region___size___rotation___quality___format__get",
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identifier"
+            }
+          },
+          {
+            "name": "region",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Region"
+            }
+          },
+          {
+            "name": "size",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Size"
+            }
+          },
+          {
+            "name": "rotation",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rotation"
+            }
+          },
+          {
+            "name": "quality",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Quality"
+            }
+          },
+          {
+            "name": "format",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Format"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/iiif/iiif/manifest/{document_id}": {
+      "get": {
+        "tags": [
+          "iiif",
+          "iiif"
+        ],
+        "summary": "IIIF Manifest",
+        "description": "Returns IIIF Presentation API manifest for document.",
+        "operationId": "get_iiif_manifest_api_iiif_iiif_manifest__document_id__get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IIIFManifest"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/iiif/iiif/image/{document_id}": {
+      "get": {
+        "tags": [
+          "iiif",
+          "iiif"
+        ],
+        "summary": "Direct Image Access",
+        "description": "Direct access to document image (non-IIIF, for convenience).",
+        "operationId": "get_document_image_api_iiif_iiif_image__document_id__get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "width",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 4096,
+              "minimum": 50,
+              "nullable": true,
+              "title": "Width"
+            }
+          },
+          {
+            "name": "height",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 4096,
+              "minimum": 50,
+              "nullable": true,
+              "title": "Height"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -43437,6 +43730,48 @@
         "type": "object",
         "title": "HeuristicRequest"
       },
+      "IIIFManifest": {
+        "properties": {
+          "context": {
+            "type": "string",
+            "title": "Context",
+            "default": "http://iiif.io/api/presentation/2/context.json"
+          },
+          "@id": {
+            "type": "string",
+            "title": "@Id"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": "sc:Manifest"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "title": "Description"
+          },
+          "sequences": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Sequences"
+          }
+        },
+        "type": "object",
+        "required": [
+          "@id",
+          "label"
+        ],
+        "title": "IIIFManifest",
+        "description": "IIIF Presentation API Manifest."
+      },
       "ImageEditChainResponse": {
         "properties": {
           "document_id": {
@@ -43477,6 +43812,54 @@
         },
         "type": "object",
         "title": "ImageEditChainUpsert"
+      },
+      "ImageInfoResponse": {
+        "properties": {
+          "context": {
+            "type": "string",
+            "title": "Context",
+            "default": "http://iiif.io/api/image/2/context.json"
+          },
+          "@id": {
+            "type": "string",
+            "title": "@Id"
+          },
+          "protocol": {
+            "type": "string",
+            "title": "Protocol",
+            "default": "http://iiif.io/api/image"
+          },
+          "width": {
+            "type": "integer",
+            "title": "Width"
+          },
+          "height": {
+            "type": "integer",
+            "title": "Height"
+          },
+          "tiles": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Tiles"
+          },
+          "profile": {
+            "items": {},
+            "type": "array",
+            "title": "Profile"
+          }
+        },
+        "type": "object",
+        "required": [
+          "@id",
+          "width",
+          "height"
+        ],
+        "title": "ImageInfoResponse",
+        "description": "IIIF Image Information Response (info.json)."
       },
       "ImportActionRequest": {
         "properties": {
