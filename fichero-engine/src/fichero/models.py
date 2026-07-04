@@ -1562,7 +1562,8 @@ class UnicodeLibraryCollisionIdentity(BaseModel):
     raw_path_escaped: str
     name: str
     name_escaped: str
-    document_count: int
+    document_count: int | None
+    document_count_error: str | None = None
     duckdb_size_bytes: int
     files_size_bytes: int
     modified_at: datetime | None = None
