@@ -48,7 +48,7 @@ _RAW_SESSION_RE = re.compile(
 # generated ops then delete the entry.
 GRANDFATHERED_FILES: set[str] = {
     # KEEP
-    "App/AppState.swift",                       # auth/readiness probe
+    "Services/EngineReadinessProbe.swift",      # readiness bootstrap: probes health/registry over RemoteCertificatePinning before the generated client is usable (#3106)
     "Models/DocumentStore+CRUD.swift",          # multipart import upload
     "Views/Library/QuickLookComponents.swift",  # binary source bytes for QuickLook
     "Services/ActivityStreamService.swift",     # SSE
