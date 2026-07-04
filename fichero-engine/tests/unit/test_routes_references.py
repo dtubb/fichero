@@ -4,7 +4,7 @@ from fichero.knowledge_models import (
     ReferenceKind,
     ReferenceProvenance,
 )
-from fichero.models import Document
+from fichero.models import ActionAudit, Document
 
 
 def _make_reference() -> Reference:
@@ -44,6 +44,10 @@ class TestReferenceRoutes:
         assert patched["notes"] == "Checked against catalog"
         assert patched["status"] == "verified"
         assert patched["bibtex"].startswith("@article{")
+        assert any(
+            row.action_name == "reference.patch" and reference.id in row.target_ids
+            for row in db.all(ActionAudit)
+        )
 
     def test_document_citations_returns_self_and_links(self, client, db):
         document = Document(
@@ -98,3 +102,15 @@ class TestReferenceRoutes:
         assert response.status_code == 409
         detail = response.json()["detail"]
         assert detail["documents"][0]["document_id"] == document.id
+
+    def test_delete_reference_writes_action_audit(self, client, db):
+        reference = _make_reference()
+        db.save(reference)
+
+        response = client.delete(f"/api/references/{reference.id}")
+        assert response.status_code == 200
+        assert response.json() == {"status": "deleted"}
+        assert any(
+            row.action_name == "reference.delete" and reference.id in row.target_ids
+            for row in db.all(ActionAudit)
+        )

@@ -10,6 +10,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
+from fichero.actions.registry import ActionContext, registry
+from fichero.api.auth import action_context
+from fichero.api.library_header import require_library_path
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.models import Document
@@ -21,6 +24,18 @@ router = APIRouter(prefix="/bibliography")
 class MetadataResponse(BaseModel):
     document_id: str
     metadata: dict[str, Any]
+
+
+def _resolve_action_ctx(
+    ctx: ActionContext | object,
+    *,
+    library_path: str | object | None = None,
+) -> ActionContext:
+    if isinstance(ctx, ActionContext):
+        return ctx
+    return ActionContext(
+        library_path=library_path if isinstance(library_path, str) else None
+    )
 
 
 @router.get(
@@ -88,9 +103,21 @@ async def attach_record(
     document_id: str,
     request: AttachRequest,
     db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | object = Depends(require_library_path),
+    ctx: ActionContext | object = Depends(action_context),
 ) -> MetadataResponse:
-    doc, _ = _attach_record_impl(db, document_id, request.text, request.format)
-    return MetadataResponse(document_id=document_id, metadata=doc.source_metadata or {})
+    ctx = _resolve_action_ctx(ctx, library_path=x_fichero_library_path)
+    result = registry.invoke(
+        db,
+        "bibliography.attach",
+        {
+            "document_id": document_id,
+            "text": request.text,
+            "format": request.format,
+        },
+        ctx,
+    )
+    return MetadataResponse.model_validate(result.result)
 
 
 def _parse_bibliography(text: str, fmt: str | None) -> list[dict[str, Any]]:
@@ -252,9 +279,20 @@ async def patch_metadata(
     document_id: str,
     request: MetadataPatchRequest,
     db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | object = Depends(require_library_path),
+    ctx: ActionContext | object = Depends(action_context),
 ) -> MetadataResponse:
-    doc, _ = _patch_metadata_impl(db, document_id, request.metadata)
-    return MetadataResponse(document_id=document_id, metadata=doc.source_metadata)
+    ctx = _resolve_action_ctx(ctx, library_path=x_fichero_library_path)
+    result = registry.invoke(
+        db,
+        "bibliography.patch_metadata",
+        {
+            "document_id": document_id,
+            "metadata": request.metadata,
+        },
+        ctx,
+    )
+    return MetadataResponse.model_validate(result.result)
 
 
 @router.post(
@@ -320,7 +358,7 @@ async def run_extractor(
 # `run_extractor` perform async network / LLM I/O, which the sync `execute(db,
 # params, ctx)` contract can't host — they need an async-action variant (future).
 
-from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
+from fichero.actions.registry import action, ChangeSpec  # noqa: E402
 
 
 class BibliographyPatchMetadataParams(BaseModel):

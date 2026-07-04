@@ -9,9 +9,9 @@ import re
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from fichero.api.auth import request_actor
-from fichero.api.change_stream import emit_change
-from fichero.api.library_header import optional_library_path
+from fichero.actions.registry import ActionContext, registry
+from fichero.api.auth import action_context, request_actor
+from fichero.api.library_header import require_library_path
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.knowledge_models import (
@@ -60,6 +60,22 @@ class ReferencePatchRequest(BaseModel):
     tags: list[str] | None = None
     status: ReferenceStatus | None = None
     metadata: dict[str, Any] | None = None
+
+
+def _resolve_action_ctx(
+    ctx: ActionContext | object,
+    *,
+    actor: str | object = "system",
+    library_path: str | object | None = None,
+    origin_window: str | object | None = None,
+) -> ActionContext:
+    if isinstance(ctx, ActionContext):
+        return ctx
+    return ActionContext(
+        actor=actor if isinstance(actor, str) else "system",
+        library_path=library_path if isinstance(library_path, str) else None,
+        origin_window=origin_window if isinstance(origin_window, str) else None,
+    )
 
 
 def _year_from_text(value: str | None) -> int | None:
@@ -352,48 +368,57 @@ async def patch_reference(
     reference_id: str,
     request: ReferencePatchRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_library_path: str | object = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None,
         alias="X-Fichero-Origin-Window",
     ),
-    actor: str = Depends(request_actor),
+    actor: str | object = Depends(request_actor),
+    ctx: ActionContext | object = Depends(action_context),
 ) -> Reference:
     """Update a reference row."""
-
-    reference, _ = _patch_reference_impl(db, reference_id, request)
-    emit_change(
-        x_fichero_library_path or str(db.path.parent),
-        type="reference.updated",
-        reference_ids=[reference.id],
+    ctx = _resolve_action_ctx(
+        ctx,
         actor=actor,
+        library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
-        origin_user=actor,
     )
-    return reference
+    result = registry.invoke(
+        db,
+        "reference.patch",
+        {
+            "reference_id": reference_id,
+            "patch": request.model_dump(mode="json", exclude_unset=True),
+        },
+        ctx,
+    )
+    return Reference.model_validate(result.result)
 
 
 @router.delete("/references/{reference_id}")
 async def delete_reference(
     reference_id: str,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_library_path: str | object = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None,
         alias="X-Fichero-Origin-Window",
     ),
-    actor: str = Depends(request_actor),
+    actor: str | object = Depends(request_actor),
+    ctx: ActionContext | object = Depends(action_context),
 ) -> DeletedResponse:
     """Delete a reference when no provenance rows remain."""
-
-    _delete_reference_impl(db, reference_id)
-    emit_change(
-        x_fichero_library_path or str(db.path.parent),
-        type="reference.deleted",
-        reference_ids=[reference_id],
+    ctx = _resolve_action_ctx(
+        ctx,
         actor=actor,
+        library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
-        origin_user=actor,
+    )
+    registry.invoke(
+        db,
+        "reference.delete",
+        {"reference_id": reference_id},
+        ctx,
     )
     return DeletedResponse()
 
@@ -425,7 +450,7 @@ async def get_document_citations(
 #
 # Pure reads (list/get/document citations) persist nothing — no action needed.
 
-from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
+from fichero.actions.registry import action, ChangeSpec  # noqa: E402
 
 
 class ReferencePatchActionParams(BaseModel):

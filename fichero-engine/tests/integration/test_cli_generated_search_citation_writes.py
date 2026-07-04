@@ -67,6 +67,14 @@ def _cli_result(live_engine, *args: str):
     )
 
 
+def _latest_audit(live_engine, action_name: str, target_id: str) -> dict:
+    audit = _cli_json(live_engine, "actions", "list-audit-log", "--limit", "20")
+    for item in audit["items"]:
+        if item["action_name"] == action_name and target_id in item["target_ids"]:
+            return item
+    raise AssertionError(f"missing audit row for {action_name} {target_id}")
+
+
 def test_generated_search_citation_bibliography_and_source_contracts_current_main(
     cli_live_engine,
 ) -> None:
@@ -104,7 +112,6 @@ def test_generated_search_citation_bibliography_and_source_contracts_current_mai
     assert "count" in keyword_cloud
     assert "items" in keyword_cloud
 
-    # audit assertions pending /api/citations->registry migration (#3043)
     citation = _cli_json(
         cli_live_engine,
         "citations",
@@ -118,6 +125,8 @@ def test_generated_search_citation_bibliography_and_source_contracts_current_mai
         "--page-label",
         "12",
     )
+    created_audit = _latest_audit(cli_live_engine, "citation.create", citation["id"])
+    assert created_audit["undoable"] is True
     outbound = _cli_json(
         cli_live_engine,
         "citations",
@@ -144,6 +153,8 @@ def test_generated_search_citation_bibliography_and_source_contracts_current_mai
     )
     assert patched_citation["target_citation_text"] == "Updated archive citation"
     assert patched_citation["confidence"] == 0.8
+    patched_audit = _latest_audit(cli_live_engine, "citation.patch", citation["id"])
+    assert patched_audit["undoable"] is True
     deleted_citation = _cli_json(
         cli_live_engine,
         "citations",
@@ -151,8 +162,9 @@ def test_generated_search_citation_bibliography_and_source_contracts_current_mai
         citation["id"],
     )
     assert deleted_citation is None
+    deleted_audit = _latest_audit(cli_live_engine, "citation.delete", citation["id"])
+    assert deleted_audit["undoable"] is True
 
-    # audit assertions pending /api/bibliography->registry migration (#3045)
     attached = _cli_json(
         cli_live_engine,
         "bibliography",
@@ -171,6 +183,8 @@ def test_generated_search_citation_bibliography_and_source_contracts_current_mai
     )
     assert attached["document_id"] == doc_id
     assert attached["metadata"]["title"] == "Seed Title"
+    attached_audit = _latest_audit(cli_live_engine, "bibliography.attach", doc_id)
+    assert attached_audit["undoable"] is True
     metadata = _cli_json(
         cli_live_engine,
         "bibliography",
@@ -187,6 +201,10 @@ def test_generated_search_citation_bibliography_and_source_contracts_current_mai
         json.dumps({"title": "Patched Title", "author": "Codex"}),
     )
     assert patched_metadata["metadata"]["title"] == "Patched Title"
+    patched_metadata_audit = _latest_audit(
+        cli_live_engine, "bibliography.patch_metadata", doc_id
+    )
+    assert patched_metadata_audit["undoable"] is True
     parsed_bib = _cli_json(
         cli_live_engine,
         "bibliography",
@@ -213,7 +231,6 @@ def test_generated_search_citation_bibliography_and_source_contracts_current_mai
     assert exported_bib.exit_code == 0
     assert "@" in exported_bib.output
 
-    # audit assertions pending /api/sources->registry migration (#3044)
     source = _cli_json(
         cli_live_engine,
         "sources",
@@ -225,6 +242,8 @@ def test_generated_search_citation_bibliography_and_source_contracts_current_mai
         "--metadata",
         json.dumps({"kind": "external"}),
     )
+    created_source_audit = _latest_audit(cli_live_engine, "source.upsert", source["id"])
+    assert created_source_audit["undoable"] is True
     fetched_source = _cli_json(cli_live_engine, "sources", "get", source["id"])
     assert fetched_source["title"] == "CLI Source"
     updated_source = _cli_json(
@@ -238,6 +257,8 @@ def test_generated_search_citation_bibliography_and_source_contracts_current_mai
         "/tmp/cli-source-updated.txt",
     )
     assert updated_source["title"] == "CLI Source Updated"
+    updated_source_audit = _latest_audit(cli_live_engine, "source.update", source["id"])
+    assert updated_source_audit["undoable"] is True
     listed_sources = _cli_json(cli_live_engine, "sources", "list")
     assert any(item["id"] == source["id"] for item in listed_sources["items"])
     deleted_source = _cli_json(
@@ -247,6 +268,8 @@ def test_generated_search_citation_bibliography_and_source_contracts_current_mai
         source["id"],
     )
     assert deleted_source is None
+    deleted_source_audit = _latest_audit(cli_live_engine, "source.delete", source["id"])
+    assert deleted_source_audit["undoable"] is True
 
     # audit assertions pending /api/references->registry migration (#3046)
     listed_references = _cli_json(cli_live_engine, "references", "list")

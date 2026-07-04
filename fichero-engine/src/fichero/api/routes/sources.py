@@ -3,11 +3,16 @@
 This module implements the "sources" route surface requested in issue #364.
 """
 
+from __future__ import annotations
+
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from fichero.actions.registry import ActionContext, registry
+from fichero.api.auth import action_context
+from fichero.api.library_header import require_library_path
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.models import Document
@@ -142,14 +147,34 @@ def _restore_source_impl(db: Database, payload: dict[str, Any]) -> Document:
     return document
 
 
+def _resolve_action_ctx(
+    ctx: ActionContext | object,
+    *,
+    library_path: str | object | None = None,
+) -> ActionContext:
+    if isinstance(ctx, ActionContext):
+        return ctx
+    return ActionContext(
+        library_path=library_path if isinstance(library_path, str) else None
+    )
+
+
 @router.post("", response_model=SourceUpsertResponse)
 async def upsert_source(
     request: SourceUpsertRequest,
     db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | object = Depends(require_library_path),
+    ctx: ActionContext | object = Depends(action_context),
 ) -> SourceUpsertResponse:
     """Create or update a source (stored as a Document)."""
-    document, _ = _upsert_source_impl(db, request)
-    return _to_response(document)
+    ctx = _resolve_action_ctx(ctx, library_path=x_fichero_library_path)
+    result = registry.invoke(
+        db,
+        "source.upsert",
+        request.model_dump(mode="json"),
+        ctx,
+    )
+    return SourceUpsertResponse.model_validate(result.result)
 
 
 @router.get("", response_model=SourceListResponse)
@@ -180,19 +205,38 @@ async def update_source(
     source_id: str,
     request: SourceUpsertRequest,
     db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | object = Depends(require_library_path),
+    ctx: ActionContext | object = Depends(action_context),
 ) -> SourceUpsertResponse:
     """Update an existing source."""
-    document, _ = _update_source_impl(db, source_id, request)
-    return _to_response(document)
+    ctx = _resolve_action_ctx(ctx, library_path=x_fichero_library_path)
+    result = registry.invoke(
+        db,
+        "source.update",
+        {
+            "source_id": source_id,
+            **request.model_dump(mode="json"),
+        },
+        ctx,
+    )
+    return SourceUpsertResponse.model_validate(result.result)
 
 
 @router.delete("/{source_id}", status_code=204)
 async def delete_source(
     source_id: str,
     db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | object = Depends(require_library_path),
+    ctx: ActionContext | object = Depends(action_context),
 ) -> None:
     """Delete a source."""
-    _delete_source_impl(db, source_id)
+    ctx = _resolve_action_ctx(ctx, library_path=x_fichero_library_path)
+    registry.invoke(
+        db,
+        "source.delete",
+        {"source_id": source_id},
+        ctx,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -206,7 +250,7 @@ async def delete_source(
 # in the ChangeSpec: a *created* upsert undoes to `source.delete`; an *updated*
 # upsert / update / delete undoes to the generic `source.restore`.
 
-from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
+from fichero.actions.registry import action, ChangeSpec  # noqa: E402
 
 
 class SourceUpdateActionParams(SourceUpsertRequest):
