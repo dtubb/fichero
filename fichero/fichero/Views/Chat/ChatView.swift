@@ -19,8 +19,8 @@ struct ChatView: View {
     @State var isLoading: Bool = false
     @State var errorMessage: String?
     @State var isDropTargeted: Bool = false
-    /// Document-scope sheet, presented from the composer paperclip's "Add
-    /// Documents…" item (#3015 / #2449 step 2).
+    /// Document-scope sheet, presented from the composer pin menu's "Pin
+    /// documents…" item (#3015 / #2449 hybrid step 3).
     @State var showAttachSheet: Bool = false
 
     // Provider/Model selection
@@ -106,11 +106,11 @@ struct ChatView: View {
         }
     }
 
-    /// Composer paperclip menu (#2449 step 2): attaches host-supplied context —
-    /// the open document and/or the current library view — to the chat scope, plus
-    /// the always-available "Add Documents…" search sheet. Every target routes
-    /// through the same `attachScopedDocuments` path as drag-drop. Always present
-    /// now (was a compact-only button), so every width can attach context.
+    /// Composer pin menu (#2449 hybrid step 3): the chat is already grounded on
+    /// the current view implicitly, so this menu PINS a scope that persists as you
+    /// navigate away — the open document, the current library view, or documents
+    /// found via search. Every target routes through the same `attachScopedDocuments`
+    /// path as drag-drop. Always present, so every width can pin context.
     @ViewBuilder
     private var composerAttachMenu: some View {
         Menu {
@@ -119,7 +119,7 @@ struct ChatView: View {
                     attachScopedDocuments([docId])
                 } label: {
                     Label(
-                        attachContext.openDocumentName.map { "Open Document — \($0)" } ?? "Open Document",
+                        attachContext.openDocumentName.map { "Pin document — \($0)" } ?? "Pin this document",
                         systemImage: "doc"
                     )
                 }
@@ -128,7 +128,7 @@ struct ChatView: View {
                 Button {
                     attachScopedDocuments(attachContext.currentViewDocumentIds)
                 } label: {
-                    Label(attachContext.currentViewLabel ?? "Current View", systemImage: "folder")
+                    Label(attachContext.currentViewLabel.map { "Pin — \($0)" } ?? "Pin current view", systemImage: "folder")
                 }
             }
             if attachContext.hasHostTargets {
@@ -137,16 +137,16 @@ struct ChatView: View {
             Button {
                 showAttachSheet = true
             } label: {
-                Label("Add Documents…", systemImage: "plus.magnifyingglass")
+                Label("Pin documents…", systemImage: "plus.magnifyingglass")
             }
         } label: {
-            Image(systemName: "paperclip")
+            Image(systemName: "pin")
                 .font(.title3)
                 .foregroundColor(.secondary)
         }
         .menuIndicator(.hidden)
-        .help("Attach documents to this chat")
-        .accessibilityLabel("Attach context")
+        .help("Pin documents to keep them in this chat as you navigate")
+        .accessibilityLabel("Pin documents")
     }
 
     /// The document-scope surface, presented as a sheet on compact width so a
@@ -163,7 +163,7 @@ struct ChatView: View {
                 suggestedDocumentIDs: [],
                 onAddSuggestedDocuments: nil
             )
-            .navigationTitle("Add Documents")
+            .navigationTitle("Pin Documents")
             #if !os(macOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
