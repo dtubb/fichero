@@ -1096,6 +1096,24 @@ class TestExtractFileMetadata:
         assert doc.metadata["width"] == 640
         assert doc.metadata["height"] == 480
 
+    def test_rejects_oversized_image_metadata(self, tmp_path, monkeypatch):
+        """Oversized images should fail loud instead of warning-and-continuing."""
+        from fichero.ingest import _extract_file_metadata
+        from fichero.models import Document, FileType
+
+        try:
+            from PIL import Image
+        except ImportError:
+            pytest.skip("Pillow not installed")
+
+        file = tmp_path / "oversized.png"
+        Image.new("RGB", (3, 3), color="red").save(file)
+        monkeypatch.setattr("fichero.loaders.image_loader._MAX_IMAGE_PIXELS", 4)
+
+        doc = Document(name="oversized.png", file_type=FileType.image, metadata={})
+        with pytest.raises(ValueError, match="Image too large for ingest"):
+            _extract_file_metadata(doc, file)
+
 
 class TestContentAccess:
     """Tests for content access after ingestion."""
