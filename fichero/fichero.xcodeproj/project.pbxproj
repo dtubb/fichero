@@ -119,7 +119,6 @@
 		202674DE2F48972A008EAB5D /* MessageCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674DD2F48972A008EAB5D /* MessageCard.swift */; };
 		202674E02F489737008EAB5D /* ChatStatusViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674DF2F489737008EAB5D /* ChatStatusViews.swift */; };
 		202674E22F48973E008EAB5D /* ChatInputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674E12F48973E008EAB5D /* ChatInputView.swift */; };
-		202674E42F489742008EAB5D /* ChatMapGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674E32F489742008EAB5D /* ChatMapGrid.swift */; };
 		202674E62F489757008EAB5D /* ChatMessagesList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674E52F489757008EAB5D /* ChatMessagesList.swift */; };
 		202674E82F48976C008EAB5D /* ChatView+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674E72F48976C008EAB5D /* ChatView+Extensions.swift */; };
 		202674E92F4897A4008EAB5D /* SearchResultsEmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674EA2F4897A4008EAB5D /* SearchResultsEmptyState.swift */; };
@@ -381,7 +380,6 @@
 		A1BFB2DC2F042E5100EAA55A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2DA2F042E5100EAA55A /* SettingsView.swift */; };
 		A1BFB2DF2F04328300EAA55A /* ImagePreviewMenuCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2DE2F04328300EAA55A /* ImagePreviewMenuCommands.swift */; };
 		A1BFB2E02F04328300EAA55A /* FocusedCommandButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2DD2F04328300EAA55A /* FocusedCommandButtons.swift */; };
-		A1BFB2E22F0432A600EAA55A /* ProvidersSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2E12F0432A600EAA55A /* ProvidersSettingsSheet.swift */; };
 		A1BFB2E42F0439FE00EAA55A /* ImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2E32F0439FE00EAA55A /* ImportService.swift */; };
 		A1BFB2E72F043D2300EAA55A /* StorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2E62F043D2300EAA55A /* StorageService.swift */; };
 		A1BFB2EB2F043F4500EAA55A /* ViewContexts.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2EA2F043F4500EAA55A /* ViewContexts.swift */; };
@@ -712,7 +710,6 @@
 		202674DD2F48972A008EAB5D /* MessageCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageCard.swift; sourceTree = "<group>"; };
 		202674DF2F489737008EAB5D /* ChatStatusViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatStatusViews.swift; sourceTree = "<group>"; };
 		202674E12F48973E008EAB5D /* ChatInputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatInputView.swift; sourceTree = "<group>"; };
-		202674E32F489742008EAB5D /* ChatMapGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMapGrid.swift; sourceTree = "<group>"; };
 		202674E52F489757008EAB5D /* ChatMessagesList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMessagesList.swift; sourceTree = "<group>"; };
 		202674E72F48976C008EAB5D /* ChatView+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ChatView+Extensions.swift"; sourceTree = "<group>"; };
 		202674EA2F4897A4008EAB5D /* SearchResultsEmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchResultsEmptyState.swift; sourceTree = "<group>"; };
@@ -988,7 +985,6 @@
 		A1BFB2DA2F042E5100EAA55A /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A1BFB2DD2F04328300EAA55A /* FocusedCommandButtons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusedCommandButtons.swift; sourceTree = "<group>"; };
 		A1BFB2DE2F04328300EAA55A /* ImagePreviewMenuCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePreviewMenuCommands.swift; sourceTree = "<group>"; };
-		A1BFB2E12F0432A600EAA55A /* ProvidersSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProvidersSettingsSheet.swift; sourceTree = "<group>"; };
 		A1BFB2E32F0439FE00EAA55A /* ImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportService.swift; sourceTree = "<group>"; };
 		A1BFB2E62F043D2300EAA55A /* StorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageService.swift; sourceTree = "<group>"; };
 		A1BFB2E92F043F4500EAA55A /* FicheroDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FicheroDocument.swift; sourceTree = "<group>"; };
@@ -1559,7 +1555,6 @@
 				202674DD2F48972A008EAB5D /* MessageCard.swift */,
 				202674DF2F489737008EAB5D /* ChatStatusViews.swift */,
 				202674E12F48973E008EAB5D /* ChatInputView.swift */,
-				202674E32F489742008EAB5D /* ChatMapGrid.swift */,
 				202674E52F489757008EAB5D /* ChatMessagesList.swift */,
 				202674E72F48976C008EAB5D /* ChatView+Extensions.swift */,
 				BCB24ED93772AA96CF319D4B /* ChatDocumentDropPayload.swift */,
@@ -1990,7 +1985,6 @@
 				B3A001010000000000BATCH3 /* ProvidersView+ModelTypes.swift */,
 				B3A001020000000000BATCH3 /* ProvidersView+ProviderDetailView.swift */,
 				B3A001030000000000BATCH3 /* ProvidersView+ProviderSettingsRow.swift */,
-				A1BFB2E12F0432A600EAA55A /* ProvidersSettingsSheet.swift */,
 			);
 			path = AIProviders;
 			sourceTree = "<group>";
@@ -2642,7 +2636,6 @@
 				202674E22F48973E008EAB5D /* ChatInputView.swift in Sources */,
 				20D8ED5B2F48E4CA006950A3 /* TriggerDetailView+Configuration.swift in Sources */,
 				046 /* ConversationServiceGenerated.swift in Sources */,
-				202674E42F489742008EAB5D /* ChatMapGrid.swift in Sources */,
 				200BCF3A2F3D548000D7851A /* ContentView+Navigation.swift in Sources */,
 				202674B62F4783BC008EAB5D /* WorkflowNodeRow.swift in Sources */,
 				047 /* ChatServiceGenerated.swift in Sources */,
@@ -2698,7 +2691,6 @@
 				A1A3A9F42F1028E70021909D /* MCPService.swift in Sources */,
 				037 /* WorkflowExporter.swift in Sources */,
 				202674C22F47865B008EAB5D /* SidebarObservers.swift in Sources */,
-				A1BFB2E22F0432A600EAA55A /* ProvidersSettingsSheet.swift in Sources */,
 				A3C1803DF6559D5BFCC9935E /* ComparisonDetailView.swift in Sources */,
 				202674A42F47642A008EAB5D /* SummarizeFileNodeConfig.swift in Sources */,
 				202674C52F4788CB008EAB5D /* WorkflowDetailView.swift in Sources */,

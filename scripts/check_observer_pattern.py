@@ -52,7 +52,6 @@ KNOWN_VIOLATIONS: dict[str, str] = dict.fromkeys(
         "fichero/fichero/Views/AIProviders/AIModelSelectionView.swift",
         "fichero/fichero/Views/AIProviders/AIProviderAddModelsSheet.swift",
         "fichero/fichero/Views/AIProviders/AddProviderSheet.swift",
-        "fichero/fichero/Views/AIProviders/ProvidersSettingsSheet.swift",
         "fichero/fichero/Views/AIProviders/ProvidersView+ProviderDetailView.swift",
         "fichero/fichero/Views/AIProviders/ProvidersView.swift",
         "fichero/fichero/Views/Activity/ActivityDetailView.swift",
