@@ -194,6 +194,27 @@ final class RemoteCertificatePinningTests: XCTestCase {
         XCTAssertNotNil(capture.credential)
     }
 
+    /// #2960/B4 regression: the delegate must FORMALLY conform to
+    /// URLSessionTaskDelegate, not merely implement the task-level challenge
+    /// method. `URLSession.bytes(for:)` routes a stream's server-trust challenge
+    /// to the task-level method only when the delegate conforms to the protocol;
+    /// implementing-without-conforming left SSE streams on default trust and the
+    /// self-signed 127.0.0.1 cert was rejected with -9807. The existing
+    /// `...TaskDelegateAcceptsPinnedSelfSignedCertificate` test calls the method
+    /// directly, so it passes even without the conformance — this guards the
+    /// conformance that actually enables bytes-stream routing.
+    func testConfiguredSessionDelegateConformsToTaskDelegate() {
+        // Typed as `Any` so the `is` check is a genuine runtime conformance test
+        // (a concrete-typed value would let the compiler fold it to a constant and
+        // warn "always true"); this still fails if the conformance is removed.
+        let delegate: Any = DynamicPinnedSessionDelegate()
+        XCTAssertTrue(
+            delegate is URLSessionTaskDelegate,
+            "DynamicPinnedSessionDelegate must conform to URLSessionTaskDelegate so "
+                + "URLSession.bytes(for:) fires the cert-pin challenge for SSE streams (#2960/B4)"
+        )
+    }
+
     func testConfiguredSessionTaskDelegateAcceptsPinnedSelfSignedCertificate() throws {
         let trustContext = try SelfSignedTrustFixture.makeTrust()
         let hostString = "https://\(trustContext.host)"
