@@ -6,12 +6,14 @@ Two layers:
     which must persist one canvas_layout row per node.
 """
 
+import asyncio
 import math
 
 import pytest
 
 # Importing the route module registers the ``canvas.arrange`` action.
 import fichero.api.routes.canvas  # noqa: F401
+from fichero.api.routes.actions_registry import undo_action
 from fichero import accounts, authz
 from fichero.actions.registry import ActionContext, registry
 from fichero.spatial_arrange import (
@@ -45,6 +47,17 @@ def _ctx(db, app_db) -> ActionContext:
         role="editor",
     )
     return ActionContext(actor=user.username, library_path=library_path)
+
+
+def _undo(db, audit_id: str, library_path: str):
+    return asyncio.run(
+        undo_action(
+            audit_id,
+            db=db,
+            x_fichero_library_path=library_path,
+            x_fichero_origin_window=None,
+        )
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -264,6 +277,43 @@ def test_canvas_arrange_action_persists_and_audits(db, app_db):
     assert all(row is not None for row in rows)
     assert {row.z_index for row in rows if row is not None} == {0, 1, 2}
     assert all(row.x == 0.0 and row.y == 0.0 for row in rows if row is not None)
+
+
+def test_canvas_arrange_action_undo_restores_prior_layout(db, app_db):
+    ctx = _ctx(db, app_db)
+    _seed_folder_docs(db, "f-arrange-undo", ["x", "y"])
+    db.save(
+        CanvasLayout(
+            id=CanvasLayout.make_id("f-arrange-undo", "x"),
+            folder_id="f-arrange-undo",
+            item_id="x",
+            x=7.0,
+            y=9.0,
+        )
+    )
+
+    arranged = registry.invoke(
+        db,
+        "canvas.arrange",
+        {"folder_id": "f-arrange-undo", "node_ids": ["x", "y"], "strategy": "row", "spacing": 50.0},
+        ctx,
+    )
+    assert db.get(CanvasLayout, CanvasLayout.make_id("f-arrange-undo", "x")).x == 0.0
+    assert db.get(CanvasLayout, CanvasLayout.make_id("f-arrange-undo", "y")) is not None
+
+    undone = _undo(db, arranged.audit_id, ctx.library_path)
+
+    restored_x = db.get(CanvasLayout, CanvasLayout.make_id("f-arrange-undo", "x"))
+    restored_y = db.get(CanvasLayout, CanvasLayout.make_id("f-arrange-undo", "y"))
+    assert restored_x is not None
+    assert restored_x.x == 7.0
+    assert restored_x.y == 9.0
+    assert restored_y is None
+    assert db.get(ActionAudit, arranged.audit_id).undone is True
+    inverse_audit = db.get(ActionAudit, undone.audit_id)
+    assert inverse_audit is not None
+    assert inverse_audit.action_name == "canvas.layout.restore"
+    assert inverse_audit.inverse_of == arranged.audit_id
 
 
 def test_canvas_arrange_action_rejects_empty(db, app_db):

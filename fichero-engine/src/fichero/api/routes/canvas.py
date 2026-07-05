@@ -430,7 +430,13 @@ def _action_restore_canvas_layout(
     }, spec
 
 
-@action("canvas.arrange", CanvasArrangeParams, domains=["canvas"])
+@action(
+    "canvas.arrange",
+    CanvasArrangeParams,
+    domains=["canvas"],
+    undoable=True,
+    invert=_invert_canvas_layout_to_restore,
+)
 def _action_arrange_canvas(
     db: Database, params: CanvasArrangeParams, ctx: ActionContext
 ) -> tuple[dict[str, Any], ChangeSpec]:
