@@ -64,8 +64,9 @@ def test_list_sessions_as_owner_sees_all_users(app_db, monkeypatch):
 
     assert response.status_code == 200
     payload = response.json()
-    assert {item["user"]["username"] for item in payload} == {"owner", "viewer"}
-    assert {item["device_label"] for item in payload} == {"Owner Mac", "Viewer iPad"}
+    assert payload["count"] == 2
+    assert {item["user"]["username"] for item in payload["items"]} == {"owner", "viewer"}
+    assert {item["device_label"] for item in payload["items"]} == {"Owner Mac", "Viewer iPad"}
 
 
 def test_list_sessions_as_bootstrap_sees_all_users(app_db, monkeypatch):
@@ -87,7 +88,7 @@ def test_list_sessions_as_bootstrap_sees_all_users(app_db, monkeypatch):
         response = client.get("/api/auth/sessions", headers=_bearer(initialize_token()))
 
     assert response.status_code == 200
-    assert len(response.json()) == 1
+    assert response.json()["count"] == 1
 
 
 def test_list_sessions_as_user_sees_only_own_rows(app_db, monkeypatch):
@@ -124,19 +125,22 @@ def test_list_sessions_as_user_sees_only_own_rows(app_db, monkeypatch):
         response = client.get("/api/auth/sessions", headers=_bearer(alice_token))
 
     assert response.status_code == 200
-    assert response.json() == [
-        {
-            "id": alice_sessions[0].id,
-            "user": {
-                "id": alice.id,
-                "username": "alice",
-                "display_name": "Alice",
-            },
-            "device_label": "Alice Mac",
-            "created": alice_sessions[0].created_at.isoformat(),
-            "last_seen": alice_sessions[0].last_seen_at.isoformat(),
-        }
-    ]
+    assert response.json() == {
+        "items": [
+            {
+                "id": alice_sessions[0].id,
+                "user": {
+                    "id": alice.id,
+                    "username": "alice",
+                    "display_name": "Alice",
+                },
+                "device_label": "Alice Mac",
+                "created": alice_sessions[0].created_at.isoformat(),
+                "last_seen": alice_sessions[0].last_seen_at.isoformat(),
+            }
+        ],
+        "count": 1,
+    }
 
 
 def test_list_sessions_returns_empty_for_user_with_zero_grants(app_db, monkeypatch):
@@ -159,7 +163,7 @@ def test_list_sessions_returns_empty_for_user_with_zero_grants(app_db, monkeypat
         response = client.get("/api/auth/sessions", headers=_bearer(raw_token))
 
     assert response.status_code == 200
-    assert response.json() == []
+    assert response.json() == {"items": [], "count": 0}
 
 
 def test_user_a_never_sees_user_b_session(app_db, monkeypatch):
@@ -194,7 +198,7 @@ def test_user_a_never_sees_user_b_session(app_db, monkeypatch):
         response = client.get("/api/auth/sessions", headers=_bearer(alice_token))
 
     assert response.status_code == 200
-    assert all(item["id"] != bob_session.id for item in response.json())
+    assert all(item["id"] != bob_session.id for item in response.json()["items"])
 
 
 def test_revoke_session_invalidates_follow_up_request(app_db, monkeypatch):

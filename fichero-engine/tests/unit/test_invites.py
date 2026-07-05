@@ -230,9 +230,10 @@ def test_owner_can_list_and_revoke_pending_invites(app_db, monkeypatch):
         )
 
     assert listed.status_code == 200
-    assert [item["username"] for item in listed.json()] == ["invitee"]
+    assert listed.json()["count"] == 1
+    assert [item["username"] for item in listed.json()["items"]] == ["invitee"]
     assert revoked.status_code == 200
     assert after.status_code == 200
-    assert after.json() == []
+    assert after.json() == {"items": [], "count": 0}
     assert redeem.status_code == 401
     assert redeem.json()["code"] == "invite_revoked"

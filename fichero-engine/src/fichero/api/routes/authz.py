@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from fichero import authz
 from fichero.actions import ActionContext, registry
@@ -29,11 +29,16 @@ _SHARE_OBJECT_TYPES = {"library", "entity", "document"}
 router = APIRouter(prefix="/authz", tags=["authz"])
 
 
-@router.get("/libraries", response_model=list[AccessibleLibrary])
+class AccessibleLibraryListResponse(BaseModel):
+    items: list[AccessibleLibrary]
+    count: int
+
+
+@router.get("/libraries", response_model=AccessibleLibraryListResponse)
 def list_accessible_libraries(
     request: Request,
     registry_db: Database = Depends(get_global_database),
-) -> list[AccessibleLibrary]:
+) -> AccessibleLibraryListResponse:
     """Return the known libraries visible to the current credential."""
     app_db = get_app_db()
     known_libraries = sorted(
@@ -42,7 +47,7 @@ def list_accessible_libraries(
         reverse=True,
     )
     if getattr(getattr(request, "state", None), "bootstrap_auth", False):
-        return [
+        items = [
             AccessibleLibrary(
                 library_path=authz.normalize_library_path(library.path) or library.path,
                 library_name=library.name or library.path.rstrip("/").split("/")[-1],
@@ -50,6 +55,7 @@ def list_accessible_libraries(
             )
             for library in known_libraries
         ]
+        return AccessibleLibraryListResponse(items=items, count=len(items))
 
     resolved_user = authz.resolve_user(getattr(getattr(request, "state", None), "user", None))
     if resolved_user is None:
@@ -59,7 +65,7 @@ def list_accessible_libraries(
         authz.normalize_library_path(library.path) or library.path: library
         for library in known_libraries
     }
-    libraries: list[AccessibleLibrary] = []
+    items: list[AccessibleLibrary] = []
     for role in app_db.list_library_roles_for_user(resolved_user.id):
         library = known_by_path.get(role.library_path)
         library_name = (
@@ -67,14 +73,14 @@ def list_accessible_libraries(
             if library is not None and library.name
             else role.library_path.rstrip("/").split("/")[-1]
         )
-        libraries.append(
+        items.append(
             AccessibleLibrary(
                 library_path=role.library_path,
                 library_name=library_name,
                 role=role.role,
             )
         )
-    return libraries
+    return AccessibleLibraryListResponse(items=items, count=len(items))
 
 
 @router.get("/library", response_model=LibraryAuthzSnapshot)
