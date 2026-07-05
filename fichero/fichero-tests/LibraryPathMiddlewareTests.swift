@@ -33,6 +33,27 @@ struct LibraryPathMiddlewareTests {
         #expect(LibraryPathMiddleware.isAppWidePath(path) == false)
     }
 
+    // #2407: the exact endpoints that showed the 403→retry→200 burst on iPad are
+    // all library-scoped, so the FIRST call to each carries X-Fichero-Library-Path
+    // (never app-wide). Combined with warming token+session+identity before
+    // markReady (AppState.confirmAuthAndLoad), the first data call is authorized —
+    // no 403 flicker, no blind retry. This guards against any of them silently
+    // drifting into the app-wide skip-list (which would drop the header on call #1).
+    @Test(
+        "the #2407 first-call-403 endpoints are library-scoped",
+        arguments: [
+            "/api/chains",
+            "/api/documents",
+            "/api/workflows",
+            "/api/workflows/tools",
+            "/api/chat/conversations",
+            "/api/search/saved"
+        ]
+    )
+    func issue2407EndpointsAreLibraryScoped(path: String) {
+        #expect(LibraryPathMiddleware.isAppWidePath(path) == false)
+    }
+
     // App-wide endpoints — MUST NOT receive the header.
     @Test(
         "app-wide paths are skipped",
