@@ -1,0 +1,135 @@
+from __future__ import annotations
+
+import importlib
+
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from fichero import accounts
+from fichero.api.auth import attach_auth_middleware, initialize_token
+from fichero.multiuser import multiuser_enabled
+
+
+def _bearer(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _auth_probe_app() -> FastAPI:
+    app = FastAPI()
+
+    @app.get("/api/private")
+    async def private():
+        return {"private": True}
+
+    attach_auth_middleware(app, "test-token")
+    return app
+
+
+def _main_client(app_db, monkeypatch, client_addr: tuple[str, int] = ("testclient", 50000)):
+    monkeypatch.setenv("FICHERO_DISABLE_AUTH", "0")
+    import fichero.api.main as api_main
+
+    api_main = importlib.reload(api_main)
+    from fichero.api.routes import auth_accounts, pairing
+    from fichero.api.routes.providers import get_app_database
+
+    api_main.app.dependency_overrides[auth_accounts.get_app_database] = lambda: app_db
+    api_main.app.dependency_overrides[pairing.get_app_database] = lambda: app_db
+    api_main.app.dependency_overrides[get_app_database] = lambda: app_db
+    client = TestClient(api_main.app, client=client_addr)
+    return client, api_main
+
+
+def test_single_user_loopback_bootstrap_and_owner_pairing_keep_working(
+    app_db, monkeypatch
+) -> None:
+    monkeypatch.setenv("FICHERO_MULTIUSER", "0")
+
+    bootstrap = TestClient(_auth_probe_app())
+    private = bootstrap.get("/api/private", headers={"Authorization": "Bearer test-token"})
+    assert private.status_code == 200
+
+    client, api_main = _main_client(app_db, monkeypatch)
+    try:
+        pair_code = client.post(
+            "/api/pair/code",
+            headers=_bearer(initialize_token()),
+        )
+        assert pair_code.status_code == 200
+
+        paired = client.post(
+            "/api/pair",
+            json={"code": pair_code.json()["code"], "device_name": "Owner iPad"},
+        )
+        assert paired.status_code == 200
+
+        device_private = bootstrap.get(
+            "/api/private",
+            headers=_bearer(paired.json()["device_token"]),
+            cookies=client.cookies,
+        )
+        assert device_private.status_code == 200
+    finally:
+        api_main.app.dependency_overrides.clear()
+        client.close()
+
+
+def test_single_user_non_loopback_bootstrap_stays_401(monkeypatch) -> None:
+    monkeypatch.setenv("FICHERO_MULTIUSER", "0")
+
+    client = TestClient(_auth_probe_app(), client=("192.0.2.10", 5000))
+    response = client.get(
+        "/api/private",
+        headers={"Authorization": "Bearer test-token"},
+    )
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "loopback only"}
+
+
+def test_transport_signals_do_not_auto_enable_multiuser() -> None:
+    assert (
+        multiuser_enabled(
+            {
+                "FICHERO_PUBLIC_BASE_URL": "https://fichero.tail123.ts.net",
+                "FICHERO_ENABLE_BONJOUR": "1",
+                "FICHERO_BIND_HOST": "100.64.0.10",
+                "FICHERO_REMOTE_BACKEND_BIND_HOST": "100.64.0.11",
+            }
+        )
+        is False
+    )
+
+
+def test_multiuser_loopback_keeps_bootstrap_owner_and_login_available(
+    app_db, monkeypatch
+) -> None:
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+
+    bootstrap = TestClient(_auth_probe_app())
+    private = bootstrap.get("/api/private", headers={"Authorization": "Bearer test-token"})
+    assert private.status_code == 200
+
+    client, api_main = _main_client(app_db, monkeypatch)
+    try:
+        create_owner = client.post(
+            "/api/users",
+            headers=_bearer(initialize_token()),
+            json={
+                "username": "owner",
+                "display_name": "Owner",
+                "password": "password",
+                "is_owner": False,
+            },
+        )
+        assert create_owner.status_code == 200
+
+        login = client.post(
+            "/api/auth/login",
+            json={"username": "owner", "password": "password"},
+        )
+        assert login.status_code == 200
+        assert login.json()["user"]["username"] == "owner"
+    finally:
+        api_main.app.dependency_overrides.clear()
+        client.close()
