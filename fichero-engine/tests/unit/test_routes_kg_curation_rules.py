@@ -206,6 +206,48 @@ class TestEntityCurationRules:
         assert restore_action.undoable is False
         assert restored.result["id"] == created_id
 
+    def test_entity_rule_delete_undo_overwrites_conflicting_recreated_row(self, db):
+        reg = registry
+        created = reg.invoke(
+            db,
+            "kg.entity_rule.create",
+            {
+                "rule_type": "merge_into",
+                "match_canonical_name": "J. Davidson",
+                "target_canonical_name": "John Davidson",
+                "reason": "same person",
+            },
+            _ctx(),
+        )
+        created_id = created.result["id"]
+
+        deleted = reg.invoke(
+            db,
+            "kg.entity_rule.delete",
+            {"rule_id": created_id},
+            _ctx(),
+        )
+        db.save(
+            EntityResolutionRule(
+                id=created_id,
+                rule_type="alias",
+                match_canonical_name="Conflicting",
+                reason="wrong row",
+            )
+        )
+        delete_audit = db.get(ActionAudit, deleted.audit_id)
+        assert delete_audit is not None
+
+        inv_name, inv_params = reg.get("kg.entity_rule.delete").invert(
+            delete_audit.before, delete_audit.after, _ctx()
+        )
+        reg.invoke(db, inv_name, inv_params, _ctx())
+
+        restored = db.get(EntityResolutionRule, created_id)
+        assert restored is not None
+        assert restored.match_canonical_name == "J. Davidson"
+        assert restored.target_canonical_name == "John Davidson"
+
 
 class TestClaimCurationRules:
     def test_create_list_delete_claim_rule(self, client, db):
@@ -398,3 +440,44 @@ class TestClaimCurationRules:
         restore_action = reg.get(inv_name)
         assert restore_action.undoable is False
         assert restored.result["id"] == created_id
+
+    def test_claim_rule_delete_undo_overwrites_conflicting_recreated_row(self, db):
+        reg = registry
+        created = reg.invoke(
+            db,
+            "kg.claim_rule.create",
+            {
+                "action": "prune",
+                "match_predicate_verb": "is",
+                "reason": "trivial copula",
+            },
+            _ctx(),
+        )
+        created_id = created.result["id"]
+
+        deleted = reg.invoke(
+            db,
+            "kg.claim_rule.delete",
+            {"rule_id": created_id},
+            _ctx(),
+        )
+        db.save(
+            ClaimSuppressionRule(
+                id=created_id,
+                action="disable",
+                match_predicate_verb="said",
+                reason="wrong row",
+            )
+        )
+        delete_audit = db.get(ActionAudit, deleted.audit_id)
+        assert delete_audit is not None
+
+        inv_name, inv_params = reg.get("kg.claim_rule.delete").invert(
+            delete_audit.before, delete_audit.after, _ctx()
+        )
+        reg.invoke(db, inv_name, inv_params, _ctx())
+
+        restored = db.get(ClaimSuppressionRule, created_id)
+        assert restored is not None
+        assert restored.action == "prune"
+        assert restored.match_predicate_verb == "is"
