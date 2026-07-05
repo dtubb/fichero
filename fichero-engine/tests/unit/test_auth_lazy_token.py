@@ -164,6 +164,47 @@ def test_sync_debug_bootstrap_token_writes_sandbox_copy_that_authenticates(
     assert response.status_code == 200
 
 
+def test_sync_app_bootstrap_token_overwrites_stale_container_copy(monkeypatch, tmp_path):
+    import fichero.api.auth as auth_module
+
+    host_token_path = tmp_path / "host" / ".api-key"
+    sandbox_token_path = tmp_path / "sandbox" / ".api-key"
+    monkeypatch.setattr(auth_module, "_token_file_path", lambda: host_token_path)
+    monkeypatch.setattr(
+        auth_module,
+        "_sandbox_token_file_path",
+        lambda _app_id: sandbox_token_path,
+    )
+
+    host_token_path.parent.mkdir(parents=True, exist_ok=True)
+    host_token_path.write_text("fresh-bootstrap-token")
+    sandbox_token_path.parent.mkdir(parents=True, exist_ok=True)
+    sandbox_token_path.write_text("stale-bootstrap-token")
+
+    sandbox_path = auth_module.sync_app_bootstrap_token(
+        "fresh-bootstrap-token",
+        app_id="app.fichero.debug-tests",
+    )
+
+    assert sandbox_path == sandbox_token_path
+    assert host_token_path.read_text() == "fresh-bootstrap-token"
+    assert sandbox_token_path.read_text() == "fresh-bootstrap-token"
+
+    app = FastAPI()
+
+    @app.get("/api/registry")
+    async def registry():
+        return {"ok": True}
+
+    attach_auth_middleware(app, "fresh-bootstrap-token")
+    client = TestClient(app)
+    response = client.get(
+        "/api/registry",
+        headers={"Authorization": f"Bearer {sandbox_token_path.read_text()}"},
+    )
+    assert response.status_code == 200
+
+
 def test_startup_skips_token_when_auth_disabled(monkeypatch, tmp_path):
     import fichero.api.auth as auth_module
     from fichero.api.main import _ensure_bootstrap_token_written
