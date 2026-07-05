@@ -626,6 +626,94 @@ def test_identity_distinguishes_bootstrap_owner_account_user_and_unauthenticated
     assert unauthenticated.json() == {"detail": "missing or invalid Authorization header"}
 
 
+def test_owner_can_change_password_for_role_holder_without_losing_acl_rows(
+    client, app_db, monkeypatch
+):
+    _enable_multiuser(monkeypatch)
+    owner = app_db.create_user(
+        username="owner",
+        display_name="Owner",
+        password_hash=accounts.hash_password("owner-password"),
+        is_owner=True,
+    )
+    member = app_db.create_user(
+        username="ann",
+        display_name="Ann",
+        password_hash=accounts.hash_password("old-password"),
+        is_owner=False,
+    )
+    app_db.set_library_role(
+        user_id=member.id,
+        library_path="/tmp/ann-library.fichero",
+        role="editor",
+    )
+    app_db.set_library_acl_override(
+        user_id=member.id,
+        library_path="/tmp/ann-library.fichero",
+        target_id="documents/doc-1",
+        effect="deny",
+    )
+    owner_token = client.post(
+        "/api/auth/login",
+        json={"username": owner.username, "password": "owner-password"},
+    ).json()["session_token"]
+
+    response = client.patch(
+        f"/api/users/{member.id}",
+        headers=_bearer(owner_token),
+        json={"password": "new-password"},
+    )
+
+    assert response.status_code == 200
+    assert len(app_db.list_library_roles_for_user(member.id)) == 1
+    overrides = app_db.list_library_acl_overrides(
+        member.id,
+        "/tmp/ann-library.fichero",
+    )
+    assert len(overrides) == 1
+    assert overrides[0].target_id == "documents/doc-1"
+    old_login = client.post(
+        "/api/auth/login",
+        json={"username": "ann", "password": "old-password"},
+    )
+    new_login = client.post(
+        "/api/auth/login",
+        json={"username": "ann", "password": "new-password"},
+    )
+    assert old_login.status_code == 401
+    assert new_login.status_code == 200
+
+
+def test_set_active_preserves_acl_rows_for_role_holder(app_db):
+    user = app_db.create_user(
+        username="ann",
+        display_name="Ann",
+        password_hash=accounts.hash_password("password"),
+        is_owner=False,
+    )
+    app_db.set_library_role(
+        user_id=user.id,
+        library_path="/tmp/ann-library.fichero",
+        role="editor",
+    )
+    app_db.set_library_acl_override(
+        user_id=user.id,
+        library_path="/tmp/ann-library.fichero",
+        target_id="documents/doc-1",
+        effect="deny",
+    )
+
+    inactive = app_db.set_active(user.id, False)
+    active = app_db.set_active(user.id, True)
+
+    assert inactive is not None and inactive.active is False
+    assert active is not None and active.active is True
+    assert len(app_db.list_library_roles_for_user(user.id)) == 1
+    overrides = app_db.list_library_acl_overrides(user.id, "/tmp/ann-library.fichero")
+    assert len(overrides) == 1
+    assert overrides[0].target_id == "documents/doc-1"
+
+
 def test_pairing_flow_works_with_bootstrap_auth_when_multiuser_disabled(
     client,
     app_db,
