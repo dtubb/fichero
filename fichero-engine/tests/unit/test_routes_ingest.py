@@ -48,6 +48,17 @@ class TestIngestFile:
         assert r.status_code == 400
         assert "not a file" in r.json()["detail"].lower()
 
+    def test_ingest_symlinked_file_returns_400(self, client, tmp_path):
+        target = tmp_path / "real.pdf"
+        target.write_bytes(b"%PDF-1.4")
+        link = tmp_path / "linked.pdf"
+        link.symlink_to(target)
+
+        r = client.post("/api/ingest/file", json={"path": str(link)})
+
+        assert r.status_code == 400
+        assert "symlinked file" in r.json()["detail"].lower()
+
     def test_ingest_file_copy_mode(self, client, tmp_path):
         test_file = tmp_path / "doc.txt"
         test_file.write_text("hello")
