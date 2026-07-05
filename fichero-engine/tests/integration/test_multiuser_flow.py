@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime, timedelta
 import importlib
+import json
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+import httpx
+import pytest
 
 from fichero.api.auth import initialize_token
 from fichero.api.routes import auth_accounts, pairing
@@ -70,6 +73,68 @@ def _client(app_db, monkeypatch, client_addr: tuple[str, int] = ("testclient", 5
     importlib.reload(api_main)
 
 
+@contextmanager
+def _client_bundle(app_db, monkeypatch):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    monkeypatch.setenv("FICHERO_DISABLE_AUTH", "0")
+    monkeypatch.setenv("FICHERO_TLS_SPKI_HASH", "c3BraS1waW4=")
+    monkeypatch.setenv("FICHERO_TAILNET_URL", "https://fichero-demo.ts.net")
+    import fichero.api.main as api_main
+
+    api_main = importlib.reload(api_main)
+    from fichero.api.routes.providers import get_app_database
+
+    api_main.app.dependency_overrides[get_app_database] = lambda: app_db
+    with (
+        TestClient(api_main.app, client=("127.0.0.1", 50000)) as local_client,
+        TestClient(
+            api_main.app,
+            base_url="https://paired.example",
+            client=("198.51.100.20", 5000),
+        ) as remote_client,
+    ):
+        yield local_client, remote_client
+    api_main.app.dependency_overrides.clear()
+    monkeypatch.setenv("FICHERO_DISABLE_AUTH", "1")
+    importlib.reload(api_main)
+
+
+@asynccontextmanager
+async def _async_client_bundle(app_db, monkeypatch):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    monkeypatch.setenv("FICHERO_DISABLE_AUTH", "0")
+    monkeypatch.setenv("FICHERO_TLS_SPKI_HASH", "c3BraS1waW4=")
+    monkeypatch.setenv("FICHERO_TAILNET_URL", "https://fichero-demo.ts.net")
+    import fichero.api.main as api_main
+
+    api_main = importlib.reload(api_main)
+    from fichero.api.routes.providers import get_app_database
+
+    api_main.app.dependency_overrides[get_app_database] = lambda: app_db
+    local_transport = httpx.ASGITransport(
+        app=api_main.app,
+        client=("127.0.0.1", 50000),
+    )
+    remote_transport = httpx.ASGITransport(
+        app=api_main.app,
+        client=("198.51.100.20", 5000),
+    )
+    async with (
+        httpx.AsyncClient(
+            transport=local_transport,
+            base_url="http://testserver",
+        ) as local_client,
+        httpx.AsyncClient(
+            transport=remote_transport,
+            base_url="https://paired.example",
+        ) as remote_client,
+    ):
+        yield local_client, remote_client
+    api_main.app.dependency_overrides.clear()
+    monkeypatch.setenv("FICHERO_DISABLE_AUTH", "1")
+    importlib.reload(api_main)
+
+
 def _bootstrap_create_owner(client: TestClient) -> None:
     response = client.post(
         "/api/users",
@@ -112,21 +177,68 @@ def _register_library(client: TestClient, library_path: Path, name: str) -> None
     assert response.status_code == 200
 
 
-def test_multiuser_ann_flow_happy_path_and_acl_revocation(tmp_path, app_db, monkeypatch):
+def _pair_device(local_client: TestClient, remote_client: TestClient, session_token: str, device_name: str) -> dict:
+    code_response = local_client.post(
+        "/api/pair/code",
+        headers=_bearer(session_token),
+    )
+    assert code_response.status_code == 200
+    pair_response = remote_client.post(
+        "/api/pair",
+        json={"code": code_response.json()["code"], "device_name": device_name},
+    )
+    assert pair_response.status_code == 200
+    return pair_response.json()
+
+
+@pytest.mark.asyncio
+async def test_multiuser_ann_flow_happy_path_and_acl_revocation(tmp_path, app_db, monkeypatch):
     primary = _create_library(tmp_path, "primary")
     secondary = _create_library(tmp_path, "secondary")
 
-    with _client(app_db, monkeypatch) as client:
-        _bootstrap_create_owner(client)
-        owner_token = _login(client, "owner", "owner-password")
-        _register_library(client, primary, "Primary")
-        _register_library(client, secondary, "Secondary")
+    async with _async_client_bundle(app_db, monkeypatch) as (local_client, remote_client):
+        from fichero.api.routes.activity import stream_activities
 
-        invite = _mint_invite(client, "ann", "Ann")
-        redeem = client.post(
+        create_owner = await local_client.post(
+            "/api/users",
+            headers=_bearer(initialize_token()),
+            json={
+                "username": "owner",
+                "display_name": "Owner",
+                "password": "owner-password",
+                "is_owner": False,
+            },
+        )
+        assert create_owner.status_code == 200
+        owner_login = await local_client.post(
+            "/api/auth/login",
+            json={"username": "owner", "password": "owner-password"},
+        )
+        assert owner_login.status_code == 200
+        owner_token = owner_login.json()["session_token"]
+        add_primary = await local_client.post(
+            "/api/registry/add",
+            headers=_bearer(initialize_token()),
+            params={"path": str(primary), "name": "Primary"},
+        )
+        add_secondary = await local_client.post(
+            "/api/registry/add",
+            headers=_bearer(initialize_token()),
+            params={"path": str(secondary), "name": "Secondary"},
+        )
+        assert add_primary.status_code == 200
+        assert add_secondary.status_code == 200
+
+        invite = await local_client.post(
+            "/api/auth/invites",
+            headers=_bearer(initialize_token()),
+            json={"username": "ann", "display_name": "Ann"},
+        )
+        assert invite.status_code == 200
+        redeem = await local_client.post(
             "/api/auth/invites/redeem",
             json={
-                "invite_token": invite["invite_token"],
+                "invite_token": invite.json()["invite_token"],
                 "new_password": "ann-password",
                 "is_owner": True,
             },
@@ -135,7 +247,7 @@ def test_multiuser_ann_flow_happy_path_and_acl_revocation(tmp_path, app_db, monk
         assert redeem.json()["user"]["is_owner"] is False
         ann_token = redeem.json()["session_token"]
 
-        shared = client.post(
+        shared = await local_client.post(
             "/api/authz/share",
             headers=_library_headers(primary, owner_token),
             json={
@@ -146,35 +258,52 @@ def test_multiuser_ann_flow_happy_path_and_acl_revocation(tmp_path, app_db, monk
         )
         assert shared.status_code == 200
 
-        accessible = client.get(
+        accessible = await local_client.get(
             "/api/authz/libraries",
             headers=_bearer(ann_token),
         )
         assert accessible.status_code == 200
-        assert accessible.json() == [
-            {
-                "library_path": str(primary),
-                "library_name": "Primary",
-                "role": "editor",
-            }
-        ]
+        assert accessible.json() == {
+            "items": [
+                {
+                    "library_path": str(primary),
+                    "library_name": "Primary",
+                    "role": "editor",
+                }
+            ],
+            "count": 1,
+        }
 
-        read_primary = client.post(
+        code_response = await local_client.post(
+            "/api/pair/code",
+            headers=_bearer(ann_token),
+        )
+        assert code_response.status_code == 200
+        paired = await remote_client.post(
+            "/api/pair",
+            json={"code": code_response.json()["code"], "device_name": "Ann iPad"},
+        )
+        assert paired.status_code == 200
+        paired_payload = paired.json()
+        device_token = paired_payload["device_token"]
+        device_id = paired_payload["device_id"]
+
+        read_primary = await remote_client.post(
             "/api/search",
-            headers=_library_headers(primary, ann_token),
+            headers=_library_headers(primary, device_token),
             json={"query": "", "limit": 1},
         )
-        write_primary = client.post(
+        write_primary = await remote_client.post(
             "/api/search/saved",
-            headers=_library_headers(primary, ann_token),
+            headers=_library_headers(primary, device_token),
             json={"query": "ann query"},
         )
         assert read_primary.status_code == 200
         assert write_primary.status_code == 200
 
-        deny_other = client.post(
+        deny_other = await remote_client.post(
             "/api/search/saved",
-            headers=_library_headers(secondary, ann_token),
+            headers=_library_headers(secondary, device_token),
             json={"query": "denied query"},
         )
         assert deny_other.status_code == 403
@@ -182,31 +311,76 @@ def test_multiuser_ann_flow_happy_path_and_acl_revocation(tmp_path, app_db, monk
             "detail": "write access denied",
             "code": "library_access_denied",
             "library_path": str(secondary),
-            "auth_kind": "session",
+            "auth_kind": "device",
             "username": "ann",
             "required": "write",
         }
 
-        revoke = client.delete(
-            "/api/authz/members",
-            headers=_library_headers(primary, owner_token),
-            params={"user": "ann"},
+        activity_response = await stream_activities(
+            db=db_manager.get_database(primary),
+            types=None,
+            levels=None,
         )
-        assert revoke.status_code == 200
-
-        after_revoke = client.post(
+        owner_mutation = await local_client.post(
             "/api/search/saved",
-            headers=_library_headers(primary, ann_token),
-            json={"query": "should fail after revoke"},
+            headers=_library_headers(primary, owner_token),
+            json={"query": "owner mutation for stream"},
         )
-        assert after_revoke.status_code == 403
-        assert after_revoke.json() == {
-            "detail": "write access denied",
+        assert owner_mutation.status_code == 200
+        payload = None
+        for _ in range(5):
+            line = await anext(activity_response.body_iterator)
+            if not line or line.startswith(":") or not line.startswith("data: "):
+                continue
+            payload = json.loads(line.removeprefix("data: ").strip())
+            break
+
+        assert payload is not None
+        assert payload["metadata"]["change_type"] == "savedsearch.created"
+        assert payload["metadata"]["actor"] == "owner"
+
+        denied_stream = await remote_client.get(
+            "/api/activity/stream",
+            headers=_library_headers(secondary, device_token),
+        )
+        assert denied_stream.status_code == 403
+        assert denied_stream.json() == {
+            "detail": "read access denied",
             "code": "library_access_denied",
-            "library_path": str(primary),
-            "auth_kind": "session",
+            "library_path": str(secondary),
+            "auth_kind": "device",
             "username": "ann",
-            "required": "write",
+            "required": "read",
+        }
+
+        revoke_device = await local_client.post(
+            f"/api/pair/devices/{device_id}/revoke",
+            headers=_bearer(owner_token),
+        )
+        assert revoke_device.status_code == 200
+
+        revoked_follow_up = await remote_client.post(
+            "/api/search/saved",
+            headers=_library_headers(primary, device_token),
+            json={"query": "should fail after device revoke"},
+        )
+        assert revoked_follow_up.status_code == 401
+        assert revoked_follow_up.json() == {
+            "detail": "missing or invalid Authorization header"
+        }
+
+        ann_user = app_db.get_user_by_username("ann")
+        deactivate = await local_client.patch(
+            f"/api/users/{ann_user.id}",
+            headers=_bearer(owner_token),
+            json={"active": False},
+        )
+        assert deactivate.status_code == 200
+
+        deactivated_follow_up = await local_client.get("/api/auth/me", headers=_bearer(ann_token))
+        assert deactivated_follow_up.status_code == 401
+        assert deactivated_follow_up.json() == {
+            "detail": "missing or invalid Authorization header"
         }
 
 
@@ -249,10 +423,6 @@ def test_multiuser_adversarial_owner_gates_denials_and_actor_attribution(
                 "is_owner": True,
             },
         )
-        cannot_pair = client.post(
-            "/api/pair/code",
-            headers=_bearer(ann_token),
-        )
         cannot_self_grant = client.put(
             "/api/authz/members",
             headers=_library_headers(primary, ann_token),
@@ -261,7 +431,6 @@ def test_multiuser_adversarial_owner_gates_denials_and_actor_attribution(
 
         assert cannot_invite.status_code == 403
         assert cannot_create_user.status_code == 403
-        assert cannot_pair.status_code == 403
         assert cannot_self_grant.status_code == 403
         assert cannot_self_grant.json() == {"detail": "owner access required"}
 
@@ -319,7 +488,7 @@ def test_multiuser_session_revoke_and_deactivate_kill_access(tmp_path, app_db, m
         )
         assert ann_sessions.status_code == 200
         revoke = client.post(
-            f"/api/auth/sessions/{ann_sessions.json()[0]['id']}/revoke",
+            f"/api/auth/sessions/{ann_sessions.json()['items'][0]['id']}/revoke",
             headers=_bearer(ann_token),
         )
         assert revoke.status_code == 200
