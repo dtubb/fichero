@@ -8,6 +8,7 @@ QR still carries the SPKI pin; Bonjour remains discovery only.
 from __future__ import annotations
 
 import base64
+import binascii
 import hashlib
 import ipaddress
 import json
@@ -123,6 +124,20 @@ def validate_tailnet_url(raw: str) -> str:
         raise ValueError("tailnet_url must not point at localhost")
     port = f":{parsed.port}" if parsed.port else ""
     return f"https://{host}{port}"
+
+
+def validate_spki_pin(raw: str) -> str:
+    """Return a normalized SPKI pin or raise for missing/invalid values."""
+    value = raw.strip()
+    if not value:
+        raise ValueError("spki_pin is required")
+    try:
+        decoded = base64.b64decode(value, validate=True)
+    except binascii.Error as exc:
+        raise ValueError("spki_pin must be valid base64") from exc
+    if not decoded:
+        raise ValueError("spki_pin is required")
+    return base64.b64encode(decoded).decode("ascii")
 
 
 def _is_loopback_host(host: str) -> bool:

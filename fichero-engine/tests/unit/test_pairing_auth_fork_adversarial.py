@@ -57,10 +57,17 @@ def _create_owner(app_db, *, active: bool = True):
     )
 
 
-def _owner_request(user, *, bootstrap_auth: bool = False, host: str = "127.0.0.1"):
+def _owner_request(
+    user,
+    *,
+    bootstrap_auth: bool = False,
+    host: str = "127.0.0.1",
+    scheme: str = "https",
+):
     return SimpleNamespace(
         state=SimpleNamespace(user=user, bootstrap_auth=bootstrap_auth),
         client=SimpleNamespace(host=host),
+        url=SimpleNamespace(scheme=scheme),
     )
 
 
@@ -96,6 +103,7 @@ def test_pairing_rejects_replay_after_code_is_used(pairing_client, app_db):
 
 def test_pairing_rejects_code_at_exact_expiry_boundary(app_db, monkeypatch):
     monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    monkeypatch.setenv("FICHERO_TLS_SPKI_HASH", "c3BraS1waW4=")
     owner = _create_owner(app_db)
     now = datetime(2026, 7, 4, 12, 0, 0)
 
@@ -172,6 +180,7 @@ def test_pairing_rate_limiter_returns_429_on_sixth_attempt(pairing_client):
 
 def test_pairing_rate_limit_isolated_per_host_and_prunes_window(app_db, monkeypatch):
     monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    monkeypatch.setenv("FICHERO_TLS_SPKI_HASH", "c3BraS1waW4=")
     now = datetime(2026, 7, 4, 12, 0, 0)
 
     class FrozenDateTime(datetime):
@@ -284,6 +293,7 @@ def test_create_pairing_code_prunes_stale_entries_before_minting(app_db, monkeyp
 
 def test_pair_device_normalizes_code_and_device_name_and_consumes_code(app_db, monkeypatch):
     monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    monkeypatch.setenv("FICHERO_TLS_SPKI_HASH", "c3BraS1waW4=")
     owner = _create_owner(app_db)
     pairing._PAIRING_CODES["ABCD-EFGH"] = pairing._PairingCode(
         code="ABCD-EFGH",
@@ -309,6 +319,7 @@ def test_pair_device_normalizes_code_and_device_name_and_consumes_code(app_db, m
 
 def test_pair_device_rejects_blank_device_name_after_strip_without_consuming_code(app_db, monkeypatch):
     monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    monkeypatch.setenv("FICHERO_TLS_SPKI_HASH", "c3BraS1waW4=")
     owner = _create_owner(app_db)
     pairing._PAIRING_CODES["ABCD-EFGH"] = pairing._PairingCode(
         code="ABCD-EFGH",
@@ -326,6 +337,77 @@ def test_pair_device_rejects_blank_device_name_after_strip_without_consuming_cod
     assert exc.value.status_code == 422
     assert "ABCD-EFGH" in pairing._PAIRING_CODES
     assert pairing._PAIRING_CODES["ABCD-EFGH"].used is False
+
+
+def test_pair_device_rejects_remote_plaintext_transport_without_consuming_code(app_db, monkeypatch):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    owner = _create_owner(app_db)
+    pairing._PAIRING_CODES["ABCD-EFGH"] = pairing._PairingCode(
+        code="ABCD-EFGH",
+        user_id=owner.id,
+        expires_at=datetime.now() + timedelta(seconds=30),
+    )
+    request = _owner_request(None, host="198.51.100.26", scheme="http")
+
+    with pytest.raises(HTTPException, match="remote pairing requires https") as exc:
+        pairing.pair_device(
+            request,
+            pairing.PairRequest(code="ABCD-EFGH", device_name="Remote iPad"),
+            app_db,
+        )
+
+    assert exc.value.status_code == 400
+    assert "ABCD-EFGH" in pairing._PAIRING_CODES
+    assert pairing._PAIRING_CODES["ABCD-EFGH"].used is False
+
+
+def test_pair_device_rejects_remote_https_without_configured_spki_pin(app_db, monkeypatch):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    monkeypatch.delenv("FICHERO_TLS_SPKI_HASH", raising=False)
+    owner = _create_owner(app_db)
+    pairing._PAIRING_CODES["ABCD-EFGH"] = pairing._PairingCode(
+        code="ABCD-EFGH",
+        user_id=owner.id,
+        expires_at=datetime.now() + timedelta(seconds=30),
+    )
+    request = _owner_request(None, host="198.51.100.27", scheme="https")
+
+    with pytest.raises(
+        HTTPException,
+        match="remote pairing unavailable without configured SPKI pin",
+    ) as exc:
+        pairing.pair_device(
+            request,
+            pairing.PairRequest(code="ABCD-EFGH", device_name="Remote iPad"),
+            app_db,
+        )
+
+    assert exc.value.status_code == 503
+    assert "ABCD-EFGH" in pairing._PAIRING_CODES
+    assert pairing._PAIRING_CODES["ABCD-EFGH"].used is False
+
+
+def test_pair_device_allows_remote_https_with_configured_spki_pin(app_db, monkeypatch):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    monkeypatch.setenv("FICHERO_TLS_SPKI_HASH", "c3BraS1waW4=")
+    owner = _create_owner(app_db)
+    pairing._PAIRING_CODES["ABCD-EFGH"] = pairing._PairingCode(
+        code="ABCD-EFGH",
+        user_id=owner.id,
+        expires_at=datetime.now() + timedelta(seconds=30),
+    )
+    monkeypatch.setattr(accounts, "new_session_token", lambda: "device-token")
+    request = _owner_request(None, host="198.51.100.28", scheme="https")
+
+    response = pairing.pair_device(
+        request,
+        pairing.PairRequest(code="ABCD-EFGH", device_name="Remote iPad"),
+        app_db,
+    )
+
+    assert response.device_token == "device-token"
+    assert app_db.get_device(response.device_id) is not None
+    assert pairing._PAIRING_CODES == {}
 
 
 def test_pairing_validation_errors_scrub_submitted_code(pairing_client, app_db):
