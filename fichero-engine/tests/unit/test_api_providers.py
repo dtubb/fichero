@@ -271,7 +271,7 @@ class TestModelsAPI:
         assert response.status_code == 200
         data = response.json()
         assert data["type"] == "omlx"
-        assert data["name"] == "oMLX"
+        assert data["name"] == "MLX (Local)"
         assert data["is_local"] is True
         assert data["supports_vision"] is True
 

@@ -45,6 +45,11 @@ class TestProviderCatalog:
         assert openai_info.is_local is False
         assert openai_info.supports_vision is True
 
+    def test_omlx_provider_uses_decided_user_facing_label(self):
+        from fichero.providers import PROVIDERS, ProviderType
+
+        assert PROVIDERS[ProviderType.omlx].name == "MLX (Local)"
+
     def test_ocr_htr_provider_defaults_use_recommended_models(self):
         """Vision/transcription defaults should prefer the OCR/HTR-recommended models."""
         from fichero.providers import PROVIDERS, ProviderType
