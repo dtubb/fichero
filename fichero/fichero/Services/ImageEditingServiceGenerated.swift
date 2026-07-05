@@ -226,6 +226,7 @@ final class ImageEditingServiceGenerated {
 
     // MARK: - Operations  (POST /api/images/{id}/operations/*)
 
+    /// Uses the generated `/api/images/{document_id}/operations/crop` operation.
     @discardableResult
     func crop(documentId: String, left: Int, top: Int, width: Int, height: Int, page: Int = 1) async throws -> ImageEditChain {
         isLoading = true; defer { isLoading = false }
@@ -237,6 +238,7 @@ final class ImageEditingServiceGenerated {
         return try Self.chain(from: response)
     }
 
+    /// Uses the generated `/api/images/{document_id}/operations/rotate` operation.
     @discardableResult
     func rotate(documentId: String, angle: Double, expand: Bool = true, page: Int = 1) async throws -> ImageEditChain {
         isLoading = true; defer { isLoading = false }
@@ -248,6 +250,7 @@ final class ImageEditingServiceGenerated {
         return try Self.chain(from: response)
     }
 
+    /// Uses the generated `/api/images/{document_id}/operations/straighten` operation.
     @discardableResult
     func straighten(documentId: String, page: Int = 1) async throws -> ImageEditChain {
         isLoading = true; defer { isLoading = false }
@@ -259,6 +262,7 @@ final class ImageEditingServiceGenerated {
         return try Self.chain(from: response)
     }
 
+    /// Uses the generated `/api/images/{document_id}/operations/enhance` operation.
     @discardableResult
     func enhance(documentId: String, brightness: Double = 1.0, contrast: Double = 1.0,
                  sharpen: Double = 1.0, autoLevels: Bool = false, page: Int = 1) async throws -> ImageEditChain {
@@ -272,6 +276,7 @@ final class ImageEditingServiceGenerated {
         return try Self.chain(from: response)
     }
 
+    /// Uses the generated `/api/images/{document_id}/operations/remove-background` operation.
     @discardableResult
     func removeBackground(documentId: String,
                           method: String = "opencv",
@@ -286,6 +291,7 @@ final class ImageEditingServiceGenerated {
         return try Self.chain(from: response)
     }
 
+    /// Uses the generated `/api/images/{document_id}/operations/segment` operation.
     @discardableResult
     func segment(documentId: String, method: String = "foreground", threshold: Int = 28,
                  minArea: Int = 100, maxSegments: Int = 20, page: Int = 1) async throws -> ImageEditChain {

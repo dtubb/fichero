@@ -542,7 +542,14 @@ private final class ExplicitPinnedSessionDelegate: NSObject, URLSessionDelegate 
     }
 }
 
-internal final class DynamicPinnedSessionDelegate: NSObject, URLSessionDelegate {
+// Conforms to BOTH URLSessionDelegate (session-level challenge, used by regular
+// request/response) AND URLSessionTaskDelegate (task-level challenge). The task
+// conformance is REQUIRED for `URLSession.bytes(for:)` SSE streams: URLSession
+// routes a stream's server-trust challenge to the TASK-level method, which it
+// only invokes when the delegate formally conforms to URLSessionTaskDelegate.
+// Implementing the method without declaring the conformance (the #2960/B4 bug)
+// left `.bytes` streams on default trust → self-signed 127.0.0.1 rejected (-9807).
+internal final class DynamicPinnedSessionDelegate: NSObject, URLSessionDelegate, URLSessionTaskDelegate {
     func urlSession(
         _ session: URLSession,
         didReceive challenge: URLAuthenticationChallenge,
