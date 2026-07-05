@@ -15,6 +15,7 @@ def test_save_autoschedules_entity_embedding(db):
     db.save(entity)
 
     db.schedule_entity_embedding.assert_called_once_with(entity)
+    assert db.schedule_entity_embedding.call_count == 1
 
 
 def test_save_autoschedules_claim_embedding(db):
@@ -28,3 +29,4 @@ def test_save_autoschedules_claim_embedding(db):
     db.save(claim)
 
     db.schedule_claim_embedding.assert_called_once_with(claim)
+    assert db.schedule_claim_embedding.call_count == 1
