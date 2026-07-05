@@ -662,6 +662,7 @@ def test_pairing_flow_works_with_bootstrap_auth_when_multiuser_disabled(
 def test_pairing_code_surfaces_optional_tailnet_url(client, app_db, monkeypatch):
     _enable_multiuser(monkeypatch)
     monkeypatch.setenv("FICHERO_TAILNET_URL", "https://fichero-demo.ts.net")
+    monkeypatch.setenv("FICHERO_TLS_SPKI_HASH", "c3BraS1waW4=")
     app_db.create_user(
         username="owner",
         display_name="Owner",
@@ -677,6 +678,7 @@ def test_pairing_code_surfaces_optional_tailnet_url(client, app_db, monkeypatch)
 
     assert response.status_code == 200
     assert response.json()["tailnet_url"] == "https://fichero-demo.ts.net"
+    assert response.json()["spki_pin"] == "c3BraS1waW4="
 
 
 @pytest.mark.parametrize(

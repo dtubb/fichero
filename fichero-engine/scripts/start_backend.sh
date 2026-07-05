@@ -24,7 +24,6 @@ fi
 SYNC_OPENAPI=true
 SKIP_VALIDATION=false
 RELOAD=false
-UVICORN_SSL_ARGS=()
 
 for arg in "$@"; do
   case $arg in
@@ -78,13 +77,18 @@ if [ -z "${FICHERO_TLS_CERTFILE:-}" ] && [ -z "${FICHERO_TLS_KEYFILE:-}" ]; then
     PREPARE_ALLOW_LOOPBACK=true
   fi
   TLS_MANIFEST="$(
-    PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" - "$PREPARE_URL" "$PREPARE_ALLOW_LOOPBACK" <<'PY'
+    PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" - "$PREPARE_URL" "$PREPARE_ALLOW_LOOPBACK" "${FICHERO_LAN_HOST:-}" <<'PY'
 import sys
 from fichero.remote_access_tls import material_manifest_json, prepare_remote_access_tls
 
 public_base_url = sys.argv[1]
 allow_loopback = sys.argv[2] == "true"
-material = prepare_remote_access_tls(public_base_url, allow_loopback=allow_loopback)
+lan_host = sys.argv[3].strip()
+material = prepare_remote_access_tls(
+    public_base_url,
+    allow_loopback=allow_loopback,
+    subject_alt_hosts=[lan_host] if lan_host else (),
+)
 print(material_manifest_json(material))
 PY
   )"
@@ -154,6 +158,12 @@ PY
       -string "$FICHERO_TLS_SPKI_HASH"
     defaults write app.fichero.fichero "fichero.remote_access.advertised_spki_pin|https://127.0.0.1:8765" \
       -string "$FICHERO_TLS_SPKI_HASH"
+    if [ -n "${FICHERO_LAN_HOST:-}" ]; then
+      defaults write app.fichero.fichero "fichero.remote_access.client_spki_pin|https://$FICHERO_LAN_HOST:8765" \
+        -string "$FICHERO_TLS_SPKI_HASH"
+      defaults write app.fichero.fichero "fichero.remote_access.advertised_spki_pin|https://$FICHERO_LAN_HOST:8765" \
+        -string "$FICHERO_TLS_SPKI_HASH"
+    fi
     if [ "$PREPARE_URL" != "https://127.0.0.1:8765" ]; then
       defaults write app.fichero.fichero "fichero.remote_access.client_spki_pin|$PREPARE_URL" \
         -string "$FICHERO_TLS_SPKI_HASH"
@@ -168,16 +178,7 @@ if [ -n "${FICHERO_TLS_CERTFILE:-}" ] || [ -n "${FICHERO_TLS_KEYFILE:-}" ]; then
     echo "FICHERO_TLS_CERTFILE and FICHERO_TLS_KEYFILE must both be set."
     exit 1
   fi
-  UVICORN_SSL_ARGS+=(--ssl-certfile "$FICHERO_TLS_CERTFILE" --ssl-keyfile "$FICHERO_TLS_KEYFILE")
 fi
-
-UVICORN_BIND_HOST="$(
-  PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" - <<'PY'
-from fichero.bind_host import resolve_bind_host
-
-print(resolve_bind_host())
-PY
-)"
 
 FICHERO_APP_BUNDLE_ID="${FICHERO_APP_BUNDLE_ID:-${FICHERO_DEBUG_APP_BUNDLE_ID:-app.fichero.fichero}}"
 export FICHERO_APP_BUNDLE_ID
@@ -204,14 +205,7 @@ fi
 export FICHERO_FEATURE_TIER="${FICHERO_FEATURE_TIER:-dev}"
 export FICHERO_VALIDATE_MODELS=1
 if [ "$RELOAD" = true ]; then
-  # Scope --reload to the engine source ONLY. A bare --reload watches the CWD
-  # (repo root), which includes agent worktrees under .claude/worktrees/ — every
-  # worker edit then triggers a reload storm + RAM blowup. --reload-dir fixes
-  # that. Do not use reload against the real app DuckDB; the reloader parent and
-  # child can contend for the same single-process DuckDB lock during app import.
-  PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" -m uvicorn fichero.api.main:app --port 8765 \
-    --reload --reload-dir "$API_ROOT/src" --host "$UVICORN_BIND_HOST" "${UVICORN_SSL_ARGS[@]}"
+  PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" "$API_ROOT/scripts/start_backend.py" --reload
 else
-  PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" -m uvicorn fichero.api.main:app --port 8765 \
-    --host "$UVICORN_BIND_HOST" "${UVICORN_SSL_ARGS[@]}"
+  PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" "$API_ROOT/scripts/start_backend.py"
 fi

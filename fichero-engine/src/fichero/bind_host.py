@@ -14,6 +14,7 @@ from collections.abc import Mapping
 from os import environ
 
 DEFAULT_BIND_HOST = "127.0.0.1"
+LAN_BIND_HOST_ENV = "FICHERO_LAN_HOST"
 NON_LOOPBACK_BIND_ACK_ENV = "FICHERO_ALLOW_NON_LOOPBACK_BIND"
 NON_LOOPBACK_BIND_ACK_VALUE = "I_UNDERSTAND_SHARED_SECRET_RISK"
 
@@ -75,4 +76,27 @@ def resolve_bind_host(
             stacklevel=2,
         )
 
+    return resolved
+
+
+def resolve_lan_bind_host(
+    env: Mapping[str, str] | None = None,
+    host: str | None = None,
+) -> str | None:
+    """Return one explicit LAN listener host, or ``None`` when disabled."""
+
+    source = env if env is not None else environ
+    raw_host = host if host is not None else source.get(LAN_BIND_HOST_ENV)
+    if raw_host is None or not raw_host.strip():
+        return None
+    if raw_host.strip() == "0.0.0.0":
+        raise ValueError(
+            f"{LAN_BIND_HOST_ENV}=0.0.0.0 is not allowed. Use one explicit LAN address."
+        )
+
+    resolved = resolve_bind_host(source, host=raw_host)
+    if _is_loopback_host(resolved):
+        raise ValueError(
+            f"{LAN_BIND_HOST_ENV} must be a non-loopback address when set."
+        )
     return resolved

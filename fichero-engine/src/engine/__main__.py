@@ -18,6 +18,7 @@ import tracemalloc
 import warnings
 
 from fichero.bind_host import resolve_bind_host
+from fichero.bind_host import resolve_lan_bind_host
 from fichero.remote_access_tls import (
     material_manifest_json,
     prepare_remote_access_tls,
@@ -29,6 +30,23 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+
+def _listener_hosts(bind_host: str) -> list[str]:
+    lan_host = resolve_lan_bind_host()
+    if lan_host is None or lan_host == bind_host:
+        return [bind_host]
+    return [bind_host, lan_host]
+
+
+def _bind_listener_socket(host: str, port: int) -> socket.socket:
+    family = socket.AF_INET6 if ":" in host else socket.AF_INET
+    sock = socket.socket(family, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind((host, port))
+    sock.listen(socket.SOMAXCONN)
+    sock.setblocking(False)
+    return sock
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -66,10 +84,15 @@ def main(argv: list[str] | None = None):
     args, _remaining = parser.parse_known_args(argv)
 
     if args.prepare_local_access:
+        subject_alt_hosts = []
+        lan_host = (os.environ.get("FICHERO_LAN_HOST") or "").strip()
+        if lan_host:
+            subject_alt_hosts.append(lan_host)
         material = prepare_remote_access_tls(
             "https://127.0.0.1:8765",
             storage_root=args.remote_access_dir,
             allow_loopback=True,
+            subject_alt_hosts=subject_alt_hosts,
         )
         sys.stdout.write(material_manifest_json(material))
         sys.stdout.write("\n")
@@ -133,6 +156,7 @@ def main(argv: list[str] | None = None):
         logger.info("Tracemalloc: ENABLED (ResourceWarning traces active)")
 
     bind_host = resolve_bind_host()
+    listener_hosts = _listener_hosts(bind_host)
 
     uvicorn_kwargs = dict(
         app="fichero.api.main:app",
@@ -151,10 +175,18 @@ def main(argv: list[str] | None = None):
         # Limit reload scope to backend source to avoid whole-home scan noise.
         uvicorn_kwargs["reload_dirs"] = [src_dir]
     uvicorn_kwargs.update(uvicorn_ssl_kwargs_from_env())
+    if len(listener_hosts) > 1 and "ssl_certfile" not in uvicorn_kwargs:
+        raise SystemExit(
+            "FICHERO_LAN_HOST requires TLS; set FICHERO_TLS_CERTFILE/FICHERO_TLS_KEYFILE."
+        )
+    if len(listener_hosts) > 1 and reload_enabled:
+        raise SystemExit("FICHERO_LAN_HOST is not supported with reload enabled.")
 
     scheme = "https" if "ssl_certfile" in uvicorn_kwargs else "http"
     logger.info("Starting Fichero Backend (Briefcase bundle)")
     logger.info("Server will listen on %s://%s:8765", scheme, bind_host)
+    if len(listener_hosts) > 1:
+        logger.info("LAN TLS listener enabled on %s://%s:8765", scheme, listener_hosts[1])
     logger.info(
         "Hot-reload: %s",
         "ENABLED (dev mode)" if reload_enabled else "DISABLED (production mode)",
@@ -171,14 +203,28 @@ def main(argv: list[str] | None = None):
             )
             return
 
-    # Start server.
+    if len(listener_hosts) == 1:
+        try:
+            uvicorn.run(**uvicorn_kwargs)
+        except KeyboardInterrupt:
+            logger.info("Backend shutting down...")
+        except Exception as e:
+            logger.error(f"Backend failed to start: {e}")
+            raise
+        return
+
+    sockets = [_bind_listener_socket(host, 8765) for host in listener_hosts]
+    server = uvicorn.Server(uvicorn.Config(**uvicorn_kwargs))
     try:
-        uvicorn.run(**uvicorn_kwargs)
+        server.run(sockets=sockets)
     except KeyboardInterrupt:
         logger.info("Backend shutting down...")
     except Exception as e:
         logger.error(f"Backend failed to start: {e}")
         raise
+    finally:
+        for sock in sockets:
+            sock.close()
 
 
 if __name__ == "__main__":

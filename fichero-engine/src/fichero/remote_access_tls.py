@@ -17,7 +17,7 @@ import re
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Mapping
+from typing import Mapping, Sequence
 from urllib.parse import ParseResult, urlparse
 
 from cryptography import x509
@@ -43,6 +43,7 @@ def prepare_remote_access_tls(
     *,
     storage_root: Path | str | None = None,
     allow_loopback: bool = False,
+    subject_alt_hosts: Sequence[str] = (),
 ) -> RemoteAccessTLSMaterial:
     """Create or reuse the local HTTPS identity for a reachable private URL."""
 
@@ -57,12 +58,23 @@ def prepare_remote_access_tls(
 
     port = parsed.port or DEFAULT_BIND_PORT
     root = Path(storage_root).expanduser() if storage_root is not None else DEFAULT_STORAGE_ROOT
-    material_dir = _material_directory(root, host=host, port=port, url=public_base_url)
+    alt_hosts = tuple(_normalized_subject_alt_hosts(subject_alt_hosts, primary_host=host))
+    material_dir = _material_directory(
+        root,
+        host=host,
+        port=port,
+        url=public_base_url,
+        subject_alt_hosts=alt_hosts,
+    )
     certificate_path = material_dir / "server.crt"
     key_path = material_dir / "server.key"
 
     if not certificate_path.exists() or not key_path.exists():
-        _generate_material(certificate_path=certificate_path, key_path=key_path, host=host)
+        _generate_material(
+            certificate_path=certificate_path,
+            key_path=key_path,
+            hosts=(host, *alt_hosts),
+        )
 
     spki_pin = _spki_pin_from_certificate(certificate_path)
     return RemoteAccessTLSMaterial(
@@ -152,11 +164,9 @@ def _is_loopback_host(host: str) -> bool:
 def _bind_host_for_public_host(host: str) -> str:
     """Return a safe local bind target for a reachable private URL.
 
-    Bind 0.0.0.0 in remote-access mode so the engine accepts both loopback
-    traffic from the host Mac app and LAN traffic from paired devices. The
-    certificate is still issued for the public hostname, so clients pin the
-    correct identity. Loopback preparation keeps its specific host so we do
-    not open all interfaces when remote access is off.
+    Keep one explicit bind target here. Loopback stays loopback; remote-access
+    preparation resolves to the explicit LAN host and the launcher adds that as
+    a second socket beside loopback when enabled.
     """
 
     if _is_loopback_host(host):
@@ -171,21 +181,54 @@ def _bind_host_for_public_host(host: str) -> str:
                 "the engine can bind to a real local Mac address."
             )
 
-    return "0.0.0.0"
+    return host
 
 
-def _material_directory(root: Path, *, host: str, port: int, url: str) -> Path:
-    digest = hashlib.sha256(url.encode("utf-8")).hexdigest()[:16]
+def _normalized_subject_alt_hosts(
+    subject_alt_hosts: Sequence[str],
+    *,
+    primary_host: str,
+) -> list[str]:
+    normalized: list[str] = []
+    seen = {primary_host.lower()}
+    for raw_host in subject_alt_hosts:
+        host = raw_host.strip()
+        if not host:
+            continue
+        key = host.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        normalized.append(host)
+    return normalized
+
+
+def _material_directory(
+    root: Path,
+    *,
+    host: str,
+    port: int,
+    url: str,
+    subject_alt_hosts: Sequence[str] = (),
+) -> Path:
+    digest_input = json.dumps(
+        {
+            "url": url,
+            "subject_alt_hosts": list(subject_alt_hosts),
+        },
+        sort_keys=True,
+    )
+    digest = hashlib.sha256(digest_input.encode("utf-8")).hexdigest()[:16]
     safe_host = re.sub(r"[^A-Za-z0-9._-]+", "_", host).strip("._-") or "host"
     return root / f"{safe_host}-{port}-{digest}"
 
 
-def _generate_material(*, certificate_path: Path, key_path: Path, host: str) -> None:
+def _generate_material(*, certificate_path: Path, key_path: Path, hosts: Sequence[str]) -> None:
     certificate_path.parent.mkdir(parents=True, exist_ok=True)
     os.chmod(certificate_path.parent, 0o700)
 
     private_key = ec.generate_private_key(ec.SECP256R1())
-    subject = issuer = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, host)])
+    subject = issuer = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, hosts[0])])
     certificate = (
         x509.CertificateBuilder()
         .subject_name(subject)
@@ -194,7 +237,7 @@ def _generate_material(*, certificate_path: Path, key_path: Path, host: str) -> 
         .serial_number(x509.random_serial_number())
         .not_valid_before(datetime.now(timezone.utc) - timedelta(days=1))
         .not_valid_after(datetime.now(timezone.utc) + _MAX_CERT_AGE)
-        .add_extension(_subject_alt_name(host), critical=False)
+        .add_extension(_subject_alt_name(hosts), critical=False)
         .sign(private_key, hashes.SHA256())
     )
 
@@ -210,11 +253,14 @@ def _generate_material(*, certificate_path: Path, key_path: Path, host: str) -> 
     os.chmod(key_path, 0o600)
 
 
-def _subject_alt_name(host: str) -> x509.SubjectAlternativeName:
-    try:
-        return x509.SubjectAlternativeName([x509.IPAddress(ipaddress.ip_address(host))])
-    except ValueError:
-        return x509.SubjectAlternativeName([x509.DNSName(host)])
+def _subject_alt_name(hosts: Sequence[str]) -> x509.SubjectAlternativeName:
+    names: list[x509.GeneralName] = []
+    for host in hosts:
+        try:
+            names.append(x509.IPAddress(ipaddress.ip_address(host)))
+        except ValueError:
+            names.append(x509.DNSName(host))
+    return x509.SubjectAlternativeName(names)
 
 
 def _spki_pin_from_certificate(certificate_path: Path) -> str:

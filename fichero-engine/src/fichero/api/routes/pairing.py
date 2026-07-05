@@ -84,6 +84,7 @@ class PairCodeResponse(BaseModel):
     code: str
     expires_at: datetime
     tailnet_url: str | None = None
+    spki_pin: str | None = None
 
 
 class PairRequest(BaseModel):
@@ -370,6 +371,7 @@ def create_pairing_code(
         code=code,
         expires_at=expires_at,
         tailnet_url=tailnet_url or None,
+        spki_pin=(os.environ.get("FICHERO_TLS_SPKI_HASH") or "").strip() or None,
     )
 
 

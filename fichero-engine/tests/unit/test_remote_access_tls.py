@@ -25,7 +25,7 @@ def test_prepare_remote_access_tls_creates_reusable_material(tmp_path: Path) -> 
     certificate_path = Path(material.certificate_path)
     key_path = Path(material.key_path)
 
-    assert material.bind_host == "0.0.0.0"
+    assert material.bind_host == "192.168.1.42"
     assert certificate_path.exists()
     assert key_path.exists()
 
@@ -67,6 +67,23 @@ def test_prepare_remote_access_tls_allows_loopback_when_explicit(tmp_path: Path)
     assert san.get_values_for_type(x509.IPAddress) == [ipaddress.ip_address("127.0.0.1")]
     assert Path(material.key_path).exists()
     assert material.spki_pin
+
+
+def test_prepare_remote_access_tls_adds_subject_alt_hosts(tmp_path: Path) -> None:
+    material = prepare_remote_access_tls(
+        "https://127.0.0.1:8765",
+        storage_root=tmp_path,
+        allow_loopback=True,
+        subject_alt_hosts=["192.168.1.42"],
+    )
+
+    certificate = x509.load_pem_x509_certificate(Path(material.certificate_path).read_bytes())
+    san = certificate.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+
+    assert san.get_values_for_type(x509.IPAddress) == [
+        ipaddress.ip_address("127.0.0.1"),
+        ipaddress.ip_address("192.168.1.42"),
+    ]
 
 
 def test_prepare_remote_access_tls_rejects_dns_host_names() -> None:
