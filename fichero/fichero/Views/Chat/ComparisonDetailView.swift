@@ -6,8 +6,8 @@ let comparisonDetailLogger = Logger(subsystem: "app.fichero.fichero", category: 
 /// Detail view for a model comparison showing all model responses
 struct ComparisonDetailView: View {
     let comparisonSummary: ComparisonSummary
-    @EnvironmentObject var apiClient: APIClient
-    @EnvironmentObject var libraryManager: LibraryManager
+    @Environment(APIClient.self) var apiClient
+    @Environment(LibraryManager.self) var libraryManager
 
     @State var comparison: ComparisonDetail?
     @State var isLoading = true
@@ -42,7 +42,7 @@ struct ComparisonDetailView: View {
             timestamp: "2024-01-25T14:30:00Z"
         )
     )
-    .environmentObject(APIClient())
-    .environmentObject(LibraryManager.shared)
+    .environment(APIClient())
+    .environment(LibraryManager.shared)
     .frame(width: 800, height: 600)
 }

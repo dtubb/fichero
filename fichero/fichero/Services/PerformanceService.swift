@@ -1,11 +1,13 @@
 import Combine
+import Observation
 import Foundation
 import os.log
 import QuartzCore
 
 /// Performance monitoring and benchmarking service
 @MainActor
-class PerformanceService: ObservableObject {
+@Observable
+class PerformanceService {
 
     /// Container for benchmark statistics
     struct BenchmarkStatistics {

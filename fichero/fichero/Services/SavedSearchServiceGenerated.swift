@@ -1,3 +1,4 @@
+import Observation
 import Foundation
 import Combine
 import OSLog
@@ -9,7 +10,8 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "SavedSe
 /// SavedSearchService using the generated OpenAPI client.
 /// This replaces the manual APIClient with type-safe generated calls.
 @MainActor
-class SavedSearchServiceGenerated: ObservableObject {
+@Observable
+class SavedSearchServiceGenerated {
     private let client: FicheroClient
 
     init(ficheroClient: FicheroClient) {
@@ -19,7 +21,7 @@ class SavedSearchServiceGenerated: ObservableObject {
     // MARK: - Published State
 
     /// All saved searches loaded from backend
-    @Published var savedSearches: [SavedSearch] = []
+    var savedSearches: [SavedSearch] = []
 
     // MARK: - API Methods
 
@@ -178,7 +180,7 @@ class SavedSearchServiceGenerated: ObservableObject {
         }
     }
 
-    /// Load saved searches from backend and update @Published property
+    /// Load saved searches from backend and update property
     func loadSavedSearches() async throws {
         let apiSearches = try await listSavedSearches()
         savedSearches = apiSearches.map { api in

@@ -18,7 +18,7 @@ struct LibraryImageView: View {
     let imageType: ImageType
 
     // Access the shared services from the current library
-    @EnvironmentObject var storageService: StorageServiceGenerated
+    @Environment(StorageServiceGenerated.self) var storageService
 
     @State private var image: Image?
     @State private var loadedKey: LibraryImageLoadKey?

@@ -6,7 +6,7 @@ import SwiftUI
 /// prioritizes readability and a "published" feel over curation tools.
 struct EntityDigestView: View {
     @Environment(EntityStore.self) private var entityStore
-    @EnvironmentObject private var entityService: EntityServiceGenerated
+    @Environment(EntityServiceGenerated.self) private var entityService
     @State private var selectedEntityId: String?
     @State private var selectedEntityIds: Set<String> = []
     @State private var searchText = ""

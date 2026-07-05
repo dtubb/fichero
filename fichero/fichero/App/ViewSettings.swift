@@ -1,11 +1,13 @@
+import Observation
 import SwiftUI
 
 /// Observable settings for view configuration (app-wide preferences)
 /// Note: sidebarMode is NOT here - it's per-window state stored in @SceneStorage
 @MainActor
-class ViewSettings: ObservableObject {
-    @Published var libraryLayout: LibraryLayout = .icons
-    @Published var previewMode: PreviewMode = .widescreen
+@Observable
+class ViewSettings {
+    var libraryLayout: LibraryLayout = .icons
+    var previewMode: PreviewMode = .widescreen
     // NOTE: inspector visibility is intentionally NOT here. It is per-window
     // state (`ContentView.showInspectorSidebar`, @SceneStorage) exposed to the
     // View menu via `FocusedValues.showInspector` below, so toggling the

@@ -1,4 +1,5 @@
 import Combine
+import Observation
 import FicheroAPIClient
 import Foundation
 import OSLog
@@ -12,7 +13,8 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Workflo
 /// This service is callback-only - it does NOT store events.
 /// Live event state is reduced by the caller into the thread-keyed execution state.
 @MainActor
-class WorkflowStreamService: ObservableObject {
+@Observable
+class WorkflowStreamService {
     /// Single source for BOTH the generated REST calls (execute / stop / resume)
     /// AND the SSE byte-stream's host, library path, auth and certificate pinning.
     ///
@@ -39,18 +41,21 @@ class WorkflowStreamService: ObservableObject {
     private let urlSession: URLSession = RemoteCertificatePinning.configuredSession()
 
     /// Current streaming status
-    @Published var isStreaming = false
+    var isStreaming = false
 
     /// Current thread ID being streamed
-    @Published var currentThreadId: String?
+    var currentThreadId: String?
 
     /// Error message if stream fails
-    @Published var error: String?
+    var error: String?
 
     /// Track if workflow had errors (for final status determination)
     private var hadError = false
 
-    private var streamTask: Task<Void, Never>?
+    // Plumbing, not observed UI state — exclude from @Observable tracking, and
+    // `nonisolated(unsafe)` so `deinit` (nonisolated in Swift 6) can cancel it
+    // (only mutated on the main actor; `Task.cancel()` is safe from anywhere).
+    @ObservationIgnored nonisolated(unsafe) private var streamTask: Task<Void, Never>?
 
     init(ficheroClient: FicheroClient) {
         self.client = ficheroClient

@@ -7,7 +7,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "AddMCPS
 struct AddMCPServerSheet: View {
     let onAdd: () async -> Void
 
-    @EnvironmentObject var mcpService: MCPService
+    @Environment(MCPService.self) var mcpService
     @Environment(\.dismiss) private var dismiss
 
     @State private var name = ""
@@ -227,5 +227,5 @@ struct AddMCPServerSheet: View {
     let appState = AppState()
 
     AddMCPServerSheet(onAdd: {})
-        .environmentObject(appState.mcpService)
+        .environment(appState.mcpService)
 }

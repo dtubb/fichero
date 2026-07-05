@@ -13,12 +13,12 @@ import SwiftUI
 /// what the engine is actually doing, and use the app icon instead of a
 /// generic SF symbol.
 struct BackendConnectionView: View {
-    @ObservedObject var appState: AppState
+    @Bindable var appState: AppState
     /// The single retry entry point (#3108), supplied by the root gate. The
     /// button just calls this; the view never probes health, writes backend
     /// status, or re-implements `start()` — it is render-only.
     var onRetry: (@MainActor () async -> Void)?
-    @EnvironmentObject var backendService: EmbeddedBackendService
+    @Environment(EmbeddedBackendService.self) var backendService
 
     /// Index into `Self.startupMessages`, advanced by a timer while `.starting`.
     @State private var messageIndex: Int = 0

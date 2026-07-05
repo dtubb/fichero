@@ -7,7 +7,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Schedul
 // swiftlint:disable:next type_body_length
 struct ScheduleDetailView: View {
     let schedule: ScheduleInfo
-    @EnvironmentObject var apiClient: APIClient
+    @Environment(APIClient.self) var apiClient
 
     @State private var isLoading = false
     @State private var error: String?
@@ -365,6 +365,6 @@ struct ScheduleDetailView: View {
             errorMessage: nil
         )
     )
-    .environmentObject(APIClient())
+    .environment(APIClient())
     .frame(width: 600, height: 500)
 }

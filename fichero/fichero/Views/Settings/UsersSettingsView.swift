@@ -9,8 +9,8 @@ import SwiftUI
 /// current library's ACL snapshot/role assignments through the generated
 /// OpenAPI client.
 struct UsersSettingsView: View {
-    @EnvironmentObject var appState: AppState
-    @EnvironmentObject var libraryManager: LibraryManager
+    @Environment(AppState.self) var appState
+    @Environment(LibraryManager.self) var libraryManager
 
     var body: some View {
         Group {
@@ -512,7 +512,7 @@ private let authzRoles = ["owner", "editor", "viewer"]
 
 #Preview("Users Settings") {
     UsersSettingsView()
-        .environmentObject(AppState())
-        .environmentObject(LibraryManager.shared)
+        .environment(AppState())
+        .environment(LibraryManager.shared)
         .frame(width: 600, height: 460)
 }

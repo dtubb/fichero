@@ -1,6 +1,7 @@
 #if canImport(AppKit)
 import AppKit
 #endif
+import Observation
 import FicheroAPIClient
 import Foundation
 import OpenAPIRuntime
@@ -11,11 +12,12 @@ import UniformTypeIdentifiers
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "FileMenuCommands")
 
 @MainActor
-final class KnownLibraryRegistryStore: ObservableObject {
+@Observable
+final class KnownLibraryRegistryStore {
     static let shared = KnownLibraryRegistryStore()
 
-    @Published private(set) var libraries: [KnownLibraryMenuEntry] = []
-    @Published private(set) var fetchError: String?
+    private(set) var libraries: [KnownLibraryMenuEntry] = []
+    private(set) var fetchError: String?
 
     private let apiClient = APIClient()
 
@@ -114,7 +116,7 @@ struct KnownLibraryMenuEntry: Identifiable, Equatable {
 }
 
 struct FileMenuCommands: View {
-    @EnvironmentObject private var libraryManager: LibraryManager
+    @Environment(LibraryManager.self) private var libraryManager
     @FocusedValue(\.openLibraryAction) private var openLibraryAction
     @FocusedValue(\.newLibraryAction) private var newLibraryAction
     @FocusedValue(\.newWindowAction) private var newWindowAction
@@ -122,7 +124,7 @@ struct FileMenuCommands: View {
     @FocusedValue(\.saveLibraryAction) private var saveLibraryAction
     @FocusedValue(\.closeLibraryAction) private var closeLibraryAction
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
-    @ObservedObject private var registry = KnownLibraryRegistryStore.shared
+    @State private var registry = KnownLibraryRegistryStore.shared
 
     private var currentLibrary: LibraryManager.LibraryReference? {
         guard let libraryId = libraryManager.currentLibraryId else { return nil }

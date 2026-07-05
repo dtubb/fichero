@@ -143,7 +143,7 @@ struct ActivityBrowserView: View {
 
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
     @Environment(ActivityStore.self) private var activityStore
-    @EnvironmentObject private var libraryManager: LibraryManager
+    @Environment(LibraryManager.self) private var libraryManager
     @Environment(\.openWindow) private var openWindow
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
 

@@ -1,3 +1,4 @@
+import Observation
 import Foundation
 import OSLog
 import FicheroAPIClient
@@ -10,7 +11,8 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Automat
 /// registered in main.py, so the OpenAPI schema never included them. All methods return
 /// empty results until the routes are properly registered.
 @MainActor
-class AutomationServiceGenerated: ObservableObject {
+@Observable
+class AutomationServiceGenerated {
     private let client: FicheroClient
 
     init(ficheroClient: FicheroClient) {

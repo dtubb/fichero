@@ -1,10 +1,12 @@
+import Observation
 import Foundation
 
 @MainActor
-final class WorkflowRunProviderCache: ObservableObject {
+@Observable
+final class WorkflowRunProviderCache {
     static let shared = WorkflowRunProviderCache()
 
-    @Published private(set) var providers: [LLMProvider] = []
+    private(set) var providers: [LLMProvider] = []
     private var loaded = false
 
     private init() {}

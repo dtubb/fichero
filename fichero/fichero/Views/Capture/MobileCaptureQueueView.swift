@@ -7,7 +7,7 @@ import VisionKit
 #endif
 
 struct MobileCaptureQueueView: View {
-    @ObservedObject var queue: MobileCaptureQueueStore
+    @Bindable var queue: MobileCaptureQueueStore
     var retryPendingUploads: (() async -> Void)?
 
     @Environment(\.dismiss) private var dismiss
@@ -189,7 +189,7 @@ struct MobileCaptureQueueView: View {
 
 private struct MobileCaptureQueueItemCard: View {
     let item: MobileCaptureQueueItem
-    @ObservedObject var queue: MobileCaptureQueueStore
+    @Bindable var queue: MobileCaptureQueueStore
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {

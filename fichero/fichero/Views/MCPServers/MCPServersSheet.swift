@@ -32,6 +32,6 @@ struct MCPServersSheet: View {
     let appState = AppState()
 
     MCPServersSheet()
-        .environmentObject(appState)
-        .environmentObject(appState.mcpService)
+        .environment(appState)
+        .environment(appState.mcpService)
 }

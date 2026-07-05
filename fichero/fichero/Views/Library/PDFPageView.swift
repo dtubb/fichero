@@ -53,7 +53,7 @@ struct PDFPageView: NSViewRepresentable {
 
     @State private var cursorPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)
     @State private var lockedPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)
-    @EnvironmentObject private var storageService: StorageServiceGenerated
+    @Environment(StorageServiceGenerated.self) private var storageService
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -340,7 +340,7 @@ struct PDFPageView: NSViewRepresentable {
             view.autoScales = false
             // PDFViewScaleChanged can fire synchronously inside PDFView's
             // setDocument: → during a SwiftUI view-update pass. Publishing
-            // to the @ObservedObject zoomController in that window trips
+            // to the @State zoomController in that window trips
             // "Publishing changes from within view updates is not allowed".
             // Hop to the next runloop tick so the publish happens after
             // the current update commits. PDFViewScaleChanged is on the
@@ -542,7 +542,7 @@ struct PDFPageView: UIViewRepresentable {
     @AppStorage("pdfPreview.loupeSize") private var loupeSize: Double = 150.0
     @AppStorage("pdfPreview.loupeLocked") private var loupeLocked = false
 
-    @EnvironmentObject private var storageService: StorageServiceGenerated
+    @Environment(StorageServiceGenerated.self) private var storageService
 
     func makeCoordinator() -> Coordinator {
         Coordinator(owner: self)

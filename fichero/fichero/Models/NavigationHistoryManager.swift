@@ -1,3 +1,4 @@
+import Observation
 import SwiftUI
 
 /// Browser-style back/forward navigation stack for the KG entity browser.

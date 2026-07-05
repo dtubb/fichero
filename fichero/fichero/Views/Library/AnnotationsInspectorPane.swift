@@ -10,7 +10,7 @@ struct AnnotationsInspectorPane: View {
     let annotations: [DocumentAnnotation]
 
     @Environment(AnnotationStore.self) private var annotationStore
-    @EnvironmentObject private var windowState: WindowState
+    @Environment(WindowState.self) private var windowState
     @Environment(\.openWindow) private var openWindow
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
 

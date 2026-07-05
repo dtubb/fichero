@@ -1,4 +1,5 @@
 // swiftlint:disable file_length
+import Observation
 import Foundation
 import OSLog
 import SwiftUI
@@ -233,8 +234,9 @@ enum MobileCaptureQueueStoreError: Error, LocalizedError {
 }
 
 @MainActor
-final class MobileCaptureQueueStore: ObservableObject {
-    @Published private(set) var items: [MobileCaptureQueueItem] = []
+@Observable
+final class MobileCaptureQueueStore {
+    private(set) var items: [MobileCaptureQueueItem] = []
 
     private let storageDirectory: URL
     private let fileManager: FileManager

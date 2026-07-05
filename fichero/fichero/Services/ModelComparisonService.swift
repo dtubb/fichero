@@ -1,3 +1,4 @@
+import Observation
 import FicheroAPIClient
 import Foundation
 import OpenAPIRuntime
@@ -12,18 +13,19 @@ import OSLog
 /// configured engine client purely to carry the engine bearer token — mirroring
 /// how `LocalModelsSettingsView` / `ComparisonDetailView` were migrated in #1701.
 @MainActor
-final class ModelComparisonService: ObservableObject {
+@Observable
+final class ModelComparisonService {
     let logger = Logger(subsystem: "app.fichero.fichero", category: "ModelComparisonService")
     private nonisolated(unsafe) var hostChangeObservation: NSObjectProtocol?
 
-    @Published var isComparing = false
-    @Published var lastResult: ComparisonResult?
-    @Published var history: [ComparisonResult] = []
-    @Published var presets: [ComparisonPreset] = []
-    @Published var availableModels: [ComparisonModelInfo] = []
-    @Published var modelsByTier: ModelsByTier?
-    @Published var availableTools: [ComparisonToolInfo] = []
-    @Published var error: String?
+    var isComparing = false
+    var lastResult: ComparisonResult?
+    var history: [ComparisonResult] = []
+    var presets: [ComparisonPreset] = []
+    var availableModels: [ComparisonModelInfo] = []
+    var modelsByTier: ModelsByTier?
+    var availableTools: [ComparisonToolInfo] = []
+    var error: String?
 
     /// App-wide client (auth only, no library scope) — see type doc.
     let client: FicheroClient

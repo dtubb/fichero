@@ -47,8 +47,8 @@ struct SearchView: View {
     // Not `private`: read from the SearchView+Helpers.swift extension (separate file).
     @Environment(SearchStore.self) var searchStore
 
-    @EnvironmentObject var libraryManager: LibraryManager
-    @EnvironmentObject var windowState: WindowState
+    @Environment(LibraryManager.self) var libraryManager
+    @Environment(WindowState.self) var windowState
 
     var body: some View {
         VStack(spacing: 0) {

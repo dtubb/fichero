@@ -87,7 +87,7 @@ struct PageContentClaimSourceHighlight: Equatable {
 struct PageContentPane: View {
     let document: Document?
 
-    @EnvironmentObject private var documentService: DocumentServiceGenerated
+    @Environment(DocumentServiceGenerated.self) private var documentService
     @Environment(DocumentStore.self) private var documentStore: DocumentStore
     @Environment(AnnotationStore.self) private var annotationStore: AnnotationStore
     @State private var editState = PageContentPaneEditState()

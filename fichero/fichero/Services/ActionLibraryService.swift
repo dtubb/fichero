@@ -1,4 +1,5 @@
 // swiftlint:disable file_length
+import Observation
 import FicheroAPIClient
 import Foundation
 import OpenAPIRuntime
@@ -19,16 +20,17 @@ import OSLog
 /// used purely to carry auth; `LibraryPathMiddleware` injects
 /// `X-Fichero-Library-Path` centrally for library-scoped paths (#1710).
 @MainActor
+@Observable
 // swiftlint:disable:next type_body_length
-class ActionLibraryService: ObservableObject {
+class ActionLibraryService {
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "ActionLibraryService")
 
-    @Published var actions: [ActionItem] = []
-    @Published var categories: [String] = []
-    @Published var recentActions: [ActionItem] = []
-    @Published var popularActions: [ActionItem] = []
-    @Published var isLoading = false
-    @Published var error: String?
+    var actions: [ActionItem] = []
+    var categories: [String] = []
+    var recentActions: [ActionItem] = []
+    var popularActions: [ActionItem] = []
+    var isLoading = false
+    var error: String?
 
     /// Shared generated client — the single transport for both this type and the
     /// `ActionsService` subclass.

@@ -40,11 +40,11 @@ struct DocumentInspector: View {
 
     @SceneStorage("inspectorSelectedTab") private var selectedTab: InspectorTab = .content
     @Environment(DocumentStore.self) private var documentStore
-    @EnvironmentObject private var entityService: EntityServiceGenerated
-    @EnvironmentObject private var artifactService: ArtifactServiceGenerated
-    @EnvironmentObject private var kgCurationService: KGCurationServiceGenerated
+    @Environment(EntityServiceGenerated.self) private var entityService
+    @Environment(ArtifactServiceGenerated.self) private var artifactService
+    @Environment(KGCurationServiceGenerated.self) private var kgCurationService
     @ObservedObject private var featureManager = FeatureManager.shared
-    @EnvironmentObject private var claimFocusState: ClaimFocusState
+    @Environment(ClaimFocusState.self) private var claimFocusState
     /// Cross-view KG focus. When an entity is focused (a lozenge / WebKit-graph
     /// click), the inspector retargets to inspect that entity instead of the
     /// document (#1484). Clearing it returns to the document.
@@ -65,7 +65,7 @@ struct DocumentInspector: View {
             }
         }
         .frame(minWidth: 220, maxWidth: .infinity, maxHeight: .infinity)
-        .environmentObject(claimFocusState)
+        .environment(claimFocusState)
         .task(id: kgFocusState.focusedEntityId) {
             await loadFocusedEntity()
         }
@@ -356,7 +356,7 @@ struct DocumentInspector: View {
 private struct DocumentInspectorImageEditsTab: View {
     let document: Document
 
-    @EnvironmentObject private var apiClient: APIClient
+    @Environment(APIClient.self) private var apiClient
     @State private var model = ImageEditorModel()
 
     var body: some View {
@@ -403,13 +403,13 @@ private struct DocumentInspectorImageEditsTab: View {
     let library = libraryManager.globalLibrary!
 
     DocumentInspector(document: nil)
-        .environmentObject(library.artifactService)
-        .environmentObject(library.entityService)
+        .environment(library.artifactService)
+        .environment(library.entityService)
         .environment(library.documentStore)
         .environment(library.entityStore)
         .environment(library.claimStore)
         .environment(KGFocusState.shared)
-        .environmentObject(ClaimFocusState.shared)
+        .environment(ClaimFocusState.shared)
         .frame(width: 280, height: 400)
 }
 
@@ -434,13 +434,13 @@ private struct DocumentInspectorImageEditsTab: View {
     )
 
     DocumentInspector(document: mockDocument)
-        .environmentObject(library.artifactService)
-        .environmentObject(library.entityService)
+        .environment(library.artifactService)
+        .environment(library.entityService)
         .environment(library.documentStore)
         .environment(library.entityStore)
         .environment(library.claimStore)
         .environment(KGFocusState.shared)
-        .environmentObject(ClaimFocusState.shared)
+        .environment(ClaimFocusState.shared)
         .frame(width: 280, height: 400)
 }
 

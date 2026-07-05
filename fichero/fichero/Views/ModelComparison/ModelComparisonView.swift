@@ -2,7 +2,7 @@ import OSLog
 import SwiftUI
 
 struct ModelComparisonView: View {
-    @StateObject var service = ModelComparisonService()
+    @State var service = ModelComparisonService()
     @State var prompt = ""
     @State var systemPrompt = ""
     @State var selectedModels: [ModelSpec] = [

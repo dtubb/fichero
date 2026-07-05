@@ -5,7 +5,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "MCPServ
 
 /// MCP Servers management view - manage MCP servers and their tools
 struct MCPServersView: View {
-    @EnvironmentObject var mcpService: MCPService
+    @Environment(MCPService.self) var mcpService
     @State private var servers: [MCPServerResponse] = []
     @State private var isLoading = true
     @State private var showAddServer = false
@@ -152,6 +152,6 @@ struct MCPServerRow: View {
     let appState = AppState()
 
     MCPServersView()
-        .environmentObject(appState.mcpService)
+        .environment(appState.mcpService)
         .frame(width: 900, height: 600)
 }

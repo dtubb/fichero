@@ -1,9 +1,11 @@
+import Observation
 import SwiftUI
 
 /// Simple cache model for storing computed data
 /// Note: SwiftUI automatically caches Images, so icon caching is unnecessary
 @MainActor
-class CacheModel: ObservableObject {
+@Observable
+class CacheModel {
 
     // MARK: - Data Cache
 

@@ -2,9 +2,9 @@
 import SwiftUI
 
 struct EngineSettingsView: View {
-    @EnvironmentObject var appState: AppState
-    @EnvironmentObject var backendService: EmbeddedBackendService
-    @EnvironmentObject var libraryManager: LibraryManager
+    @Environment(AppState.self) var appState
+    @Environment(EmbeddedBackendService.self) var backendService
+    @Environment(LibraryManager.self) var libraryManager
     // Default OFF to match EngineConfig.multiuserEnabled (absent key ⇒ off);
     // a `true` default would show the toggle on while the engine ran single-user.
     @AppStorage(EngineConfig.multiuserEnabledKey) private var multiuserEnabled = false

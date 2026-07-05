@@ -18,7 +18,7 @@ struct EditClaimSheet: View {
     let onSave: (Components.Schemas.KnowledgeClaim) -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var windowState: WindowState
+    @Environment(WindowState.self) private var windowState
     @State private var text: String
     @State private var subject: String
     @State private var predicate: String
@@ -155,7 +155,7 @@ struct InlineClaimEditor: View {
     let onCancel: () -> Void
     let onSave: (Components.Schemas.KnowledgeClaim) -> Void
 
-    @EnvironmentObject private var windowState: WindowState
+    @Environment(WindowState.self) private var windowState
     @State private var subject: String
     @State private var predicate: String
     @State private var object: String

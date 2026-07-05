@@ -22,8 +22,8 @@ struct ChatInspector: View {
     @State var isExtracting: Bool = false
     @State var extractionResult: String?
 
-    @EnvironmentObject var chatService: ChatServiceGenerated
-    @EnvironmentObject var apiClient: APIClient
+    @Environment(ChatServiceGenerated.self) var chatService
+    @Environment(APIClient.self) var apiClient
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {

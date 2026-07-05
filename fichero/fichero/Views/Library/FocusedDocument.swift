@@ -33,14 +33,14 @@ final class FocusedDocument {
 
 /// Detached document detail window for the list/detail slice (#2002).
 struct DocumentDetailWindow: View {
-    @EnvironmentObject private var libraryManager: LibraryManager
-    @EnvironmentObject private var claimFocusState: ClaimFocusState
+    @Environment(LibraryManager.self) private var libraryManager
+    @Environment(ClaimFocusState.self) private var claimFocusState
     @Environment(KGFocusState.self) private var kgFocusState
 
     @State private var focused = FocusedDocument.shared
     @State private var isPinned = false
     @State private var pinnedDocument: Document?
-    @StateObject private var windowState = WindowState(
+    @State private var windowState = WindowState(
         libraryId: FocusedDocument.shared.libraryId
             ?? LibraryManager.shared.globalLibrary?.id
             ?? UUID()
@@ -110,26 +110,26 @@ struct DocumentDetailWindow: View {
         library: LibraryManager.LibraryReference
     ) -> some View {
         DocumentInspector(document: document)
-            .environmentObject(library.entityService)
-            .environmentObject(library.artifactService)
-            .environmentObject(library.kgCurationService)
-            .environmentObject(library.savedSearchServiceGenerated)
-            .environmentObject(library.bookmarkServiceGenerated)
-            .environmentObject(library.searchService)
-            .environmentObject(library.conversationServiceGenerated)
-            .environmentObject(library.chatServiceGenerated)
-            .environmentObject(library.workflowServiceGenerated)
-            .environmentObject(library.workflowStreamService)
-            .environmentObject(library.importService)
-            .environmentObject(library.documentServiceGenerated)
-            .environmentObject(library.storageService)
-            .environmentObject(library.providerService)
-            .environmentObject(library.modelService)
-            .environmentObject(library.researchService)
-            .environmentObject(library.apiClient)
-            .environmentObject(libraryManager)
-            .environmentObject(claimFocusState)
-            .environmentObject(windowState)
+            .environment(library.entityService)
+            .environment(library.artifactService)
+            .environment(library.kgCurationService)
+            .environment(library.savedSearchServiceGenerated)
+            .environment(library.bookmarkServiceGenerated)
+            .environment(library.searchService)
+            .environment(library.conversationServiceGenerated)
+            .environment(library.chatServiceGenerated)
+            .environment(library.workflowServiceGenerated)
+            .environment(library.workflowStreamService)
+            .environment(library.importService)
+            .environment(library.documentServiceGenerated)
+            .environment(library.storageService)
+            .environment(library.providerService)
+            .environment(library.modelService)
+            .environment(library.researchService)
+            .environment(library.apiClient)
+            .environment(libraryManager)
+            .environment(claimFocusState)
+            .environment(windowState)
             .environment(kgFocusState)
             .environment(library.documentStore)
             .environment(library.entityStore)

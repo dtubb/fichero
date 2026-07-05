@@ -16,7 +16,7 @@ import SwiftUI
 struct DocumentInterpretationsTab: View {
     let document: Document
 
-    @EnvironmentObject private var entityService: EntityServiceGenerated
+    @Environment(EntityServiceGenerated.self) private var entityService
 
     var body: some View {
         ScrollView {

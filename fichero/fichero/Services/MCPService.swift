@@ -1,3 +1,4 @@
+import Observation
 import FicheroAPIClient
 import Foundation
 import OSLog
@@ -7,7 +8,8 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "MCPServ
 
 /// Service for managing MCP (Model Context Protocol) servers and tools.
 @MainActor
-class MCPService: ObservableObject {
+@Observable
+class MCPService {
     private let api: APIClient
 
     init(apiClient: APIClient) {

@@ -1,3 +1,4 @@
+import Observation
 import Foundation
 import OSLog
 import FicheroAPIClient
@@ -9,7 +10,8 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "ModelSe
 /// Handles HuggingFace model browsing and selection.
 /// Note: Types (HFTaskCategory, HFModelInfo, etc.) are kept in ModelService.swift
 @MainActor
-class ModelServiceGenerated: ObservableObject {
+@Observable
+class ModelServiceGenerated {
     private let client: FicheroClient
 
     init(ficheroClient: FicheroClient) {

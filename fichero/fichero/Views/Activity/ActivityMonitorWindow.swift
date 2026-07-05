@@ -10,7 +10,7 @@ import SwiftUI
 /// fallback observer). The store is shared per-library, so this detached window
 /// shows the same live runs as the in-sidebar Activity surface.
 struct ActivityMonitorWindow: View {
-    @EnvironmentObject private var libraryManager: LibraryManager
+    @Environment(LibraryManager.self) private var libraryManager
 
     private var library: LibraryManager.LibraryReference? {
         if let id = libraryManager.currentLibraryId,
@@ -24,7 +24,7 @@ struct ActivityMonitorWindow: View {
         Group {
             if let library {
                 ActivityMonitorView()
-                    .environmentObject(library.apiClient)
+                    .environment(library.apiClient)
                     .environment(library.workflowExecutionStore)
             } else {
                 ContentUnavailableView(

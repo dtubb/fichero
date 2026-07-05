@@ -1,3 +1,4 @@
+import Observation
 import FicheroAPIClient
 import Foundation
 import OpenAPIRuntime
@@ -38,7 +39,8 @@ func parseEngineDate(_ dateString: String) -> Date? {
 /// certificate-pinned authenticated transport, the propagated library path, the
 /// health check, and the storage URL builders.
 @MainActor
-class APIClient: ObservableObject {
+@Observable
+class APIClient {
     /// The generated OpenAPI client.
     let client: FicheroClient
 
@@ -53,7 +55,7 @@ class APIClient: ObservableObject {
     /// Current library path - set by DocumentTabView when a library is loaded.
     /// Propagated to the generated client's `LibraryPathMiddleware` so every
     /// library-scoped request carries `X-Fichero-Library-Path`.
-    @Published var currentLibraryPath: String? {
+    var currentLibraryPath: String? {
         didSet { client.currentLibraryPath = currentLibraryPath }
     }
 

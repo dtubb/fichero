@@ -4,6 +4,7 @@
 // [[feedback_swift_file_sync]]). Splitting would require pbxproj
 // surgery; suppressing here is the lower-risk path until we decide
 // to move the entity service into its own file.
+import Observation
 import FicheroAPIClient
 import Foundation
 import OpenAPIRuntime
@@ -14,14 +15,15 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Artifac
 /// ArtifactService using the generated OpenAPI client.
 /// Manages document artifacts (transcripts, descriptions, etc.)
 @MainActor
-class ArtifactServiceGenerated: ObservableObject {
+@Observable
+class ArtifactServiceGenerated {
     private let client: FicheroClient
 
     /// Cached artifacts by document ID
-    @Published private(set) var artifactsByDocument: [String: [Artifact]] = [:]
+    private(set) var artifactsByDocument: [String: [Artifact]] = [:]
 
     /// Loading state per document
-    @Published private(set) var loadingDocuments: Set<String> = []
+    private(set) var loadingDocuments: Set<String> = []
 
     init(ficheroClient: FicheroClient) {
         self.client = ficheroClient
@@ -328,8 +330,9 @@ private let kgCurationServiceLogger = Logger(
 /// shape used by the merge/split UI. This service is for the simpler
 /// per-document entity/claim views in the Inspector.
 @MainActor
+@Observable
 // swiftlint:disable:next type_body_length
-final class EntityServiceGenerated: ObservableObject {
+final class EntityServiceGenerated {
     private let client: FicheroClient
 
     init(ficheroClient: FicheroClient) {
@@ -2396,7 +2399,8 @@ final class EntityServiceGenerated: ObservableObject {
 
 // swiftlint:disable type_body_length
 @MainActor
-final class KGCurationServiceGenerated: ObservableObject {
+@Observable
+final class KGCurationServiceGenerated {
     private let client: FicheroClient
 
     init(ficheroClient: FicheroClient) {

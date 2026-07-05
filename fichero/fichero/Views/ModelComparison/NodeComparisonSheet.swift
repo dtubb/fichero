@@ -12,7 +12,7 @@ struct NodeComparisonSheet: View {
     /// Called when user taps "Apply" on a winning model
     let onApply: (String, String) -> Void
 
-    @StateObject private var service = ModelComparisonService()
+    @State private var service = ModelComparisonService()
 
     @State private var selectedModelIds: Set<String> = []
     @State private var pinnedText: String = ""

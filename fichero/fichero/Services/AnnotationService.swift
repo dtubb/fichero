@@ -1,4 +1,5 @@
 // swiftlint:disable file_length
+import Observation
 import FicheroAPIClient
 import Foundation
 import OpenAPIRuntime
@@ -202,12 +203,13 @@ private struct AnnotationListResponse: Decodable {
 /// and leaves `annotations` untouched (or returns `nil`) rather than throwing
 /// into the view layer.
 @MainActor
-final class AnnotationService: ObservableObject {
+@Observable
+final class AnnotationService {
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "AnnotationService")
 
-    @Published var annotations: [DocumentAnnotation] = []
-    @Published var isLoading = false
-    @Published var error: String?
+    var annotations: [DocumentAnnotation] = []
+    var isLoading = false
+    var error: String?
 
     /// Active library path for the owning window. Prefer passing this into
     /// `init(libraryPath:)` so the transport is configured before any `load()`.

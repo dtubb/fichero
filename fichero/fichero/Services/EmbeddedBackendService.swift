@@ -1,3 +1,4 @@
+import Observation
 import FicheroAPIClient
 import Foundation
 import OSLog
@@ -26,11 +27,15 @@ func isRunningXCTests() -> Bool {
 
 /// Manages the embedded Python backend lifecycle
 @MainActor
-final class EmbeddedBackendService: ObservableObject {
-    @Published var status: BackendStatus = .stopped
-    @Published var errorMessage: String?
+@Observable
+final class EmbeddedBackendService {
+    var status: BackendStatus = .stopped
+    var errorMessage: String?
 
-    private var backendPID: pid_t?
+    // Plumbing, not observed UI state — exclude from @Observable tracking, and
+    // `nonisolated(unsafe)` so the nonisolated Swift-6 `deinit` can read it
+    // (only mutated on the main actor; set only on the embedded-spawn path).
+    @ObservationIgnored nonisolated(unsafe) private var backendPID: pid_t?
     private var isExternalBackend = false  // Track if using external vs embedded backend
     var isUsingExternalBackend: Bool { isExternalBackend }
     /// The FICHERO_LAUNCH_NONCE we passed to the engine we spawned (#2862).
@@ -309,8 +314,13 @@ final class EmbeddedBackendService: ObservableObject {
     }
 
     deinit {
-        // Clean up backend on service deallocation (shouldn't happen in normal app lifecycle)
-        if let pid = backendPID, !isExternalBackend {
+        // Clean up backend on service deallocation (shouldn't happen in normal app lifecycle).
+        // `backendPID` is set only on the embedded-spawn path and stays nil for every
+        // external-backend branch, so a non-nil pid already implies an embedded backend —
+        // the former `!isExternalBackend` guard was redundant. Dropping that read keeps
+        // `isExternalBackend` fully @Observable-tracked for the Settings views while letting
+        // this nonisolated deinit compile (it no longer touches a main-actor-isolated prop).
+        if let pid = backendPID {
             logger.warning("EmbeddedBackendService deinit - terminating backend (PID: \(pid))")
             logger.warning("This shouldn't happen in normal app lifecycle - backend should be stopped via stop()")
             kill(pid, SIGTERM)

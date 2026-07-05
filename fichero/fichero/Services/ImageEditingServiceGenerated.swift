@@ -3,6 +3,7 @@ import AppKit
 #elseif canImport(UIKit)
 import UIKit
 #endif
+import Observation
 import FicheroAPIClient
 import Foundation
 import ImageIO
@@ -123,9 +124,10 @@ struct ImageEditChain {
 /// rule 4 — binary paths stay custom; this file remains grandfathered in
 /// `check_no_raw_urlsession_app.py` for that reason).
 @MainActor
-final class ImageEditingServiceGenerated: ObservableObject {
-    @Published var isLoading: Bool = false
-    @Published var lastError: Error?
+@Observable
+final class ImageEditingServiceGenerated {
+    var isLoading: Bool = false
+    var lastError: Error?
 
     private let libraryPath: String
     private let engineURL: URL

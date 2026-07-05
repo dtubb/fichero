@@ -8,7 +8,7 @@ import SwiftUI
 /// Observes `LocalInferenceStore` — the only endpoint accessor — and never
 /// touches the generated client directly.
 struct LocalInferenceSettingsView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
     let store: LocalInferenceStore
 
     var body: some View {

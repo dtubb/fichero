@@ -1,4 +1,5 @@
 import Combine
+import Observation
 import FicheroAPIClient
 import Foundation
 import OpenAPIRuntime
@@ -14,12 +15,13 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "ChainSe
 /// `WorkflowChain` etc. are kept so the ~dozen view/model call sites are
 /// untouched — only this service's transport + the inline mappers below change.
 @MainActor
-class ChainService: ObservableObject {
+@Observable
+class ChainService {
     private let apiClient: APIClient
 
-    @Published var chains: [WorkflowChain] = []
-    @Published var isLoading = false
-    @Published var error: String?
+    var chains: [WorkflowChain] = []
+    var isLoading = false
+    var error: String?
 
     init(apiClient: APIClient) {
         self.apiClient = apiClient

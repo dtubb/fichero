@@ -1,4 +1,5 @@
 // swiftlint:disable file_length
+import Observation
 import FicheroAPIClient
 import Foundation
 import OpenAPIRuntime
@@ -15,8 +16,9 @@ struct KeywordCloudEntryDTO: Decodable, Identifiable {
 }
 
 @MainActor
+@Observable
 // swiftlint:disable:next type_body_length
-class SearchServiceGenerated: ObservableObject {
+class SearchServiceGenerated {
     struct SearchRequestOptions {
         let query: String
         let limit: Int

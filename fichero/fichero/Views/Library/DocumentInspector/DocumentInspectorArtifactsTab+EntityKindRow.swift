@@ -29,7 +29,7 @@ struct EntityKindRow: View {
     var onNavigateToSource: ((String) -> Void)?
     var onClaimSelect: ((String, String?, String?, String?, Int?, Int?) -> Void)?
 
-    @EnvironmentObject private var claimFocusState: ClaimFocusState
+    @Environment(ClaimFocusState.self) private var claimFocusState
     @Environment(KGFocusState.self) private var kgFocusState
     @AppStorage("editor.fontSize") private var defaultFontSize: Double = 13
     @State private var claimForEditing: Components.Schemas.KnowledgeClaim?

@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ResearchProjectListView: View {
-    @EnvironmentObject var researchService: ResearchService
+    @Environment(ResearchService.self) var researchService
     @Environment(DocumentStore.self) var documentStore: DocumentStore
 
     @State private var showingNewProject = false

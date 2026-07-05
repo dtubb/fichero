@@ -11,15 +11,15 @@ import VisionKit
 
 @main
 struct FicheroAppIOS: App {
-    @StateObject private var backendService = EmbeddedBackendService()
-    @StateObject private var appState = AppState()
-    @StateObject private var viewSettings = ViewSettings()
-    @StateObject private var libraryManager = LibraryManager.shared
-    @StateObject private var windowState = WindowState(libraryId: LibraryManager.globalLibraryId)
-    @StateObject private var claimFocusState = ClaimFocusState.shared
+    @State private var backendService = EmbeddedBackendService()
+    @State private var appState = AppState()
+    @State private var viewSettings = ViewSettings()
+    @State private var libraryManager = LibraryManager.shared
+    @State private var windowState = WindowState(libraryId: LibraryManager.globalLibraryId)
+    @State private var claimFocusState = ClaimFocusState.shared
     @State private var kgFocusState = KGFocusState.shared
     @State private var executionObserver = WorkflowExecutionObserver()
-    @StateObject private var captureQueue = MobileCaptureQueueStore()
+    @State private var captureQueue = MobileCaptureQueueStore()
 
     var body: some Scene {
         // `id: "main"` so `openWindow(id: "main")` (new-window / new-tab
@@ -31,14 +31,14 @@ struct FicheroAppIOS: App {
                 windowState: windowState,
                 executionObserver: executionObserver
             )
-                .environmentObject(windowState)
-                .environmentObject(backendService)
-                .environmentObject(appState)
-                .environmentObject(viewSettings)
-                .environmentObject(libraryManager)
-                .environmentObject(claimFocusState)
-                .environmentObject(appState.mcpService)
-                .environmentObject(captureQueue)
+                .environment(windowState)
+                .environment(backendService)
+                .environment(appState)
+                .environment(viewSettings)
+                .environment(libraryManager)
+                .environment(claimFocusState)
+                .environment(appState.mcpService)
+                .environment(captureQueue)
                 .environment(kgFocusState)
                 // Launch connects via the SAME entry point as the Retry button
                 // and pairing (#3108): FicheroSharedPlatformRoot owns the single
@@ -51,8 +51,8 @@ struct FicheroAppIOS: App {
         // silent no-op (#2815). iPhone gates the button off (single-window).
         WindowGroup("Document", id: "document-detail") {
             DocumentDetailWindow()
-                .environmentObject(libraryManager)
-                .environmentObject(claimFocusState)
+                .environment(libraryManager)
+                .environment(claimFocusState)
                 .environment(kgFocusState)
         }
     }
@@ -65,9 +65,9 @@ private struct IdentifiableURL: Identifiable {
 
 private struct FicheroSharedPlatformRoot: View {
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "FicheroSharedPlatformRoot")
-    @EnvironmentObject private var appState: AppState
-    @EnvironmentObject private var libraryManager: LibraryManager
-    @EnvironmentObject private var captureQueue: MobileCaptureQueueStore
+    @Environment(AppState.self) private var appState
+    @Environment(LibraryManager.self) private var libraryManager
+    @Environment(MobileCaptureQueueStore.self) private var captureQueue
 
     let windowState: WindowState
     let executionObserver: WorkflowExecutionObserver
@@ -103,8 +103,8 @@ private struct FicheroSharedPlatformRoot: View {
                         windowState: windowState,
                         executionObserver: executionObserver
                     )
-                        .environmentObject(windowState)
-                        .environmentObject(library.apiClient)
+                        .environment(windowState)
+                        .environment(library.apiClient)
                 } else {
                     ContentUnavailableView(
                         "Library Unavailable",
@@ -122,9 +122,9 @@ private struct FicheroSharedPlatformRoot: View {
             PairingIncomingLinkSheet(url: wrapper.url) {
                 await reconnectToConfiguredHost()
             }
-            .environmentObject(appState)
-            .environmentObject(libraryManager)
-            .environmentObject(captureQueue)
+            .environment(appState)
+            .environment(libraryManager)
+            .environment(captureQueue)
         }
         // Launch connects through the SAME entry point as the Retry button and
         // pairing (#3108) — one iOS connect path, no divergent launch task.
@@ -169,9 +169,9 @@ private struct FicheroSharedPlatformRoot: View {
 }
 
 private struct PairingIncomingLinkSheet: View {
-    @EnvironmentObject private var appState: AppState
-    @EnvironmentObject private var libraryManager: LibraryManager
-    @EnvironmentObject private var captureQueue: MobileCaptureQueueStore
+    @Environment(AppState.self) private var appState
+    @Environment(LibraryManager.self) private var libraryManager
+    @Environment(MobileCaptureQueueStore.self) private var captureQueue
     @Environment(\.dismiss) private var dismiss
 
     let url: URL
@@ -236,9 +236,9 @@ private struct PairingIncomingLinkSheet: View {
 }
 
 private struct RemoteConnectionSetupView: View {
-    @EnvironmentObject private var appState: AppState
-    @EnvironmentObject private var libraryManager: LibraryManager
-    @EnvironmentObject private var captureQueue: MobileCaptureQueueStore
+    @Environment(AppState.self) private var appState
+    @Environment(LibraryManager.self) private var libraryManager
+    @Environment(MobileCaptureQueueStore.self) private var captureQueue
 
     let onConnected: @MainActor () async -> Void
 
@@ -483,7 +483,7 @@ private struct RemoteConnectionSetupView: View {
 
 private struct InlineCaptureRow: View {
     let item: MobileCaptureQueueItem
-    @ObservedObject var queue: MobileCaptureQueueStore
+    @Bindable var queue: MobileCaptureQueueStore
 
     var body: some View {
         HStack(spacing: 12) {

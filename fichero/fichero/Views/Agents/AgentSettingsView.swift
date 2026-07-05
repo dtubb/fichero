@@ -1,4 +1,5 @@
 import OSLog
+import Observation
 import SwiftUI
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "AgentSettingsView")
@@ -6,7 +7,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "AgentSe
 /// Settings view for configuring agent defaults (similar to Model Provider settings)
 /// This is accessed from the Fichero menu
 struct AgentSettingsView: View {
-    @StateObject private var settings = AgentSettings.shared
+    @State private var settings = AgentSettings.shared
     @State private var selectedAgentType: AgentType? = .react
     @Environment(\.dismiss) private var dismiss
 
@@ -45,7 +46,7 @@ struct AgentSettingsView: View {
 /// Settings for a specific agent type
 struct AgentTypeSettingsView: View {
     let agentType: AgentType
-    @ObservedObject var settings: AgentSettings
+    @Bindable var settings: AgentSettings
 
     var body: some View {
         Form {
@@ -196,10 +197,11 @@ struct AgentTypeConfig: Codable {
 
 /// Singleton for managing agent settings
 @MainActor
-class AgentSettings: ObservableObject {
+@Observable
+class AgentSettings {
     static let shared = AgentSettings()
 
-    @Published private var configs: [AgentType: AgentTypeConfig] = [:]
+    private var configs: [AgentType: AgentTypeConfig] = [:]
 
     private let userDefaultsKey = "AgentSettings"
 

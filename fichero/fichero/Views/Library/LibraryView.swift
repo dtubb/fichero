@@ -19,7 +19,7 @@ struct LibraryView: View {
     let onRetry: () -> Void
     /// Sort field / direction / filter-bar visibility, lifted out of @State so
     /// the in-content mode rail can drive them too (#1477). Owned by ContentView.
-    @ObservedObject var libraryToolbar: LibraryToolbarState
+    @Bindable var libraryToolbar: LibraryToolbarState
     @Binding var selection: Set<String>
     @Binding var detailDocument: Document?
     @Binding var viewMode: LibraryLayout
@@ -90,20 +90,20 @@ struct LibraryView: View {
     /// Non-nil presents the bookmark sheet for this document (#2755).
     @State var bookmarkPickerDocument: Document?
 
-    @EnvironmentObject var libraryManager: LibraryManager
-    @EnvironmentObject var windowState: WindowState
+    @Environment(LibraryManager.self) var libraryManager
+    @Environment(WindowState.self) var windowState
     /// Finder-style Open in New Tab / New Window opens a fresh window on the
     /// current library via the Safari new-window path (#1685).
     @Environment(\.openWindow) var openWindow
-    @EnvironmentObject var workflowStreamService: WorkflowStreamService
+    @Environment(WorkflowStreamService.self) var workflowStreamService
     @Environment(DocumentStore.self) var documentStore: DocumentStore
-    @EnvironmentObject var entityService: EntityServiceGenerated
-    @EnvironmentObject var artifactService: ArtifactServiceGenerated
+    @Environment(EntityServiceGenerated.self) var entityService
+    @Environment(ArtifactServiceGenerated.self) var artifactService
     @Environment(WorkflowExecutionObserver.self) var executionObserver
     @Environment(KGFocusState.self) var kgFocusState
     @Environment(\.isSecondarySplitPane) private var isSecondarySplitPane
     @ObservedObject var featureManager = FeatureManager.shared
-    @ObservedObject var workflowRunProviderCache = WorkflowRunProviderCache.shared
+    @State var workflowRunProviderCache = WorkflowRunProviderCache.shared
 
     // Column visibility for Table view (persisted per-window/scene)
     @SceneStorage("column_name") var showName = true
@@ -369,7 +369,7 @@ struct LibraryView: View {
                         }
                     }
                 )
-                .environmentObject(libraryManager)
+                .environment(libraryManager)
                 .environment(executionObserver)
             }
             .sheet(item: $workspacePickerDocument) { document in
@@ -806,7 +806,7 @@ extension LibraryView {
         displayMode: .icon,
         folderId: nil
     )
-    .environmentObject(ArtifactServiceGenerated(ficheroClient: client))
+    .environment(ArtifactServiceGenerated(ficheroClient: client))
     .frame(width: 600, height: 500)
 }
 
@@ -826,6 +826,6 @@ extension LibraryView {
         displayMode: .icon,
         folderId: nil
     )
-    .environmentObject(ArtifactServiceGenerated(ficheroClient: client))
+    .environment(ArtifactServiceGenerated(ficheroClient: client))
     .frame(width: 600, height: 500)
 }

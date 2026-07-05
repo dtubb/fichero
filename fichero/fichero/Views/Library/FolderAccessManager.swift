@@ -2,6 +2,7 @@
 import AppKit
 #endif
 import OSLog
+import Observation
 import SwiftUI
 
 /// Manages folder access permissions using security-scoped bookmarks

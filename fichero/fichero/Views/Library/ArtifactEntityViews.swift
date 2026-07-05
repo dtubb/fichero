@@ -22,7 +22,7 @@ struct ArtifactEntitiesView: View {
     /// LibraryView's listVisibleEntityTypes drives this for list rows.
     var visibleTypes: Set<String> = ["people", "places", "organizations", "dates", "events", "keywords"]
 
-    @EnvironmentObject var artifactService: ArtifactServiceGenerated
+    @Environment(ArtifactServiceGenerated.self) var artifactService
     @Environment(WorkflowExecutionObserver.self) var executionObserver
 
     @State private var people: [String] = []
@@ -236,7 +236,7 @@ struct ArtifactEntityCell: View {
     /// capsules; "—" when this doc has no artifact of that type.
     let entityType: String
 
-    @EnvironmentObject var artifactService: ArtifactServiceGenerated
+    @Environment(ArtifactServiceGenerated.self) var artifactService
     @Environment(WorkflowExecutionObserver.self) var executionObserver
 
     @State private var names: [String] = []

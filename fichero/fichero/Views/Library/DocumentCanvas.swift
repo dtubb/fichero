@@ -92,7 +92,7 @@ private struct StorageDisplayImageCanvas: View {
     var onNavigateToDocument: ((String) -> Void)?
     var isEditing: Binding<Bool>?
 
-    @EnvironmentObject private var storageService: StorageServiceGenerated
+    @Environment(StorageServiceGenerated.self) private var storageService
     @State private var image: PlatformImage?
     @State private var loadError: Error?
 

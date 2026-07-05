@@ -23,8 +23,8 @@ struct DocumentInspectorContentV2: View {
     let document: Document
     var mode: Mode = .all
 
-    @EnvironmentObject private var artifactService: ArtifactServiceGenerated
-    @EnvironmentObject private var documentService: DocumentServiceGenerated
+    @Environment(ArtifactServiceGenerated.self) private var artifactService
+    @Environment(DocumentServiceGenerated.self) private var documentService
     @Environment(DocumentStore.self) private var documentStore: DocumentStore
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
 

@@ -9,25 +9,25 @@ struct DocumentTabView: View {
     let libraryId: UUID  // ID of the library this view is displaying
     @Binding var document: FicheroDocument
     let documentURL: URL?  // URL of the .fichero package file
-    @EnvironmentObject var appState: AppState
-    @EnvironmentObject var libraryManager: LibraryManager
-    @EnvironmentObject var viewSettings: ViewSettings
+    @Environment(AppState.self) var appState
+    @Environment(LibraryManager.self) var libraryManager
+    @Environment(ViewSettings.self) var viewSettings
 
     // All services come from the environment (shared per-library, not per-tab)
     @Environment(DocumentStore.self) var documentStore: DocumentStore
-    @EnvironmentObject var savedSearchService: SavedSearchServiceGenerated
-    @EnvironmentObject var searchService: SearchServiceGenerated
-    @EnvironmentObject var conversationService: ConversationServiceGenerated
-    @EnvironmentObject var chatService: ChatServiceGenerated
+    @Environment(SavedSearchServiceGenerated.self) var savedSearchService
+    @Environment(SearchServiceGenerated.self) var searchService
+    @Environment(ConversationServiceGenerated.self) var conversationService
+    @Environment(ChatServiceGenerated.self) var chatService
     @Environment(WorkflowStore.self) var workflowStore
-    @EnvironmentObject var importService: ImportServiceGenerated
-    @EnvironmentObject var documentService: DocumentServiceGenerated
-    @EnvironmentObject var storageService: StorageServiceGenerated
-    @EnvironmentObject var windowState: WindowState
+    @Environment(ImportServiceGenerated.self) var importService
+    @Environment(DocumentServiceGenerated.self) var documentService
+    @Environment(StorageServiceGenerated.self) var storageService
+    @Environment(WindowState.self) var windowState
 
     // @Observable objects injected by LibraryWindow — must be forwarded explicitly
     // when ContentView() is constructed below (SwiftUI does not re-propagate
-    // @Environment(T.self) values across an explicit .environmentObject() chain).
+    // @Environment(T.self) values across an explicit .environment() chain).
     @Environment(WorkflowExecutionObserver.self) var executionObserver
 
     // Get the library reference
@@ -95,23 +95,23 @@ struct DocumentTabView: View {
             case .library:
                 // Use existing ContentView for now (will extract LibraryTabView later)
                 ContentView()
-                    .environmentObject(appState)
-                    .environmentObject(viewSettings)
-                    .environmentObject(apiClient)
+                    .environment(appState)
+                    .environment(viewSettings)
+                    .environment(apiClient)
                     .environment(documentStore)
-                    .environmentObject(savedSearchService)
-                    .environmentObject(searchService)
-                    .environmentObject(conversationService)
-                    .environmentObject(chatService)
+                    .environment(savedSearchService)
+                    .environment(searchService)
+                    .environment(conversationService)
+                    .environment(chatService)
                     .environment(workflowStore)
-                    .environmentObject(importService)
-                    .environmentObject(documentService)
-                    .environmentObject(storageService)
-                    .environmentObject(windowState)
+                    .environment(importService)
+                    .environment(documentService)
+                    .environment(storageService)
+                    .environment(windowState)
                     // App-wide singletons injected at the ContentView host so
                     // ContentView reads them via @EnvironmentObject rather than
                     // grabbing `.shared` — the DI seam for #3033. Shared instances.
-                    .environmentObject(ErrorService.shared)
+                    .environment(ErrorService.shared)
                     .environmentObject(FeatureManager.shared)
                     // Forward the @Observable observer so ContentView and its subtree
                     // (DocumentInspector → ArtifactEntityViews) can read it via

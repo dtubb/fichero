@@ -5,7 +5,7 @@ struct DocumentInspectorAnnotationsTab: View {
     let document: Document
 
     @Environment(AnnotationStore.self) private var annotationStore
-    @ObservedObject private var claimFocusState = ClaimFocusState.shared
+    @State private var claimFocusState = ClaimFocusState.shared
 
     @State private var focused = FocusedAnnotation.shared
     @State private var newNoteText: String = ""

@@ -16,7 +16,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Researc
 
 struct ResearchBrowserPane: View {
     var project: ResearchProject
-    @EnvironmentObject var researchService: ResearchService
+    @Environment(ResearchService.self) var researchService
 
     @State private var urlString: String = "https://www.google.com"
     @State private var addressBarText: String = "https://www.google.com"

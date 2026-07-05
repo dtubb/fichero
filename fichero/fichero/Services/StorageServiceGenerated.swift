@@ -1,3 +1,4 @@
+import Observation
 import FicheroAPIClient
 import Foundation
 import ImageIO
@@ -12,11 +13,12 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Storage
 /// Note: Image and source bytes travel through the generated OpenAPI client
 /// so auth, pinning, and library-path middleware stay central (#1710).
 @MainActor
-class StorageServiceGenerated: ObservableObject {
+@Observable
+class StorageServiceGenerated {
     // MARK: - Published State
 
-    @Published var isLoading: Bool = false
-    @Published var lastError: Error?
+    var isLoading: Bool = false
+    var lastError: Error?
 
     private let client: FicheroClient
     private let configuredBaseURL: URL?

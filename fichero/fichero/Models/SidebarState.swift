@@ -1,52 +1,54 @@
+import Observation
 import SwiftUI
 
 /// Manages sidebar state with persistence across app relaunches
 /// Stores expansion states per window
 @MainActor
-class SidebarState: ObservableObject {
+@Observable
+class SidebarState {
     // MARK: - Persisted State (saved to UserDefaults)
 
     /// Individual item expansion states (folder/library headers)
-    @Published var expandedItems: Set<String> {
+    var expandedItems: Set<String> {
         didSet { saveExpandedItems() }
     }
 
     /// Library expansion states (library ID -> expanded)
-    @Published var libraryExpansionStates: [String: Bool] {
+    var libraryExpansionStates: [String: Bool] {
         didSet { saveLibraryExpansionStates() }
     }
 
     /// Unified sidebar section expansion states (library+section key -> expanded)
-    @Published var unifiedSectionExpansionStates: [String: Bool] {
+    var unifiedSectionExpansionStates: [String: Bool] {
         didSet { saveUnifiedSectionExpansionStates() }
     }
 
     // MARK: - Transient State (not persisted)
 
-    @Published var isChatDropTargeted: Bool = false
-    @Published var isLibraryDropTargeted: Bool = false
-    @Published var renamingItemId: String?
-    @Published var showingFileImporter: Bool = false
-    @Published var selectedImportMode: IngestMode = .link
-    @Published var showingNewFolderDialog: Bool = false
-    @Published var newFolderParentId: String?
-    @Published var newFolderCategory: ItemCategory?
-    @Published var newFolderName: String = ""
-    @Published var newFolderErrorMessage: String?
-    @Published var isCreatingFolder: Bool = false
-    @Published var creatingFolderInlineId: String?
+    var isChatDropTargeted: Bool = false
+    var isLibraryDropTargeted: Bool = false
+    var renamingItemId: String?
+    var showingFileImporter: Bool = false
+    var selectedImportMode: IngestMode = .link
+    var showingNewFolderDialog: Bool = false
+    var newFolderParentId: String?
+    var newFolderCategory: ItemCategory?
+    var newFolderName: String = ""
+    var newFolderErrorMessage: String?
+    var isCreatingFolder: Bool = false
+    var creatingFolderInlineId: String?
 
     // Automation creation state
-    @Published var showingScheduleCreation: Bool = false
-    @Published var showingTriggerCreation: Bool = false
-    @Published var selectedWorkflowForAutomation: WorkflowSidebarItem?
+    var showingScheduleCreation: Bool = false
+    var showingTriggerCreation: Bool = false
+    var selectedWorkflowForAutomation: WorkflowSidebarItem?
 
     // Drag and drop state
-    @Published var isProcessingDrop: Bool = false
-    @Published var dropProgress: Double = 0.0
-    @Published var dropErrorMessage: String?
-    @Published var dropSuccessCount: Int = 0
-    @Published var dropFailureCount: Int = 0
+    var isProcessingDrop: Bool = false
+    var dropProgress: Double = 0.0
+    var dropErrorMessage: String?
+    var dropSuccessCount: Int = 0
+    var dropFailureCount: Int = 0
 
     // Performance
     var scrollViewProxy: ScrollViewProxy?

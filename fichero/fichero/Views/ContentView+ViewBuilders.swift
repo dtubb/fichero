@@ -17,9 +17,9 @@ private struct ReadingPaneView: View {
     /// Called when the user taps the × button. Omit to hide the button.
     var onClose: (() -> Void)?
 
-    @EnvironmentObject private var apiClient: APIClient
+    @Environment(APIClient.self) private var apiClient
     @Environment(KGFocusState.self) private var kgFocusState
-    @EnvironmentObject private var claimFocusState: ClaimFocusState
+    @Environment(ClaimFocusState.self) private var claimFocusState
     @Environment(\.splitAxisActions) private var splitAxisActions
 
     @State private var isPinned = false
@@ -236,10 +236,10 @@ extension ContentView {
                 openChatWithCurrentScope()
             }
         )
-        .environmentObject(savedSearchService)
-        .environmentObject(conversationService)
-        .environmentObject(ErrorService.shared)
-        .environmentObject(performanceService)
+        .environment(savedSearchService)
+        .environment(conversationService)
+        .environment(ErrorService.shared)
+        .environment(performanceService)
         .overlay { paneFocusIndicator(for: .sidebar) }
         // Make the sidebar focusable so arrow keys navigate the List.
         // (Removing this broke arrow-key navigation — see #560.)

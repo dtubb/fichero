@@ -4,7 +4,7 @@ import SwiftUI
 struct SearchNodeConfig: View {
     @Binding var node: WorkflowNode
 
-    @EnvironmentObject var savedSearchService: SavedSearchServiceGenerated
+    @Environment(SavedSearchServiceGenerated.self) var savedSearchService
 
     @State private var selectedSearchId: String = ""
 

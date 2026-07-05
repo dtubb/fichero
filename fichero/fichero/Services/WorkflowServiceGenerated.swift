@@ -1,4 +1,5 @@
 import Combine
+import Observation
 import FicheroAPIClient
 import Foundation
 import OpenAPIRuntime
@@ -9,11 +10,12 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Workflo
 /// WorkflowService using the generated OpenAPI client.
 /// This replaces the manual APIClient with type-safe generated calls.
 @MainActor
-class WorkflowServiceGenerated: ObservableObject {
+@Observable
+class WorkflowServiceGenerated {
     private let client: FicheroClient
 
     /// Cached tools by name for quick lookup (populated when tools are loaded)
-    @Published private(set) var toolsByName: [String: ToolInfo] = [:]
+    private(set) var toolsByName: [String: ToolInfo] = [:]
 
     init(ficheroClient: FicheroClient) {
         self.client = ficheroClient

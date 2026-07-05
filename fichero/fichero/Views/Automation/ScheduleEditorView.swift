@@ -6,7 +6,7 @@ let scheduleEditorLogger = Logger(subsystem: "app.fichero.fichero", category: "S
 /// Full-page editor for creating and editing schedules
 /// Similar to workflow canvas - used instead of dialog sheets
 struct ScheduleEditorView: View {
-    @EnvironmentObject var apiClient: APIClient
+    @Environment(APIClient.self) var apiClient
     @Environment(WorkflowStore.self) var workflowStore
 
     /// Existing schedule to edit, or nil for new schedule creation
@@ -135,7 +135,7 @@ struct ScheduleEditorView: View {
     let library = libraryManager.globalLibrary!
 
     ScheduleEditorView(existingSchedule: nil)
-        .environmentObject(library.automationService)
+        .environment(library.automationService)
         .environment(library.workflowStore)
         .frame(width: 600, height: 500)
 }

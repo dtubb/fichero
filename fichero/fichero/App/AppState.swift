@@ -1,4 +1,4 @@
-import Combine
+import Observation
 import FicheroAPIClient
 import Foundation
 import OSLog
@@ -6,22 +6,24 @@ import SwiftUI
 
 /// Global app state including backend connection and provider management
 @MainActor
-class AppState: ObservableObject {
+@Observable
+class AppState {
     // MARK: - Backend State
 
     /// The one backend-usability owner (#3107). The five booleans below are now
     /// read-only shims over `engine.phase`, kept under their legacy names so the
     /// ~20 call sites reading `appState.isBackendRunning` (and friends) keep
-    /// working while the source of truth lives in `EngineSession`. AppState
-    /// forwards `engine`'s change notifications (see `init`) so views observing
-    /// these computed properties still re-render.
+    /// working while the source of truth lives in `EngineSession`. Both are
+    /// `@Observable`, so a view reading `appState.isBackendRunning` transitively
+    /// tracks `engine.phase` and re-renders automatically (#2960) — no manual
+    /// change forwarding needed.
     let engine = EngineSession()
 
     /// Every live backend session (#3112) — the loopback engine `engine` plus
     /// any remote hosts, keyed by host. `engine` is seeded as the default
     /// session so `sessions.activeSession === engine` today; the registry is
     /// the seam for connecting to remote Macs at the same time (#2861/#2883).
-    lazy var sessions = EngineSessionRegistry(defaultSession: engine)
+    @ObservationIgnored lazy var sessions = EngineSessionRegistry(defaultSession: engine)
 
     /// Engine is up, authenticated, and usable. Backed by `engine.phase == .ready`.
     var isBackendRunning: Bool { engine.isReady }
@@ -34,8 +36,8 @@ class AppState: ObservableObject {
     /// Alias of `backendDiagnosis` — both used to hold the same message; the
     /// single `engine.diagnosis` now backs them (connection view reads either).
     var backendError: String? { engine.diagnosis }
-    @Published var documentCount: Int = 0  // Note: Now tracks active libraries count in multi-library architecture
-    @Published var indexedCount: Int = 0
+    var documentCount: Int = 0  // Note: Now tracks active libraries count in multi-library architecture
+    var indexedCount: Int = 0
     /// True while starting/probing. Backed by `engine.phase == .starting`.
     var isCheckingBackend: Bool { engine.isChecking }
     /// Count of consecutive heartbeat failures since the last successful
@@ -43,25 +45,27 @@ class AppState: ObservableObject {
     /// banner flips only after the count crosses `offlineFlipThreshold`.
     private var heartbeatFailureCount: Int = 0
     private let offlineFlipThreshold: Int = 2
-    private var heartbeatTask: Task<Void, Never>?
-    private var cancellables = Set<AnyCancellable>()
+    // Plumbing, not observed UI state — exclude from @Observable tracking, and
+    // `nonisolated(unsafe)` so `deinit` (nonisolated in Swift 6) can cancel it
+    // (only mutated on the main actor; `Task.cancel()` is safe from anywhere).
+    @ObservationIgnored nonisolated(unsafe) private var heartbeatTask: Task<Void, Never>?
 
     // MARK: - Provider Management
 
-    @Published var providers: [Components.Schemas.ProviderResponse] = []
-    @Published var showAddProvider: Bool = false
-    @Published var hasCheckedProviders: Bool = false
-    @Published var isFirstLaunchProviderSetup: Bool = false  // True when showing Add Provider on first launch
+    var providers: [Components.Schemas.ProviderResponse] = []
+    var showAddProvider: Bool = false
+    var hasCheckedProviders: Bool = false
+    var isFirstLaunchProviderSetup: Bool = false  // True when showing Add Provider on first launch
 
     // MARK: - MCP Server Management
 
-    @Published var showMCPServers: Bool = false
+    var showMCPServers: Bool = false
 
     // MARK: - Integrations (Hazel-like folder/app observers)
 
-    @Published var showFolderWatchers: Bool = false
-    @Published var showAppObservers: Bool = false
-    @Published var showAutomationRules: Bool = false
+    var showFolderWatchers: Bool = false
+    var showAppObservers: Bool = false
+    var showAutomationRules: Bool = false
 
     // MARK: - Services
 
@@ -89,12 +93,9 @@ class AppState: ObservableObject {
         self.localInferenceStore = LocalInferenceStore(client: ficheroClient)
         self.appleAvailabilityStore = AppleAvailabilityStore(client: ficheroClient)
         logger.info("⏱ AppState.init services ready")
-
-        // Re-publish the session's phase changes as AppState changes so the
-        // computed backend shims above stay observable (#3107).
-        engine.objectWillChange
-            .sink { [weak self] in self?.objectWillChange.send() }
-            .store(in: &cancellables)
+        // #2960: engine is `@Observable`; the computed backend shims read
+        // `engine.phase` directly, so views observing them track the engine
+        // transitively. The former `objectWillChange` re-publish is retired.
     }
 
     deinit {

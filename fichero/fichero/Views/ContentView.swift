@@ -56,24 +56,24 @@ struct ContentView: View {
 
     // MARK: - Environment
 
-    @EnvironmentObject var viewSettings: ViewSettings
-    @EnvironmentObject var appState: AppState
-    @EnvironmentObject var apiClient: APIClient
+    @Environment(ViewSettings.self) var viewSettings
+    @Environment(AppState.self) var appState
+    @Environment(APIClient.self) var apiClient
     @Environment(DocumentStore.self) var documentStore: DocumentStore
-    @EnvironmentObject var conversationService: ConversationServiceGenerated
-    @EnvironmentObject var importService: ImportServiceGenerated
-    @EnvironmentObject var windowState: WindowState
+    @Environment(ConversationServiceGenerated.self) var conversationService
+    @Environment(ImportServiceGenerated.self) var importService
+    @Environment(WindowState.self) var windowState
     @Environment(WorkflowStore.self) var workflowStore
-    @EnvironmentObject var savedSearchService: SavedSearchServiceGenerated
-    @EnvironmentObject var workflowStreamService: WorkflowStreamService
+    @Environment(SavedSearchServiceGenerated.self) var savedSearchService
+    @Environment(WorkflowStreamService.self) var workflowStreamService
     @Environment(WorkflowExecutionObserver.self) var executionObserver
     @Environment(KGFocusState.self) var kgFocusState
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     /// iOS has no `willTerminate`; backgrounding is the save signal (#3016).
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openWindow) var openWindow
-    @EnvironmentObject var claimFocusState: ClaimFocusState
-    @EnvironmentObject var researchService: ResearchService
+    @Environment(ClaimFocusState.self) var claimFocusState
+    @Environment(ResearchService.self) var researchService
 
     // MARK: - State (synced with @SceneStorage for persistence)
 
@@ -156,7 +156,7 @@ struct ContentView: View {
     // Library sort field / direction / filter-bar visibility, lifted out of
     // LibraryView's @State so the in-content mode rail can host the Sort + Filter
     // controls at the Library view's top-right (#1477).
-    @StateObject var libraryToolbarState = LibraryToolbarState()
+    @State var libraryToolbarState = LibraryToolbarState()
 
     // Map view persistence (latitude, longitude, zoom)
     @SceneStorage("mapLatitude") var mapLatitude: Double = 0.0
@@ -167,8 +167,8 @@ struct ContentView: View {
     // Per-folder view mode persistence (JSON-encoded [folderId: displayMode.rawValue], per-window)
     @SceneStorage("folderViewDisplayModes") var folderViewDisplayModesJSON: String = "{}"
 
-    @StateObject var itemRegistry = ItemTypeRegistry()
-    @StateObject var performanceService = PerformanceService()
+    @State var itemRegistry = ItemTypeRegistry()
+    @State var performanceService = PerformanceService()
     @State var documentScrollSync = DocumentScrollSyncState()
     @State var toolbarSearchText: String = ""
     @State var navigationHistory = AppNavigationHistory()
@@ -178,7 +178,7 @@ struct ContentView: View {
     // `.shared` here, so ContentView's dependencies are swappable/testable —
     // prereq for the ContentView+State extractions (#3033). Still the shared
     // instances at runtime; injection is the seam.
-    @EnvironmentObject var errorService: ErrorService
+    @Environment(ErrorService.self) var errorService
     @EnvironmentObject var featureManager: FeatureManager
 
     // Pane focus state for Tab cycling
@@ -202,7 +202,10 @@ struct ContentView: View {
     // MARK: - Body
 
     var body: some View {
-        Group {
+        // #2960: ErrorService is @Observable via @Environment, which has no
+        // projected binding — @Bindable gives `$errorService.currentAlert`.
+        @Bindable var errorService = errorService
+        return Group {
             if appState.isCheckingBackend {
                 // Show loading while checking API
                 VStack(spacing: 16) {
@@ -803,7 +806,7 @@ extension ContentView {
     private var platformViewMenuButton: some View {
         Menu {
             ViewMenuCommands()
-                .environmentObject(viewSettings)
+                .environment(viewSettings)
         } label: {
             Label("View", systemImage: "rectangle.split.3x1")
         }
@@ -940,9 +943,9 @@ private struct ToolbarSearchableModifier: ViewModifier {
 // MARK: - Preview
 #Preview("Library Mode") {
     ContentView()
-        .environmentObject(ViewSettings())
-        .environmentObject(AppState())
-        .environmentObject(ErrorService.shared)
+        .environment(ViewSettings())
+        .environment(AppState())
+        .environment(ErrorService.shared)
         .environmentObject(FeatureManager.shared)
         .frame(width: 1200, height: 700)
 }
@@ -956,9 +959,9 @@ private struct ToolbarSearchableModifier: ViewModifier {
 
 #Preview("Shell — Regular (Mac/iPad)") {
     ContentView()
-        .environmentObject(ViewSettings())
-        .environmentObject(AppState())
-        .environmentObject(ErrorService.shared)
+        .environment(ViewSettings())
+        .environment(AppState())
+        .environment(ErrorService.shared)
         .environmentObject(FeatureManager.shared)
         .environment(\.horizontalSizeClass, .regular)
         .frame(width: 1200, height: 700)
@@ -966,9 +969,9 @@ private struct ToolbarSearchableModifier: ViewModifier {
 
 #Preview("Shell — Compact (iPhone)") {
     ContentView()
-        .environmentObject(ViewSettings())
-        .environmentObject(AppState())
-        .environmentObject(ErrorService.shared)
+        .environment(ViewSettings())
+        .environment(AppState())
+        .environment(ErrorService.shared)
         .environmentObject(FeatureManager.shared)
         .environment(\.horizontalSizeClass, .compact)
         .frame(width: 390, height: 780)

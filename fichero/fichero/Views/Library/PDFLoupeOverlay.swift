@@ -16,7 +16,7 @@ struct PDFLoupeOverlay: NSViewRepresentable {
     let cursorPosition: CGPoint
     let magnification: CGFloat
     let loupeSize: CGFloat
-    @EnvironmentObject private var storageService: StorageServiceGenerated
+    @Environment(StorageServiceGenerated.self) private var storageService
 
     func makeNSView(context: Context) -> PDFLoupeNSView {
         let view = PDFLoupeNSView()

@@ -3,7 +3,7 @@ import SwiftUI
 /// Sheet for picking a workflow to run on selected documents
 struct WorkflowPickerSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject var libraryManager: LibraryManager
+    @Environment(LibraryManager.self) var libraryManager
 
     let selectedDocumentIds: [String]
     let onSelect: (String) -> Void
@@ -163,5 +163,5 @@ private struct WorkflowPickerRow: View {
             print("Selected workflow: \(workflowId)")
         }
     )
-    .environmentObject(LibraryManager.shared)
+    .environment(LibraryManager.shared)
 }

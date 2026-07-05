@@ -8,7 +8,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Activit
 /// Shows content based on sidebar selection (Console, Progress, Errors, or Overview)
 struct ActivityDetailView: View {
     let selectedRun: SelectedActivityRun
-    @EnvironmentObject var apiClient: APIClient
+    @Environment(APIClient.self) var apiClient
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
 
     /// Shared live-execution store keyed by threadId (#2546). Optional so the
