@@ -16,12 +16,23 @@ from fichero.xml_security import parse_xml
 _NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 _REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
 _MAX_XLSX_MEMBER_SIZE = 20 * 1024 * 1024
+_MAX_XLSX_TOTAL_UNCOMPRESSED = 100 * 1024 * 1024
+_MAX_XLSX_MEMBER_COUNT = 256
 
 
 def _validate_zip_members(zf: zipfile.ZipFile) -> None:
-    for info in zf.infolist():
+    infos = zf.infolist()
+    if len(infos) > _MAX_XLSX_MEMBER_COUNT:
+        raise ValueError(f"XLSX has too many members: {len(infos)}")
+    total_uncompressed = 0
+    for info in infos:
         if info.file_size > _MAX_XLSX_MEMBER_SIZE:
             raise ValueError(f"XLSX member too large: {info.filename}")
+        total_uncompressed += info.file_size
+        if total_uncompressed > _MAX_XLSX_TOTAL_UNCOMPRESSED:
+            raise ValueError(
+                f"XLSX total uncompressed size too large: {total_uncompressed}"
+            )
 
 
 def _parse_xml_member(zf: zipfile.ZipFile, name: str):
