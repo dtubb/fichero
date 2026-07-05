@@ -711,6 +711,30 @@ class TestClaimMergeActions:
             registry.invoke(db, "claim.unmerge", {"audit_id": merge_audit_id}, ctx)
         assert exc.value.status_code == 409
 
+    def test_unmerge_undo_remerges_same_claims(self, db):
+        survivor, absorbed = self._two_claims(db)
+        ctx = _ctx()
+        merge = registry.invoke(
+            db,
+            "claim.merge",
+            {"surviving_claim_id": survivor.id, "absorbed_claim_ids": [absorbed.id]},
+            ctx,
+        )
+        merge_audit = db.get(ActionAudit, merge.audit_id)
+        merge_audit_id = merge_audit.after["claim_merge_audit_id"]
+
+        unmerge = registry.invoke(db, "claim.unmerge", {"audit_id": merge_audit_id}, ctx)
+        assert db.get(KnowledgeClaim, absorbed.id).merged_into_id is None
+
+        audit = db.get(ActionAudit, unmerge.audit_id)
+        assert audit is not None
+        assert audit.action_name == "claim.unmerge"
+        assert registry.get("claim.unmerge").undoable is True
+
+        inv = _invoke_inverse(db, unmerge.audit_id, ctx)
+        assert inv == "claim.merge"
+        assert db.get(KnowledgeClaim, absorbed.id).merged_into_id == survivor.id
+
 
 # ===========================================================================
 # claim.prune_trivial
