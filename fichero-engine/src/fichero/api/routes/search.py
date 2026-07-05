@@ -1702,6 +1702,17 @@ class SavedSearchRestoreParams(BaseModel):
     snapshot: dict
 
 
+def _invert_create_saved_search(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not after:
+        return None
+    sid = after.get("id")
+    if not sid:
+        return None
+    return ("savedsearch.delete", {"search_id": sid})
+
+
 def _invert_to_restore_before(
     before: dict | None, after: dict | None, ctx: ActionContext
 ) -> tuple[str, dict] | None:
@@ -1735,7 +1746,8 @@ def _invert_restore(
     "savedsearch.save",
     SavedSearchCreate,
     domains=["savedsearch"],
-    undoable=False,
+    undoable=True,
+    invert=_invert_create_saved_search,
 )
 def _action_save_search(
     db: Database, params: SavedSearchCreate, ctx: ActionContext
