@@ -82,7 +82,7 @@ def test_pair_code_rejects_missing_invalid_and_expired_tokens_without_secret_lea
         _assert_no_secret_leak(response, secret)
 
 
-def test_pairing_owner_endpoints_reject_non_owner_session_scope_with_403(
+def test_pairing_self_service_mint_allows_non_owner_but_device_list_stays_scoped(
     auth_client, app_db
 ):
     app_db.create_user(
@@ -101,10 +101,11 @@ def test_pairing_owner_endpoints_reject_non_owner_session_scope_with_403(
     code_response = auth_client.post("/api/pair/code", headers=_bearer(session_token))
     list_response = auth_client.get("/api/pair/devices", headers=_bearer(session_token))
 
-    for response in [code_response, list_response]:
-        assert response.status_code == 403
-        assert response.json()["detail"] == "owner access required"
-        _assert_no_secret_leak(response, session_token)
+    assert code_response.status_code == 200
+    _assert_no_secret_leak(code_response, session_token)
+    assert list_response.status_code == 200
+    assert list_response.json() == {"items": [], "count": 0}
+    _assert_no_secret_leak(list_response, session_token)
 
 
 def test_pair_route_malformed_requests_stay_4xx_and_do_not_leak_secrets(
