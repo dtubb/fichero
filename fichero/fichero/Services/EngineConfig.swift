@@ -788,16 +788,22 @@ struct PairingExchangeRequest: Codable {
 struct PairingExchangeResponse: Codable {
     let deviceId: String
     let deviceToken: String
+    /// When this device token expires — used to schedule proactive renewal (#3096).
+    let expiresAt: Date
 
     enum CodingKeys: String, CodingKey {
         case deviceId = "device_id"
         case deviceToken = "device_token"
+        case expiresAt = "expires_at"
     }
 }
 
 struct PairingExchangeResult: Equatable {
     let apiRoot: URL
     let deviceToken: String
+    /// Device-token expiry carried from the pair response (#3096) so it can be
+    /// persisted for renewal scheduling.
+    let expiresAt: Date
 }
 
 struct PairedDeviceRecord: Codable, Identifiable {
@@ -888,7 +894,11 @@ final class PairingService {
         switch response {
         case .ok(let okResponse):
             let record = try okResponse.body.json
-            return PairingExchangeResponse(deviceId: record.deviceId, deviceToken: record.deviceToken)
+            return PairingExchangeResponse(
+                deviceId: record.deviceId,
+                deviceToken: record.deviceToken,
+                expiresAt: record.expiresAt
+            )
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw APIError.httpError(statusCode: 422, message: detail?.detail?.description ?? "Validation error")

@@ -159,6 +159,10 @@ private struct FicheroSharedPlatformRoot: View {
             return
         }
         appState.startBackendHeartbeat()
+        // Proactively renew the device token if it is near expiry (#3096), before
+        // it can lapse into a 401. No-op for local hosts / unknown expiry; a failed
+        // renew keeps the old token (the expired → re-pair path is the safety net).
+        await DeviceTokenRenewal.renewIfNeeded(host: EngineConfig.host)
         // The SAME shared post-ready block as macOS (#3113), then the iOS-only
         // capture-queue resume — which is a mobile concern, not a library one.
         await libraryManager.refreshAfterBackendBecameReady()
