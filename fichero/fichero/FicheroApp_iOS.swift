@@ -248,6 +248,7 @@ private struct RemoteConnectionSetupView: View {
 
     @State private var showingScanner = false
     @State private var didAutoPresentScanner = false
+    @State private var showingManualEntry = false
     @State private var isPairing = false
     @State private var errorMessage: String?
     @State private var pickerSource: CaptureSource?
@@ -274,6 +275,13 @@ private struct RemoteConnectionSetupView: View {
                     handleScannedMessage(message)
                     showingScanner = false
                 }
+            )
+        }
+        .sheet(isPresented: $showingManualEntry) {
+            ManualPairingEntrySheet(
+                isPairing: isPairing,
+                onCancel: { showingManualEntry = false },
+                onConnect: handleManualInvite
             )
         }
         #if !os(tvOS)
@@ -340,6 +348,18 @@ private struct RemoteConnectionSetupView: View {
                             .frame(maxWidth: .infinity, minHeight: 46)
                     }
                     .buttonStyle(.borderedProminent)
+                    .disabled(isPairing)
+
+                    // Fallback/debug pairing (#2350): paste an invite link or QR
+                    // text. Primary path on visionOS (camera scanning unavailable)
+                    // and a rescue on iPhone/iPad when the camera can't be used.
+                    Button {
+                        showingManualEntry = true
+                    } label: {
+                        Label("Enter Link Manually", systemImage: "link")
+                            .frame(maxWidth: .infinity, minHeight: 46)
+                    }
+                    .buttonStyle(.bordered)
                     .disabled(isPairing)
 
                     #if os(tvOS)
@@ -426,25 +446,8 @@ private struct RemoteConnectionSetupView: View {
     }
 
     private func pair(with payload: PairingQRCodePayload) async {
-        isPairing = true
-        errorMessage = nil
-        defer { isPairing = false }
         do {
-            let fields = try RemoteClientPairing.pairingFields(from: payload)
-            _ = try await RemoteClientPairing.pairAndPersistHost(
-                remoteURL: fields.remoteURL,
-                pairCode: fields.pairCode,
-                deviceName: RemoteClientPairing.defaultDeviceName(),
-                expectedSPKIPin: fields.spkiPin,
-                libraryPath: fields.libraryPath
-            )
-            // Repoint the app-level client at the freshly-paired host; adopt +
-            // reload fire once in the ready transition (#3113), not here.
-            appState.reconfigureGeneratedClientsForCurrentHost()
-            await onConnected()
-            if !appState.isBackendRunning {
-                errorMessage = "Connected — Fichero on your Mac is not responding yet."
-            }
+            try await finishPairing(with: RemoteClientPairing.pairingFields(from: payload))
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -497,6 +500,44 @@ private struct RemoteConnectionSetupView: View {
     }
 }
 
+private extension RemoteConnectionSetupView {
+    /// Manual fallback/debug path (#2350): pair from a pasted invite link or raw
+    /// QR payload text. This is the ONLY pairing route on visionOS (no camera
+    /// scanner) and the fallback on iPhone/iPad when the camera is unavailable.
+    func handleManualInvite(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        showingManualEntry = false
+        Task {
+            do {
+                try await finishPairing(with: RemoteClientPairing.pairingFields(fromInviteOrPayload: trimmed))
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    func finishPairing(with fields: RemoteClientPairingFields) async throws {
+        isPairing = true
+        errorMessage = nil
+        defer { isPairing = false }
+        _ = try await RemoteClientPairing.pairAndPersistHost(
+            remoteURL: fields.remoteURL,
+            pairCode: fields.pairCode,
+            deviceName: RemoteClientPairing.defaultDeviceName(),
+            expectedSPKIPin: fields.spkiPin,
+            libraryPath: fields.libraryPath
+        )
+        // Repoint the app-level client at the freshly-paired host; adopt +
+        // reload fire once in the ready transition (#3113), not here.
+        appState.reconfigureGeneratedClientsForCurrentHost()
+        await onConnected()
+        if !appState.isBackendRunning {
+            errorMessage = "Connected — Fichero on your Mac is not responding yet."
+        }
+    }
+}
+
 private struct InlineCaptureRow: View {
     let item: MobileCaptureQueueItem
     @Bindable var queue: MobileCaptureQueueStore
@@ -527,6 +568,63 @@ private struct InlineCaptureRow: View {
         }
         .frame(width: 42, height: 42)
         .clipShape(RoundedRectangle(cornerRadius: 11))
+    }
+}
+
+/// Manual fallback/debug pairing entry (#2350): accepts an invite link
+/// (`fichero://pair?…`) or raw QR payload text. Reuses the same
+/// `RemoteClientPairing.pairingFields(fromInviteOrPayload:)` path the scanner
+/// funnels into, so validation (HTTPS/SPKI) is identical — this is entry only,
+/// never a bypass. Primary route on visionOS (no camera scanner).
+private struct ManualPairingEntrySheet: View {
+    let isPairing: Bool
+    let onCancel: () -> Void
+    let onConnect: (String) -> Void
+
+    @State private var invite = ""
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Invite link or QR text", text: $invite, axis: .vertical)
+                        .lineLimit(3...6)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                } header: {
+                    Text("Paste the invite link or QR text from the host Mac.")
+                } footer: {
+                    Text("Use this only if the camera is unavailable. The link is validated the same way as a scanned code.")
+                }
+
+                Section {
+                    #if !os(tvOS)
+                    Button {
+                        if let pasted = UIPasteboard.general.string {
+                            invite = pasted
+                        }
+                    } label: {
+                        Label("Paste from Clipboard", systemImage: "doc.on.clipboard")
+                    }
+                    .disabled(isPairing)
+                    #endif
+
+                    Button {
+                        onConnect(invite)
+                    } label: {
+                        Label(isPairing ? "Connecting…" : "Connect", systemImage: "link")
+                    }
+                    .disabled(isPairing || invite.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .navigationTitle("Enter Link Manually")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                }
+            }
+        }
     }
 }
 
