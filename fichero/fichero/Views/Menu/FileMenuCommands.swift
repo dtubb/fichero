@@ -20,8 +20,28 @@ final class KnownLibraryRegistryStore {
     private(set) var fetchError: String?
 
     private let apiClient = APIClient()
+    @ObservationIgnored private nonisolated(unsafe) var hostChangeObservation: NSObjectProtocol?
 
-    private init() { }
+    private init() {
+        // Rebind on a pairing / Settings host change (#2349) — otherwise the
+        // known-library registry menu keeps querying the launch host (localhost)
+        // after the app has moved to a remote engine.
+        hostChangeObservation = NotificationCenter.default.addObserver(
+            forName: EngineConfig.engineHostDidChangeNotification,
+            object: nil,
+            queue: nil
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.apiClient.reconfigure(baseURL: EngineConfig.host)
+            }
+        }
+    }
+
+    deinit {
+        if let hostChangeObservation {
+            NotificationCenter.default.removeObserver(hostChangeObservation)
+        }
+    }
 
     func refresh() async {
         do {
