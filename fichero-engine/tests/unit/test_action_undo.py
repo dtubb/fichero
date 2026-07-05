@@ -282,6 +282,56 @@ class TestEntityCreateUndoRedo:
 
 
 # ===========================================================================
+# Domain 5 — entity.update : update -> undo(restore old) -> redo(re-apply)
+# ===========================================================================
+
+
+class TestEntityUpdateUndoRedo:
+    def test_update_undo_restores_old_value(self, db, spy_emit):
+        entity = KnowledgeEntity(canonical_name="Old Entity")
+        db.save(entity)
+
+        forward = registry.invoke(
+            db,
+            "entity.update",
+            {"entity_id": entity.id, "canonical_name": "New Entity"},
+            _ctx(),
+        )
+        assert db.get(KnowledgeEntity, entity.id).canonical_name == "New Entity"
+
+        inverse = _undo(db, forward.audit_id)
+
+        restored = db.get(KnowledgeEntity, entity.id)
+        assert restored is not None
+        assert restored.canonical_name == "Old Entity"
+        inverse_audit = _audit(db, inverse.audit_id)
+        assert inverse_audit.action_name == "entity.restore"
+        assert inverse_audit.inverse_of == forward.audit_id
+
+    def test_redo_reapplies_entity_update(self, db, spy_emit):
+        entity = KnowledgeEntity(canonical_name="Old Entity")
+        db.save(entity)
+
+        forward = registry.invoke(
+            db,
+            "entity.update",
+            {"entity_id": entity.id, "canonical_name": "New Entity"},
+            _ctx(),
+        )
+        inverse = _undo(db, forward.audit_id)
+        assert db.get(KnowledgeEntity, entity.id).canonical_name == "Old Entity"
+
+        redo = _undo(db, inverse.audit_id)
+
+        updated = db.get(KnowledgeEntity, entity.id)
+        assert updated is not None
+        assert updated.canonical_name == "New Entity"
+        redo_audit = _audit(db, redo.audit_id)
+        assert redo_audit.action_name == "entity.update"
+        assert redo_audit.inverse_of == inverse.audit_id
+
+
+# ===========================================================================
 # Endpoint contract — 404 / 409 guards
 # ===========================================================================
 
