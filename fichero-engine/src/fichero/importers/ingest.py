@@ -1012,6 +1012,7 @@ def ingest_folder(
     total = len(files)
     documents: list[Document] = []
     existing_hashes: set[tuple[str, str]] = set()
+    library_path = package_path or getattr(db, "path", None)
     try:
         for existing in db.all(Document):
             source_path = (
@@ -1022,7 +1023,11 @@ def ingest_folder(
             if isinstance(source_path, str) and isinstance(checksum, str):
                 existing_hashes.add((source_path, checksum))
     except Exception as exc:
-        logger.debug("Could not pre-index existing checksums for skip logic: %s", exc)
+        logger.warning(
+            "Could not pre-index existing checksums for skip logic in %s: %s",
+            library_path,
+            exc,
+        )
 
     work_items: list[tuple[int, Path, str | None, str, str]] = []
     for i, file_path in enumerate(files):
