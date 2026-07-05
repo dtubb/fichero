@@ -296,6 +296,88 @@ distributed.*
 
 Generated from git history (non-merge commits, conventional-commit subjects), newest first, grouped by type within each day. Covers the SwiftUI/Python era from the 2025-12-05 pivot forward (#2572).
 
+### 2026-07-05
+
+**Features**
+
+- feat(swiftui): bottom-anchor the remaining Preview mini-toolbars ([#3060](https://github.com/dtubb/fichero/issues/3060))
+
+**Tests**
+
+- test: green the safe verify-failure batch by fixing explicit embedding autoschedule assertions and reclassifying dead-files / stale-baseline guardrails as current reality or real remaining debt ([#2962](https://github.com/dtubb/fichero/issues/2962), [#2955](https://github.com/dtubb/fichero/issues/2955), [#2956](https://github.com/dtubb/fichero/issues/2956), [#2957](https://github.com/dtubb/fichero/issues/2957), [#2958](https://github.com/dtubb/fichero/issues/2958), [#2960](https://github.com/dtubb/fichero/issues/2960), [#2963](https://github.com/dtubb/fichero/issues/2963))
+
+**Docs**
+
+- docs: add subtree `AGENTS.md` files for `fichero/` and `fichero-engine/`, then audit and tighten `fichero-engine/scripts/README.md` against the current supported script set ([#2554](https://github.com/dtubb/fichero/issues/2554), [#2552](https://github.com/dtubb/fichero/issues/2552))
+
+### 2026-07-04
+
+**Features**
+
+- feat(local-models): ship the managed local-inference stack — supervised MLX sidecar, isolated runtime provisioning, model download/store management, fm-bridge packaging, hardware gating, and iOS subprocess-provider gating ([#3114](https://github.com/dtubb/fichero/issues/3114), [#3115](https://github.com/dtubb/fichero/issues/3115), [#3116](https://github.com/dtubb/fichero/issues/3116), [#3117](https://github.com/dtubb/fichero/issues/3117), [#3118](https://github.com/dtubb/fichero/issues/3118), [#3119](https://github.com/dtubb/fichero/issues/3119), [#3122](https://github.com/dtubb/fichero/issues/3122))
+- feat(canvas/space): land the renderer-agnostic CanvasScene contract, new 2D/3D renderer work, per-library canvas stores, real canvas-layout persistence, and the `/api/canvas/*` rename away from Mind Palace ([#3078](https://github.com/dtubb/fichero/issues/3078), [#3079](https://github.com/dtubb/fichero/issues/3079), [#3080](https://github.com/dtubb/fichero/issues/3080), [#3081](https://github.com/dtubb/fichero/issues/3081), [#3082](https://github.com/dtubb/fichero/issues/3082), [#3083](https://github.com/dtubb/fichero/issues/3083), [#3084](https://github.com/dtubb/fichero/issues/3084), [#3086](https://github.com/dtubb/fichero/issues/3086), [#3088](https://github.com/dtubb/fichero/issues/3088), [#3090](https://github.com/dtubb/fichero/issues/3090), [#3103](https://github.com/dtubb/fichero/issues/3103), [#3104](https://github.com/dtubb/fichero/issues/3104))
+- feat(unicode): ship NFC path normalization, collision detection/prompting, snapshot file coverage, and the synthetic-data mojibake merge engine plus sidecar union/hardening work ([#3071](https://github.com/dtubb/fichero/issues/3071), [#3072](https://github.com/dtubb/fichero/issues/3072), [#3073](https://github.com/dtubb/fichero/issues/3073), [#3074](https://github.com/dtubb/fichero/issues/3074), [#3075](https://github.com/dtubb/fichero/issues/3075), [#3076](https://github.com/dtubb/fichero/issues/3076))
+- feat(pairing/export/search): add device-token renewal and pairing payload v2, static export E1-E3 (shared record stream, Eleventy knowledge pages, offline search), matched-excerpt search previews, geo/export wiring, and the Primary Language setting ([#3095](https://github.com/dtubb/fichero/issues/3095), [#3097](https://github.com/dtubb/fichero/issues/3097), [#3124](https://github.com/dtubb/fichero/issues/3124), [#3125](https://github.com/dtubb/fichero/issues/3125), [#3126](https://github.com/dtubb/fichero/issues/3126), [#1781](https://github.com/dtubb/fichero/issues/1781), [#3055](https://github.com/dtubb/fichero/issues/3055), [#1808](https://github.com/dtubb/fichero/issues/1808))
+
+**Fixes**
+
+- fix(action-layer): route a broad backend write surface through audited registry actions and add undo where promised — documents, images, KG/artifacts, claim-links, annotations, classifications, folder-canvas, hermeneutics, research, snapshots, authz role changes, library links, bookmarks, and image straighten ([#3003](https://github.com/dtubb/fichero/issues/3003), [#3004](https://github.com/dtubb/fichero/issues/3004), [#3005](https://github.com/dtubb/fichero/issues/3005), [#3006](https://github.com/dtubb/fichero/issues/3006), [#3007](https://github.com/dtubb/fichero/issues/3007), [#3020](https://github.com/dtubb/fichero/issues/3020), [#3021](https://github.com/dtubb/fichero/issues/3021), [#3022](https://github.com/dtubb/fichero/issues/3022), [#3023](https://github.com/dtubb/fichero/issues/3023), [#3024](https://github.com/dtubb/fichero/issues/3024), [#3025](https://github.com/dtubb/fichero/issues/3025), [#2982](https://github.com/dtubb/fichero/issues/2982), [#2984](https://github.com/dtubb/fichero/issues/2984), [#2985](https://github.com/dtubb/fichero/issues/2985), [#2986](https://github.com/dtubb/fichero/issues/2986))
+- fix(frontend transport): retire more raw `APIClient` usage by migrating document, action, image-edit, MCP, automation, and chain flows onto typed generated operations, while tightening the OpenAPI types those migrations needed ([#3028](https://github.com/dtubb/fichero/issues/3028), [#3029](https://github.com/dtubb/fichero/issues/3029), [#3030](https://github.com/dtubb/fichero/issues/3030), [#3131](https://github.com/dtubb/fichero/issues/3131), [#3136](https://github.com/dtubb/fichero/issues/3136))
+- fix(hardening): fail loud on export provenance/cost gaps, importer degradation paths, startup defaults, Bonjour trust hints, ingest tri-state handling, and the closed-handle DuckDB bookmark path ([#3127](https://github.com/dtubb/fichero/issues/3127), [#3128](https://github.com/dtubb/fichero/issues/3128), [#3132](https://github.com/dtubb/fichero/issues/3132), [#3133](https://github.com/dtubb/fichero/issues/3133), [#3134](https://github.com/dtubb/fichero/issues/3134), [#3135](https://github.com/dtubb/fichero/issues/3135), [#3099](https://github.com/dtubb/fichero/issues/3099), [#3110](https://github.com/dtubb/fichero/issues/3110), [#2876](https://github.com/dtubb/fichero/issues/2876), [#3068](https://github.com/dtubb/fichero/issues/3068))
+
+**Tests**
+
+- test: add adversarial and edge hardening around pairing, unicode merges, snapshots, canvas layout persistence, local-model startup, export regressions, search previews, bookmark DB lifecycle, and typed response schemas ([#3100](https://github.com/dtubb/fichero/issues/3100), [#3071](https://github.com/dtubb/fichero/issues/3071), [#3072](https://github.com/dtubb/fichero/issues/3072), [#3073](https://github.com/dtubb/fichero/issues/3073), [#3074](https://github.com/dtubb/fichero/issues/3074), [#3078](https://github.com/dtubb/fichero/issues/3078), [#2180](https://github.com/dtubb/fichero/issues/2180), [#1781](https://github.com/dtubb/fichero/issues/1781), [#3068](https://github.com/dtubb/fichero/issues/3068))
+
+### 2026-07-03
+
+**Features**
+
+- feat(devex/cli): expand the typed CLI around per-user auth sessions, canonical resource nouns, generated `--field` flags, and importer-over-HTTP routing for many import surfaces ([#2889](https://github.com/dtubb/fichero/issues/2889), [#2890](https://github.com/dtubb/fichero/issues/2890), [#2891](https://github.com/dtubb/fichero/issues/2891), [#2916](https://github.com/dtubb/fichero/issues/2916), [#2917](https://github.com/dtubb/fichero/issues/2917), [#2918](https://github.com/dtubb/fichero/issues/2918), [#2919](https://github.com/dtubb/fichero/issues/2919), [#2920](https://github.com/dtubb/fichero/issues/2920), [#2921](https://github.com/dtubb/fichero/issues/2921), [#2922](https://github.com/dtubb/fichero/issues/2922), [#2923](https://github.com/dtubb/fichero/issues/2923), [#2924](https://github.com/dtubb/fichero/issues/2924), [#2925](https://github.com/dtubb/fichero/issues/2925), [#2926](https://github.com/dtubb/fichero/issues/2926), [#2927](https://github.com/dtubb/fichero/issues/2927), [#2893](https://github.com/dtubb/fichero/issues/2893))
+- feat(multiuser/connection): land per-library backend hosts, authenticated readiness/no-adoption launch flow, sharing + ACL grant/revoke, and the first multi-user login gate slices ([#2862](https://github.com/dtubb/fichero/issues/2862), [#2863](https://github.com/dtubb/fichero/issues/2863), [#2864](https://github.com/dtubb/fichero/issues/2864), [#2866](https://github.com/dtubb/fichero/issues/2866), [#2867](https://github.com/dtubb/fichero/issues/2867), [#2869](https://github.com/dtubb/fichero/issues/2869), [#2021](https://github.com/dtubb/fichero/issues/2021), [#2022](https://github.com/dtubb/fichero/issues/2022))
+- feat(shell/chat): ship the compact-shell and chat cleanup batch — adaptive layout policy, compact entity browser, attach-sheet and move-to-folder cleanup, Xcode-style chat header, and conversation-scope attach flows ([#1926](https://github.com/dtubb/fichero/issues/1926), [#2551](https://github.com/dtubb/fichero/issues/2551), [#3008](https://github.com/dtubb/fichero/issues/3008), [#3009](https://github.com/dtubb/fichero/issues/3009), [#3010](https://github.com/dtubb/fichero/issues/3010), [#3011](https://github.com/dtubb/fichero/issues/3011), [#3014](https://github.com/dtubb/fichero/issues/3014), [#3015](https://github.com/dtubb/fichero/issues/3015), [#3016](https://github.com/dtubb/fichero/issues/3016), [#3017](https://github.com/dtubb/fichero/issues/3017), [#3019](https://github.com/dtubb/fichero/issues/3019), [#2449](https://github.com/dtubb/fichero/issues/2449), [#3056](https://github.com/dtubb/fichero/issues/3056), [#3057](https://github.com/dtubb/fichero/issues/3057), [#3058](https://github.com/dtubb/fichero/issues/3058), [#3059](https://github.com/dtubb/fichero/issues/3059), [#3061](https://github.com/dtubb/fichero/issues/3061))
+
+**Fixes**
+
+- fix(cli/contracts): close the generated ingest payload and migration-status regressions, add generated GET smoke coverage, and drain the first API-surface CLI contract suite batch across KG, docs, orchestration, providers, search, and library-admin surfaces ([#3047](https://github.com/dtubb/fichero/issues/3047), [#3048](https://github.com/dtubb/fichero/issues/3048), [#2988](https://github.com/dtubb/fichero/issues/2988), [#2989](https://github.com/dtubb/fichero/issues/2989), [#2990](https://github.com/dtubb/fichero/issues/2990), [#2991](https://github.com/dtubb/fichero/issues/2991), [#2992](https://github.com/dtubb/fichero/issues/2992), [#2993](https://github.com/dtubb/fichero/issues/2993), [#2994](https://github.com/dtubb/fichero/issues/2994), [#2996](https://github.com/dtubb/fichero/issues/2996), [#2997](https://github.com/dtubb/fichero/issues/2997), [#2998](https://github.com/dtubb/fichero/issues/2998), [#2999](https://github.com/dtubb/fichero/issues/2999), [#3000](https://github.com/dtubb/fichero/issues/3000), [#3001](https://github.com/dtubb/fichero/issues/3001))
+- fix(tooling/docs): make milestone picking follow due-order within a tier, recover the ROADMAP/security spine, add the `notify_manager` helper, and ground another round of architecture/contributor docs in the current code ([#2913](https://github.com/dtubb/fichero/issues/2913), [#1797](https://github.com/dtubb/fichero/issues/1797))
+
+### 2026-07-02
+
+**Fixes**
+
+- fix(action-layer): route document mutations through the audited registry while preserving change-stream behavior ([#2789](https://github.com/dtubb/fichero/issues/2789))
+
+**Tests**
+
+- test: add centralized LLM error-path coverage and F5 room-convergence edge coverage ([#1825](https://github.com/dtubb/fichero/issues/1825), [#2787](https://github.com/dtubb/fichero/issues/2787))
+
+**Docs**
+
+- docs: add the iOS/iPad interaction-model reference for the shipped compact/scene behavior ([#2810](https://github.com/dtubb/fichero/issues/2810))
+
+### 2026-06-28
+
+**Features**
+
+- feat(node-model): ship a large node-model fold tranche — saved searches, research workspaces/plans/tasks/steps, bookmark nodes, room-node bridges, notes/milestones, entities-in-folders, chat-scope node references, and workspace folder prototypes ([#2591](https://github.com/dtubb/fichero/issues/2591))
+- feat(reader/library): add text, image, and PDF region annotations, immersive full-screen reading, bookmark surface wiring, and inspector ownership/entity-default cleanup ([#2458](https://github.com/dtubb/fichero/issues/2458), [#2520](https://github.com/dtubb/fichero/issues/2520), [#2755](https://github.com/dtubb/fichero/issues/2755), [#2696](https://github.com/dtubb/fichero/issues/2696), [#2697](https://github.com/dtubb/fichero/issues/2697))
+- feat(workflows): centralize workflow LLM routing through the shared chat/structured-output path ([#1825](https://github.com/dtubb/fichero/issues/1825))
+
+**Fixes**
+
+- fix(action-layer): audit folded node-model creates so audit rows and change-stream updates stay paired on the folded write paths ([#2789](https://github.com/dtubb/fichero/issues/2789))
+- fix(chat/ui): switch sidebar chat bubbles to native markdown rendering and drop the custom icon/table/map transcript modes in favor of the shipped bubble UI ([#2639](https://github.com/dtubb/fichero/issues/2639), [#1891](https://github.com/dtubb/fichero/issues/1891))
+- fix(inspector): close the trailing-edit autosave data-loss race with a coalescing save runner ([#2536](https://github.com/dtubb/fichero/issues/2536))
+
+**Docs**
+
+- docs: ground contributor docs, user-guide claims, release/QA docs, API reference coverage, node-model status pages, and the mutation-invariants guidance against the current code ([#108](https://github.com/dtubb/fichero/issues/108), [#2591](https://github.com/dtubb/fichero/issues/2591), [#2690](https://github.com/dtubb/fichero/issues/2690), [#2691](https://github.com/dtubb/fichero/issues/2691), [#1848](https://github.com/dtubb/fichero/issues/1848), [#1863](https://github.com/dtubb/fichero/issues/1863))
+
+**Tests**
+
+- test: broaden the node-model and audit contract net with fold-route coverage, bookmark integration coverage, prototype/room regressions, API-doc drift checks, and mutation-invariant locks ([#108](https://github.com/dtubb/fichero/issues/108), [#2787](https://github.com/dtubb/fichero/issues/2787))
+
 ### 2026-06-27
 
 **Features**
