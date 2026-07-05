@@ -1,6 +1,6 @@
-import Observation
 import FicheroAPIClient
 import Foundation
+import Observation
 import OpenAPIRuntime
 
 /// Parse a date string from the engine's API in any of the four formats
@@ -62,6 +62,18 @@ class APIClient {
     init(baseURL: URL = EngineConfig.host, libraryPath: String? = nil) {
         self.client = FicheroClient(baseURL: baseURL, libraryPath: libraryPath)
         self.currentLibraryPath = libraryPath
+    }
+
+    /// Rebind this client's backend host after pairing / a Settings host change
+    /// (#2349). The wrapped `FicheroClient` is a reference type reconfigured in
+    /// place, so every service holding this `APIClient` (or its `.client`) — e.g.
+    /// `DocumentStore`, `ChainService`, `MCPService` — follows to the new host
+    /// with no reconstruction. The library path is preserved by `reconfigure`.
+    /// Without this, these legacy-`APIClient` paths stayed pinned to the old
+    /// (localhost) base URL while the generated `ficheroClient` rebound — the
+    /// exact silent-localhost gap #2349 closes.
+    func reconfigure(baseURL: URL) {
+        client.reconfigure(baseURL: baseURL)
     }
 
     /// Test seam: wrap an already-configured `FicheroClient` (e.g. one bound to a

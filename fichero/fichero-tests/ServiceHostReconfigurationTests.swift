@@ -77,4 +77,41 @@ struct ServiceHostReconfigurationTests {
 
         #expect(service.client.baseURL == secondHost)
     }
+
+    // #2349: the legacy `APIClient` wraps its OWN `FicheroClient`, separate from
+    // the shared generated `ficheroClient`. DocumentStore, ChainService, and the
+    // app-wide MCPService are all built on `APIClient`, so if `reconfigure` didn't
+    // rebind the wrapped client they kept talking to the old (localhost) host after
+    // pairing. These pin the in-place rebind + library-path preservation.
+    @Test("APIClient.reconfigure rebinds its wrapped FicheroClient")
+    @MainActor
+    func apiClientReconfigureRebindsWrappedClient() {
+        let first = URL(string: "https://first.tailnet.example")!
+        let second = URL(string: "https://second.tailnet.example")!
+
+        let apiClient = APIClient(baseURL: first, libraryPath: "/tmp/Lib.fichero")
+        #expect(apiClient.client.baseURL == first)
+        #expect(apiClient.baseURL == first.appendingPathComponent("api"))
+
+        apiClient.reconfigure(baseURL: second)
+
+        // The wrapped client — the SAME reference every apiClient-based service
+        // holds — now points at the new host, with no reconstruction.
+        #expect(apiClient.client.baseURL == second)
+        #expect(apiClient.baseURL == second.appendingPathComponent("api"))
+    }
+
+    @Test("APIClient.reconfigure preserves the library path")
+    @MainActor
+    func apiClientReconfigurePreservesLibraryPath() {
+        let apiClient = APIClient(
+            baseURL: URL(string: "https://first.tailnet.example")!,
+            libraryPath: "/tmp/Lib.fichero"
+        )
+        apiClient.reconfigure(baseURL: URL(string: "https://second.tailnet.example")!)
+        // The library path must survive the host rebind — else the first request
+        // to the new host would drop X-Fichero-Library-Path.
+        #expect(apiClient.currentLibraryPath == "/tmp/Lib.fichero")
+        #expect(apiClient.client.currentLibraryPath == "/tmp/Lib.fichero")
+    }
 }
