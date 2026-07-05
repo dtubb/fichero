@@ -25,12 +25,15 @@ struct LibraryAccessDeniedView: View {
     /// Clear the stored certificate pin so the next connect re-pins. Nil hides
     /// the reset-certificate affordance.
     var onResetPin: (@MainActor () -> Void)?
+    /// Start the re-pair flow (scan a fresh QR on the Mac) for an expired/revoked
+    /// device token (#3096). Nil hides the re-pair button.
+    var onRePair: (@MainActor () -> Void)?
 
     /// The one next-step this denial resolves to, from error × identity.
     /// The concrete next-action a denial resolves to. Internal (not private) so
     /// the decision can be unit-tested for every failure case without rendering.
     enum PrimaryAction: Equatable {
-        case signIn, requestAccess, restartEngine, resetPin, retry
+        case signIn, requestAccess, restartEngine, resetPin, rePair, retry
     }
 
     private var primaryAction: PrimaryAction {
@@ -57,6 +60,9 @@ struct LibraryAccessDeniedView: View {
             // A stale bootstrap token can only be fixed by the engine re-minting
             // it — restart is the honest next step, not sign-in.
             return .restartEngine
+        case .deviceAccessExpired:
+            // A device has no password sign-in; re-pairing is the only recovery.
+            return .rePair
         case .unauthenticated:
             return .signIn
         case .forbidden:
@@ -76,6 +82,7 @@ struct LibraryAccessDeniedView: View {
         case .tlsPinFailure: return "lock.trianglebadge.exclamationmark"
         case .engineUnreachable, .transport: return "bolt.horizontal.circle"
         case .staleBootstrapToken: return "key.slash"
+        case .deviceAccessExpired: return "iphone.slash"
         case .unauthenticated, .forbidden: return "lock.slash"
         }
     }
@@ -143,6 +150,16 @@ struct LibraryAccessDeniedView: View {
             } else {
                 retryButton(title: "Try Again", prominent: true)
             }
+
+        case .rePair:
+            // Expired/revoked device: re-pair is the only recovery (no password
+            // sign-in for a device). Retry stays as a secondary in case the host
+            // recovered (e.g. a transient blip misread as expiry).
+            if let onRePair {
+                Button("Re-pair This Device") { onRePair() }
+                    .buttonStyle(.borderedProminent)
+            }
+            retryButton(title: "Try Again")
 
         case .retry:
             retryButton(title: "Try Again", prominent: true)
