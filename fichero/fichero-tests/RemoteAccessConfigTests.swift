@@ -210,7 +210,12 @@ final class RemoteAccessConfigTests: XCTestCase {
     }
 
     func testPersistPairedHostStoresAdvertisedLibraryPath() throws {
-        let result = PairingExchangeResult(apiRoot: attemptedHost, deviceToken: "device-token")
+        let expiresAt = Date(timeIntervalSince1970: 2_000_000_000)
+        let result = PairingExchangeResult(
+            apiRoot: attemptedHost,
+            deviceToken: "device-token",
+            expiresAt: expiresAt
+        )
 
         try RemoteClientPairing.persistPairedHost(
             result,
@@ -222,6 +227,8 @@ final class RemoteAccessConfigTests: XCTestCase {
         XCTAssertEqual(RemoteAccessConfig.pairedLibraryPath, "/Users/daniel/Archive/Open.fichero")
         XCTAssertEqual(AuthTokenMiddleware.readRemoteTokenForHost(attemptedHost.absoluteString), "device-token")
         XCTAssertEqual(RemoteCertificatePinning.persistedSPKIPin(hostString: attemptedHost.absoluteString), validSPKIPin)
+        // Pairing records the token expiry for renewal scheduling (#3096).
+        XCTAssertEqual(DeviceTokenRenewal.storedExpiry(host: attemptedHost.absoluteString), expiresAt)
     }
 
     func testRemoteClientPairingAcceptsHealthyHealthStatus() {

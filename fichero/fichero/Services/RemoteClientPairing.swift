@@ -156,7 +156,11 @@ enum RemoteClientPairing {
         let normalizedSPKIPin = try RemoteCertificatePinning.validatedSPKIPin(expectedSPKIPin)
         let response = try await PairingService(apiRoot: url, expectedSPKIPin: normalizedSPKIPin)
             .pairDeviceUnauthenticated(code: code, deviceName: name)
-        return PairingExchangeResult(apiRoot: url, deviceToken: response.deviceToken)
+        return PairingExchangeResult(
+            apiRoot: url,
+            deviceToken: response.deviceToken,
+            expiresAt: response.expiresAt
+        )
     }
 
     @MainActor
@@ -167,6 +171,8 @@ enum RemoteClientPairing {
     ) throws {
         try PairingService.persistAuthToken(result.deviceToken, for: result.apiRoot)
         try RemoteCertificatePinning.persistSPKIPin(expectedSPKIPin, hostString: result.apiRoot.absoluteString)
+        // Record the token's expiry so renewal can fire before it lapses (#3096).
+        DeviceTokenRenewal.storeExpiry(result.expiresAt, host: result.apiRoot.absoluteString)
         UserDefaults.standard.set(result.apiRoot.absoluteString, forKey: EngineConfig.userDefaultsKey)
         if let libraryPath = normalizedLibraryPath(libraryPath) {
             UserDefaults.standard.set(libraryPath, forKey: RemoteAccessConfig.pairedLibraryPathKey)
@@ -213,6 +219,7 @@ enum RemoteClientPairing {
     static func rollbackFailedHostSwitch(previousHost: String, attemptedHost: URL) {
         AuthTokenMiddleware.clearRemoteToken(hostString: attemptedHost.absoluteString)
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: attemptedHost.absoluteString)
+        DeviceTokenRenewal.clearExpiry(host: attemptedHost.absoluteString)
         UserDefaults.standard.removeObject(forKey: RemoteAccessConfig.pairedLibraryPathKey)
         UserDefaults.standard.set(previousHost, forKey: EngineConfig.userDefaultsKey)
     }
