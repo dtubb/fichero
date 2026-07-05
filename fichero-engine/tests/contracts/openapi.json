@@ -49600,6 +49600,11 @@
             "type": "string",
             "nullable": true,
             "title": "Tailnet Url"
+          },
+          "spki_pin": {
+            "type": "string",
+            "nullable": true,
+            "title": "Spki Pin"
           }
         },
         "type": "object",

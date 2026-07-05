@@ -6,10 +6,12 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import socket
 import sys
 
 # Shared with the engine entrypoint so the remote-access launch path uses the
 # same bind-host policy as the rest of the backend.
+from fichero.bind_host import resolve_lan_bind_host
 from fichero.remote_access_tls import (
     material_manifest_json,
     prepare_remote_access_tls,
@@ -44,6 +46,23 @@ def _warn_if_app_unreachable(scheme: str, port: int) -> None:
         )
 
 
+def _listener_hosts(bind_host: str) -> list[str]:
+    lan_host = resolve_lan_bind_host()
+    if lan_host is None or lan_host == bind_host:
+        return [bind_host]
+    return [bind_host, lan_host]
+
+
+def _bind_listener_socket(host: str, port: int) -> socket.socket:
+    family = socket.AF_INET6 if ":" in host else socket.AF_INET
+    sock = socket.socket(family, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind((host, port))
+    sock.listen(socket.SOMAXCONN)
+    sock.setblocking(False)
+    return sock
+
+
 def main(argv: list[str] | None = None) -> None:
     """Start the backend or prepare remote-access TLS material."""
 
@@ -52,13 +71,19 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--prepare-local-access", action="store_true")
     parser.add_argument("--public-base-url")
     parser.add_argument("--remote-access-dir")
+    parser.add_argument("--reload", action="store_true")
     args, _remaining = parser.parse_known_args(argv)
 
     if args.prepare_local_access:
+        subject_alt_hosts = []
+        lan_host = (os.environ.get("FICHERO_LAN_HOST") or "").strip()
+        if lan_host:
+            subject_alt_hosts.append(lan_host)
         material = prepare_remote_access_tls(
             "https://127.0.0.1:8765",
             storage_root=args.remote_access_dir,
             allow_loopback=True,
+            subject_alt_hosts=subject_alt_hosts,
         )
         sys.stdout.write(material_manifest_json(material))
         sys.stdout.write("\n")
@@ -102,16 +127,34 @@ def main(argv: list[str] | None = None) -> None:
         "port": 8765,
         "workers": 1,
         "log_level": "info",
-        "reload": False,
+        "reload": args.reload,
     }
     config.update(uvicorn_ssl_kwargs_from_env())
 
+    listener_hosts = _listener_hosts(bind_host)
+    if len(listener_hosts) > 1 and "ssl_certfile" not in config:
+        raise SystemExit("FICHERO_LAN_HOST requires TLS; set FICHERO_TLS_CERTFILE/FICHERO_TLS_KEYFILE.")
+    if len(listener_hosts) > 1 and args.reload:
+        raise SystemExit("FICHERO_LAN_HOST is not supported with --reload.")
+
     scheme = "https" if "ssl_certfile" in config else "http"
     logger.info("Starting Fichero backend on %s://%s:%d", scheme, bind_host, config["port"])
+    if len(listener_hosts) > 1:
+        logger.info("LAN TLS listener enabled on %s://%s:%d", scheme, listener_hosts[1], config["port"])
     logger.info("Hot-reload: %s", config["reload"])
     _warn_if_app_unreachable(scheme, int(config["port"]))
+    if len(listener_hosts) == 1:
+        uvicorn.run(**config)
+        return
 
-    uvicorn.run(**config)
+    uvicorn_config = uvicorn.Config(**config)
+    server = uvicorn.Server(uvicorn_config)
+    sockets = [_bind_listener_socket(host, int(config["port"])) for host in listener_hosts]
+    try:
+        server.run(sockets=sockets)
+    finally:
+        for sock in sockets:
+            sock.close()
 
 
 if __name__ == "__main__":

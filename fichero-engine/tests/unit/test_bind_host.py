@@ -8,9 +8,11 @@ import typer
 
 from fichero.bind_host import (
     DEFAULT_BIND_HOST,
+    LAN_BIND_HOST_ENV,
     NON_LOOPBACK_BIND_ACK_ENV,
     NON_LOOPBACK_BIND_ACK_VALUE,
     resolve_bind_host,
+    resolve_lan_bind_host,
 )
 from fichero.cli import engine_manager
 from fichero.remote_access_tls import prepare_remote_access_tls
@@ -83,18 +85,16 @@ def test_share_off_defaults_to_loopback() -> None:
 
 
 def test_share_on_uses_wildcard_only_with_ack(tmp_path: Path) -> None:
-    """Remote access (share ON) binds 0.0.0.0 only under the risk ack."""
+    """Remote access TLS keeps one explicit LAN address, never a wildcard."""
     material = prepare_remote_access_tls(
         "https://192.168.1.42:9443",
         storage_root=tmp_path,
     )
-    assert material.bind_host == "0.0.0.0"
+    assert material.bind_host == "192.168.1.42"
 
-    # Without ack, the wildcard bind is refused.
-    with pytest.raises(ValueError, match=r"0\.0\.0\.0 is not allowed"):
+    with pytest.raises(ValueError, match="non-loopback"):
         resolve_bind_host({"FICHERO_BIND_HOST": material.bind_host})
 
-    # With ack, the wildcard bind is accepted.
     with pytest.warns(RuntimeWarning, match="non-loopback host"):
         assert (
             resolve_bind_host(
@@ -103,15 +103,41 @@ def test_share_on_uses_wildcard_only_with_ack(tmp_path: Path) -> None:
                     NON_LOOPBACK_BIND_ACK_ENV: NON_LOOPBACK_BIND_ACK_VALUE,
                 }
             )
-            == "0.0.0.0"
+            == "192.168.1.42"
         )
 
 
 def test_share_on_never_binds_bare_lan_host() -> None:
-    """Remote access resolves to 0.0.0.0, never the bare LAN IP."""
-    # A raw LAN host is rejected by the bind-host guard.
+    """LAN listener stays off until the explicit host flag is set."""
+    assert resolve_lan_bind_host({}) is None
+
+
+def test_resolve_lan_bind_host_requires_explicit_ack() -> None:
     with pytest.raises(ValueError, match="non-loopback"):
-        resolve_bind_host({"FICHERO_BIND_HOST": "192.168.1.42"})
+        resolve_lan_bind_host({LAN_BIND_HOST_ENV: "192.168.1.42"})
+
+
+def test_resolve_lan_bind_host_accepts_specific_non_loopback_host() -> None:
+    with pytest.warns(RuntimeWarning, match="non-loopback host"):
+        assert (
+            resolve_lan_bind_host(
+                {
+                    LAN_BIND_HOST_ENV: "192.168.1.42",
+                    NON_LOOPBACK_BIND_ACK_ENV: NON_LOOPBACK_BIND_ACK_VALUE,
+                }
+            )
+            == "192.168.1.42"
+        )
+
+
+def test_resolve_lan_bind_host_refuses_wildcard() -> None:
+    with pytest.raises(ValueError, match=r"0\.0\.0\.0 is not allowed"):
+        resolve_lan_bind_host(
+            {
+                LAN_BIND_HOST_ENV: "0.0.0.0",
+                NON_LOOPBACK_BIND_ACK_ENV: NON_LOOPBACK_BIND_ACK_VALUE,
+            }
+        )
 
 
 def test_start_uses_resolved_bind_host_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
