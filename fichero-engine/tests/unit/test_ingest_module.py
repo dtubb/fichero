@@ -390,6 +390,17 @@ class TestIngestFile:
         with pytest.raises(ValueError):
             ingest_file(tmp_path)
 
+    def test_symlinked_file_raises_value_error(self, tmp_path):
+        from fichero.ingest import ingest_file
+
+        target = tmp_path / "outside.txt"
+        target.write_text("secret", encoding="utf-8")
+        link = tmp_path / "linked.txt"
+        link.symlink_to(target)
+
+        with pytest.raises(ValueError, match="Refusing to ingest symlinked file"):
+            ingest_file(link, save=False)
+
     @patch("fichero.db.db")
     @patch("fichero.bookmarks.create_bookmark")
     def test_link_mode_creates_bookmark(self, mock_bookmark, mock_db, tmp_path):
@@ -572,6 +583,30 @@ class TestIngestFolder:
 
         assert len(docs) == 1
         assert docs[0].name == "photo.jpg"
+
+    def test_folder_ingest_rejects_symlinked_files_with_failed_stub(self, tmp_path):
+        from fichero.ingest import ingest_folder
+        from fichero.models import Status
+
+        target = tmp_path.parent / "outside.txt"
+        target.write_text("secret", encoding="utf-8")
+        link = tmp_path / "linked.txt"
+        link.symlink_to(target)
+
+        mock_db = MagicMock()
+        mock_db.all.return_value = []
+        mock_db.get.return_value = None
+
+        docs = ingest_folder(tmp_path, db=mock_db, create_collection=False)
+
+        assert docs == []
+        failed = [
+            call.args[0]
+            for call in mock_db.save.call_args_list
+            if call.args and getattr(call.args[0], "status", None) == Status.failed
+        ]
+        assert len(failed) == 1
+        assert "Refusing to ingest symlinked file" in failed[0].metadata["ingest_error"]
 
     @patch("fichero.bookmarks.create_bookmark", return_value=None)
     def test_touches_parent_collection_when_child_is_ingested(

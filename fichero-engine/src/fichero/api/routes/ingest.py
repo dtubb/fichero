@@ -97,6 +97,8 @@ def import_file_impl(
     path = Path(request.path)
     if not path.exists():
         raise HTTPException(status_code=400, detail=f"File not found: {request.path}")
+    if path.is_symlink():
+        raise HTTPException(status_code=400, detail=f"Refusing to ingest symlinked file: {request.path}")
     if not path.is_file():
         raise HTTPException(status_code=400, detail=f"Not a file: {request.path}")
 
@@ -139,6 +141,8 @@ def import_folder_impl(
     path = Path(request.path)
     if not path.exists():
         raise HTTPException(status_code=400, detail=f"Path not found: {request.path}")
+    if path.is_symlink():
+        raise HTTPException(status_code=400, detail=f"Refusing to ingest symlinked folder: {request.path}")
     if not path.is_dir():
         raise HTTPException(status_code=400, detail=f"Not a directory: {request.path}")
 
@@ -194,6 +198,8 @@ async def ingest_folder(
     path = Path(request.path)
     if not path.exists():
         raise HTTPException(status_code=400, detail=f"Path not found: {request.path}")
+    if path.is_symlink():
+        raise HTTPException(status_code=400, detail=f"Refusing to ingest symlinked folder: {request.path}")
 
     if not path.is_dir():
         raise HTTPException(status_code=400, detail=f"Not a directory: {request.path}")

@@ -242,7 +242,10 @@ def ingest_file(
     """
     from fichero.bookmarks import create_bookmark
 
-    path = Path(path).resolve()
+    raw_path = Path(path)
+    if raw_path.is_symlink():
+        raise ValueError(f"Refusing to ingest symlinked file: {raw_path}")
+    path = raw_path.resolve()
 
     if not path.exists():
         raise FileNotFoundError(f"File not found: {path}")
@@ -958,7 +961,10 @@ def ingest_folder(
     Returns:
         List of created Documents
     """
-    folder = Path(folder).resolve()
+    raw_folder = Path(folder)
+    if raw_folder.is_symlink():
+        raise ValueError(f"Refusing to ingest symlinked folder: {raw_folder}")
+    folder = raw_folder.resolve()
 
     if not folder.exists():
         raise FileNotFoundError(f"Folder not found: {folder}")
@@ -1031,7 +1037,10 @@ def ingest_folder(
 
     work_items: list[tuple[int, Path, str | None, str, str]] = []
     for i, file_path in enumerate(files):
+        subfolder_id = folder_id
         try:
+            if file_path.is_symlink():
+                raise ValueError(f"Refusing to ingest symlinked file: {file_path}")
             checksum = _file_checksum(file_path)
             source_key = str(file_path)
             if (source_key, checksum) in existing_hashes:
@@ -1041,7 +1050,6 @@ def ingest_folder(
                 continue
 
             # For recursive, create subfolder structure
-            subfolder_id = folder_id
             if recursive and file_path.parent != folder:
                 subfolder_id = _ensure_folder_hierarchy(
                     file_path.parent,
