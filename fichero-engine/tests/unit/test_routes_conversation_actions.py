@@ -164,12 +164,12 @@ class TestConversationUpdateAction:
 
 
 # ===========================================================================
-# conversation.duplicate — pure copy, NOT undoable
+# conversation.duplicate — pure copy, undo via delete
 # ===========================================================================
 
 
 class TestConversationDuplicateAction:
-    def test_duplicate_effect_audit_emit(self, db, emit_spy):
+    def test_duplicate_effect_audit_emit_and_undo(self, db, emit_spy):
         ctx = _ctx()
         original = _mk_conversation(
             db, title="Original", messages=[{"role": "user", "content": "hi"}]
@@ -194,9 +194,12 @@ class TestConversationDuplicateAction:
         assert audit.before is None
         assert audit.after["id"] == new_id
 
-        # not undoable (sweep scope)
-        assert registry.get("conversation.duplicate").undoable is False
+        assert registry.get("conversation.duplicate").undoable is True
         assert emit_spy[-1][1]["type"] == "conversation.created"
+
+        inv, _ = _undo(db, result.audit_id, ctx)
+        assert inv == "conversation.delete"
+        assert db.get(Conversation, new_id) is None
 
     def test_duplicate_messages_not_aliased(self, db):
         """Mutating the copy's messages must NOT bleed back into the original
@@ -228,6 +231,26 @@ class TestConversationDuplicateAction:
         )
 
         assert db.get(Conversation, result.result["id"]).scope_document_id == "folder-1"
+
+    def test_duplicate_undo_then_redo_restores_copy(self, db):
+        ctx = _ctx()
+        original = _mk_conversation(
+            db, title="Src", messages=[{"role": "user", "content": "a"}]
+        )
+        result = registry.invoke(
+            db, "conversation.duplicate", {"conversation_id": original.id}, ctx
+        )
+        copy_id = result.result["id"]
+
+        _, delete_res = _undo(db, result.audit_id, ctx)
+        assert db.get(Conversation, copy_id) is None
+
+        inv, _ = _undo(db, delete_res.audit_id, ctx)
+        assert inv == "conversation.restore"
+        restored = db.get(Conversation, copy_id)
+        assert restored is not None
+        assert restored.title == "Src (Copy)"
+        assert restored.messages == [{"role": "user", "content": "a"}]
 
     def test_duplicate_unknown_id_404(self, db):
         with pytest.raises(HTTPException) as exc:

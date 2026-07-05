@@ -842,6 +842,18 @@ def _invert_to_restore_before(
     return ("conversation.restore", {"snapshot": before})
 
 
+def _invert_create(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Undo a created conversation by deleting the created row."""
+    if not after:
+        return None
+    cid = after.get("id")
+    if not cid:
+        return None
+    return ("conversation.delete", {"conversation_id": cid})
+
+
 def _invert_restore(
     before: dict | None, after: dict | None, ctx: ActionContext
 ) -> tuple[str, dict] | None:
@@ -897,7 +909,8 @@ def _action_update_conversation(
     "conversation.duplicate",
     ConversationIdParams,
     domains=["conversation"],
-    undoable=False,
+    undoable=True,
+    invert=_invert_create,
 )
 def _action_duplicate_conversation(
     db: Database, params: ConversationIdParams, ctx: ActionContext
