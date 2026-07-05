@@ -9,10 +9,13 @@ from fichero import authz
 from fichero.actions import ActionContext, registry
 from fichero.app_db import get_app_db
 from fichero.api.auth import action_context, auth_kind_from_request, library_access_denial_payload
+from fichero.api.routes.library_registry import get_global_database
 from fichero.api.library_header import require_library_path
 from fichero.api.main import LibraryAccessDeniedError, get_library_database_for_write
 from fichero.db import Database
 from fichero.models import (
+    AccessibleLibrary,
+    KnownLibrary,
     LibraryAuthzSnapshot,
     LibraryMember,
     LibraryMembersResponse,
@@ -24,6 +27,54 @@ from fichero.models import (
 _SHARE_OBJECT_TYPES = {"library", "entity", "document"}
 
 router = APIRouter(prefix="/authz", tags=["authz"])
+
+
+@router.get("/libraries", response_model=list[AccessibleLibrary])
+def list_accessible_libraries(
+    request: Request,
+    registry_db: Database = Depends(get_global_database),
+) -> list[AccessibleLibrary]:
+    """Return the known libraries visible to the current credential."""
+    app_db = get_app_db()
+    known_libraries = sorted(
+        registry_db.all(KnownLibrary),
+        key=lambda lib: lib.last_accessed,
+        reverse=True,
+    )
+    if getattr(getattr(request, "state", None), "bootstrap_auth", False):
+        return [
+            AccessibleLibrary(
+                library_path=authz.normalize_library_path(library.path) or library.path,
+                library_name=library.name or library.path.rstrip("/").split("/")[-1],
+                role=authz.ROLE_OWNER,
+            )
+            for library in known_libraries
+        ]
+
+    resolved_user = authz.resolve_user(getattr(getattr(request, "state", None), "user", None))
+    if resolved_user is None:
+        raise HTTPException(status_code=401, detail="session required")
+
+    known_by_path = {
+        authz.normalize_library_path(library.path) or library.path: library
+        for library in known_libraries
+    }
+    libraries: list[AccessibleLibrary] = []
+    for role in app_db.list_library_roles_for_user(resolved_user.id):
+        library = known_by_path.get(role.library_path)
+        library_name = (
+            library.name
+            if library is not None and library.name
+            else role.library_path.rstrip("/").split("/")[-1]
+        )
+        libraries.append(
+            AccessibleLibrary(
+                library_path=role.library_path,
+                library_name=library_name,
+                role=role.role,
+            )
+        )
+    return libraries
 
 
 @router.get("/library", response_model=LibraryAuthzSnapshot)

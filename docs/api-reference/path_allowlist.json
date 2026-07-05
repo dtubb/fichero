@@ -51,6 +51,7 @@
     "/api/auth/me": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/auth/identity": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/authz/library": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
+    "/api/authz/libraries": "Accessible-libraries read API (#2394); route-family documented, per-path markdown callout pending.",
     "/api/authz/members": "Library sharing members read API (#2869); route-family documented, per-path markdown callout pending.",
     "/api/batches": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/batches/{batch_id}": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",

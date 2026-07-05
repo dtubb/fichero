@@ -1406,6 +1406,17 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='authz')
         existing_apps['authz'] = target_app
 
+    @target_app.command("list-accessible-libraries")
+    def authz_list_accessible_libraries_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Accessible Libraries (GET /api/authz/libraries)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/authz/libraries"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("get-library-snapshot")
     def authz_get_library_snapshot_get(
         ctx: typer.Context,

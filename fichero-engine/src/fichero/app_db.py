@@ -1117,6 +1117,20 @@ class AppDatabase:
             ).fetchall()
         return [self._row_to_library_role(row) for row in rows]
 
+    def list_library_roles_for_user(self, user_id: str) -> list[LibraryRole]:
+        """Return all whole-library roles for one user."""
+        with self._lock:
+            rows = self.conn.execute(
+                """
+                SELECT id, user_id, library_path, role, created_at, updated_at
+                FROM library_roles
+                WHERE user_id = ?
+                ORDER BY created_at, library_path
+                """,
+                [user_id],
+            ).fetchall()
+        return [self._row_to_library_role(row) for row in rows]
+
     def delete_library_role(self, user_id: str, library_path: str) -> None:
         """Remove a user's role for one library (revoke). Idempotent."""
         with self._lock:
