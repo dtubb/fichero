@@ -1186,11 +1186,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/AccessibleLibrary"
-                  },
-                  "type": "array",
-                  "title": "Response List Accessible Libraries Api Authz Libraries Get"
+                  "$ref": "#/components/schemas/AccessibleLibraryListResponse"
                 }
               }
             }
@@ -1548,11 +1544,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/InviteResponse"
-                  },
-                  "type": "array",
-                  "title": "Response List Invites Api Auth Invites Get"
+                  "$ref": "#/components/schemas/InviteListResponse"
                 }
               }
             }
@@ -1699,11 +1691,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/SessionResponse"
-                  },
-                  "type": "array",
-                  "title": "Response List Sessions Api Auth Sessions Get"
+                  "$ref": "#/components/schemas/SessionListResponse"
                 }
               }
             }
@@ -1876,7 +1864,7 @@
           "pairing"
         ],
         "summary": "Create Pairing Code",
-        "description": "Mint a short-lived one-time pairing code for an owner.",
+        "description": "Mint a short-lived one-time pairing code for the authenticated caller.",
         "operationId": "create_pairing_code_api_pair_code_post",
         "responses": {
           "200": {
@@ -1942,7 +1930,7 @@
           "pairing"
         ],
         "summary": "List Devices",
-        "description": "List paired devices for owners.",
+        "description": "List paired devices for owners or one caller's own account.",
         "operationId": "list_devices_api_pair_devices_get",
         "responses": {
           "200": {
@@ -32089,6 +32077,27 @@
         "title": "AccessibleLibrary",
         "description": "One library the current credential may access."
       },
+      "AccessibleLibraryListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AccessibleLibrary"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "AccessibleLibraryListResponse"
+      },
       "ActionCategoriesResponse": {
         "properties": {
           "categories": {
@@ -44023,6 +44032,27 @@
         "title": "InterpretiveFramework",
         "description": "An interpretive lens applied to claims and evidence.\n\nFrameworks are reusable lenses that shape how evidence is interpreted.\nExample: \"Marxist historical materialism\" as a framework for analyzing\nlabor relations in historical documents."
       },
+      "InviteListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InviteResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "InviteListResponse"
+      },
       "InviteMintResponse": {
         "properties": {
           "invite": {
@@ -55455,6 +55485,27 @@
         },
         "type": "object",
         "title": "SegmentOperationRequest"
+      },
+      "SessionListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SessionResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "SessionListResponse"
       },
       "SessionResponse": {
         "properties": {

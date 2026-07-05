@@ -96,6 +96,11 @@ class SessionResponse(BaseModel):
     last_seen: datetime
 
 
+class SessionListResponse(BaseModel):
+    items: list[SessionResponse]
+    count: int
+
+
 class InviteRequest(BaseModel):
     username: str = Field(min_length=1)
     display_name: str | None = Field(default=None, min_length=1)
@@ -112,6 +117,11 @@ class InviteResponse(BaseModel):
     display_name: str
     created_at: datetime
     expires_at: datetime
+
+
+class InviteListResponse(BaseModel):
+    items: list[InviteResponse]
+    count: int
 
 
 class InviteMintResponse(BaseModel):
@@ -450,14 +460,15 @@ def identity(request: Request) -> AuthIdentityResponse:
     )
 
 
-@auth_router.get("/invites", response_model=list[InviteResponse])
+@auth_router.get("/invites", response_model=InviteListResponse)
 def list_invites(
     request: Request,
     app_db: AppDatabase = Depends(get_app_database),
-) -> list[InviteResponse]:
+) -> InviteListResponse:
     _multiuser_disabled()
     _require_owner_or_bootstrap(request)
-    return [_invite_response(invite) for invite in app_db.list_pending_invites()]
+    items = [_invite_response(invite) for invite in app_db.list_pending_invites()]
+    return InviteListResponse(items=items, count=len(items))
 
 
 @auth_router.post("/invites", response_model=InviteMintResponse)
@@ -562,11 +573,11 @@ def revoke_invite(
     return StatusResponse(status="ok")
 
 
-@auth_router.get("/sessions", response_model=list[SessionResponse])
+@auth_router.get("/sessions", response_model=SessionListResponse)
 def list_sessions(
     request: Request,
     app_db: AppDatabase = Depends(get_app_database),
-) -> list[SessionResponse]:
+) -> SessionListResponse:
     _multiuser_disabled()
 
     session_user = _current_session_user(request)
@@ -581,7 +592,7 @@ def list_sessions(
     else:
         raise HTTPException(status_code=401, detail="session required")
 
-    return [
+    items = [
         SessionResponse(
             id=session.id,
             user=_session_user(users_by_id[session.user_id]),
@@ -592,6 +603,7 @@ def list_sessions(
         for session in sessions
         if session.user_id in users_by_id
     ]
+    return SessionListResponse(items=items, count=len(items))
 
 
 @auth_router.post("/sessions/{session_id}/revoke", response_model=StatusResponse)
