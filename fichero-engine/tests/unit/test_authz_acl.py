@@ -324,6 +324,56 @@ def test_paired_viewer_gets_structured_library_denial_on_write_route(
         importlib.reload(api_main)
 
 
+def test_activity_stream_denies_user_without_library_role(
+    test_package, app_db, users, monkeypatch, tmp_path
+):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    monkeypatch.setenv("FICHERO_DISABLE_AUTH", "0")
+    allowed_library = str(test_package)
+    denied_package = tmp_path / "denied.fichero"
+    denied_package.mkdir()
+    denied_db = Database(path=denied_package / "fichero.duckdb")
+    denied_db.conn.close()
+    denied_library = str(denied_package)
+    _grant(app_db, users.viewer, allowed_library, "viewer")
+
+    import fichero.api.main as api_main
+
+    api_main = importlib.reload(api_main)
+    try:
+        with TestClient(
+            api_main.app,
+            headers={"X-Fichero-Library-Path": allowed_library},
+        ) as client:
+            login = client.post(
+                "/api/auth/login",
+                json={"username": "viewer", "password": "password"},
+            )
+            assert login.status_code == 200
+            auth_headers = _bearer(login.json()["session_token"])
+
+            denied = client.get(
+                "/api/activity/stream",
+                headers={
+                    **auth_headers,
+                    "X-Fichero-Library-Path": denied_library,
+                },
+            )
+            assert denied.status_code == 403
+            assert denied.json() == {
+                "detail": "read access denied",
+                "code": "library_access_denied",
+                "library_path": authz.normalize_library_path(denied_library) or denied_library,
+                "auth_kind": "session",
+                "username": "viewer",
+                "required": "read",
+            }
+    finally:
+        api_main.app.dependency_overrides.clear()
+        monkeypatch.setenv("FICHERO_DISABLE_AUTH", "1")
+        importlib.reload(api_main)
+
+
 @pytest.mark.anyio
 async def test_multiuser_off_leaves_write_dependency_unchanged(
     db, users, monkeypatch

@@ -5,9 +5,15 @@ activities, recent events, stats, and cleanup. Tests mock get_activity_tracker
 to avoid needing a real activity DB.
 """
 
+import asyncio
 import pytest
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
+
+from fichero.api import change_stream
+from fichero.api.change_stream import _ChangeHub, emit_change
+from fichero.api.routes import activity as activity_routes
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -207,6 +213,77 @@ class TestActivityStream:
         assert '"type":"workflow_started"' in chunk
         assert '"thread_id":"thread-started-1"' in chunk
         await response.body_iterator.aclose()
+
+    @pytest.mark.asyncio
+    async def test_stream_yields_change_events_for_current_library(self, monkeypatch):
+        from fichero.api.routes.activity import stream_activities
+
+        tracker = _make_mock_tracker([])
+
+        async def stream(_sub_id, _filter):
+            await asyncio.Future()
+            yield None  # pragma: no cover
+
+        tracker.stream = stream
+        test_hub = _ChangeHub()
+        monkeypatch.setattr(change_stream, "_change_hub", test_hub)
+        monkeypatch.setattr(activity_routes, "_change_hub", test_hub)
+
+        library_path = "/tmp/test-activity.fichero"
+        db = MagicMock(path=Path(library_path) / "fichero.duckdb")
+        with patch("fichero.api.routes.activity.get_activity_tracker", return_value=tracker):
+            response = await stream_activities(db=db, types=None, levels=None)
+
+        try:
+            emit_change(
+                library_path,
+                type="document.updated",
+                document_ids=["doc-1"],
+                actor="remote-device",
+            )
+            chunk = await anext(response.body_iterator)
+        finally:
+            await response.body_iterator.aclose()
+
+        assert '"type":"system_info"' in chunk
+        assert '"message":"document.updated changed"' in chunk
+        assert '"change_type":"document.updated"' in chunk
+        assert '"actor":"remote-device"' in chunk
+
+    @pytest.mark.asyncio
+    async def test_stream_ignores_other_library_change_events(self, monkeypatch):
+        from fichero.api.routes.activity import stream_activities
+
+        tracker = _make_mock_tracker([])
+
+        async def stream(_sub_id, _filter):
+            await asyncio.Future()
+            yield None  # pragma: no cover
+
+        tracker.stream = stream
+        test_hub = _ChangeHub()
+        monkeypatch.setattr(change_stream, "_change_hub", test_hub)
+        monkeypatch.setattr(activity_routes, "_change_hub", test_hub)
+        monkeypatch.setattr(activity_routes, "_KEEPALIVE_TIMEOUT", 0.01)
+
+        library_path = "/tmp/test-activity.fichero"
+        other_library_path = "/tmp/other-activity.fichero"
+        db = MagicMock(path=Path(library_path) / "fichero.duckdb")
+        with patch("fichero.api.routes.activity.get_activity_tracker", return_value=tracker):
+            response = await stream_activities(db=db, types=None, levels=None)
+
+        try:
+            emit_change(
+                other_library_path,
+                type="document.updated",
+                document_ids=["doc-2"],
+                actor="remote-device",
+            )
+            chunk = await anext(response.body_iterator)
+        finally:
+            await response.body_iterator.aclose()
+
+        assert chunk == ": keepalive\n\n"
 
 
 # ---------------------------------------------------------------------------
