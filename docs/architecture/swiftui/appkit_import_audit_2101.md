@@ -19,6 +19,8 @@ The machine guardrail is `scripts/check_appkit_imports.py`. This document explai
 | `Models/Platform/PlatformPasteboard.swift` | platform shim | Pasteboard bridge; keep as the single copy/paste crossing. |
 | `Models/SpatialTheme.swift` | platform shim | Uses `PlatformColor`; keep platform color math centralized. |
 | `Models/WorkflowExporter.swift` | file picker bridge | Replace panel-specific paths with SwiftUI file exporter/importer when porting. |
+| `Services/EmbeddedBackendService.swift` | engine lifecycle | `NSClassFromString` test detection + `NSError` lifecycle plumbing for the Mac-only embedded engine; iOS embeds in-process differently. |
+| `Services/EngineConfig.swift` | macOS interaction gap | `NSEvent.modifierFlags` option-key detection to pick the launch/provisioning mode; iOS has no modifier keys. |
 | `Services/ImageEditingServiceGenerated.swift` | platform shim | Uses `PlatformImage`; keep image decode/preview platform-neutral. |
 | `Services/RemoteClientPairing.swift` | platform shim | Uses UIKit device name where available; keep pairing logic shared. |
 | `Views/Capture/MobileCaptureQueueView.swift` | iOS surface | UIKit-only capture queue UI for mobile. |
@@ -30,6 +32,8 @@ The machine guardrail is `scripts/check_appkit_imports.py`. This document explai
 | `Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+KGSection.swift` | macOS interaction gap | Multi-select/open behavior needs iOS edit-mode alternative. |
 | `Views/Library/DocumentKGWebPane.swift` | WebKit bridge | Keep platform WebView/pinning boundary isolated. |
 | `Views/Library/FolderAccessManager.swift` | file picker/bookmark bridge | Swap panels to SwiftUI file importer/exporter for iOS. |
+| `Views/Library/AnnotatableTextView.swift` | rich text bridge | `NSViewRepresentable` over `NSTextView` to draw highlight backgrounds; iOS needs a `UITextView` equivalent. |
+| `Views/Library/ImmersiveReaderView.swift` | macOS interaction gap | `NSViewRepresentable` keyboard-exit catcher (Esc) for the immersive reader; iOS uses gesture/back. |
 | `Views/Library/ImageEditor/ImageEditorModel.swift` | platform shim | Uses platform image type for editor previews. |
 | `Views/Library/ImageEditor/ImageEditorView.swift` | platform shim | Uses platform image views; keep editor logic shared. |
 | `Views/Library/ImageViewer/ImageWithCursorTracking.swift` | needs iOS alternative | Mac uses `NSScrollView`/tracking; iOS needs `UIScrollView`/gesture path. |
