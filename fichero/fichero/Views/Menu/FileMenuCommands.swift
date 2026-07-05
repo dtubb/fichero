@@ -91,7 +91,7 @@ final class KnownLibraryRegistryStore {
             switch response {
             case .ok(let okResponse):
                 let body = try okResponse.body.json
-                let entries = body.map { lib in
+                let entries = body.items.map { lib in
                     KnownLibraryMenuEntry(
                         id: lib.libraryPath,
                         path: lib.libraryPath,

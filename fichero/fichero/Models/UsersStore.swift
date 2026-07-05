@@ -102,7 +102,7 @@ final class UsersStore {
         do {
             let response = try await client.api.listInvitesApiAuthInvitesGet()
             if case .ok(let ok) = response {
-                invites = try ok.body.json
+                invites = try ok.body.json.items
             } else {
                 invites = []
             }
