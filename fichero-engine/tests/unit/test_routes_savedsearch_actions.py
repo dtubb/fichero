@@ -309,6 +309,23 @@ class TestSavedSearchDuplicateAction:
         assert restored is not None
         assert restored.query == "Original"
 
+    def test_duplicate_undo_deletes_copy_even_after_later_edit(self, db):
+        ctx = _ctx()
+        original = _mk_saved_search(db, query="Original", folder_path="/p", sort_order=5)
+        duplicated = registry.invoke(
+            db, "savedsearch.duplicate", {"search_id": original.id}, ctx
+        )
+        new_id = duplicated.result["id"]
+
+        copy = db.get(SavedSearch, new_id)
+        assert copy is not None
+        copy.query = "Edited Copy"
+        db.save(copy)
+
+        inv, _ = _undo(db, duplicated.audit_id, ctx)
+        assert inv == "savedsearch.delete"
+        assert db.get(SavedSearch, new_id) is None
+
 
 # ===========================================================================
 # savedsearch.delete / savedsearch.restore — undo restores SAME id, redo sane
@@ -448,3 +465,25 @@ class TestSavedSearchReorderAction:
         assert db.get(SavedSearch, c.id).sort_order == 0
         assert db.get(SavedSearch, a.id).sort_order == 1
         assert db.get(SavedSearch, b.id).sort_order == 2
+
+    def test_reorder_undo_restores_captured_order_after_later_reorder(self, db):
+        ctx = _ctx()
+        a = _mk_saved_search(db, query="A", sort_order=0)
+        b = _mk_saved_search(db, query="B", sort_order=1)
+        c = _mk_saved_search(db, query="C", sort_order=2)
+
+        first = registry.invoke(
+            db, "savedsearch.reorder", {"search_ids": [c.id, a.id, b.id]}, ctx
+        )
+        assert db.get(SavedSearch, c.id).sort_order == 0
+
+        registry.invoke(
+            db, "savedsearch.reorder", {"search_ids": [b.id, c.id, a.id]}, ctx
+        )
+        assert db.get(SavedSearch, b.id).sort_order == 0
+
+        inv, _ = _undo(db, first.audit_id, ctx)
+        assert inv == "savedsearch.restore_order"
+        assert db.get(SavedSearch, a.id).sort_order == 0
+        assert db.get(SavedSearch, b.id).sort_order == 1
+        assert db.get(SavedSearch, c.id).sort_order == 2
