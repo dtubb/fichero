@@ -3,7 +3,7 @@
 Run all repo validation checks from repo root:
 
 ```bash
-./fichero-engine/scripts/validate_repo.sh
+bash scripts/verify_all.sh --standard
 ```
 
 Checks included:
@@ -30,5 +30,5 @@ Current validation status:
 - OpenAPI sync + parity: passing
 
 Pylint baseline policy:
-- `validate_repo.sh` runs `pylint --errors-only` with `fichero-engine/.pylintrc`.
+- The backend validation gate runs `pylint --errors-only` with `fichero-engine/.pylintrc`.
 - Global `no-member` is not disabled; use narrow inline suppressions only for dynamic runtime APIs.
