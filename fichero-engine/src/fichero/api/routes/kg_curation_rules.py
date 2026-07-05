@@ -62,12 +62,24 @@ class EntityRuleDeleteResponse(BaseModel):
     deleted_rule_id: str
 
 
+class EntityRuleRestoreRequest(BaseModel):
+    rule: EntityRuleReadResponse
+
+
 def _invert_create_entity_rule(
     before: dict | None, after: dict | None, ctx: ActionContext
 ) -> tuple[str, dict]:
     if not after or "id" not in after:
         raise ValueError("Cannot undo kg.entity_rule.create without created rule id")
     return "kg.entity_rule.delete", {"rule_id": after["id"]}
+
+
+def _invert_delete_entity_rule(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict]:
+    if not before or "rule" not in before:
+        raise ValueError("Cannot undo kg.entity_rule.delete without deleted rule")
+    return "kg.entity_rule.restore", {"rule": before["rule"]}
 
 
 class ClaimRuleCreateRequest(BaseModel):
@@ -342,22 +354,52 @@ def _action_create_entity_rules_batch(
     "kg.entity_rule.delete",
     EntityRuleDeleteRequest,
     domains=["entity"],
-    undoable=False,
+    undoable=True,
+    invert=_invert_delete_entity_rule,
 )
 def _action_delete_entity_rule(
     db: Database, params: EntityRuleDeleteRequest, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
+    rule = db.get(EntityResolutionRule, params.rule_id)
+    if rule is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Entity rule not found: {params.rule_id}",
+        )
     _delete_entity_rule_impl(db, params.rule_id)
     spec = ChangeSpec(
         domains=["entity"],
         target_ids=[params.rule_id],
-        before={"rule_id": params.rule_id},
+        before={"rule": rule.model_dump(mode="json")},
         after={"deleted_rule_id": params.rule_id},
         emit_type="entity.updated",
     )
     return EntityRuleDeleteResponse(deleted_rule_id=params.rule_id).model_dump(
         mode="json"
     ), spec
+
+
+@action(
+    "kg.entity_rule.restore",
+    EntityRuleRestoreRequest,
+    domains=["entity"],
+    undoable=False,
+)
+def _action_restore_entity_rule(
+    db: Database, params: EntityRuleRestoreRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    rule = EntityResolutionRule.model_validate(params.rule.model_dump(mode="json"))
+    existing = db.get(EntityResolutionRule, rule.id)
+    before = existing.model_dump(mode="json") if existing is not None else None
+    db.save(rule)
+    spec = ChangeSpec(
+        domains=["entity"],
+        target_ids=[rule.id],
+        before={"rule": before} if before is not None else None,
+        after={"rule": rule.model_dump(mode="json")},
+        emit_type="entity.updated",
+    )
+    return _entity_rule_response(rule).model_dump(mode="json"), spec
 
 
 @action(

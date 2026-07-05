@@ -132,7 +132,46 @@ class TestEntityCurationRules:
         assert db.get(EntityResolutionRule, created_id) is None
 
         delete_action = reg.get(inv_name)
-        assert delete_action.undoable is False
+        assert delete_action.undoable is True
+
+    def test_entity_rule_delete_undo_then_redo(self, db):
+        reg = registry
+        created = reg.invoke(
+            db,
+            "kg.entity_rule.create",
+            {
+                "rule_type": "merge_into",
+                "match_canonical_name": "J. Davidson",
+                "target_canonical_name": "John Davidson",
+                "reason": "same person",
+            },
+            _ctx(),
+        )
+        created_id = created.result["id"]
+
+        deleted = reg.invoke(
+            db,
+            "kg.entity_rule.delete",
+            {"rule_id": created_id},
+            _ctx(),
+        )
+        assert db.get(EntityResolutionRule, created_id) is None
+        delete_audit = db.get(ActionAudit, deleted.audit_id)
+        assert delete_audit is not None
+
+        delete_action = reg.get("kg.entity_rule.delete")
+        assert delete_action.undoable is True
+        inv = delete_action.invert(delete_audit.before, delete_audit.after, _ctx())
+        assert inv is not None
+        inv_name, inv_params = inv
+        assert inv_name == "kg.entity_rule.restore"
+
+        restored = reg.invoke(db, inv_name, inv_params, _ctx())
+        assert db.get(EntityResolutionRule, created_id) is not None
+
+        restore_action = reg.get(inv_name)
+        assert restore_action.undoable is False
+        assert restored.result["id"] == created_id
 
 
 class TestClaimCurationRules:
