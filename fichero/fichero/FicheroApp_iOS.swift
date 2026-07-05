@@ -246,6 +246,11 @@ private struct RemoteConnectionSetupView: View {
 
     let onConnected: @MainActor () async -> Void
 
+    // Companion-first onboarding (#3102): lead with Macs discovered on the LAN so
+    // the primary path is pairing to an existing engine, not standing up a local
+    // library. Discovery only *finds* the Mac — the QR still carries the pair code
+    // + SPKI pin, so tapping a host routes into the scanner.
+    @StateObject private var discovery = BonjourDiscoveryService()
     @State private var showingScanner = false
     @State private var didAutoPresentScanner = false
     @State private var showingManualEntry = false
@@ -308,6 +313,18 @@ private struct RemoteConnectionSetupView: View {
     private var connectView: some View {
         NavigationStack {
             List {
+                DiscoveredMacsSection(
+                    discovery: discovery,
+                    isPairing: isPairing,
+                    onSelectHost: {
+                        if supportsCameraScanner {
+                            showingScanner = true
+                        } else {
+                            errorMessage = "Camera scanning is unavailable on this device."
+                        }
+                    }
+                )
+
                 Section {
                     ZStack {
                         RoundedRectangle(cornerRadius: 22)
@@ -414,6 +431,7 @@ private struct RemoteConnectionSetupView: View {
                 }
             }
             .navigationTitle("Connect to Fichero on Mac")
+            .onAppear { discovery.start() }
         }
     }
 
@@ -534,6 +552,48 @@ private extension RemoteConnectionSetupView {
         await onConnected()
         if !appState.isBackendRunning {
             errorMessage = "Connected — Fichero on your Mac is not responding yet."
+        }
+    }
+}
+
+/// Discovered-Mac list that leads first-run onboarding (#3102). Discovery only
+/// surfaces *which* Mac is on the LAN; selecting one opens the QR scanner because
+/// pairing needs the code + SPKI pin shown on that Mac — the scan grants trust.
+private struct DiscoveredMacsSection: View {
+    @ObservedObject var discovery: BonjourDiscoveryService
+    let isPairing: Bool
+    let onSelectHost: () -> Void
+
+    var body: some View {
+        Section {
+            if discovery.hosts.isEmpty {
+                HStack(spacing: 10) {
+                    ProgressView().controlSize(.small)
+                    Text("Searching for Fichero on your network…")
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                ForEach(discovery.hosts) { host in
+                    Button(action: onSelectHost) {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(host.displayName)
+                                Text(host.hasReachableURL
+                                    ? "On your network — scan its QR code to pair"
+                                    : "Found — scan its QR code to pair")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "desktopcomputer")
+                                .foregroundStyle(Color.accentColor)
+                        }
+                    }
+                    .disabled(isPairing)
+                }
+            }
+        } header: {
+            Text("Connect to your Mac")
         }
     }
 }
