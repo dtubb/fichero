@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from fichero.loaders import xlsx_reader
 from fichero.loaders.xlsx_reader import (
     _col_index,
     _index_to_col_letter,
@@ -171,6 +172,28 @@ def test_xlsx_rejects_oversized_zip_member(tmp_path):
         zf.writestr("xl/worksheets/sheet1.xml", "x" * (20 * 1024 * 1024 + 1))
 
     with pytest.raises(ValueError, match="XLSX member too large"):
+        read_xlsx_records(path)
+
+
+def test_xlsx_rejects_member_count_or_total_size_before_xml_parse(tmp_path, monkeypatch):
+    path = tmp_path / "many-members.xlsx"
+    with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_STORED) as zf:
+        zf.writestr("[Content_Types].xml", _CONTENT_TYPES)
+        zf.writestr("xl/workbook.xml", _WORKBOOK)
+        zf.writestr("xl/sharedStrings.xml", _make_shared_strings(["header"]))
+        zf.writestr("xl/worksheets/sheet1.xml", _make_sheet([["Header"], ["Value"]])[0])
+        zf.writestr("xl/extra1.xml", "A" * 80)
+        zf.writestr("xl/extra2.xml", "B" * 80)
+
+    monkeypatch.setattr(xlsx_reader, "_MAX_XLSX_MEMBER_COUNT", 5)
+    monkeypatch.setattr(xlsx_reader, "_MAX_XLSX_TOTAL_UNCOMPRESSED", 200)
+    monkeypatch.setattr(
+        xlsx_reader,
+        "parse_xml",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("parse_xml should not run")),
+    )
+
+    with pytest.raises(ValueError, match="too many members|total uncompressed size too large"):
         read_xlsx_records(path)
 
     def test_col_index_ab(self):
