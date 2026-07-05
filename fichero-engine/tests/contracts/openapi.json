@@ -35970,6 +35970,11 @@
             "type": "integer",
             "title": "Skipped Existing Count"
           },
+          "skipped_unparseable_page_label_count": {
+            "type": "integer",
+            "title": "Skipped Unparseable Page Label Count",
+            "default": 0
+          },
           "time_start": {
             "type": "string",
             "title": "Time Start"
@@ -36058,6 +36063,11 @@
           "skipped_existing_count": {
             "type": "integer",
             "title": "Skipped Existing Count"
+          },
+          "skipped_unparseable_page_label_count": {
+            "type": "integer",
+            "title": "Skipped Unparseable Page Label Count",
+            "default": 0
           }
         },
         "type": "object",
