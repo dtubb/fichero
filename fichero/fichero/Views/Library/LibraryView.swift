@@ -532,6 +532,10 @@ struct LibraryView: View {
             onToolbarSearchSubmit(trimmed)
         }
     }
+}
+
+// MARK: - Connection error + bottom inset (#3160: kept out of the type body)
+extension LibraryView {
     private var connectionErrorState: some View {
         VStack(spacing: 16) {
             Image(systemName: "wifi.slash")
