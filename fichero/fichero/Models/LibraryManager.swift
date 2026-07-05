@@ -220,6 +220,17 @@ class LibraryManager {
             stream.register(self.interpretationStore)
             stream.register(self.canvasLayoutStore)
             stream.register(self.canvasItemStore)
+            // Remote hosts: the dedicated /changes/stream can drop over the
+            // tailnet (#2479), so mutations also ride the ACL-scoped activity
+            // stream (#3159). Bridge those folded change frames into the same
+            // fan-out. Local hosts keep the dedicated stream as the sole source,
+            // so leave the router nil there to avoid double-applying (#3159 emits
+            // the folded frames unconditionally, on local as well as remote).
+            if !self.host.isLocal {
+                self.activityStore.changeRouter = { [weak stream] event in
+                    stream?.ingest(event)
+                }
+            }
             return stream
         }()
 

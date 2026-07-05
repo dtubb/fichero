@@ -20,6 +20,13 @@ private func makeStore() -> ActivityStore {
     return ActivityStore(service: service)
 }
 
+/// Reference box so a stored `changeRouter` closure can record what it received
+/// without capturing a mutable local (avoids the escaping-capture warning).
+@MainActor
+private final class RoutedEvents {
+    var events: [ChangeEvent] = []
+}
+
 private func makeEvent(domain: String, verb: String = "created") throws -> ChangeEvent {
     let payload: [String: Any] = [
         "type": "\(domain).\(verb)",
@@ -93,6 +100,78 @@ struct ActivityStoreTests {
         store.applyActivityEvent(event)
         store.applyActivityEvent(event)
         #expect(store.refreshToken == first + 2)
+    }
+
+    // MARK: Folded change frames (#3159 / #2479)
+
+    /// Build the activity frame the backend emits for a folded change event
+    /// (#3159): `system_info`, id prefixed `change-`, change payload in metadata.
+    private func makeFoldedChangeFrame(
+        changeType: String = "document.updated",
+        documentIds: String = "[\"doc-1\",\"doc-2\"]"
+    ) -> ActivityItem {
+        ActivityItem(
+            id: "change-abc",
+            type: "system_info",
+            level: "info",
+            timestamp: "2026-07-05T12:00:00Z",
+            message: "\(changeType) changed",
+            metadataRaw: [
+                "change_type": AnyValueAsString(changeType),
+                "actor": AnyValueAsString("mac"),
+                "document_ids": AnyValueAsString(documentIds),
+                "entity_ids": AnyValueAsString("[]")
+            ]
+        )
+    }
+
+    @Test("ChangeEvent reconstructs from a folded activity frame's metadata")
+    func changeEventFromActivityMetadata() {
+        let metadata = [
+            "change_type": "entity.merged",
+            "actor": "ipad",
+            "entity_ids": "[\"e1\",\"e2\"]",
+            "document_ids": "[]"
+        ]
+        let change = ChangeEvent(activityMetadata: metadata)
+        #expect(change?.type == "entity.merged")
+        #expect(change?.domain == "entity")
+        #expect(change?.entityIds == ["e1", "e2"])
+        #expect(change?.actor == "ipad")
+    }
+
+    @Test("ChangeEvent(activityMetadata:) is nil for an ordinary activity frame")
+    func changeEventNilWithoutChangeType() {
+        #expect(ChangeEvent(activityMetadata: ["message": "hi"]) == nil)
+        #expect(ChangeEvent(activityMetadata: ["change_type": ""]) == nil)
+    }
+
+    @Test("folded change frame does NOT bump refreshToken (no wholesale run reload)")
+    func foldedChangeFrameDoesNotBumpToken() {
+        let store = makeStore()
+        let before = store.refreshToken
+        store.applyActivityEvent(makeFoldedChangeFrame())
+        #expect(store.refreshToken == before)
+    }
+
+    @Test("folded change frame is routed to changeRouter (remote hosts)")
+    func foldedChangeFrameRoutedToRouter() {
+        let store = makeStore()
+        let box = RoutedEvents()
+        store.changeRouter = { box.events.append($0) }
+        store.applyActivityEvent(makeFoldedChangeFrame())
+        #expect(box.events.count == 1)
+        #expect(box.events.first?.documentIds == ["doc-1", "doc-2"])
+        #expect(box.events.first?.type == "document.updated")
+    }
+
+    @Test("folded change frame with nil changeRouter is dropped (local hosts)")
+    func foldedChangeFrameDroppedWhenLocal() {
+        let store = makeStore()
+        let before = store.refreshToken
+        store.changeRouter = nil
+        store.applyActivityEvent(makeFoldedChangeFrame())
+        #expect(store.refreshToken == before)  // neither routed nor a run reload
     }
 
     // MARK: resync()
