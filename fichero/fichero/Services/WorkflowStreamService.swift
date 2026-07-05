@@ -52,7 +52,10 @@ class WorkflowStreamService {
     /// Track if workflow had errors (for final status determination)
     private var hadError = false
 
-    private var streamTask: Task<Void, Never>?
+    // Plumbing, not observed UI state — exclude from @Observable tracking, and
+    // `nonisolated(unsafe)` so `deinit` (nonisolated in Swift 6) can cancel it
+    // (only mutated on the main actor; `Task.cancel()` is safe from anywhere).
+    @ObservationIgnored nonisolated(unsafe) private var streamTask: Task<Void, Never>?
 
     init(ficheroClient: FicheroClient) {
         self.client = ficheroClient
