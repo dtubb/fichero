@@ -38,6 +38,7 @@ from fastapi import HTTPException
 # generic undo / audit-log endpoint handlers under test.
 import fichero.api.routes.claims  # noqa: F401
 import fichero.api.routes.documents  # noqa: F401
+import fichero.api.routes.entities  # noqa: F401
 import fichero.api.routes.kg_entity_curation  # noqa: F401
 from fichero.api.routes.actions_registry import list_audit_log, undo_action
 from fichero.actions.registry import ActionContext, registry
@@ -233,6 +234,51 @@ class TestEntityMergeUndoRedo:
         assert db.get(KnowledgeEntity, absorbed.id).merged_into_id == absorber.id
         assert _audit(db, redo.audit_id).action_name == "entity.merge"
         assert _audit(db, inverse.audit_id).undone is True
+
+
+# ===========================================================================
+# Domain 4 — entity.create : create -> undo(delete) -> redo(re-create)
+# ===========================================================================
+
+
+class TestEntityCreateUndoRedo:
+    def test_create_undo_deletes_and_writes_inverse_audit(self, db, spy_emit):
+        forward = registry.invoke(
+            db,
+            "entity.create",
+            {"canonical_name": "Created Entity"},
+            _ctx(),
+        )
+        entity_id = forward.result["id"]
+        assert db.get(KnowledgeEntity, entity_id) is not None
+
+        inverse = _undo(db, forward.audit_id)
+
+        assert db.get(KnowledgeEntity, entity_id) is None
+        assert _audit(db, forward.audit_id).undone is True
+        inverse_audit = _audit(db, inverse.audit_id)
+        assert inverse_audit.action_name == "entity.delete"
+        assert inverse_audit.inverse_of == forward.audit_id
+
+    def test_redo_recreates_entity(self, db, spy_emit):
+        forward = registry.invoke(
+            db,
+            "entity.create",
+            {"canonical_name": "Yo Yo Entity"},
+            _ctx(),
+        )
+        entity_id = forward.result["id"]
+        inverse = _undo(db, forward.audit_id)
+        assert db.get(KnowledgeEntity, entity_id) is None
+
+        redo = _undo(db, inverse.audit_id)
+
+        restored = [row for row in db.all(KnowledgeEntity) if row.canonical_name == "Yo Yo Entity"]
+        assert len(restored) == 1
+        assert restored[0].id != entity_id
+        redo_audit = _audit(db, redo.audit_id)
+        assert redo_audit.action_name == "entity.create"
+        assert redo_audit.inverse_of == inverse.audit_id
 
 
 # ===========================================================================
