@@ -18,7 +18,6 @@ Repository automation scripts for the Fichero Python backend.
 |---|---|
 | `validate_model_sync.py` | Verify Python/Swift model field alignment (called by `start_backend.sh`) |
 | `export_openapi_schema.py` | Raw schema export (called by `sync_openapi_schema.sh`) |
-| `batch_verify.py` | Manual batch verification harness for import/workflow/KG pipelines |
 
 ## Build and packaging
 
