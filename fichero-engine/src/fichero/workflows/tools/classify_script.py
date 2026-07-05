@@ -153,7 +153,13 @@ async def classify_script(
                 ).strip()
             parsed = json.loads(content)
         except Exception:
-            logger.warning("classify_script: could not parse JSON from model output: %r", text[:200])
+            logger.warning(
+                "classify_script: could not parse JSON from model output for %s",
+                item.get("file")
+                or item.get("document_id")
+                or item.get("artifact_id")
+                or "<unknown>",
+            )
 
         script_type = parsed.get("script_type", "")
         if script_type not in SCRIPT_TYPES:
