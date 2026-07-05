@@ -115,6 +115,66 @@ struct ChainServiceMigrationTests {
         #expect(chains.first?.sortOrder == 7)
     }
 
+    // A minimal ChainResponse (all 10 required fields) parameterized by the bits
+    // #3136 exposed, so a list can carry several with distinct folder_path/sort_order.
+    private static func chainJSON(id: String, sortOrder: Int, folderPath: String) -> String {
+        """
+        {"id":"\(id)","name":"\(id)","description":"",
+         "steps":[],"entry_step":"\(id)-s","initial_inputs":{},
+         "created_at":"2026-07-04T12:34:56.789012",
+         "updated_at":"2026-07-05T01:02:03.456789",
+         "folder_path":"\(folderPath)","sort_order":\(sortOrder)}
+        """
+    }
+
+    @Test("list_chains keeps each id paired with its folder_path/sort_order in server order")
+    func listChainsPreservesOrderAndPairing() async throws {
+        // Three chains, deliberately NOT sorted by sort_order. The mapper must keep
+        // every id bound to its own folder_path/sort_order and preserve the server's
+        // array order (it maps 1:1 — never resorts or drops a field per item).
+        let items = [
+            Self.chainJSON(id: "c-b", sortOrder: 5, folderPath: "/b"),
+            Self.chainJSON(id: "c-a", sortOrder: 1, folderPath: "/a"),
+            Self.chainJSON(id: "c-c", sortOrder: 9, folderPath: "/c")
+        ].joined(separator: ",")
+        let client = makeClient { request in
+            #expect(request.url?.path == "/api/chains")
+            return Self.ok(request, "{\"chains\":[\(items)],\"total\":3}")
+        }
+
+        let response = try await client.api.listChainsApiChainsGet(.init(query: .init(limit: 50)))
+        guard case .ok(let okResponse) = response else {
+            Issue.record("expected .ok")
+            return
+        }
+        let chains = try okResponse.body.json.chains.map { try mapChainResponse($0) }
+
+        #expect(chains.map(\.id) == ["c-b", "c-a", "c-c"])       // server order preserved
+        #expect(chains.map(\.sortOrder) == [5, 1, 9])            // paired, not resorted
+        #expect(chains.map(\.folderPath) == ["/b", "/a", "/c"])  // paired, not shifted
+    }
+
+    @Test("mapChainResponse raises on a malformed timestamp (never a silent nil date)")
+    func mapChainRaisesOnBadDate() async throws {
+        // created_at is a plain String on the wire, so it decodes into ChainResponse
+        // fine — but the app WorkflowChain wants a Date, and makeChainDecoder's custom
+        // strategy must throw (not coerce to nil/today) when parseEngineDate can't read it.
+        let bad = Self.chainJSON(id: "c1", sortOrder: 1, folderPath: "/x")
+            .replacingOccurrences(of: "2026-07-04T12:34:56.789012", with: "not-a-timestamp")
+        let client = makeClient { request in Self.ok(request, bad) }
+
+        let response = try await client.api.getChainApiChainsChainIdGet(
+            .init(path: .init(chainId: "c1"))
+        )
+        guard case .ok(let okResponse) = response else {
+            Issue.record("expected .ok")
+            return
+        }
+        #expect(throws: (any Error).self) {
+            _ = try mapChainResponse(try okResponse.body.json)
+        }
+    }
+
     @Test("get_chain non-.ok surfaces as non-.ok (never a silent empty chain)")
     func getChainNonOk() async throws {
         let client = makeClient { request in

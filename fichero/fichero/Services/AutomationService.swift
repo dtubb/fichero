@@ -37,7 +37,7 @@ class AutomationService {
     /// Create a new schedule
     func createSchedule(request: CreateScheduleRequest) async throws -> ScheduleInfo {
         let response = try await apiClient.api.createScheduleApiSchedulesPost(
-            .init(body: .json(.init(app: request)))
+            .init(body: .json(try .init(app: request)))
         )
         switch response {
         case .ok(let ok):

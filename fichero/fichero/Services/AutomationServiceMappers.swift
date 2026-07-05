@@ -17,6 +17,19 @@ private let automationISOFormat = Date.ISO8601FormatStyle(includingFractionalSec
 private func isoString(_ date: Date) -> String { date.formatted(automationISOFormat) }
 private func isoString(_ date: Date?) -> String? { date.map { $0.formatted(automationISOFormat) } }
 
+/// Parse an optional app ISO string into `Date?` for a generated request body.
+/// nil in → nil out (the field was unset), but a NON-nil string the engine's
+/// formats can't parse raises instead of silently collapsing to nil — a dropped
+/// run_at/start_date would otherwise create a schedule at the wrong time with no
+/// error. (parseEngineDate returns nil on failure; .flatMap would swallow it.)
+private func requireEngineDate(_ value: String?) throws -> Date? {
+    guard let value else { return nil }
+    guard let date = parseEngineDate(value) else {
+        throw AutomationServiceError.invalidInput("Unparseable date: \(value)")
+    }
+    return date
+}
+
 // MARK: - Schedules
 
 extension ScheduleInfo {
@@ -60,7 +73,7 @@ extension ScheduleRunInfo {
 }
 
 extension Components.Schemas.CreateScheduleRequest {
-    init(app request: CreateScheduleRequest) {
+    init(app request: CreateScheduleRequest) throws {
         self.init(
             name: request.name,
             workflowId: request.workflowId,
@@ -69,11 +82,12 @@ extension Components.Schemas.CreateScheduleRequest {
                 cronExpression: request.config.cronExpression,
                 intervalSeconds: request.config.intervalSeconds,
                 // Generated run_at/start_date/end_date are `date-time` → Date?;
-                // the app config carries ISO8601 strings. Parse String→Date (#3030).
-                runAt: request.config.runAt.flatMap(parseEngineDate),
+                // the app config carries ISO8601 strings. Parse String→Date (#3030),
+                // raising on a non-nil unparseable string rather than dropping it.
+                runAt: try requireEngineDate(request.config.runAt),
                 timezone: request.config.timezone,
-                startDate: request.config.startDate.flatMap(parseEngineDate),
-                endDate: request.config.endDate.flatMap(parseEngineDate),
+                startDate: try requireEngineDate(request.config.startDate),
+                endDate: try requireEngineDate(request.config.endDate),
                 maxRuns: request.config.maxRuns
             ),
             inputs: .init(additionalProperties: request.inputs),
