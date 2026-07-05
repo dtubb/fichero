@@ -205,6 +205,36 @@ def test_sync_app_bootstrap_token_overwrites_stale_container_copy(monkeypatch, t
     assert response.status_code == 200
 
 
+def test_sync_app_bootstrap_token_stays_scoped_to_requested_app_id(monkeypatch, tmp_path):
+    import stat
+
+    import fichero.api.auth as auth_module
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    token = "fresh-bootstrap-token"
+    synced = auth_module.sync_app_bootstrap_token(
+        token,
+        app_id="app.fichero.debug-tests",
+    )
+    wrong = (
+        tmp_path
+        / "Library"
+        / "Containers"
+        / "app.fichero.other"
+        / "Data"
+        / "Library"
+        / "Application Support"
+        / "Fichero"
+        / ".api-key"
+    )
+
+    assert synced.read_text() == token
+    assert "app.fichero.debug-tests" in synced.parts
+    assert not wrong.exists()
+    assert stat.S_IMODE(synced.stat().st_mode) == 0o600
+
+
 def test_startup_skips_token_when_auth_disabled(monkeypatch, tmp_path):
     import fichero.api.auth as auth_module
     from fichero.api.main import _ensure_bootstrap_token_written
