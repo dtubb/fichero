@@ -1695,6 +1695,10 @@ class ReorderSavedSearchesParams(BaseModel):
     folder_path: str = "/"
 
 
+class RestoreSavedSearchOrderParams(BaseModel):
+    sort_orders: dict[str, int]
+
+
 class SavedSearchRestoreParams(BaseModel):
     """``savedsearch.restore`` — re-materialize / overwrite a saved search by
     snapshot (preserving its id)."""
@@ -1740,6 +1744,14 @@ def _invert_restore(
             return None
         return ("savedsearch.delete", {"search_id": sid})
     return ("savedsearch.restore", {"snapshot": before})
+
+
+def _invert_reorder_saved_searches(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not before:
+        return None
+    return ("savedsearch.restore_order", {"sort_orders": before.get("sort_orders", {})})
 
 
 @action(
@@ -1847,7 +1859,8 @@ def _action_delete_saved_search(
     "savedsearch.reorder",
     ReorderSavedSearchesParams,
     domains=["savedsearch"],
-    undoable=False,
+    undoable=True,
+    invert=_invert_reorder_saved_searches,
     atomic=False,
 )
 def _action_reorder_saved_searches(
@@ -1864,6 +1877,35 @@ def _action_reorder_saved_searches(
         emit_type="savedsearch.reordered",
     )
     return {"count": count}, spec
+
+
+@action(
+    "savedsearch.restore_order",
+    RestoreSavedSearchOrderParams,
+    domains=["savedsearch"],
+    undoable=True,
+    invert=_invert_reorder_saved_searches,
+    atomic=False,
+)
+def _action_restore_saved_search_order(
+    db: Database, params: RestoreSavedSearchOrderParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    before_orders: dict[str, int] = {}
+    for search_id, sort_order in params.sort_orders.items():
+        saved = db.get(SavedSearch, search_id)
+        if saved is None:
+            raise HTTPException(status_code=404, detail=f"Saved search not found: {search_id}")
+        before_orders[search_id] = saved.sort_order
+        saved.sort_order = sort_order
+        db.save(saved)
+    spec = ChangeSpec(
+        domains=["savedsearch"],
+        target_ids=list(params.sort_orders),
+        before={"sort_orders": before_orders},
+        after={"sort_orders": dict(params.sort_orders)},
+        emit_type="savedsearch.reordered" if params.sort_orders else None,
+    )
+    return {"count": len(params.sort_orders)}, spec
 
 
 @action(
