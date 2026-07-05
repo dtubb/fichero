@@ -139,6 +139,10 @@ class EntityDeleteActionParams(BaseModel):
     cascade_claims: bool = False
 
 
+class EntityRestoreActionParams(BaseModel):
+    snapshot: dict[str, Any]
+
+
 def _invert_create_entity(
     before: dict | None, after: dict | None, ctx: ActionContext
 ) -> tuple[str, dict] | None:
@@ -148,6 +152,27 @@ def _invert_create_entity(
     if not entity_id:
         return None
     return ("entity.delete", {"entity_id": entity_id, "cascade_claims": False})
+
+
+def _invert_restore_entity(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if before is None:
+        if not after:
+            return None
+        entity_id = after.get("id")
+        if not entity_id:
+            return None
+        return ("entity.delete", {"entity_id": entity_id, "cascade_claims": False})
+    return ("entity.restore", {"snapshot": before})
+
+
+def _invert_update_entity(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not before:
+        return None
+    return ("entity.restore", {"snapshot": before})
 
 
 class EntityAliasRequest(BaseModel):
@@ -487,11 +512,18 @@ def _action_create_entity(
     "entity.update",
     EntityUpdateActionParams,
     domains=["entity"],
-    undoable=False,
+    undoable=True,
+    invert=_invert_update_entity,
 )
 def _action_update_entity(
     db: Database, params: EntityUpdateActionParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
+    existing = db.get(KnowledgeEntity, params.entity_id)
+    if existing is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"entity {params.entity_id!r} not found",
+        )
     entity = update_entity_impl(
         db,
         params.entity_id,
@@ -505,6 +537,7 @@ def _action_update_entity(
     spec = ChangeSpec(
         domains=["entity"],
         target_ids=[entity.id],
+        before=existing.model_dump(mode="json"),
         after={"entity_id": entity.id},
         emit_type="entity.updated",
         entity_ids=[entity.id],
@@ -589,6 +622,33 @@ def _action_delete_entity(
         entity_ids=[params.entity_id],
     )
     return result, spec
+
+
+@action(
+    "entity.restore",
+    EntityRestoreActionParams,
+    domains=["entity"],
+    undoable=False,
+)
+def _action_restore_entity(
+    db: Database, params: EntityRestoreActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    entity_id = params.snapshot.get("id")
+    existing = db.get(KnowledgeEntity, entity_id) if entity_id else None
+    before = existing.model_dump(mode="json") if existing is not None else None
+    entity = KnowledgeEntity.model_validate(params.snapshot)
+    entity.updated_at = datetime.now()
+    db.save(entity)
+    spec = ChangeSpec(
+        domains=["entity"],
+        target_ids=[entity.id],
+        before=before,
+        after=entity.model_dump(mode="json"),
+        emit_type="entity.updated" if before else "entity.created",
+        entity_ids=[entity.id],
+        emit_fn=_emit_entity_change_spec,
+    )
+    return entity.model_dump(mode="json"), spec
 
 
 @router.post("", response_model=KnowledgeEntity)
