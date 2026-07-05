@@ -83,7 +83,7 @@ class AppleScriptBridge {
 
     private let client: FicheroClient
     private let workflowExecutionService: WorkflowExecutionService
-    private var hostChangeObservation: NSObjectProtocol?
+    private nonisolated(unsafe) var hostChangeObservation: NSObjectProtocol?
 
     private init() {
         self.client = FicheroClient(baseURL: EngineConfig.host)

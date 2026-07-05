@@ -20,7 +20,7 @@ final class KnownLibraryRegistryStore {
     private(set) var fetchError: String?
 
     private let apiClient = APIClient()
-    private var hostChangeObservation: NSObjectProtocol?
+    @ObservationIgnored private nonisolated(unsafe) var hostChangeObservation: NSObjectProtocol?
 
     private init() {
         // Rebind on a pairing / Settings host change (#2349) — otherwise the
