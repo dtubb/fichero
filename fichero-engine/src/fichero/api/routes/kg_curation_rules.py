@@ -135,6 +135,10 @@ class ClaimRuleDeleteResponse(BaseModel):
     deleted_rule_id: str
 
 
+class ClaimRuleDeleteManyRequest(BaseModel):
+    rule_ids: list[str] = Field(default_factory=list)
+
+
 class ClaimRuleRestoreRequest(BaseModel):
     rule: ClaimRuleReadResponse
 
@@ -153,6 +157,15 @@ def _invert_delete_claim_rule(
     if not before or "rule" not in before:
         raise ValueError("Cannot undo kg.claim_rule.delete without deleted rule")
     return "kg.claim_rule.restore", {"rule": before["rule"]}
+
+
+def _invert_create_claim_rules_batch(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict]:
+    rule_ids = (after or {}).get("rule_ids")
+    if not rule_ids:
+        raise ValueError("Cannot undo kg.claim_rule.batch_create without created rule ids")
+    return "kg.claim_rule.delete_many", {"rule_ids": rule_ids}
 
 
 def _entity_rule_response(rule: EntityResolutionRule) -> EntityRuleReadResponse:
@@ -483,7 +496,8 @@ def _action_create_claim_rule(
     "kg.claim_rule.batch_create",
     ClaimRuleBatchCreateRequest,
     domains=["claim"],
-    undoable=False,
+    undoable=True,
+    invert=_invert_create_claim_rules_batch,
 )
 def _action_create_claim_rules_batch(
     db: Database, params: ClaimRuleBatchCreateRequest, ctx: ActionContext
@@ -499,6 +513,29 @@ def _action_create_claim_rules_batch(
         items=[_claim_rule_response(rule) for rule in created],
         count=len(created),
     ).model_dump(mode="json"), spec
+
+
+@action(
+    "kg.claim_rule.delete_many",
+    ClaimRuleDeleteManyRequest,
+    domains=["claim"],
+    undoable=False,
+)
+def _action_delete_claim_rules_many(
+    db: Database, params: ClaimRuleDeleteManyRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    deleted_ids: list[str] = []
+    for rule_id in params.rule_ids:
+        _delete_claim_rule_impl(db, rule_id)
+        deleted_ids.append(rule_id)
+    spec = ChangeSpec(
+        domains=["claim"],
+        target_ids=deleted_ids,
+        before={"rule_ids": deleted_ids},
+        after={"deleted_rule_ids": deleted_ids},
+        emit_type="claim.updated" if deleted_ids else None,
+    )
+    return {"deleted_rule_ids": deleted_ids}, spec
 
 
 @action(

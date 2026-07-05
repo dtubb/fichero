@@ -262,6 +262,39 @@ class TestClaimCurationRules:
         assert payload["count"] == 2
         assert {item["action"] for item in payload["items"]} == {"disable", "prune"}
 
+    def test_batch_create_claim_rules_undo_deletes_created_rows(self, db):
+        reg = registry
+        result = reg.invoke(
+            db,
+            "kg.claim_rule.batch_create",
+            {
+                "items": [
+                    {
+                        "action": "disable",
+                        "match_predicate_verb": "said",
+                        "reason": "known bad extraction",
+                    },
+                    {
+                        "action": "prune",
+                        "match_subject_name": "Noise",
+                        "reason": "discard",
+                    },
+                ]
+            },
+            _ctx(),
+        )
+        created_ids = [item["id"] for item in result.result["items"]]
+        assert all(db.get(ClaimSuppressionRule, rule_id) is not None for rule_id in created_ids)
+
+        batch_create_action = reg.get("kg.claim_rule.batch_create")
+        assert batch_create_action.undoable is True
+        inv = batch_create_action.invert(None, {"rule_ids": created_ids}, _ctx())
+        assert inv is not None
+        inv_name, inv_params = inv
+        assert inv_name == "kg.claim_rule.delete_many"
+        reg.invoke(db, inv_name, inv_params, _ctx())
+        assert all(db.get(ClaimSuppressionRule, rule_id) is None for rule_id in created_ids)
+
     def test_claim_rule_routes_write_action_audit_and_emit(
         self, client, db, monkeypatch
     ):
