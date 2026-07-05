@@ -133,7 +133,7 @@ Return your response as valid JSON matching this schema:
 Return ONLY the JSON object, no other text."""
 
 
-def _parse_json_response(response: str) -> dict:
+def _parse_json_response(response: str, *, file_label: str | None = None) -> dict:
     """Parse JSON from LLM response."""
     try:
         # Try direct parse
@@ -151,7 +151,10 @@ def _parse_json_response(response: str) -> dict:
         pass
 
     # Return empty dict if parsing fails
-    logger.warning(f"Failed to parse JSON from response: {response[:100]}...")
+    logger.warning(
+        "extract: could not parse JSON from model output for %s",
+        file_label or "<unknown>",
+    )
     return {}
 
 
@@ -268,7 +271,7 @@ async def extract(
             )
 
             # Parse JSON response
-            data = _parse_json_response(response)
+            data = _parse_json_response(response, file_label=file_path)
 
             result = {
                 "file": file_path,
