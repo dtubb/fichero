@@ -268,6 +268,14 @@ def test_viewer_can_search_but_cannot_save_search_route(
                 json={"query": "viewer should not save this"},
             )
             assert write_response.status_code == 403
+            assert write_response.json() == {
+                "detail": "write access denied",
+                "code": "library_access_denied",
+                "library_path": authz.normalize_library_path(library_path) or library_path,
+                "auth_kind": "session",
+                "username": "viewer",
+                "required": "write",
+            }
     finally:
         api_main.app.dependency_overrides.clear()
         monkeypatch.setenv("FICHERO_DISABLE_AUTH", "1")

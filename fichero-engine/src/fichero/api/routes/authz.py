@@ -8,9 +8,9 @@ from pydantic import ValidationError
 from fichero import authz
 from fichero.actions import ActionContext, registry
 from fichero.app_db import get_app_db
-from fichero.api.auth import action_context
+from fichero.api.auth import action_context, auth_kind_from_request, library_access_denial_payload
 from fichero.api.library_header import require_library_path
-from fichero.api.main import get_library_database_for_write
+from fichero.api.main import LibraryAccessDeniedError, get_library_database_for_write
 from fichero.db import Database
 from fichero.models import (
     LibraryAuthzSnapshot,
@@ -39,6 +39,21 @@ def get_library_authz_snapshot(
     # owner sending an un-normalized path (trailing slash, symlink) is wrongly
     # shown can_manage_roles=False / roles=[] while target_can_write stays True.
     library_path = authz.normalize_library_path(x_fichero_library_path) or x_fichero_library_path
+    auth_kind = auth_kind_from_request(request) or "unknown"
+    if getattr(getattr(request, "state", None), "bootstrap_auth", False):
+        return LibraryAuthzSnapshot(
+            library_path=library_path,
+            multiuser_enabled=authz.multiuser_enabled(),
+            auth_kind=auth_kind,
+            can_manage_roles=True,
+            current_user_id=None,
+            current_user_role=authz.ROLE_OWNER,
+            target_id=target_id,
+            target_can_read=True,
+            target_can_write=True,
+            roles=app_db.list_library_roles(library_path),
+        )
+
     resolved_user = authz.resolve_user(getattr(getattr(request, "state", None), "user", None))
     current_user_role = None
     if resolved_user is not None:
@@ -62,6 +77,7 @@ def get_library_authz_snapshot(
     return LibraryAuthzSnapshot(
         library_path=library_path,
         multiuser_enabled=authz.multiuser_enabled(),
+        auth_kind=auth_kind,
         can_manage_roles=can_manage_roles,
         current_user_id=resolved_user.id if resolved_user is not None else None,
         current_user_role=current_user_role,
@@ -87,11 +103,18 @@ def list_library_members(
     session_user = getattr(getattr(request, "state", None), "user", None)
     library_path = authz.normalize_library_path(x_fichero_library_path) or x_fichero_library_path
 
-    if authz.multiuser_enabled():
+    if authz.multiuser_enabled() and not getattr(getattr(request, "state", None), "bootstrap_auth", False):
         try:
             authz.require_owner(session_user, library_path)
         except authz.AuthorizationError as exc:
-            raise HTTPException(status_code=403, detail=str(exc)) from exc
+            raise LibraryAccessDeniedError(
+                library_access_denial_payload(
+                    request,
+                    library_path,
+                    required="write",
+                    detail=str(exc),
+                )
+            ) from exc
 
     users_by_id = {user.id: user for user in app_db.list_users()}
     members: list[LibraryMember] = []
@@ -133,7 +156,14 @@ def set_library_member_role(
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=exc.errors()) from exc
     except authz.AuthorizationError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
+        raise LibraryAccessDeniedError(
+            library_access_denial_payload(
+                request,
+                x_fichero_library_path,
+                required="write",
+                detail=str(exc),
+            )
+        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -158,7 +188,14 @@ def revoke_library_member_role(
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=exc.errors()) from exc
     except authz.AuthorizationError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
+        raise LibraryAccessDeniedError(
+            library_access_denial_payload(
+                request,
+                x_fichero_library_path,
+                required="write",
+                detail=str(exc),
+            )
+        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -211,7 +248,14 @@ def share_library_object(
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=exc.errors()) from exc
     except authz.AuthorizationError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
+        raise LibraryAccessDeniedError(
+            library_access_denial_payload(
+                request,
+                x_fichero_library_path,
+                required="write",
+                detail=str(exc),
+            )
+        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

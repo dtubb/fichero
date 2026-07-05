@@ -86,6 +86,20 @@ def _sandbox_token_file_path(app_id: str) -> Path:
     )
 
 
+def _sandbox_bootstrap_bundle_ids() -> list[str]:
+    """Bundle ids whose sandbox token copies may be present locally."""
+    seen: list[str] = []
+    for value in (
+        os.environ.get("FICHERO_APP_BUNDLE_ID"),
+        os.environ.get("FICHERO_DEBUG_APP_BUNDLE_ID"),
+        "app.fichero.fichero",
+    ):
+        bundle_id = (value or "").strip()
+        if bundle_id and bundle_id not in seen:
+            seen.append(bundle_id)
+    return seen
+
+
 def _is_account_or_device_token(token: str) -> bool:
     """Return true when a token already belongs to a session/device row.
 
@@ -115,15 +129,41 @@ def _write_token_file(path: Path, token: str) -> None:
     os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
 
 
+def sync_app_bootstrap_token(
+    token: str,
+    *,
+    app_id: str = "app.fichero.fichero",
+) -> Path:
+    """Mirror the bootstrap token into the sandboxed local app container."""
+    path = _sandbox_token_file_path(app_id)
+    _write_token_file(path, token)
+    return path
+
+
 def sync_debug_bootstrap_token(
     token: str,
     *,
     app_id: str = "app.fichero.fichero",
 ) -> Path:
-    """Mirror the bootstrap token into the sandboxed Debug app container."""
-    path = _sandbox_token_file_path(app_id)
-    _write_token_file(path, token)
-    return path
+    """Backward-compatible alias for the sandbox token sync helper."""
+    return sync_app_bootstrap_token(token, app_id=app_id)
+
+
+def _is_stale_sandbox_bootstrap_token(raw_token: str, expected_bootstrap_token: str) -> bool:
+    """Detect the local app's stale sandbox token without widening 401 semantics."""
+    if not raw_token or raw_token == expected_bootstrap_token:
+        return False
+    if _is_account_or_device_token(raw_token):
+        return False
+    for app_id in _sandbox_bootstrap_bundle_ids():
+        path = _sandbox_token_file_path(app_id)
+        try:
+            sandbox_token = path.read_text().strip()
+        except OSError:
+            continue
+        if sandbox_token and secrets.compare_digest(raw_token, sandbox_token):
+            return True
+    return False
 
 
 def initialize_token(*, force_rotate: bool = False) -> str:
@@ -305,6 +345,43 @@ def request_actor(request: Request) -> str:
     return actor_from_request(request)
 
 
+def auth_kind_from_request(request: Request) -> str | None:
+    """Return which authenticated credential path resolved this request."""
+    state = getattr(request, "state", None)
+    if state is None:
+        return None
+    if getattr(state, "bootstrap_auth", False):
+        return "bootstrap"
+    if getattr(state, "session", None) is not None:
+        return "session"
+    if getattr(state, "device", None) is not None:
+        return "device"
+    return None
+
+
+def library_access_denial_payload(
+    request: Request,
+    library_path: str,
+    *,
+    required: str,
+    detail: str,
+) -> dict[str, str | None]:
+    """Structured library denial payload for UI-readable 403s."""
+    from fichero import authz
+
+    user = getattr(getattr(request, "state", None), "user", None)
+    username = getattr(user, "username", None) if user is not None else None
+    normalized = authz.normalize_library_path(library_path) or library_path
+    return {
+        "detail": detail,
+        "code": "library_access_denied",
+        "library_path": normalized,
+        "auth_kind": auth_kind_from_request(request),
+        "username": str(username) if username else None,
+        "required": required,
+    }
+
+
 def action_context(
     request: Request,
     x_fichero_library_path: str = Depends(require_library_path),
@@ -375,6 +452,16 @@ def attach_auth_middleware(
                         request.state.device = device
                         request.state.bootstrap_auth = False
                         return await call_next(request)
+                    if is_loopback and _is_stale_sandbox_bootstrap_token(
+                        raw_token, expected_header.removeprefix("Bearer ").strip()
+                    ):
+                        return JSONResponse(
+                            {
+                                "detail": "local bootstrap token is stale",
+                                "code": "stale_bootstrap_token",
+                            },
+                            status_code=401,
+                        )
                     if detail == "device token expired" or device is not None:
                         return JSONResponse(
                             {"detail": detail or "missing or invalid Authorization header"},
@@ -428,6 +515,16 @@ def attach_auth_middleware(
 
         user, device, detail = _authenticate_device_token(raw_token)
         if user is None or device is None:
+            if is_loopback and _is_stale_sandbox_bootstrap_token(
+                raw_token, expected_header.removeprefix("Bearer ").strip()
+            ):
+                return JSONResponse(
+                    {
+                        "detail": "local bootstrap token is stale",
+                        "code": "stale_bootstrap_token",
+                    },
+                    status_code=401,
+                )
             return JSONResponse(
                 {"detail": detail or "missing or invalid Authorization header"},
                 status_code=401,

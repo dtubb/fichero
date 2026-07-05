@@ -1414,11 +1414,41 @@ class LibraryStatsResponse(BaseModel):
     embedding_stats: EmbeddingStatsResponse
 
 
+class AuthIdentityUser(BaseModel):
+    """Authenticated account identity, when the credential resolves to a user."""
+
+    id: str
+    username: str
+    display_name: str
+    is_owner: bool
+
+
+class AuthIdentityResponse(BaseModel):
+    """Response from ``GET /api/auth/identity`` across all auth modes."""
+
+    multiuser_enabled: bool
+    auth_kind: str
+    user: AuthIdentityUser | None = None
+    is_owner_access: bool
+
+
+class LibraryAccessDeniedResponse(BaseModel):
+    """Structured 403 payload for library-scoped read/write denials."""
+
+    detail: str
+    code: str
+    library_path: str
+    auth_kind: str | None = None
+    username: str | None = None
+    required: str
+
+
 class LibraryAuthzSnapshot(BaseModel):
     """Response from ``GET /api/authz/library`` for the active library."""
 
     library_path: str
     multiuser_enabled: bool
+    auth_kind: str
     can_manage_roles: bool
     current_user_id: str | None = None
     current_user_role: str | None = None

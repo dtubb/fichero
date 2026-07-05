@@ -43,6 +43,7 @@ def test_unnormalized_header_still_resolves_owner_role(db, app_db, owner, monkey
     unnormalized = normalized + "/"
     snap = get_library_authz_snapshot(_request(owner), unnormalized)
 
+    assert snap.auth_kind == "unknown"
     assert snap.current_user_role == authz.ROLE_OWNER
     assert snap.can_manage_roles is True
     assert {r.user_id for r in snap.roles} == {owner.id}

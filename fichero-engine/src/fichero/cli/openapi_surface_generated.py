@@ -1344,6 +1344,17 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='auth')
         existing_apps['auth'] = target_app
 
+    @target_app.command("identity")
+    def auth_identity_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Identity (GET /api/auth/identity)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/identity"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("login")
     def auth_login_post(
         ctx: typer.Context,

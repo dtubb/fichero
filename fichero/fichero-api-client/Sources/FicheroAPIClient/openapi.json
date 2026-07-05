@@ -1485,6 +1485,28 @@
         }
       }
     },
+    "/api/auth/identity": {
+      "get": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Identity",
+        "operationId": "identity_api_auth_identity_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthIdentityResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/users": {
       "get": {
         "tags": [
@@ -33886,6 +33908,63 @@
         ],
         "title": "AuditLogResponse"
       },
+      "AuthIdentityResponse": {
+        "properties": {
+          "multiuser_enabled": {
+            "type": "boolean",
+            "title": "Multiuser Enabled"
+          },
+          "auth_kind": {
+            "type": "string",
+            "title": "Auth Kind"
+          },
+          "user": {
+            "$ref": "#/components/schemas/AuthIdentityUser",
+            "nullable": true
+          },
+          "is_owner_access": {
+            "type": "boolean",
+            "title": "Is Owner Access"
+          }
+        },
+        "type": "object",
+        "required": [
+          "multiuser_enabled",
+          "auth_kind",
+          "is_owner_access"
+        ],
+        "title": "AuthIdentityResponse",
+        "description": "Response from ``GET /api/auth/identity`` across all auth modes."
+      },
+      "AuthIdentityUser": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "is_owner": {
+            "type": "boolean",
+            "title": "Is Owner"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "display_name",
+          "is_owner"
+        ],
+        "title": "AuthIdentityUser",
+        "description": "Authenticated account identity, when the credential resolves to a user."
+      },
       "BatchClaimCurationRequest": {
         "properties": {
           "claim_ids": {
@@ -45269,6 +45348,10 @@
             "type": "boolean",
             "title": "Multiuser Enabled"
           },
+          "auth_kind": {
+            "type": "string",
+            "title": "Auth Kind"
+          },
           "can_manage_roles": {
             "type": "boolean",
             "title": "Can Manage Roles"
@@ -45308,6 +45391,7 @@
         "required": [
           "library_path",
           "multiuser_enabled",
+          "auth_kind",
           "can_manage_roles",
           "target_can_read",
           "target_can_write"
