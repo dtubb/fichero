@@ -36,6 +36,21 @@ async def test_translate_text_routes_to_deepl(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_translate_text_refuses_deepl_when_local_only_enabled(monkeypatch):
+    from fichero.llm import LocalOnlyViolationError
+
+    monkeypatch.setattr("fichero.llm.is_local_only", lambda: True)
+
+    with pytest.raises(LocalOnlyViolationError, match="translation call to remote provider deepl"):
+        await translate_text(
+            "Hallo wereld",
+            source_lang="nl",
+            target_lang="en",
+            config=LLMConfig(provider="deepl", model="deepl-default"),
+        )
+
+
+@pytest.mark.asyncio
 async def test_translate_text_uses_chat_for_non_deepl(monkeypatch):
     chat_mock = AsyncMock(return_value="Hello world")
     monkeypatch.setattr("fichero.llm.chat", chat_mock)
@@ -86,4 +101,3 @@ async def test_translate_tool_saves_translation_artifact(monkeypatch):
     assert result["artifacts"] == ["artifact-123"]
     assert result["results"][0]["artifact_id"] == "artifact-123"
     save_artifact.assert_awaited_once()
-
