@@ -517,6 +517,14 @@ def attach_auth_middleware(
             request.state.session = session
             request.state.bootstrap_auth = False
             return await call_next(request)
+        if session is not None and not session.revoked and session.expires_at <= datetime.now():
+            return JSONResponse(
+                {
+                    "detail": "missing or invalid Authorization header",
+                    "code": "session_expired",
+                },
+                status_code=401,
+            )
 
         user, device, detail = _authenticate_device_token(raw_token)
         if user is None or device is None:

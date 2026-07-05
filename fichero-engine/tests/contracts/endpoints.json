@@ -1014,6 +1014,28 @@
         "query_params": [],
         "request_model": null,
         "response_model": "UserResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/auth/sessions",
+        "operation_id": "list_sessions_api_auth_sessions_get",
+        "summary": "List Sessions",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[SessionResponse]"
+      },
+      {
+        "method": "POST",
+        "path": "/auth/sessions/{session_id}/revoke",
+        "operation_id": "revoke_session_api_auth_sessions__session_id__revoke_post",
+        "summary": "Revoke Session",
+        "path_params": [
+          "session_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "StatusResponse"
       }
     ],
     "authz": [

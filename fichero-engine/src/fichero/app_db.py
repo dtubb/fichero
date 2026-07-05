@@ -1282,6 +1282,48 @@ class AppDatabase:
             ).fetchone()
         return self._row_to_session(result) if result else None
 
+    def get_session(self, session_id: str) -> AccountSession | None:
+        """Get a session by its row id."""
+        with self._lock:
+            result = self.conn.execute(
+                """
+                SELECT id, user_id, token_hash, device_label,
+                       created_at, last_seen_at, expires_at, revoked
+                FROM sessions
+                WHERE id = ?
+                """,
+                [session_id],
+            ).fetchone()
+        return self._row_to_session(result) if result else None
+
+    def list_sessions(self, user_id: str | None = None) -> list[AccountSession]:
+        """List active sessions, optionally scoped to one user."""
+        now = datetime.now()
+        with self._lock:
+            if user_id is None:
+                rows = self.conn.execute(
+                    """
+                    SELECT id, user_id, token_hash, device_label,
+                           created_at, last_seen_at, expires_at, revoked
+                    FROM sessions
+                    WHERE revoked = FALSE AND expires_at > ?
+                    ORDER BY last_seen_at DESC, created_at DESC
+                    """,
+                    [now],
+                ).fetchall()
+            else:
+                rows = self.conn.execute(
+                    """
+                    SELECT id, user_id, token_hash, device_label,
+                           created_at, last_seen_at, expires_at, revoked
+                    FROM sessions
+                    WHERE user_id = ? AND revoked = FALSE AND expires_at > ?
+                    ORDER BY last_seen_at DESC, created_at DESC
+                    """,
+                    [user_id, now],
+                ).fetchall()
+        return [self._row_to_session(row) for row in rows]
+
     def touch_session(
         self,
         token_hash: str,
@@ -1313,6 +1355,16 @@ class AppDatabase:
             )
             self.conn.commit()
         return self.get_session_by_token_hash(token_hash)
+
+    def revoke_session_by_id(self, session_id: str) -> AccountSession | None:
+        """Mark one session as revoked by row id."""
+        with self._lock:
+            self.conn.execute(
+                "UPDATE sessions SET revoked = TRUE WHERE id = ?",
+                [session_id],
+            )
+            self.conn.commit()
+        return self.get_session(session_id)
 
     def revoke_all_for_user(self, user_id: str) -> None:
         """Revoke all sessions for one user."""
