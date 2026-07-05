@@ -39,6 +39,12 @@ struct LibraryAccessDeniedViewTests {
         #expect(action(.staleBootstrapToken) != .signIn)
     }
 
+    @Test func expiredDeviceOffersRePairNotSignIn() {
+        // #3096: an expired/revoked device token has no password sign-in recovery.
+        #expect(action(.deviceAccessExpired) == .rePair)
+        #expect(action(.deviceAccessExpired) != .signIn)
+    }
+
     @Test func unauthenticatedOffersSignIn() {
         #expect(action(.unauthenticated) == .signIn)
     }
@@ -81,6 +87,7 @@ struct LibraryAccessDeniedViewTests {
         let cases: [AccessError] = [
             .unauthenticated,
             .staleBootstrapToken,
+            .deviceAccessExpired,
             .forbidden(reason: "not_a_member", message: "No access"),
             .tlsPinFailure,
             .engineUnreachable,

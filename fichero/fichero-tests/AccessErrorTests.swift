@@ -100,6 +100,29 @@ struct AccessErrorTests {
         #expect(denial?.message == "msg")
     }
 
+    // MARK: - Expired / revoked device token (#3096) — never a silent 401
+
+    @Test func expiredDeviceTokenMapsToDeviceAccessExpired() {
+        // The engine's real body (auth.py): 401 with this exact detail, no code.
+        let body = Data(#"{"detail": "device token expired"}"#.utf8)
+        let error = AccessError.classify(statusCode: 401, body: body)
+        #expect(error == .deviceAccessExpired)
+        // A device has no password sign-in — re-pair is the only recovery.
+        #expect(error?.recovery == .rePair)
+        #expect(error?.recovery != .signIn)
+    }
+
+    @Test func expiredDeviceAlsoMatchesFutureStructuredCode() {
+        // Robust to the backend later attaching a machine code.
+        let body = Data(#"{"detail": "…", "code": "device_token_expired"}"#.utf8)
+        #expect(AccessError.classify(statusCode: 401, body: body) == .deviceAccessExpired)
+    }
+
+    @Test func expiredDeviceHasARepairMessage() {
+        #expect(AccessError.deviceAccessExpired.errorDescription?.isEmpty == false)
+        #expect(AccessError.deviceAccessExpired.errorDescription?.contains("Re-pair") == true)
+    }
+
     @Test func forbiddenReasonFallsBackToTopLevelCode() {
         // A 403 with a machine `code` but no nested reason still surfaces the code
         // as the forbidden reason.
@@ -116,6 +139,7 @@ struct AccessErrorTests {
         let allCases: [AccessError] = [
             .unauthenticated,
             .staleBootstrapToken,
+            .deviceAccessExpired,
             .forbidden(reason: nil, message: nil),
             .forbidden(reason: "r", message: "m"),
             .tlsPinFailure,
@@ -135,6 +159,7 @@ struct AccessErrorTests {
         // next-actions — no two collapse into the same dead-end.
         #expect(AccessError.unauthenticated.recovery == .signIn)
         #expect(AccessError.staleBootstrapToken.recovery == .restartEngine)
+        #expect(AccessError.deviceAccessExpired.recovery == .rePair)
         #expect(AccessError.forbidden(reason: nil, message: nil).recovery == .requestAccess)
         #expect(AccessError.tlsPinFailure.recovery == .resetPin)
         #expect(AccessError.engineUnreachable.recovery == .restartEngine)

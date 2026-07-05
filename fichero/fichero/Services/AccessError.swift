@@ -20,6 +20,11 @@ enum AccessError: LocalizedError, Equatable {
     /// engine's machine code (when the structured denial body carries one);
     /// `message` is its human sentence. Next: request access.
     case forbidden(reason: String?, message: String?)
+    /// A paired device's token has expired or been revoked host-side (#3096):
+    /// the engine returns 401 `{"detail": "device token expired"}` (auth.py). A
+    /// device has no username/password sign-in — the only recovery is to re-pair
+    /// (scan a fresh QR on the Mac). Next: re-pair.
+    case deviceAccessExpired
     /// TLS / certificate-pin rejection (`errSSLXCertChainInvalid` -9807 & the
     /// rest of the SSL OSStatus range). Next: reset the pinned certificate.
     case tlsPinFailure
@@ -36,6 +41,7 @@ enum AccessError: LocalizedError, Equatable {
         case requestAccess
         case resetPin
         case restartEngine
+        case rePair
         case retry
     }
 
@@ -43,6 +49,7 @@ enum AccessError: LocalizedError, Equatable {
         switch self {
         case .unauthenticated: return .signIn
         case .staleBootstrapToken: return .restartEngine
+        case .deviceAccessExpired: return .rePair
         case .forbidden: return .requestAccess
         case .tlsPinFailure: return .resetPin
         case .engineUnreachable: return .restartEngine
@@ -56,6 +63,8 @@ enum AccessError: LocalizedError, Equatable {
             return "You're not signed in to this engine."
         case .staleBootstrapToken:
             return "This app's saved engine token is out of date. Restart the engine to refresh it."
+        case .deviceAccessExpired:
+            return "This device's access has expired. Re-pair with the Mac to continue."
         case .forbidden(_, let message):
             return message ?? "You don't have access to this."
         case .tlsPinFailure:
@@ -74,11 +83,14 @@ enum AccessError: LocalizedError, Equatable {
     /// are access-denial statuses.
     static func classify(statusCode: Int, body: Data?) -> AccessError? {
         let denial = body.flatMap(DenialBody.decode)
-        // The stale-bootstrap-token discriminator is status-agnostic: the engine
-        // returns it as 401 today (auth.py), but keying on the machine `code`
-        // rather than the status keeps it correct if a path 403s it instead.
+        // Discriminators are status-agnostic (key on the body, not the status):
+        // the engine returns these as 401 today (auth.py), but matching the marker
+        // keeps classification correct if a path 403s them instead.
         if denial?.code == "stale_bootstrap_token" {
             return .staleBootstrapToken
+        }
+        if isDeviceExpiredMarker(denial) {
+            return .deviceAccessExpired
         }
         switch statusCode {
         case 401:
@@ -88,6 +100,14 @@ enum AccessError: LocalizedError, Equatable {
         default:
             return nil
         }
+    }
+
+    /// The engine signals an expired/revoked device token as a 401 whose `detail`
+    /// is exactly `"device token expired"` (auth.py `_authenticate_device_token`).
+    /// It carries no structured `code` yet, so we also accept a future
+    /// `code == "device_token_expired"` to stay robust if the backend adds one.
+    private static func isDeviceExpiredMarker(_ denial: DenialBody?) -> Bool {
+        denial?.code == "device_token_expired" || denial?.message == "device token expired"
     }
 
     /// Map a thrown transport error to a case. TLS/pin failures are detected by
