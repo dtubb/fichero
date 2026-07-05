@@ -43,7 +43,22 @@ final class KnownLibraryRegistryStore {
         }
     }
 
+    /// Whether the app's engine is a remote Mac rather than the loopback/embedded
+    /// engine. Remote hosts source the picker from the per-user authz endpoint
+    /// (`/api/authz/libraries`) — role-aware, and NOT gated on the local
+    /// filesystem — while local hosts keep using the on-disk registry (#3151).
+    private var hostIsRemote: Bool { !BackendHost.appDefault.isLocal }
+
     func refresh() async {
+        if hostIsRemote {
+            await refreshAccessible()
+        } else {
+            await refreshRegistry()
+        }
+    }
+
+    /// Local host: the on-disk known-library registry (`/api/registry`).
+    private func refreshRegistry() async {
         do {
             let response = try await apiClient.api.listKnownLibrariesApiRegistryGet(.init())
             switch response {
@@ -65,6 +80,51 @@ final class KnownLibraryRegistryStore {
         } catch {
             fetchError = error.localizedDescription
         }
+    }
+
+    /// Remote host: the libraries this credential may open (#3151), from
+    /// `GET /api/authz/libraries`. Ordered recents-first using the per-host MRU
+    /// so the picker leads with what the user actually opens on this engine.
+    private func refreshAccessible() async {
+        do {
+            let response = try await apiClient.api.listAccessibleLibrariesApiAuthzLibrariesGet()
+            switch response {
+            case .ok(let okResponse):
+                let body = try okResponse.body.json
+                let entries = body.map { lib in
+                    KnownLibraryMenuEntry(
+                        id: lib.libraryPath,
+                        path: lib.libraryPath,
+                        name: lib.libraryName,
+                        addedAt: nil,
+                        lastAccessed: nil
+                    )
+                }
+                let recents = RemoteLibraryRecents.paths(forHost: EngineConfig.host.absoluteString)
+                libraries = Self.recentsFirst(entries, recents: recents)
+                fetchError = nil
+            default:
+                fetchError = "Unexpected response from libraries"
+            }
+        } catch {
+            fetchError = error.localizedDescription
+        }
+    }
+
+    /// Partition `entries` so any whose path is in `recents` come first, in
+    /// recents order; the rest keep the server order. A partition (not a
+    /// comparator sort) because Swift's `sort` isn't guaranteed stable — the
+    /// non-recent tail must preserve the server's ordering exactly. (#3151)
+    static func recentsFirst(
+        _ entries: [KnownLibraryMenuEntry],
+        recents: [String]
+    ) -> [KnownLibraryMenuEntry] {
+        guard !recents.isEmpty else { return entries }
+        let byPath = Dictionary(entries.map { ($0.path, $0) }, uniquingKeysWith: { first, _ in first })
+        let head = recents.compactMap { byPath[$0] }
+        let recentPaths = Set(recents)
+        let tail = entries.filter { !recentPaths.contains($0.path) }
+        return head + tail
     }
 
     func noteOpenedLibrary(url: URL, displayName: String?) async {
@@ -246,6 +306,14 @@ struct FileMenuCommands: View {
     }
 
     private func openRecentLibrary(_ library: KnownLibraryMenuEntry) {
+        // Remote host (#3151): the path lives on the remote engine, not this
+        // Mac's disk, so the `fileExists` gate below would always fail and drop
+        // the entry. Open it remotely instead — no local security scope, no gate.
+        if !BackendHost.appDefault.isLocal {
+            libraryManager.switchToRemoteLibrary(path: library.path, displayName: library.displayName)
+            return
+        }
+
         let url = URL(fileURLWithPath: library.path)
         guard FileManager.default.fileExists(atPath: url.path) else {
             Task {
