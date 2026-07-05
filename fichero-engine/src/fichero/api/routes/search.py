@@ -1803,7 +1803,8 @@ def _action_update_saved_search(
     "savedsearch.duplicate",
     SavedSearchIdParams,
     domains=["savedsearch"],
-    undoable=False,
+    undoable=True,
+    invert=_invert_create_saved_search,
 )
 def _action_duplicate_saved_search(
     db: Database, params: SavedSearchIdParams, ctx: ActionContext

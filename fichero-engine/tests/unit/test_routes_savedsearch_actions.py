@@ -247,7 +247,7 @@ class TestSavedSearchUpdateAction:
 
 
 # ===========================================================================
-# savedsearch.duplicate — pure copy, NOT undoable
+# savedsearch.duplicate — pure copy, undo via delete
 # ===========================================================================
 
 
@@ -276,8 +276,12 @@ class TestSavedSearchDuplicateAction:
         assert audit.before is None
         assert audit.after["id"] == new_id
 
-        assert registry.get("savedsearch.duplicate").undoable is False
+        assert registry.get("savedsearch.duplicate").undoable is True
         assert emit_spy[-1][1]["type"] == "savedsearch.created"
+
+        inv, _ = _undo(db, result.audit_id, ctx)
+        assert inv == "savedsearch.delete"
+        assert db.get(SavedSearch, new_id) is None
 
     def test_duplicate_unknown_id_404(self, db):
         with pytest.raises(HTTPException) as exc:
@@ -287,6 +291,23 @@ class TestSavedSearchDuplicateAction:
     def test_duplicate_validation_rejects_missing_id(self, db):
         with pytest.raises(ValidationError):
             registry.invoke(db, "savedsearch.duplicate", {}, _ctx())
+
+    def test_duplicate_undo_then_redo_restores_copy(self, db):
+        ctx = _ctx()
+        original = _mk_saved_search(db, query="Original", folder_path="/p", sort_order=5)
+        duplicated = registry.invoke(
+            db, "savedsearch.duplicate", {"search_id": original.id}, ctx
+        )
+        new_id = duplicated.result["id"]
+
+        _, delete_res = _undo(db, duplicated.audit_id, ctx)
+        assert db.get(SavedSearch, new_id) is None
+
+        inv, _ = _undo(db, delete_res.audit_id, ctx)
+        assert inv == "savedsearch.restore"
+        restored = db.get(SavedSearch, new_id)
+        assert restored is not None
+        assert restored.query == "Original"
 
 
 # ===========================================================================
