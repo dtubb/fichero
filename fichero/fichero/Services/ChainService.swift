@@ -35,6 +35,12 @@ class ChainService: ObservableObject {
         switch response {
         case .ok(let okResponse):
             return try okResponse.body.json.chains.map { try mapChainResponse($0) }
+        case .unprocessableContent(let error):
+            // Preserve the engine's 422 validation detail instead of collapsing it
+            // into a generic "unexpected response" (matches Automation/MCP services).
+            throw ChainServiceError.validationError(
+                (try? error.body.json)?.detail?.description ?? "Validation error"
+            )
         default:
             throw ChainServiceError.unexpectedResponse
         }
@@ -64,6 +70,12 @@ class ChainService: ObservableObject {
         switch response {
         case .ok(let okResponse):
             return try mapChainResponse(try okResponse.body.json)
+        case .unprocessableContent(let error):
+            // Preserve the engine's 422 validation detail instead of collapsing it
+            // into a generic "unexpected response" (matches Automation/MCP services).
+            throw ChainServiceError.validationError(
+                (try? error.body.json)?.detail?.description ?? "Validation error"
+            )
         default:
             throw ChainServiceError.unexpectedResponse
         }
@@ -95,6 +107,12 @@ class ChainService: ObservableObject {
             // Refresh list - observers subscribe to $chains via Combine
             await loadChains()
             return chain
+        case .unprocessableContent(let error):
+            // Preserve the engine's 422 validation detail instead of collapsing it
+            // into a generic "unexpected response" (matches Automation/MCP services).
+            throw ChainServiceError.validationError(
+                (try? error.body.json)?.detail?.description ?? "Validation error"
+            )
         default:
             throw ChainServiceError.unexpectedResponse
         }
@@ -123,6 +141,12 @@ class ChainService: ObservableObject {
             logger.info("Updated chain: \(updated.name)")
             await loadChains()
             return updated
+        case .unprocessableContent(let error):
+            // Preserve the engine's 422 validation detail instead of collapsing it
+            // into a generic "unexpected response" (matches Automation/MCP services).
+            throw ChainServiceError.validationError(
+                (try? error.body.json)?.detail?.description ?? "Validation error"
+            )
         default:
             throw ChainServiceError.unexpectedResponse
         }
@@ -138,6 +162,12 @@ class ChainService: ObservableObject {
             logger.info("Deleted chain: \(id)")
             // Remove from local list
             chains.removeAll { $0.id == id }
+        case .unprocessableContent(let error):
+            // Preserve the engine's 422 validation detail instead of collapsing it
+            // into a generic "unexpected response" (matches Automation/MCP services).
+            throw ChainServiceError.validationError(
+                (try? error.body.json)?.detail?.description ?? "Validation error"
+            )
         default:
             throw ChainServiceError.unexpectedResponse
         }
@@ -166,6 +196,12 @@ class ChainService: ObservableObject {
                 status: result.status,
                 message: result.message
             )
+        case .unprocessableContent(let error):
+            // Preserve the engine's 422 validation detail instead of collapsing it
+            // into a generic "unexpected response" (matches Automation/MCP services).
+            throw ChainServiceError.validationError(
+                (try? error.body.json)?.detail?.description ?? "Validation error"
+            )
         default:
             throw ChainServiceError.unexpectedResponse
         }
@@ -179,6 +215,12 @@ class ChainService: ObservableObject {
         switch response {
         case .ok(let okResponse):
             return mapExecutionStatus(try okResponse.body.json)
+        case .unprocessableContent(let error):
+            // Preserve the engine's 422 validation detail instead of collapsing it
+            // into a generic "unexpected response" (matches Automation/MCP services).
+            throw ChainServiceError.validationError(
+                (try? error.body.json)?.detail?.description ?? "Validation error"
+            )
         default:
             throw ChainServiceError.unexpectedResponse
         }
@@ -318,6 +360,7 @@ private func freeformDict<E: Encodable>(_ value: E?) -> [String: AnyCodableValue
 enum ChainServiceError: LocalizedError {
     case timeout
     case notFound(String)
+    case validationError(String)
     case unexpectedResponse
 
     var errorDescription: String? {
@@ -326,6 +369,8 @@ enum ChainServiceError: LocalizedError {
             return "Chain execution timed out"
         case .notFound(let id):
             return "Chain not found: \(id)"
+        case .validationError(let message):
+            return "Validation error: \(message)"
         case .unexpectedResponse:
             return "Unexpected response from the chain service"
         }

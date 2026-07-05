@@ -106,6 +106,40 @@ struct SchedulesMigrationTests {
         }
     }
 
+    @Test("AutomationService surfaces a 422's detail as validationError")
+    func getScheduleValidationErrorPreservesDetail() async throws {
+        let service = AutomationService(apiClient: APIClient(client: makeClient { request in
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 422, httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            let body = #"{"detail":[{"loc":["body","name"],"msg":"field required","type":"missing"}]}"#
+            return (response, Data(body.utf8))
+        }))
+        do {
+            _ = try await service.getSchedule(scheduleId: "s1")
+            Issue.record("expected a throw on 422")
+        } catch let AutomationServiceError.validationError(message) {
+            #expect(message.contains("field required"))
+        } catch {
+            Issue.record("expected .validationError, got \(error)")
+        }
+    }
+
+    @Test("AutomationService.listSchedules throws on a 500 (never a silently empty list)")
+    func listSchedulesThrowsOn500() async throws {
+        let service = AutomationService(apiClient: APIClient(client: makeClient { request in
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 500, httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data(#"{"detail":"boom"}"#.utf8))
+        }))
+        await #expect(throws: AutomationServiceError.self) {
+            _ = try await service.listSchedules()
+        }
+    }
+
     @Test("get_schedule non-.ok surfaces as non-.ok (never a silent empty schedule)")
     func getScheduleNonOk() async throws {
         let client = makeClient { request in

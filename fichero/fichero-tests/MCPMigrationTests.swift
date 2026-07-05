@@ -65,6 +65,40 @@ struct MCPMigrationTests {
         #expect(server.enabled)
     }
 
+    @Test("MCPService surfaces a 422's detail as validationError")
+    func getServerValidationErrorPreservesDetail() async throws {
+        let service = MCPService(apiClient: APIClient(client: makeClient { request in
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 422, httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            let body = #"{"detail":[{"loc":["body","name"],"msg":"field required","type":"missing"}]}"#
+            return (response, Data(body.utf8))
+        }))
+        do {
+            _ = try await service.getServer("srv1")
+            Issue.record("expected a throw on 422")
+        } catch let MCPServiceError.validationError(message) {
+            #expect(message.contains("field required"))
+        } catch {
+            Issue.record("expected .validationError, got \(error)")
+        }
+    }
+
+    @Test("MCPService.listServers throws on a 500 (never a silently empty list)")
+    func listServersThrowsOn500() async throws {
+        let service = MCPService(apiClient: APIClient(client: makeClient { request in
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 500, httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data(#"{"detail":"boom"}"#.utf8))
+        }))
+        await #expect(throws: MCPServiceError.self) {
+            _ = try await service.listServers()
+        }
+    }
+
     @Test("get_mcp_server non-.ok surfaces as non-.ok (never a silent empty server)")
     func getServerNonOk() async throws {
         let client = makeClient { request in
