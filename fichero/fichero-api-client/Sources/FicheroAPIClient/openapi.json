@@ -42752,10 +42752,8 @@
             "title": "Active Libraries"
           },
           "remote_backend": {
-            "additionalProperties": true,
-            "type": "object",
-            "nullable": true,
-            "title": "Remote Backend"
+            "$ref": "#/components/schemas/RemoteBackendHealth",
+            "nullable": true
           },
           "server_proof": {
             "type": "string",
@@ -52666,6 +52664,52 @@
         ],
         "title": "RelatedDocumentListResponse",
         "description": "Standardized envelope for GET /api/documents/{doc_id}/related.\n\nItems are RelatedDocumentsResponse rows (route-local type), so typed as\nAny here to avoid a models <- routes import cycle."
+      },
+      "RemoteBackendHealth": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "connection_model": {
+            "type": "string",
+            "title": "Connection Model"
+          },
+          "api_url": {
+            "type": "string",
+            "nullable": true,
+            "title": "Api Url"
+          },
+          "library_path_configured": {
+            "type": "boolean",
+            "title": "Library Path Configured"
+          },
+          "token_configured": {
+            "type": "boolean",
+            "title": "Token Configured"
+          },
+          "tailnet_status": {
+            "type": "string",
+            "title": "Tailnet Status"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled",
+          "connection_model",
+          "library_path_configured",
+          "token_configured",
+          "tailnet_status"
+        ],
+        "title": "RemoteBackendHealth",
+        "description": "Health diagnostics for the remote-backend client path."
       },
       "RemoveBackgroundOperationRequest": {
         "properties": {
