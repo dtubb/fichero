@@ -317,6 +317,7 @@ def action_context(
         actor=actor_from_request(request),
         origin_window=x_fichero_origin_window,
         library_path=x_fichero_library_path,
+        is_bootstrap=bool(getattr(request.state, "bootstrap_auth", False)),
     )
 
 

@@ -117,6 +117,18 @@ def test_multiuser_off_request_state_keeps_system_actor(
     assert audit.actor == "system"
 
 
+def test_action_context_marks_bootstrap_requests():
+    class _State:
+        user = None
+        bootstrap_auth = True
+
+    request = type("Request", (), {"state": _State()})()
+    ctx = action_context(request, "/lib/test.fichero", None)
+
+    assert ctx.actor == "system"
+    assert ctx.is_bootstrap is True
+
+
 def test_workflow_emit_preserves_workflow_actor(monkeypatch):
     captured: list[dict] = []
     monkeypatch.setattr(

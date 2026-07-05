@@ -52,6 +52,7 @@ class ActionContext:
     origin_window: str | None = None
     run_id: str | None = None
     library_path: str | None = None
+    is_bootstrap: bool = False
 
 
 @dataclass
@@ -182,10 +183,11 @@ class ActionRegistry:
         from fichero import authz
 
         target_ids = authz.target_ids_from_params(params)
-        if not target_ids:
-            authz.assert_can_write(ctx.actor, ctx.library_path)
-        for target_id in target_ids:
-            authz.assert_can_write(ctx.actor, ctx.library_path, target_id)
+        if not ctx.is_bootstrap:
+            if not target_ids:
+                authz.assert_can_write(ctx.actor, ctx.library_path)
+            for target_id in target_ids:
+                authz.assert_can_write(ctx.actor, ctx.library_path, target_id)
 
         if reg.atomic:
             with db.transaction():
