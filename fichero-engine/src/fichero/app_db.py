@@ -24,6 +24,7 @@ from pydantic import BaseModel
 from fichero.storage import settings
 from fichero.models import (
     ActionAudit,
+    AccountInvite,
     AccountSession,
     AccountUser,
     Device,
@@ -59,6 +60,7 @@ class AppDatabase:
     """App-wide database for providers and settings."""
     _TABLE_BY_MODEL_NAME: dict[str, str] = {
         "ActionAudit": "actionaudits",
+        "AccountInvite": "invites",
         "AccountUser": "users",
         "AccountSession": "sessions",
         "Device": "devices",
@@ -237,6 +239,19 @@ class AppDatabase:
             )
         """)
 
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS invites (
+                id VARCHAR PRIMARY KEY,
+                username VARCHAR NOT NULL,
+                display_name VARCHAR NOT NULL,
+                token_hash VARCHAR NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP NOT NULL,
+                consumed_at TIMESTAMP,
+                revoked BOOLEAN DEFAULT FALSE
+            )
+        """)
+
         # Devices table (app-wide paired-device token store)
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS devices (
@@ -332,6 +347,12 @@ class AppDatabase:
         )
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_invites_username ON invites(username)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_invites_expires_at ON invites(expires_at)"
         )
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_devices_user_id ON devices(user_id)"
@@ -1374,6 +1395,144 @@ class AppDatabase:
                 [user_id],
             )
             self.conn.commit()
+
+    # =========================================================================
+    # Invites
+    # =========================================================================
+
+    def create_invite(
+        self,
+        *,
+        username: str,
+        display_name: str,
+        token_hash: str,
+        ttl: timedelta,
+    ) -> AccountInvite:
+        """Insert a new invite row and return the typed record."""
+        now = datetime.now()
+        invite = AccountInvite(
+            username=username.strip(),
+            display_name=display_name.strip(),
+            token_hash=token_hash,
+            created_at=now,
+            expires_at=now + ttl,
+        )
+        with self._lock:
+            self.conn.execute(
+                """
+                INSERT INTO invites (
+                    id, username, display_name, token_hash,
+                    created_at, expires_at, consumed_at, revoked
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    invite.id,
+                    invite.username,
+                    invite.display_name,
+                    invite.token_hash,
+                    invite.created_at,
+                    invite.expires_at,
+                    invite.consumed_at,
+                    invite.revoked,
+                ],
+            )
+            self.conn.commit()
+        return invite
+
+    def _row_to_invite(self, row) -> AccountInvite:
+        return AccountInvite(
+            id=row[0],
+            username=row[1],
+            display_name=row[2],
+            token_hash=row[3],
+            created_at=row[4],
+            expires_at=row[5],
+            consumed_at=row[6],
+            revoked=row[7],
+        )
+
+    def get_invite(self, invite_id: str) -> AccountInvite | None:
+        """Get an invite by row id."""
+        with self._lock:
+            result = self.conn.execute(
+                """
+                SELECT id, username, display_name, token_hash,
+                       created_at, expires_at, consumed_at, revoked
+                FROM invites
+                WHERE id = ?
+                """,
+                [invite_id],
+            ).fetchone()
+        return self._row_to_invite(result) if result else None
+
+    def get_invite_by_token_hash(self, token_hash: str) -> AccountInvite | None:
+        """Get an invite by stored token hash."""
+        with self._lock:
+            result = self.conn.execute(
+                """
+                SELECT id, username, display_name, token_hash,
+                       created_at, expires_at, consumed_at, revoked
+                FROM invites
+                WHERE token_hash = ?
+                """,
+                [token_hash],
+            ).fetchone()
+        return self._row_to_invite(result) if result else None
+
+    def list_pending_invites(self) -> list[AccountInvite]:
+        """List invites that are still redeemable."""
+        now = datetime.now()
+        with self._lock:
+            rows = self.conn.execute(
+                """
+                SELECT id, username, display_name, token_hash,
+                       created_at, expires_at, consumed_at, revoked
+                FROM invites
+                WHERE revoked = FALSE AND consumed_at IS NULL AND expires_at > ?
+                ORDER BY created_at DESC, username
+                """,
+                [now],
+            ).fetchall()
+        return [self._row_to_invite(row) for row in rows]
+
+    def get_pending_invite_for_username(self, username: str) -> AccountInvite | None:
+        """Get the latest redeemable invite for one username, if any."""
+        now = datetime.now()
+        with self._lock:
+            result = self.conn.execute(
+                """
+                SELECT id, username, display_name, token_hash,
+                       created_at, expires_at, consumed_at, revoked
+                FROM invites
+                WHERE username = ? AND revoked = FALSE AND consumed_at IS NULL AND expires_at > ?
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                [username.strip(), now],
+            ).fetchone()
+        return self._row_to_invite(result) if result else None
+
+    def revoke_invite(self, invite_id: str) -> AccountInvite | None:
+        """Mark one invite as revoked."""
+        with self._lock:
+            self.conn.execute(
+                "UPDATE invites SET revoked = TRUE WHERE id = ?",
+                [invite_id],
+            )
+            self.conn.commit()
+        return self.get_invite(invite_id)
+
+    def consume_invite(self, invite_id: str, *, when: datetime | None = None) -> AccountInvite | None:
+        """Mark one invite as consumed."""
+        consumed_at = when or datetime.now()
+        with self._lock:
+            self.conn.execute(
+                "UPDATE invites SET consumed_at = ? WHERE id = ?",
+                [consumed_at, invite_id],
+            )
+            self.conn.commit()
+        return self.get_invite(invite_id)
 
     # =========================================================================
     # Devices

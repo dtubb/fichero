@@ -50,6 +50,7 @@ _UNAUTHENTICATED_PATHS = frozenset(
     {
         "/api/health",
         "/api/auth/login",
+        "/api/auth/invites/redeem",
         "/api/pair",
         "/openapi.json",
         "/docs",

@@ -1027,6 +1027,21 @@ class AccountSession(BaseModel):
     revoked: bool = False
 
 
+class AccountInvite(BaseModel):
+    """App-wide one-time invite record stored in the global app database."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(default_factory=_new_id)
+    username: str
+    display_name: str
+    token_hash: str
+    created_at: datetime = Field(default_factory=datetime.now)
+    expires_at: datetime
+    consumed_at: datetime | None = None
+    revoked: bool = False
+
+
 class Device(BaseModel):
     """App-wide paired device credential stored in the global app database."""
 
@@ -2202,6 +2217,7 @@ __all__ = [
     "TriggerListResponse",
     "AccountUser",
     "AccountSession",
+    "AccountInvite",
     "Device",
     "LibraryRole",
     "LibraryAclOverride",

@@ -986,6 +986,48 @@
         "response_model": "AuthIdentityResponse"
       },
       {
+        "method": "GET",
+        "path": "/auth/invites",
+        "operation_id": "list_invites_api_auth_invites_get",
+        "summary": "List Invites",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[InviteResponse]"
+      },
+      {
+        "method": "POST",
+        "path": "/auth/invites",
+        "operation_id": "create_invite_api_auth_invites_post",
+        "summary": "Create Invite",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "InviteRequest",
+        "response_model": "InviteMintResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/auth/invites/redeem",
+        "operation_id": "redeem_invite_api_auth_invites_redeem_post",
+        "summary": "Redeem Invite",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "InviteRedeemRequest",
+        "response_model": "LoginResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/auth/invites/{invite_id}/revoke",
+        "operation_id": "revoke_invite_api_auth_invites__invite_id__revoke_post",
+        "summary": "Revoke Invite",
+        "path_params": [
+          "invite_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "StatusResponse"
+      },
+      {
         "method": "POST",
         "path": "/auth/login",
         "operation_id": "login_api_auth_login_post",
