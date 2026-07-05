@@ -104,6 +104,12 @@ extension UsersContent {
                 addAccountSection
             }
 
+            // Invite links (#3157) are only meaningful in multi-user mode, and
+            // only owners can mint them.
+            if store.currentUser?.isOwner == true, authzSnapshot?.multiuserEnabled == true {
+                InviteAccountSection(store: store)
+            }
+
             sharingSection
         }
         .formStyle(.grouped)
@@ -372,6 +378,10 @@ extension UsersContent {
     fileprivate func loadData() async {
         await store.load()
         await refreshAuthz()
+        // Pending invites are owner-only; a non-owner probe just returns empty.
+        if store.currentUser?.isOwner == true {
+            await store.loadInvites()
+        }
         syncAddMemberDefaults()
     }
 

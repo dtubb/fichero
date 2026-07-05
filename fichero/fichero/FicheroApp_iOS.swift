@@ -115,6 +115,12 @@ private struct FicheroSharedPlatformRoot: View {
             }
         )
         .onOpenURL { url in
+            // Account invite link (#3157): route to the redeem gate. The token
+            // is a secret query param, so it is never logged.
+            if let token = SessionStore.inviteToken(from: url) {
+                appState.sessionStore.beginInviteRedemption(token: token)
+                return
+            }
             guard url.scheme?.lowercased() == "fichero", url.host?.lowercased() == "pair" else { return }
             pendingPairURL = IdentifiableURL(url: url)
         }

@@ -10,11 +10,17 @@ struct AuthGateView: View {
 
     var body: some View {
         Group {
-            switch session.phase {
-            case .needsOwnerSetup:
-                OwnerSetupFormView(session: session)
-            default:
-                LoginFormView(session: session)
+            if session.pendingInviteToken != nil {
+                // An invite link was opened (#3157) — the invitee sets a
+                // password to claim the account, ahead of the normal gate.
+                RedeemInviteFormView(session: session)
+            } else {
+                switch session.phase {
+                case .needsOwnerSetup:
+                    OwnerSetupFormView(session: session)
+                default:
+                    LoginFormView(session: session)
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -116,6 +122,99 @@ private struct LoginFormView: View {
             } catch {
                 errorMessage = error.localizedDescription
                 password = ""
+            }
+        }
+    }
+}
+
+/// Invitee side of the account-sharing flow (#3157): a `fichero://invite`
+/// link was opened, so the person sets *only* a new password to claim the
+/// account the owner pre-named. Success drops them into a signed-in session.
+private struct RedeemInviteFormView: View {
+    @Bindable var session: SessionStore
+
+    @State private var password = ""
+    @State private var confirmPassword = ""
+    @State private var errorMessage: String?
+    @State private var isSubmitting = false
+
+    private static let minPasswordLength = 8
+
+    private var passwordsMatch: Bool { password == confirmPassword }
+
+    private var canSubmit: Bool {
+        password.count >= Self.minPasswordLength
+            && passwordsMatch
+            && !isSubmitting
+    }
+
+    var body: some View {
+        AuthCard(
+            title: "Accept Invitation",
+            subtitle: "You've been invited to this library. Choose a password to finish setting up your account."
+        ) {
+            VStack(spacing: 12) {
+                SecureField("Password", text: $password)
+                    .textContentType(.newPassword)
+                    .textFieldStyle(.roundedBorder)
+
+                SecureField("Confirm Password", text: $confirmPassword)
+                    .textContentType(.newPassword)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(submit)
+
+                if let hint = validationHint {
+                    Text(hint)
+                        .font(.caption)
+                        .foregroundStyle(errorMessage == nil ? Color.secondary : Color.red)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                Button(action: submit) {
+                    if isSubmitting {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Text("Accept & Sign In").frame(maxWidth: .infinity)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(!canSubmit)
+                .keyboardShortcut(.defaultAction)
+
+                Button("Cancel") { session.cancelInviteRedemption() }
+                    .buttonStyle(.borderless)
+                    .disabled(isSubmitting)
+            }
+        }
+    }
+
+    private var validationHint: String? {
+        if let errorMessage { return errorMessage }
+        if !password.isEmpty, password.count < Self.minPasswordLength {
+            return "Password must be at least \(Self.minPasswordLength) characters."
+        }
+        if !confirmPassword.isEmpty, !passwordsMatch {
+            return "Passwords don't match."
+        }
+        return nil
+    }
+
+    private func submit() {
+        guard canSubmit else { return }
+        errorMessage = nil
+        isSubmitting = true
+        let enteredPassword = password
+        Task {
+            defer { isSubmitting = false }
+            do {
+                try await session.redeemInvite(newPassword: enteredPassword)
+                password = ""
+                confirmPassword = ""
+            } catch {
+                errorMessage = error.localizedDescription
+                password = ""
+                confirmPassword = ""
             }
         }
     }

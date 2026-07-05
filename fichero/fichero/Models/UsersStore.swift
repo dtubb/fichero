@@ -19,6 +19,9 @@ final class UsersStore {
     private(set) var isLoading = false
     private(set) var loadError: String?
 
+    /// Pending (unredeemed, unexpired) account invites, owner-only (#3157).
+    private(set) var invites: [Components.Schemas.InviteResponse] = []
+
     private let client: FicheroClient
     private let log = Logger(subsystem: "app.fichero.fichero", category: "UsersStore")
 
@@ -89,6 +92,51 @@ final class UsersStore {
             throw Self.error(from: response)
         }
         await reload()
+    }
+
+    // MARK: - Invites (#3157)
+
+    /// Load pending account invites (owner-only). Non-fatal: a non-200 (e.g. a
+    /// non-owner or multi-user off) leaves the list empty rather than erroring.
+    func loadInvites() async {
+        do {
+            let response = try await client.api.listInvitesApiAuthInvitesGet()
+            if case .ok(let ok) = response {
+                invites = try ok.body.json
+            } else {
+                invites = []
+            }
+        } catch {
+            invites = []
+            log.error("Failed to load invites: \(error.localizedDescription)")
+        }
+    }
+
+    /// Mint an invite (owner-only). Returns the mint payload (invite + token +
+    /// `fichero://invite?token=…` redemption URL) so the caller can present the
+    /// link/QR to hand over. Reloads the pending list on success.
+    func createInvite(username: String, displayName: String?) async throws
+        -> Components.Schemas.InviteMintResponse {
+        let response = try await client.api.createInviteApiAuthInvitesPost(
+            body: .json(.init(username: username, displayName: displayName))
+        )
+        guard case .ok(let ok) = response else {
+            throw Self.error(from: response)
+        }
+        let mint = try ok.body.json
+        await loadInvites()
+        return mint
+    }
+
+    /// Revoke a pending invite by id (owner-only). Reloads the list on success.
+    func revokeInvite(id: String) async throws {
+        let response = try await client.api.revokeInviteApiAuthInvitesInviteIdRevokePost(
+            .init(path: .init(inviteId: id))
+        )
+        guard case .ok = response else {
+            throw Self.error(from: response)
+        }
+        await loadInvites()
     }
 
     /// Force a reload even while a prior load is settling (mutations bypass the
