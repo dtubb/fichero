@@ -31,6 +31,13 @@ extension SidebarView {
                     pendingLibraryName = library.displayName
                     showingRenameLibraryPrompt = true
                 }
+                // Owners share a library from here — opens the same sheet as the
+                // sidebar sharing badge (#3149). Gated on multi-user mode.
+                if EngineConfig.multiuserEnabled {
+                    Button("Share Library…") {
+                        libraryToShare = library
+                    }
+                }
                 Divider()
                 // Close removes the library from the sidebar + the global
                 // registry WITHOUT deleting the .fichero package on disk (#1661).
