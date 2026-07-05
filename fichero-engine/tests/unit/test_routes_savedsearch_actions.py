@@ -95,7 +95,7 @@ def test_factory_supplies_all_required_fields():
 
 
 # ===========================================================================
-# savedsearch.save — create, NOT undoable
+# savedsearch.save — create, undo via delete
 # ===========================================================================
 
 
@@ -125,8 +125,12 @@ class TestSavedSearchSaveAction:
         assert audit.after["id"] == new_id
         assert audit.undone is False
 
-        assert registry.get("savedsearch.save").undoable is False
+        assert registry.get("savedsearch.save").undoable is True
         assert emit_spy[-1][1]["type"] == "savedsearch.created"
+
+        inv, _ = _undo(db, result.audit_id, ctx)
+        assert inv == "savedsearch.delete"
+        assert db.get(SavedSearch, new_id) is None
 
     def test_save_uses_create_defaults(self, db):
         """A naive impl that drops unspecified fields would lose the defaults;
@@ -143,6 +147,20 @@ class TestSavedSearchSaveAction:
     def test_save_validation_rejects_missing_query(self, db):
         with pytest.raises(ValidationError):
             registry.invoke(db, "savedsearch.save", {"folder_path": "/x"}, _ctx())
+
+    def test_save_undo_then_redo_recreates_search(self, db):
+        ctx = _ctx()
+        created = registry.invoke(db, "savedsearch.save", {"query": "yo-yo"}, ctx)
+        sid = created.result["id"]
+
+        _, delete_res = _undo(db, created.audit_id, ctx)
+        assert db.get(SavedSearch, sid) is None
+
+        inv, _ = _undo(db, delete_res.audit_id, ctx)
+        assert inv == "savedsearch.restore"
+        restored = db.get(SavedSearch, sid)
+        assert restored is not None
+        assert restored.query == "yo-yo"
 
 
 # ===========================================================================
