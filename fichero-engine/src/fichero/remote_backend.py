@@ -8,8 +8,11 @@ transport. This module keeps that contract explicit and testable.
 
 from __future__ import annotations
 
+import json
+import logging
 from dataclasses import asdict, dataclass
 from os import environ
+import subprocess
 from typing import Mapping
 from urllib.parse import urlparse
 
@@ -17,6 +20,7 @@ from urllib.parse import urlparse
 _TRUE_VALUES = {"1", "true", "yes", "on"}
 _LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost"}
 SUPPORTED_CONNECTION_MODEL = "ssh-loopback"
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -28,6 +32,7 @@ class RemoteBackendStatus:
     api_url: str | None
     library_path_configured: bool
     token_configured: bool
+    tailnet_status: str
     warnings: list[str]
 
     def as_dict(self) -> dict[str, object]:
@@ -43,6 +48,40 @@ def _host_from_url(raw_url: str | None) -> str | None:
         return None
     parsed = urlparse(raw_url)
     return parsed.hostname
+
+
+def _tailnet_status(env: Mapping[str, str]) -> tuple[str, str | None]:
+    tailnet_url = (env.get("FICHERO_TAILNET_URL") or "").strip()
+    if not tailnet_url:
+        return "not_configured", None
+
+    tailnet_host = _host_from_url(tailnet_url)
+    try:
+        result = subprocess.run(
+            ["tailscale", "serve", "status", "--json"],
+            capture_output=True,
+            check=True,
+            text=True,
+        )
+    except FileNotFoundError:
+        reason = "tailscale CLI not installed"
+        logger.warning("Tailnet serve detection unavailable for %s: %s", tailnet_url, reason)
+        return "not_installed", reason
+    except subprocess.CalledProcessError as exc:
+        reason = (exc.stderr or exc.stdout or str(exc)).strip() or "tailscale serve status failed"
+        logger.warning("Tailnet serve detection failed for %s: %s", tailnet_url, reason)
+        return "unknown", reason
+
+    try:
+        payload = json.loads(result.stdout or "{}")
+    except json.JSONDecodeError as exc:
+        reason = f"tailscale serve status returned invalid JSON: {exc}"
+        logger.warning("Tailnet serve detection failed for %s: %s", tailnet_url, reason)
+        return "unknown", reason
+
+    if tailnet_host and tailnet_host in json.dumps(payload, sort_keys=True):
+        return "reachable", None
+    return "serve_not_running", None
 
 
 def build_remote_backend_status(
@@ -65,6 +104,9 @@ def build_remote_backend_status(
     token = source.get("FICHERO_API_KEY")
     bind_host = source.get("FICHERO_REMOTE_BACKEND_BIND_HOST")
     warnings: list[str] = []
+    tailnet_status, tailnet_reason = _tailnet_status(source)
+    if tailnet_reason:
+        warnings.append(tailnet_reason)
 
     if not enabled:
         return RemoteBackendStatus(
@@ -73,6 +115,7 @@ def build_remote_backend_status(
             api_url=api_url,
             library_path_configured=bool(library_path),
             token_configured=bool(token),
+            tailnet_status=tailnet_status,
             warnings=[],
         )
 
@@ -111,5 +154,6 @@ def build_remote_backend_status(
         api_url=api_url,
         library_path_configured=bool(library_path),
         token_configured=bool(token),
+        tailnet_status=tailnet_status,
         warnings=warnings,
     )

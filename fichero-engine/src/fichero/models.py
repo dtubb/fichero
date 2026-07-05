@@ -1371,6 +1371,18 @@ class LibraryCreateResponse(BaseModel):
     tables_initialized: bool
 
 
+class RemoteBackendHealth(BaseModel):
+    """Health diagnostics for the remote-backend client path."""
+
+    enabled: bool
+    connection_model: str
+    api_url: str | None = None
+    library_path_configured: bool
+    token_configured: bool
+    tailnet_status: str
+    warnings: list[str] = Field(default_factory=list)
+
+
 class HealthResponse(BaseModel):
     """Response from ``GET /api/health`` endpoint.
 
@@ -1385,7 +1397,7 @@ class HealthResponse(BaseModel):
     error: str | None = None
     backend_version: str | None = None
     active_libraries: int | None = None
-    remote_backend: dict[str, Any] | None = None
+    remote_backend: RemoteBackendHealth | None = None
     server_proof: str | None = None
     # Instance identity (#2862): the host app passes FICHERO_LAUNCH_NONCE at
     # spawn and verifies it is echoed here, proving this responder is the engine
