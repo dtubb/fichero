@@ -282,6 +282,48 @@ def test_viewer_can_search_but_cannot_save_search_route(
         importlib.reload(api_main)
 
 
+def test_paired_viewer_gets_structured_library_denial_on_write_route(
+    test_package, app_db, users, monkeypatch
+):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    monkeypatch.setenv("FICHERO_DISABLE_AUTH", "0")
+    library_path = str(test_package)
+    _grant(app_db, users.viewer, library_path, "viewer")
+    raw_device_token = accounts.new_session_token()
+    app_db.create_device(
+        name="Viewer iPad",
+        user_id=users.viewer.id,
+        token_hash=accounts.hash_token(raw_device_token),
+    )
+
+    import fichero.api.main as api_main
+
+    api_main = importlib.reload(api_main)
+    try:
+        with TestClient(
+            api_main.app,
+            headers={"X-Fichero-Library-Path": library_path},
+        ) as client:
+            write_response = client.post(
+                "/api/search/saved",
+                headers=_bearer(raw_device_token),
+                json={"query": "paired viewer should not save this"},
+            )
+            assert write_response.status_code == 403
+            assert write_response.json() == {
+                "detail": "write access denied",
+                "code": "library_access_denied",
+                "library_path": authz.normalize_library_path(library_path) or library_path,
+                "auth_kind": "device",
+                "username": "viewer",
+                "required": "write",
+            }
+    finally:
+        api_main.app.dependency_overrides.clear()
+        monkeypatch.setenv("FICHERO_DISABLE_AUTH", "1")
+        importlib.reload(api_main)
+
+
 @pytest.mark.anyio
 async def test_multiuser_off_leaves_write_dependency_unchanged(
     db, users, monkeypatch
