@@ -116,26 +116,6 @@ struct PageContentPane: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            MiniToolbar {
-                Text("Content")
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-                if pageDoc != nil {
-                    if isSaving {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
-                    Button(editState.isEditing ? "Done" : "Edit") {
-                        toggleEditing()
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .disabled(isSaving)
-                }
-            }
-            Divider()
             if let doc = pageDoc {
                 if editState.isEditing {
                     TextEditor(text: $editState.draftContent)
@@ -191,6 +171,29 @@ struct PageContentPane: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(.orange.opacity(0.08))
+            }
+
+            // Bottom-anchored mini-toolbar (#3060 / #2670): the Content/Edit bar
+            // matches every other pane's bottom bar — content above, bar below.
+            Divider()
+            MiniToolbar {
+                Text("Content")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                if pageDoc != nil {
+                    if isSaving {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                    Button(editState.isEditing ? "Done" : "Edit") {
+                        toggleEditing()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(isSaving)
+                }
             }
         }
         .background(Color(.textBackgroundColor))

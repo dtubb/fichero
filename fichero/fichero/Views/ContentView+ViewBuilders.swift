@@ -46,7 +46,14 @@ private struct ReadingPaneView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            surfaceView
+
+            PaneFilterBar { Spacer(minLength: 0) }
+
+            // Bottom-anchored mini-toolbar (#3060 / #2670): close/title/zoom/pin
+            // now sit at the bottom, matching every other pane bar.
             // Layout: [× close] [icon] [title] [spacer] | [split buttons] [pin]
+            Divider()
             MiniToolbar(content: {
                 // × close: collapses split when inside one, hides whole pane otherwise.
                 let isInSplit = splitAxisActions.map { $0.hasVertical || $0.hasHorizontal } ?? false
@@ -108,10 +115,6 @@ private struct ReadingPaneView: View {
                 .foregroundStyle(isPinned ? Color.accentColor : Color.secondary)
                 .help(isPinned ? "Unpin — follow current selection" : "Pin to current document")
             })
-
-            surfaceView
-
-            PaneFilterBar { Spacer(minLength: 0) }
         }
     }
 

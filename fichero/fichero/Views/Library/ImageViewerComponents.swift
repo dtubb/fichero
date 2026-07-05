@@ -585,6 +585,81 @@ struct ZoomableImagePreview: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            ZStack(alignment: .bottom) {
+                Group {
+                    if renderedImage != nil || url != nil {
+                        ImageWithCursorTracking(
+                            url: url,
+                            overrideImage: renderedImage,
+                            scale: $scale,
+                            cursorPosition: $cursorPosition,
+                            imageSize: $imageSize,
+                            visibleRect: $visibleRect,
+                            minScale: minScale,
+                            maxScale: maxScale,
+                            loupeEnabled: loupeEnabled,
+                            loupeLocked: loupeLocked,
+                            loupeMagnification: $loupeMagnification,
+                            loupeSize: $loupeSize,
+                            coordinator: $imageCoordinator
+                        )
+                    } else {
+                        ContentUnavailableView(
+                            "Image Preview",
+                            systemImage: "photo",
+                            description: Text("The image could not be loaded.")
+                        )
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(white: 0.88, opacity: 1.0))
+                // Tap the image to go true full-screen on iPhone and iPad
+                // (#2607; extended to iPad regular width for #2520).
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if hasImage {
+                        showingFullScreen = true
+                    }
+                }
+
+                // iOS touch prev/next overlay for folder image siblings (#2420).
+                if previousAction != nil || nextAction != nil {
+                    HStack(spacing: 16) {
+                        Button {
+                            previousAction?()
+                        } label: {
+                            Image(systemName: "chevron.left")
+                                .font(.title3.weight(.semibold))
+                                .frame(width: 40, height: 40)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(previousAction == nil)
+                        .help("Show the previous image in this folder")
+                        .accessibilityLabel("Previous image")
+                        .accessibilityIdentifier("folderImagePrev")
+
+                        Button {
+                            nextAction?()
+                        } label: {
+                            Image(systemName: "chevron.right")
+                                .font(.title3.weight(.semibold))
+                                .frame(width: 40, height: 40)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(nextAction == nil)
+                        .help("Show the next image in this folder")
+                        .accessibilityLabel("Next image")
+                        .accessibilityIdentifier("folderImageNext")
+                    }
+                    .padding(.bottom, 16)
+                    .padding(.horizontal, 24)
+                }
+            }
+
+            // Bottom-anchored mini-toolbar (#3060 / #2670): matches the macOS
+            // ReaderToolbar and every other pane bar — content above, bar below.
+            Divider()
+
             MiniToolbar {
                 Spacer(minLength: 0)
                 if isCompact {
@@ -662,79 +737,6 @@ struct ZoomableImagePreview: View {
                 }
 
                 Spacer()
-            }
-
-            Divider()
-
-            ZStack(alignment: .bottom) {
-                Group {
-                    if renderedImage != nil || url != nil {
-                        ImageWithCursorTracking(
-                            url: url,
-                            overrideImage: renderedImage,
-                            scale: $scale,
-                            cursorPosition: $cursorPosition,
-                            imageSize: $imageSize,
-                            visibleRect: $visibleRect,
-                            minScale: minScale,
-                            maxScale: maxScale,
-                            loupeEnabled: loupeEnabled,
-                            loupeLocked: loupeLocked,
-                            loupeMagnification: $loupeMagnification,
-                            loupeSize: $loupeSize,
-                            coordinator: $imageCoordinator
-                        )
-                    } else {
-                        ContentUnavailableView(
-                            "Image Preview",
-                            systemImage: "photo",
-                            description: Text("The image could not be loaded.")
-                        )
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(white: 0.88, opacity: 1.0))
-                // Tap the image to go true full-screen on iPhone and iPad
-                // (#2607; extended to iPad regular width for #2520).
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    if hasImage {
-                        showingFullScreen = true
-                    }
-                }
-
-                // iOS touch prev/next overlay for folder image siblings (#2420).
-                if previousAction != nil || nextAction != nil {
-                    HStack(spacing: 16) {
-                        Button {
-                            previousAction?()
-                        } label: {
-                            Image(systemName: "chevron.left")
-                                .font(.title3.weight(.semibold))
-                                .frame(width: 40, height: 40)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(previousAction == nil)
-                        .help("Show the previous image in this folder")
-                        .accessibilityLabel("Previous image")
-                        .accessibilityIdentifier("folderImagePrev")
-
-                        Button {
-                            nextAction?()
-                        } label: {
-                            Image(systemName: "chevron.right")
-                                .font(.title3.weight(.semibold))
-                                .frame(width: 40, height: 40)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(nextAction == nil)
-                        .help("Show the next image in this folder")
-                        .accessibilityLabel("Next image")
-                        .accessibilityIdentifier("folderImageNext")
-                    }
-                    .padding(.bottom, 16)
-                    .padding(.horizontal, 24)
-                }
             }
         }
         .task(id: documentId) {
