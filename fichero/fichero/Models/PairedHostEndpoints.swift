@@ -135,12 +135,16 @@ enum PairedHostEndpointStore {
 
     /// The failover endpoints as `BackendHost`s, each carrying its own persisted
     /// SPKI pin (nil for a real-cert endpoint) so trust is endpoint-correct.
-    static func endpoints() -> [BackendHost] {
+    ///
+    /// `pinFor` is the pin-store seam: it resolves the SPKI pin for a host URL.
+    /// It defaults to the real `RemoteCertificatePinning` lookup (production
+    /// behavior unchanged) and is stubbed in tests to assert each endpoint gets
+    /// *its own* pin — never a shared or inherited one.
+    static func endpoints(
+        pinFor: (String) -> String? = { RemoteCertificatePinning.persistedSPKIPin(hostString: $0) }
+    ) -> [BackendHost] {
         stored().compactMap(URL.init(string:)).map { url in
-            BackendHost(
-                url: url,
-                spkiPin: RemoteCertificatePinning.persistedSPKIPin(hostString: url.absoluteString)
-            )
+            BackendHost(url: url, spkiPin: pinFor(url.absoluteString))
         }
     }
 
