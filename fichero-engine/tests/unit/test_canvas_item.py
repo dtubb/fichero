@@ -9,11 +9,13 @@ work-notes, links/connectors, free text. Its POSITION lives separately in
     isolation, 404s, idempotent table creation, empty list.
 """
 
+import asyncio
 import pytest
 
 # Importing the route module registers the ``canvas.item.*`` actions.
 import fichero.api.routes.canvas  # noqa: F401
 from fichero import accounts, authz
+from fichero.api.routes.actions_registry import undo_action
 from fichero.actions.registry import ActionContext, registry
 from fichero.models import ActionAudit
 from fichero.canvas_models import CanvasItem, CanvasItemKind
@@ -35,6 +37,17 @@ def _ctx(db, app_db) -> ActionContext:
         role="editor",
     )
     return ActionContext(actor=user.username, library_path=library_path)
+
+
+def _undo(db, audit_id: str, library_path: str):
+    return asyncio.run(
+        undo_action(
+            audit_id,
+            db=db,
+            x_fichero_library_path=library_path,
+            x_fichero_origin_window=None,
+        )
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -283,6 +296,28 @@ def test_create_action_persists_and_audits(db, app_db):
     assert len(rows) == 1
     assert rows[0].kind == CanvasItemKind.quote
     assert rows[0].text == "from the agent"
+
+
+def test_create_action_undo_deletes_item_and_writes_inverse_audit(db, app_db):
+    ctx = _ctx(db, app_db)
+    created = registry.invoke(
+        db,
+        "canvas.item.create",
+        {"folder_id": "f-undo", "kind": "note", "text": "undo me"},
+        ctx,
+    )
+
+    item_id = created.result["id"]
+    assert db.get(CanvasItem, item_id) is not None
+
+    undone = _undo(db, created.audit_id, ctx.library_path)
+
+    assert db.get(CanvasItem, item_id) is None
+    assert db.get(ActionAudit, created.audit_id).undone is True
+    inverse_audit = db.get(ActionAudit, undone.audit_id)
+    assert inverse_audit is not None
+    assert inverse_audit.action_name == "canvas.item.delete"
+    assert inverse_audit.inverse_of == created.audit_id
 
 
 def test_create_link_action_round_trips(db, app_db):

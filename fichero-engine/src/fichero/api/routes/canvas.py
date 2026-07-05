@@ -534,7 +534,26 @@ class CanvasItemDeleteParams(BaseModel):
     item_id: str
 
 
-@action("canvas.item.create", CanvasItemCreateParams, domains=["canvas"])
+def _invert_create_canvas_item(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not after:
+        return None
+    item = after.get("item") if isinstance(after.get("item"), dict) else after
+    item_id = item.get("id") if isinstance(item, dict) else None
+    folder_id = item.get("folder_id") if isinstance(item, dict) else None
+    if not item_id or not folder_id:
+        return None
+    return ("canvas.item.delete", {"folder_id": folder_id, "item_id": item_id})
+
+
+@action(
+    "canvas.item.create",
+    CanvasItemCreateParams,
+    domains=["canvas"],
+    undoable=True,
+    invert=_invert_create_canvas_item,
+)
 def _action_create_canvas_item(
     db: Database, params: CanvasItemCreateParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
