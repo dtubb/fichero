@@ -40,6 +40,19 @@ final class ActivityStore: ChangeEventConsumer {
         streamService.stop()
     }
 
+    /// True when the activity SSE stream has dropped and runs are no longer
+    /// refreshing live (F7). Views show a "live updates paused" pill. Reads the
+    /// nested @Observable stream service, so observers of this store re-render
+    /// when it flips.
+    var liveUpdatesPaused: Bool { streamService.liveUpdatesUnavailable }
+
+    /// Force an immediate reconnect of the activity stream (the pill's action),
+    /// rather than waiting out the backoff.
+    func reconnectLiveUpdates() {
+        stop()
+        start()
+    }
+
     // MARK: - ChangeEventConsumer
 
     /// Activity refresh is driven by `/activity/stream`, not workflow-definition

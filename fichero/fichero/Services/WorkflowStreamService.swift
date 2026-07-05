@@ -1,7 +1,7 @@
 import Combine
-import Observation
 import FicheroAPIClient
 import Foundation
+import Observation
 import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "WorkflowStreamService")
@@ -49,6 +49,13 @@ class WorkflowStreamService {
     /// Error message if stream fails
     var error: String?
 
+    /// True once a running stream drops with an error and events are no longer
+    /// arriving — the UI shows a "live updates paused" pill instead of leaving a
+    /// half-finished run looking stalled (#2518 no-silent-fallback, F7). Set on
+    /// the error path, cleared on (re)connect; a clean `.complete`/`.pause` leaves
+    /// it false (the run ended normally, it isn't paused).
+    private(set) var liveUpdatesUnavailable = false
+
     /// Track if workflow had errors (for final status determination)
     private var hadError = false
 
@@ -92,6 +99,7 @@ class WorkflowStreamService {
         streamTask?.cancel()
         error = nil
         hadError = false
+        liveUpdatesUnavailable = false  // fresh stream — clear any prior paused state (F7)
         isStreaming = true
 
         logger.info("Starting workflow execution: \(workflowId)")
@@ -129,6 +137,7 @@ class WorkflowStreamService {
         streamTask?.cancel()
         error = nil
         hadError = false
+        liveUpdatesUnavailable = false  // fresh stream — clear any prior paused state (F7)
         isStreaming = true
         currentThreadId = threadId
 
@@ -167,6 +176,8 @@ class WorkflowStreamService {
             if httpResponse.statusCode != 200 {
                 throw WorkflowStreamError.httpError(statusCode: httpResponse.statusCode)
             }
+
+            liveUpdatesUnavailable = false  // connected — run events flowing (F7)
 
             // Process SSE stream - process data lines immediately
             // (don't wait for empty line separator as bytes.lines may not yield them reliably)
@@ -217,6 +228,9 @@ class WorkflowStreamService {
                 await MainActor.run {
                     self.error = message
                     self.isStreaming = false
+                    // Events stopped mid-run — surface a "live updates paused"
+                    // pill rather than leaving the run looking stalled (F7).
+                    self.liveUpdatesUnavailable = true
                 }
             }
         }
@@ -232,6 +246,7 @@ class WorkflowStreamService {
         streamTask?.cancel()
         streamTask = nil
         isStreaming = false
+        liveUpdatesUnavailable = false  // user-cancelled is not a paused stream (F7)
         logger.info("SSE stream cancelled")
     }
 

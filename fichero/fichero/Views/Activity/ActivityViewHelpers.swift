@@ -211,6 +211,13 @@ struct ActivityBrowserView: View {
             listSelection = newId
         }
         .onAppear { listSelection = selectedRunId }
+        // No-silent-fallback (F7): if the activity SSE stream drops, the run list
+        // stops refreshing — say so instead of showing a stale list silently.
+        .overlay(alignment: .top) {
+            if activityStore.liveUpdatesPaused {
+                LiveUpdatesPausedPill(onReconnect: { activityStore.reconnectLiveUpdates() })
+            }
+        }
     }
 
     private func loadRuns() async {
