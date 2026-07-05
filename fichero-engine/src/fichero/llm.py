@@ -2449,6 +2449,11 @@ async def vision_inference_api(
     """
     import aiohttp
 
+    _enforce_local_only_provider(
+        LLMConfig(provider="huggingface", model=model, api_key=api_key),
+        kind="vision",
+    )
+
     url = f"https://api-inference.huggingface.co/models/{model}"
 
     # Extract base64 data from first image (single image for now)
