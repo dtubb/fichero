@@ -48,27 +48,24 @@ class TestSupervisorWorkflow:
     @pytest.mark.asyncio
     async def test_supervisor_delegates_to_workers(self, llm_config, mock_state):
         """Test supervisor delegates tasks to appropriate workers."""
-        call_count = {"supervisor": 0, "worker": 0}
+        call_count = {"supervisor": 0}
 
         async def mock_supervisor_response(*args):
             call_count["supervisor"] += 1
             if call_count["supervisor"] == 1:
-                return AIMessage(content="I will delegate to researcher to find information. Task complete.")
-            return AIMessage(content="Based on the research, the final answer is complete.")
+                return "I will delegate to researcher to find information."
+            return "Based on the research, the final answer is complete."
 
-        async def mock_worker_response(state):
-            call_count["worker"] += 1
-            return {"messages": [AIMessage(content="Worker found the answer.")]}
-
-        mock_model = MagicMock()
-        mock_model.ainvoke = mock_supervisor_response
-
-        with patch("fichero.workflows.tools.multi_agent.get_langchain_model", return_value=mock_model):
-            with patch("fichero.workflows.tools.multi_agent.create_react_agent") as mock_create:
-                mock_agent = MagicMock()
-                mock_agent.ainvoke = mock_worker_response
-                mock_create.return_value = mock_agent
-
+        with patch(
+            "fichero.workflows.tools.multi_agent.chat_workflow",
+            side_effect=mock_supervisor_response,
+        ):
+            with patch(
+                "fichero.workflows.tools.multi_agent._run_agent_loop",
+                AsyncMock(
+                    return_value=("Worker found the answer.", [{"role": "assistant"}], [], 1)
+                ),
+            ):
                 result = await supervisor_agent(
                     inputs={
                         "task": "Research the latest AI trends",
@@ -88,19 +85,14 @@ class TestSupervisorWorkflow:
     @pytest.mark.asyncio
     async def test_supervisor_parallel_workers(self, llm_config, mock_state):
         """Test supervisor can run workers in parallel."""
-        mock_model = MagicMock()
-        mock_model.ainvoke = AsyncMock(return_value=AIMessage(
-            content="I will use researcher and analyst. Task complete."
-        ))
-
-        with patch("fichero.workflows.tools.multi_agent.get_langchain_model", return_value=mock_model):
-            with patch("fichero.workflows.tools.multi_agent.create_react_agent") as mock_create:
-                mock_agent = MagicMock()
-                mock_agent.ainvoke = AsyncMock(return_value={
-                    "messages": [AIMessage(content="Parallel result")]
-                })
-                mock_create.return_value = mock_agent
-
+        with patch(
+            "fichero.workflows.tools.multi_agent.chat_workflow",
+            AsyncMock(return_value="I will use researcher and analyst."),
+        ):
+            with patch(
+                "fichero.workflows.tools.multi_agent._run_agent_loop",
+                AsyncMock(return_value=("Parallel result", [{"role": "assistant"}], [], 1)),
+            ):
                 result = await supervisor_agent(
                     inputs={
                         "task": "Analyze and summarize",
@@ -126,69 +118,65 @@ class TestSwarmWorkflow:
         """Test swarm agents hand off tasks correctly."""
         call_count = 0
 
-        async def mock_ainvoke(state):
+        async def mock_run_agent_loop(*args, **kwargs):
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                return {"messages": [AIMessage(content="I need to HANDOFF: specialist to continue")]}
-            return {"messages": [AIMessage(content="Final answer from specialist")]}
+                return ("I need to HANDOFF: specialist to continue", [], [], 1)
+            return ("Final answer from specialist", [], [], 1)
 
-        with patch("fichero.workflows.tools.multi_agent.get_langchain_model"):
-            with patch("fichero.workflows.tools.multi_agent.create_react_agent") as mock_create:
-                mock_agent = MagicMock()
-                mock_agent.ainvoke = mock_ainvoke
-                mock_create.return_value = mock_agent
+        with patch(
+            "fichero.workflows.tools.multi_agent._run_agent_loop",
+            side_effect=mock_run_agent_loop,
+        ):
+            result = await swarm_agent(
+                inputs={
+                    "task": "Complex task requiring handoff",
+                    "agents": [
+                        {"name": "generalist", "description": "General agent", "can_handoff_to": ["specialist"]},
+                        {"name": "specialist", "description": "Specialist agent"},
+                    ],
+                    "entry_agent": "generalist",
+                },
+                state=mock_state,
+                llm_config=llm_config,
+            )
 
-                result = await swarm_agent(
-                    inputs={
-                        "task": "Complex task requiring handoff",
-                        "agents": [
-                            {"name": "generalist", "description": "General agent", "can_handoff_to": ["specialist"]},
-                            {"name": "specialist", "description": "Specialist agent"},
-                        ],
-                        "entry_agent": "generalist",
-                    },
-                    state=mock_state,
-                    llm_config=llm_config,
-                )
-
-                assert "handoff_chain" in result
-                assert len(result["handoff_chain"]) >= 1
-                assert result["result"] == "Final answer from specialist"
+            assert "handoff_chain" in result
+            assert len(result["handoff_chain"]) >= 1
+            assert result["result"] == "Final answer from specialist"
 
     @pytest.mark.asyncio
     async def test_swarm_max_handoffs_limit(self, llm_config, mock_state):
         """Test swarm respects max handoffs limit."""
         handoff_count = 0
 
-        async def always_handoff(state):
+        async def always_handoff(*args, **kwargs):
             nonlocal handoff_count
             handoff_count += 1
             # Alternate between agent1 and agent2
             target = "agent2" if handoff_count % 2 == 1 else "agent1"
-            return {"messages": [AIMessage(content=f"HANDOFF: {target} Keep going")]}
+            return (f"HANDOFF: {target} Keep going", [], [], 1)
 
-        with patch("fichero.workflows.tools.multi_agent.get_langchain_model"):
-            with patch("fichero.workflows.tools.multi_agent.create_react_agent") as mock_create:
-                mock_agent = MagicMock()
-                mock_agent.ainvoke = always_handoff
-                mock_create.return_value = mock_agent
+        with patch(
+            "fichero.workflows.tools.multi_agent._run_agent_loop",
+            side_effect=always_handoff,
+        ):
+            result = await swarm_agent(
+                inputs={
+                    "task": "Task that loops",
+                    "agents": [
+                        {"name": "agent1", "description": "Agent 1", "can_handoff_to": ["agent2"]},
+                        {"name": "agent2", "description": "Agent 2", "can_handoff_to": ["agent1"]},
+                    ],
+                    "max_handoffs": 3,
+                },
+                state=mock_state,
+                llm_config=llm_config,
+            )
 
-                result = await swarm_agent(
-                    inputs={
-                        "task": "Task that loops",
-                        "agents": [
-                            {"name": "agent1", "description": "Agent 1", "can_handoff_to": ["agent2"]},
-                            {"name": "agent2", "description": "Agent 2", "can_handoff_to": ["agent1"]},
-                        ],
-                        "max_handoffs": 3,
-                    },
-                    state=mock_state,
-                    llm_config=llm_config,
-                )
-
-                # Should have multiple handoffs in the chain
-                assert len(result.get("handoff_chain", [])) >= 2
+            # Should have multiple handoffs in the chain
+            assert len(result.get("handoff_chain", [])) >= 2
 
 
 class TestAgentCoordinatorWorkflow:
@@ -197,19 +185,14 @@ class TestAgentCoordinatorWorkflow:
     @pytest.mark.asyncio
     async def test_coordinator_synthesizes_results(self, llm_config, mock_state):
         """Test coordinator synthesizes results from multiple agents."""
-        mock_model = MagicMock()
-        mock_model.ainvoke = AsyncMock(return_value=AIMessage(
-            content="Synthesized result combining all perspectives"
-        ))
-
-        with patch("fichero.workflows.tools.multi_agent.get_langchain_model", return_value=mock_model):
-            with patch("fichero.workflows.tools.multi_agent.create_react_agent") as mock_create:
-                mock_agent = MagicMock()
-                mock_agent.ainvoke = AsyncMock(return_value={
-                    "messages": [AIMessage(content="Agent perspective")]
-                })
-                mock_create.return_value = mock_agent
-
+        with patch(
+            "fichero.workflows.tools.multi_agent.chat_workflow",
+            AsyncMock(return_value="Synthesized result combining all perspectives"),
+        ):
+            with patch(
+                "fichero.workflows.tools.multi_agent._run_agent_loop",
+                AsyncMock(return_value=("Agent perspective", [], [], 1)),
+            ):
                 result = await agent_coordinator(
                     inputs={
                         "task": "Analyze this problem",
@@ -232,31 +215,25 @@ class TestAgentCoordinatorWorkflow:
     @pytest.mark.asyncio
     async def test_coordinator_consensus_mode(self, llm_config, mock_state):
         """Test coordinator checks for consensus."""
-        mock_model = MagicMock()
+        with patch(
+            "fichero.workflows.tools.multi_agent._run_agent_loop",
+            AsyncMock(return_value=("Same answer", [], [], 1)),
+        ):
+            result = await agent_coordinator(
+                inputs={
+                    "task": "What is 2+2?",
+                    "agents": [
+                        {"name": "math1"},
+                        {"name": "math2"},
+                    ],
+                    "combination_method": "consensus",
+                    "require_consensus": True,
+                },
+                state=mock_state,
+                llm_config=llm_config,
+            )
 
-        with patch("fichero.workflows.tools.multi_agent.get_langchain_model", return_value=mock_model):
-            with patch("fichero.workflows.tools.multi_agent.create_react_agent") as mock_create:
-                mock_agent = MagicMock()
-                mock_agent.ainvoke = AsyncMock(return_value={
-                    "messages": [AIMessage(content="Same answer")]
-                })
-                mock_create.return_value = mock_agent
-
-                result = await agent_coordinator(
-                    inputs={
-                        "task": "What is 2+2?",
-                        "agents": [
-                            {"name": "math1"},
-                            {"name": "math2"},
-                        ],
-                        "combination_method": "consensus",
-                        "require_consensus": True,
-                    },
-                    state=mock_state,
-                    llm_config=llm_config,
-                )
-
-                assert result["agreement_score"] == 1.0  # Same responses
+            assert result["agreement_score"] == 1.0  # Same responses
 
 
 # =============================================================================
@@ -269,13 +246,10 @@ class TestModelComparisonWorkflow:
     @pytest.mark.asyncio
     async def test_comparison_in_workflow(self, llm_config, mock_state):
         """Test model comparison works as workflow tool."""
-        mock_model = MagicMock()
-        mock_response = MagicMock()
-        mock_response.content = "Test response from model"
-        mock_response.response_metadata = {"usage": {"input_tokens": 10, "output_tokens": 20}}
-        mock_model.ainvoke = AsyncMock(return_value=mock_response)
-
-        with patch("fichero.workflows.model_comparison.get_langchain_model", return_value=mock_model):
+        with patch(
+            "fichero.workflows.model_comparison.chat_workflow",
+            AsyncMock(return_value="Test response from model"),
+        ):
             result = await model_comparison(
                 inputs={
                     "prompt": "Explain quantum computing",
@@ -310,10 +284,10 @@ class TestModelComparisonWorkflow:
                 # Second model fails
                 raise Exception("API rate limit")
 
-        mock_model = MagicMock()
-        mock_model.ainvoke = mock_ainvoke
-
-        with patch("fichero.workflows.model_comparison.get_langchain_model", return_value=mock_model):
+        with patch(
+            "fichero.workflows.model_comparison.chat_workflow",
+            side_effect=mock_ainvoke,
+        ):
             result = await model_comparison(
                 inputs={
                     "prompt": "Test",
@@ -337,13 +311,10 @@ class TestModelComparisonEngine:
     @pytest.mark.asyncio
     async def test_engine_tracks_history(self):
         """Test engine maintains comparison history."""
-        mock_model = MagicMock()
-        mock_response = MagicMock()
-        mock_response.content = "Response"
-        mock_response.response_metadata = {}
-        mock_model.ainvoke = AsyncMock(return_value=mock_response)
-
-        with patch("fichero.workflows.model_comparison.get_langchain_model", return_value=mock_model):
+        with patch(
+            "fichero.workflows.model_comparison.chat_workflow",
+            AsyncMock(return_value="Response"),
+        ):
             engine = ModelComparisonEngine()
 
             # Run multiple comparisons
@@ -359,13 +330,10 @@ class TestModelComparisonEngine:
     @pytest.mark.asyncio
     async def test_engine_calculates_metrics(self):
         """Test engine calculates correct metrics."""
-        mock_model = MagicMock()
-        mock_response = MagicMock()
-        mock_response.content = "Response text"
-        mock_response.response_metadata = {"usage": {"input_tokens": 100, "output_tokens": 50}}
-        mock_model.ainvoke = AsyncMock(return_value=mock_response)
-
-        with patch("fichero.workflows.model_comparison.get_langchain_model", return_value=mock_model):
+        with patch(
+            "fichero.workflows.model_comparison.chat_workflow",
+            AsyncMock(return_value="Response text"),
+        ):
             engine = ModelComparisonEngine()
             request = ComparisonRequest(
                 prompt="Test",
@@ -390,17 +358,14 @@ class TestCombinedAdvancedFeatures:
     @pytest.mark.asyncio
     async def test_multi_agent_with_different_models(self, llm_config, mock_state):
         """Test multi-agent workflow can use different models per agent."""
-        mock_model = MagicMock()
-        mock_model.ainvoke = AsyncMock(return_value=AIMessage(content="Result"))
-
-        with patch("fichero.workflows.tools.multi_agent.get_langchain_model", return_value=mock_model):
-            with patch("fichero.workflows.tools.multi_agent.create_react_agent") as mock_create:
-                mock_agent = MagicMock()
-                mock_agent.ainvoke = AsyncMock(return_value={
-                    "messages": [AIMessage(content="Agent result")]
-                })
-                mock_create.return_value = mock_agent
-
+        with patch(
+            "fichero.workflows.tools.multi_agent.chat_workflow",
+            AsyncMock(return_value="Result"),
+        ):
+            with patch(
+                "fichero.workflows.tools.multi_agent._run_agent_loop",
+                AsyncMock(return_value=("Agent result", [], [], 1)),
+            ):
                 result = await agent_coordinator(
                     inputs={
                         "task": "Analyze using different model strengths",
@@ -428,17 +393,14 @@ class TestAdvancedFeaturesErrorHandling:
     @pytest.mark.asyncio
     async def test_supervisor_handles_worker_failure(self, llm_config, mock_state):
         """Test supervisor handles worker failures gracefully."""
-        mock_model = MagicMock()
-        mock_model.ainvoke = AsyncMock(return_value=AIMessage(
-            content="Delegate to failing_worker. Task complete."
-        ))
-
-        with patch("fichero.workflows.tools.multi_agent.get_langchain_model", return_value=mock_model):
-            with patch("fichero.workflows.tools.multi_agent.create_react_agent") as mock_create:
-                mock_agent = MagicMock()
-                mock_agent.ainvoke = AsyncMock(side_effect=Exception("Worker crashed"))
-                mock_create.return_value = mock_agent
-
+        with patch(
+            "fichero.workflows.tools.multi_agent.chat_workflow",
+            AsyncMock(return_value="Delegate to failing_worker."),
+        ):
+            with patch(
+                "fichero.workflows.tools.multi_agent._run_agent_loop",
+                AsyncMock(side_effect=Exception("Worker crashed")),
+            ):
                 result = await supervisor_agent(
                     inputs={
                         "task": "Test task",
@@ -456,10 +418,10 @@ class TestAdvancedFeaturesErrorHandling:
     @pytest.mark.asyncio
     async def test_comparison_handles_all_failures(self, llm_config, mock_state):
         """Test comparison handles when all models fail."""
-        mock_model = MagicMock()
-        mock_model.ainvoke = AsyncMock(side_effect=Exception("API Error"))
-
-        with patch("fichero.workflows.model_comparison.get_langchain_model", return_value=mock_model):
+        with patch(
+            "fichero.workflows.model_comparison.chat_workflow",
+            AsyncMock(side_effect=Exception("API Error")),
+        ):
             result = await model_comparison(
                 inputs={
                     "prompt": "Test",
