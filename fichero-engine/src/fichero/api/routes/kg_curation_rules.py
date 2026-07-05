@@ -62,6 +62,10 @@ class EntityRuleDeleteResponse(BaseModel):
     deleted_rule_id: str
 
 
+class EntityRuleDeleteManyRequest(BaseModel):
+    rule_ids: list[str] = Field(default_factory=list)
+
+
 class EntityRuleRestoreRequest(BaseModel):
     rule: EntityRuleReadResponse
 
@@ -80,6 +84,15 @@ def _invert_delete_entity_rule(
     if not before or "rule" not in before:
         raise ValueError("Cannot undo kg.entity_rule.delete without deleted rule")
     return "kg.entity_rule.restore", {"rule": before["rule"]}
+
+
+def _invert_create_entity_rules_batch(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict]:
+    rule_ids = (after or {}).get("rule_ids")
+    if not rule_ids:
+        raise ValueError("Cannot undo kg.entity_rule.batch_create without created rule ids")
+    return "kg.entity_rule.delete_many", {"rule_ids": rule_ids}
 
 
 class ClaimRuleCreateRequest(BaseModel):
@@ -352,7 +365,8 @@ def _action_create_entity_rule(
     "kg.entity_rule.batch_create",
     EntityRuleBatchCreateRequest,
     domains=["entity"],
-    undoable=False,
+    undoable=True,
+    invert=_invert_create_entity_rules_batch,
 )
 def _action_create_entity_rules_batch(
     db: Database, params: EntityRuleBatchCreateRequest, ctx: ActionContext
@@ -368,6 +382,29 @@ def _action_create_entity_rules_batch(
         items=[_entity_rule_response(rule) for rule in created],
         count=len(created),
     ).model_dump(mode="json"), spec
+
+
+@action(
+    "kg.entity_rule.delete_many",
+    EntityRuleDeleteManyRequest,
+    domains=["entity"],
+    undoable=False,
+)
+def _action_delete_entity_rules_many(
+    db: Database, params: EntityRuleDeleteManyRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    deleted_ids: list[str] = []
+    for rule_id in params.rule_ids:
+        _delete_entity_rule_impl(db, rule_id)
+        deleted_ids.append(rule_id)
+    spec = ChangeSpec(
+        domains=["entity"],
+        target_ids=deleted_ids,
+        before={"rule_ids": deleted_ids},
+        after={"deleted_rule_ids": deleted_ids},
+        emit_type="entity.updated" if deleted_ids else None,
+    )
+    return {"deleted_rule_ids": deleted_ids}, spec
 
 
 @action(

@@ -66,6 +66,39 @@ class TestEntityCurationRules:
         assert payload["count"] == 2
         assert {item["rule_type"] for item in payload["items"]} == {"alias", "suppress"}
 
+    def test_batch_create_entity_rules_undo_deletes_created_rows(self, db):
+        reg = registry
+        result = reg.invoke(
+            db,
+            "kg.entity_rule.batch_create",
+            {
+                "items": [
+                    {
+                        "rule_type": "alias",
+                        "match_canonical_name": "Quito",
+                        "reason": "keep alias",
+                    },
+                    {
+                        "rule_type": "suppress",
+                        "match_canonical_name": "Unknown Person",
+                        "reason": "noise",
+                    },
+                ]
+            },
+            _ctx(),
+        )
+        created_ids = [item["id"] for item in result.result["items"]]
+        assert all(db.get(EntityResolutionRule, rule_id) is not None for rule_id in created_ids)
+
+        batch_create_action = reg.get("kg.entity_rule.batch_create")
+        assert batch_create_action.undoable is True
+        inv = batch_create_action.invert(None, {"rule_ids": created_ids}, _ctx())
+        assert inv is not None
+        inv_name, inv_params = inv
+        assert inv_name == "kg.entity_rule.delete_many"
+        reg.invoke(db, inv_name, inv_params, _ctx())
+        assert all(db.get(EntityResolutionRule, rule_id) is None for rule_id in created_ids)
+
     def test_entity_rule_routes_write_action_audit_and_emit(
         self, client, db, monkeypatch
     ):
