@@ -77,4 +77,12 @@ final class IdentityStore {
             log.error("Identity probe failed: \(error.localizedDescription, privacy: .public)")
         }
     }
+
+    #if DEBUG
+    /// Test seam: seed a decoded identity without a live engine, so the derived
+    /// `isAuthenticated` / `isOwnerAccess` / `displayName` logic is unit-testable.
+    func setIdentityForTesting(_ identity: Components.Schemas.AuthIdentityResponse?) {
+        self.identity = identity
+    }
+    #endif
 }

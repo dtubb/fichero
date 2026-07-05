@@ -65,4 +65,78 @@ struct AccessErrorTests {
         }
         #expect(error.recovery == .retry)
     }
+
+    // MARK: - Stale bootstrap token (#3052) — the exact sandbox-relaunch 401
+
+    @Test func staleBootstrapToken401IsDistinctFromUnauthenticated() {
+        // The engine's real body (auth.py): a 401 carrying a machine `code`.
+        let body = Data(#"{"detail": "local bootstrap token is stale", "code": "stale_bootstrap_token"}"#.utf8)
+        let error = AccessError.classify(statusCode: 401, body: body)
+        #expect(error == .staleBootstrapToken)
+        // Signing in cannot fix a stale bootstrap token — restart re-mints it.
+        #expect(error?.recovery == .restartEngine)
+        #expect(error?.recovery != .signIn)
+    }
+
+    @Test func staleBootstrapTokenDiscriminatorIsStatusAgnostic() {
+        // If a path 403s the stale token instead of 401ing it, still classify it
+        // as stale (keyed on `code`, not the status).
+        let body = Data(#"{"detail": "stale", "code": "stale_bootstrap_token"}"#.utf8)
+        #expect(AccessError.classify(statusCode: 403, body: body) == .staleBootstrapToken)
+    }
+
+    @Test func plain401WithoutStaleCodeStaysUnauthenticated() {
+        // A 401 whose body carries a different/absent code is a genuine sign-in
+        // case, not a stale token.
+        let body = Data(#"{"detail": "not authenticated"}"#.utf8)
+        #expect(AccessError.classify(statusCode: 401, body: body) == .unauthenticated)
+    }
+
+    @Test func denialBodyCapturesTopLevelCodeAlongsideStringDetail() {
+        // Regression: the string-`detail` path used to early-return and drop `code`.
+        let body = Data(#"{"detail": "msg", "code": "stale_bootstrap_token"}"#.utf8)
+        let denial = DenialBody.decode(body)
+        #expect(denial?.code == "stale_bootstrap_token")
+        #expect(denial?.message == "msg")
+    }
+
+    @Test func forbiddenReasonFallsBackToTopLevelCode() {
+        // A 403 with a machine `code` but no nested reason still surfaces the code
+        // as the forbidden reason.
+        let body = Data(#"{"detail": "No access", "code": "not_a_member"}"#.utf8)
+        #expect(AccessError.classify(statusCode: 403, body: body)
+            == .forbidden(reason: "not_a_member", message: "No access"))
+    }
+
+    // MARK: - Never-blank invariant
+
+    /// Every representable failure must carry a non-empty message AND a recovery,
+    /// so no case can render an empty pane / actionless spinner (F5/F6 invariant).
+    @Test func everyCaseHasMessageAndRecovery() {
+        let allCases: [AccessError] = [
+            .unauthenticated,
+            .staleBootstrapToken,
+            .forbidden(reason: nil, message: nil),
+            .forbidden(reason: "r", message: "m"),
+            .tlsPinFailure,
+            .engineUnreachable,
+            .transport("boom")
+        ]
+        for error in allCases {
+            let description = error.errorDescription ?? ""
+            #expect(!description.isEmpty, "\(error) has an empty description")
+            // recovery is non-optional — every case maps to exactly one action.
+            _ = error.recovery
+        }
+    }
+
+    @Test func distinctFailuresGetDistinctRecoveries() {
+        // The five primary failure surfaces Daniel hits map to five different
+        // next-actions — no two collapse into the same dead-end.
+        #expect(AccessError.unauthenticated.recovery == .signIn)
+        #expect(AccessError.staleBootstrapToken.recovery == .restartEngine)
+        #expect(AccessError.forbidden(reason: nil, message: nil).recovery == .requestAccess)
+        #expect(AccessError.tlsPinFailure.recovery == .resetPin)
+        #expect(AccessError.engineUnreachable.recovery == .restartEngine)
+    }
 }

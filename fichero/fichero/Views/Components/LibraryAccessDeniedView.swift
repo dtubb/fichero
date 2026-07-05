@@ -27,23 +27,43 @@ struct LibraryAccessDeniedView: View {
     var onResetPin: (@MainActor () -> Void)?
 
     /// The one next-step this denial resolves to, from error × identity.
-    private enum PrimaryAction {
+    /// The concrete next-action a denial resolves to. Internal (not private) so
+    /// the decision can be unit-tested for every failure case without rendering.
+    enum PrimaryAction: Equatable {
         case signIn, requestAccess, restartEngine, resetPin, retry
     }
 
     private var primaryAction: PrimaryAction {
+        let hasIdentity = identity?.identity != nil
+        return Self.resolvePrimaryAction(
+            for: error,
+            isAuthenticated: hasIdentity ? identity?.isAuthenticated : nil,
+            isOwnerAccess: identity?.isOwnerAccess ?? false
+        )
+    }
+
+    /// Pure decision: failure × identity → the one next action. Extracted so the
+    /// "right next-action for EACH case" invariant is testable. `isAuthenticated`
+    /// is `nil` when identity hasn't loaded (can't disambiguate a bare forbidden).
+    static func resolvePrimaryAction(
+        for error: AccessError,
+        isAuthenticated: Bool?,
+        isOwnerAccess: Bool
+    ) -> PrimaryAction {
         switch error {
         case .tlsPinFailure:
             return .resetPin
-        case .engineUnreachable:
+        case .engineUnreachable, .staleBootstrapToken:
+            // A stale bootstrap token can only be fixed by the engine re-minting
+            // it — restart is the honest next step, not sign-in.
             return .restartEngine
         case .unauthenticated:
             return .signIn
         case .forbidden:
             // 401/403 collapse in some load paths — let identity disambiguate.
-            if let identity, identity.identity != nil {
-                if !identity.isAuthenticated { return .signIn }
-                if identity.isOwnerAccess { return .restartEngine }
+            if let isAuthenticated {
+                if !isAuthenticated { return .signIn }
+                if isOwnerAccess { return .restartEngine }
             }
             return .requestAccess
         case .transport:
@@ -55,6 +75,7 @@ struct LibraryAccessDeniedView: View {
         switch error {
         case .tlsPinFailure: return "lock.trianglebadge.exclamationmark"
         case .engineUnreachable, .transport: return "bolt.horizontal.circle"
+        case .staleBootstrapToken: return "key.slash"
         case .unauthenticated, .forbidden: return "lock.slash"
         }
     }
