@@ -321,7 +321,44 @@ class CanvasLayoutSaveParams(CanvasLayoutSaveRequest):
     folder_id: str
 
 
-@action("canvas.layout.save", CanvasLayoutSaveParams, domains=["canvas"])
+class CanvasLayoutRestoreParams(BaseModel):
+    folder_id: str
+    rows: list[dict[str, Any]] = Field(default_factory=list)
+    current_item_ids: list[str] = Field(default_factory=list)
+
+
+def _invert_canvas_layout_to_restore(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not after:
+        return None
+    scope_id = after.get("scope_id") if isinstance(after, dict) else None
+    rows_after = after.get("rows") if isinstance(after, dict) else None
+    if not scope_id or not isinstance(rows_after, list):
+        return None
+    rows_before = before.get("rows") if isinstance(before, dict) else []
+    if not isinstance(rows_before, list):
+        rows_before = []
+    current_item_ids = [
+        row.get("item_id") for row in rows_after if isinstance(row, dict) and row.get("item_id")
+    ]
+    return (
+        "canvas.layout.restore",
+        {
+            "folder_id": scope_id,
+            "rows": rows_before,
+            "current_item_ids": current_item_ids,
+        },
+    )
+
+
+@action(
+    "canvas.layout.save",
+    CanvasLayoutSaveParams,
+    domains=["canvas"],
+    undoable=True,
+    invert=_invert_canvas_layout_to_restore,
+)
 def _action_save_canvas_layout(
     db: Database, params: CanvasLayoutSaveParams, ctx: ActionContext
 ) -> tuple[dict[str, Any], ChangeSpec]:
@@ -349,7 +386,57 @@ def _action_save_canvas_layout(
     }, spec
 
 
-@action("canvas.arrange", CanvasArrangeParams, domains=["canvas"])
+@action(
+    "canvas.layout.restore",
+    CanvasLayoutRestoreParams,
+    domains=["canvas"],
+    undoable=False,
+)
+def _action_restore_canvas_layout(
+    db: Database, params: CanvasLayoutRestoreParams, ctx: ActionContext
+) -> tuple[dict[str, Any], ChangeSpec]:
+    before = [
+        row.model_dump(mode="json")
+        for row in _load_canvas_layout(db, params.folder_id)
+        if row.item_id in set(params.current_item_ids)
+    ]
+
+    restored_item_ids = {
+        row.get("item_id") for row in params.rows if isinstance(row, dict) and row.get("item_id")
+    }
+    for item_id in params.current_item_ids:
+        if item_id in restored_item_ids:
+            continue
+        existing = db.get(CanvasLayout, CanvasLayout.make_id(params.folder_id, item_id))
+        if existing is not None:
+            db.delete(existing)
+
+    restored_rows: list[CanvasLayout] = []
+    for snapshot in params.rows:
+        row = CanvasLayout.model_validate(snapshot)
+        db.save(row)
+        restored_rows.append(row)
+
+    spec = _canvas_layout_change_spec(
+        emit_type="canvas.layout.saved",
+        scope_id=params.folder_id,
+        rows=restored_rows,
+        before=before,
+        skipped=[],
+    )
+    return {
+        "items": [row.model_dump(mode="json") for row in restored_rows],
+        "skipped": [],
+    }, spec
+
+
+@action(
+    "canvas.arrange",
+    CanvasArrangeParams,
+    domains=["canvas"],
+    undoable=True,
+    invert=_invert_canvas_layout_to_restore,
+)
 def _action_arrange_canvas(
     db: Database, params: CanvasArrangeParams, ctx: ActionContext
 ) -> tuple[dict[str, Any], ChangeSpec]:
@@ -534,7 +621,58 @@ class CanvasItemDeleteParams(BaseModel):
     item_id: str
 
 
-@action("canvas.item.create", CanvasItemCreateParams, domains=["canvas"])
+class CanvasItemRestoreParams(BaseModel):
+    snapshot: dict
+
+
+def _invert_create_canvas_item(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not after:
+        return None
+    item = after.get("item") if isinstance(after.get("item"), dict) else after
+    item_id = item.get("id") if isinstance(item, dict) else None
+    folder_id = item.get("folder_id") if isinstance(item, dict) else None
+    if not item_id or not folder_id:
+        return None
+    return ("canvas.item.delete", {"folder_id": folder_id, "item_id": item_id})
+
+
+def _invert_restore_canvas_item(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not after:
+        return None
+    item = after.get("item") if isinstance(after.get("item"), dict) else after
+    item_id = item.get("id") if isinstance(item, dict) else None
+    folder_id = item.get("folder_id") if isinstance(item, dict) else None
+    if before is None:
+        if not item_id or not folder_id:
+            return None
+        return ("canvas.item.delete", {"folder_id": folder_id, "item_id": item_id})
+    if not isinstance(before, dict):
+        return None
+    return ("canvas.item.restore", {"snapshot": before})
+
+
+def _invert_to_restore_canvas_item(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not before:
+        return None
+    item = before.get("item") if isinstance(before.get("item"), dict) else before
+    if not isinstance(item, dict):
+        return None
+    return ("canvas.item.restore", {"snapshot": item})
+
+
+@action(
+    "canvas.item.create",
+    CanvasItemCreateParams,
+    domains=["canvas"],
+    undoable=True,
+    invert=_invert_create_canvas_item,
+)
 def _action_create_canvas_item(
     db: Database, params: CanvasItemCreateParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
@@ -550,7 +688,13 @@ def _action_create_canvas_item(
     return after, spec
 
 
-@action("canvas.item.update", CanvasItemUpdateParams, domains=["canvas"])
+@action(
+    "canvas.item.update",
+    CanvasItemUpdateParams,
+    domains=["canvas"],
+    undoable=True,
+    invert=_invert_to_restore_canvas_item,
+)
 def _action_update_canvas_item(
     db: Database, params: CanvasItemUpdateParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
@@ -573,7 +717,13 @@ def _action_update_canvas_item(
     return after, spec
 
 
-@action("canvas.item.delete", CanvasItemDeleteParams, domains=["canvas"])
+@action(
+    "canvas.item.delete",
+    CanvasItemDeleteParams,
+    domains=["canvas"],
+    undoable=True,
+    invert=_invert_to_restore_canvas_item,
+)
 def _action_delete_canvas_item(
     db: Database, params: CanvasItemDeleteParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
@@ -587,3 +737,29 @@ def _action_delete_canvas_item(
         emit_type="canvas.item.deleted",
     )
     return before, spec
+
+
+@action(
+    "canvas.item.restore",
+    CanvasItemRestoreParams,
+    domains=["canvas"],
+    undoable=False,
+)
+def _action_restore_canvas_item(
+    db: Database, params: CanvasItemRestoreParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    item_id = params.snapshot.get("id")
+    existing = db.get(CanvasItem, item_id) if item_id else None
+    before = existing.model_dump(mode="json") if existing else None
+    item = CanvasItem.model_validate(params.snapshot)
+    item.updated_at = datetime.now()
+    db.save(item)
+    after = item.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["canvas"],
+        target_ids=[item.id],
+        before={"item": before} if before else None,
+        after={"item": after},
+        emit_type="canvas.item.updated" if before else "canvas.item.created",
+    )
+    return after, spec
