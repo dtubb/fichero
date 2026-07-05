@@ -76,6 +76,7 @@ class AppState {
     let modelService: ModelServiceGenerated  // Public for @EnvironmentObject injection (HuggingFace browsing)
     let usersStore: UsersStore  // Public for Settings → Users tab
     let sessionStore: SessionStore  // Public for the login gate (#2021/#2022)
+    let identityStore: IdentityStore  // Public for the access UX (F5): who am I / owner?
     let localInferenceStore: LocalInferenceStore  // Public for Settings → Local LLM tab (#3120)
     let appleAvailabilityStore: AppleAvailabilityStore  // Public for FirstRun + provider rows (#3121/#3118)
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "AppState")
@@ -90,6 +91,7 @@ class AppState {
         self.modelService = ModelServiceGenerated(ficheroClient: ficheroClient)
         self.usersStore = UsersStore(client: ficheroClient)
         self.sessionStore = SessionStore(client: ficheroClient)
+        self.identityStore = IdentityStore(client: ficheroClient)
         self.localInferenceStore = LocalInferenceStore(client: ficheroClient)
         self.appleAvailabilityStore = AppleAvailabilityStore(client: ficheroClient)
         logger.info("⏱ AppState.init services ready")
@@ -215,6 +217,12 @@ class AppState {
                 // stored session, or flips ContentView to the login / owner-setup
                 // screen. A no-op (phase → .disabled) when multi-user is off.
                 await sessionStore.refresh()
+
+                // Probe "who am I on this engine?" (F5) so the access UX can
+                // phrase denials in terms of the current identity (owner / user /
+                // bootstrap). Non-fatal: a failed probe records a typed error but
+                // never blocks the ready engine.
+                await identityStore.load()
 
             default:
                 engine.markUnreachable("API returned error status")

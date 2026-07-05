@@ -3,6 +3,7 @@ import AppKit
 #elseif canImport(UIKit)
 import UIKit
 #endif
+import FicheroAPIClient
 import SwiftUI
 
 /// View shown while the embedded engine is booting (or when it failed to start).
@@ -203,6 +204,25 @@ struct BackendConnectionView: View {
         #endif
     }
 
+    /// Stale-credential recovery, shown only in the auth-rejected phase (#2864):
+    /// the engine is up but refusing our token. Clearing the session token forces
+    /// the next connect to fall back to the loopback/bootstrap credential (and, in
+    /// multi-user, back to the sign-in gate) instead of retrying the same rejected
+    /// token forever. Harmless no-op when no session token exists (single-user),
+    /// so it is safe to offer whenever auth is broken.
+    @ViewBuilder
+    private var resetSignInButton: some View {
+        Button {
+            AuthTokenMiddleware.clearSessionToken()
+            messageIndex = 0
+            Task { await onRetry?() }
+        } label: {
+            Label("Reset Sign-In & Retry", systemImage: "person.badge.key")
+        }
+        .buttonStyle(.bordered)
+        .disabled(backendService.isStarting)
+    }
+
     /// Opens the full engine log so a failure has a next step beyond "try
     /// again" — the tail already appears inline (#2864). macOS only.
     @ViewBuilder
@@ -308,6 +328,12 @@ struct BackendConnectionView: View {
                         portConflictActions
                     } else {
                         retryButton
+                        // Auth-rejected (engine up, token refused) also gets the
+                        // stale-credential reset so the taxonomy has a next step
+                        // beyond respawning into the same rejection (F6).
+                        if appState.authBroken {
+                            resetSignInButton
+                        }
                     }
                     showLogButton
                 }
