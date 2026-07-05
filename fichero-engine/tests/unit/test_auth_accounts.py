@@ -550,6 +550,73 @@ def test_identity_requires_authenticated_credential(client, monkeypatch):
     assert response.json() == {"detail": "missing or invalid Authorization header"}
 
 
+def test_identity_distinguishes_bootstrap_owner_account_user_and_unauthenticated(
+    client, app_db, monkeypatch
+):
+    _enable_multiuser(monkeypatch)
+    app_db.create_user(
+        username="owner",
+        display_name="Owner",
+        password_hash=accounts.hash_password("password"),
+        is_owner=True,
+    )
+    app_db.create_user(
+        username="member",
+        display_name="Member",
+        password_hash=accounts.hash_password("password"),
+        is_owner=False,
+    )
+
+    owner_login = client.post(
+        "/api/auth/login",
+        json={"username": "owner", "password": "password"},
+    )
+    member_login = client.post(
+        "/api/auth/login",
+        json={"username": "member", "password": "password"},
+    )
+
+    bootstrap_identity = client.get(
+        "/api/auth/identity",
+        headers=_bearer(initialize_token()),
+    )
+    owner_identity = client.get(
+        "/api/auth/identity",
+        headers=_bearer(owner_login.json()["session_token"]),
+    )
+    member_identity = client.get(
+        "/api/auth/identity",
+        headers=_bearer(member_login.json()["session_token"]),
+    )
+    unauthenticated = client.get(
+        "/api/auth/identity",
+        headers=_bearer("not-a-real-token"),
+    )
+
+    assert bootstrap_identity.status_code == 200
+    assert bootstrap_identity.json() == {
+        "multiuser_enabled": True,
+        "auth_kind": "bootstrap",
+        "user": None,
+        "is_owner_access": True,
+    }
+
+    assert owner_identity.status_code == 200
+    assert owner_identity.json()["auth_kind"] == "session"
+    assert owner_identity.json()["user"]["username"] == "owner"
+    assert owner_identity.json()["user"]["is_owner"] is True
+    assert owner_identity.json()["is_owner_access"] is True
+
+    assert member_identity.status_code == 200
+    assert member_identity.json()["auth_kind"] == "session"
+    assert member_identity.json()["user"]["username"] == "member"
+    assert member_identity.json()["user"]["is_owner"] is False
+    assert member_identity.json()["is_owner_access"] is False
+
+    assert unauthenticated.status_code == 401
+    assert unauthenticated.json() == {"detail": "missing or invalid Authorization header"}
+
+
 def test_pairing_flow_works_with_bootstrap_auth_when_multiuser_disabled(
     client,
     app_db,
