@@ -366,7 +366,7 @@ class TestSavedSearchDeleteRestoreActions:
 
 
 # ===========================================================================
-# savedsearch.reorder — multi-row renumber, audited (NOT one-click undoable)
+# savedsearch.reorder — multi-row renumber, undo via prior sort-order map
 # ===========================================================================
 
 
@@ -394,8 +394,13 @@ class TestSavedSearchReorderAction:
         assert audit.before["sort_orders"] == {c.id: 2, a.id: 0, b.id: 1}
         assert audit.after["sort_orders"] == {c.id: 0, a.id: 1, b.id: 2}
         assert emit_spy[-1][1]["type"] == "savedsearch.reordered"
+        assert registry.get("savedsearch.reorder").undoable is True
 
-        assert registry.get("savedsearch.reorder").undoable is False
+        inv, _ = _undo(db, result.audit_id, ctx)
+        assert inv == "savedsearch.restore_order"
+        assert db.get(SavedSearch, a.id).sort_order == 0
+        assert db.get(SavedSearch, b.id).sort_order == 1
+        assert db.get(SavedSearch, c.id).sort_order == 2
 
     def test_reorder_unknown_id_404(self, db):
         """A missing id mid-list 404s; the existing route semantics (partial
@@ -423,3 +428,23 @@ class TestSavedSearchReorderAction:
             registry.invoke(
                 db, "savedsearch.reorder", {"search_ids": "not-a-list-of-ids"}, _ctx()
             )
+
+    def test_reorder_undo_then_redo_reapplies_order(self, db):
+        ctx = _ctx()
+        a = _mk_saved_search(db, query="A", sort_order=0)
+        b = _mk_saved_search(db, query="B", sort_order=1)
+        c = _mk_saved_search(db, query="C", sort_order=2)
+
+        reordered = registry.invoke(
+            db, "savedsearch.reorder", {"search_ids": [c.id, a.id, b.id]}, ctx
+        )
+        _, restore_res = _undo(db, reordered.audit_id, ctx)
+        assert db.get(SavedSearch, a.id).sort_order == 0
+        assert db.get(SavedSearch, b.id).sort_order == 1
+        assert db.get(SavedSearch, c.id).sort_order == 2
+
+        inv, _ = _undo(db, restore_res.audit_id, ctx)
+        assert inv == "savedsearch.restore_order"
+        assert db.get(SavedSearch, c.id).sort_order == 0
+        assert db.get(SavedSearch, a.id).sort_order == 1
+        assert db.get(SavedSearch, b.id).sort_order == 2
